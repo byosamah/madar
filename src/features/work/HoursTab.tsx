@@ -145,7 +145,7 @@ export function HoursTab() {
       </div>
       {view.locked && <p role="status" className="rounded-2xl bg-fill p-3 text-footnote">{t('hours.locked')}</p>}
       {view.rows.length === 0 ? <EmptyState title={t('hours.emptyTitle')} body={t('hours.empty')} /> : (
-        <div className="surface overflow-x-auto rounded-card">
+        <div className="surface relative overflow-x-auto rounded-card">
           <table className="w-full min-w-[34rem] border-separate border-spacing-0 text-subheadline">
             <thead>
               <tr>

@@ -52,7 +52,7 @@ export function ProjectsScreen() {
     body = <EmptyState title={t('projects.emptyTitle')} body={t('projects.empty')} action={<Button onClick={showAll}>{t('projects.showAll')}</Button>} />;
   } else if (list.data && view === 'grid') {
     body = (
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 min-[90rem]:grid-cols-4">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 min-[90rem]:grid-cols-4">
         {list.data.map((summary) => <li key={summary.project.id}><ProjectCard summary={summary} /></li>)}
       </ul>
     );
