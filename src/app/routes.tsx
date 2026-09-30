@@ -5,6 +5,7 @@ import { Placeholder } from '../features/placeholder/Placeholder';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
 import { ProjectScreen } from '../features/project/ProjectScreen';
+import { SearchScreen } from '../features/search/SearchScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { WorkScreen } from '../features/work/WorkScreen';
 
@@ -21,7 +22,7 @@ export function createAppRouter() {
         { path: 'work', element: <WorkScreen /> },
         { path: 'dashboard', element: <Placeholder titleKey="screens.dashboard" step={4} /> },
         { path: 'inbox', element: <InboxScreen /> },
-        { path: 'search', element: <Placeholder titleKey="screens.search" step={3} /> },
+        { path: 'search', element: <SearchScreen /> },
         { path: 'tasks', element: <Placeholder titleKey="screens.tasks" step={4} /> },
         { path: 'settings', element: <SettingsScreen /> },
       ],
