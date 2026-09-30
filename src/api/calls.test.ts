@@ -24,7 +24,7 @@ const SPEC_CALLS = [
   'settings.get', 'settings.update', 'me.updatePreferences',
 ];
 // Plan clarification 3.
-const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'time.addRow', 'time.removeRow', 'events.undoStory'];
+const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'time.addRow', 'time.removeRow', 'events.undoStory', 'deadlines.list'];
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {

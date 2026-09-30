@@ -251,3 +251,20 @@ describe('plan 2 additions', () => {
     expect(detail.project.coverFileId).toBe('fil_001');
   });
 });
+
+describe('deadlines across projects', () => {
+  beforeEach(() => setNow(NOW));
+
+  it('lists the deadlines of active projects in a date range, soonest first', async () => {
+    const t = testApi(projectCalls);
+    const s = t.store.state;
+    s.deadlines.ddl_001 = { id: 'ddl_001', projectId: 'prj_001', stageId: null, name: 'Workshop', date: '2026-10-09' };
+    s.deadlines.ddl_002 = { id: 'ddl_002', projectId: 'prj_001', stageId: null, name: 'Submission', date: '2026-10-02' };
+    s.deadlines.ddl_003 = { id: 'ddl_003', projectId: 'prj_001', stageId: null, name: 'Handover', date: '2026-12-01' };
+    const rows = await t.api.call('deadlines.list', { from: '2026-09-30', to: '2026-10-14' });
+    expect(rows.map((row) => row.deadline.name)).toEqual(['Submission', 'Workshop']);
+    expect(rows[0]).toMatchObject({ project: { id: 'prj_001', code: 'KH-26-001' }, daysLeft: 2 });
+    s.projects.prj_001.status = 'on_hold';
+    expect(await t.api.call('deadlines.list', { from: '2026-09-30', to: '2026-10-14' })).toEqual([]);
+  });
+});

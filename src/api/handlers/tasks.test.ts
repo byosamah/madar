@@ -198,3 +198,14 @@ describe('task rows for the viewer', () => {
     expect(Object.fromEntries(rows.map((row) => [row.task.id, row.canMove]))).toEqual({ tsk_001: true, tsk_002: false });
   });
 });
+
+describe('created and done filters', () => {
+  it('finds tasks by the day they were created or finished', async () => {
+    const t = testApi(taskCalls);
+    t.store.state.tasks.tsk_001 = makeTask({ createdAt: '2026-09-21T09:00:00.000+03:00', status: 'done', completedAt: '2026-09-29T10:00:00.000+03:00' });
+    t.store.state.tasks.tsk_002 = makeTask({ id: 'tsk_002', createdAt: '2026-09-28T09:00:00.000+03:00' });
+    const ids = async (input: Record<string, string>) => (await t.api.call('tasks.list', input)).map((row) => row.task.id).sort();
+    expect(await ids({ createdFrom: '2026-09-27', createdTo: '2026-10-03' })).toEqual(['tsk_002']);
+    expect(await ids({ doneFrom: '2026-09-27', doneTo: '2026-10-03' })).toEqual(['tsk_001']);
+  });
+});

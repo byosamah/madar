@@ -35,6 +35,13 @@ export type FeedItem = z.infer<typeof FeedItem>;
 
 export const NextDeadline = z.object({ id: DeadlineId, name: z.string(), date: Day, daysLeft: z.number().int() });
 
+export const DeadlineRow = z.object({
+  deadline: Deadline,
+  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }),
+  daysLeft: z.number().int(),
+});
+export type DeadlineRow = z.infer<typeof DeadlineRow>;
+
 export const ViewerCan = z.object({
   edit: z.boolean(), changeLeader: z.boolean(), archive: z.boolean(), delete: z.boolean(), healthOverride: z.boolean(),
   createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(), logTime: z.boolean(),

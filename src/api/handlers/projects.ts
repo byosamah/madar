@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ClientId, Day, DeadlineId, FileId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
-import { ProjectDetail, ProjectSummary } from '../contract/views';
+import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { notify, projectPeople } from '../notify';
 import { projectRoleOf } from '../permissions';
 import { memberKey, nextId, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
+import { diffDays } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
 
 const ProjectName = z.string().trim().min(1).max(120);
@@ -436,7 +437,33 @@ export const deadlinesDelete = defineCall({
   },
 });
 
+/** Deadlines of all projects in a date range, soonest first: the dashboard's "Deadlines, next 14 days" list (spec 8.2). */
+export const deadlinesList = defineCall({
+  input: z.object({
+    from: Day.optional(),
+    to: Day.optional(),
+    status: z.union([ProjectStatus, z.literal('all')]).default('active'),
+  }),
+  output: z.array(DeadlineRow),
+  readOnly: true,
+  run(input, ctx) {
+    const { state, today } = ctx;
+    return Object.values(state.deadlines)
+      .filter((d) => {
+        const project = state.projects[d.projectId];
+        if (!project || (input.status !== 'all' && project.status !== input.status)) return false;
+        return (!input.from || d.date >= input.from) && (!input.to || d.date <= input.to);
+      })
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+      .map((d) => {
+        const project = state.projects[d.projectId];
+        return { deadline: d, project: { id: project.id, code: project.code, name: project.name }, daysLeft: diffDays(today, d.date) };
+      });
+  },
+});
+
 export const projectCalls = {
+  'deadlines.list': deadlinesList,
   'projects.list': projectsList,
   'projects.get': projectsGet,
   'projects.create': projectsCreate,

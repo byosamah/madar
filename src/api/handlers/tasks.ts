@@ -9,6 +9,7 @@ import { notify, reviewersOf } from '../notify';
 import { can, projectRoleOf } from '../permissions';
 import { nextId } from '../store';
 import { taskDetailOf, taskRowOf } from '../views';
+import { stampDay } from '../../lib/dates';
 import { assertCan, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
 
 const Title = z.string().trim().min(1).max(200);
@@ -42,6 +43,10 @@ export const tasksList = defineCall({
     status: z.array(TaskStatus).optional(),
     dueFrom: Day.optional(),
     dueTo: Day.optional(),
+    createdFrom: Day.optional(),
+    createdTo: Day.optional(),
+    doneFrom: Day.optional(),
+    doneTo: Day.optional(),
     includeDone: z.boolean().default(true),
     activeProjectsOnly: z.boolean().default(true),
   }),
@@ -59,6 +64,15 @@ export const tasksList = defineCall({
       if (status && !status.includes(task.status)) return false;
       if (dueFrom && (task.dueDate === null || task.dueDate < dueFrom)) return false;
       if (dueTo && (task.dueDate === null || task.dueDate > dueTo)) return false;
+      const created = stampDay(task.createdAt);
+      if (input.createdFrom && created < input.createdFrom) return false;
+      if (input.createdTo && created > input.createdTo) return false;
+      if (input.doneFrom || input.doneTo) {
+        if (!task.completedAt) return false;
+        const done = stampDay(task.completedAt);
+        if (input.doneFrom && done < input.doneFrom) return false;
+        if (input.doneTo && done > input.doneTo) return false;
+      }
       switch (input.filter) {
         case 'mine':
           return task.ownerId === authority.id;
