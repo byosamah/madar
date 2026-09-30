@@ -90,6 +90,7 @@ test('no screen scrolls sideways on a phone', async ({ page }) => {
   const paths = [
     '/#/', '/#/projects/prj_001', '/#/projects/prj_001?tab=tasks', '/#/projects/prj_001?tab=schedule', '/#/projects/prj_001?tab=files',
     '/#/projects/prj_001?tab=team', '/#/work', '/#/work?tab=hours', '/#/inbox', '/#/search', '/#/settings',
+    '/#/dashboard', '/#/tasks?filter=overdue', '/#/tasks?mode=deadlines',
   ];
   for (const path of paths) {
     await page.goto(path);

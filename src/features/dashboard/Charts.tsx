@@ -101,7 +101,8 @@ function Throughput({ view }: { view: DashboardData }) {
       </div>
       <div aria-hidden className="h-52">
         <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
-          <BarChart data={rows} margin={{ top: 4, bottom: 0 }}>
+          {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
+          <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
             <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
             <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
             <Bar dataKey="created" fill="var(--c-fill-strong)" radius={[4, 4, 0, 0]} />
