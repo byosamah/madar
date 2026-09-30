@@ -1,5 +1,8 @@
 import { defaultPreferences, type Project, type Stage, type Task, type User } from '../api/contract/entities';
 import { emptyState, memberKey, type State } from '../api/store';
+import { createApi, type CallMap } from '../api/client';
+import { Store } from '../api/store';
+import { memoryPersister } from '../api/persist';
 
 export const TODAY = '2026-09-30';
 export const NOW = new Date('2026-09-30T06:00:00Z');
@@ -53,4 +56,17 @@ export function makeWorld(): State {
   state.session.currentUserId = 'usr_001';
   state.counters = { usr: 5, prj: 1, stg: 2 };
   return state;
+}
+
+/** An API over a test world with no latency. "as" changes the current user. */
+export function testApi<M extends CallMap>(calls: M, state: State = makeWorld()) {
+  const store = new Store(state, memoryPersister());
+  const api = createApi(calls, { store, latencyMs: 0 });
+  return {
+    store,
+    api,
+    as(userId: string): void {
+      store.state.session.currentUserId = userId;
+    },
+  };
 }
