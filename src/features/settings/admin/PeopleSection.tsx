@@ -7,6 +7,7 @@ import { useCall } from '../../../app/runtime';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { PersonFormSheet } from './PersonFormSheet';
 
@@ -27,6 +28,7 @@ export function PeopleSection() {
           {t('admin.addPerson')}
         </Button>
       </div>
+      {users.error && !users.data && <LoadFailed error={users.error} onRetry={() => void users.refetch()} />}
       <ul className="flex flex-col">
         {(users.data ?? []).map((user) => (
           <li key={user.id} className="flex items-center gap-3 py-2">

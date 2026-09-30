@@ -17,6 +17,7 @@ import { ProjectRow } from './ProjectRow';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
+const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
 const VIEWS = ['grid', 'list'] as const;
 const SELECT = 'min-h-11 rounded-full bg-fill px-4 text-subheadline text-label';
@@ -29,6 +30,8 @@ export function ProjectsScreen() {
   const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
+  const healthParam = params.get('health');
+  const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
   const update = (change: (next: URLSearchParams) => void) => setParams((current) => {
     const next = new URLSearchParams(current);
@@ -38,6 +41,7 @@ export function ProjectsScreen() {
   const setFilter = (value: string) => update((next) => {
     next.delete('stage');
     next.delete('filter');
+    next.delete('health');
     if (value.startsWith('stage:')) next.set('stage', value.slice('stage:'.length));
     else if (value !== 'all') next.set('filter', value);
   });
@@ -54,6 +58,7 @@ export function ProjectsScreen() {
     sort,
     filter: stageName ? 'all' : filterParam,
     stageName,
+    health,
   });
   const chips = [
     { value: 'all', label: t('projects.filter.all') },
@@ -89,6 +94,12 @@ export function ProjectsScreen() {
       </div>
       <div className="flex flex-col gap-3 pb-5">
         <ChipGroup label={t('projects.filters')} value={filter} options={chips} onChange={setFilter} />
+        {health && (
+          <p className="flex items-center gap-2 text-subheadline">
+            <span className="rounded-full bg-fill px-3 py-1.5">{t('projects.healthFilter', { health: t(`health.${health}`) })}</span>
+            <Button variant="plain" onClick={() => update((next) => next.delete('health'))}>{t('projects.clearHealth')}</Button>
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <select aria-label={t('projects.statusFilter')} value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>
             {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}

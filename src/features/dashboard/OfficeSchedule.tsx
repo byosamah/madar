@@ -22,6 +22,16 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
         <h2 id="dash-schedule" className="text-headline">{t('dashboard.schedule')}</h2>
         <SegmentedControl label={t('dashboard.zoom')} value={zoom} onChange={setZoom} options={ZOOMS.map((value) => ({ value, label: t(`dashboard.zooms.${value}`) }))} />
       </div>
+      {view.schedule.length > 0 && (
+        // Every color and mark has a word (spec 10.3, WCAG 1.4.1). The stage and deadline names stay in each row's title.
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-footnote text-label-2">
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full bg-label-2" />{t('dashboard.legend.done')}</li>
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full bg-accent-fill" />{t('dashboard.legend.current')}</li>
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full ring-1 ring-inset ring-chart-muted" />{t('dashboard.legend.next')}</li>
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rotate-45 rounded-sm bg-orange-text" />{t('dashboard.legend.deadline')}</li>
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-3.5 w-px bg-red" />{t('dashboard.legend.today')}</li>
+        </ul>
+      )}
       {view.schedule.length === 0 ? <p className="text-footnote text-label-2">{t('dashboard.noData')}</p> : (
         <div className="overflow-x-auto">
           <div className="grid min-w-[40rem] grid-cols-[10rem_minmax(0,1fr)] gap-x-3">
@@ -47,7 +57,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       if (!stage.startDate || !stage.endDate) return null;
                       const part = clipSpan({ start: stage.startDate, end: stage.endDate }, span);
                       if (!part) return null;
-                      const tone = i < current ? 'bg-label-3' : i === current ? 'bg-accent-fill' : 'bg-fill-strong';
+                      const tone = i < current ? 'bg-label-2' : i === current ? 'bg-accent-fill' : 'ring-1 ring-inset ring-chart-muted';
                       return (
                         <span
                           key={stage.id}
@@ -62,7 +72,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                         key={d.id}
                         title={d.name}
                         style={{ insetInlineStart: `calc(${offsetPct(span, d.date)}% - 5px)` }}
-                        className="absolute top-4 size-2.5 rotate-45 rounded-sm bg-orange"
+                        className="absolute top-4 size-2.5 rotate-45 rounded-sm bg-orange-text"
                       />
                     ))}
                   </div>

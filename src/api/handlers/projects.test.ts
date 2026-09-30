@@ -268,3 +268,14 @@ describe('deadlines across projects', () => {
     expect(await t.api.call('deadlines.list', { from: '2026-09-30', to: '2026-10-14' })).toEqual([]);
   });
 });
+
+describe('projects by health', () => {
+  it('lists the projects of one health value', async () => {
+    const t = testApi(projectCalls);
+    const all = await t.api.call('projects.list', {});
+    for (const value of ['on_track', 'at_risk', 'late'] as const) {
+      const some = await t.api.call('projects.list', { health: value });
+      expect(some.map((s) => s.project.id)).toEqual(all.filter((s) => s.health?.value === value).map((s) => s.project.id));
+    }
+  });
+});

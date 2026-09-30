@@ -12,8 +12,9 @@ export class ApiError extends Error {
   }
 }
 
-export function invalid(field: string, message: string): ApiError {
-  return new ApiError('invalid_input', message, { fields: [field] });
+/** A refused field. A reason names a rule a person must understand; the screens have a text for each reason. */
+export function invalid(field: string, message: string, reason?: string): ApiError {
+  return new ApiError('invalid_input', message, reason ? { fields: [field], reason } : { fields: [field] });
 }
 
 export function notFound(what: string, id: string): ApiError {

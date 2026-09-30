@@ -18,7 +18,7 @@ import { NOW, TODAY } from './factories';
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */
-export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number; failFirst?: string } = {}) {
+export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number; failFirst?: string | ((name: string, input: unknown) => boolean) } = {}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
@@ -28,7 +28,8 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
     const original = api.call.bind(api);
     let failed = false;
     api.call = ((name: string, input: unknown, meta?: unknown) => {
-      if (name === options.failFirst && !failed) {
+      const matches = typeof options.failFirst === 'function' ? options.failFirst(name, input) : name === options.failFirst;
+      if (matches && !failed) {
         failed = true;
         return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
       }
