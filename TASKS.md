@@ -21,4 +21,4 @@
 - [x] 19. Design tokens and appearance
 - [x] 20. Runtime, bootstrap and toasts
 - [x] 21. App shell and Settings screen
-- [ ] 22. Verify, browser sweep and review link
+- [x] 22. Verify, browser sweep and review link
