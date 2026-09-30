@@ -224,6 +224,13 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+  /* Clear glass on a cover image, with the 35% dark layer behind the buttons (spec 10.1). */
+  .glass-media {
+    background: rgba(0, 0, 0, 0.35);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(160%);
+    color: #fff;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -237,6 +244,11 @@
 @media (prefers-reduced-transparency: reduce) {
   .glass {
     background: var(--c-card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-media {
+    background: rgba(0, 0, 0, 0.6);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
