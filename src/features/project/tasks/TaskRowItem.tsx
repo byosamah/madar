@@ -13,7 +13,7 @@ import { formatDay } from '../../../lib/dates';
  * One task: the tick, the title, the due date (red when overdue), the flag and the counts (spec 5.3).
  * A tick fills the circle at once, and the call runs after 0.5 s, so the row slides away then (spec 5.5).
  */
-export function TaskRowItem({ row, onOpen }: { row: TaskRow; onOpen: (taskId: string) => void }) {
+export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string) => void; showProject?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const [ticking, setTicking] = useState(false);
@@ -59,7 +59,9 @@ export function TaskRowItem({ row, onOpen }: { row: TaskRow; onOpen: (taskId: st
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
         </span>
       </button>
-      <Avatar user={row.owner} size={28} />
+      {showProject
+        ? <span className="tabular shrink-0 pe-2 text-footnote text-label-2">{row.project.code}</span>
+        : <Avatar user={row.owner} size={28} />}
     </motion.li>
   );
 }

@@ -268,3 +268,10 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
     </Sheet>
   );
 }
+
+/** The task panel outside its project screen, for example over My Work. */
+export function ProjectTaskSheet({ projectId, taskId, onClose }: { projectId: string; taskId: string; onClose: () => void }) {
+  const detail = useCall('projects.get', { id: projectId });
+  if (!detail.data) return null;
+  return <TaskSheet taskId={taskId} detail={detail.data} onClose={onClose} />;
+}
