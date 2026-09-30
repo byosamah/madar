@@ -57,7 +57,7 @@ describe('the Overview tab', () => {
     const box = await screen.findByRole('textbox', { name: 'Post an update' });
     expect(box).not.toHaveAttribute('aria-controls');
     await userEvent.type(box, '@Sa');
-    expect(box).toHaveAttribute('aria-controls', 'mention-list');
+    expect(box).toHaveAttribute('aria-controls', 'composer-mentions');
   });
 
   it('does not upload an attachment twice after a failed post', async () => {
