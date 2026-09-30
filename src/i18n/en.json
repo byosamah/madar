@@ -598,5 +598,113 @@
     "leads": "Leader",
     "member": "Member",
     "none": "No active projects."
+  },
+  "dashboard": {
+    "filters": "Dashboard filters",
+    "period": "Period",
+    "periods": {
+      "month": "This month",
+      "quarter": "This quarter",
+      "year": "This year"
+    },
+    "statusLabel": "Status",
+    "leader": "Leader",
+    "anyLeader": "Any leader",
+    "client": "Client",
+    "anyClient": "Any client",
+    "tiles": {
+      "activeProjects": "Active projects",
+      "atRiskOrLate": "At risk or late",
+      "overdueTasks": "Overdue tasks",
+      "deadlines": "Deadlines, next 14 days",
+      "officeHours": "Office hours this week",
+      "area": "Area in design"
+    },
+    "hoursOf": "{{hours}} of {{target}} h",
+    "percent": "{{n}}%",
+    "areaValue": "{{n}} m²",
+    "charts": {
+      "perStage": "Projects per stage",
+      "health": "Health mix",
+      "throughput": "Tasks done and created per week",
+      "hoursPerProject": "Hours per project"
+    },
+    "created": "Created",
+    "done": "Done",
+    "week": "Week of {{date}}",
+    "noData": "No data for these filters.",
+    "workload": "Workload",
+    "workloadHint": "Open tasks due each week. A red cell has more than {{n}}.",
+    "person": "Person",
+    "over": "Over the limit",
+    "overShort": "Over",
+    "cell": "{{name}}, week of {{week}}: {{n}} tasks",
+    "schedule": "Office schedule",
+    "zoom": "Zoom",
+    "zooms": {
+      "month": "Month",
+      "quarter": "Quarter",
+      "year": "Year"
+    },
+    "hoursSheet": "Hours this week",
+    "perProject": "Per project",
+    "perPerson": "Per person",
+    "hoursValue": "{{n}} h"
+  },
+  "taskList": {
+    "title": "Task list",
+    "deadlinesTitle": "Deadlines",
+    "overdue": "Overdue tasks",
+    "flagged": "Flagged tasks",
+    "forPerson": "Tasks of {{name}}",
+    "dueRange": "Due {{from}} to {{to}}",
+    "createdRange": "Created {{from}} to {{to}}",
+    "doneRange": "Done {{from}} to {{to}}",
+    "dateRange": "{{from}} to {{to}}",
+    "empty": "No tasks match this list.",
+    "emptyDeadlines": "No deadlines in this period.",
+    "count": "Items: {{n}}"
+  },
+  "admin": {
+    "people": "People",
+    "addPerson": "Add person",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "roles": {
+      "admin": "Admin",
+      "member": "Member"
+    },
+    "kind": "Kind",
+    "kinds": {
+      "human": "Person",
+      "agent": "Agent"
+    },
+    "owner": "Acts for",
+    "discipline": "Discipline",
+    "target": "Weekly target (h)",
+    "deactivate": "Deactivate",
+    "deactivated": "{{name}} deactivated.",
+    "added": "{{name}} added.",
+    "saved": "Saved.",
+    "inactive": "Inactive",
+    "actions": "Actions for {{name}}",
+    "edit": "Edit",
+    "editTitle": "Edit person",
+    "save": "Save",
+    "office": "Office settings",
+    "stages": "Default stages",
+    "prefix": "Project code prefix",
+    "prefixHint": "One to four capital letters, for example KH.",
+    "limit": "Workload limit",
+    "limitHint": "Open tasks per person in one week before the cell turns red.",
+    "saveOffice": "Save office settings",
+    "officeSaved": "Office settings saved.",
+    "unlock": "Unlock a week",
+    "unlockHint": "A week locks 14 days after it ends. Unlock it so the person can fix their hours.",
+    "person": "Person",
+    "week": "Any day in the week",
+    "unlockButton": "Unlock week",
+    "unlocked": "The week of {{week}} is open for {{name}}."
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct } from './schedule';
+import { chartRange, clipSpan, dayDelta, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct } from './schedule';
 
 describe('the chart range', () => {
   it('runs from the first month start to the last month end', () => {
@@ -32,5 +32,26 @@ describe('dragging a stage edge', () => {
     expect(moveEdge(stage, 'end', 3)).toEqual({ start: '2026-09-10', end: '2026-09-23' });
     expect(moveEdge(stage, 'start', 20)).toEqual({ start: '2026-09-20', end: '2026-09-20' });
     expect(moveEdge(stage, 'end', -20)).toEqual({ start: '2026-09-10', end: '2026-09-10' });
+  });
+});
+
+describe('office schedule windows', () => {
+  it('sets a window around today and ticks it by week or by month', () => {
+    expect(scheduleWindow('2026-09-30', 'month')).toEqual({
+      span: { start: '2026-09-23', end: '2026-11-03' },
+      ticks: ['2026-09-27', '2026-10-04', '2026-10-11', '2026-10-18', '2026-10-25', '2026-11-01'],
+    });
+    expect(scheduleWindow('2026-09-30', 'quarter')).toEqual({
+      span: { start: '2026-08-31', end: '2026-11-30' },
+      ticks: ['2026-09-01', '2026-10-01', '2026-11-01'],
+    });
+    expect(scheduleWindow('2026-09-30', 'year').ticks).toHaveLength(12);
+  });
+
+  it('cuts a bar to the window, or drops it', () => {
+    const window = { start: '2026-09-01', end: '2026-09-30' };
+    expect(clipSpan({ start: '2026-08-20', end: '2026-09-10' }, window)).toEqual({ start: '2026-09-01', end: '2026-09-10' });
+    expect(clipSpan({ start: '2026-09-05', end: '2026-10-10' }, window)).toEqual({ start: '2026-09-05', end: '2026-09-30' });
+    expect(clipSpan({ start: '2026-10-01', end: '2026-10-10' }, window)).toBeNull();
   });
 });

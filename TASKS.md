@@ -3,7 +3,7 @@
 Plan: docs/superpowers/plans/2026-09-30-madar-plan-4-dashboard.md. Plans 1 to 3 are done and reviewed.
 
 - [x] 1. Read calls for the click-through
-- [ ] 2. Schedule windows, link values and all plan 4 text
+- [x] 2. Schedule windows, link values and all plan 4 text
 - [ ] 3. Projects screen filters in the link
 - [ ] 4. The Dashboard, filters and tiles
 - [ ] 5. The Dashboard charts

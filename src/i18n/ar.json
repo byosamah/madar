@@ -598,5 +598,113 @@
     "leads": "القائد",
     "member": "عضو",
     "none": "لا توجد مشاريع نشطة."
+  },
+  "dashboard": {
+    "filters": "تصفية لوحة المعلومات",
+    "period": "الفترة",
+    "periods": {
+      "month": "هذا الشهر",
+      "quarter": "هذا الربع",
+      "year": "هذه السنة"
+    },
+    "statusLabel": "الحالة",
+    "leader": "القائد",
+    "anyLeader": "أي قائد",
+    "client": "العميل",
+    "anyClient": "أي عميل",
+    "tiles": {
+      "activeProjects": "المشاريع النشطة",
+      "atRiskOrLate": "معرضة للتأخر أو متأخرة",
+      "overdueTasks": "المهام المتأخرة",
+      "deadlines": "المواعيد خلال 14 يومًا",
+      "officeHours": "ساعات المكتب هذا الأسبوع",
+      "area": "المساحة قيد التصميم"
+    },
+    "hoursOf": "{{hours}} من {{target}} س",
+    "percent": "{{n}}٪",
+    "areaValue": "{{n}} م²",
+    "charts": {
+      "perStage": "المشاريع حسب المرحلة",
+      "health": "توزيع الحالة",
+      "throughput": "المهام المنجزة والمنشأة أسبوعيًا",
+      "hoursPerProject": "الساعات حسب المشروع"
+    },
+    "created": "منشأة",
+    "done": "منجزة",
+    "week": "أسبوع {{date}}",
+    "noData": "لا توجد بيانات لهذه التصفية.",
+    "workload": "عبء العمل",
+    "workloadHint": "المهام المفتوحة المستحقة كل أسبوع. الخانة الحمراء فيها أكثر من {{n}}.",
+    "person": "الشخص",
+    "over": "فوق الحد",
+    "overShort": "فوق",
+    "cell": "{{name}}، أسبوع {{week}}: {{n}} مهام",
+    "schedule": "جدول المكتب",
+    "zoom": "التكبير",
+    "zooms": {
+      "month": "شهر",
+      "quarter": "ربع سنة",
+      "year": "سنة"
+    },
+    "hoursSheet": "ساعات هذا الأسبوع",
+    "perProject": "حسب المشروع",
+    "perPerson": "حسب الشخص",
+    "hoursValue": "{{n}} س"
+  },
+  "taskList": {
+    "title": "قائمة المهام",
+    "deadlinesTitle": "المواعيد",
+    "overdue": "المهام المتأخرة",
+    "flagged": "المهام المميّزة",
+    "forPerson": "مهام {{name}}",
+    "dueRange": "مستحقة من {{from}} إلى {{to}}",
+    "createdRange": "أُنشئت من {{from}} إلى {{to}}",
+    "doneRange": "أُنجزت من {{from}} إلى {{to}}",
+    "dateRange": "من {{from}} إلى {{to}}",
+    "empty": "لا توجد مهام تطابق هذه القائمة.",
+    "emptyDeadlines": "لا توجد مواعيد في هذه الفترة.",
+    "count": "العناصر: {{n}}"
+  },
+  "admin": {
+    "people": "الأشخاص",
+    "addPerson": "إضافة شخص",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "roles": {
+      "admin": "مدير النظام",
+      "member": "عضو"
+    },
+    "kind": "النوع",
+    "kinds": {
+      "human": "شخص",
+      "agent": "وكيل"
+    },
+    "owner": "يعمل نيابة عن",
+    "discipline": "التخصص",
+    "target": "الساعات المستهدفة أسبوعيًا",
+    "deactivate": "إيقاف الحساب",
+    "deactivated": "أُوقف حساب {{name}}.",
+    "added": "أُضيف {{name}}.",
+    "saved": "تم الحفظ.",
+    "inactive": "غير نشط",
+    "actions": "إجراءات {{name}}",
+    "edit": "تعديل",
+    "editTitle": "تعديل الشخص",
+    "save": "حفظ",
+    "office": "إعدادات المكتب",
+    "stages": "المراحل الافتراضية",
+    "prefix": "بادئة رمز المشروع",
+    "prefixHint": "من حرف إلى أربعة أحرف لاتينية كبيرة، مثل KH.",
+    "limit": "حد عبء العمل",
+    "limitHint": "عدد المهام المفتوحة للشخص في الأسبوع قبل أن تصبح الخانة حمراء.",
+    "saveOffice": "حفظ إعدادات المكتب",
+    "officeSaved": "حُفظت إعدادات المكتب.",
+    "unlock": "فتح أسبوع",
+    "unlockHint": "يُقفل الأسبوع بعد 14 يومًا من نهايته. افتحه ليصحح الشخص ساعاته.",
+    "person": "الشخص",
+    "week": "أي يوم في الأسبوع",
+    "unlockButton": "فتح الأسبوع",
+    "unlocked": "أسبوع {{week}} مفتوح الآن لـ {{name}}."
   }
 }

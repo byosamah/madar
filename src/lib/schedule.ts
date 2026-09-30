@@ -1,4 +1,4 @@
-import { addDays, diffDays } from './dates';
+import { addDays, diffDays, weekStartOf } from './dates';
 
 /** A run of days, both ends included. */
 export type Span = { start: string; end: string };
@@ -51,4 +51,29 @@ export function moveEdge(stage: Span, edge: 'start' | 'end', days: number): Span
   }
   const end = addDays(stage.end, days);
   return { start: stage.start, end: end < stage.start ? stage.start : end };
+}
+
+export type Zoom = 'month' | 'quarter' | 'year';
+export const ZOOMS: Zoom[] = ['month', 'quarter', 'year'];
+
+const WINDOWS: Record<Zoom, [number, number]> = { month: [-7, 34], quarter: [-30, 61], year: [-91, 273] };
+
+/** The office schedule window around today (plan clarification 5). Month ticks each Sunday, the others tick each month. */
+export function scheduleWindow(today: string, zoom: Zoom): { span: Span; ticks: string[] } {
+  const [before, after] = WINDOWS[zoom];
+  const span = { start: addDays(today, before), end: addDays(today, after) };
+  const ticks: string[] = [];
+  if (zoom === 'month') {
+    const first = weekStartOf(span.start) === span.start ? span.start : addDays(weekStartOf(span.start), 7);
+    for (let day = first; day <= span.end; day = addDays(day, 7)) ticks.push(day);
+  } else {
+    for (const day of monthStarts({ start: `${span.start.slice(0, 7)}-01`, end: span.end })) if (day >= span.start) ticks.push(day);
+  }
+  return { span, ticks };
+}
+
+/** The part of a bar inside the window, or null when the bar is outside it. */
+export function clipSpan(bar: Span, window: Span): Span | null {
+  if (bar.end < window.start || bar.start > window.end) return null;
+  return { start: bar.start < window.start ? window.start : bar.start, end: bar.end > window.end ? window.end : bar.end };
 }

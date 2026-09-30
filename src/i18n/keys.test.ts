@@ -32,7 +32,7 @@ describe('text keys', () => {
   });
 
   it('has the plan 2 and plan 3 groups', () => {
-    for (const key of ['projects.new', 'project.tab.overview', 'tasks.addTask', 'schedule.today', 'files.upload', 'team.add', 'feed.task.done', 'time.minutes', 'work.group.review', 'hours.invalid', 'inbox.trigger.mention', 'comments.react', 'search.command.newTask']) {
+    for (const key of ['projects.new', 'project.tab.overview', 'tasks.addTask', 'schedule.today', 'files.upload', 'team.add', 'feed.task.done', 'time.minutes', 'work.group.review', 'hours.invalid', 'inbox.trigger.mention', 'comments.react', 'search.command.newTask', 'dashboard.tiles.overdueTasks', 'taskList.overdue', 'admin.unlockButton']) {
       expect(has(en, key)).toBe(true);
     }
   });
