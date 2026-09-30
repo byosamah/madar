@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { renderWithRuntime } from '../../test/render';
+import { NewProjectSheet } from './NewProjectSheet';
+
+function Harness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>Start</button>
+      <NewProjectSheet open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
+async function openSheet() {
+  const view = await renderWithRuntime(<Harness />, undefined, { path: '/' });
+  await userEvent.click(screen.getByText('Start'));
+  return { ...view, sheet: await screen.findByRole('dialog', { name: 'New Project' }) };
+}
+
+describe('the New Project sheet', () => {
+  it('checks each field when the person leaves it', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByLabelText('Name'));
+    await userEvent.tab();
+    expect(within(sheet).getByText('Enter a name.')).toBeInTheDocument();
+    fireEvent.change(within(sheet).getByLabelText('Start date'), { target: { value: '2026-10-10' } });
+    const end = within(sheet).getByLabelText('Target end date');
+    fireEvent.change(end, { target: { value: '2026-10-01' } });
+    fireEvent.blur(end);
+    expect(await within(sheet).findByText('The end date must be after the start date.')).toBeInTheDocument();
+  });
+
+  it('shows every error on submit and creates nothing', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(within(sheet).getByText('Enter a name.')).toBeInTheDocument();
+    await waitFor(() => expect(within(sheet).getByLabelText('Name')).toHaveFocus());
+    expect(Object.keys(store.state.projects)).toHaveLength(12);
+  });
+
+  it('creates a project with a new client, another leader and a team', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    await userEvent.type(within(sheet).getByLabelText('Client name'), 'Harbour Holding');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add client' }));
+    await waitFor(() => expect((within(sheet).getByLabelText('Client') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Harbour Holding'));
+    await userEvent.selectOptions(within(sheet).getByLabelText('Leader'), 'Faisal Al-Harbi');
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: /Sara Al-Qahtani/ }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(await screen.findByText(/KH-26-\d{3} created\./)).toBeInTheDocument();
+    const project = Object.values(store.state.projects).find((p) => p.name === 'Harbour Gate Offices');
+    expect(project?.leaderId).toBe('usr_002');
+    expect(store.state.clients[project!.clientId!].name).toBe('Harbour Holding');
+    expect(store.state.members[`${project!.id}:usr_005`]).toBeDefined();
+  });
+});
