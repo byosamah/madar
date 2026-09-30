@@ -153,4 +153,16 @@ describe('Admin settings', () => {
     expect(await within(office).findByText('Use a whole number from 1 to 100.')).toBeInTheDocument();
     expect(store.state.settings.workloadLimit).toBe(10);
   });
+
+  it('keeps the Arabic form of address of a new person', async () => {
+    const { store } = await renderApp('/settings');
+    await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add person' });
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
+    await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
+    await userEvent.selectOptions(within(sheet).getByLabelText('Form of address in Arabic'), 'female');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(Object.values(store.state.users).find((u) => u.name === 'Nora Salem')?.gender).toBe('female'));
+  });
 });

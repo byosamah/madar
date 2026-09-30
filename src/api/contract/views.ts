@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  Client, Comment, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, HealthValue, Project,
+  Client, Comment, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue, Project,
   ProjectId, Stage, StageId, Stamp, Task, UpdateId, UserId,
 } from './entities';
 
@@ -10,6 +10,7 @@ export const UserCard = z.object({
   avatarUrl: z.string().nullable(),
   kind: z.enum(['human', 'agent']),
   discipline: z.string(),
+  gender: Gender.optional(),
 });
 export type UserCard = z.infer<typeof UserCard>;
 

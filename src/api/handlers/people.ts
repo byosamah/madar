@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
+  Gender,
   Client, ClientId, Glass, Language, Settings, Theme, User, UserId, defaultPreferences, type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
@@ -114,6 +115,7 @@ export const usersCreate = defineCall({
     discipline: Discipline,
     weeklyHourTarget: Hours.default(40),
     ownerId: UserId.optional(),
+    gender: Gender.optional(),
   }),
   output: User,
   run(input, ctx) {
@@ -131,7 +133,7 @@ export const usersCreate = defineCall({
     const id = nextId(ctx.state, 'usr');
     const user: User = {
       id, name: input.name, email: input.email, systemRole: input.systemRole, kind: input.kind, discipline: input.discipline,
-      weeklyHourTarget: input.weeklyHourTarget, ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(),
+      weeklyHourTarget: input.weeklyHourTarget, ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(), gender: input.gender,
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
@@ -149,6 +151,7 @@ export const usersUpdate = defineCall({
       discipline: Discipline.optional(),
       weeklyHourTarget: Hours.optional(),
       avatarUrl: z.string().max(2000).nullable().optional(),
+      gender: Gender.optional(),
     }).strict(), // A person never becomes an agent, or back: that would break the owner rule of spec 17.
   }),
   output: User,

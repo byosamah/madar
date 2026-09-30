@@ -63,6 +63,9 @@ export function defaultPreferences(): Preferences {
   return { language: 'en', theme: 'system', glass: 'frosted', notifications };
 }
 
+export const Gender = z.enum(['female', 'male']);
+export type Gender = z.infer<typeof Gender>;
+
 export const User = z.object({
   id: UserId,
   name: z.string().trim().min(1).max(80),
@@ -76,6 +79,8 @@ export const User = z.object({
   // For an agent: the person it acts for (spec 17). For a person: null.
   ownerId: UserId.nullable(),
   preferences: Preferences,
+  // For Arabic grammar only: a verb after a person's name agrees with it. Unset reads as masculine.
+  gender: Gender.optional(),
 });
 export type User = z.infer<typeof User>;
 

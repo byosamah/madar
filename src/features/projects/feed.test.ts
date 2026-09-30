@@ -28,3 +28,16 @@ describe('feed sentences', () => {
     expect(feedText(post, t)).toBe('Hi @Sara Al-Qahtani');
   });
 });
+
+describe('Arabic feed sentences', () => {
+  it('uses the feminine verb after a woman\'s name, and the masculine one otherwise', () => {
+    initI18n('ar');
+    const ar = i18n.t.bind(i18n);
+    const sara = { ...author, id: 'usr_005', name: 'Sara Al-Qahtani', gender: 'female' as const };
+    const item = (who: typeof author) => ({ ...event('project.created', 'Tower'), author: who });
+    expect(feedText(item(sara), ar)).toBe('أنشأت المشروع');
+    expect(feedText(item(author), ar)).toBe('أنشأ المشروع');
+    initI18n('en');
+    expect(feedText(item(sara), t)).toBe('created the project');
+  });
+});

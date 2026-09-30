@@ -8,7 +8,7 @@ import type { State } from './store';
 import { diffDays } from '../lib/dates';
 
 export function userCard(user: User): UserCard {
-  return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline };
+  return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline, gender: user.gender };
 }
 
 export function cardOf(state: State, userId: string): UserCard {

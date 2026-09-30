@@ -8,8 +8,11 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 
-type Form = { name: string; email: string; systemRole: 'admin' | 'member'; kind: 'human' | 'agent'; ownerId: string; discipline: string; target: string };
-const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', target: '40' };
+type Form = {
+  name: string; email: string; systemRole: 'admin' | 'member'; kind: 'human' | 'agent'; ownerId: string; discipline: string; target: string;
+  gender: 'male' | 'female';
+};
+const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', target: '40', gender: 'male' };
 
 /** Add a person or an agent, or edit a person (spec 9). The kind is set once, when the person is added (plan clarification 6). */
 export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean; onOpenChange: (open: boolean) => void; person: User | null }) {
@@ -28,7 +31,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     create.reset();
     update.reset();
     setForm(person
-      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, target: String(person.weeklyHourTarget) }
+      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, target: String(person.weeklyHourTarget), gender: person.gender ?? 'male' }
       : EMPTY);
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,7 +48,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const submit = () => {
     const common = {
       name: form.name.trim(), email: form.email.trim(), systemRole: isAgent ? 'member' as const : form.systemRole,
-      discipline: form.discipline.trim(), weeklyHourTarget: target,
+      discipline: form.discipline.trim(), weeklyHourTarget: target, ...(isAgent ? {} : { gender: form.gender }),
     };
     if (person) update.mutate({ id: person.id, patch: common });
     else create.mutate({ ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined });
@@ -77,6 +80,13 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
           <SelectField id="person-owner" label={t('admin.owner')} value={form.ownerId} onChange={(event) => set('ownerId', event.target.value)}>
             <option value="" disabled>{t('admin.owner')}</option>
             {humans.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+        )}
+        {!isAgent && (
+          // Arabic verbs after a person's name agree with them; this picks the form (lib/grammar).
+          <SelectField id="person-gender" label={t('admin.gender')} value={form.gender} onChange={(event) => set('gender', event.target.value as Form['gender'])}>
+            <option value="male">{t('admin.genders.male')}</option>
+            <option value="female">{t('admin.genders.female')}</option>
           </SelectField>
         )}
         <TextField id="person-discipline" label={t('admin.discipline')} value={form.discipline} dir="auto" error={errorFor('discipline', t('admin.errors.discipline'))} onChange={(event) => set('discipline', event.target.value)} />

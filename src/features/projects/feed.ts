@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { FeedItem } from '../../api/contract/views';
+import { actorContext } from '../../lib/grammar';
 import { plainText } from '../../lib/text';
 
 const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'task.sent_back', 'file.added', 'member.added']);
@@ -8,12 +9,13 @@ const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'tas
 export function feedText(item: FeedItem, t: TFunction): string {
   if (item.kind === 'update') return plainText(item.body);
   const { label, detail } = item;
-  if (item.verb === 'task.status_changed') return t(`feed.task.${detail.status ?? 'done'}`, { label });
-  if (item.verb === 'project.stage_changed') return t('feed.project.stage_changed', { stage: detail.stage ?? '' });
+  const context = actorContext(item.author);
+  if (item.verb === 'task.status_changed') return t(`feed.task.${detail.status ?? 'done'}`, { label, context });
+  if (item.verb === 'project.stage_changed') return t('feed.project.stage_changed', { stage: detail.stage ?? '', context });
   if (item.verb === 'project.leader_changed') {
-    return detail.leader ? t('feed.project.leader_changed', { leader: detail.leader }) : t('feed.project.leader_cleared');
+    return detail.leader ? t('feed.project.leader_changed', { leader: detail.leader, context }) : t('feed.project.leader_cleared', { context });
   }
-  if (item.verb === 'file.version_added') return t('feed.file.version_added', { label, version: detail.version ?? '' });
-  if (SIMPLE.has(item.verb)) return t(`feed.${item.verb}`, { label });
-  return t('feed.other');
+  if (item.verb === 'file.version_added') return t('feed.file.version_added', { label, version: detail.version ?? '', context });
+  if (SIMPLE.has(item.verb)) return t(`feed.${item.verb}`, { label, context });
+  return t('feed.other', { context });
 }

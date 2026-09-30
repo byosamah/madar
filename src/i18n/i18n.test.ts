@@ -22,8 +22,19 @@ describe('languages', () => {
     applyLanguage(document.documentElement, 'en');
   });
 
-  it('has the same keys in English and Arabic', () => {
-    expect(Object.keys(arabic).sort()).toEqual(Object.keys(english).sort());
+  it('has the same keys in English and Arabic, plus Arabic feminine forms', () => {
+    // Arabic verbs agree with a woman's name; English has one form. So "_female" keys exist in Arabic only.
+    const arabicBase = Object.keys(arabic).filter((key) => !key.endsWith('_female'));
+    expect(arabicBase.sort()).toEqual(Object.keys(english).sort());
+    for (const key of Object.keys(arabic).filter((k) => k.endsWith('_female'))) {
+      const base = key.slice(0, -'_female'.length);
+      expect({ key, base: base in english }).toEqual({ key, base: true });
+      expect({ key, vars: placeholders(arabic[key]) }).toEqual({ key, vars: placeholders(english[base]) });
+    }
+  });
+
+  it('gives the feed, the task history and the Inbox a feminine Arabic form', () => {
+    for (const key of ['feed.project.created', 'feed.task.done', 'taskHistory.created', 'inbox.trigger.task_assigned']) expect(`${key}_female` in arabic).toBe(true);
   });
 
   it('has no empty text', () => {

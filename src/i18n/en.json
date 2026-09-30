@@ -729,6 +729,11 @@
       "stages": "Give every stage a name.",
       "name": "Enter a name.",
       "discipline": "Enter a discipline."
+    },
+    "gender": "Form of address in Arabic",
+    "genders": {
+      "male": "Masculine",
+      "female": "Feminine"
     }
   }
 }

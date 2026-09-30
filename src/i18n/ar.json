@@ -16,7 +16,7 @@
     "hideSidebar": "إخفاء الشريط الجانبي",
     "useTabBar": "استخدام شريط التبويب",
     "useSidebar": "استخدام الشريط الجانبي",
-    "inboxBadge": "{{count}} عناصر تحتاج إلى إجراء"
+    "inboxBadge": "عناصر تحتاج إلى إجراء: {{count}}"
   },
   "screens": {
     "projects": "المشاريع",
@@ -30,7 +30,7 @@
   },
   "placeholder": {
     "title": "هذه الشاشة قادمة",
-    "body": "تصل هذه الشاشة في مرحلة البناء {{step}}."
+    "body": "تتوفر هذه الشاشة في خطوة البناء {{step}}."
   },
   "storage": {
     "notSaved": "لن تُحفظ التغييرات في هذه النافذة."
@@ -38,12 +38,12 @@
   "preview": {
     "label": "المعاينة باسم",
     "prototype": "نموذج أولي",
-    "agentFor": "وكيل ذكي عن {{name}}",
+    "agentFor": "وكيل عن {{name}}",
     "hint": {
       "admin": "مدير النظام",
       "leader": "قائد مشروع",
       "member": "عضو فريق",
-      "agent": "وكيل ذكي"
+      "agent": "وكيل"
     }
   },
   "settings": {
@@ -73,7 +73,7 @@
     "triggers": {
       "task_assigned": "إسناد مهمة إليّ",
       "mention": "إشارة أحد إليّ",
-      "due_tomorrow": "موعد مهمتي غدًا",
+      "due_tomorrow": "استحقاق مهمتي غدًا",
       "overdue": "تأخر مهمتي",
       "review_requested": "إرسال مهمة للمراجعة",
       "task_approved": "اعتماد مهمتي",
@@ -120,23 +120,23 @@
     "now": "الآن",
     "minutes": "{{n}} د",
     "hours": "{{n}} س",
-    "days": "{{n}} ي",
-    "weeks": "{{n}} أ",
-    "daysLeft": "{{n}} ي",
-    "daysLate": "متأخر {{n}} ي",
+    "days": "{{n}} يوم",
+    "weeks": "{{n}} أسبوع",
+    "daysLeft": "بعد {{n}} يوم",
+    "daysLate": "متأخر {{n}} يوم",
     "today": "اليوم"
   },
   "health": {
     "on_track": "على المسار",
-    "at_risk": "معرض للتأخر",
+    "at_risk": "معرّض للتأخر",
     "late": "متأخر",
-    "setBy": "حدّدها {{name}}",
-    "override": "تحديد الحالة",
+    "setBy": "بتحديد {{name}}",
+    "override": "تحديد الوضع",
     "overrideHint": "تعرض الشارة اختيارك وسببه حتى تتغير المرحلة الحالية.",
     "reason": "السبب",
-    "save": "تحديد الحالة",
-    "clear": "استخدام الحالة المحسوبة",
-    "computed": "المحسوبة: {{value}}"
+    "save": "تحديد الوضع",
+    "clear": "استخدام الوضع المحسوب",
+    "computed": "المحسوب: {{value}}"
   },
   "status": {
     "active": "نشط",
@@ -157,7 +157,7 @@
     "filter": {
       "all": "الكل",
       "mine": "مشاريعي",
-      "at_risk": "معرضة للتأخر"
+      "at_risk": "معرّضة للتأخر"
     },
     "statusFilter": "الحالة",
     "sort": "الترتيب",
@@ -266,10 +266,10 @@
     "stageDates": "من {{start}} إلى {{end}}",
     "noDates": "بلا تواريخ",
     "stageTasks": "المهام المنجزة: {{done}} من {{total}}",
-    "makeCurrent": "اعتمادها مرحلة حالية",
+    "makeCurrent": "جعلها المرحلة الحالية",
     "stageChanged": "تم تغيير المرحلة الحالية.",
     "current": "المرحلة الحالية",
-    "comingSoon": "يصل هذا القسم لاحقًا في مرحلة البناء هذه."
+    "comingSoon": "يتوفر هذا القسم لاحقًا في خطوة البناء هذه."
   },
   "overview": {
     "composer": "انشر تحديثًا",
@@ -300,25 +300,40 @@
       "created": "أنشأ المشروع",
       "stage_changed": "نقل المشروع إلى {{stage}}",
       "leader_changed": "عيّن {{leader}} قائدًا",
-      "leader_cleared": "أزال القائد"
+      "leader_cleared": "أزال القائد",
+      "created_female": "أنشأت المشروع",
+      "stage_changed_female": "نقلت المشروع إلى {{stage}}",
+      "leader_changed_female": "عيّنت {{leader}} قائدًا",
+      "leader_cleared_female": "أزالت القائد"
     },
     "task": {
       "created": "أضاف المهمة «{{label}}»",
-      "todo": "أعاد «{{label}}» إلى للتنفيذ",
+      "todo": "أعاد «{{label}}» إلى «للتنفيذ»",
       "in_progress": "بدأ «{{label}}»",
       "in_review": "أرسل «{{label}}» للمراجعة",
       "done": "أنجز «{{label}}»",
       "approved": "اعتمد «{{label}}»",
-      "sent_back": "أعاد «{{label}}» للتعديل"
+      "sent_back": "أعاد «{{label}}» للتعديل",
+      "todo_female": "أعادت «{{label}}» إلى «للتنفيذ»",
+      "created_female": "أضافت المهمة «{{label}}»",
+      "in_progress_female": "بدأت «{{label}}»",
+      "in_review_female": "أرسلت «{{label}}» للمراجعة",
+      "done_female": "أنجزت «{{label}}»",
+      "approved_female": "اعتمدت «{{label}}»",
+      "sent_back_female": "أعادت «{{label}}» للتعديل"
     },
     "file": {
       "added": "أضاف الملف «{{label}}»",
-      "version_added": "أضاف النسخة {{version}} من «{{label}}»"
+      "version_added": "أضاف الإصدار {{version}} من «{{label}}»",
+      "version_added_female": "أضافت الإصدار {{version}} من «{{label}}»",
+      "added_female": "أضافت الملف «{{label}}»"
     },
     "member": {
-      "added": "أضاف {{label}} إلى الفريق"
+      "added": "أضاف {{label}} إلى الفريق",
+      "added_female": "أضافت {{label}} إلى الفريق"
     },
-    "other": "أجرى تغييرًا"
+    "other": "أجرى تغييرًا",
+    "other_female": "أجرت تغييرًا"
   },
   "tasks": {
     "view": "عرض المهام",
@@ -339,7 +354,7 @@
     "complete": "إنجاز {{title}}",
     "completed": "أُنجزت المهمة.",
     "sentToReview": "أُرسلت للمراجعة. يراجعها القائد بعد ذلك.",
-    "moved": "نُقلت إلى {{status}}.",
+    "moved": "نُقلت إلى «{{status}}».",
     "moveTo": "نقل {{title}}",
     "drag": "اسحب {{title}}",
     "empty": "لا توجد مهام هنا بعد.",
@@ -351,10 +366,10 @@
     "column": "{{status}}: {{n}}",
     "count": "المهام: {{n}}",
     "dnd": {
-      "instructions": "اضغط مسافة لالتقاط مهمة. استخدم مفاتيح الأسهم لنقلها إلى عمود آخر. اضغط مسافة مرة أخرى لإفلاتها، أو Escape للإلغاء.",
+      "instructions": "اضغط مفتاح المسافة لالتقاط مهمة. استخدم مفاتيح الأسهم لنقلها إلى عمود آخر. اضغط مفتاح المسافة مرة أخرى لإفلاتها، أو مفتاح Escape للإلغاء.",
       "pickedUp": "تم التقاط {{title}}.",
-      "over": "{{title}} فوق {{status}}.",
-      "dropped": "أُفلتت {{title}} في {{status}}.",
+      "over": "{{title}} فوق عمود «{{status}}».",
+      "dropped": "أُفلتت {{title}} في عمود «{{status}}».",
       "cancelled": "أُلغي نقل {{title}}."
     },
     "allDone": "أُنجزت كل مهام هذه المرحلة."
@@ -366,7 +381,7 @@
     "dueDate": "تاريخ الاستحقاق",
     "stage": "المرحلة",
     "flag": "تمييز",
-    "flagHint": "علّم هذه المهمة كمهمة مهمة.",
+    "flagHint": "ميّز هذه المهمة لأهميتها.",
     "needsReview": "تحتاج مراجعة",
     "needsReviewHint": "يراجع القائد المهمة قبل إنجازها.",
     "description": "الوصف",
@@ -377,7 +392,7 @@
     "noFiles": "لا توجد ملفات لهذه المهمة.",
     "hours": "الساعات المسجلة",
     "hoursValue": "{{n}} س",
-    "logTime": "تسجيل الوقت",
+    "logTime": "تسجيل الساعات",
     "history": "السجل",
     "noHistory": "لا توجد تغييرات بعد.",
     "approve": "اعتماد",
@@ -397,7 +412,7 @@
     "created": "أنشأ المهمة",
     "updated": "غيّر {{fields}}",
     "reassigned": "غيّر المسؤول",
-    "status": "نقلها إلى {{status}}",
+    "status": "نقلها إلى «{{status}}»",
     "approved": "اعتمدها",
     "sent_back": "أعادها للتعديل",
     "deleted": "حذف المهمة",
@@ -413,7 +428,15 @@
       "checklist": "قائمة التحقق",
       "status": "الحالة",
       "completedAt": "الحالة"
-    }
+    },
+    "status_female": "نقلتها إلى «{{status}}»",
+    "created_female": "أنشأت المهمة",
+    "updated_female": "غيّرت {{fields}}",
+    "reassigned_female": "غيّرت المسؤول",
+    "approved_female": "اعتمدتها",
+    "sent_back_female": "أعادتها للتعديل",
+    "deleted_female": "حذفت المهمة",
+    "undo_female": "تراجعت عن تغيير"
   },
   "schedule": {
     "chart": "الخط الزمني للمراحل",
@@ -445,8 +468,8 @@
     "tooBig": "حجم {{name}} أكبر من 25 ميغابايت.",
     "emptyTitle": "لا توجد ملفات بعد",
     "empty": "ارفع هنا المخططات والصور والمستندات.",
-    "version": "النسخة {{letter}}",
-    "versions": "النسخ",
+    "version": "الإصدار {{letter}}",
+    "versions": "الإصدارات",
     "preview": "معاينة",
     "download": "تنزيل",
     "setCover": "تعيين كغلاف",
@@ -473,7 +496,7 @@
     "added": "تمت إضافة {{name}} إلى الفريق.",
     "remove": "إزالة من الفريق",
     "removed": "تمت إزالة {{name}} من الفريق.",
-    "makeLeader": "تعيينه قائدًا",
+    "makeLeader": "تعيين كقائد للمشروع",
     "actions": "إجراءات {{name}}",
     "noOne": "كل الأشخاص في الفريق بالفعل."
   },
@@ -491,7 +514,7 @@
       "later": "لاحقًا",
       "none": "بلا تاريخ"
     },
-    "emptyTitle": "لا شيء معلّق",
+    "emptyTitle": "لا شيء بانتظارك",
     "empty": "لا توجد لديك مهام مفتوحة."
   },
   "hours": {
@@ -517,7 +540,7 @@
     "showWeekend": "إظهار الجمعة والسبت",
     "hideWeekend": "إخفاء الجمعة والسبت",
     "locked": "هذا الأسبوع مقفل. اطلب من مدير النظام فتحه.",
-    "invalid": "استخدم خطوات من 0.5، من 0 إلى 24.",
+    "invalid": "أدخل قيمة من 0 إلى 24، بزيادات 0.5.",
     "emptyTitle": "لا توجد ساعات هذا الأسبوع",
     "empty": "أضف صفًا، أو انسخ صفوف الأسبوع الماضي.",
     "dayOver": "لا يمكن أن يزيد اليوم على 24 ساعة."
@@ -537,14 +560,21 @@
     "trigger": {
       "task_assigned": "{{actor}} أسند إليك «{{target}}»",
       "mention": "{{actor}} أشار إليك في {{target}}",
-      "due_tomorrow": "موعد «{{target}}» غدًا",
+      "due_tomorrow": "«{{target}}» مستحقة غدًا",
       "overdue": "«{{target}}» متأخرة",
       "review_requested": "{{actor}} أرسل «{{target}}» للمراجعة",
       "task_approved": "{{actor}} اعتمد «{{target}}»",
       "task_sent_back": "{{actor}} أعاد «{{target}}» للتعديل",
       "stage_changed": "{{actor}} غيّر مرحلة {{target}}",
       "added_to_project": "{{actor}} أضافك إلى {{target}}",
-      "week_under_target": "ساعاتك لأسبوع {{target}} أقل من المستهدف"
+      "week_under_target": "ساعاتك لأسبوع {{target}} أقل من المستهدف",
+      "task_assigned_female": "{{actor}} أسندت إليك «{{target}}»",
+      "mention_female": "{{actor}} أشارت إليك في {{target}}",
+      "review_requested_female": "{{actor}} أرسلت «{{target}}» للمراجعة",
+      "task_approved_female": "{{actor}} اعتمدت «{{target}}»",
+      "task_sent_back_female": "{{actor}} أعادت «{{target}}» للتعديل",
+      "stage_changed_female": "{{actor}} غيّرت مرحلة {{target}}",
+      "added_to_project_female": "{{actor}} أضافتك إلى {{target}}"
     }
   },
   "comments": {
@@ -585,7 +615,7 @@
     "command": {
       "newTask": "مهمة جديدة",
       "newProject": "مشروع جديد",
-      "logTime": "تسجيل الوقت",
+      "logTime": "تسجيل الساعات",
       "dashboard": "الانتقال إلى لوحة المعلومات",
       "myWork": "الانتقال إلى عملي"
     }
@@ -622,7 +652,7 @@
     "anyClient": "أي عميل",
     "tiles": {
       "activeProjects": "المشاريع النشطة",
-      "atRiskOrLate": "معرضة للتأخر أو متأخرة",
+      "atRiskOrLate": "معرّضة للتأخر أو متأخرة",
       "overdueTasks": "المهام المتأخرة",
       "deadlines": "المواعيد خلال 14 يومًا",
       "officeHours": "ساعات المكتب هذا الأسبوع",
@@ -633,7 +663,7 @@
     "areaValue": "{{n}} م²",
     "charts": {
       "perStage": "المشاريع حسب المرحلة",
-      "health": "توزيع الحالة",
+      "health": "المشاريع حسب الوضع",
       "throughput": "المهام المنجزة والمنشأة أسبوعيًا",
       "hoursPerProject": "الساعات حسب المشروع"
     },
@@ -646,7 +676,7 @@
     "person": "الشخص",
     "over": "فوق الحد",
     "overShort": "فوق",
-    "cell": "{{name}}، أسبوع {{week}}: {{n}} مهام",
+    "cell": "{{name}}، أسبوع {{week}}، عدد المهام: {{n}}",
     "schedule": "جدول المكتب",
     "zoom": "التكبير",
     "zooms": {
@@ -700,7 +730,7 @@
     "target": "الساعات المستهدفة أسبوعيًا",
     "deactivate": "إيقاف الحساب",
     "deactivated": "أُوقف حساب {{name}}.",
-    "added": "أُضيف {{name}}.",
+    "added": "تمت إضافة {{name}}.",
     "saved": "تم الحفظ.",
     "inactive": "غير نشط",
     "actions": "إجراءات {{name}}",
@@ -729,6 +759,11 @@
       "stages": "أدخل اسمًا لكل مرحلة.",
       "name": "أدخل الاسم.",
       "discipline": "أدخل التخصص."
+    },
+    "gender": "صيغة المخاطبة بالعربية",
+    "genders": {
+      "male": "مذكّر",
+      "female": "مؤنّث"
     }
   }
 }

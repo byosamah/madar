@@ -117,7 +117,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
               <p className="min-w-0 flex-1">
                 <bdi className="font-semibold">{actor.name}</bdi>{' '}
                 {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
-                <span className="text-label-2">{historyText(event, t, lang)}</span>
+                <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
               </p>
               <span className="shrink-0 text-caption text-label-2"><Age stamp={event.createdAt} /></span>
               {event.actorKind === 'agent' && !event.undoneBy && event.verb !== 'undo' && canUndoAgent(event.actingForId) && (

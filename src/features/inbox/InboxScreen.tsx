@@ -13,6 +13,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
+import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 
@@ -32,6 +33,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   };
   const sentence = t(`inbox.trigger.${n.trigger}`, {
     actor: actor?.name ?? t('inbox.someone'),
+    context: actorContext(actor),
     target: n.trigger === 'week_under_target' ? formatDay(target, lang, 'long') : target,
   });
   return (

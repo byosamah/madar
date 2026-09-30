@@ -16,15 +16,15 @@ function at(day: string, hour = 9, minute = 0): string {
 }
 
 // Invented people and clients. usr_001 to usr_008 in this order, then the agent as usr_009.
-const PEOPLE: { name: string; admin?: boolean; discipline: string }[] = [
-  { name: 'Hala Nasser', admin: true, discipline: 'Architect' },
-  { name: 'Faisal Al-Harbi', discipline: 'Architect' },
-  { name: 'Reem Al-Ghamdi', discipline: 'Architect' },
-  { name: 'Omar Haddad', discipline: 'Structural' },
-  { name: 'Sara Al-Qahtani', discipline: 'Architect' },
-  { name: 'Yousef Saleh', discipline: 'MEP' },
-  { name: 'Lina Mansour', discipline: 'Interior' },
-  { name: 'Khalid Al-Mutairi', discipline: 'Structural' },
+const PEOPLE: { name: string; admin?: boolean; discipline: string; gender: 'female' | 'male' }[] = [
+  { name: 'Hala Nasser', admin: true, discipline: 'Architect', gender: 'female' },
+  { name: 'Faisal Al-Harbi', discipline: 'Architect', gender: 'male' },
+  { name: 'Reem Al-Ghamdi', discipline: 'Architect', gender: 'female' },
+  { name: 'Omar Haddad', discipline: 'Structural', gender: 'male' },
+  { name: 'Sara Al-Qahtani', discipline: 'Architect', gender: 'female' },
+  { name: 'Yousef Saleh', discipline: 'MEP', gender: 'male' },
+  { name: 'Lina Mansour', discipline: 'Interior', gender: 'female' },
+  { name: 'Khalid Al-Mutairi', discipline: 'Structural', gender: 'male' },
 ];
 
 const CLIENTS: [string, string][] = [
@@ -333,7 +333,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     const user: User = {
       id, name: person.name, email: `${person.name.toLowerCase().replace(/[^a-z]+/g, '.')}@madar.test`, avatarUrl: null, kind: 'human',
       systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, weeklyHourTarget: 40, active: true, ownerId: null,
-      preferences: defaultPreferences(),
+      preferences: defaultPreferences(), gender: person.gender,
     };
     state.users[id] = user;
     return user;
