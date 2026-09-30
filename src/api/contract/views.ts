@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
-  Client, Day, Deadline, DeadlineId, EventId, EventTarget, FileId, HealthValue, Project, Stage, Stamp, UpdateId, UserId,
+  Client, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, HealthValue, Project, ProjectId, Stage, StageId,
+  Stamp, Task, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -61,3 +62,24 @@ export const ProjectDetail = ProjectSummary.extend({
   viewerCan: ViewerCan,
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
+
+export const EventView = z.object({ event: Event, actor: UserCard });
+export type EventView = z.infer<typeof EventView>;
+
+export const TaskRow = z.object({
+  task: Task,
+  owner: UserCard,
+  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }),
+  stage: z.object({ id: StageId, name: z.string() }),
+  commentCount: z.number().int().min(0),
+  fileCount: z.number().int().min(0),
+  overdue: z.boolean(),
+});
+export type TaskRow = z.infer<typeof TaskRow>;
+
+export const TaskDetail = TaskRow.extend({
+  hours: z.number().min(0),
+  viewerCan: z.object({ edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean() }),
+  history: z.array(EventView),
+});
+export type TaskDetail = z.infer<typeof TaskDetail>;

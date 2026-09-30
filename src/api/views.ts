@@ -1,6 +1,6 @@
-import type { Deadline, Event, Project, Stage, Update, User } from './contract/entities';
-import type { FeedItem, ProjectDetail, ProjectSummary, UserCard } from './contract/views';
-import { computeHealth } from './health';
+import type { Deadline, Event, Project, Stage, Task, Update, User } from './contract/entities';
+import type { EventView, FeedItem, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard } from './contract/views';
+import { computeHealth, isOverdue } from './health';
 import { can, projectRoleOf } from './permissions';
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
@@ -153,5 +153,43 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
       review: can(viewer, 'task.review', r),
       logTime: can(viewer, 'time.logOnProject', r),
     },
+  };
+}
+
+export function eventViewOf(state: State, event: Event): EventView {
+  return { event, actor: cardOf(state, event.actorId) };
+}
+
+export function taskRowOf(state: State, task: Task, today: string): TaskRow {
+  const project = state.projects[task.projectId];
+  const stage = state.stages[task.stageId];
+  return {
+    task,
+    owner: cardOf(state, task.ownerId),
+    project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '' },
+    stage: { id: task.stageId, name: stage?.name ?? '' },
+    commentCount: countComments(state, 'task', task.id),
+    fileCount: Object.values(state.files).filter((f) => f.taskId === task.id).length,
+    overdue: isOverdue(task, today),
+  };
+}
+
+export function taskDetailOf(state: State, task: Task, today: string, viewer: User): TaskDetail {
+  const r = { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId };
+  const history = Object.values(state.events)
+    .filter((e) => e.targetType === 'task' && e.targetId === task.id)
+    .sort((a, b) => b.seq - a.seq)
+    .map((e) => eventViewOf(state, e));
+  return {
+    ...taskRowOf(state, task, today),
+    hours: Object.values(state.time).filter((e) => e.taskId === task.id).reduce((sum, e) => sum + e.hours, 0),
+    viewerCan: {
+      edit: can(viewer, 'task.updateOwn', r),
+      editAll: can(viewer, 'task.updateAny', r),
+      complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
+      review: can(viewer, 'task.review', r) && task.status === 'in_review',
+      delete: can(viewer, 'task.delete', r),
+    },
+    history,
   };
 }
