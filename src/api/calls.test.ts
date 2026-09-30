@@ -54,4 +54,9 @@ describe('the call map', () => {
     expect(feed[0]).toMatchObject({ kind: 'event', verb: 'task.approved' });
     expect((await t.api.call('dashboard.get', {})).charts.throughput[11].done).toBe(1);
   });
+
+  it('marks exactly the session calls as prototype-only, so the agent contract leaves them out', () => {
+    const marked = Object.entries(calls).filter(([, def]) => (def as { prototypeOnly?: boolean }).prototypeOnly).map(([name]) => name).sort();
+    expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
+  });
 });

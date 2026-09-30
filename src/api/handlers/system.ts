@@ -8,6 +8,7 @@ import { todayISO } from '../../lib/dates';
 export const sessionResetSampleData = defineCall({
   input: z.object({}),
   output: z.object({ ok: z.literal(true) }),
+  prototypeOnly: true,
   async prepare(_input, p): Promise<State> {
     await p.persister.clear();
     return buildSeed(todayISO(p.now), (key, blob) => p.persister.putBlob(key, blob));

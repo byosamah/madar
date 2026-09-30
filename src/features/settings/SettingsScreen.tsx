@@ -105,7 +105,7 @@ export function SettingsScreen() {
             key={name}
             id={`trigger-${name}`}
             label={t(`settings.triggers.${name}`)}
-            checked={prefs.notifications[name]}
+            checked={session.data.authority.preferences.notifications[name]}
             onChange={(on) => trigger.mutate({ trigger: name, on })}
           />
         ))}

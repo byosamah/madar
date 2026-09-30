@@ -34,14 +34,22 @@ const prepared = defineCall({
   prepare: async () => 'from prepare',
   run: (_input, _ctx, value) => ({ got: value }),
 });
-const ping = defineCall({ input: z.object({}), output: z.object({ ok: z.boolean() }), run: () => ({ ok: true }) });
+const ping = defineCall({ input: z.object({}), output: z.object({ ok: z.boolean() }), prototypeOnly: true, run: () => ({ ok: true }) });
 const whoami = defineCall({
   input: z.object({}),
   output: z.object({ actor: z.string(), authority: z.string(), correlationId: z.string() }),
   readOnly: true,
   run: (_input, ctx) => ({ actor: ctx.actor.id, authority: ctx.authority.id, correlationId: ctx.correlationId }),
 });
-const CALLS = { 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'test.whoami': whoami, 'session.ping': ping };
+const breaker = defineCall({
+  input: z.object({}),
+  output: z.object({ limit: z.number() }),
+  run(_input, ctx) {
+    ctx.state.settings.workloadLimit = 99;
+    return { limit: 'many' } as unknown as { limit: number };
+  },
+});
+const CALLS = { 'test.breaker': breaker, 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'test.whoami': whoami, 'session.ping': ping };
 
 let store: Store;
 beforeEach(() => {
@@ -116,5 +124,23 @@ describe('createApi', () => {
     const a = await api.call('test.whoami', {});
     const b = await api.call('test.whoami', {});
     expect(a.correlationId).not.toBe(b.correlationId);
+  });
+
+  it('refuses a bad story id and changes nothing', async () => {
+    await expect(apiWith().call('test.bump', { by: 1 }, { correlationId: '' })).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['correlationId'] },
+    });
+    expect(store.state.settings.workloadLimit).toBe(10);
+  });
+
+  it('rolls back a call whose output has the wrong shape', async () => {
+    await expect(apiWith().call('test.breaker', {})).rejects.toMatchObject({ code: 'failed' });
+    expect(store.state.settings.workloadLimit).toBe(10);
+  });
+
+  it('lets session calls run for an agent whose person is not active', async () => {
+    store.state.session.currentUserId = 'usr_005';
+    store.state.users.usr_003.active = false;
+    await expect(apiWith().call('session.ping', {})).resolves.toEqual({ ok: true });
   });
 });

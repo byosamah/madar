@@ -104,3 +104,18 @@ describe('client and settings calls', () => {
     await expect(t.api.call('settings.update', { workloadLimit: 12 })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });
+
+describe('review fixes', () => {
+  it('does not let anyone turn a person into an agent or back', async () => {
+    const { api } = testApi(peopleCalls);
+    await expect(api.call('users.update', { id: 'usr_001', patch: { kind: 'agent' } } as never)).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('returns the authority with its preferences', async () => {
+    const t = testApi(peopleCalls);
+    t.as('usr_005');
+    const session = await t.api.call('session.get', {});
+    expect(session.authority.id).toBe('usr_003');
+    expect(session.authority.preferences.notifications.mention).toBe(true);
+  });
+});

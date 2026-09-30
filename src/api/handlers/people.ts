@@ -29,8 +29,11 @@ const PreviewUser = UserCard.extend({
 
 export const sessionGet = defineCall({
   input: Empty,
-  output: z.object({ user: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean() }),
+  output: z.object({
+    user: User, authority: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
+  }),
   readOnly: true,
+  prototypeOnly: true,
   run(_input, ctx) {
     const leaders = new Set(Object.values(ctx.state.projects).map((p) => p.leaderId));
     // An agent shows only while its person is active, because it cannot act otherwise.
@@ -45,13 +48,15 @@ export const sessionGet = defineCall({
         hint: u.kind === 'agent' ? ('agent' as const) : u.systemRole === 'admin' ? ('admin' as const) : leaders.has(u.id) ? ('leader' as const) : ('member' as const),
       }));
     const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
-    return { user: ctx.actor, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
+    // "authority" is the person whose rights and notification choices apply: the user, or the person an agent acts for.
+    return { user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
   },
 });
 
 export const sessionPreviewAs = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ user: User }),
+  prototypeOnly: true,
   run(input, ctx) {
     const user = requireUser(ctx, input.userId);
     if (!user.active) throw invalid('userId', 'This person is not active.');
@@ -65,6 +70,7 @@ export const sessionPreviewAs = defineCall({
 export const sessionSetSimulateErrors = defineCall({
   input: z.object({ on: z.boolean() }),
   output: z.object({ simulateErrors: z.boolean() }),
+  prototypeOnly: true,
   run(input, ctx) {
     ctx.state.session.simulateErrors = input.on;
     return { simulateErrors: input.on };
@@ -134,11 +140,10 @@ export const usersUpdate = defineCall({
       name: Name.optional(),
       email: z.email().optional(),
       systemRole: SystemRole.optional(),
-      kind: Kind.optional(),
       discipline: Discipline.optional(),
       weeklyHourTarget: Hours.optional(),
       avatarUrl: z.string().max(2000).nullable().optional(),
-    }),
+    }).strict(), // A person never becomes an agent, or back: that would break the owner rule of spec 17.
   }),
   output: User,
   run(input, ctx) {

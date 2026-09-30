@@ -44,4 +44,13 @@ describe('settings screen', () => {
     expect(await screen.findByText('The sample data is back to its start state.')).toBeInTheDocument();
     expect(store.state.projects.prj_001.name).toBe('Corniche Office Tower');
   });
+
+  it("shows the notification switches of the agent's person when previewing as an agent", async () => {
+    await renderApp('/settings', (state) => {
+      const agent = Object.values(state.users).find((u) => u.kind === 'agent')!;
+      state.users[agent.ownerId!].preferences.notifications.mention = false;
+      state.session.currentUserId = agent.id;
+    });
+    expect(await screen.findByRole('switch', { name: 'Someone mentions me' })).toHaveAttribute('aria-checked', 'false');
+  });
 });

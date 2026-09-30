@@ -14,6 +14,8 @@ export interface CallDef<I extends z.ZodType, O extends z.ZodType, P = undefined
   input: I;
   output: O;
   readOnly?: boolean;
+  /** A control of the prototype itself (who you preview as, sample data). It runs for any current user and stays out of the agent contract. */
+  prototypeOnly?: boolean;
   prepare?(input: z.output<I>, ctx: PrepareCtx): Promise<P>;
   run(input: z.output<I>, ctx: Ctx, prepared: P): z.input<O>;
 }

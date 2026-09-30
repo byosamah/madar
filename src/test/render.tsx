@@ -4,7 +4,7 @@ import { RouterProvider } from 'react-router';
 import { calls } from '../api/calls';
 import { createApi } from '../api/client';
 import { memoryPersister } from '../api/persist';
-import { Store } from '../api/store';
+import { Store, type State } from '../api/store';
 import { buildSeed } from '../data/seed';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
@@ -14,10 +14,11 @@ import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
 import { NOW, TODAY } from './factories';
 
-/** Renders the whole app over the sample office, at a hash route, with no latency. */
-export async function renderApp(path = '/') {
+/** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
+export async function renderApp(path = '/', prepare?: (state: State) => void) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
+  prepare?.(state);
   const store = new Store(state, memoryPersister());
   const api = createApi(calls, { store, latencyMs: 0 });
   initI18n('en');
