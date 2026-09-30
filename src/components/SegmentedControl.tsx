@@ -2,7 +2,7 @@ export function SegmentedControl<T extends string>({
   label, value, options, onChange,
 }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-full bg-fill p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap self-start rounded-full bg-fill p-0.5">
       {options.map((option) => (
         <button
           key={option.value}

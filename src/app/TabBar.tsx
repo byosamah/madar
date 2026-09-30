@@ -25,7 +25,7 @@ export function TabBar() {
             className={`pressable relative flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full py-1 ${active ? 'text-accent' : 'text-label-2'}`}
           >
             <Icon size={22} aria-hidden />
-            <span className="text-caption font-medium">{t(item.key)}</span>
+            <span className="whitespace-nowrap text-caption font-medium">{t(item.tabKey ?? item.key)}</span>
             {item.badge && badge > 0 && <Badge count={badge} label={t('nav.inboxBadge', { count: badge })} className="absolute top-0 end-[18%]" />}
           </Link>
         );
