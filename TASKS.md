@@ -13,7 +13,7 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-2-projects.md. Plan 1 (all 22
 - [x] 9. The Project screen and its header
 - [x] 10. The Overview tab
 - [x] 11. The Tasks tab list
-- [ ] 12. The task board
+- [x] 12. The task board
 - [ ] 13. The task sheet
 - [ ] 14. The Schedule tab
 - [ ] 15. The Files tab
