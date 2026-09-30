@@ -349,7 +349,8 @@
       "over": "{{title}} is over {{status}}.",
       "dropped": "{{title}} dropped on {{status}}.",
       "cancelled": "The move of {{title}} is cancelled."
-    }
+    },
+    "allDone": "All tasks in this stage are done."
   },
   "taskSheet": {
     "title": "Title",

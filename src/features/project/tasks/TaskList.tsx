@@ -36,7 +36,9 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
 }
 
 /** Tasks grouped by stage (spec 5.3). With a filter on, empty groups hide. */
-export function TaskList({ detail, rows, filtered, onOpen }: { detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string) => void }) {
+export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
+  detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string) => void; doneCounts: Record<string, number>;
+}) {
   const { t } = useTranslation();
   const groups = detail.stages
     .map((stage) => ({ stage, rows: rows.filter((row) => row.task.stageId === stage.id) }))
@@ -56,7 +58,9 @@ export function TaskList({ detail, rows, filtered, onOpen }: { detail: ProjectDe
               {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={onOpen} />)}
             </AnimatePresence>
           </ul>
-          {stageRows.length === 0 && <p className="px-4 pb-2 text-footnote text-label-2">{t('tasks.empty')}</p>}
+          {stageRows.length === 0 && (
+            <p className="px-4 pb-2 text-footnote text-label-2">{(doneCounts[stage.id] ?? 0) > 0 ? t('tasks.allDone') : t('tasks.empty')}</p>
+          )}
         </section>
       ))}
     </div>

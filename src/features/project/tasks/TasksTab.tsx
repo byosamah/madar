@@ -21,6 +21,9 @@ export function TasksTab({ detail }: TabProps) {
   const [showDone, setShowDone] = useState(false);
   const tasks = useCall('tasks.list', { projectId: detail.project.id, filter, activeProjectsOnly: false });
   const rows = tasks.data ?? [];
+  // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
+  const doneCounts: Record<string, number> = {};
+  for (const row of rows) if (row.task.status === 'done') doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
   const open = (taskId: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('task', taskId);
@@ -46,7 +49,7 @@ export function TasksTab({ detail }: TabProps) {
         </div>
       </div>
       {tasks.data && (view === 'list'
-        ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} />
+        ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
         : <TaskBoard rows={rows} onOpen={open} />)}
       {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={closeTask} />}
     </div>

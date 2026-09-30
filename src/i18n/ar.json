@@ -349,7 +349,8 @@
       "over": "{{title}} فوق {{status}}.",
       "dropped": "أُفلتت {{title}} في {{status}}.",
       "cancelled": "أُلغي نقل {{title}}."
-    }
+    },
+    "allDone": "أُنجزت كل مهام هذه المرحلة."
   },
   "taskSheet": {
     "title": "العنوان",

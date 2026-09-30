@@ -54,4 +54,10 @@ describe('the Tasks tab list', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Stair details/ }));
     await waitFor(() => expect(window.location.hash).toContain('task=tsk_007'));
   });
+
+  it('says so when every task of a stage is done', async () => {
+    await renderApp(TASKS);
+    expect(await within(await screen.findByRole('region', { name: 'Schematic Design' })).findByText('All tasks in this stage are done.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Concept' })).getByText('No tasks here yet.')).toBeInTheDocument();
+  });
 });
