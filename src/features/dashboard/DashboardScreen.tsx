@@ -8,6 +8,7 @@ import { SelectField } from '../../components/Fields';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { oneOf } from '../../lib/params';
 import { Charts } from './Charts';
+import { OfficeSchedule } from './OfficeSchedule';
 import { Tiles } from './Tiles';
 import { Workload } from './Workload';
 
@@ -66,6 +67,7 @@ export function DashboardScreen() {
           <Tiles view={view} />
           <Charts view={view} />
           <Workload view={view} />
+          <OfficeSchedule view={view} />
         </>
       )}
     </div>
