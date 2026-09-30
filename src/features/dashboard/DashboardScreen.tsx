@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { SelectField } from '../../components/Fields';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { oneOf } from '../../lib/params';
+import { Charts } from './Charts';
 import { Tiles } from './Tiles';
 
 const PERIODS = ['month', 'quarter', 'year'] as const;
@@ -62,6 +63,7 @@ export function DashboardScreen() {
       {view && (
         <>
           <Tiles view={view} />
+          <Charts view={view} />
         </>
       )}
     </div>
