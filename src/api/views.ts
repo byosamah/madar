@@ -3,7 +3,7 @@ import type {
   CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
-import { can, projectRoleOf } from './permissions';
+import { can, projectRoleOf, type ProjectRole } from './permissions';
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
 
@@ -104,17 +104,37 @@ export function feedFor(state: State, projectId: string, filter: 'all' | 'posts'
   return items.sort(newestFirst).slice(0, limit);
 }
 
-export function summaryOf(state: State, project: Project, today: string): ProjectSummary {
+function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['viewerCan'] {
+  const r = { projectRole };
+  return {
+    edit: can(viewer, 'project.edit', r),
+    changeLeader: can(viewer, 'project.changeLeader', r),
+    archive: can(viewer, 'project.archive', r),
+    delete: can(viewer, 'project.delete', r),
+    healthOverride: can(viewer, 'project.healthOverride', r),
+    createTaskForAnyone: can(viewer, 'task.createForAnyone', r),
+    createTaskForSelf: can(viewer, 'task.createForSelf', r),
+    post: can(viewer, 'content.post', r),
+    review: can(viewer, 'task.review', r),
+    logTime: can(viewer, 'time.logOnProject', r),
+  };
+}
+
+/** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
+export function summaryOf(state: State, project: Project, today: string, viewer: User): ProjectSummary {
   const stages = stagesOf(state, project.id);
   const tasks = Object.values(state.tasks).filter((t) => t.projectId === project.id);
   const deadlines = deadlinesOf(state, project.id);
   const next = deadlines.find((d) => d.date >= today) ?? [...deadlines].reverse().find((d) => d.date < today) ?? null;
   const latest = feedFor(state, project.id, 'all', 2);
   const newest = latest[0]?.at;
+  const health = computeHealth({ project, stages, tasks }, today);
+  const viewerRole = projectRoleOf(state, project.id, viewer.id);
   return {
     project,
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
-    health: computeHealth({ project, stages, tasks }, today),
+    health,
+    healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,
     stages,
     currentStage: state.stages[project.currentStageId] ?? stages[0],
     latest,
@@ -126,43 +146,39 @@ export function summaryOf(state: State, project: Project, today: string): Projec
       .sort((a, b) => a.name.localeCompare(b.name)),
     openTasks: tasks.filter((t) => t.status !== 'done').length,
     lastActivityAt: newest && newest > project.updatedAt ? newest : project.updatedAt,
+    viewerRole,
+    viewerCan: viewerCanOf(viewer, viewerRole),
   };
 }
 
+/** Hours on the project this month, or null when the viewer may not see that person's hours (spec 5.8). */
+function monthHours(state: State, projectId: string, today: string, viewer: User, projectRole: ProjectRole, userId: string): number | null {
+  if (!can(viewer, 'time.viewPerson', { targetUserId: userId, projectRole })) return null;
+  const monthStart = `${today.slice(0, 7)}-01`;
+  return Object.values(state.time)
+    .filter((e) => e.projectId === projectId && e.userId === userId && e.date >= monthStart && e.date <= today)
+    .reduce((sum, e) => sum + e.hours, 0);
+}
+
 export function detailOf(state: State, project: Project, today: string, viewer: User): ProjectDetail {
-  const role = projectRoleOf(state, project.id, viewer.id);
-  const r = { projectRole: role };
+  const summary = summaryOf(state, project, today, viewer);
   const openBy = (userId: string) =>
     Object.values(state.tasks).filter((t) => t.projectId === project.id && t.ownerId === userId && t.status !== 'done').length;
   const members = Object.values(state.members)
     .filter((m) => m.projectId === project.id)
-    .map((m) => ({ user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId) }))
+    .map((m) => ({
+      user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId),
+      hoursThisMonth: monthHours(state, project.id, today, viewer, summary.viewerRole, m.userId),
+    }))
     .sort((a, b) => Number(b.isLeader) - Number(a.isLeader) || a.user.name.localeCompare(b.user.name));
-  return {
-    ...summaryOf(state, project, today),
-    members,
-    deadlines: deadlinesOf(state, project.id),
-    viewerRole: role,
-    viewerCan: {
-      edit: can(viewer, 'project.edit', r),
-      changeLeader: can(viewer, 'project.changeLeader', r),
-      archive: can(viewer, 'project.archive', r),
-      delete: can(viewer, 'project.delete', r),
-      healthOverride: can(viewer, 'project.healthOverride', r),
-      createTaskForAnyone: can(viewer, 'task.createForAnyone', r),
-      createTaskForSelf: can(viewer, 'task.createForSelf', r),
-      post: can(viewer, 'content.post', r),
-      review: can(viewer, 'task.review', r),
-      logTime: can(viewer, 'time.logOnProject', r),
-    },
-  };
+  return { ...summary, members, deadlines: deadlinesOf(state, project.id) };
 }
 
 export function eventViewOf(state: State, event: Event): EventView {
   return { event, actor: cardOf(state, event.actorId) };
 }
 
-export function taskRowOf(state: State, task: Task, today: string): TaskRow {
+export function taskRowOf(state: State, task: Task, today: string, viewer: User): TaskRow {
   const project = state.projects[task.projectId];
   const stage = state.stages[task.stageId];
   return {
@@ -173,6 +189,7 @@ export function taskRowOf(state: State, task: Task, today: string): TaskRow {
     commentCount: countComments(state, 'task', task.id),
     fileCount: Object.values(state.files).filter((f) => f.taskId === task.id).length,
     overdue: isOverdue(task, today),
+    canMove: can(viewer, 'task.updateOwn', { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId }),
   };
 }
 
@@ -183,7 +200,7 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
     .sort((a, b) => b.seq - a.seq)
     .map((e) => eventViewOf(state, e));
   return {
-    ...taskRowOf(state, task, today),
+    ...taskRowOf(state, task, today, viewer),
     hours: Object.values(state.time).filter((e) => e.taskId === task.id).reduce((sum, e) => sum + e.hours, 0),
     viewerCan: {
       edit: can(viewer, 'task.updateOwn', r),

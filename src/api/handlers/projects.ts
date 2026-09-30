@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, Day, DeadlineId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
+import { ClientId, Day, DeadlineId, FileId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
 import { ProjectDetail, ProjectSummary } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
@@ -80,7 +80,7 @@ export const projectsList = defineCall({
     const { state, today, authority } = ctx;
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
-      .map((p) => summaryOf(state, p, today))
+      .map((p) => summaryOf(state, p, today, ctx.authority))
       .filter((s) => input.filter !== 'mine' || projectRoleOf(state, s.project.id, authority.id) !== 'other')
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
       .filter((s) => !input.stageName || s.currentStage.name === input.stageName)
@@ -157,6 +157,7 @@ export const projectsUpdate = defineCall({
       targetEndDate: Day.nullable().optional(),
       modelFolderPath: FolderPath.optional(),
       description: Description.optional(),
+      coverFileId: FileId.nullable().optional(),
     }),
   }),
   output: ProjectDetail,
@@ -167,6 +168,11 @@ export const projectsUpdate = defineCall({
     const end = patch.targetEndDate !== undefined ? patch.targetEndDate : project.targetEndDate;
     assertDates(start, end, 'targetEndDate');
     if (patch.clientId && !ctx.state.clients[patch.clientId]) throw invalid('clientId', 'This client does not exist.');
+    if (patch.coverFileId) {
+      const file = ctx.state.files[patch.coverFileId];
+      if (!file || file.projectId !== project.id) throw invalid('coverFileId', 'This file is not in the project.');
+      if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.');
+    }
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);

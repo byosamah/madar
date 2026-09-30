@@ -187,3 +187,14 @@ describe('tasks.list', () => {
     expect(await t.api.call('tasks.list', {})).toHaveLength(0);
   });
 });
+
+describe('task rows for the viewer', () => {
+  it('tells the viewer which rows they may move', async () => {
+    const t = testApi(taskCalls);
+    t.store.state.tasks.tsk_001 = makeTask({ ownerId: 'usr_003' });
+    t.store.state.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_002' });
+    t.as('usr_003');
+    const rows = await t.api.call('tasks.list', { projectId: 'prj_001' });
+    expect(Object.fromEntries(rows.map((row) => [row.task.id, row.canMove]))).toEqual({ tsk_001: true, tsk_002: false });
+  });
+});

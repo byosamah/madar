@@ -2,7 +2,7 @@
 
 Plan: docs/superpowers/plans/2026-09-30-madar-plan-2-projects.md. Plan 1 (all 22 tasks) is done and reviewed.
 
-- [ ] 1. API additions for the Projects screens
+- [x] 1. API additions for the Projects screens
 - [ ] 2. Pure helpers and all plan 2 text
 - [ ] 3. Display kit
 - [ ] 4. Sheets, menus, popovers and tabs

@@ -136,25 +136,44 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
   }
 }
 
+/** Undoes one event for the current person, under the rules of the original action. */
+function undoOne(ctx: Ctx, event: Event): EventView {
+  // Your own changes and your agent's changes are yours to undo: the event names the person each acted for.
+  const own = event.actingForId === ctx.authority.id;
+  const agentChange = event.actorKind === 'agent' && event.projectId !== null
+    && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
+  if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
+  assertMayUndo(ctx, event);
+  const undo = undoEvent(ctx, event.id);
+  if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
+  return eventViewOf(ctx.state, undo);
+}
+
 export const eventsUndo = defineCall({
   input: z.object({ eventId: EventId }),
   output: EventView,
   run(input, ctx) {
     const event = ctx.state.events[input.eventId];
     if (!event) throw notFound('Event', input.eventId);
-    // Your own changes and your agent's changes are yours to undo: the event names the person each acted for.
-    const own = event.actingForId === ctx.authority.id;
-    const agentChange = event.actorKind === 'agent' && event.projectId !== null
-      && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
-    if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
-    assertMayUndo(ctx, event);
-    const undo = undoEvent(ctx, event.id);
-    if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
-    return eventViewOf(ctx.state, undo);
+    return undoOne(ctx, event);
+  },
+});
+
+/** Undoes every change of one story, newest first. The Undo toast calls it with the story ID of its action. */
+export const eventsUndoStory = defineCall({
+  input: z.object({ correlationId: z.string().min(1).max(80) }),
+  output: z.object({ undone: z.array(EventView) }),
+  run(input, ctx) {
+    const story = Object.values(ctx.state.events)
+      .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo')
+      .sort((a, b) => b.seq - a.seq);
+    if (story.length === 0) throw notFound('Story', input.correlationId);
+    return { undone: story.map((event) => undoOne(ctx, event)) };
   },
 });
 
 export const historyCalls = {
   'events.list': eventsList,
   'events.undo': eventsUndo,
+  'events.undoStory': eventsUndoStory,
 };

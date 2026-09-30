@@ -74,7 +74,7 @@ export const tasksList = defineCall({
     });
     tasks.sort((a, b) =>
       (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31') || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    return tasks.map((task) => taskRowOf(state, task, today));
+    return tasks.map((task) => taskRowOf(state, task, today, authority));
   },
 });
 

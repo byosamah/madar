@@ -4,7 +4,7 @@ import {
 } from '../api/contract/entities';
 import { writeEvent, type EventContext } from '../api/events';
 import { notify, reviewersOf } from '../api/notify';
-import { addDays, dayOfWeek, diffDays, formatDay, maxDay, minDay, weekStartOf } from '../lib/dates';
+import { addDays, dayOfWeek, diffDays, maxDay, minDay, weekStartOf } from '../lib/dates';
 import { mentionMarkup } from '../lib/text';
 import { drawingPdf, renderSvg } from './assets';
 
@@ -285,7 +285,9 @@ function addAgentSummaries(state: State, today: string, agentId: string): void {
       const next = Object.values(state.deadlines)
         .filter((d) => d.projectId === project.id && d.date >= sunday)
         .sort((a, b) => a.date.localeCompare(b.date))[0];
-      const tail = next ? ` Next deadline: ${next.name}, ${formatDay(next.date, 'en')}.` : '';
+      const days = next ? diffDays(sunday, next.date) : 0;
+      const when = days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
+      const tail = next ? ` Next deadline: ${next.name}, ${when}.` : '';
       const id = nextId(state, 'upd');
       state.updates[id] = {
         id, projectId: project.id, authorId: agentId, body: `Weekly summary: ${open} open tasks, ${overdue} overdue.${tail}`,

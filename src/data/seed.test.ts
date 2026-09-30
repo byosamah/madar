@@ -113,3 +113,11 @@ describe('sample data', () => {
     expect(under).toEqual(['Lina Mansour', 'Sara Al-Qahtani']);
   });
 });
+
+it('writes agent summaries with relative days, so the date shift keeps them true', async () => {
+  const state = await buildSeed(TODAY, async () => undefined);
+  const bodies = Object.values(state.updates).filter((u) => state.users[u.authorId].kind === 'agent').map((u) => u.body);
+  expect(bodies.length).toBeGreaterThan(0);
+  for (const body of bodies) expect(body).not.toMatch(/\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/);
+  expect(bodies.some((body) => /in \d+ days|today|tomorrow/.test(body))).toBe(true);
+});

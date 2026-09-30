@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nextProjectCode, projectCalls } from './projects';
 import type { Store } from '../store';
-import { makeTask, makeWorld, NOW, testApi } from '../../test/factories';
+import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -184,5 +184,61 @@ describe('stages', () => {
     });
     const detail = await t.api.call('stages.setDates', { stageId: 'stg_002', startDate: '2026-09-01', endDate: '2026-10-20' });
     expect(detail.currentStage.endDate).toBe('2026-10-20');
+  });
+});
+
+describe('plan 2 additions', () => {
+  beforeEach(() => setNow(NOW));
+
+  it("gives each project summary the viewer's role and rights", async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_004');
+    const [outside] = await t.api.call('projects.list', {});
+    expect(outside.viewerRole).toBe('other');
+    expect(outside.viewerCan.archive).toBe(false);
+    t.as('usr_002');
+    const [led] = await t.api.call('projects.list', {});
+    expect(led.viewerRole).toBe('leader');
+    expect(led.viewerCan.archive).toBe(true);
+  });
+
+  it('names the person who set the health by hand', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await t.api.call('projects.setHealthOverride', { id: 'prj_001', value: 'at_risk', reason: 'Client delay' });
+    const [summary] = await t.api.call('projects.list', {});
+    expect(summary.healthSetBy?.name).toBe('Faisal Leader');
+  });
+
+  it("shows this month's hours only to people who may see them", async () => {
+    const t = testApi(projectCalls);
+    const entry = { projectId: 'prj_001', stageId: 'stg_002', taskId: null };
+    t.store.state.time.tim_001 = { ...entry, id: 'tim_001', userId: 'usr_003', date: '2026-09-14', hours: 6 };
+    t.store.state.time.tim_002 = { ...entry, id: 'tim_002', userId: 'usr_003', date: '2026-08-31', hours: 5 };
+    t.store.state.time.tim_003 = { ...entry, id: 'tim_003', userId: 'usr_002', date: '2026-09-15', hours: 4 };
+    const hours = async (viewer: string) => {
+      t.as(viewer);
+      const detail = await t.api.call('projects.get', { id: 'prj_001' });
+      return Object.fromEntries(detail.members.map((m) => [m.user.id, m.hoursThisMonth]));
+    };
+    expect(await hours('usr_002')).toEqual({ usr_002: 4, usr_003: 6 });
+    expect(await hours('usr_003')).toEqual({ usr_002: null, usr_003: 6 });
+    expect(await hours('usr_004')).toEqual({ usr_002: null, usr_003: null });
+    expect(await hours('usr_001')).toEqual({ usr_002: 4, usr_003: 6 });
+  });
+
+  it('sets a project image as the cover and refuses other files', async () => {
+    const t = testApi(projectCalls);
+    const version = { letter: 'A', blobKey: 'blob_1', size: 10, uploadedBy: 'usr_002', uploadedAt: STAMP };
+    t.store.state.files.fil_001 = {
+      id: 'fil_001', projectId: 'prj_001', stageId: null, taskId: null, name: 'Render.png', versions: [{ ...version, mimeType: 'image/png' }],
+    };
+    t.store.state.files.fil_002 = {
+      id: 'fil_002', projectId: 'prj_001', stageId: null, taskId: null, name: 'Plan.pdf', versions: [{ ...version, mimeType: 'application/pdf' }],
+    };
+    t.as('usr_002');
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { coverFileId: 'fil_002' } })).rejects.toMatchObject({ code: 'invalid_input' });
+    const detail = await t.api.call('projects.update', { id: 'prj_001', patch: { coverFileId: 'fil_001' } });
+    expect(detail.project.coverFileId).toBe('fil_001');
   });
 });

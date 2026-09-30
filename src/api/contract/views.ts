@@ -35,10 +35,16 @@ export type FeedItem = z.infer<typeof FeedItem>;
 
 export const NextDeadline = z.object({ id: DeadlineId, name: z.string(), date: Day, daysLeft: z.number().int() });
 
+export const ViewerCan = z.object({
+  edit: z.boolean(), changeLeader: z.boolean(), archive: z.boolean(), delete: z.boolean(), healthOverride: z.boolean(),
+  createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(), logTime: z.boolean(),
+});
+
 export const ProjectSummary = z.object({
   project: Project,
   client: Client.nullable(),
   health: HealthResult.nullable(),
+  healthSetBy: UserCard.nullable(),
   stages: z.array(Stage),
   currentStage: Stage,
   latest: z.array(FeedItem).max(2),
@@ -47,19 +53,17 @@ export const ProjectSummary = z.object({
   team: z.array(UserCard),
   openTasks: z.number().int().min(0),
   lastActivityAt: Stamp,
+  viewerRole: z.enum(['leader', 'team', 'other']),
+  viewerCan: ViewerCan,
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
 
-export const ViewerCan = z.object({
-  edit: z.boolean(), changeLeader: z.boolean(), archive: z.boolean(), delete: z.boolean(), healthOverride: z.boolean(),
-  createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(), logTime: z.boolean(),
-});
-
 export const ProjectDetail = ProjectSummary.extend({
-  members: z.array(z.object({ user: UserCard, discipline: z.string(), isLeader: z.boolean(), openTasks: z.number().int().min(0) })),
+  members: z.array(z.object({
+    user: UserCard, discipline: z.string(), isLeader: z.boolean(), openTasks: z.number().int().min(0),
+    hoursThisMonth: z.number().min(0).nullable(),
+  })),
   deadlines: z.array(Deadline),
-  viewerRole: z.enum(['leader', 'team', 'other']),
-  viewerCan: ViewerCan,
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 
@@ -74,6 +78,7 @@ export const TaskRow = z.object({
   commentCount: z.number().int().min(0),
   fileCount: z.number().int().min(0),
   overdue: z.boolean(),
+  canMove: z.boolean(),
 });
 export type TaskRow = z.infer<typeof TaskRow>;
 

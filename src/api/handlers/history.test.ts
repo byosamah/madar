@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { fileCalls } from './files';
 import { historyCalls } from './history';
 import { peopleCalls } from './people';
 import { projectCalls } from './projects';
 import { taskCalls } from './tasks';
 import { timeCalls } from './time';
-import { makeTask, NOW, TODAY, testApi } from '../../test/factories';
+import { makeTask, NOW, STAMP, TODAY, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -119,5 +120,40 @@ describe('the history hides hours from people who cannot see them', () => {
     expect(await timeEvents('usr_003')).toHaveLength(1);
     expect(await timeEvents('usr_002')).toHaveLength(1);
     expect(await timeEvents('usr_004')).toHaveLength(0);
+  });
+});
+
+describe('undo of a whole story', () => {
+  const image = {
+    id: 'fil_001', projectId: 'prj_001', stageId: null, taskId: null, name: 'Render.png',
+    versions: [{ letter: 'A', blobKey: 'blob_1', mimeType: 'image/png', size: 10, uploadedBy: 'usr_002', uploadedAt: STAMP }],
+  };
+
+  it('undoes every change of one story, newest first', async () => {
+    const t = testApi({ ...calls, ...fileCalls });
+    t.store.state.files.fil_001 = structuredClone(image);
+    t.store.state.projects.prj_001.coverFileId = 'fil_001';
+    t.as('usr_002');
+    await t.api.call('files.delete', { id: 'fil_001' }, { correlationId: 'cor_ui_story1' });
+    expect(t.store.state.projects.prj_001.coverFileId).toBeNull();
+    const result = await t.api.call('events.undoStory', { correlationId: 'cor_ui_story1' });
+    expect(result.undone).toHaveLength(2);
+    expect(t.store.state.files.fil_001).toBeDefined();
+    expect(t.store.state.projects.prj_001.coverFileId).toBe('fil_001');
+  });
+
+  it("refuses another person's story and changes nothing", async () => {
+    const t = testApi(calls);
+    t.store.state.tasks.tsk_001 = makeTask({ needsReview: false });
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_ui_story2' });
+    t.as('usr_004');
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_ui_story2' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.tasks.tsk_001.status).toBe('done');
+  });
+
+  it('reports an unknown story', async () => {
+    const t = testApi(calls);
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_ui_none' })).rejects.toMatchObject({ code: 'not_found' });
   });
 });
