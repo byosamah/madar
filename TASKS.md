@@ -3,7 +3,7 @@
 - [x] 1. Project setup and the RTL check
 - [x] 2. Office dates
 - [x] 3. Entity schemas and API errors
-- [ ] 4. Store and persisters
+- [x] 4. Store and persisters
 - [ ] 5. Permissions and test factories
 - [ ] 6. Health rule
 - [ ] 7. Event log and undo
