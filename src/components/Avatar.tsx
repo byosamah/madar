@@ -4,7 +4,7 @@ import type { UserCard } from '../api/contract/views';
 // Darker tints so white initials pass the 4.5:1 contrast rule.
 const TINTS = ['#C93400', '#1E7A34', '#0040DD', '#8944AB', '#D30F45', '#0071A4', '#B25000', '#6C6C70'];
 
-function tintOf(id: string): string {
+export function tintOf(id: string): string {
   let sum = 0;
   for (const ch of id) sum += ch.charCodeAt(0);
   return TINTS[sum % TINTS.length];
