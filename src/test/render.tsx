@@ -1,0 +1,36 @@
+import { onTestFinished } from 'vitest';
+import { render } from '@testing-library/react';
+import { RouterProvider } from 'react-router';
+import { calls } from '../api/calls';
+import { createApi } from '../api/client';
+import { memoryPersister } from '../api/persist';
+import { Store } from '../api/store';
+import { buildSeed } from '../data/seed';
+import { AppearanceSync } from '../app/AppearanceSync';
+import { createAppRouter } from '../app/routes';
+import { RuntimeProvider, createQueryClient } from '../app/runtime';
+import { ToastProvider } from '../app/toasts';
+import { initI18n } from '../i18n';
+import { setNow } from '../lib/dates';
+import { NOW, TODAY } from './factories';
+
+/** Renders the whole app over the sample office, at a hash route, with no latency. */
+export async function renderApp(path = '/') {
+  setNow(NOW);
+  const state = await buildSeed(TODAY, async () => undefined);
+  const store = new Store(state, memoryPersister());
+  const api = createApi(calls, { store, latencyMs: 0 });
+  initI18n('en');
+  window.location.hash = `#${path}`;
+  const router = createAppRouter();
+  onTestFinished(() => router.dispose());
+  const view = render(
+    <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+      <ToastProvider>
+        <AppearanceSync />
+        <RouterProvider router={router} />
+      </ToastProvider>
+    </RuntimeProvider>,
+  );
+  return { ...view, store, api, router };
+}
