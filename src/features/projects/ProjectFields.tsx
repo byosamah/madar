@@ -87,7 +87,7 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
   );
 }
 
-function StageList({
+export function StageList({
   stages, onChange, onBlur, error,
 }: { stages: ProjectFormValues['stages']; onChange: (stages: ProjectFormValues['stages']) => void; onBlur: () => void; error?: string }) {
   const { t } = useTranslation();

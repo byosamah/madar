@@ -10,5 +10,5 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-4-dashboard.md. Plans 1 to 3 
 - [x] 6. The workload grid
 - [x] 7. The office schedule
 - [x] 8. The Task list screen
-- [ ] 9. Admin settings
+- [x] 9. Admin settings
 - [ ] 10. Browser sweep and the review link
