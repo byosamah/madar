@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';
 import { Avatar } from '../../../components/Avatar';
@@ -72,6 +73,8 @@ function SideColumn({ detail }: TabProps) {
 export function OverviewTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
+  const [params] = useSearchParams();
+  const openUpdate = params.get('update');
   const feed = useCall('updates.list', { projectId: detail.project.id, filter });
   const files = useCall('files.list', { projectId: detail.project.id });
   const fileNames = new Map((files.data ?? []).map((view) => [view.file.id, view.file.name]));
@@ -82,7 +85,16 @@ export function OverviewTab({ detail }: TabProps) {
         <ChipGroup label={t('overview.feed')} value={filter} onChange={setFilter} options={FILTERS.map((value) => ({ value, label: t(`overview.feedFilter.${value}`) }))} />
         {feed.data && feed.data.length === 0
           ? <EmptyState title={t('overview.feed')} body={t('overview.emptyFeed')} />
-          : <ol className="flex flex-col gap-3">{(feed.data ?? []).map((item) => <FeedEntry key={item.id} item={item} fileNames={fileNames} />)}</ol>}
+          : <ol className="flex flex-col gap-3">{(feed.data ?? []).map((item) => (
+            <FeedEntry
+              key={item.id}
+              item={item}
+              fileNames={fileNames}
+              people={detail.members.map((member) => member.user)}
+              canPost={detail.viewerCan.post}
+              startOpen={item.id === openUpdate}
+            />
+          ))}</ol>}
       </section>
       <SideColumn detail={detail} />
     </div>

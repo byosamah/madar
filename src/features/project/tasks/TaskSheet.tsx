@@ -19,6 +19,7 @@ import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
 import { BOARD_COLUMNS } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
+import { CommentThread } from '../../comments/CommentThread';
 import { historyText } from './history';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
@@ -239,7 +240,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
         </div>
         {detail.viewerCan.logTime && <Button onClick={() => navigate('/work')}>{t('taskSheet.logTime')}</Button>}
       </section>
-      <p className="text-footnote text-label-2">{t('taskSheet.comments', { n: data.commentCount })}</p>
+      <CommentThread targetType="task" targetId={task.id} people={people} canPost={detail.viewerCan.post} />
       <History data={data} canUndoAgent={canUndoAgent} />
       {viewerCan.delete && (
         <Button variant="destructive" className="self-start" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>

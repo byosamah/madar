@@ -84,4 +84,21 @@ describe('the Overview tab', () => {
     await renderApp(PROJECT, as('usr_002'));
     expect((await screen.findByText('Attach files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
   });
+
+  it('lets the leader undo an agent change from the feed (spec 10.7)', async () => {
+    const { store, api } = await renderApp(PROJECT, as('usr_009'));
+    await api.call('tasks.create', { projectId: 'prj_001', title: 'Agent draft', ownerId: 'usr_005' });
+    await api.call('session.previewAs', { userId: 'usr_002' });
+    const line = (await screen.findByText(/Agent draft/)).closest('li') as HTMLElement;
+    await userEvent.click(within(line).getByRole('button', { name: 'Undo agent change' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Agent draft')).toBe(false));
+  });
+
+  it('shows a team member no Undo on an agent change', async () => {
+    const { api } = await renderApp(PROJECT, as('usr_009'));
+    await api.call('tasks.create', { projectId: 'prj_001', title: 'Agent draft', ownerId: 'usr_005' });
+    await api.call('session.previewAs', { userId: 'usr_006' });
+    const line = (await screen.findByText(/Agent draft/)).closest('li') as HTMLElement;
+    expect(within(line).queryByRole('button', { name: 'Undo agent change' })).toBeNull();
+  });
 });

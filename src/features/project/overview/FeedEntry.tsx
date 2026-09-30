@@ -1,30 +1,45 @@
 import { Paperclip } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FeedItem } from '../../../api/contract/views';
+import type { FeedItem, UserCard } from '../../../api/contract/views';
+import { useUndoable } from '../../../app/actions';
+import { useAction } from '../../../app/runtime';
+import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
+import { Button } from '../../../components/Button';
+import { MentionField } from '../../../components/MentionField';
+import { Menu } from '../../../components/Menu';
 import { RichText } from '../../../components/RichText';
+import { plainText, withMentionMarkup } from '../../../lib/text';
+import { CommentThread } from '../../comments/CommentThread';
 import { feedText } from '../../projects/feed';
 
-/** A post as a card, or a system event as one quiet line (spec 5.2). */
-export function FeedEntry({ item, fileNames }: { item: FeedItem; fileNames: Map<string, string> }) {
+type PostItem = Extract<FeedItem, { kind: 'update' }>;
+
+function PostCard({ item, fileNames, people, canPost, startOpen }: {
+  item: PostItem; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+}) {
   const { t } = useTranslation();
-  if (item.kind === 'event') {
-    return (
-      <li className="flex items-center gap-3 px-1">
-        <Avatar user={item.author} size={28} />
-        <p className="min-w-0 flex-1 text-subheadline">
-          <bdi className="font-semibold">{item.author.name}</bdi>{' '}
-          {item.author.kind === 'agent' && <><AgentLabel />{' '}</>}
-          <span className="text-label-2">{feedText(item, t)}</span>
-        </p>
-        <span className="text-caption text-label-2"><Age stamp={item.at} /></span>
-      </li>
-    );
-  }
+  const toast = useToast();
+  const ref = useRef<HTMLLIElement>(null);
+  const [showComments, setShowComments] = useState(startOpen);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const save = useAction('updates.update', {
+    onSuccess: () => {
+      setEditing(false);
+      toast.show({ message: t('posts.saved') });
+    },
+  });
+  const remove = useUndoable('updates.delete', { message: () => t('posts.deleted') });
+  useEffect(() => {
+    if (startOpen) ref.current?.scrollIntoView({ block: 'center' });
+  }, [startOpen]);
+  const commentLabel = showComments ? t('comments.hide') : item.commentCount > 0 ? t('comments.show', { n: item.commentCount }) : t('comments.start');
   return (
-    <li className="surface flex flex-col gap-2 rounded-card p-4">
+    <li ref={ref} className="surface flex flex-col gap-2 rounded-card p-4">
       <div className="flex items-center gap-3">
         <Avatar user={item.author} size={36} />
         <div className="min-w-0 flex-1">
@@ -37,8 +52,38 @@ export function FeedEntry({ item, fileNames }: { item: FeedItem; fileNames: Map<
             {item.editedAt && <> · {t('overview.edited')}</>}
           </p>
         </div>
+        {item.canEdit && !editing && (
+          <Menu
+            label={t('posts.actions')}
+            items={[
+              {
+                label: t('posts.edit'),
+                onSelect: () => {
+                  setDraft(plainText(item.body));
+                  setEditing(true);
+                },
+              },
+              { label: t('posts.delete'), onSelect: () => remove.mutate({ id: item.id }), destructive: true },
+            ]}
+          />
+        )}
       </div>
-      <RichText body={item.body} className="text-body" />
+      {editing ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const body = withMentionMarkup(draft.trim(), people);
+            if (body) save.mutate({ id: item.id, body });
+          }}
+        >
+          <MentionField id={`post-${item.id}`} label={t('posts.editLabel')} value={draft} onChange={setDraft} people={people} />
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
+            <Button variant="primary" type="submit" disabled={!draft.trim() || save.isPending}>{t('comments.save')}</Button>
+          </div>
+        </form>
+      ) : <RichText body={item.body} className="text-body" />}
       {item.fileIds.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {item.fileIds.map((id) => (
@@ -49,7 +94,39 @@ export function FeedEntry({ item, fileNames }: { item: FeedItem; fileNames: Map<
           ))}
         </ul>
       )}
-      {item.commentCount > 0 && <p className="text-footnote text-label-2">{t('overview.comments', { n: item.commentCount })}</p>}
+      <Button variant="plain" className="self-start px-0" aria-expanded={showComments} onClick={() => setShowComments((open) => !open)}>{commentLabel}</Button>
+      {showComments && <CommentThread targetType="update" targetId={item.id} people={people} canPost={canPost} />}
     </li>
   );
+}
+
+type EventItem = Extract<FeedItem, { kind: 'event' }>;
+
+/** A system event as one quiet line. An agent change offers Undo to the people spec 10.7 names; the API says who. */
+function EventLine({ item }: { item: EventItem }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const undo = useAction('events.undo', { onSuccess: () => toast.show({ message: t('taskSheet.undone') }) });
+  return (
+    <li className="flex items-center gap-3 px-1">
+      <Avatar user={item.author} size={28} />
+      <p className="min-w-0 flex-1 text-subheadline">
+        <bdi className="font-semibold">{item.author.name}</bdi>{' '}
+        {item.author.kind === 'agent' && <><AgentLabel />{' '}</>}
+        <span className="text-label-2">{feedText(item, t)}</span>
+      </p>
+      <span className="text-caption text-label-2"><Age stamp={item.at} /></span>
+      {item.canUndo && (
+        <Button variant="plain" disabled={undo.isPending} onClick={() => undo.mutate({ eventId: item.id })}>{t('taskSheet.undoAgent')}</Button>
+      )}
+    </li>
+  );
+}
+
+/** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
+export function FeedEntry({ item, fileNames, people, canPost, startOpen }: {
+  item: FeedItem; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+}) {
+  if (item.kind === 'update') return <PostCard item={item} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
+  return <EventLine item={item} />;
 }

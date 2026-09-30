@@ -284,7 +284,6 @@
     "noDeadlines": "No deadlines yet.",
     "team": "Team",
     "edited": "Edited",
-    "comments": "Comments: {{n}}",
     "cannotPost": "Only the project team can post here.",
     "none": "Not set"
   },
@@ -383,7 +382,6 @@
     "readOnly": "You can view this task. Only its owner and the project leader can change it.",
     "undoAgent": "Undo agent change",
     "undone": "Change undone.",
-    "comments": "Comments: {{n}}. Comments arrive in build step 3.",
     "review": "Review"
   },
   "taskHistory": {
