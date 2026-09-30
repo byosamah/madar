@@ -34,9 +34,18 @@ describe('the Dashboard charts', () => {
     await waitFor(() => expect(window.location.hash).toContain('tab=team'));
   });
 
-  it('says so when the filters leave nothing to draw', async () => {
-    await renderApp('/dashboard?status=archived');
+  it('says so in every chart and the schedule when the filters leave nothing to draw', async () => {
+    await renderApp('/dashboard?client=cli_999');
     await chart('Projects per stage');
-    expect(screen.getAllByText('No data for these filters.').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('No data for these filters.')).toHaveLength(5);
+  });
+
+  it('opens exactly the projects behind each health number', async () => {
+    for (const [word, n] of [['Late', 2], ['At risk', 3], ['On track', 5]] as const) {
+      const view = await renderApp('/dashboard');
+      await userEvent.click(within(await chart('Health mix')).getByRole('link', { name: new RegExp(word) }));
+      await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(n));
+      view.unmount();
+    }
   });
 });

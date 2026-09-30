@@ -22,4 +22,10 @@ describe('the office schedule', () => {
     const again = await screen.findByRole('region', { name: 'Office schedule' });
     expect(within(again).getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true');
   });
+
+  it('names every color and mark in a legend', async () => {
+    await renderApp('/dashboard');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
+  });
 });

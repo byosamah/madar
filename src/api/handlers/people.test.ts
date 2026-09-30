@@ -119,3 +119,27 @@ describe('review fixes', () => {
     expect(session.authority.preferences.notifications.mention).toBe(true);
   });
 });
+
+describe('Admins are people', () => {
+  it('refuses the Admin role for an agent', async () => {
+    const t = testApi(peopleCalls);
+    await expect(t.api.call('users.create', { name: 'Admin bot', email: 'bot@madar.test', kind: 'agent', ownerId: 'usr_001', systemRole: 'admin', discipline: 'Bot', weeklyHourTarget: 0 }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'agent_admin' } });
+    await expect(t.api.call('users.update', { id: 'usr_005', patch: { systemRole: 'admin' } }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'agent_admin' } });
+  });
+
+  it('counts only active people, not agents, as the last Admin', async () => {
+    const t = testApi(peopleCalls);
+    t.store.state.users.usr_005.systemRole = 'admin';
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { systemRole: 'member' } }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'last_admin' } });
+  });
+
+  it('names the reason when an email is taken', async () => {
+    const t = testApi(peopleCalls);
+    const taken = t.store.state.users.usr_002.email;
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { email: taken } }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'email_taken', fields: ['email'] } });
+  });
+});

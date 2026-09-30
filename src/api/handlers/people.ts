@@ -97,7 +97,12 @@ export const usersGet = defineCall({
 
 function assertEmailFree(ctx: Ctx, email: string, exceptId: string | null): void {
   const taken = Object.values(ctx.state.users).some((u) => u.id !== exceptId && u.email.toLowerCase() === email.toLowerCase());
-  if (taken) throw invalid('email', 'This email is already in use.');
+  if (taken) throw invalid('email', 'This email is already in use.', 'email_taken');
+}
+
+/** Spec 17.1: an agent has no role of its own. It acts with the rights of its person. */
+function agentAdmin() {
+  return invalid('systemRole', 'An agent cannot be an Admin. It has the rights of the person it acts for.', 'agent_admin');
 }
 
 export const usersCreate = defineCall({
@@ -114,6 +119,7 @@ export const usersCreate = defineCall({
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     assertEmailFree(ctx, input.email, null);
+    if (input.kind === 'agent' && input.systemRole === 'admin') throw agentAdmin();
     let ownerId: string | null = null;
     if (input.kind === 'agent') {
       const owner = input.ownerId ? ctx.state.users[input.ownerId] : undefined;
@@ -150,9 +156,11 @@ export const usersUpdate = defineCall({
     assertCan(ctx, 'admin.manage');
     const user = requireUser(ctx, input.id);
     if (input.patch.email) assertEmailFree(ctx, input.patch.email, user.id);
+    if (input.patch.systemRole === 'admin' && user.kind === 'agent') throw agentAdmin();
     if (input.patch.systemRole === 'member' && user.systemRole === 'admin') {
-      const admins = Object.values(ctx.state.users).filter((u) => u.systemRole === 'admin' && u.active);
-      if (admins.length <= 1) throw invalid('systemRole', 'The office needs at least one Admin.');
+      // Only people count: an agent acts with its person's rights, so an agent can never keep the office's Admin work going.
+      const admins = Object.values(ctx.state.users).filter((u) => u.kind === 'human' && u.systemRole === 'admin' && u.active);
+      if (admins.length <= 1) throw invalid('systemRole', 'The office needs at least one Admin.', 'last_admin');
     }
     applyPatch(ctx, user, input.patch, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
     return user;

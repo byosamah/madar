@@ -51,9 +51,9 @@ function PerStage({ view }: { view: DashboardData }) {
 }
 
 const HEALTH = [
-  { key: 'on_track', color: 'bg-green', to: '/?status=active' },
-  { key: 'at_risk', color: 'bg-orange', to: '/?filter=at_risk' },
-  { key: 'late', color: 'bg-red', to: '/?filter=at_risk' },
+  { key: 'on_track', color: 'bg-green', to: '/?health=on_track' },
+  { key: 'at_risk', color: 'bg-orange', to: '/?health=at_risk' },
+  { key: 'late', color: 'bg-red', to: '/?health=late' },
 ] as const;
 
 function HealthMix({ view }: { view: DashboardData }) {
@@ -95,42 +95,46 @@ function Throughput({ view }: { view: DashboardData }) {
   const rtl = lang === 'ar';
   return (
     <Card title={t('dashboard.charts.throughput')}>
-      <div className="flex gap-4 text-footnote text-label-2" aria-hidden>
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-fill-strong" />{t('dashboard.created')}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-accent-fill" />{t('dashboard.done')}</span>
-      </div>
-      <div aria-hidden className="h-52">
-        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
-          {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
-          <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
-            <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-            <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
-            <Bar dataKey="created" fill="var(--c-fill-strong)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="done" fill="var(--c-accent-fill)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      {/* The same numbers as a table, for keyboard and screen reader use. It shows when a link in it gets the focus. */}
-      <div className="sr-only focus-within:not-sr-only">
-        <table className="w-full text-footnote">
-          <thead>
-            <tr>
-              <th scope="col" className="text-start">{t('dashboard.week', { date: '' })}</th>
-              <th scope="col">{t('dashboard.created')}</th>
-              <th scope="col">{t('dashboard.done')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.weekStart}>
-                <th scope="row" className="text-start font-normal">{t('dashboard.week', { date: row.label })}</th>
-                <td className="text-center"><Link to={createdLink(row)} aria-label={`${t('dashboard.created')} ${row.created}`} className="tabular">{row.created}</Link></td>
-                <td className="text-center"><Link to={doneLink(row)} aria-label={`${t('dashboard.done')} ${row.done}`} className="tabular">{row.done}</Link></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {rows.every((row) => row.created === 0 && row.done === 0) ? <NoData /> : (
+        <>
+          <div className="flex gap-4 text-footnote text-label-2" aria-hidden>
+            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-chart-muted" />{t('dashboard.created')}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-accent-fill" />{t('dashboard.done')}</span>
+          </div>
+          <div aria-hidden className="h-52">
+            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
+              {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
+              <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
+                <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <Bar dataKey="created" fill="var(--c-chart-muted)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="done" fill="var(--c-accent-fill)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* The same numbers as a table, for keyboard and screen reader use. It shows when a link in it gets the focus. */}
+          <div className="sr-only focus-within:not-sr-only">
+            <table className="w-full text-footnote">
+              <thead>
+                <tr>
+                  <th scope="col" className="text-start">{t('dashboard.week', { date: '' })}</th>
+                  <th scope="col">{t('dashboard.created')}</th>
+                  <th scope="col">{t('dashboard.done')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.weekStart}>
+                    <th scope="row" className="text-start font-normal">{t('dashboard.week', { date: row.label })}</th>
+                    <td className="text-center"><Link to={createdLink(row)} aria-label={`${t('dashboard.created')} ${row.created}`} className="tabular">{row.created}</Link></td>
+                    <td className="text-center"><Link to={doneLink(row)} aria-label={`${t('dashboard.done')} ${row.done}`} className="tabular">{row.done}</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </Card>
   );
 }

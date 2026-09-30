@@ -9,6 +9,8 @@
   --c-label: #1D1D1F;
   --c-label-2: #5E5E63;
   --c-label-3: #A1A1A6;
+  /* Chart marks that must hold 3:1 against the card (WCAG 1.4.11): the Created bars and the next stages. */
+  --c-chart-muted: #8E8E93;
   --c-separator: rgba(60, 60, 67, 0.14);
   --c-fill: rgba(120, 120, 128, 0.12);
   --c-fill-strong: rgba(120, 120, 128, 0.2);
@@ -73,6 +75,7 @@
   --c-label: #F5F5F7;
   --c-label-2: #AEAEB2;
   --c-label-3: #636366;
+  --c-chart-muted: #8E8E93;
   --c-separator: rgba(84, 84, 88, 0.6);
   --c-fill: rgba(120, 120, 128, 0.24);
   --c-fill-strong: rgba(120, 120, 128, 0.36);
@@ -119,6 +122,7 @@
   --color-label: var(--c-label);
   --color-label-2: var(--c-label-2);
   --color-label-3: var(--c-label-3);
+  --color-chart-muted: var(--c-chart-muted);
   --color-separator: var(--c-separator);
   --color-fill: var(--c-fill);
   --color-fill-strong: var(--c-fill-strong);

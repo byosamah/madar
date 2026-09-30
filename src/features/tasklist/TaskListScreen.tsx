@@ -64,7 +64,8 @@ function TaskResults() {
   const doneTo = dayParam(params.get('doneTo'));
   const users = useCall('users.list', { includeInactive: true });
   const tasks = useCall('tasks.list', {
-    filter, ownerId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, includeDone: Boolean(doneFrom || doneTo),
+    filter, ownerId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
+    includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   const open = (row: TaskRow) => setParams((current) => {
     const next = new URLSearchParams(current);

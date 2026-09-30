@@ -45,3 +45,15 @@ describe('text on frosted glass', () => {
     }
   });
 });
+
+describe('chart marks', () => {
+  it('keep 3:1 against the card in light and dark (WCAG 1.4.11)', () => {
+    for (const block of [':root', '[data-theme="dark"]']) {
+      const card = hex(token(block, '--c-card'));
+      for (const name of ['--c-chart-muted', '--c-accent-fill', '--c-orange-text', '--c-label-2', '--c-red']) {
+        const value = token(block, name);
+        expect(contrast(hex(value), card), `${name} in ${block}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+});

@@ -71,6 +71,8 @@ export const projectsList = defineCall({
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
     filter: z.enum(['all', 'mine', 'at_risk']).default('all'),
     stageName: z.string().optional(),
+    /** One health value, so each number of the dashboard's health mix opens exactly its projects (spec 8.3). */
+    health: HealthValue.optional(),
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
     sort: z.enum(['updated', 'deadline', 'name']).default('updated'),
@@ -85,6 +87,7 @@ export const projectsList = defineCall({
       .filter((s) => input.filter !== 'mine' || projectRoleOf(state, s.project.id, authority.id) !== 'other')
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
       .filter((s) => !input.stageName || s.currentStage.name === input.stageName)
+      .filter((s) => !input.health || s.health?.value === input.health)
       .filter((s) => !input.leaderId || s.project.leaderId === input.leaderId)
       .filter((s) => !input.clientId || s.project.clientId === input.clientId)
       .sort(SORTS[input.sort]);

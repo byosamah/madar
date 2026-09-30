@@ -42,4 +42,11 @@ describe('the Task list', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Stair details')).toBeInTheDocument();
   });
+
+  it('lists as many tasks as the dashboard counts for a created week, done ones included', async () => {
+    const { api } = await renderApp('/tasks?createdFrom=2026-09-20&createdTo=2026-09-26');
+    const week = (await api.call('dashboard.get', {})).charts.throughput.find((w) => w.weekStart === '2026-09-20');
+    expect(week?.created).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByRole('checkbox', { name: /^Complete / }).length).toBe(week?.created));
+  });
 });

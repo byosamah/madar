@@ -94,7 +94,12 @@
     "not_found": "This item does not exist anymore.",
     "conflict": "This item changed after that edit. Undo is not available.",
     "failed": "Something went wrong. Try again.",
-    "week_locked": "This week is locked."
+    "week_locked": "This week is locked.",
+    "reasons": {
+      "last_admin": "The office needs at least one Admin.",
+      "email_taken": "This email is already in use.",
+      "agent_admin": "An agent cannot be an Admin. It has the rights of the person it acts for."
+    }
   },
   "common": {
     "retry": "Retry",
@@ -184,7 +189,9 @@
     "archived": "Project archived.",
     "cover": "Cover image of {{name}}",
     "openTasks": "Open tasks: {{n}}",
-    "loadFailed": "The projects did not load."
+    "loadFailed": "The projects did not load.",
+    "healthFilter": "Health: {{health}}",
+    "clearHealth": "Show all health"
   },
   "projectForm": {
     "createTitle": "New Project",
@@ -649,7 +656,14 @@
     "hoursSheet": "Hours this week",
     "perProject": "Per project",
     "perPerson": "Per person",
-    "hoursValue": "{{n}} h"
+    "hoursValue": "{{n}} h",
+    "legend": {
+      "done": "Done stages",
+      "current": "Current stage",
+      "next": "Next stages",
+      "deadline": "Deadline",
+      "today": "Today"
+    }
   },
   "taskList": {
     "title": "Task list",
@@ -705,6 +719,15 @@
     "person": "Person",
     "week": "Any day in the week",
     "unlockButton": "Unlock week",
-    "unlocked": "The week of {{week}} is open for {{name}}."
+    "unlocked": "The week of {{week}} is open for {{name}}.",
+    "errors": {
+      "email": "Use a valid email address.",
+      "target": "Use a number from 0 to 80.",
+      "limit": "Use a whole number from 1 to 100.",
+      "prefix": "Use one to four capital letters.",
+      "stages": "Give every stage a name.",
+      "name": "Enter a name.",
+      "discipline": "Enter a discipline."
+    }
   }
 }
