@@ -27,8 +27,11 @@ export function useUndoable<N extends CallName>(
       const storyId = newStoryId();
       return { output: await api.call(name, input, { correlationId: storyId }), storyId };
     },
-    onSuccess: ({ output, storyId }) => {
+    onSuccess: async ({ output, storyId }) => {
       latest.current.onSuccess?.(output);
+      // An action that changed nothing gets no toast: there is nothing to report and nothing to undo.
+      const changes = await api.call('events.list', { correlationId: storyId, limit: 1 });
+      if (changes.length === 0) return;
       toast.show({
         message: latest.current.message(output),
         action: {

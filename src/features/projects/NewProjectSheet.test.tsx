@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { renderWithRuntime } from '../../test/render';
 import { NewProjectSheet } from './NewProjectSheet';
+import { ApiError } from '../../api/errors';
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -65,5 +66,26 @@ describe('the New Project sheet', () => {
     await api.call('settings.update', { workloadLimit: 12 });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(within(sheet).getByLabelText('Name')).toHaveValue('Harbour Gate Offices');
+  });
+
+  it('creates the project once when the cover upload fails, and retries the upload alone', async () => {
+    const { sheet, store, api } = await openSheet();
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
+      if (name === 'files.upload' && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await userEvent.upload(within(sheet).getByLabelText('Cover image'), new File(['x'], 'cover.png', { type: 'image/png' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Project' })).toBeNull());
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    const made = Object.values(store.state.projects).filter((p) => p.name === 'Harbour Gate Offices');
+    expect(made).toHaveLength(1);
+    await waitFor(() => expect(store.state.projects[made[0].id].coverFileId).not.toBeNull());
   });
 });

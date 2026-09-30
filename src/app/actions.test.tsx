@@ -83,3 +83,18 @@ describe('file URLs', () => {
     expect(await screen.findByRole('img', { name: 'Preview' })).toHaveAttribute('src', 'blob:madar-test');
   });
 });
+
+describe('actions that change nothing', () => {
+  function Stay() {
+    const move = useUndoable('tasks.move', { message: () => 'Moved.' });
+    return <button type="button" onClick={() => move.mutate({ id: 'tsk_009', status: 'todo' })}>Stay</button>;
+  }
+
+  it('shows no toast and no Undo', async () => {
+    await renderWithRuntime(<Stay />, asFaisal);
+    await userEvent.click(screen.getByText('Stay'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByText('Moved.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});

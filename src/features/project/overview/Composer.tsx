@@ -25,6 +25,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
   const [caret, setCaret] = useState(0);
   const [picked, setPicked] = useState<UserCard[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const uploaded = useRef(new Map<File, string>());
   const [active, setActive] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
@@ -95,13 +96,20 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
     try {
       const fileIds: string[] = [];
       for (const file of files) {
-        const view = await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: detail.currentStage.id }, meta);
-        fileIds.push(view.file.id);
+        // A file that went up before a failed post is not sent a second time.
+        let id = uploaded.current.get(file);
+        if (!id) {
+          const view = await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: detail.currentStage.id }, meta);
+          id = view.file.id;
+          uploaded.current.set(file, id);
+        }
+        fileIds.push(id);
       }
       await api.call('updates.create', { projectId: detail.project.id, body, fileIds }, meta);
       setText('');
       setPicked([]);
       setFiles([]);
+      uploaded.current.clear();
       toast.show({ message: t('overview.posted') });
     } catch (error) {
       toast.show({ tone: 'error', message: errorMessage(error, t) });
@@ -167,7 +175,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
         </ul>
       )}
       <div className="flex items-center justify-between gap-2">
-        <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-subheadline font-semibold text-accent hover:bg-fill">
+        <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-subheadline font-semibold text-accent hover:bg-fill has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
           <Paperclip size={18} aria-hidden />
           {t('overview.attach')}
           <input

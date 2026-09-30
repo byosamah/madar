@@ -59,4 +59,25 @@ describe('the Schedule tab', () => {
     });
     expect(await screen.findByText('Add stage dates or a deadline to see the timeline.')).toBeInTheDocument();
   });
+
+  it('moves a stage end by three days for three quick arrow presses, and saves once', async () => {
+    const { store } = await renderApp(SCHEDULE, as('usr_002'), { latencyMs: 60 });
+    const end = await screen.findByRole('slider', { name: 'End of Permits' });
+    end.focus();
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+    await waitFor(() => expect(store.state.stages.stg_005.endDate).toBe('2026-11-04'), { timeout: 3000 });
+    expect(Object.values(store.state.events).filter((e) => e.verb === 'stage.dates_changed')).toHaveLength(1);
+  });
+
+  it('saves a typed stage date once, when the person leaves the field', async () => {
+    const { store } = await renderApp(SCHEDULE, as('usr_002'));
+    await screen.findByRole('slider', { name: 'End of Permits' });
+    const start = document.getElementById('start-stg_005') as HTMLInputElement;
+    fireEvent.change(start, { target: { value: '0002-09-29' } });
+    fireEvent.change(start, { target: { value: '2026-09-29' } });
+    expect(store.state.stages.stg_005.startDate).toBe('2026-09-28');
+    fireEvent.blur(start);
+    await waitFor(() => expect(store.state.stages.stg_005.startDate).toBe('2026-09-29'));
+    expect(Object.values(store.state.events).filter((e) => e.verb === 'stage.dates_changed')).toHaveLength(1);
+  });
 });

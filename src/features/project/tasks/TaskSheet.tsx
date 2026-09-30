@@ -1,5 +1,5 @@
-import { Flag, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Circle, CircleCheck, Flag, X } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -12,37 +12,63 @@ import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
-import { SelectField, TextArea, TextField } from '../../../components/Fields';
+import { DateDraftField, SelectField, TextArea, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
 import { BOARD_COLUMNS } from '../../../lib/board';
-import { formatNumber } from '../../../lib/dates';
+import { formatDay, formatNumber } from '../../../lib/dates';
 import { historyText } from './history';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
 
+/** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-footnote text-label-2">{label}</span>
+      <span className="min-h-11 py-2 text-body">{children}</span>
+    </div>
+  );
+}
+
 function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChange: (items: ChecklistItem[]) => void }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
-  const items = task.checklist;
+  // A local copy, so two quick ticks build on each other before the saved list comes back.
+  const [items, setItems] = useState(task.checklist);
+  const saved = JSON.stringify(task.checklist);
+  useEffect(() => {
+    setItems(JSON.parse(saved) as ChecklistItem[]);
+  }, [saved]);
+  const change = (next: ChecklistItem[]) => {
+    setItems(next);
+    onChange(next);
+  };
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
       <ul>
-        {items.map((item) => (
+        {!edit && items.map((item) => (
+          <li key={item.id} className="flex min-h-11 items-center gap-3">
+            {item.done ? <CircleCheck size={20} className="shrink-0 text-accent" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
+            <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
+            {item.done && <span className="sr-only">{t('common.done')}</span>}
+          </li>
+        ))}
+        {edit && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
             <input
               type="checkbox"
               aria-label={item.text}
               className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
               checked={item.done}
-              disabled={!edit}
-              onChange={(event) => onChange(items.map((i) => (i.id === item.id ? { ...i, done: event.target.checked } : i)))}
+              onChange={(event) => change(items.map((i) => (i.id === item.id ? { ...i, done: event.target.checked } : i)))}
             />
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
-            {edit && (
-              <IconButton label={t('taskSheet.removeItem', { text: item.text })} onClick={() => onChange(items.filter((i) => i.id !== item.id))}>
+            {(
+              <IconButton label={t('taskSheet.removeItem', { text: item.text })} onClick={() => change(items.filter((i) => i.id !== item.id))}>
                 <X size={16} aria-hidden />
               </IconButton>
             )}
@@ -56,7 +82,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
             const value = text.trim();
             if (!value) return;
             const id = `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-            onChange([...items, { id, text: value, done: false }]);
+            change([...items, { id, text: value, done: false }]);
             setText('');
           }}
         >
@@ -142,28 +168,37 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   return (
     <div className="flex flex-col gap-5 pt-1">
       {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
-      <TextField
-        id="task-title"
-        label={t('taskSheet.title')}
-        value={title}
-        dir="auto"
-        readOnly={!edit}
-        onChange={(event) => setTitle(event.target.value)}
-        onBlur={() => {
-          if (edit && title.trim() && title.trim() !== task.title) patch({ title: title.trim() });
-        }}
-      />
+      {edit ? (
+        <TextField
+          id="task-title"
+          label={t('taskSheet.title')}
+          value={title}
+          dir="auto"
+          onChange={(event) => setTitle(event.target.value)}
+          onBlur={() => {
+            if (title.trim() && title.trim() !== task.title) patch({ title: title.trim() });
+          }}
+        />
+      ) : <Fact label={t('taskSheet.title')}><bdi>{task.title}</bdi></Fact>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} disabled={!data.canMove} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
-          {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
-        </SelectField>
-        <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} disabled={!viewerCan.editAll} onChange={(event) => patch({ ownerId: event.target.value })}>
-          {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
-        </SelectField>
-        <TextField id="task-due" type="date" label={t('taskSheet.dueDate')} value={task.dueDate ?? ''} readOnly={!edit} onChange={(event) => patch({ dueDate: event.target.value || null })} />
-        <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} disabled={!edit} onChange={(event) => patch({ stageId: event.target.value })}>
-          {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-        </SelectField>
+        {data.canMove ? (
+          <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
+            {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
+          </SelectField>
+        ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
+        {viewerCan.editAll ? (
+          <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
+            {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+          </SelectField>
+        ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
+        {edit
+          ? <DateDraftField id="task-due" label={t('taskSheet.dueDate')} value={task.dueDate ?? ''} onCommit={(dueDate) => patch({ dueDate })} />
+          : <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>}
+        {edit ? (
+          <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
+            {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+          </SelectField>
+        ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
       </div>
       {edit
         ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
@@ -178,17 +213,18 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
           <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
         </section>
       )}
-      <TextArea
-        id="task-description"
-        label={t('taskSheet.description')}
-        value={description}
-        dir="auto"
-        readOnly={!edit}
-        onChange={(event) => setDescription(event.target.value)}
-        onBlur={() => {
-          if (edit && description !== task.description) patch({ description });
-        }}
-      />
+      {edit ? (
+        <TextArea
+          id="task-description"
+          label={t('taskSheet.description')}
+          value={description}
+          dir="auto"
+          onChange={(event) => setDescription(event.target.value)}
+          onBlur={() => {
+            if (description !== task.description) patch({ description });
+          }}
+        />
+      ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
       <Checklist task={task} edit={edit} onChange={(checklist) => patch({ checklist })} />
       <section className="flex flex-col gap-1">
         <h3 className="text-headline">{t('taskSheet.files')}</h3>

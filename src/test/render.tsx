@@ -16,12 +16,12 @@ import { setNow } from '../lib/dates';
 import { NOW, TODAY } from './factories';
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
-export async function renderApp(path = '/', prepare?: (state: State) => void) {
+export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number } = {}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
   const store = new Store(state, memoryPersister());
-  const api = createApi(calls, { store, latencyMs: 0 });
+  const api = createApi(calls, { store, latencyMs: options.latencyMs ?? 0 });
   initI18n('en');
   window.location.hash = `#${path}`;
   const router = createAppRouter();

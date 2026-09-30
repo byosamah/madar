@@ -130,11 +130,13 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   const newest = latest[0]?.at;
   const health = computeHealth({ project, stages, tasks }, today);
   const viewerRole = projectRoleOf(state, project.id, viewer.id);
+  const cover = project.coverFileId ? state.files[project.coverFileId] : undefined;
   return {
     project,
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
     health,
     healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,
+    coverLetter: cover ? cover.versions[cover.versions.length - 1].letter : null,
     stages,
     currentStage: state.stages[project.currentStageId] ?? stages[0],
     latest,

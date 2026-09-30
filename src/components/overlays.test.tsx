@@ -132,4 +132,14 @@ describe('overlays', () => {
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Task' })).getByText('Save'));
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
+
+  it('draws a menu at the page level, so no clipping box cuts it off', async () => {
+    render(
+      <div data-testid="clip" style={{ overflow: 'hidden', height: 40 }}>
+        <Menu label="Project actions" items={[{ label: 'Edit', onSelect: vi.fn() }, { label: 'Delete', onSelect: vi.fn() }]} />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
+    expect(screen.getByTestId('clip')).not.toContainElement(screen.getByRole('menu'));
+  });
 });

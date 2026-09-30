@@ -36,6 +36,7 @@ export const eventsList = defineCall({
     projectId: ProjectId.optional(),
     targetType: EventTarget.optional(),
     targetId: z.string().optional(),
+    correlationId: z.string().min(1).max(80).optional(),
     limit: z.number().int().min(1).max(500).default(50),
   }),
   output: z.array(EventView),
@@ -46,6 +47,7 @@ export const eventsList = defineCall({
       .filter((e) => (!input.projectId || e.projectId === input.projectId)
         && (!input.targetType || e.targetType === input.targetType)
         && (!input.targetId || e.targetId === input.targetId)
+        && (!input.correlationId || e.correlationId === input.correlationId)
         // Hours are private: only the person, their project leader and Admins see them (spec 2.3).
         && (e.targetType !== 'time' || canSeeHours(ctx, e, owners)))
       .sort((a, b) => b.seq - a.seq)
@@ -84,6 +86,21 @@ function assertMemberUndo(ctx: Ctx, event: Event): void {
 
 const ANY_TASK_FIELDS = ['ownerId', 'needsReview'];
 
+/** The cover comes back with its file only for a person who may undo that file delete. */
+function coverComesBackWithFile(ctx: Ctx, event: Event): boolean {
+  const fileId = fieldsOf(event.before).coverFileId;
+  if (typeof fileId !== 'string') return false;
+  const deleted = Object.values(ctx.state.events).find((e) =>
+    e.correlationId === event.correlationId && e.projectId === event.projectId && e.verb === 'file.deleted' && e.targetId === fileId);
+  if (!deleted) return false;
+  try {
+    assertMayUndo(ctx, deleted);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** An undo is a new change: the person must have the right to make it now, under the same rules as the original call. */
 function assertMayUndo(ctx: Ctx, event: Event): void {
   const projectRole = event.projectId ? roleIn(ctx, event.projectId) : 'other';
@@ -92,6 +109,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
   switch (event.targetType) {
     case 'project':
       if (event.verb === 'project.leader_changed') return need('project.changeLeader');
+      // Deleting the cover file also clears the cover. Whoever may bring that file back may bring the cover back with it.
+      if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
       if (event.verb === 'project.status_changed') return need('project.archive');
       if (event.verb.startsWith('project.health_')) return need('project.healthOverride');
       return need('project.edit');

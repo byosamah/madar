@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { ApiError } from '../../../api/errors';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -49,5 +50,27 @@ describe('the Files tab', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Massing view.svg' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Set as cover' }));
     await waitFor(() => expect(store.state.projects.prj_001.coverFileId).toBe('fil_002'));
+  });
+
+  it('retries only the files that did not upload', async () => {
+    const { store, api } = await renderApp(FILES, as('usr_005'));
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
+      if (name === 'files.upload' && (input as { name: string }).name === 'Two.txt' && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    await userEvent.upload(await screen.findByLabelText('Upload files'), [new File(['1'], 'One.txt', { type: 'text/plain' }), new File(['2'], 'Two.txt', { type: 'text/plain' })]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(Object.values(store.state.files).find((f) => f.name === 'Two.txt')).toBeDefined());
+    expect(Object.values(store.state.files).find((f) => f.name === 'One.txt')?.versions).toHaveLength(1);
+  });
+
+  it('shows a focus ring on Upload files', async () => {
+    await renderApp(FILES, as('usr_005'));
+    expect((await screen.findByText('Upload files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
   });
 });

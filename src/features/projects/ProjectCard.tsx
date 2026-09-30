@@ -15,7 +15,7 @@ import { FeedLine } from './FeedLine';
 /** The latest render at 16:9, or a tinted panel with the project code when there is no cover (spec 4.1). */
 export function ProjectCover({ summary, className = 'aspect-video' }: { summary: ProjectSummary; className?: string }) {
   const { t } = useTranslation();
-  const url = useFileUrl(summary.project.coverFileId);
+  const url = useFileUrl(summary.project.coverFileId, summary.coverLetter ?? undefined);
   const label = t('projects.cover', { name: summary.project.name });
   if (url) return <img src={url} alt={label} className={`w-full object-cover ${className}`} />;
   return (

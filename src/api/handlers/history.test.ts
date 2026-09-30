@@ -7,6 +7,7 @@ import { taskCalls } from './tasks';
 import { timeCalls } from './time';
 import { makeTask, NOW, STAMP, TODAY, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { memberKey } from '../store';
 
 beforeEach(() => setNow(NOW));
 const calls = { ...taskCalls, ...historyCalls, ...projectCalls, ...peopleCalls, ...timeCalls };
@@ -150,6 +151,31 @@ describe('undo of a whole story', () => {
     t.as('usr_004');
     await expect(t.api.call('events.undoStory', { correlationId: 'cor_ui_story2' })).rejects.toMatchObject({ code: 'forbidden' });
     expect(t.store.state.tasks.tsk_001.status).toBe('done');
+  });
+
+  it('lets a team member undo the delete of their own file that was the cover', async () => {
+    const t = testApi({ ...calls, ...fileCalls });
+    t.store.state.files.fil_001 = { ...structuredClone(image), versions: [{ ...image.versions[0], uploadedBy: 'usr_003' }] };
+    t.store.state.projects.prj_001.coverFileId = 'fil_001';
+    t.as('usr_003');
+    await t.api.call('files.delete', { id: 'fil_001' }, { correlationId: 'cor_ui_story4' });
+    await t.api.call('events.undoStory', { correlationId: 'cor_ui_story4' });
+    expect(t.store.state.files.fil_001).toBeDefined();
+    expect(t.store.state.projects.prj_001.coverFileId).toBe('fil_001');
+  });
+
+  it('does not bring the cover back for a person who left the team', async () => {
+    const t = testApi({ ...calls, ...fileCalls });
+    t.store.state.files.fil_001 = { ...structuredClone(image), versions: [{ ...image.versions[0], uploadedBy: 'usr_003' }] };
+    t.store.state.projects.prj_001.coverFileId = 'fil_001';
+    t.as('usr_003');
+    await t.api.call('files.delete', { id: 'fil_001' }, { correlationId: 'cor_ui_story5' });
+    const story = Object.values(t.store.state.events).filter((e) => e.correlationId === 'cor_ui_story5');
+    const cover = story.find((e) => e.verb === 'project.cover_changed');
+    await t.api.call('events.undo', { eventId: story.find((e) => e.verb === 'file.deleted')!.id });
+    delete t.store.state.members[memberKey('prj_001', 'usr_003')];
+    await expect(t.api.call('events.undo', { eventId: cover!.id })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.projects.prj_001.coverFileId).toBeNull();
   });
 
   it('reports an unknown story', async () => {

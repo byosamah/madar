@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -49,7 +49,9 @@ describe('the task sheet', () => {
     await renderApp(TASK('tsk_011'), as('usr_005'));
     const sheet = await screen.findByRole('dialog', { name: 'Balady submission set' });
     expect(within(sheet).getByText('You can view this task. Only its owner and the project leader can change it.')).toBeInTheDocument();
-    expect(within(sheet).getByLabelText('Title')).toHaveAttribute('readonly');
+    expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull();
+    expect(within(sheet).queryAllByRole('combobox')).toHaveLength(0);
+    expect(within(sheet).getByText('Owner').parentElement).toHaveTextContent('Faisal Al-Harbi');
     expect(within(sheet).queryByRole('button', { name: 'Delete task' })).toBeNull();
   });
 
@@ -69,5 +71,28 @@ describe('the task sheet', () => {
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add an item' }), 'Handrail height{Enter}');
     await userEvent.click(await within(sheet).findByRole('checkbox', { name: 'Handrail height' }));
     await waitFor(() => expect(store.state.tasks.tsk_007.checklist).toEqual([expect.objectContaining({ text: 'Handrail height', done: true })]));
+  });
+
+  it('keeps two quick checklist ticks', async () => {
+    const { store } = await renderApp(TASK('tsk_007'), (state) => {
+      state.session.currentUserId = 'usr_006';
+      state.tasks.tsk_007.checklist = [{ id: 'chk_a', text: 'Handrail height', done: false }, { id: 'chk_b', text: 'Tread depth', done: false }];
+    }, { latencyMs: 60 });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Handrail height' }));
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Tread depth' }));
+    await waitFor(() => expect(store.state.tasks.tsk_007.checklist.map((item) => item.done)).toEqual([true, true]), { timeout: 3000 });
+  });
+
+  it('saves the due date once, when the person leaves the field', async () => {
+    const { store } = await renderApp(TASK('tsk_007'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const due = within(sheet).getByLabelText('Due date');
+    fireEvent.change(due, { target: { value: '0002-10-05' } });
+    fireEvent.change(due, { target: { value: '2026-10-05' } });
+    expect(store.state.tasks.tsk_007.dueDate).toBe('2026-09-25');
+    fireEvent.blur(due);
+    await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-05'));
+    expect(Object.values(store.state.events).filter((e) => e.targetId === 'tsk_007' && e.verb === 'task.updated')).toHaveLength(1);
   });
 });

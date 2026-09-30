@@ -45,6 +45,7 @@ export const ProjectSummary = z.object({
   client: Client.nullable(),
   health: HealthResult.nullable(),
   healthSetBy: UserCard.nullable(),
+  coverLetter: z.string().nullable(),
   stages: z.array(Stage),
   currentStage: Stage,
   latest: z.array(FeedItem).max(2),

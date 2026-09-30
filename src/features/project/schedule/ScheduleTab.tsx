@@ -1,5 +1,5 @@
 import { Trash } from 'lucide-react';
-import { Fragment, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
@@ -10,7 +10,7 @@ import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
-import { SelectField, TextField } from '../../../components/Fields';
+import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { diffDays, formatDay, formatMonth, todayISO } from '../../../lib/dates';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
@@ -19,7 +19,7 @@ import type { TabProps } from '../tabs';
 type Edge = 'start' | 'end';
 
 function StageBar({
-  stage, span, range, current, editable, width, onPreview, onCommit,
+  stage, span: saved, range, current, editable, width, onCommit,
 }: {
   stage: Stage;
   span: Span;
@@ -27,15 +27,23 @@ function StageBar({
   current: boolean;
   editable: boolean;
   width: () => number;
-  onPreview: (span: Span | null) => void;
-  onCommit: (span: Span) => void;
+  onCommit: (span: Span, onError: () => void) => void;
 }) {
   const { t } = useTranslation();
   const lang = useLang();
   const drag = useRef<{ edge: Edge; x: number; origin: Span } | null>(null);
+  const timer = useRef(0);
+  // A local draft, so quick arrow presses build on each other; it goes away when the saved dates catch up (spec 10.9).
+  const [draft, setDraft] = useState<Span | null>(null);
+  useEffect(() => {
+    if (draft && draft.start === saved.start && draft.end === saved.end) setDraft(null);
+  }, [draft, saved.start, saved.end]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const span = draft ?? saved;
   const rtl = document.documentElement.dir === 'rtl';
   const total = spanDays(range);
   const daysFor = (event: PointerEvent) => dayDelta(event.clientX - (drag.current?.x ?? event.clientX), width(), total, rtl);
+  const save = (next: Span) => onCommit(next, () => setDraft(null));
 
   const handle = (edge: Edge) => {
     const day = edge === 'start' ? span.start : span.end;
@@ -43,7 +51,11 @@ function StageBar({
       const step = event.key === (rtl ? 'ArrowLeft' : 'ArrowRight') ? 1 : event.key === (rtl ? 'ArrowRight' : 'ArrowLeft') ? -1 : 0;
       if (step === 0) return;
       event.preventDefault();
-      onCommit(moveEdge(span, edge, step));
+      const next = moveEdge(span, edge, step);
+      setDraft(next);
+      // One save after the person stops pressing, so a burst of presses is one change with one Undo.
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => save(next), 400);
     };
     return (
       <span
@@ -60,15 +72,19 @@ function StageBar({
           drag.current = { edge, x: event.clientX, origin: span };
         }}
         onPointerMove={(event) => {
-          if (drag.current) onPreview(moveEdge(drag.current.origin, drag.current.edge, daysFor(event)));
+          if (drag.current) setDraft(moveEdge(drag.current.origin, drag.current.edge, daysFor(event)));
         }}
         onPointerUp={(event) => {
           if (!drag.current) return;
           const days = daysFor(event);
           const next = moveEdge(drag.current.origin, drag.current.edge, days);
           drag.current = null;
-          if (days === 0) onPreview(null);
-          else onCommit(next);
+          if (days === 0) {
+            setDraft(null);
+            return;
+          }
+          setDraft(next);
+          save(next);
         }}
         className={`absolute inset-y-0 z-10 w-6 cursor-ew-resize touch-none rounded-full focus-visible:bg-white/40 ${edge === 'start' ? '-start-2' : '-end-2'}`}
       />
@@ -77,7 +93,7 @@ function StageBar({
 
   return (
     <div
-      title={`${stage.name}: ${formatDay(span.start, lang)} to ${formatDay(span.end, lang)}`}
+      title={t('project.stageDates', { start: formatDay(span.start, lang), end: formatDay(span.end, lang) })}
       style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%` }}
       className={`absolute top-2 h-7 rounded-full ${current ? 'bg-accent-fill' : 'bg-fill-strong'}`}
     >
@@ -92,7 +108,6 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const { t } = useTranslation();
   const lang = useLang();
   const scale = useRef<HTMLDivElement>(null);
-  const [preview, setPreview] = useState<{ stageId: string; span: Span } | null>(null);
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
   const width = () => scale.current?.getBoundingClientRect().width ?? 0;
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
@@ -111,7 +126,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
         </div>
         {detail.stages.map((stage) => {
           const saved = stage.startDate && stage.endDate ? { start: stage.startDate, end: stage.endDate } : null;
-          const span = preview?.stageId === stage.id ? preview.span : saved;
+          const span = saved;
           return (
             <Fragment key={stage.id}>
               <div dir="auto" className="flex min-h-11 items-center truncate text-subheadline">{stage.name}</div>
@@ -125,11 +140,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     current={stage.id === detail.currentStage.id}
                     editable={detail.viewerCan.edit}
                     width={width}
-                    onPreview={(next) => setPreview(next ? { stageId: stage.id, span: next } : null)}
-                    onCommit={(next) => {
-                      setPreview(null);
-                      setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end });
-                    }}
+                    onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
                 ) : <span className="flex h-11 items-center text-footnote text-label-2">{t('project.noDates')}</span>}
               </div>
@@ -168,10 +179,10 @@ function StageDates({ detail }: TabProps) {
             <span dir="auto" className="min-w-0 flex-1 text-subheadline font-medium">{stage.name}</span>
             {edit ? (
               <>
-                <TextField id={`start-${stage.id}`} type="date" label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
-                  onChange={(event) => setDates.mutate({ stageId: stage.id, startDate: event.target.value || null, endDate: stage.endDate })} />
-                <TextField id={`end-${stage.id}`} type="date" label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
-                  onChange={(event) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate: event.target.value || null })} />
+                <DateDraftField id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
+                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate })} />
+                <DateDraftField id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
+                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate })} />
               </>
             ) : (
               <span className="tabular text-footnote text-label-2">

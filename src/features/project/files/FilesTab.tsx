@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MAX_FILE_BYTES } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
-import { errorMessage } from '../../../app/errors';
+import { canRetry, errorMessage } from '../../../app/errors';
 import { downloadFile, useFileUrl } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
@@ -105,23 +105,33 @@ export function FilesTab({ detail }: TabProps) {
   const [preview, setPreview] = useState<FileView | null>(null);
   const canUpload = detail.viewerCan.post;
 
+  // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
+  const uploadQueue = async (queue: File[], meta: { correlationId: string }): Promise<void> => {
+    setUploading(true);
+    let sent = 0;
+    try {
+      for (const file of queue) {
+        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null }, meta);
+        sent += 1;
+      }
+      toast.show({ message: t('files.uploaded', { n: queue.length }) });
+    } catch (error) {
+      const rest = queue.slice(sent);
+      toast.show({
+        tone: 'error',
+        message: errorMessage(error, t),
+        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta) } : undefined,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const upload = async (list: FileList | null) => {
     const chosen = [...(list ?? [])];
     for (const file of chosen.filter((f) => f.size > MAX_FILE_BYTES)) toast.show({ tone: 'error', message: t('files.tooBig', { name: file.name }) });
     const accepted = chosen.filter((f) => f.size <= MAX_FILE_BYTES);
-    if (accepted.length === 0) return;
-    const meta = { correlationId: newStoryId() };
-    setUploading(true);
-    try {
-      for (const file of accepted) {
-        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null }, meta);
-      }
-      toast.show({ message: t('files.uploaded', { n: accepted.length }) });
-    } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
-    } finally {
-      setUploading(false);
-    }
+    if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() });
   };
 
   const groups = [...detail.stages.map((stage) => ({ id: stage.id as string | null, name: stage.name })), { id: null, name: t('files.noStage') }]
@@ -148,7 +158,7 @@ export function FilesTab({ detail }: TabProps) {
     >
       {canUpload && (
         <div className="flex flex-wrap items-end gap-3">
-          <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent-fill px-5 text-body font-semibold text-on-accent">
+          <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent-fill px-5 text-body font-semibold text-on-accent has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
             <Upload size={18} aria-hidden />
             {t('files.upload')}
             <input

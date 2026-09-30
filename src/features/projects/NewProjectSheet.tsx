@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { MAX_FILE_BYTES } from '../../api/contract/entities';
-import { errorMessage } from '../../app/errors';
+import { canRetry, errorMessage } from '../../app/errors';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
@@ -40,6 +40,18 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings.data]);
 
+  const uploadCover = async (projectId: string, stageId: string, file: File): Promise<void> => {
+    try {
+      await api.call('files.upload', { projectId, name: file.name, blob: file, stageId, asCover: true });
+    } catch (error) {
+      toast.show({
+        tone: 'error',
+        message: errorMessage(error, t),
+        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadCover(projectId, stageId, file) } : undefined,
+      });
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.check()) {
@@ -62,14 +74,12 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),
       });
-      if (cover && cover.size > MAX_FILE_BYTES) {
-        toast.show({ tone: 'error', message: t('files.tooBig', { name: cover.name }) });
-      } else if (cover) {
-        await api.call('files.upload', { projectId: detail.project.id, name: cover.name, blob: cover, stageId: detail.currentStage.id, asCover: true });
-      }
       toast.show({ message: t('projectForm.created', { code: detail.project.code }) });
       onOpenChange(false);
       navigate(`/projects/${detail.project.id}`);
+      // The project exists now. The cover goes up on its own, so a failed upload never makes a second project.
+      if (cover && cover.size > MAX_FILE_BYTES) toast.show({ tone: 'error', message: t('files.tooBig', { name: cover.name }) });
+      else if (cover) void uploadCover(detail.project.id, detail.currentStage.id, cover);
     } catch (error) {
       toast.show({ tone: 'error', message: errorMessage(error, t) });
     } finally {

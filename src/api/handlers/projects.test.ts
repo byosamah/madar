@@ -227,6 +227,15 @@ describe('plan 2 additions', () => {
     expect(await hours('usr_001')).toEqual({ usr_002: 4, usr_003: 6 });
   });
 
+  it('gives the latest letter of the cover, so a new version shows', async () => {
+    const t = testApi(projectCalls);
+    const version = (letter: string) => ({ letter, blobKey: `blob_${letter}`, mimeType: 'image/png', size: 10, uploadedBy: 'usr_002', uploadedAt: STAMP });
+    t.store.state.files.fil_001 = { id: 'fil_001', projectId: 'prj_001', stageId: null, taskId: null, name: 'Render.png', versions: [version('A'), version('B')] };
+    t.store.state.projects.prj_001.coverFileId = 'fil_001';
+    const [summary] = await t.api.call('projects.list', {});
+    expect(summary.coverLetter).toBe('B');
+  });
+
   it('sets a project image as the cover and refuses other files', async () => {
     const t = testApi(projectCalls);
     const version = { letter: 'A', blobKey: 'blob_1', size: 10, uploadedBy: 'usr_002', uploadedAt: STAMP };

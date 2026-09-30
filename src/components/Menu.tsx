@@ -82,20 +82,44 @@ export function MenuList({
   );
 }
 
-/** A "…" button with a menu that grows from it (spec 10.6). It hides itself when the viewer may use no item. */
+/**
+ * A "…" button with a menu that grows from it (spec 10.6). It hides itself when the viewer may use no item.
+ * The list draws at the page level with a fixed place, so a clipping box (a cover, a scrolling board) never cuts it off.
+ */
 export function Menu({ label, items, triggerClassName = '', icon }: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const wrapper = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<CSSProperties>({});
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     if (restoreFocus) trigger.current?.focus();
   }, []);
+  useEffect(() => {
+    if (!open) return undefined;
+    // The list has a fixed place, so it closes when the page under it moves.
+    const onMove = () => close(false);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, close]);
   if (items.every((item) => item.hidden)) return null;
-  const rtl = document.documentElement.dir === 'rtl';
-  const origin = { transformOrigin: rtl ? 'top left' : 'top right' }; // rtl-ok: the menu grows from the corner of its button
+  const openMenu = () => {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const rtl = document.documentElement.dir === 'rtl';
+    const height = items.filter((item) => !item.hidden).length * 44 + 12;
+    const below = rect.bottom + 4 + height <= window.innerHeight;
+    const vertical = below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 };
+    const side = rtl ? { left: rect.left } : { right: window.innerWidth - rect.right }; // rtl-ok: screen coordinates from the button
+    const origin = `${below ? 'top' : 'bottom'} ${rtl ? 'left' : 'right'}`; // rtl-ok: the menu grows from the corner of its button
+    setPlace({ position: 'fixed', ...vertical, ...side, transformOrigin: origin });
+    setOpen(true);
+  };
   return (
-    <div ref={wrapper} className="relative">
+    <>
       <button
         ref={trigger}
         type="button"
@@ -103,15 +127,16 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
         title={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => (open ? close(false) : openMenu())}
         className={`pressable grid size-11 place-items-center rounded-full ${triggerClassName || 'text-label-2 hover:bg-fill'}`}
       >
         {icon ?? <Ellipsis size={20} aria-hidden />}
       </button>
-      <AnimatePresence>
-        {open && <MenuList label={label} items={items} onClose={close} boundary={wrapper} className="absolute end-0 top-full mt-1" style={origin} />}
-      </AnimatePresence>
-    </div>
+      {createPortal(
+        <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,
+        document.body,
+      )}
+    </>
   );
 }
 

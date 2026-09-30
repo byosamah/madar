@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { ApiError } from '../../../api/errors';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -57,5 +58,30 @@ describe('the Overview tab', () => {
     expect(box).not.toHaveAttribute('aria-controls');
     await userEvent.type(box, '@Sa');
     expect(box).toHaveAttribute('aria-controls', 'mention-list');
+  });
+
+  it('does not upload an attachment twice after a failed post', async () => {
+    const { store, api } = await renderApp(PROJECT, as('usr_002'));
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
+      if (name === 'updates.create' && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Post an update' }), 'New render');
+    await userEvent.upload(screen.getByLabelText('Attach files'), new File(['x'], 'Lobby render.png', { type: 'image/png' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect(await screen.findByText('Update posted.')).toBeInTheDocument();
+    expect(Object.values(store.state.files).find((f) => f.name === 'Lobby render.png')?.versions).toHaveLength(1);
+  });
+
+  it('shows a focus ring on Attach files', async () => {
+    await renderApp(PROJECT, as('usr_002'));
+    expect((await screen.findByText('Attach files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
   });
 });

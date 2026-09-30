@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import { useEffect, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 
 type FieldProps = { id: string; label: string; error?: string; hint?: string; className?: string };
 
@@ -43,5 +43,47 @@ export function SelectField({ id, label, error, hint, className, children, ...in
         {children}
       </select>
     </Shell>
+  );
+}
+
+/**
+ * A date field that saves when the person leaves it or presses Enter, not on every key.
+ * While a person types a year, the browser reports years like 0002; a year before 2000 never saves.
+ */
+export function DateDraftField({ id, label, error, hint, className, value, onCommit, disabled }: FieldProps & {
+  value: string; onCommit: (value: string | null) => void; disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft === value) return;
+    if (draft === '') {
+      onCommit(null);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft) || Number(draft.slice(0, 4)) < 2000) {
+      setDraft(value);
+      return;
+    }
+    onCommit(draft);
+  };
+  return (
+    <TextField
+      id={id}
+      label={label}
+      error={error}
+      hint={hint}
+      className={className}
+      type="date"
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        commit();
+      }}
+    />
   );
 }
