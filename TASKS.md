@@ -9,7 +9,7 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-2-projects.md. Plan 1 (all 22
 - [x] 5. Undo toasts, retry, stored choices and file URLs
 - [x] 6. The project card and the compact row
 - [x] 7. The New Project sheet
-- [ ] 8. The Projects screen
+- [x] 8. The Projects screen
 - [ ] 9. The Project screen and its header
 - [ ] 10. The Overview tab
 - [ ] 11. The Tasks tab list
