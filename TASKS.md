@@ -6,7 +6,7 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-2-projects.md. Plan 1 (all 22
 - [x] 2. Pure helpers and all plan 2 text
 - [x] 3. Display kit
 - [x] 4. Sheets, menus, popovers and tabs
-- [ ] 5. Undo toasts, retry, stored choices and file URLs
+- [x] 5. Undo toasts, retry, stored choices and file URLs
 - [ ] 6. The project card and the compact row
 - [ ] 7. The New Project sheet
 - [ ] 8. The Projects screen

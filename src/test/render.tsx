@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { onTestFinished } from 'vitest';
 import { render } from '@testing-library/react';
 import { RouterProvider } from 'react-router';
@@ -34,4 +35,20 @@ export async function renderApp(path = '/', prepare?: (state: State) => void) {
     </RuntimeProvider>,
   );
   return { ...view, store, api, router };
+}
+
+/** Renders one component with the API, the toasts and the sample office, for hook tests. */
+export async function renderWithRuntime(ui: ReactElement, prepare?: (state: State) => void, options: { failureRate?: () => number } = {}) {
+  setNow(NOW);
+  const state = await buildSeed(TODAY, async () => undefined);
+  prepare?.(state);
+  const store = new Store(state, memoryPersister());
+  const api = createApi(calls, { store, latencyMs: 0, failureRate: options.failureRate });
+  initI18n('en');
+  const view = render(
+    <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+      <ToastProvider>{ui}</ToastProvider>
+    </RuntimeProvider>,
+  );
+  return { ...view, store, api };
 }

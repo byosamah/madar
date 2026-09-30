@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useEffect, useState } from 'react';
+import { renderWithRuntime } from '../test/render';
+import { useUndoable } from './actions';
+import { useRuntime } from './runtime';
+import { usePersistentChoice } from './choices';
+import { useFileUrl } from './files';
+
+function Tick() {
+  const complete = useUndoable('tasks.complete', { message: () => 'Task done.' });
+  return <button type="button" onClick={() => complete.mutate({ id: 'tsk_009' })}>Tick</button>;
+}
+const asFaisal = (state: { session: { currentUserId: string } }) => {
+  state.session.currentUserId = 'usr_002';
+};
+
+describe('undo toasts', () => {
+  it('undoes the whole action from the toast', async () => {
+    const { store } = await renderWithRuntime(<Tick />, asFaisal);
+    await userEvent.click(screen.getByText('Tick'));
+    expect(await screen.findByText('Task done.')).toBeInTheDocument();
+    expect(store.state.tasks.tsk_009.status).toBe('done');
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.tasks.tsk_009.status).toBe('todo'));
+  });
+
+  it('says so when the item changed after the action, and changes nothing', async () => {
+    const { store, api } = await renderWithRuntime(<Tick />, asFaisal);
+    await userEvent.click(screen.getByText('Tick'));
+    await screen.findByText('Task done.');
+    await api.call('tasks.move', { id: 'tsk_009', status: 'in_progress' });
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText('This item changed after that edit. Undo is not available.')).toBeInTheDocument();
+    expect(store.state.tasks.tsk_009.status).toBe('in_progress');
+  });
+
+  it('offers Retry when a call fails', async () => {
+    let calls = 0;
+    const { store } = await renderWithRuntime(<Tick />, asFaisal, { failureRate: () => (calls++ === 0 ? 1 : 0) });
+    await userEvent.click(screen.getByText('Tick'));
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Task done.')).toBeInTheDocument();
+    expect(store.state.tasks.tsk_009.status).toBe('done');
+  });
+});
+
+describe('stored choices', () => {
+  function Choice() {
+    const [view, setView] = usePersistentChoice('madar.test.view', ['grid', 'list'] as const, 'grid');
+    return <button type="button" onClick={() => setView('list')}>{view}</button>;
+  }
+
+  it('keeps a choice for the next visit and ignores a stored value it does not know', async () => {
+    const first = await renderWithRuntime(<Choice />);
+    await userEvent.click(screen.getByText('grid'));
+    expect(screen.getByText('list')).toBeInTheDocument();
+    first.unmount();
+    await renderWithRuntime(<Choice />);
+    expect(screen.getByText('list')).toBeInTheDocument();
+    window.localStorage.setItem('madar.test.view', 'cards');
+    await renderWithRuntime(<Choice />);
+    expect(screen.getAllByText('grid').length).toBeGreaterThan(0);
+  });
+});
+
+describe('file URLs', () => {
+  function UploadThenPreview() {
+    const { api } = useRuntime();
+    const [fileId, setFileId] = useState<string | null>(null);
+    useEffect(() => {
+      void api.call('files.upload', { projectId: 'prj_001', name: 'Note.png', blob: new Blob(['x'], { type: 'image/png' }) })
+        .then((view) => setFileId(view.file.id));
+    }, [api]);
+    const url = useFileUrl(fileId, 'A');
+    return url ? <img src={url} alt="Preview" /> : <span>Loading</span>;
+  }
+
+  it('gives a blob URL for a stored file', async () => {
+    await renderWithRuntime(<UploadThenPreview />, asFaisal);
+    expect(await screen.findByRole('img', { name: 'Preview' })).toHaveAttribute('src', 'blob:madar-test');
+  });
+});

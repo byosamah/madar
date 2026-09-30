@@ -8,3 +8,8 @@ export function errorMessage(error: unknown, t: TFunction): string {
   }
   return t('errors.failed');
 }
+
+/** Only a failed call is worth a retry. A refusal or an invalid field stays the same on a retry. */
+export function canRetry(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'failed';
+}

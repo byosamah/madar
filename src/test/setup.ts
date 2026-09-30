@@ -22,11 +22,9 @@ if (!Element.prototype.setPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
 }
 
-// jsdom has no blob URLs. File previews and covers use them.
-if (!URL.createObjectURL) {
-  URL.createObjectURL = () => 'blob:madar-test';
-  URL.revokeObjectURL = () => undefined;
-}
+// File previews and covers use blob URLs. The test browser's own helper fails on these blobs, so tests use a fixed URL.
+URL.createObjectURL = () => 'blob:madar-test';
+URL.revokeObjectURL = () => undefined;
 
 afterEach(() => {
   window.localStorage.clear();

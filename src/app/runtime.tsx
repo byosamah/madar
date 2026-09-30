@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import type { Store } from '../api/store';
-import { errorMessage } from './errors';
+import { canRetry, errorMessage } from './errors';
 import { useToast } from './toasts';
 
 export type Runtime = { store: Store; api: MadarApi };
@@ -46,9 +46,16 @@ export function useAction<N extends CallName>(name: N, options: { onSuccess?: (o
   const { api } = useRuntime();
   const toast = useToast();
   const { t } = useTranslation();
-  return useMutation<CallOutput<N>, unknown, CallInput<N>>({
+  const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
+  const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
     mutationFn: (input) => api.call(name, input),
     onSuccess: (output) => options.onSuccess?.(output),
-    onError: (error) => toast.show({ tone: 'error', message: errorMessage(error, t) }),
+    onError: (error, input) => toast.show({
+      tone: 'error',
+      message: errorMessage(error, t),
+      action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
+    }),
   });
+  retry.current = mutation.mutate;
+  return mutation;
 }
