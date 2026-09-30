@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { contentCalls } from './content';
+import { taskCalls } from './tasks';
 import type { Store } from '../store';
 import { makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -86,5 +87,33 @@ describe('comments', () => {
     const t = testApi(contentCalls);
     t.as('usr_003');
     await expect(t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_404', body: 'Hi' })).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
+describe('rights on posts and comments', () => {
+  it('tells the viewer which posts and comments they may edit', async () => {
+    const t = testApi(contentCalls);
+    t.as('usr_003');
+    const post = await t.api.call('updates.create', { projectId: 'prj_001', body: 'Mine' });
+    const comment = await t.api.call('comments.create', { targetType: 'update', targetId: post.id, body: 'Note' });
+    expect(post).toMatchObject({ kind: 'update', canEdit: true });
+    expect(comment.canEdit).toBe(true);
+    t.as('usr_002');
+    expect((await t.api.call('updates.list', { projectId: 'prj_001', filter: 'posts' }))[0]).toMatchObject({ canEdit: false });
+    expect((await t.api.call('comments.list', { targetType: 'update', targetId: post.id }))[0].canEdit).toBe(false);
+  });
+
+  it('tells the viewer which agent changes in the feed they may undo (spec 10.7)', async () => {
+    const t = testApi({ ...contentCalls, ...taskCalls });
+    t.as('usr_005');
+    await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Agent task' });
+    const agentItem = async () => (await t.api.call('updates.list', { projectId: 'prj_001', filter: 'tasks' }))
+      .find((item) => item.kind === 'event' && item.author.id === 'usr_005');
+    t.as('usr_003');
+    expect(await agentItem()).toMatchObject({ canUndo: true });
+    t.as('usr_002');
+    expect(await agentItem()).toMatchObject({ canUndo: true });
+    t.as('usr_004');
+    expect(await agentItem()).toMatchObject({ canUndo: false });
   });
 });

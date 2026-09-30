@@ -48,7 +48,7 @@ export const updatesList = defineCall({
   readOnly: true,
   run(input, ctx) {
     requireProject(ctx, input.projectId);
-    return feedFor(ctx.state, input.projectId, input.filter, input.limit);
+    return feedFor(ctx.state, input.projectId, input.filter, input.limit, ctx.authority);
   },
 });
 
@@ -67,7 +67,7 @@ export const updatesCreate = defineCall({
     recordCreate(ctx, { projectId: project.id, verb: 'update.posted', targetType: 'update', targetId: id, entity: update });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id });
     touch(ctx, project.id);
-    return updateItemOf(ctx.state, update);
+    return updateItemOf(ctx.state, update, ctx.authority);
   },
 });
 
@@ -80,7 +80,7 @@ export const updatesUpdate = defineCall({
     const added = newMentions(ctx, update.body, input.body);
     applyPatch(ctx, update, { body: input.body, editedAt: ctx.stamp }, { projectId: update.projectId, verb: 'update.edited', targetType: 'update', targetId: update.id });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id });
-    return updateItemOf(ctx.state, update);
+    return updateItemOf(ctx.state, update, ctx.authority);
   },
 });
 
@@ -105,7 +105,7 @@ export const commentsList = defineCall({
     return Object.values(ctx.state.comments)
       .filter((c) => c.targetType === input.targetType && c.targetId === input.targetId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
-      .map((c) => commentViewOf(ctx.state, c));
+      .map((c) => commentViewOf(ctx.state, c, ctx.authority));
   },
 });
 
@@ -117,7 +117,7 @@ export const commentsCreate = defineCall({
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
     const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body);
     touch(ctx, projectId);
-    return commentViewOf(ctx.state, comment);
+    return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });
 
@@ -131,7 +131,7 @@ export const commentsUpdate = defineCall({
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
-    return commentViewOf(ctx.state, comment);
+    return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });
 
@@ -157,7 +157,7 @@ export const reactionsToggle = defineCall({
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
     const list = comment.reactions[input.emoji];
     comment.reactions[input.emoji] = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
-    return commentViewOf(ctx.state, comment);
+    return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });
 

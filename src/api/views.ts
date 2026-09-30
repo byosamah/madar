@@ -3,7 +3,7 @@ import type {
   CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
-import { can, projectRoleOf, type ProjectRole } from './permissions';
+import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
 
@@ -72,10 +72,22 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
   }
 }
 
-export function updateItemOf(state: State, update: Update): FeedItem {
+/** True when the viewer may edit or delete this post or comment: its author, or the person its agent acted for (spec 7.2). */
+function canEditContent(state: State, projectId: string, authorId: string, viewer: User): boolean {
+  return can(viewer, 'content.editOwn', { projectRole: projectRoleOf(state, projectId, viewer.id), authorId: principalOf(state, authorId) });
+}
+
+/** Spec 10.7: the person an agent acted for, the project leader and the Admin may undo an agent change from the feed. */
+function canUndoAgentChange(state: State, event: Event, viewer: User): boolean {
+  if (event.actorKind !== 'agent' || event.projectId === null) return false;
+  return event.actingForId === viewer.id || can(viewer, 'event.undoAgent', { projectRole: projectRoleOf(state, event.projectId, viewer.id) });
+}
+
+export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
   return {
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
     fileIds: update.fileIds, editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
+    canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
   };
 }
 
@@ -84,10 +96,12 @@ function newestFirst(a: FeedItem, b: FeedItem): number {
   return b.id.localeCompare(a.id);
 }
 
-export function feedFor(state: State, projectId: string, filter: 'all' | 'posts' | 'tasks' | 'files', limit: number): FeedItem[] {
+export function feedFor(
+  state: State, projectId: string, filter: 'all' | 'posts' | 'tasks' | 'files', limit: number, viewer: User,
+): FeedItem[] {
   const items: FeedItem[] = [];
   if (filter === 'all' || filter === 'posts') {
-    for (const update of Object.values(state.updates)) if (update.projectId === projectId) items.push(updateItemOf(state, update));
+    for (const update of Object.values(state.updates)) if (update.projectId === projectId) items.push(updateItemOf(state, update, viewer));
   }
   if (filter !== 'posts') {
     for (const event of Object.values(state.events)) {
@@ -97,7 +111,7 @@ export function feedFor(state: State, projectId: string, filter: 'all' | 'posts'
       const { label, detail } = eventLabel(state, event);
       items.push({
         kind: 'event', id: event.id, at: event.createdAt, author: cardOf(state, event.actorId), verb: event.verb,
-        targetType: event.targetType, targetId: event.targetId, label, detail,
+        targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: canUndoAgentChange(state, event, viewer),
       });
     }
   }
@@ -126,7 +140,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   const tasks = Object.values(state.tasks).filter((t) => t.projectId === project.id);
   const deadlines = deadlinesOf(state, project.id);
   const next = deadlines.find((d) => d.date >= today) ?? [...deadlines].reverse().find((d) => d.date < today) ?? null;
-  const latest = feedFor(state, project.id, 'all', 2);
+  const latest = feedFor(state, project.id, 'all', 2, viewer);
   const newest = latest[0]?.at;
   const health = computeHealth({ project, stages, tasks }, today);
   const viewerRole = projectRoleOf(state, project.id, viewer.id);
@@ -215,8 +229,13 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
   };
 }
 
-export function commentViewOf(state: State, comment: Comment): CommentView {
-  return { comment, author: cardOf(state, comment.authorId) };
+export function commentViewOf(state: State, comment: Comment, viewer: User): CommentView {
+  const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
+  return {
+    comment,
+    author: cardOf(state, comment.authorId),
+    canEdit: target ? canEditContent(state, target.projectId, comment.authorId, viewer) : false,
+  };
 }
 
 export function fileViewOf(state: State, file: FileRec): FileView {

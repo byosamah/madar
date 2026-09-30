@@ -5,6 +5,7 @@ import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
 import { applyPatch } from '../events';
 import type { State } from '../store';
+import { can, projectRoleOf } from '../permissions';
 import { cardOf } from '../views';
 
 /** The Inbox badge counts only unread items of these kinds (spec 3.2). */
@@ -19,27 +20,31 @@ export const NotificationView = z.object({
   projectCode: z.string().nullable(),
   link: z.string(),
   needsAction: z.boolean(),
+  canApprove: z.boolean(),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
 const Counts = z.object({ unread: z.number().int().min(0), badge: z.number().int().min(0) });
 
-function viewOf(state: State, n: Notification): NotificationView {
+function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
   let link = '/inbox';
+  let canApprove = false;
   if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
     const project = task ? state.projects[task.projectId] : undefined;
     target = task?.title ?? '';
     projectCode = project?.code ?? null;
-    if (task) link = `/projects/${task.projectId}?task=${task.id}`;
+    if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
+    canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
+      && can(viewer, 'task.review', { projectRole: projectRoleOf(state, task.projectId, viewer.id) });
   } else if (n.targetType === 'update') {
     const update = state.updates[n.targetId];
     const project = update ? state.projects[update.projectId] : undefined;
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
-    if (update) link = `/projects/${update.projectId}?update=${update.id}`;
+    if (update) link = `/projects/${update.projectId}?tab=overview&update=${update.id}`;
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
     target = project?.name ?? '';
@@ -49,7 +54,10 @@ function viewOf(state: State, n: Notification): NotificationView {
     target = n.targetId;
     link = `/work?tab=hours&week=${n.targetId}`;
   }
-  return { notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, link, needsAction: ACTION_TRIGGERS.has(n.trigger) };
+  return {
+    notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, link,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove,
+  };
 }
 
 const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => n.userId === ctx.authority.id);
@@ -68,7 +76,7 @@ export const notificationsList = defineCall({
       .filter((n) => !input.unreadOnly || !n.read)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
       .slice(0, input.limit)
-      .map((n) => viewOf(ctx.state, n));
+      .map((n) => viewOf(ctx.state, n, ctx.authority));
   },
 });
 

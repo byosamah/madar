@@ -24,11 +24,11 @@ export const HealthResult = z.object({
 export const FeedItem = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('update'), id: UpdateId, at: Stamp, author: UserCard, body: z.string(), fileIds: z.array(FileId),
-    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0),
+    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(),
   }),
   z.object({
     kind: z.literal('event'), id: EventId, at: Stamp, author: UserCard, verb: z.string(), targetType: EventTarget,
-    targetId: z.string(), label: z.string(), detail: z.record(z.string(), z.string()),
+    targetId: z.string(), label: z.string(), detail: z.record(z.string(), z.string()), canUndo: z.boolean(),
   }),
 ]);
 export type FeedItem = z.infer<typeof FeedItem>;
@@ -90,7 +90,7 @@ export const TaskDetail = TaskRow.extend({
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
 
-export const CommentView = z.object({ comment: Comment, author: UserCard });
+export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean() });
 export type CommentView = z.infer<typeof CommentView>;
 
 export const FileView = z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });

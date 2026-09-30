@@ -9,7 +9,7 @@ initI18n('en');
 const t = i18n.t.bind(i18n);
 const author = { id: 'usr_002', name: 'Faisal Al-Harbi', avatarUrl: null, kind: 'human' as const, discipline: 'Architect' };
 const event = (verb: string, label: string, detail: Record<string, string> = {}): FeedItem => ({
-  kind: 'event', id: 'evt_001', at: STAMP, author, verb, targetType: 'task', targetId: 'tsk_001', label, detail,
+  kind: 'event', id: 'evt_001', at: STAMP, author, verb, targetType: 'task', targetId: 'tsk_001', label, detail, canUndo: false,
 });
 
 describe('feed sentences', () => {
@@ -23,7 +23,7 @@ describe('feed sentences', () => {
 
   it('gives the text of a post with mentions as names', () => {
     const post: FeedItem = {
-      kind: 'update', id: 'upd_001', at: STAMP, author, body: 'Hi @[Sara Al-Qahtani](usr_005)', fileIds: [], editedAt: null, commentCount: 0,
+      kind: 'update', id: 'upd_001', at: STAMP, author, body: 'Hi @[Sara Al-Qahtani](usr_005)', fileIds: [], editedAt: null, commentCount: 0, canEdit: false,
     };
     expect(feedText(post, t)).toBe('Hi @Sara Al-Qahtani');
   });
