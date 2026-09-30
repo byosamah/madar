@@ -1,0 +1,66 @@
+import type { User } from './contract/entities';
+import { memberKey, type State } from './store';
+
+export type Action =
+  | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
+  | 'project.delete' | 'project.healthOverride'
+  | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.updateAny' | 'task.review' | 'task.delete'
+  | 'content.post' | 'content.editOwn'
+  | 'time.logOnProject' | 'time.viewPerson'
+  | 'event.undoAgent' | 'admin.manage';
+
+export type ProjectRole = 'leader' | 'team' | 'other';
+
+export type Resource = { projectRole?: ProjectRole; ownerId?: string; authorId?: string; targetUserId?: string };
+
+export function projectRoleOf(state: State, projectId: string, userId: string): ProjectRole {
+  const project = state.projects[projectId];
+  if (!project) return 'other';
+  if (project.leaderId === userId) return 'leader';
+  return state.members[memberKey(projectId, userId)] ? 'team' : 'other';
+}
+
+/** The person behind a user: an agent's owner, or the person. */
+export function principalOf(state: State, userId: string): string {
+  const user = state.users[userId];
+  return user?.kind === 'agent' && user.ownerId ? user.ownerId : userId;
+}
+
+/** The permission table from spec section 2.3. No screen checks permissions in another way. */
+export function can(actor: User, action: Action, resource: Resource = {}): boolean {
+  if (!actor.active) return action === 'project.view';
+  const admin = actor.systemRole === 'admin';
+  const role = resource.projectRole ?? 'other';
+  const leads = admin || role === 'leader';
+  const onProject = leads || role === 'team';
+  switch (action) {
+    case 'project.view':
+    case 'project.create':
+      return true;
+    case 'project.edit':
+    case 'project.changeLeader':
+    case 'project.archive':
+    case 'project.healthOverride':
+    case 'task.createForAnyone':
+    case 'task.updateAny':
+    case 'task.review':
+    case 'task.delete':
+    case 'event.undoAgent':
+      return leads;
+    case 'project.delete':
+    case 'admin.manage':
+      return admin;
+    case 'task.createForSelf':
+    case 'content.post':
+    case 'time.logOnProject':
+      return onProject;
+    case 'task.updateOwn':
+      return leads || (onProject && resource.ownerId === actor.id);
+    case 'content.editOwn':
+      return onProject && resource.authorId === actor.id;
+    case 'time.viewPerson':
+      return resource.targetUserId === actor.id || admin || role === 'leader';
+    default:
+      return false;
+  }
+}

@@ -4,7 +4,7 @@
 - [x] 2. Office dates
 - [x] 3. Entity schemas and API errors
 - [x] 4. Store and persisters
-- [ ] 5. Permissions and test factories
+- [x] 5. Permissions and test factories
 - [ ] 6. Health rule
 - [ ] 7. Event log and undo
 - [ ] 8. Text helpers and notifications
