@@ -7,7 +7,7 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-3-personal-work.md. Plans 1 a
 - [x] 3. The shared mention box and project links
 - [x] 4. Comments, reactions, and post edit and delete
 - [x] 5. My Work, the Tasks tab
-- [ ] 6. My Work, the Hours tab
+- [x] 6. My Work, the Hours tab
 - [ ] 7. The Inbox
 - [ ] 8. Search and commands
 - [ ] 9. Browser sweep and the review link
