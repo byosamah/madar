@@ -1,0 +1,79 @@
+{
+  "app": { "name": "مدار" },
+  "nav": {
+    "main": "التنقل الرئيسي",
+    "tabs": "الأقسام",
+    "projects": "المشاريع",
+    "myWork": "عملي",
+    "dashboard": "لوحة المعلومات",
+    "inbox": "الوارد",
+    "search": "البحث",
+    "settings": "الإعدادات",
+    "showSidebar": "إظهار الشريط الجانبي",
+    "hideSidebar": "إخفاء الشريط الجانبي",
+    "useTabBar": "استخدام شريط التبويب",
+    "useSidebar": "استخدام الشريط الجانبي",
+    "inboxBadge": "{{count}} عناصر تحتاج إلى إجراء"
+  },
+  "screens": {
+    "projects": "المشاريع",
+    "project": "المشروع",
+    "myWork": "عملي",
+    "dashboard": "لوحة المعلومات",
+    "inbox": "الوارد",
+    "search": "البحث",
+    "tasks": "المهام",
+    "settings": "الإعدادات"
+  },
+  "placeholder": {
+    "title": "هذه الشاشة قادمة",
+    "body": "تصل هذه الشاشة في مرحلة البناء {{step}}."
+  },
+  "storage": { "notSaved": "لن تُحفظ التغييرات في هذه النافذة." },
+  "preview": {
+    "label": "المعاينة باسم",
+    "prototype": "نموذج أولي",
+    "agentFor": "وكيل ذكي عن {{name}}",
+    "hint": { "admin": "مدير النظام", "leader": "قائد مشروع", "member": "عضو فريق", "agent": "وكيل ذكي" }
+  },
+  "settings": {
+    "profile": "الملف الشخصي",
+    "name": "الاسم",
+    "discipline": "التخصص",
+    "save": "حفظ",
+    "saved": "تم حفظ الملف الشخصي.",
+    "language": "اللغة",
+    "languages": { "en": "English", "ar": "العربية" },
+    "theme": "المظهر",
+    "themes": { "system": "حسب الجهاز", "light": "فاتح", "dark": "داكن" },
+    "glass": "الزجاج",
+    "glassLevels": { "clear": "شفاف", "frosted": "مصنفر", "solid": "معتم" },
+    "notifications": "الإشعارات",
+    "triggers": {
+      "task_assigned": "إسناد مهمة إليّ",
+      "mention": "إشارة أحد إليّ",
+      "due_tomorrow": "موعد مهمتي غدًا",
+      "overdue": "تأخر مهمتي",
+      "review_requested": "إرسال مهمة للمراجعة",
+      "task_approved": "اعتماد مهمتي",
+      "task_sent_back": "إعادة مهمتي للتعديل",
+      "stage_changed": "تغيّر مرحلة مشروعي",
+      "added_to_project": "إضافتي إلى مشروع",
+      "week_under_target": "ساعات أسبوعي أقل من الهدف"
+    },
+    "prototype": "النموذج الأولي",
+    "simulateErrors": "محاكاة الأخطاء",
+    "simulateErrorsHint": "يفشل إجراء واحد من كل خمسة، لتظهر حالات الخطأ.",
+    "reset": "إعادة البيانات التجريبية",
+    "resetDone": "عادت البيانات التجريبية إلى حالتها الأولى."
+  },
+  "errors": {
+    "invalid_input": "بعض الحقول غير صحيحة.",
+    "forbidden": "لا يمكنك تنفيذ هذا في هذا المشروع.",
+    "not_found": "هذا العنصر لم يعد موجودًا.",
+    "conflict": "تغيّر هذا العنصر بعد ذلك التعديل. التراجع غير متاح.",
+    "failed": "حدث خطأ. حاول مرة أخرى.",
+    "week_locked": "هذا الأسبوع مقفل."
+  },
+  "common": { "retry": "إعادة المحاولة", "undo": "تراجع", "close": "إغلاق", "cancel": "إلغاء" }
+}

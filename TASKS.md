@@ -17,7 +17,7 @@
 - [x] 15. Dashboard and search calls
 - [x] 16. The call map
 - [x] 17. Sample data, date shift and reset
-- [ ] 18. Languages
+- [x] 18. Languages
 - [ ] 19. Design tokens and appearance
 - [ ] 20. Runtime, bootstrap and toasts
 - [ ] 21. App shell and Settings screen

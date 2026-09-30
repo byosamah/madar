@@ -1,0 +1,79 @@
+{
+  "app": { "name": "Madar" },
+  "nav": {
+    "main": "Main navigation",
+    "tabs": "Sections",
+    "projects": "Projects",
+    "myWork": "My Work",
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "search": "Search",
+    "settings": "Settings",
+    "showSidebar": "Show sidebar",
+    "hideSidebar": "Hide sidebar",
+    "useTabBar": "Use tab bar",
+    "useSidebar": "Use sidebar",
+    "inboxBadge": "{{count}} items need action"
+  },
+  "screens": {
+    "projects": "Projects",
+    "project": "Project",
+    "myWork": "My Work",
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "search": "Search",
+    "tasks": "Tasks",
+    "settings": "Settings"
+  },
+  "placeholder": {
+    "title": "This screen comes next",
+    "body": "This screen arrives in build step {{step}}."
+  },
+  "storage": { "notSaved": "Changes will not be saved in this window." },
+  "preview": {
+    "label": "Preview as",
+    "prototype": "Prototype",
+    "agentFor": "Agent for {{name}}",
+    "hint": { "admin": "Admin", "leader": "Leader", "member": "Member", "agent": "Agent" }
+  },
+  "settings": {
+    "profile": "Profile",
+    "name": "Name",
+    "discipline": "Discipline",
+    "save": "Save",
+    "saved": "Profile saved.",
+    "language": "Language",
+    "languages": { "en": "English", "ar": "العربية" },
+    "theme": "Theme",
+    "themes": { "system": "System", "light": "Light", "dark": "Dark" },
+    "glass": "Glass",
+    "glassLevels": { "clear": "Clear", "frosted": "Frosted", "solid": "Solid" },
+    "notifications": "Notifications",
+    "triggers": {
+      "task_assigned": "A task is assigned to me",
+      "mention": "Someone mentions me",
+      "due_tomorrow": "My task is due tomorrow",
+      "overdue": "My task is overdue",
+      "review_requested": "A task goes to review",
+      "task_approved": "My task is approved",
+      "task_sent_back": "My task is sent back",
+      "stage_changed": "The stage changes on my project",
+      "added_to_project": "I am added to a project",
+      "week_under_target": "My week is under target"
+    },
+    "prototype": "Prototype",
+    "simulateErrors": "Simulate errors",
+    "simulateErrorsHint": "1 in 5 actions fail, so you can see the error states.",
+    "reset": "Reset sample data",
+    "resetDone": "The sample data is back to its start state."
+  },
+  "errors": {
+    "invalid_input": "Some fields are not valid.",
+    "forbidden": "You cannot do this on this project.",
+    "not_found": "This item does not exist anymore.",
+    "conflict": "This item changed after that edit. Undo is not available.",
+    "failed": "Something went wrong. Try again.",
+    "week_locked": "This week is locked."
+  },
+  "common": { "retry": "Retry", "undo": "Undo", "close": "Close", "cancel": "Cancel" }
+}
