@@ -17,5 +17,5 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-2-projects.md. Plan 1 (all 22
 - [x] 13. The task sheet
 - [x] 14. The Schedule tab
 - [x] 15. The Files tab
-- [ ] 16. The Team tab
+- [x] 16. The Team tab
 - [ ] 17. Browser sweep and the review link

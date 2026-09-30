@@ -4,6 +4,7 @@ import { FilesTab } from './files/FilesTab';
 import { OverviewTab } from './overview/OverviewTab';
 import { ScheduleTab } from './schedule/ScheduleTab';
 import { TasksTab } from './tasks/TasksTab';
+import { TeamTab } from './team/TeamTab';
 
 export const PROJECT_TABS = ['overview', 'tasks', 'schedule', 'files', 'team'] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
@@ -15,5 +16,5 @@ export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   tasks: TasksTab,
   schedule: ScheduleTab,
   files: FilesTab,
-  team: null,
+  team: TeamTab,
 };
