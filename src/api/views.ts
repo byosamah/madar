@@ -1,5 +1,7 @@
-import type { Deadline, Event, Project, Stage, Task, Update, User } from './contract/entities';
-import type { EventView, FeedItem, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard } from './contract/views';
+import type { Comment, Deadline, Event, FileRec, Project, Stage, Task, Update, User } from './contract/entities';
+import type {
+  CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
+} from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, projectRoleOf } from './permissions';
 import type { State } from './store';
@@ -192,4 +194,13 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
     },
     history,
   };
+}
+
+export function commentViewOf(state: State, comment: Comment): CommentView {
+  return { comment, author: cardOf(state, comment.authorId) };
+}
+
+export function fileViewOf(state: State, file: FileRec): FileView {
+  const latest = file.versions[file.versions.length - 1];
+  return { file, latest, uploader: cardOf(state, latest.uploadedBy) };
 }

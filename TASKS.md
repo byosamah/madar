@@ -12,7 +12,7 @@
 - [x] 10. People, session, clients and settings calls
 - [x] 11. Project, member, stage and deadline calls
 - [x] 12. Task calls
-- [ ] 13. Update, comment, file and event calls
+- [x] 13. Update, comment, file and event calls
 - [ ] 14. Time and notification calls
 - [ ] 15. Dashboard and search calls
 - [ ] 16. The call map

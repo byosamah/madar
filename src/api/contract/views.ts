@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  Client, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, HealthValue, Project, ProjectId, Stage, StageId,
-  Stamp, Task, UpdateId, UserId,
+  Client, Comment, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, HealthValue, Project,
+  ProjectId, Stage, StageId, Stamp, Task, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -83,3 +83,9 @@ export const TaskDetail = TaskRow.extend({
   history: z.array(EventView),
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
+
+export const CommentView = z.object({ comment: Comment, author: UserCard });
+export type CommentView = z.infer<typeof CommentView>;
+
+export const FileView = z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });
+export type FileView = z.infer<typeof FileView>;
