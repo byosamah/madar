@@ -43,12 +43,13 @@ The library versions were checked on 2026-09-30 with a throwaway install: TypeSc
 
 1. The dashboard "Period" filter (spec 8.1) applies to the "Hours per project" chart only. The other tiles and charts keep the fixed windows in their spec definitions (this week, the next 14 days, 12 weeks), because those definitions contradict a period filter.
 2. A tick or a drag to Done by the project leader or the Admin always lands on Done, because they are the reviewers. A team member's tick with "Needs review" on lands on In review (spec 5.5).
-3. New internal fields and calls: `Event.seq`, `Notification.dedupeKey`, `State.version`, `State.seededOn`, `State.session`, `State.timeRows`, and the calls `session.setSimulateErrors`, `session.resetSampleData`, `me.updateProfile`, `notifications.count`, `time.addRow` and `time.removeRow`.
+3. New internal fields and calls: `User.ownerId`, `Event.actingForId`, `Event.correlationId`, `Event.seq`, `Notification.dedupeKey`, `State.version`, `State.seededOn`, `State.session`, `State.timeRows`, and the calls `session.setSimulateErrors`, `session.resetSampleData`, `me.updateProfile`, `notifications.count`, `time.addRow` and `time.removeRow`.
 4. Undo is refused for `project.created`, `project.deleted`, `project.stages_changed` and settings changes.
 5. A stage with no tasks never triggers the "less than 70% done" At risk rule.
 6. Reviews on a project with no leader go to every Admin.
 7. Colors: Apple blue `#007AFF` with white text measures 4.0:1, below AA. Light mode uses `#0066CC` for accent text and `#0071E3` for filled buttons (both from apple.com, 5.6:1 and 4.7:1). Dark mode uses `#0A84FF` for accent text and `#0071E3` for filled buttons. Badges use Apple's accessible red `#D70015`. Status text uses Apple's accessible green, orange and red.
 8. The creator of a project always joins its team, also when they pick another person as leader.
+9. Agent rules adopted from Scitter (spec section 17, approved by the owner on 2026-09-30): an agent acts for one person (`User.ownerId`) with that person's rights. `Ctx.authority` is the user whose rights apply, and `Ctx.actor` is who acts. Every event records `actingForId` and a `correlationId`. Agents are never project members. The person an agent acted for can undo its changes. Nobody is notified about their own agent's actions.
 
 ## Review Focus
 
@@ -645,7 +646,7 @@ import { Comment, Project, Stamp, TRIGGERS, TimeEntry, User, defaultPreferences,
 
 const user = {
   id: 'usr_001', name: 'Hala Nasser', email: 'hala@madar.test', avatarUrl: null, kind: 'human',
-  systemRole: 'admin', discipline: 'Architect', weeklyHourTarget: 40, active: true, preferences: defaultPreferences(),
+  systemRole: 'admin', discipline: 'Architect', weeklyHourTarget: 40, active: true, ownerId: null, preferences: defaultPreferences(),
 };
 
 const project = {
@@ -838,6 +839,8 @@ export const User = z.object({
   discipline: z.string().trim().min(1).max(40),
   weeklyHourTarget: z.number().min(0).max(80),
   active: z.boolean(),
+  // For an agent: the person it acts for (spec 17). For a person: null.
+  ownerId: UserId.nullable(),
   preferences: Preferences,
 });
 export type User = z.infer<typeof User>;
@@ -1021,6 +1024,8 @@ export const Event = z.object({
   projectId: ProjectId.nullable(),
   actorId: UserId,
   actorKind: z.enum(['human', 'agent']),
+  actingForId: UserId,
+  correlationId: z.string().min(1).max(80),
   verb: z.string().min(1).max(60),
   targetType: EventTarget,
   targetId: z.string().min(1),
@@ -1447,9 +1452,9 @@ git commit -m "feat: add the store with rollback and the persisters" -m "Claude-
 
 **Interfaces:**
 - Consumes: `User` (Task 3), `State`, `emptyState`, `memberKey` (Task 4).
-- Produces: `type Action` (19 actions), `type ProjectRole = 'leader' | 'team' | 'other'`, `type Resource = { projectRole?: ProjectRole; ownerId?: string; authorId?: string; targetUserId?: string }`, `can(actor: User, action: Action, resource?: Resource): boolean`, `projectRoleOf(state: State, projectId: string, userId: string): ProjectRole`. Test helpers `TODAY`, `NOW`, `STAMP`, `makeUser`, `makeProject`, `makeStage`, `makeTask`, `makeWorld`.
+- Produces: `type Action` (19 actions), `type ProjectRole = 'leader' | 'team' | 'other'`, `type Resource = { projectRole?: ProjectRole; ownerId?: string; authorId?: string; targetUserId?: string }`, `can(actor: User, action: Action, resource?: Resource): boolean` (handlers pass the authority, see Task 9), `projectRoleOf(state: State, projectId: string, userId: string): ProjectRole`, `principalOf(state: State, userId: string): string` (an agent's person, or the person). Test helpers `TODAY`, `NOW`, `STAMP`, `makeUser`, `makeProject`, `makeStage`, `makeTask`, `makeWorld`.
 
-The world from `makeWorld()`: `usr_001` Admin, `usr_002` leader of `prj_001`, `usr_003` team member, `usr_004` outsider, `usr_005` agent on the team. `prj_001` has `stg_001` (Concept, past) and `stg_002` (Schematic Design, current, ends 2026-10-31). The current user is `usr_001`. The clock value `NOW` is Wednesday 2026-09-30, 09:00 office time.
+The world from `makeWorld()`: `usr_001` Admin, `usr_002` leader of `prj_001`, `usr_003` team member, `usr_004` outsider, `usr_005` an agent that acts for `usr_003` (agents are never project members: they reach what their person reaches). `prj_001` has `stg_001` (Concept, past) and `stg_002` (Schematic Design, current, ends 2026-10-31). The current user is `usr_001`. The clock value `NOW` is Wednesday 2026-09-30, 09:00 office time.
 
 - [ ] **Step 1: Write the test factories**
 
@@ -1466,7 +1471,7 @@ export const STAMP = '2026-09-30T09:00:00.000+03:00';
 export function makeUser(id: string, overrides: Partial<User> = {}): User {
   return {
     id, name: id, email: `${id}@madar.test`, avatarUrl: null, kind: 'human', systemRole: 'member',
-    discipline: 'Architect', weeklyHourTarget: 40, active: true, preferences: defaultPreferences(), ...overrides,
+    discipline: 'Architect', weeklyHourTarget: 40, active: true, ownerId: null, preferences: defaultPreferences(), ...overrides,
   };
 }
 
@@ -1499,13 +1504,13 @@ export function makeWorld(): State {
     makeUser('usr_002', { name: 'Faisal Leader' }),
     makeUser('usr_003', { name: 'Sara Team' }),
     makeUser('usr_004', { name: 'Omar Other' }),
-    makeUser('usr_005', { name: 'Madar Assistant', kind: 'agent', discipline: 'Agent', weeklyHourTarget: 0 }),
+    makeUser('usr_005', { name: 'Madar Assistant', kind: 'agent', discipline: 'Agent', weeklyHourTarget: 0, ownerId: 'usr_003' }),
   ];
   for (const user of users) state.users[user.id] = user;
   state.projects.prj_001 = makeProject();
   state.stages.stg_001 = makeStage({ startDate: '2026-08-01', endDate: '2026-08-31' });
   state.stages.stg_002 = makeStage({ id: 'stg_002', name: 'Schematic Design', order: 1, startDate: '2026-09-01', endDate: '2026-10-31' });
-  for (const [userId, discipline] of [['usr_002', 'Architect'], ['usr_003', 'Architect'], ['usr_005', 'Agent']]) {
+  for (const [userId, discipline] of [['usr_002', 'Architect'], ['usr_003', 'Architect']]) {
     state.members[memberKey('prj_001', userId)] = { projectId: 'prj_001', userId, discipline };
   }
   state.session.currentUserId = 'usr_001';
@@ -1520,7 +1525,7 @@ export function makeWorld(): State {
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { can, projectRoleOf, type Action, type ProjectRole } from './permissions';
+import { can, principalOf, projectRoleOf, type Action, type ProjectRole } from './permissions';
 import type { User } from './contract/entities';
 import { makeUser, makeWorld } from '../test/factories';
 
@@ -1599,6 +1604,12 @@ describe('permission details', () => {
     expect(projectRoleOf(state, 'prj_001', 'usr_004')).toBe('other');
     expect(projectRoleOf(state, 'prj_404', 'usr_002')).toBe('other');
   });
+
+  it('finds the person behind an agent', () => {
+    const state = makeWorld();
+    expect(principalOf(state, 'usr_005')).toBe('usr_003');
+    expect(principalOf(state, 'usr_002')).toBe('usr_002');
+  });
 });
 ```
 
@@ -1632,6 +1643,12 @@ export function projectRoleOf(state: State, projectId: string, userId: string): 
   if (!project) return 'other';
   if (project.leaderId === userId) return 'leader';
   return state.members[memberKey(projectId, userId)] ? 'team' : 'other';
+}
+
+/** The person behind a user: an agent's owner, or the person. */
+export function principalOf(state: State, userId: string): string {
+  const user = state.users[userId];
+  return user?.kind === 'agent' && user.ownerId ? user.ownerId : userId;
 }
 
 /** The permission table from spec section 2.3. No screen checks permissions in another way. */
@@ -1677,7 +1694,7 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
 - [ ] **Step 5: Run the test to see it pass**
 
 Run: `npx vitest run src/api/permissions.test.ts`
-Expected: PASS (81 tests).
+Expected: PASS (82 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -1852,7 +1869,7 @@ git commit -m "feat: add the project health rule" -m "Claude-Session: https://cl
 
 **Interfaces:**
 - Consumes: `Event`, `EventTarget`, `User` (Task 3), `ApiError`, `notFound` (Task 3), `State`, `nextId` (Task 4).
-- Produces: `type EventContext = { state: State; actor: User; stamp: string }`, `type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string }`, `NOT_UNDOABLE: Set<string>`, `writeEvent(ec, input: EventMeta & { before: unknown; after: unknown }): Event`, `recordCreate(ec, meta: EventMeta & { entity: unknown }): Event`, `recordDelete(ec, meta: EventMeta & { entity: unknown }): Event`, `applyPatch<T extends object>(ec, target: T, changes: Partial<T>, meta: EventMeta): Event | null`, `undoEvent(ec, eventId: string): Event`.
+- Produces: `type EventContext = { state: State; actor: User; stamp: string; authority?: User; correlationId?: string }`, `type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string }`, `NOT_UNDOABLE: Set<string>`, `writeEvent(ec, input: EventMeta & { before: unknown; after: unknown }): Event`, `recordCreate(ec, meta: EventMeta & { entity: unknown }): Event`, `recordDelete(ec, meta: EventMeta & { entity: unknown }): Event`, `applyPatch<T extends object>(ec, target: T, changes: Partial<T>, meta: EventMeta): Event | null`, `undoEvent(ec, eventId: string): Event`.
 
 Every call context (`Ctx`, Task 9) has `state`, `actor` and `stamp`, so handlers pass their context as the `EventContext`.
 
@@ -1900,6 +1917,13 @@ describe('event log', () => {
     expect(event?.after).toEqual({ status: 'in_progress' });
     expect(task.status).toBe('in_progress');
     expect(applyPatch(ec, task, { status: 'in_progress' }, meta)).toBeNull();
+  });
+
+  it('records the person an agent acted for, and the story id', () => {
+    const agent = ec.state.users.usr_005;
+    const event = writeEvent({ ...ec, actor: agent, correlationId: 'cor_weekly' }, { ...meta, before: null, after: null });
+    expect(event).toMatchObject({ actorId: 'usr_005', actorKind: 'agent', actingForId: 'usr_003', correlationId: 'cor_weekly' });
+    expect(writeEvent(ec, { ...meta, before: null, after: null }).actingForId).toBe('usr_002');
   });
 });
 
@@ -1967,7 +1991,7 @@ import type { Event, EventTarget, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
 import { nextId, type State } from './store';
 
-export type EventContext = { state: State; actor: User; stamp: string };
+export type EventContext = { state: State; actor: User; stamp: string; authority?: User; correlationId?: string };
 export type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string };
 
 const COLLECTION: Record<EventTarget, keyof State | null> = {
@@ -1981,6 +2005,9 @@ export function writeEvent(ec: EventContext, input: EventMeta & { before: unknow
   const id = nextId(ec.state, 'evt');
   const event: Event = {
     id, seq: ec.state.counters.evt, projectId: input.projectId, actorId: ec.actor.id, actorKind: ec.actor.kind,
+    // Two names on every change (spec 17): who acted, and the person they acted for.
+    actingForId: ec.authority?.id ?? ec.actor.ownerId ?? ec.actor.id,
+    correlationId: ec.correlationId ?? `cor_${id}`,
     verb: input.verb, targetType: input.targetType, targetId: input.targetId, before: input.before, after: input.after,
     createdAt: ec.stamp, undoneBy: null,
   };
@@ -2057,7 +2084,7 @@ export function undoEvent(ec: EventContext, eventId: string): Event {
 - [ ] **Step 4: Run the test to see it pass**
 
 Run: `npx vitest run src/api/events.test.ts`
-Expected: PASS (7 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -2153,7 +2180,12 @@ describe('notify', () => {
   });
 
   it('lists the people on a project', () => {
-    expect(projectPeople(state, 'prj_001').sort()).toEqual(['usr_002', 'usr_003', 'usr_005']);
+    expect(projectPeople(state, 'prj_001').sort()).toEqual(['usr_002', 'usr_003']);
+  });
+
+  it('does not tell a person about their own agent', () => {
+    const made = notify(state, state.users.usr_005, STAMP, { userIds: ['usr_002', 'usr_003'], trigger: 'mention', targetType: 'task', targetId: 'tsk_001' });
+    expect(made.map((n) => n.userId)).toEqual(['usr_002']);
   });
 });
 
@@ -2256,13 +2288,13 @@ export type NotifyInput = {
   dedupeKey?: string;
 };
 
-/** Skips the actor, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
+/** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
 export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput): Notification[] {
   const created: Notification[] = [];
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
-    if (actor && user.id === actor.id) continue;
+    if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
     if (!user.preferences.notifications[input.trigger]) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;
     if (dedupeKey && Object.values(state.notifications).some((n) => n.dedupeKey === dedupeKey)) continue;
@@ -2333,7 +2365,7 @@ export function runScheduledTriggers(state: State, at: Date): number {
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `npx vitest run src/lib/text.test.ts src/api/notify.test.ts`
-Expected: PASS (13 tests).
+Expected: PASS (14 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -2353,7 +2385,7 @@ git commit -m "feat: add mentions, search normalization and notifications" -m "C
 
 **Interfaces:**
 - Consumes: `Store`, `State` (Task 4), `Persister` (Task 4), `User` (Task 3), `ApiError` (Task 3), `now`, `nowStamp`, `todayISO` (Task 2).
-- Produces: `type Ctx = { state: State; actor: User; stamp: string; today: string; now: Date; persistent: boolean }`, `type PrepareCtx = { state: State; persister: Persister; actor: User; now: Date }`, `interface CallDef<I, O, P>` with `input`, `output`, `readOnly?`, `prepare?(input, ctx): Promise<P>`, `run(input, ctx, prepared: P)`, `type AnyCall`, `defineCall(def)`. `type CallMap = Record<string, AnyCall>`, `type Api<M>` with `call(name, input)`, `createApi<M>(calls: M, options: { store: Store; latencyMs?: number; failureRate?: () => number; random?: () => number }): Api<M>`. Test helper `testApi(calls, state?)` returning `{ store, api, as(userId) }`.
+- Produces: `type Ctx = { state: State; actor: User; authority: User; correlationId: string; stamp: string; today: string; now: Date; persistent: boolean }` (`actor` is who acts; `authority` is whose rights apply: the person, or the person an agent acts for), `type PrepareCtx = { state: State; persister: Persister; actor: User; now: Date }`, `interface CallDef<I, O, P>` with `input`, `output`, `readOnly?`, `prepare?(input, ctx): Promise<P>`, `run(input, ctx, prepared: P)`, `type AnyCall`, `defineCall(def)`. `type CallMap = Record<string, AnyCall>`, `type CallMeta = { correlationId?: string }`, `type Api<M>` with `call(name, input, meta?)`, `createApi<M>(calls: M, options: { store: Store; latencyMs?: number; failureRate?: () => number; random?: () => number }): Api<M>`. Test helper `testApi(calls, state?)` returning `{ store, api, as(userId) }`.
 
 How a call runs (spec 11.3): wait for the latency, maybe fail on purpose, validate the input, find the current user, run `prepare` (the only async step, for file data), run `run` inside one store transaction (or a plain read when `readOnly`), then validate the output. The output parse returns new objects, so screens never hold live state.
 
@@ -2399,7 +2431,13 @@ const prepared = defineCall({
   run: (_input, _ctx, value) => ({ got: value }),
 });
 const ping = defineCall({ input: z.object({}), output: z.object({ ok: z.boolean() }), run: () => ({ ok: true }) });
-const CALLS = { 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'session.ping': ping };
+const whoami = defineCall({
+  input: z.object({}),
+  output: z.object({ actor: z.string(), authority: z.string(), correlationId: z.string() }),
+  readOnly: true,
+  run: (_input, ctx) => ({ actor: ctx.actor.id, authority: ctx.authority.id, correlationId: ctx.correlationId }),
+});
+const CALLS = { 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'test.whoami': whoami, 'session.ping': ping };
 
 let store: Store;
 beforeEach(() => {
@@ -2456,6 +2494,25 @@ describe('createApi', () => {
     await apiWith().call('test.bump', { by: 1 });
     expect(changes).toBe(1);
   });
+
+  it('runs an agent with the rights of the person it acts for', async () => {
+    store.state.session.currentUserId = 'usr_005';
+    expect(await apiWith().call('test.whoami', {})).toMatchObject({ actor: 'usr_005', authority: 'usr_003' });
+  });
+
+  it('refuses an agent whose person is not active', async () => {
+    store.state.session.currentUserId = 'usr_005';
+    store.state.users.usr_003.active = false;
+    await expect(apiWith().call('test.whoami', {})).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('keeps one story id when the caller passes it, and makes a new one otherwise', async () => {
+    const api = apiWith();
+    expect((await api.call('test.whoami', {}, { correlationId: 'cor_weekly' })).correlationId).toBe('cor_weekly');
+    const a = await api.call('test.whoami', {});
+    const b = await api.call('test.whoami', {});
+    expect(a.correlationId).not.toBe(b.correlationId);
+  });
 });
 ```
 
@@ -2474,7 +2531,10 @@ import type { User } from './contract/entities';
 import type { Persister } from './persist';
 import type { State } from './store';
 
-export type Ctx = { state: State; actor: User; stamp: string; today: string; now: Date; persistent: boolean };
+/** "actor" is who acts (a person or an agent). "authority" is whose rights apply: the person, or the person an agent acts for (spec 17). */
+export type Ctx = {
+  state: State; actor: User; authority: User; correlationId: string; stamp: string; today: string; now: Date; persistent: boolean;
+};
 export type PrepareCtx = { state: State; persister: Persister; actor: User; now: Date };
 
 /** One API call. "run" must be synchronous. Only "prepare" may wait, for example for file data. */
@@ -2505,8 +2565,11 @@ import { now as clockNow, nowStamp, todayISO } from '../lib/dates';
 
 export type CallMap = Record<string, AnyCall>;
 
+/** One story ID for several calls, so one agent request reads as one story in the log. */
+export type CallMeta = { correlationId?: string };
+
 export type Api<M extends CallMap> = {
-  call<N extends keyof M & string>(name: N, input: z.input<M[N]['input']>): Promise<z.output<M[N]['output']>>;
+  call<N extends keyof M & string>(name: N, input: z.input<M[N]['input']>, meta?: CallMeta): Promise<z.output<M[N]['output']>>;
 };
 
 export type ApiOptions = {
@@ -2519,7 +2582,7 @@ export type ApiOptions = {
 export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api<M> {
   const { store, latencyMs = 120, failureRate = () => 0, random = Math.random } = options;
   return {
-    async call<N extends keyof M & string>(name: N, rawInput: z.input<M[N]['input']>): Promise<z.output<M[N]['output']>> {
+    async call<N extends keyof M & string>(name: N, rawInput: z.input<M[N]['input']>, meta: CallMeta = {}): Promise<z.output<M[N]['output']>> {
       const def: AnyCall | undefined = calls[name];
       if (!def) throw new ApiError('not_found', `There is no call named ${name}.`);
       if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs));
@@ -2532,12 +2595,23 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
       const actorId = store.state.session.currentUserId;
       const actor = store.state.users[actorId];
       if (!actor) throw new ApiError('forbidden', 'There is no current user.');
+      // An agent acts with the rights of its person, never with rights of its own (spec 17).
+      let authority = actor;
+      if (actor.kind === 'agent') {
+        const owner = actor.ownerId ? store.state.users[actor.ownerId] : undefined;
+        if (!owner || owner.kind !== 'human' || !owner.active) throw new ApiError('forbidden', 'This agent has no active person to act for.');
+        authority = owner;
+      }
+      const correlationId = meta.correlationId ?? `cor_${Date.now().toString(36)}${random().toString(36).slice(2, 8)}`;
       const at = clockNow();
       const prepared = def.prepare
         ? await def.prepare(parsed.data, { state: store.state, persister: store.persister, actor, now: at })
         : undefined;
       const execute = (state: State) =>
-        def.run(parsed.data, { state, actor: state.users[actorId], stamp: nowStamp(at), today: todayISO(at), now: at, persistent: store.persistent }, prepared);
+        def.run(parsed.data, {
+          state, actor: state.users[actorId], authority: state.users[authority.id], correlationId,
+          stamp: nowStamp(at), today: todayISO(at), now: at, persistent: store.persistent,
+        }, prepared);
       const result = def.readOnly ? store.read(execute) : store.run(execute);
       return def.output.parse(result) as z.output<M[N]['output']>;
     },
@@ -2571,7 +2645,7 @@ Move the three new imports to the top of `src/test/factories.ts`, next to the ot
 - [ ] **Step 4: Run the test to see it pass**
 
 Run: `npx vitest run src/api/client.test.ts`
-Expected: PASS (9 tests).
+Expected: PASS (12 tests).
 
 Run: `npm run typecheck`
 Expected: no output, exit code 0.
@@ -2656,6 +2730,19 @@ describe('people calls', () => {
   it('keeps at least one Admin', async () => {
     const { api } = testApi(peopleCalls);
     await expect(api.call('users.update', { id: 'usr_001', patch: { systemRole: 'member' } })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('gives every agent a person to act for', async () => {
+    const t = testApi(peopleCalls);
+    await expect(t.api.call('users.create', { name: 'Bot', email: 'bot@madar.test', discipline: 'Agent', kind: 'agent' })).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['ownerId'] },
+    });
+    const agent = await t.api.call('users.create', { name: 'Bot', email: 'bot@madar.test', discipline: 'Agent', kind: 'agent', ownerId: 'usr_002' });
+    expect(agent.ownerId).toBe('usr_002');
+    t.as(agent.id);
+    const session = await t.api.call('session.get', {});
+    expect(session.actingFor?.id).toBe('usr_002');
+    expect(session.previewUsers.find((u) => u.id === 'usr_005')?.actingForName).toBe('Sara Team');
   });
 
   it('stops the Admin from turning off their own account', async () => {
@@ -2748,11 +2835,11 @@ import { nextId, type State } from '../store';
 import { mentionedUserIds } from '../../lib/text';
 
 export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): void {
-  if (!can(ctx.actor, action, resource)) throw forbidden('You cannot do this.', { action });
+  if (!can(ctx.authority, action, resource)) throw forbidden('You cannot do this.', { action });
 }
 
 export function roleIn(ctx: Ctx, projectId: string): ProjectRole {
-  return projectRoleOf(ctx.state, projectId, ctx.actor.id);
+  return projectRoleOf(ctx.state, projectId, ctx.authority.id);
 }
 
 export function requireUser(ctx: Ctx, id: string): User {
@@ -2833,23 +2920,31 @@ const ContactName = z.string().trim().max(80);
 const Phone = z.string().trim().max(40);
 const ClientEmail = z.union([z.email(), z.literal('')]);
 
-const PreviewUser = UserCard.extend({ systemRole: SystemRole, hint: z.enum(['admin', 'leader', 'member', 'agent']) });
+const PreviewUser = UserCard.extend({
+  systemRole: SystemRole,
+  hint: z.enum(['admin', 'leader', 'member', 'agent']),
+  actingForName: z.string().nullable(),
+});
 
 export const sessionGet = defineCall({
   input: Empty,
-  output: z.object({ user: User, previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean() }),
+  output: z.object({ user: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean() }),
   readOnly: true,
   run(_input, ctx) {
     const leaders = new Set(Object.values(ctx.state.projects).map((p) => p.leaderId));
+    // An agent shows only while its person is active, because it cannot act otherwise.
+    const canAct = (u: User) => u.kind === 'human' || (u.ownerId !== null && ctx.state.users[u.ownerId]?.active === true);
     const previewUsers = Object.values(ctx.state.users)
-      .filter((u) => u.active)
+      .filter((u) => u.active && canAct(u))
       .sort(byName)
       .map((u) => ({
         ...userCard(u),
         systemRole: u.systemRole,
+        actingForName: u.kind === 'agent' && u.ownerId ? (ctx.state.users[u.ownerId]?.name ?? null) : null,
         hint: u.kind === 'agent' ? ('agent' as const) : u.systemRole === 'admin' ? ('admin' as const) : leaders.has(u.id) ? ('leader' as const) : ('member' as const),
       }));
-    return { user: ctx.actor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
+    const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
+    return { user: ctx.actor, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
   },
 });
 
@@ -2859,6 +2954,8 @@ export const sessionPreviewAs = defineCall({
   run(input, ctx) {
     const user = requireUser(ctx, input.userId);
     if (!user.active) throw invalid('userId', 'This person is not active.');
+    const owner = user.ownerId ? ctx.state.users[user.ownerId] : undefined;
+    if (user.kind === 'agent' && !owner?.active) throw invalid('userId', 'This agent has no active person to act for.');
     ctx.state.session.currentUserId = user.id;
     return { user };
   },
@@ -2904,13 +3001,25 @@ export const usersCreate = defineCall({
     kind: Kind.default('human'),
     discipline: Discipline,
     weeklyHourTarget: Hours.default(40),
+    ownerId: UserId.optional(),
   }),
   output: User,
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     assertEmailFree(ctx, input.email, null);
+    let ownerId: string | null = null;
+    if (input.kind === 'agent') {
+      const owner = input.ownerId ? ctx.state.users[input.ownerId] : undefined;
+      if (!owner || owner.kind !== 'human' || !owner.active) throw invalid('ownerId', 'An agent needs an active person to act for.');
+      ownerId = owner.id;
+    } else if (input.ownerId) {
+      throw invalid('ownerId', 'Only an agent acts for a person.');
+    }
     const id = nextId(ctx.state, 'usr');
-    const user: User = { id, ...input, avatarUrl: null, active: true, preferences: defaultPreferences() };
+    const user: User = {
+      id, name: input.name, email: input.email, systemRole: input.systemRole, kind: input.kind, discipline: input.discipline,
+      weeklyHourTarget: input.weeklyHourTarget, ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(),
+    };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
     return user;
@@ -2950,7 +3059,7 @@ export const usersDeactivate = defineCall({
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const user = requireUser(ctx, input.id);
-    if (user.id === ctx.actor.id) throw invalid('id', 'You cannot turn off your own account.');
+    if (user.id === ctx.authority.id) throw invalid('id', 'You cannot turn off your own account.');
     applyPatch(ctx, user, { active: false }, { projectId: null, verb: 'user.deactivated', targetType: 'user', targetId: user.id });
     return user;
   },
@@ -3063,7 +3172,7 @@ export const peopleCalls = {
 - [ ] **Step 5: Run the test to see it pass**
 
 Run: `npx vitest run src/api/handlers/people.test.ts`
-Expected: PASS (11 tests).
+Expected: PASS (12 tests).
 
 Run: `npm run typecheck`
 Expected: no output, exit code 0.
@@ -3237,8 +3346,10 @@ describe('members', () => {
     t.as('usr_002');
     await expect(t.api.call('members.remove', { projectId: 'prj_001', userId: 'usr_002' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('members.remove', { projectId: 'prj_001', userId: 'usr_003' })).rejects.toMatchObject({ code: 'invalid_input' });
-    const detail = await t.api.call('members.remove', { projectId: 'prj_001', userId: 'usr_005' });
-    expect(detail.members.map((m) => m.user.id)).not.toContain('usr_005');
+    await t.api.call('members.add', { projectId: 'prj_001', userId: 'usr_004' });
+    const detail = await t.api.call('members.remove', { projectId: 'prj_001', userId: 'usr_004' });
+    expect(detail.members.map((m) => m.user.id)).not.toContain('usr_004');
+    await expect(t.api.call('members.add', { projectId: 'prj_001', userId: 'usr_005' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('members.add', { projectId: 'prj_001', userId: 'usr_003' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });
@@ -3562,7 +3673,7 @@ function addMember(ctx: Ctx, projectId: string, userId: string, discipline?: str
   notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId });
 }
 
-const detail = (ctx: Ctx, project: Project) => detailOf(ctx.state, project, ctx.today, ctx.actor);
+const detail = (ctx: Ctx, project: Project) => detailOf(ctx.state, project, ctx.today, ctx.authority);
 
 function requireEditable(ctx: Ctx, projectId: string): Project {
   const project = requireProject(ctx, projectId);
@@ -3595,11 +3706,11 @@ export const projectsList = defineCall({
   output: z.array(ProjectSummary),
   readOnly: true,
   run(input, ctx) {
-    const { state, today, actor } = ctx;
+    const { state, today, authority } = ctx;
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .map((p) => summaryOf(state, p, today))
-      .filter((s) => input.filter !== 'mine' || projectRoleOf(state, s.project.id, actor.id) !== 'other')
+      .filter((s) => input.filter !== 'mine' || projectRoleOf(state, s.project.id, authority.id) !== 'other')
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
       .filter((s) => !input.stageName || s.currentStage.name === input.stageName)
       .filter((s) => !input.leaderId || s.project.leaderId === input.leaderId)
@@ -3636,11 +3747,12 @@ export const projectsCreate = defineCall({
     assertCan(ctx, 'project.create');
     const { state, actor, stamp, today } = ctx;
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
-    const leaderId = input.leader === 'me' ? actor.id : input.leader === 'none' ? null : input.leader;
+    const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
     if (leaderId) assertLeader(ctx, leaderId);
     if (input.clientId && !state.clients[input.clientId]) throw invalid('clientId', 'This client does not exist.');
     for (const userId of input.teamIds) {
-      if (!state.users[userId]?.active) throw invalid('teamIds', 'Every team member must be an active user.');
+      const member = state.users[userId];
+      if (!member?.active || member.kind !== 'human') throw invalid('teamIds', 'Every team member must be an active person. Agents act for a person.');
     }
     const id = nextId(state, 'prj');
     const stageIds = (input.stages ?? state.settings.defaultStages).map((name, order) => {
@@ -3656,7 +3768,7 @@ export const projectsCreate = defineCall({
     };
     state.projects[id] = project;
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });
-    const people = new Set([actor.id, ...(leaderId ? [leaderId] : []), ...input.teamIds]);
+    const people = new Set([ctx.authority.id, ...(leaderId ? [leaderId] : []), ...input.teamIds]);
     for (const userId of people) addMember(ctx, id, userId);
     return detail(ctx, project);
   },
@@ -3801,6 +3913,7 @@ export const membersAdd = defineCall({
     const project = requireEditable(ctx, input.projectId);
     const user = requireUser(ctx, input.userId);
     if (!user.active) throw invalid('userId', 'This person is not active.');
+    if (user.kind === 'agent') throw invalid('userId', 'Agents act for a person. Add the person instead.');
     if (ctx.state.members[memberKey(project.id, user.id)]) throw invalid('userId', 'This person is already on the team.');
     addMember(ctx, project.id, user.id, input.discipline);
     touch(ctx, project.id);
@@ -4141,14 +4254,12 @@ describe('tasks.update and tasks.delete', () => {
   it('lets the leader reassign and tells the new owner', async () => {
     const t = withTask();
     t.as('usr_002');
-    await t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_005' } });
-    expect(t.store.state.tasks.tsk_001.ownerId).toBe('usr_005');
-    const t2 = withTask();
-    t2.as('usr_002');
-    await t2.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_002' } });
-    t2.as('usr_001');
-    await t2.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_003' } });
-    expect(notices(t2.store, 'task_assigned', 'usr_003')).toHaveLength(1);
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_002' } });
+    expect(t.store.state.tasks.tsk_001.ownerId).toBe('usr_002');
+    t.as('usr_001');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_003' } });
+    expect(notices(t.store, 'task_assigned', 'usr_003')).toHaveLength(1);
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_005' } })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
   it('lets the leader delete a task', async () => {
@@ -4158,6 +4269,19 @@ describe('tasks.update and tasks.delete', () => {
     t.as('usr_002');
     await t.api.call('tasks.delete', { id: 'tsk_001' });
     expect(t.store.state.tasks.tsk_001).toBeUndefined();
+  });
+});
+
+describe('agents', () => {
+  it('act with the rights of their person', async () => {
+    const t = withTask();
+    t.as('usr_005');
+    const created = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Area check' });
+    expect(created.task).toMatchObject({ ownerId: 'usr_003', createdBy: 'usr_005' });
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_002' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect((await t.api.call('tasks.complete', { id: 'tsk_001' })).result).toBe('in_review');
+    const event = Object.values(t.store.state.events).find((e) => e.targetId === 'tsk_001');
+    expect(event).toMatchObject({ actorId: 'usr_005', actingForId: 'usr_003' });
   });
 });
 
@@ -4298,12 +4422,12 @@ import { assertCan, insertComment, requireProject, requireStage, requireTask, ro
 const Title = z.string().trim().min(1).max(200);
 const Moved = z.object({ result: TaskStatus, task: TaskDetail });
 
-const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.actor);
+const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.authority);
 const onProject = (ctx: Ctx, projectId: string, userId: string) => projectRoleOf(ctx.state, projectId, userId) !== 'other';
 
 /** Spec 5.5, with clarification 2: the leader and the Admin are the reviewers, so their tick lands on Done. */
 function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
-  const reviewer = can(ctx.actor, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
+  const reviewer = can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
   return !task.needsReview || reviewer ? 'done' : 'in_review';
 }
 
@@ -4332,7 +4456,7 @@ export const tasksList = defineCall({
   output: z.array(TaskRow),
   readOnly: true,
   run(input, ctx) {
-    const { state, today, actor } = ctx;
+    const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
     const tasks = Object.values(state.tasks).filter((task) => {
       const project = state.projects[task.projectId];
@@ -4345,13 +4469,13 @@ export const tasksList = defineCall({
       if (dueTo && (task.dueDate === null || task.dueDate > dueTo)) return false;
       switch (input.filter) {
         case 'mine':
-          return task.ownerId === actor.id;
+          return task.ownerId === authority.id;
         case 'overdue':
           return isOverdue(task, today);
         case 'flagged':
           return task.flagged;
         case 'review_for_me':
-          return task.status === 'in_review' && reviewersOf(state, task.projectId).includes(actor.id);
+          return task.status === 'in_review' && reviewersOf(state, task.projectId).includes(authority.id);
         default:
           return true;
       }
@@ -4386,8 +4510,9 @@ export const tasksCreate = defineCall({
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
     const role = roleIn(ctx, project.id);
-    const ownerId = input.ownerId ?? ctx.actor.id;
-    assertCan(ctx, ownerId === ctx.actor.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
+    // A task always belongs to a person. An agent adds tasks for the person it acts for.
+    const ownerId = input.ownerId ?? ctx.authority.id;
+    assertCan(ctx, ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
     if (input.needsReview !== undefined) assertCan(ctx, 'task.updateAny', { projectRole: role });
     if (!onProject(ctx, project.id, ownerId)) throw invalid('ownerId', 'The owner must be on the project team.');
     const stageId = input.stageId ?? project.currentStageId;
@@ -4517,7 +4642,7 @@ export const taskCalls = {
 - [ ] **Step 6: Run the test to see it pass**
 
 Run: `npx vitest run src/api/handlers/tasks.test.ts`
-Expected: PASS (17 tests).
+Expected: PASS (18 tests).
 
 Run: `npm run typecheck`
 Expected: no output, exit code 0.
@@ -4542,7 +4667,7 @@ git commit -m "feat: add task calls with the review flow" -m "Claude-Session: ht
 - Consumes: Tasks 5 to 12.
 - Produces: schemas and types `CommentView`, `FileView`. Builders `commentViewOf(state, comment)`, `fileViewOf(state, file)`. `nextLetter(previous: string): string`. Call maps `contentCalls` (`updates.list`, `updates.create`, `updates.update`, `updates.delete`, `comments.list`, `comments.create`, `comments.update`, `comments.delete`, `reactions.toggle`), `fileCalls` (`files.list`, `files.get`, `files.upload`, `files.delete`), `historyCalls` (`events.list`, `events.undo`).
 
-File rules (spec 5.7): an upload with the same name (any letter case) in the same project becomes the next version. The limit is 25 MB per file. `files.get` returns the file data as a `Blob`. Undo rules (spec 10.7): a person can undo their own change; the leader and the Admin can undo an agent change.
+"Own" content (spec 17): a post, comment or file by an agent counts as its person's own, through `principalOf`. File rules (spec 5.7): an upload with the same name (any letter case) in the same project becomes the next version. The limit is 25 MB per file. `files.get` returns the file data as a `Blob`. Undo rules (spec 10.7): a person can undo their own change; the leader and the Admin can undo an agent change.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4575,8 +4700,17 @@ describe('updates', () => {
     t.as('usr_005');
     await t.api.call('updates.create', { projectId: 'prj_001', body: 'Weekly summary: 3 open tasks.' });
     expect(Object.values(t.store.state.notifications)).toHaveLength(0);
-    await t.api.call('updates.create', { projectId: 'prj_001', body: `${mentionMarkup('Sara Team', 'usr_003')} one task is overdue.` });
-    expect(notices(t.store, 'mention', 'usr_003')).toHaveLength(1);
+    await t.api.call('updates.create', { projectId: 'prj_001', body: `${mentionMarkup('Faisal Leader', 'usr_002')} one task is overdue.` });
+    expect(notices(t.store, 'mention', 'usr_002')).toHaveLength(1);
+  });
+
+  it("lets a person edit their agent's post", async () => {
+    const t = testApi(contentCalls);
+    t.as('usr_005');
+    const item = await t.api.call('updates.create', { projectId: 'prj_001', body: 'Draft summary.' });
+    t.as('usr_003');
+    const edited = await t.api.call('updates.update', { id: item.id, body: 'Final summary.' });
+    expect(edited.kind === 'update' ? edited.body : '').toBe('Final summary.');
   });
 
   it('stops an outsider from posting', async () => {
@@ -4688,7 +4822,7 @@ describe('files', () => {
     const t = testApi(fileCalls);
     t.as('usr_003');
     const mine = await t.api.call('files.upload', { projectId: 'prj_001', name: 'mine.pdf', blob: pdf('x') });
-    t.as('usr_005');
+    t.as('usr_004');
     await expect(t.api.call('files.delete', { id: mine.file.id })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_003');
     await t.api.call('files.delete', { id: mine.file.id });
@@ -4720,18 +4854,24 @@ describe('events', () => {
     expect(t.store.state.tasks.tsk_001.status).toBe('todo');
   });
 
-  it('lets the leader undo an agent change, and stops a team member', async () => {
+  it("lets the leader or the agent's person undo an agent change, and stops others", async () => {
     const t = testApi(calls);
-    t.store.state.tasks.tsk_001 = makeTask({ ownerId: 'usr_005', needsReview: false });
+    t.store.state.tasks.tsk_001 = makeTask({ ownerId: 'usr_003', needsReview: false });
+    t.store.state.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_003', needsReview: false });
     t.as('usr_005');
     await t.api.call('tasks.complete', { id: 'tsk_001' });
-    const [latest] = await t.api.call('events.list', { projectId: 'prj_001' });
-    expect(latest.actor.kind).toBe('agent');
-    t.as('usr_003');
-    await expect(t.api.call('events.undo', { eventId: latest.event.id })).rejects.toMatchObject({ code: 'forbidden' });
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    const [second, first] = await t.api.call('events.list', { projectId: 'prj_001' });
+    expect(first.actor.kind).toBe('agent');
+    expect(first.event.actingForId).toBe('usr_003');
+    t.as('usr_004');
+    await expect(t.api.call('events.undo', { eventId: first.event.id })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_002');
-    await t.api.call('events.undo', { eventId: latest.event.id });
+    await t.api.call('events.undo', { eventId: first.event.id });
     expect(t.store.state.tasks.tsk_001.status).toBe('todo');
+    t.as('usr_003');
+    await t.api.call('events.undo', { eventId: second.event.id });
+    expect(t.store.state.tasks.tsk_002.status).toBe('todo');
   });
 
   it('reports a conflict when the item changed later', async () => {
@@ -4812,6 +4952,7 @@ import { CommentView, FeedItem } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { notify } from '../notify';
+import { principalOf } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { activeMentions, assertCan, insertComment, requireProject, roleIn, touch } from './shared';
@@ -4882,7 +5023,7 @@ export const updatesUpdate = defineCall({
   output: FeedItem,
   run(input, ctx) {
     const update = requireUpdate(ctx, input.id);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: update.authorId });
+    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     const added = newMentions(ctx, update.body, input.body);
     applyPatch(ctx, update, { body: input.body, editedAt: ctx.stamp }, { projectId: update.projectId, verb: 'update.edited', targetType: 'update', targetId: update.id });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id });
@@ -4895,7 +5036,7 @@ export const updatesDelete = defineCall({
   output: Deleted,
   run(input, ctx) {
     const update = requireUpdate(ctx, input.id);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: update.authorId });
+    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     recordDelete(ctx, { projectId: update.projectId, verb: 'update.deleted', targetType: 'update', targetId: update.id, entity: update });
     delete ctx.state.updates[update.id];
     return { deleted: true as const };
@@ -4933,7 +5074,7 @@ export const commentsUpdate = defineCall({
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: comment.authorId });
+    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
@@ -4947,7 +5088,7 @@ export const commentsDelete = defineCall({
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: comment.authorId });
+    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
     recordDelete(ctx, { projectId, verb: 'comment.deleted', targetType: 'comment', targetId: comment.id, entity: comment });
     delete ctx.state.comments[comment.id];
     return { deleted: true as const };
@@ -4989,7 +5130,7 @@ import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type F
 import { FileView } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { can } from '../permissions';
+import { can, principalOf } from '../permissions';
 import { nextId } from '../store';
 import { fileViewOf } from '../views';
 import { assertCan, requireProject, requireStage, roleIn, touch } from './shared';
@@ -5098,8 +5239,8 @@ export const filesDelete = defineCall({
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
     const role = roleIn(ctx, file.projectId);
-    const allowed = can(ctx.actor, 'task.delete', { projectRole: role })
-      || can(ctx.actor, 'content.editOwn', { projectRole: role, authorId: file.versions[0].uploadedBy });
+    const allowed = can(ctx.authority, 'task.delete', { projectRole: role })
+      || can(ctx.authority, 'content.editOwn', { projectRole: role, authorId: principalOf(ctx.state, file.versions[0].uploadedBy) });
     if (!allowed) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {
@@ -5161,10 +5302,11 @@ export const eventsUndo = defineCall({
   run(input, ctx) {
     const event = ctx.state.events[input.eventId];
     if (!event) throw notFound('Event', input.eventId);
-    const own = event.actorId === ctx.actor.id;
+    // Your own changes and your agent's changes are yours to undo: the event names the person each acted for.
+    const own = event.actingForId === ctx.authority.id;
     const agentChange = event.actorKind === 'agent' && event.projectId !== null
-      && can(ctx.actor, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
-    if (!own && !agentChange) throw forbidden('You can undo your own changes, and agent changes on a project you lead.');
+      && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
+    if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
     const undo = undoEvent(ctx, event.id);
     if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
     return eventViewOf(ctx.state, undo);
@@ -5180,7 +5322,7 @@ export const historyCalls = {
 - [ ] **Step 5: Run the tests to see them pass**
 
 Run: `npx vitest run src/api/handlers/content.test.ts src/api/handlers/files.test.ts src/api/handlers/history.test.ts`
-Expected: PASS (15 tests).
+Expected: PASS (16 tests).
 
 Run: `npm run typecheck`
 Expected: no output, exit code 0.
@@ -5204,7 +5346,7 @@ git commit -m "feat: add update, comment, file and undo calls" -m "Claude-Sessio
 - Consumes: Tasks 5 to 13.
 - Produces: `rowKeyOf(projectId, stageId, taskId): string` (`prj_001|stg_002|-`), `isWeekLocked(state, userId, weekStart, today): boolean`, schema and type `WeekView` (rows carry `hours: number[7]`, one number per day from Sunday), `weekViewOf(state, userId, weekStart, today): WeekView`. The call map `timeCalls` with `time.week`, `time.set`, `time.addRow`, `time.removeRow`, `time.copyLastWeek`, `time.unlockWeek`. `ACTION_TRIGGERS`, schema `NotificationView` (`notification`, `actor`, `target`, `projectCode`, `link`, `needsAction`). The call map `notificationCalls` with `notifications.list`, `notifications.count` (returns `{ unread, badge }`), `notifications.markRead`, `notifications.markAllRead`, `notifications.updateSettings`.
 
-Timesheet rules (spec 6.2): half-hour steps; 24 hours per day at most, over all rows; no future days; the owner of the hours is always the current user; a week locks 14 days after its Saturday; only the Admin unlocks. Notification links are hash routes for the screens in plans 2 and 3.
+Timesheet rules (spec 6.2): half-hour steps; 24 hours per day at most, over all rows; no future days; the hours always belong to a person (the current user, or the person an agent acts for); a week locks 14 days after its Saturday; only the Admin unlocks. Notification links are hash routes for the screens in plans 2 and 3.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -5486,7 +5628,7 @@ function assertLoggable(ctx: Ctx, projectId: string, stageId: string, taskId: st
 }
 
 function assertUnlocked(ctx: Ctx, weekStart: string): void {
-  if (isWeekLocked(ctx.state, ctx.actor.id, weekStart, ctx.today)) throw forbidden('This week is locked.', { reason: 'week_locked' });
+  if (isWeekLocked(ctx.state, ctx.authority.id, weekStart, ctx.today)) throw forbidden('This week is locked.', { reason: 'week_locked' });
 }
 
 export const timeWeek = defineCall({
@@ -5494,9 +5636,9 @@ export const timeWeek = defineCall({
   output: WeekView,
   readOnly: true,
   run(input, ctx) {
-    const userId = input.userId ?? ctx.actor.id;
+    const userId = input.userId ?? ctx.authority.id;
     requireUser(ctx, userId);
-    if (userId !== ctx.actor.id) assertCan(ctx, 'time.viewPerson', { targetUserId: userId });
+    if (userId !== ctx.authority.id) assertCan(ctx, 'time.viewPerson', { targetUserId: userId });
     return weekViewOf(ctx.state, userId, input.weekStart, ctx.today);
   },
 });
@@ -5505,7 +5647,8 @@ export const timeSet = defineCall({
   input: z.object({ projectId: ProjectId, stageId: StageId, taskId: TaskId.nullable().default(null), date: Day, hours: Hours }),
   output: WeekView,
   run(input, ctx) {
-    const { state, actor, today } = ctx;
+    const { state, today } = ctx;
+    const actor = ctx.authority; // Hours always belong to a person, also when an agent logs them.
     assertLoggable(ctx, input.projectId, input.stageId, input.taskId);
     if (input.date > today) throw invalid('date', 'You cannot log hours for a future day.');
     const weekStart = weekStartOf(input.date);
@@ -5541,11 +5684,11 @@ export const timeAddRow = defineCall({
   run(input, ctx) {
     assertLoggable(ctx, input.projectId, input.stageId, input.taskId);
     assertUnlocked(ctx, input.weekStart);
-    const key = pinKey(ctx.actor.id, input.weekStart, rowKeyOf(input.projectId, input.stageId, input.taskId));
+    const key = pinKey(ctx.authority.id, input.weekStart, rowKeyOf(input.projectId, input.stageId, input.taskId));
     ctx.state.timeRows[key] = {
-      key, userId: ctx.actor.id, weekStart: input.weekStart, projectId: input.projectId, stageId: input.stageId, taskId: input.taskId,
+      key, userId: ctx.authority.id, weekStart: input.weekStart, projectId: input.projectId, stageId: input.stageId, taskId: input.taskId,
     };
-    return weekViewOf(ctx.state, ctx.actor.id, input.weekStart, ctx.today);
+    return weekViewOf(ctx.state, ctx.authority.id, input.weekStart, ctx.today);
   },
 });
 
@@ -5553,10 +5696,10 @@ export const timeRemoveRow = defineCall({
   input: z.object({ weekStart: WeekStart, rowKey: z.string().min(1) }),
   output: WeekView,
   run(input, ctx) {
-    const row = weekViewOf(ctx.state, ctx.actor.id, input.weekStart, ctx.today).rows.find((r) => r.key === input.rowKey);
+    const row = weekViewOf(ctx.state, ctx.authority.id, input.weekStart, ctx.today).rows.find((r) => r.key === input.rowKey);
     if (row && row.total > 0) throw invalid('rowKey', 'Clear the hours in this row first.');
-    delete ctx.state.timeRows[pinKey(ctx.actor.id, input.weekStart, input.rowKey)];
-    return weekViewOf(ctx.state, ctx.actor.id, input.weekStart, ctx.today);
+    delete ctx.state.timeRows[pinKey(ctx.authority.id, input.weekStart, input.rowKey)];
+    return weekViewOf(ctx.state, ctx.authority.id, input.weekStart, ctx.today);
   },
 });
 
@@ -5565,17 +5708,17 @@ export const timeCopyLastWeek = defineCall({
   output: WeekView,
   run(input, ctx) {
     assertUnlocked(ctx, input.weekStart);
-    const previous = weekViewOf(ctx.state, ctx.actor.id, addDays(input.weekStart, -7), ctx.today);
+    const previous = weekViewOf(ctx.state, ctx.authority.id, addDays(input.weekStart, -7), ctx.today);
     for (const row of previous.rows) {
       const project = ctx.state.projects[row.project.id];
       const stage = ctx.state.stages[row.stage.id];
       if (!project || project.status !== 'active' || !stage) continue;
-      if (!can(ctx.actor, 'time.logOnProject', { projectRole: roleIn(ctx, project.id) })) continue;
+      if (!can(ctx.authority, 'time.logOnProject', { projectRole: roleIn(ctx, project.id) })) continue;
       const taskId = row.task?.id ?? null;
-      const key = pinKey(ctx.actor.id, input.weekStart, rowKeyOf(project.id, stage.id, taskId));
-      ctx.state.timeRows[key] = { key, userId: ctx.actor.id, weekStart: input.weekStart, projectId: project.id, stageId: stage.id, taskId };
+      const key = pinKey(ctx.authority.id, input.weekStart, rowKeyOf(project.id, stage.id, taskId));
+      ctx.state.timeRows[key] = { key, userId: ctx.authority.id, weekStart: input.weekStart, projectId: project.id, stageId: stage.id, taskId };
     }
-    return weekViewOf(ctx.state, ctx.actor.id, input.weekStart, ctx.today);
+    return weekViewOf(ctx.state, ctx.authority.id, input.weekStart, ctx.today);
   },
 });
 
@@ -5658,7 +5801,7 @@ function viewOf(state: State, n: Notification): NotificationView {
   return { notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, link, needsAction: ACTION_TRIGGERS.has(n.trigger) };
 }
 
-const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => n.userId === ctx.actor.id);
+const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => n.userId === ctx.authority.id);
 
 function counts(ctx: Ctx): { unread: number; badge: number } {
   const unread = mine(ctx).filter((n) => !n.read);
@@ -5694,7 +5837,7 @@ export const notificationsMarkRead = defineCall({
     for (const id of input.ids) {
       const n = ctx.state.notifications[id];
       if (!n) throw notFound('Notification', id);
-      if (n.userId !== ctx.actor.id) throw forbidden('This notification belongs to someone else.');
+      if (n.userId !== ctx.authority.id) throw forbidden('This notification belongs to someone else.');
       n.read = true;
     }
     return counts(ctx);
@@ -5714,10 +5857,10 @@ export const notificationsUpdateSettings = defineCall({
   input: z.object({ trigger: Trigger, on: z.boolean() }),
   output: User,
   run(input, ctx) {
-    const prefs = ctx.actor.preferences;
+    const prefs = ctx.authority.preferences;
     const next = { ...prefs, notifications: { ...prefs.notifications, [input.trigger]: input.on } };
-    applyPatch(ctx, ctx.actor, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
-    return ctx.actor;
+    applyPatch(ctx, ctx.authority, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
+    return ctx.authority;
   },
 });
 
@@ -5929,7 +6072,7 @@ export const dashboardGet = defineCall({
   output: DashboardView,
   readOnly: true,
   run(input, ctx) {
-    const { state, today, actor } = ctx;
+    const { state, today, authority: actor } = ctx;
     const projects = Object.values(state.projects).filter((p) =>
       (input.status === 'all' || p.status === input.status) && (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId));
     const active = projects.filter((p) => p.status === 'active');
@@ -6210,7 +6353,7 @@ git commit -m "feat: add the full call map" -m "Claude-Session: https://claude.a
 - Consumes: Tasks 2 to 16.
 - Produces: `renderSvg(title, subtitle, hue, variant): string`, `drawingPdf(lines: string[]): string`, `type PutBlob = (key: string, blob: Blob) => Promise<void>`, `buildSeed(today: string, putBlob: PutBlob): Promise<State>`, `shiftState(state: State, days: number): State`. The call `session.resetSampleData` in `systemCalls`, added to `calls`.
 
-Sample office (spec 12): 12 projects, 8 people plus the agent "Madar Assistant", 144 tasks, 60 files (72 versions), about 8 weeks of hours, 4 weeks of agent summaries. Health mix among active projects: 2 Late, 3 At risk, 5 On track, plus 1 On hold and 1 Completed. The current user at start is Hala Nasser, the Admin. Every date is built from "today". `shiftState` keeps saved data relative to today on later visits.
+Sample office (spec 12): 12 projects, 8 people plus the agent "Madar Assistant" (it acts for Hala, the Admin, and is on no team), 144 tasks, 60 files (72 versions), about 8 weeks of hours, 4 weeks of agent summaries. Health mix among active projects: 2 Late, 3 At risk, 5 On track, plus 1 On hold and 1 Completed. The current user at start is Hala Nasser, the Admin. Every date is built from "today". `shiftState` keeps saved data relative to today on later visits.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -6264,6 +6407,8 @@ describe('sample data', () => {
     expect(users.filter((u) => u.kind === 'human')).toHaveLength(8);
     expect(users.filter((u) => u.kind === 'agent')).toHaveLength(1);
     expect(users.filter((u) => u.systemRole === 'admin').map((u) => u.name)).toEqual(['Hala Nasser']);
+    expect(users.find((u) => u.kind === 'agent')?.ownerId).toBe('usr_001');
+    expect(Object.values(state.members).some((m) => m.userId === 'usr_009')).toBe(false);
     expect(Object.keys(state.tasks)).toHaveLength(144);
     expect(Object.keys(state.files)).toHaveLength(60);
     expect(state.session.currentUserId).toBe('usr_001');
@@ -6613,14 +6758,14 @@ const FILES: { name: string; kind: 'svg' | 'pdf'; versions: number; daysAgo: num
   { name: 'Facade study.svg', kind: 'svg', versions: 1, daysAgo: 3 },
 ];
 
-type SeedCtx = { state: State; today: string; humans: User[]; agentId: string; clientIds: string[]; saveBlob: (blob: Blob) => string };
+type SeedCtx = { state: State; today: string; humans: User[]; clientIds: string[]; saveBlob: (blob: Blob) => string };
 
 function addProject(seed: SeedCtx, plan: Plan, index: number): void {
-  const { state, today, humans, agentId, clientIds, saveBlob } = seed;
+  const { state, today, humans, clientIds, saveBlob } = seed;
   const leader = humans[plan.leader];
   const team = plan.team.map((i) => humans[i]);
   const owners = [leader, ...team];
-  const ec = (actor: User, stamp: string): EventContext => ({ state, actor, stamp });
+  const ec = (actor: User, stamp: string): EventContext => ({ state, actor, stamp, correlationId: `seed_${plan.code}` });
   const projectId = nextId(state, 'prj');
   const curStart = addDays(today, WINDOW[plan.shape][0]);
   const curEnd = addDays(today, WINDOW[plan.shape][1]);
@@ -6652,8 +6797,8 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
   };
   state.projects[projectId] = project;
 
+  // Agents are never members: the assistant reaches what its person, the Admin, reaches (spec 17).
   const memberIds = new Set([leader.id, ...team.map((u) => u.id)]);
-  if (status === 'active') memberIds.add(agentId);
   for (const userId of memberIds) {
     state.members[memberKey(projectId, userId)] = { projectId, userId, discipline: state.users[userId].discipline };
   }
@@ -6841,7 +6986,8 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     const id = nextId(state, 'usr');
     const user: User = {
       id, name: person.name, email: `${person.name.toLowerCase().replace(/[^a-z]+/g, '.')}@madar.test`, avatarUrl: null, kind: 'human',
-      systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, weeklyHourTarget: 40, active: true, preferences: defaultPreferences(),
+      systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, weeklyHourTarget: 40, active: true, ownerId: null,
+      preferences: defaultPreferences(),
     };
     state.users[id] = user;
     return user;
@@ -6849,7 +6995,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const agentId = nextId(state, 'usr');
   state.users[agentId] = {
     id: agentId, name: 'Madar Assistant', email: 'assistant@madar.test', avatarUrl: null, kind: 'agent', systemRole: 'member',
-    discipline: 'Agent', weeklyHourTarget: 0, active: true, preferences: defaultPreferences(),
+    discipline: 'Agent', weeklyHourTarget: 0, active: true, ownerId: humans[0].id, preferences: defaultPreferences(),
   };
   state.session.currentUserId = humans[0].id;
 
@@ -6862,7 +7008,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     return id;
   });
 
-  const seed: SeedCtx = { state, today, humans, agentId, clientIds, saveBlob };
+  const seed: SeedCtx = { state, today, humans, clientIds, saveBlob };
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
   addAgentSummaries(state, today, agentId);
   addTimeEntries(state, today, humans);
@@ -7099,6 +7245,7 @@ Expected: FAIL, "Failed to resolve import ./en.json".
   "preview": {
     "label": "Preview as",
     "prototype": "Prototype",
+    "agentFor": "Agent for {{name}}",
     "hint": { "admin": "Admin", "leader": "Leader", "member": "Member", "agent": "Agent" }
   },
   "settings": {
@@ -7182,6 +7329,7 @@ Expected: FAIL, "Failed to resolve import ./en.json".
   "preview": {
     "label": "المعاينة باسم",
     "prototype": "نموذج أولي",
+    "agentFor": "وكيل ذكي عن {{name}}",
     "hint": { "admin": "مدير النظام", "leader": "قائد مشروع", "member": "عضو فريق", "agent": "وكيل ذكي" }
   },
   "settings": {
@@ -8370,7 +8518,9 @@ export function PreviewAs({ id }: { id: string }) {
         className="mt-1 min-h-11 w-full rounded-control bg-fill px-2 text-subheadline text-label"
       >
         {session.data.previewUsers.map((user) => (
-          <option key={user.id} value={user.id}>{`${user.name} · ${t(`preview.hint.${user.hint}`)}`}</option>
+          <option key={user.id} value={user.id}>
+            {`${user.name} · ${user.actingForName ? t('preview.agentFor', { name: user.actingForName }) : t(`preview.hint.${user.hint}`)}`}
+          </option>
         ))}
       </select>
     </label>

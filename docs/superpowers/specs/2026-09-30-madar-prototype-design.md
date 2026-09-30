@@ -50,7 +50,7 @@ The real-build spec covers these items, except fees, which need a new decision.
 - **Member.** A system role for everyone else.
 - **Project Leader.** A project role. One person per project, or nobody. The leader manages the project.
 - **Project team.** A project role. The people on the project.
-- **AI agent.** A user account of kind `agent`. It gets roles like a person. Every screen marks its changes with an "Agent" label.
+- **AI agent.** A user account of kind `agent` that always acts for one person, its owner. The agent has that person's rights and never more. Agents are never project members: they reach what their person reaches. Every change records two names, the agent and the person it acted for. Every screen marks agent changes with an "Agent" label. (Adopted from Scitter on 2026-09-30, see section 17.)
 
 ### 2.2 Project creation and the leader
 
@@ -456,7 +456,7 @@ Rules:
 Apple's eight principles (reintroduced June 2026) are the review checklist for each screen: Purpose, Agency, Responsibility, Familiarity, Flexibility, Simplicity, Craft, Delight. Two of them set product rules:
 
 - **Agency:** Undo replaces "Are you sure?" dialogs. Only "Delete project" asks for confirmation.
-- **Responsibility:** every change by an AI agent carries the "Agent" label. The leader and the Admin can undo it from the feed item or the task history.
+- **Responsibility:** every change by an AI agent carries the "Agent" label. The leader, the Admin and the person the agent acted for can undo it from the feed item or the task history.
 
 ### 10.8 Right-to-left (Arabic)
 
@@ -537,6 +537,8 @@ Screens reach data only through `api.call(name, input)`. The call runs as the cu
 5. Create notifications through `notify.ts`.
 6. Return the result, validated by the output schema.
 
+A caller can pass one story ID (`correlationId`) to several calls, so one agent request reads as one story in the log. Without it, each call gets its own ID.
+
 The fake API waits 120 ms before it answers, so the screens behave like a real network. Screens update at once (optimistic update) and roll back if the call fails.
 
 In the real build, each call becomes `POST /api/<name>` on a Python server (FastAPI). The Python models mirror the zod schemas. The server also publishes an OpenAPI description, and an MCP server wraps the same calls for AI agents.
@@ -571,7 +573,7 @@ All IDs are readable strings with a prefix (`usr_`, `cli_`, `prj_`, `stg_`, `ddl
 
 | Entity | Fields |
 |---|---|
-| User | id, name, email, avatarUrl, kind (`human`, `agent`), systemRole (`admin`, `member`), discipline, weeklyHourTarget, active, preferences (language, theme, glass, notification switches) |
+| User | id, name, email, avatarUrl, kind (`human`, `agent`), systemRole (`admin`, `member`), discipline, weeklyHourTarget, active, ownerId (for an agent: the person it acts for; for a person: null), preferences (language, theme, glass, notification switches) |
 | Client | id, name, contactName, phone, email |
 | Project | id, code, name, clientId, status (`active`, `on_hold`, `completed`, `archived`), leaderId or null, currentStageId, location, areaM2, startDate, targetEndDate, coverFileId, modelFolderPath, description, healthOverride (value, reason, setBy, setAt) or null, createdBy, createdAt, updatedAt |
 | ProjectMember | projectId, userId, discipline |
@@ -583,7 +585,7 @@ All IDs are readable strings with a prefix (`usr_`, `cli_`, `prj_`, `stg_`, `ddl
 | File | id, projectId, stageId or null, taskId or null, name, versions (letter, blobKey, mimeType, size, uploadedBy, uploadedAt) |
 | TimeEntry | id, userId, projectId, stageId, taskId or null, date, hours |
 | Notification | id, userId, trigger, targetType, targetId, read, createdAt |
-| Event | id, projectId or null, actorId, actorKind (`human`, `agent`), verb, targetType, targetId, before, after, createdAt, undoneBy or null |
+| Event | id, seq, projectId or null, actorId, actorKind (`human`, `agent`), actingForId (the person the actor acted for; the actor itself for a person), correlationId (one story ID per request), verb, targetType, targetId, before, after, createdAt, undoneBy or null |
 | Settings | defaultStages, codePrefix, workloadLimit |
 
 The card's "two latest updates" and the Overview feed both read from Updates and Events.
@@ -609,7 +611,7 @@ The card's "two latest updates" and the Overview feed both read from Updates and
 
 - 12 projects with realistic, invented Khobar names and clients. Mixed stages and health: at least 2 Late, 3 At risk, 1 On hold, 1 Completed.
 - 8 people: 1 Admin, 3 leaders, 4 members, with mixed disciplines. Plus 1 agent, "Madar Assistant".
-- The agent is on every Active project's team. The sample data holds its weekly summary on each Active project for each past Sunday at 08:00.
+- The agent acts for the Admin. The sample data holds its weekly summary on each Active project for each past Sunday at 08:00.
 - About 150 tasks, 6 months of history, 60 files (images and PDF files, generated), and 8 weeks of time entries.
 - All dates are relative to the current date, so "due in 5 days" stays true on every visit.
 
@@ -674,3 +676,24 @@ Each step ends with a review link (a private artifact that also opens on phones)
 - WWDC25, Get to know the new design system: https://developer.apple.com/videos/play/wwdc2025/356/
 - WWDC26, What's new in SwiftUI: https://developer.apple.com/videos/play/wwdc2026/269/
 - Cult of Mac, Liquid Glass changes in iOS 27 and macOS 27: https://www.cultofmac.com/news/liquid-glass-changes-ios-27-macos-27
+
+## 17. Agent rules adopted from Scitter (2026-09-30)
+
+The owner compared this design with Scitter (EduArabia's lecture workspace, which runs with real agents over MCP) and approved these rules.
+
+**In the prototype (plan 1):**
+
+1. An agent acts for one person, with that person's rights and never more. There is no separate agent role and no scope system.
+2. Every change records two names: the agent (`actorId`) and the person it acted for (`actingForId`).
+3. One story ID (`correlationId`) ties together all the changes of one request.
+4. A person never gets a notification for their own agent's action.
+5. The person an agent acted for can undo the agent's changes, like their own.
+
+**In the real build (Python):**
+
+6. Agents connect over MCP at one address and sign in with OAuth 2.1 and PKCE. A person approves the agent on a consent screen. The identity comes from that approval only, never from a header or an argument the agent sends.
+7. Every call carries a written instruction for agents, and one "read this first" call tells an agent what Madar is, what it may do, and who it acts for.
+8. The change log is append-only in the database: no update and no delete path.
+
+**Not adopted:** Git storage (Madar's data is records, not documents), server pages with no JavaScript (they cannot give the Apple motion), and "one environment, nothing verified locally".
+
