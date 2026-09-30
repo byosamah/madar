@@ -57,7 +57,9 @@ function MemberRow({ member, detail }: { member: Member; detail: ProjectDetail }
           className="min-h-11 w-40 rounded-control bg-fill px-3 text-subheadline text-label"
         />
       ) : <span className="text-subheadline text-label-2">{member.discipline}</span>}
-      <Menu label={t('team.actions', { name: user.name })} items={items} />
+      <div className="size-11 shrink-0">
+        <Menu label={t('team.actions', { name: user.name })} items={items} />
+      </div>
     </li>
   );
 }

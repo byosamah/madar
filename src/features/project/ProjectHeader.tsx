@@ -16,7 +16,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
   return (
     <header className="flex flex-col gap-4">
       <div className="relative overflow-hidden rounded-card">
-        <ProjectCover summary={detail} className="aspect-[5/2] sm:aspect-[3/1]" />
+        <ProjectCover summary={detail} className="aspect-[5/2] sm:aspect-[3/1] lg:aspect-[4/1]" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-3">
           <Link to="/" className="glass-media pressable inline-flex min-h-11 items-center gap-1 rounded-full pe-4 ps-2 text-subheadline font-semibold">
             <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
