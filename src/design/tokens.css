@@ -1,0 +1,243 @@
+@import "tailwindcss";
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Design tokens from spec section 10, with the contrast values from plan clarification 7.
+   label-3 is for icons and disabled states only, never for text. */
+:root {
+  --c-bg: #F5F5F7;
+  --c-card: #FFFFFF;
+  --c-label: #1D1D1F;
+  --c-label-2: #5E5E63;
+  --c-label-3: #A1A1A6;
+  --c-separator: rgba(60, 60, 67, 0.14);
+  --c-fill: rgba(120, 120, 128, 0.12);
+  --c-fill-strong: rgba(120, 120, 128, 0.2);
+  --c-accent: #0066CC;
+  --c-accent-fill: #0071E3;
+  --c-on-accent: #FFFFFF;
+  --c-green: #34C759;
+  --c-orange: #FF9500;
+  --c-red: #FF3B30;
+  --c-green-text: #1E7A34;
+  --c-orange-text: #C93400;
+  --c-red-text: #D70015;
+  --c-badge: #D70015;
+  --c-scrim: rgba(0, 0, 0, 0.35);
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --sh-float: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-filter: blur(24px) saturate(180%);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-border: transparent;
+  --r-card: 22px;
+  --r-sheet: 28px;
+  --r-control: 8px;
+  --boost: 1;
+  --size-large-title: 34px;
+  --size-title-1: 28px;
+  --size-title-2: 22px;
+  --size-title-3: 20px;
+  --size-headline: 17px;
+  --size-body: 17px;
+  --size-subheadline: 15px;
+  --size-footnote: 13px;
+  --size-caption: 12px;
+  color-scheme: light;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --size-large-title: 30px;
+    --size-title-1: 24px;
+    --size-title-2: 19px;
+    --size-title-3: 17px;
+    --size-headline: 15px;
+    --size-body: 15px;
+    --size-subheadline: 13px;
+    --size-footnote: 12px;
+    --size-caption: 11px;
+  }
+}
+
+/* Arabic reads one step larger than Latin text at the same level (spec 10.4). */
+:root[lang="ar"] {
+  --boost: 1.08;
+}
+
+[data-theme="dark"] {
+  --c-bg: #000000;
+  --c-card: #1C1C1E;
+  --c-label: #F5F5F7;
+  --c-label-2: #AEAEB2;
+  --c-label-3: #636366;
+  --c-separator: rgba(84, 84, 88, 0.6);
+  --c-fill: rgba(120, 120, 128, 0.24);
+  --c-fill-strong: rgba(120, 120, 128, 0.36);
+  --c-accent: #0A84FF;
+  --c-accent-fill: #0071E3;
+  --c-green: #30D158;
+  --c-orange: #FF9F0A;
+  --c-red: #FF453A;
+  --c-green-text: #30D158;
+  --c-orange-text: #FF9F0A;
+  --c-red-text: #FF453A;
+  --c-scrim: rgba(0, 0, 0, 0.5);
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-float: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --glass-bg: rgba(28, 28, 30, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+[data-glass="clear"] {
+  --glass-bg: rgba(255, 255, 255, 0.25);
+  --glass-filter: blur(12px);
+}
+
+[data-theme="dark"][data-glass="clear"] {
+  --glass-bg: rgba(0, 0, 0, 0.25);
+}
+
+[data-glass="solid"] {
+  --glass-bg: var(--c-card);
+  --glass-filter: none;
+}
+
+[data-contrast="more"] {
+  --glass-border: var(--c-label);
+  --c-separator: var(--c-label-2);
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-bg: var(--c-bg);
+  --color-card: var(--c-card);
+  --color-label: var(--c-label);
+  --color-label-2: var(--c-label-2);
+  --color-label-3: var(--c-label-3);
+  --color-separator: var(--c-separator);
+  --color-fill: var(--c-fill);
+  --color-fill-strong: var(--c-fill-strong);
+  --color-accent: var(--c-accent);
+  --color-accent-fill: var(--c-accent-fill);
+  --color-on-accent: var(--c-on-accent);
+  --color-green: var(--c-green);
+  --color-orange: var(--c-orange);
+  --color-red: var(--c-red);
+  --color-green-text: var(--c-green-text);
+  --color-orange-text: var(--c-orange-text);
+  --color-red-text: var(--c-red-text);
+  --color-badge: var(--c-badge);
+  --radius-card: var(--r-card);
+  --radius-sheet: var(--r-sheet);
+  --radius-control: var(--r-control);
+  --shadow-card: var(--sh-card);
+  --shadow-float: var(--sh-float);
+  --text-large-title: calc(var(--size-large-title) * var(--boost));
+  --text-large-title--line-height: 1.1;
+  --text-large-title--letter-spacing: -0.02em;
+  --text-large-title--font-weight: 700;
+  --text-title-1: calc(var(--size-title-1) * var(--boost));
+  --text-title-1--line-height: 1.15;
+  --text-title-1--letter-spacing: -0.015em;
+  --text-title-1--font-weight: 700;
+  --text-title-2: calc(var(--size-title-2) * var(--boost));
+  --text-title-2--line-height: 1.2;
+  --text-title-2--letter-spacing: -0.01em;
+  --text-title-2--font-weight: 700;
+  --text-title-3: calc(var(--size-title-3) * var(--boost));
+  --text-title-3--line-height: 1.25;
+  --text-title-3--font-weight: 600;
+  --text-headline: calc(var(--size-headline) * var(--boost));
+  --text-headline--line-height: 1.3;
+  --text-headline--font-weight: 600;
+  --text-body: calc(var(--size-body) * var(--boost));
+  --text-body--line-height: 1.45;
+  --text-subheadline: calc(var(--size-subheadline) * var(--boost));
+  --text-subheadline--line-height: 1.35;
+  --text-footnote: calc(var(--size-footnote) * var(--boost));
+  --text-footnote--line-height: 1.35;
+  --text-caption: calc(var(--size-caption) * var(--boost));
+  --text-caption--line-height: 1.3;
+  --text-caption--letter-spacing: 0.01em;
+}
+
+@layer base {
+  html {
+    background: var(--c-bg);
+    color: var(--c-label);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-family: "Inter Variable", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: calc(var(--size-body) * var(--boost));
+    line-height: 1.45;
+  }
+  :root[lang="ar"] body {
+    font-family: "IBM Plex Sans Arabic", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  /* Liquid Glass: navigation layer only (spec 10.1). */
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    box-shadow: inset 0 1px 0 var(--glass-edge);
+    border: 1px solid var(--glass-border);
+  }
+  .surface {
+    background: var(--c-card);
+    box-shadow: var(--sh-card);
+    border: 1px solid var(--glass-border);
+  }
+  /* Press feedback starts on pointer-down (spec 10.6). */
+  .pressable {
+    transition: transform 100ms ease-out;
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+  /* Soft scroll edge under a floating toolbar, instead of a hard divider line. */
+  .toolbar-fade::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 16px;
+    background: linear-gradient(var(--glass-bg), transparent);
+    pointer-events: none;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pressable,
+  .pressable:active {
+    transition: none;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--c-card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

@@ -18,7 +18,7 @@
 - [x] 16. The call map
 - [x] 17. Sample data, date shift and reset
 - [x] 18. Languages
-- [ ] 19. Design tokens and appearance
+- [x] 19. Design tokens and appearance
 - [ ] 20. Runtime, bootstrap and toasts
 - [ ] 21. App shell and Settings screen
 - [ ] 22. Verify, browser sweep and review link
