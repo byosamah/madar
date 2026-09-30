@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
 import { errorMessage } from '../../app/errors';
 import { useCall } from '../../app/runtime';
@@ -8,12 +9,14 @@ import { Button } from '../../components/Button';
 import { ChipGroup } from '../../components/Chip';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
+import { oneOf } from '../../lib/params';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ProjectCard } from './ProjectCard';
 import { ProjectRow } from './ProjectRow';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
+const FILTERS = ['all', 'mine', 'at_risk'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
 const VIEWS = ['grid', 'list'] as const;
 const SELECT = 'min-h-11 rounded-full bg-fill px-4 text-subheadline text-label';
@@ -21,17 +24,35 @@ const SELECT = 'min-h-11 rounded-full bg-fill px-4 text-subheadline text-label';
 /** The home screen: a grid of project cards with filters, sort and a list view (spec 4.3). */
 export function ProjectsScreen() {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState('all');
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>('active');
+  const [params, setParams] = useSearchParams();
+  const stageName = params.get('stage') ?? undefined;
+  const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
+  const filter = stageName ? `stage:${stageName}` : filterParam;
+  const status = oneOf(params.get('status'), STATUSES, 'active');
+  // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
+  const update = (change: (next: URLSearchParams) => void) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    change(next);
+    return next;
+  }, { replace: true });
+  const setFilter = (value: string) => update((next) => {
+    next.delete('stage');
+    next.delete('filter');
+    if (value.startsWith('stage:')) next.set('stage', value.slice('stage:'.length));
+    else if (value !== 'all') next.set('filter', value);
+  });
+  const setStatus = (value: (typeof STATUSES)[number]) => update((next) => {
+    if (value === 'active') next.delete('status');
+    else next.set('status', value);
+  });
   const [sort, setSort] = usePersistentChoice('madar.projects.sort', SORTS, 'updated');
   const [view, setView] = usePersistentChoice('madar.projects.view', VIEWS, 'grid');
   const [creating, setCreating] = useState(false);
   const settings = useCall('settings.get', {});
-  const stageName = filter.startsWith('stage:') ? filter.slice('stage:'.length) : undefined;
   const list = useCall('projects.list', {
     status,
     sort,
-    filter: stageName ? 'all' : (filter as 'all' | 'mine' | 'at_risk'),
+    filter: stageName ? 'all' : filterParam,
     stageName,
   });
   const chips = [
@@ -40,10 +61,7 @@ export function ProjectsScreen() {
     { value: 'at_risk', label: t('projects.filter.at_risk') },
     ...(settings.data?.defaultStages ?? []).map((name) => ({ value: `stage:${name}`, label: name })),
   ];
-  const showAll = () => {
-    setFilter('all');
-    setStatus('all');
-  };
+  const showAll = () => setParams({ status: 'all' }, { replace: true });
 
   let body = null;
   if (list.error) {

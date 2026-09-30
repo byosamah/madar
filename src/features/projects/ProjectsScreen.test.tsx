@@ -68,4 +68,24 @@ describe('the Projects screen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'New Project' }));
     expect(await screen.findByRole('dialog', { name: 'New Project' })).toBeInTheDocument();
   });
+
+  it('opens with the filters in the link', async () => {
+    const first = await renderApp('/?filter=at_risk');
+    await waitFor(() => expect(cards()).toHaveLength(5));
+    expect(screen.getByRole('radio', { name: 'At risk' })).toHaveAttribute('aria-checked', 'true');
+    first.unmount();
+    const second = await renderApp('/?stage=Permits');
+    expect(await screen.findByRole('link', { name: /Al Waha Clinic Fit-out/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull();
+    second.unmount();
+    await renderApp('/?status=on_hold');
+    expect(await screen.findByRole('link', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
+  });
+
+  it('writes a chip choice into the link', async () => {
+    await renderApp('/');
+    await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    await userEvent.click(screen.getByRole('radio', { name: 'At risk' }));
+    await waitFor(() => expect(window.location.hash).toContain('filter=at_risk'));
+  });
 });
