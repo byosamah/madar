@@ -6,7 +6,7 @@
 - [x] 4. Store and persisters
 - [x] 5. Permissions and test factories
 - [x] 6. Health rule
-- [ ] 7. Event log and undo
+- [x] 7. Event log and undo
 - [ ] 8. Text helpers and notifications
 - [ ] 9. Call registry and dispatcher
 - [ ] 10. People, session, clients and settings calls
