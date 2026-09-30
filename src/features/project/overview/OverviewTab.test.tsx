@@ -101,4 +101,14 @@ describe('the Overview tab', () => {
     const line = (await screen.findByText(/Agent draft/)).closest('li') as HTMLElement;
     expect(within(line).queryByRole('button', { name: 'Undo agent change' })).toBeNull();
   });
+
+  it('counts a typed full name as a mention (plan clarification 9)', async () => {
+    const { store } = await renderApp(PROJECT, as('usr_002'));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Post an update' }), '@Sara Al-Qahtani please check{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    await screen.findByText('Update posted.');
+    const post = Object.values(store.state.updates).find((u) => u.body.includes('please check'));
+    expect(post?.body).toBe('@[Sara Al-Qahtani](usr_005) please check');
+    expect(Object.values(store.state.notifications).some((n) => n.userId === 'usr_005' && n.trigger === 'mention' && n.targetId === post?.id)).toBe(true);
+  });
 });

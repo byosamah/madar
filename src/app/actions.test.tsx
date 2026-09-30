@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect, useState } from 'react';
+import { ApiError } from '../api/errors';
 import { renderWithRuntime } from '../test/render';
 import { useUndoable } from './actions';
 import { useRuntime } from './runtime';
@@ -96,5 +97,24 @@ describe('actions that change nothing', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(screen.queryByText('Moved.')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});
+
+describe('a change whose follow-up check fails', () => {
+  it('still offers Undo and reports no failure', async () => {
+    const { store, api } = await renderWithRuntime(<Tick />, asFaisal);
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
+      if (name === 'events.list' && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    await userEvent.click(screen.getByText('Tick'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    expect(screen.queryByText('Something went wrong. Try again.')).toBeNull();
+    await waitFor(() => expect(store.state.tasks.tsk_009.status).toBe('todo'));
   });
 });

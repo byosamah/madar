@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Notification, NotificationId, Trigger, User } from '../contract/entities';
+import { Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
 import { applyPatch } from '../events';
@@ -21,34 +21,56 @@ export const NotificationView = z.object({
   link: z.string(),
   needsAction: z.boolean(),
   canApprove: z.boolean(),
+  /** The task, post or project is deleted. The sentence keeps its last name, and there is nothing to open. */
+  gone: z.boolean(),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
 const Counts = z.object({ unread: z.number().int().min(0), badge: z.number().int().min(0) });
+
+type Copy = Record<string, unknown>;
+
+/** The last copy of a deleted task, post or project, from its delete event, so an old notice still reads as a whole sentence. */
+function deletedCopy(state: State, targetType: string, id: string): Copy | null {
+  let found: Event | null = null;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === `${targetType}.deleted` && event.targetId === id && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Copy) : null;
+}
+
+const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
   let link = '/inbox';
   let canApprove = false;
+  let gone = false;
   if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
-    const project = task ? state.projects[task.projectId] : undefined;
-    target = task?.title ?? '';
+    const copy: Copy | null = task ?? deletedCopy(state, 'task', n.targetId);
+    const project = state.projects[text(copy?.projectId)];
+    target = text(copy?.title);
     projectCode = project?.code ?? null;
+    gone = !task;
     if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
       && can(viewer, 'task.review', { projectRole: projectRoleOf(state, task.projectId, viewer.id) });
   } else if (n.targetType === 'update') {
     const update = state.updates[n.targetId];
-    const project = update ? state.projects[update.projectId] : undefined;
+    const copy: Copy | null = update ?? deletedCopy(state, 'update', n.targetId);
+    const project = state.projects[text(copy?.projectId)];
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
+    gone = !update;
     if (update) link = `/projects/${update.projectId}?tab=overview&update=${update.id}`;
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
-    target = project?.name ?? '';
-    projectCode = project?.code ?? null;
+    const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);
+    target = text(copy?.name);
+    projectCode = copy ? text(copy.code) || null : null;
+    gone = !project;
     if (project) link = `/projects/${project.id}`;
   } else {
     target = n.targetId;
@@ -56,7 +78,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone,
   };
 }
 

@@ -8,6 +8,7 @@ import { notify } from '../notify';
 import { principalOf } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
+import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, insertComment, requireProject, roleIn, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 
@@ -48,7 +49,7 @@ export const updatesList = defineCall({
   readOnly: true,
   run(input, ctx) {
     requireProject(ctx, input.projectId);
-    return feedFor(ctx.state, input.projectId, input.filter, input.limit, ctx.authority);
+    return feedFor(ctx.state, input.projectId, input.filter, input.limit, ctx.authority, (event) => mayUndoAgentChange(ctx, event));
   },
 });
 

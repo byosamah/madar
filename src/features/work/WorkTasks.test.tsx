@@ -45,4 +45,10 @@ describe('My Work tasks', () => {
     });
     expect(await screen.findByText('You have no open tasks.')).toBeInTheDocument();
   });
+
+  it('shows Retry when My Work cannot load', async () => {
+    await renderApp('/work', as('usr_005'), { failFirst: 'tasks.list' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Civil Defense drawings')).toBeInTheDocument();
+  });
 });

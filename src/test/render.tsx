@@ -1,3 +1,4 @@
+import { ApiError } from '../api/errors';
 import type { ReactElement } from 'react';
 import { onTestFinished } from 'vitest';
 import { render } from '@testing-library/react';
@@ -16,12 +17,24 @@ import { setNow } from '../lib/dates';
 import { NOW, TODAY } from './factories';
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
-export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number } = {}) {
+/** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */
+export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number; failFirst?: string } = {}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
   const store = new Store(state, memoryPersister());
   const api = createApi(calls, { store, latencyMs: options.latencyMs ?? 0 });
+  if (options.failFirst) {
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: unknown) => {
+      if (name === options.failFirst && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+  }
   initI18n('en');
   window.location.hash = `#${path}`;
   const router = createAppRouter();

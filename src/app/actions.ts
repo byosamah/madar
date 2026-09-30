@@ -30,8 +30,9 @@ export function useUndoable<N extends CallName>(
     onSuccess: async ({ output, storyId }) => {
       latest.current.onSuccess?.(output);
       // An action that changed nothing gets no toast: there is nothing to report and nothing to undo.
-      const changes = await api.call('events.list', { correlationId: storyId, limit: 1 });
-      if (changes.length === 0) return;
+      // When this check itself fails, the change still happened, so the toast and its Undo still show.
+      const changes = await api.call('events.list', { correlationId: storyId, limit: 1 }).catch(() => null);
+      if (changes?.length === 0) return;
       toast.show({
         message: latest.current.message(output),
         action: {

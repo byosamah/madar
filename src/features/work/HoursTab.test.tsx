@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
+import { ApiError } from '../../api/errors';
 import { renderApp } from '../../test/render';
 
 const asSara = (state: State) => {
@@ -87,5 +88,38 @@ describe('the Hours tab', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'My Work' })).toBeInTheDocument();
     const today = await screen.findByRole('textbox', { name: 'Hours for KH-26-001 · Permits · Civil Defense drawings on 30 September 2026' });
     await waitFor(() => expect(today).toHaveFocus());
+  });
+
+  it('puts the saved value back when a save fails', async () => {
+    const { api } = await renderApp(LAST, asSara);
+    const original = api.call.bind(api);
+    let failed = false;
+    api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
+      if (name === 'time.set' && !failed) {
+        failed = true;
+        return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+      }
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    const [first] = await cells();
+    const before = (first as HTMLInputElement).value;
+    await userEvent.clear(first);
+    await userEvent.type(first, '3{Enter}');
+    await screen.findByText('Something went wrong. Try again.');
+    await waitFor(() => expect(first).toHaveValue(before));
+  });
+
+  it('refuses more than 24 hours in one day with its own message', async () => {
+    const { store } = await renderApp(LAST, asSara);
+    const before = JSON.stringify(store.state.time);
+    const sunday = (await cells()).filter((cell) => /20 September 2026/.test(cell.getAttribute('aria-label') ?? ''));
+    const logged = sunday.reduce((sum, cell) => sum + Number((cell as HTMLInputElement).value || 0), 0);
+    expect(logged).toBeGreaterThan(0);
+    const empty = sunday.find((cell) => (cell as HTMLInputElement).value === '') ?? sunday[0];
+    await userEvent.clear(empty);
+    await userEvent.type(empty, '24{Enter}');
+    expect(await screen.findByText('A day cannot have more than 24 hours.')).toBeInTheDocument();
+    expect(empty).toHaveAttribute('aria-invalid', 'true');
+    expect(JSON.stringify(store.state.time)).toBe(before);
   });
 });

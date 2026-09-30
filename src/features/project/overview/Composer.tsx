@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { MAX_FILE_BYTES } from '../../../api/contract/entities';
-import type { ProjectDetail, UserCard } from '../../../api/contract/views';
+import type { ProjectDetail } from '../../../api/contract/views';
 import { newStoryId } from '../../../app/actions';
 import { errorMessage } from '../../../app/errors';
 import { useCall, useRuntime } from '../../../app/runtime';
@@ -22,7 +22,6 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
   const [params, setParams] = useSearchParams();
   const area = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState('');
-  const [picked, setPicked] = useState<UserCard[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const uploaded = useRef(new Map<File, string>());
   const [posting, setPosting] = useState(false);
@@ -47,7 +46,8 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
 
   const post = async (event: FormEvent) => {
     event.preventDefault();
-    const body = withMentionMarkup(text.trim(), picked);
+    // Every project person counts, also a name typed without the list (plan clarification 9).
+    const body = withMentionMarkup(text.trim(), people);
     if (!body) return;
     const meta = { correlationId: newStoryId() };
     setPosting(true);
@@ -65,7 +65,6 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
       }
       await api.call('updates.create', { projectId: detail.project.id, body, fileIds }, meta);
       setText('');
-      setPicked([]);
       setFiles([]);
       uploaded.current.clear();
       toast.show({ message: t('overview.posted') });
@@ -84,7 +83,6 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
         value={text}
         onChange={setText}
         people={people}
-        onPick={(person) => setPicked((list) => (list.some((p) => p.id === person.id) ? list : [...list, person]))}
         placeholder={t('overview.placeholder')}
         inputRef={area}
         className="[&_textarea]:min-h-24"

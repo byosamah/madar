@@ -73,4 +73,21 @@ describe('the Inbox', () => {
     await renderApp('/inbox', withNotices('usr_005', []));
     expect(await screen.findByText('No notifications')).toBeInTheDocument();
   });
+
+  it('keeps the sentence of a notice whose task was deleted, and says the task is gone', async () => {
+    const { api } = await renderApp('/inbox', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
+    await screen.findByText(/sent “Toilet details” to review/);
+    await api.call('tasks.delete', { id: 'tsk_010' });
+    expect(await screen.findByText('This item does not exist anymore.')).toBeInTheDocument();
+    const item = itemWith(/sent “Toilet details” to review/);
+    expect(within(item).queryByRole('button', { name: 'Open' })).toBeNull();
+    expect(within(item).queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('shows Retry when the Inbox cannot load', async () => {
+    const { api } = await renderApp('/inbox', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]), { failFirst: 'notifications.list' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText(/gave you/)).toBeInTheDocument();
+    void api;
+  });
 });

@@ -13,14 +13,15 @@ import { IconButton } from '../../components/IconButton';
 import { addDays, formatDay, formatNumber, formatWeekday, todayISO, weekStartOf } from '../../lib/dates';
 import { hoursText, parseHours } from '../../lib/hours';
 import { AddRowSheet } from './AddRowSheet';
+import { LoadFailed } from '../../components/LoadFailed';
 
 type WeekRow = CallOutput<'time.week'>['rows'][number];
 type Focus = { projectId: string; stageId: string; taskId: string | null };
 
 const WEEKEND = ['hide', 'show'] as const;
 
-function HoursCell({ row, day, value, disabled, label, focus }: {
-  row: WeekRow; day: string; value: number; disabled: boolean; label: string; focus: boolean;
+function HoursCell({ row, day, value, dayTotal, disabled, label, focus }: {
+  row: WeekRow; day: string; value: number; dayTotal: number; disabled: boolean; label: string; focus: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -42,9 +43,19 @@ function HoursCell({ row, day, value, disabled, label, focus }: {
       toast.show({ tone: 'error', message: t('hours.invalid') });
       return;
     }
+    // The API refuses more than 24 hours in one day over all rows (spec 6.2). The screen says so first, in its own words.
+    if (dayTotal - value + parsed.hours > 24) {
+      setInvalid(true);
+      toast.show({ tone: 'error', message: t('hours.dayOver') });
+      return;
+    }
     setInvalid(false);
     if (parsed.hours !== value) {
-      save.mutate({ projectId: row.project.id, stageId: row.stage.id, taskId: row.task?.id ?? null, date: day, hours: parsed.hours });
+      // A failed save puts the saved value back, so the cell never shows hours that are not saved. Retry is on the toast.
+      save.mutate(
+        { projectId: row.project.id, stageId: row.stage.id, taskId: row.task?.id ?? null, date: day, hours: parsed.hours },
+        { onError: () => setText(hoursText(value)) },
+      );
     }
   };
   return (
@@ -116,6 +127,7 @@ export function HoursTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week.data]);
 
+  if (week.error) return <LoadFailed error={week.error} onRetry={() => void week.refetch()} />;
   if (!week.data) return null;
   const view = week.data;
   const weekendHours = view.dayTotals[5] + view.dayTotals[6] > 0;
@@ -180,6 +192,7 @@ export function HoursTab() {
                             row={row}
                             day={day}
                             value={row.hours[i]}
+                            dayTotal={view.dayTotals[i]}
                             disabled={view.locked || day > today}
                             label={t('hours.cell', { row: label, day: formatDay(day, lang, 'long') })}
                             focus={day === today && isFocus(row)}

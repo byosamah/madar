@@ -108,7 +108,8 @@
     "edit": "Edit",
     "none": "None",
     "agent": "Agent",
-    "done": "Done"
+    "done": "Done",
+    "loadFailed": "The data did not load."
   },
   "time": {
     "now": "now",
@@ -510,7 +511,8 @@
     "locked": "This week is locked. Ask the Admin to unlock it.",
     "invalid": "Use steps of 0.5, from 0 to 24.",
     "emptyTitle": "No hours this week",
-    "empty": "Add a row, or copy last week's rows."
+    "empty": "Add a row, or copy last week's rows.",
+    "dayOver": "A day cannot have more than 24 hours."
   },
   "inbox": {
     "markAllRead": "Mark all read",

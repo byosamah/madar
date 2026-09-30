@@ -9,6 +9,7 @@ import { todayISO } from '../../lib/dates';
 import { groupMyTasks } from '../../lib/myWork';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
+import { LoadFailed } from '../../components/LoadFailed';
 
 function TaskGroup({ id, title, rows, onOpen }: { id: string; title: string; rows: TaskRow[]; onOpen: (row: TaskRow) => void }) {
   return (
@@ -41,6 +42,9 @@ export function WorkTasks() {
     next.delete('project');
     return next;
   }), [setParams]);
+  if (mine.error || review.error) {
+    return <LoadFailed error={mine.error ?? review.error} onRetry={() => { void mine.refetch(); void review.refetch(); }} />;
+  }
   if (!mine.data || !review.data) return null;
   const groups = groupMyTasks(mine.data, todayISO());
   const taskId = params.get('task');

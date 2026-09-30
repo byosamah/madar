@@ -3,7 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, type Event, type FileRec, type TimeEntry } from '../contract/entities';
 import { EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { undoEvent } from '../events';
+import { NOT_UNDOABLE, undoEvent } from '../events';
 import { can, principalOf, type Action, type Resource } from '../permissions';
 import { eventViewOf } from '../views';
 import { weekStartOf } from '../../lib/dates';
@@ -155,13 +155,30 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
   }
 }
 
-/** Undoes one event for the current person, under the rules of the original action. */
-function undoOne(ctx: Ctx, event: Event): EventView {
+/** Who may undo this change at all: its own person (or their agent's), or the leader for an agent change. */
+function assertUndoRight(ctx: Ctx, event: Event): void {
   // Your own changes and your agent's changes are yours to undo: the event names the person each acted for.
   const own = event.actingForId === ctx.authority.id;
   const agentChange = event.actorKind === 'agent' && event.projectId !== null
     && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
   if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
+}
+
+/** True when events.undo would accept this agent change from this person now. The feed shows Undo only then (spec 10.7). */
+export function mayUndoAgentChange(ctx: Ctx, event: Event): boolean {
+  if (event.actorKind !== 'agent' || event.undoneBy || NOT_UNDOABLE.has(event.verb)) return false;
+  try {
+    assertUndoRight(ctx, event);
+    assertMayUndo(ctx, event);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Undoes one event for the current person, under the rules of the original action. */
+function undoOne(ctx: Ctx, event: Event): EventView {
+  assertUndoRight(ctx, event);
   assertMayUndo(ctx, event);
   const undo = undoEvent(ctx, event.id);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);

@@ -11,6 +11,7 @@ import { normalizeForSearch } from '../../lib/text';
 import { NewProjectSheet } from '../projects/NewProjectSheet';
 import { NewTaskSheet } from './NewTaskSheet';
 import { PersonSheet } from './PersonSheet';
+import { LoadFailed } from '../../components/LoadFailed';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
@@ -26,6 +27,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
   const { t } = useTranslation();
   const navigate = useNavigate();
   const results = useCall('search.query', { text: query });
+  if (results.error) return <LoadFailed error={results.error} onRetry={() => void results.refetch()} />;
   if (!results.data) return null;
   const { projects, tasks, people, files } = results.data;
   if (projects.length + tasks.length + people.length + files.length === 0) {

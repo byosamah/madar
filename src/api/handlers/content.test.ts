@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { contentCalls } from './content';
 import { taskCalls } from './tasks';
+import { projectCalls } from './projects';
 import type { Store } from '../store';
 import { makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -109,11 +110,23 @@ describe('rights on posts and comments', () => {
     await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Agent task' });
     const agentItem = async () => (await t.api.call('updates.list', { projectId: 'prj_001', filter: 'tasks' }))
       .find((item) => item.kind === 'event' && item.author.id === 'usr_005');
+    // The agent acted for Sara Team. Undoing a new task needs the right to delete tasks, which only the leader has here.
     t.as('usr_003');
-    expect(await agentItem()).toMatchObject({ canUndo: true });
+    expect(await agentItem()).toMatchObject({ canUndo: false });
     t.as('usr_002');
     expect(await agentItem()).toMatchObject({ canUndo: true });
     t.as('usr_004');
     expect(await agentItem()).toMatchObject({ canUndo: false });
+  });
+
+  it('offers no Undo on a change the API cannot undo', async () => {
+    const t = testApi({ ...contentCalls, ...projectCalls });
+    t.store.state.users.usr_005.ownerId = 'usr_001';
+    t.as('usr_005');
+    const detail = await t.api.call('projects.create', { name: 'Agent project', leader: 'usr_002' });
+    t.as('usr_002');
+    const created = (await t.api.call('updates.list', { projectId: detail.project.id, filter: 'all' }))
+      .find((item) => item.kind === 'event' && item.verb === 'project.created');
+    expect(created).toMatchObject({ canUndo: false });
   });
 });

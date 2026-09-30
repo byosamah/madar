@@ -77,12 +77,6 @@ function canEditContent(state: State, projectId: string, authorId: string, viewe
   return can(viewer, 'content.editOwn', { projectRole: projectRoleOf(state, projectId, viewer.id), authorId: principalOf(state, authorId) });
 }
 
-/** Spec 10.7: the person an agent acted for, the project leader and the Admin may undo an agent change from the feed. */
-function canUndoAgentChange(state: State, event: Event, viewer: User): boolean {
-  if (event.actorKind !== 'agent' || event.projectId === null) return false;
-  return event.actingForId === viewer.id || can(viewer, 'event.undoAgent', { projectRole: projectRoleOf(state, event.projectId, viewer.id) });
-}
-
 export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
   return {
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
@@ -96,8 +90,10 @@ function newestFirst(a: FeedItem, b: FeedItem): number {
   return b.id.localeCompare(a.id);
 }
 
+/** mayUndo comes from the history rules, so the feed offers Undo exactly when events.undo accepts it. */
 export function feedFor(
   state: State, projectId: string, filter: 'all' | 'posts' | 'tasks' | 'files', limit: number, viewer: User,
+  mayUndo: (event: Event) => boolean = () => false,
 ): FeedItem[] {
   const items: FeedItem[] = [];
   if (filter === 'all' || filter === 'posts') {
@@ -111,7 +107,7 @@ export function feedFor(
       const { label, detail } = eventLabel(state, event);
       items.push({
         kind: 'event', id: event.id, at: event.createdAt, author: cardOf(state, event.actorId), verb: event.verb,
-        targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: canUndoAgentChange(state, event, viewer),
+        targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: mayUndo(event),
       });
     }
   }

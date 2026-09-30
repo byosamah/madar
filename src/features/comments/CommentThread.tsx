@@ -12,6 +12,7 @@ import { MentionField } from '../../components/MentionField';
 import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { plainText, withMentionMarkup } from '../../lib/text';
+import { LoadFailed } from '../../components/LoadFailed';
 
 function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
@@ -110,6 +111,7 @@ export function CommentThread({
   return (
     <section aria-label={t('comments.title')} className="flex flex-col gap-3">
       <h3 className="text-headline">{t('comments.title')}</h3>
+      {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
       {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
       {list.length > 0 && (
         <ol className="flex flex-col gap-3">

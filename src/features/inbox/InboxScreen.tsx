@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
+import { LoadFailed } from '../../components/LoadFailed';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
 
@@ -23,7 +24,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   const toast = useToast();
   const navigate = useNavigate();
   const phone = useIsPhone();
-  const { notification: n, actor, target, projectCode, link, canApprove } = view;
+  const { notification: n, actor, target, projectCode, link, canApprove, gone } = view;
   const markRead = useAction('notifications.markRead');
   const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const read = () => {
@@ -56,6 +57,7 @@ function InboxItem({ view }: { view: NoticeView }) {
           {projectCode && <span className="tabular">{projectCode} · </span>}
           <Age stamp={n.createdAt} />
         </p>
+        {gone && <p className="text-footnote text-label-2">{t('errors.not_found')}</p>}
       </div>
       <div className="ms-auto flex gap-2">
         {canApprove && (
@@ -70,14 +72,16 @@ function InboxItem({ view }: { view: NoticeView }) {
             {t('inbox.approve')}
           </Button>
         )}
-        <Button
-          onClick={() => {
-            read();
-            navigate(link);
-          }}
-        >
-          {n.trigger === 'week_under_target' ? t('inbox.openTimesheet') : t('inbox.open')}
-        </Button>
+        {!gone && (
+          <Button
+            onClick={() => {
+              read();
+              navigate(link);
+            }}
+          >
+            {n.trigger === 'week_under_target' ? t('inbox.openTimesheet') : t('inbox.open')}
+          </Button>
+        )}
       </div>
     </motion.li>
   );
@@ -100,6 +104,7 @@ export function InboxScreen() {
         <ScreenTitle title={t('screens.inbox')} />
         {unread && <Button className="shrink-0" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button>}
       </div>
+      {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}
       <div className="flex flex-col gap-5">
         {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group) => (
