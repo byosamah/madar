@@ -58,4 +58,12 @@ describe('the New Project sheet', () => {
     expect(store.state.clients[project!.clientId!].name).toBe('Harbour Holding');
     expect(store.state.members[`${project!.id}:usr_005`]).toBeDefined();
   });
+
+  it('keeps what the person typed when the office settings change while the sheet is open', async () => {
+    const { sheet, api } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await api.call('settings.update', { workloadLimit: 12 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(within(sheet).getByLabelText('Name')).toHaveValue('Harbour Gate Offices');
+  });
 });

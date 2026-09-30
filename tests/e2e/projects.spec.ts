@@ -6,7 +6,8 @@ const TABS = ['overview', 'tasks', 'schedule', 'files', 'team'];
 async function expectNoSeriousA11yIssues(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
-  expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  // Soft: the sweep goes on to the next tab, so every problem and every screenshot shows in one run.
+  expect.soft(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 }
 
 async function useArabic(page: Page): Promise<void> {
@@ -65,7 +66,10 @@ test('the board moves a card with the keyboard', async ({ page }) => {
   await page.getByRole('radio', { name: 'Board' }).click();
   await page.getByRole('button', { name: 'Drag Specifications draft' }).focus();
   await page.keyboard.press('Space');
+  // The keyboard drag reads the column positions after the lift. Wait for the drop target to light up before each move.
+  await expect(page.getByRole('region', { name: 'To do: 4' })).toHaveClass(/bg-fill-strong/);
   await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('region', { name: 'In progress: 2' })).toHaveClass(/bg-fill-strong/);
   await page.keyboard.press('Space');
   await expect(page.getByRole('region', { name: 'In progress: 3' }).getByText('Specifications draft')).toBeVisible();
 });

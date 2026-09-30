@@ -342,7 +342,14 @@
     "comments": "Comments: {{n}}",
     "files": "Files: {{n}}",
     "column": "{{status}}: {{n}}",
-    "count": "Tasks: {{n}}"
+    "count": "Tasks: {{n}}",
+    "dnd": {
+      "instructions": "Press Space to pick up a task. Use the arrow keys to move it to another column. Press Space again to drop it, or Escape to cancel.",
+      "pickedUp": "Picked up {{title}}.",
+      "over": "{{title}} is over {{status}}.",
+      "dropped": "{{title}} dropped on {{status}}.",
+      "cancelled": "The move of {{title}} is cancelled."
+    }
   },
   "taskSheet": {
     "title": "Title",

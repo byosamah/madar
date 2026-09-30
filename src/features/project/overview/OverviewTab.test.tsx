@@ -50,4 +50,12 @@ describe('the Overview tab', () => {
     await renderApp('/projects/prj_001?compose=1', as('usr_002'));
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Post an update' })).toHaveFocus());
   });
+
+  it('points the composer at the mention list only while the list is open', async () => {
+    await renderApp(PROJECT, as('usr_002'));
+    const box = await screen.findByRole('textbox', { name: 'Post an update' });
+    expect(box).not.toHaveAttribute('aria-controls');
+    await userEvent.type(box, '@Sa');
+    expect(box).toHaveAttribute('aria-controls', 'mention-list');
+  });
 });

@@ -342,7 +342,14 @@
     "comments": "التعليقات: {{n}}",
     "files": "الملفات: {{n}}",
     "column": "{{status}}: {{n}}",
-    "count": "المهام: {{n}}"
+    "count": "المهام: {{n}}",
+    "dnd": {
+      "instructions": "اضغط مسافة لالتقاط مهمة. استخدم مفاتيح الأسهم لنقلها إلى عمود آخر. اضغط مسافة مرة أخرى لإفلاتها، أو Escape للإلغاء.",
+      "pickedUp": "تم التقاط {{title}}.",
+      "over": "{{title}} فوق {{status}}.",
+      "dropped": "أُفلتت {{title}} في {{status}}.",
+      "cancelled": "أُلغي نقل {{title}}."
+    }
   },
   "taskSheet": {
     "title": "العنوان",

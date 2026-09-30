@@ -30,7 +30,13 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     if (!open) return;
     form.reset(emptyProjectForm(settings.data?.defaultStages ?? []));
     setCover(null);
-    // The form starts empty each time the sheet opens.
+    // The form starts empty each time the sheet opens. A settings change while it is open must not erase what the person typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    // The default stages can arrive after the sheet opens. They fill the stage list only while it is still empty.
+    if (open && settings.data && form.values.stages.length === 0) form.set('stages', settings.data.defaultStages.map((name) => ({ name })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings.data]);
 

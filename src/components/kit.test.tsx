@@ -69,4 +69,10 @@ describe('the display kit', () => {
     expect(screen.getByText('@Sara Al-Qahtani')).toBeInTheDocument();
     expect(container.querySelector('p')).toHaveAttribute('dir', 'auto');
   });
+
+  it('puts no fill behind the health word, so its color keeps 4.5:1 contrast in both themes', () => {
+    const health = { value: 'late' as const, computed: 'late' as const, overridden: false, reason: null, setBy: null };
+    render(<HealthPill health={health} status="active" setBy={null} />);
+    expect(screen.getByText('Late')).not.toHaveClass('bg-fill');
+  });
 });

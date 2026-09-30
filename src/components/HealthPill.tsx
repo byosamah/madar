@@ -18,7 +18,8 @@ export function HealthPill({ health, status, setBy }: { health: ProjectSummary['
   return (
     <span
       title={health.overridden && health.reason ? health.reason : undefined}
-      className={`inline-flex min-h-6 items-center gap-1.5 rounded-full bg-fill px-2.5 text-caption font-semibold ${TEXT[health.value]}`}
+      // No fill behind the colored word: on a fill, the dark-mode red measures 3.7:1. A hairline ring keeps the pill shape.
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-full px-2.5 text-caption font-semibold ring-1 ring-separator ring-inset ${TEXT[health.value]}`}
     >
       <span aria-hidden className={`size-2 rounded-full ${DOT[health.value]}`} />
       {t(`health.${health.value}`)}

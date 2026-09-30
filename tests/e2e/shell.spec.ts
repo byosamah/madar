@@ -20,6 +20,8 @@ for (const width of WIDTHS) {
         for (const route of ROUTES) {
           await page.goto(`/#${route}`);
           await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+          // The Projects screen draws its cards after the heading. Check them too.
+          if (route === '/') await expect(page.getByRole('article').first()).toBeVisible();
           const name = route === '/' ? 'projects' : route.slice(1);
           await page.screenshot({ path: `test-results/shell/${width}-${lang}-${theme}-${name}.png`, fullPage: true });
           const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();

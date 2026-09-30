@@ -1,6 +1,6 @@
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
-  type DragEndEvent, type KeyboardCoordinateGetter,
+  type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { Flag, GripVertical } from 'lucide-react';
 import { useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
@@ -110,8 +110,20 @@ export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: 
     if (Date.now() - droppedAt.current > 250) onOpen(taskId);
   };
   const lifted = rows.find((row) => row.task.id === activeId);
+  // Screen readers hear task titles and column names in the interface language, never raw IDs.
+  const titleOf = (id: UniqueIdentifier) => rows.find((row) => row.task.id === id)?.task.title ?? '';
+  const statusOf = (id: UniqueIdentifier) => t(`taskStatus.${String(id)}`);
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => t('tasks.dnd.pickedUp', { title: titleOf(active.id) }),
+    onDragOver: ({ active, over }) => (over ? t('tasks.dnd.over', { title: titleOf(active.id), status: statusOf(over.id) }) : undefined),
+    onDragEnd: ({ active, over }) => (over
+      ? t('tasks.dnd.dropped', { title: titleOf(active.id), status: statusOf(over.id) })
+      : t('tasks.dnd.cancelled', { title: titleOf(active.id) })),
+    onDragCancel: ({ active }) => t('tasks.dnd.cancelled', { title: titleOf(active.id) }),
+  };
   return (
     <DndContext
+      accessibility={{ announcements, screenReaderInstructions: { draggable: t('tasks.dnd.instructions') } }}
       sensors={sensors}
       onDragStart={({ active }) => setActiveId(String(active.id))}
       onDragEnd={onDragEnd}

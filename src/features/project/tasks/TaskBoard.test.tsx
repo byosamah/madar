@@ -36,4 +36,11 @@ describe('the task board', () => {
     expect(screen.queryByRole('button', { name: 'Move Balady submission set' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Drag Balady submission set' })).toBeNull();
   });
+
+  it('gives screen readers instructions in the interface language', async () => {
+    await renderApp(TASKS);
+    await userEvent.click(await screen.findByRole('radio', { name: 'Board' }));
+    await screen.findByRole('region', { name: 'To do: 4' });
+    expect(screen.getByText(/Press Space to pick up a task/)).toBeInTheDocument();
+  });
 });

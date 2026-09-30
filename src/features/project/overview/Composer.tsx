@@ -122,7 +122,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
           rows={3}
           placeholder={t('overview.placeholder')}
           aria-autocomplete="list"
-          aria-controls="mention-list"
+          aria-controls={open ? 'mention-list' : undefined}
           aria-activedescendant={open && matches[active] ? `mention-${matches[active].id}` : undefined}
           onChange={(event) => {
             setText(event.target.value);
