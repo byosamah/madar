@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch } from './text';
+import { activeMention, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
 
 describe('text helpers', () => {
   it('reads mentions once each', () => {
@@ -21,5 +21,33 @@ describe('text helpers', () => {
     expect(normalizeForSearch('إبراهيم')).toBe(normalizeForSearch('ابراهيم'));
     expect(normalizeForSearch('مدرسة')).toBe(normalizeForSearch('مدرسه'));
     expect(normalizeForSearch('مستشفى')).toBe(normalizeForSearch('مستشفي'));
+  });
+});
+
+describe('mentions in posts', () => {
+  const body = 'Hi @[Sara Al-Qahtani](usr_005), see the plan.';
+
+  it('splits a post into text and mentions', () => {
+    expect(segmentsOf(body)).toEqual([
+      { kind: 'text', text: 'Hi ' },
+      { kind: 'mention', name: 'Sara Al-Qahtani', userId: 'usr_005' },
+      { kind: 'text', text: ', see the plan.' },
+    ]);
+    expect(plainText(body)).toBe('Hi @Sara Al-Qahtani, see the plan.');
+  });
+
+  it('turns picked names into markup, longest name first', () => {
+    const people = [{ id: 'usr_010', name: 'Sara' }, { id: 'usr_005', name: 'Sara Al-Qahtani' }];
+    expect(withMentionMarkup('@Sara Al-Qahtani and @Sara', people)).toBe('@[Sara Al-Qahtani](usr_005) and @[Sara](usr_010)');
+    expect(withMentionMarkup('email@Sara', [])).toBe('email@Sara');
+  });
+
+  it('finds the mention at the caret', () => {
+    expect(activeMention('Hi @Sa', 6)).toEqual({ start: 3, query: 'Sa' });
+    expect(activeMention('Hi @', 4)).toEqual({ start: 3, query: '' });
+    expect(activeMention('@Sara Al', 8)).toEqual({ start: 0, query: 'Sara Al' });
+    expect(activeMention('mail@x', 6)).toBeNull();
+    expect(activeMention('Hi @Sa\nnext', 11)).toBeNull();
+    expect(activeMention('Hi there', 8)).toBeNull();
   });
 });

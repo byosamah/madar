@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Madar" },
+  "app": {
+    "name": "Madar"
+  },
   "nav": {
     "main": "Main navigation",
     "tabs": "Sections",
@@ -30,12 +32,19 @@
     "title": "This screen comes next",
     "body": "This screen arrives in build step {{step}}."
   },
-  "storage": { "notSaved": "Changes will not be saved in this window." },
+  "storage": {
+    "notSaved": "Changes will not be saved in this window."
+  },
   "preview": {
     "label": "Preview as",
     "prototype": "Prototype",
     "agentFor": "Agent for {{name}}",
-    "hint": { "admin": "Admin", "leader": "Leader", "member": "Member", "agent": "Agent" }
+    "hint": {
+      "admin": "Admin",
+      "leader": "Leader",
+      "member": "Member",
+      "agent": "Agent"
+    }
   },
   "settings": {
     "profile": "Profile",
@@ -44,11 +53,22 @@
     "save": "Save",
     "saved": "Profile saved.",
     "language": "Language",
-    "languages": { "en": "English", "ar": "العربية" },
+    "languages": {
+      "en": "English",
+      "ar": "العربية"
+    },
     "theme": "Theme",
-    "themes": { "system": "System", "light": "Light", "dark": "Dark" },
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "glass": "Glass",
-    "glassLevels": { "clear": "Clear", "frosted": "Frosted", "solid": "Solid" },
+    "glassLevels": {
+      "clear": "Clear",
+      "frosted": "Frosted",
+      "solid": "Solid"
+    },
     "notifications": "Notifications",
     "triggers": {
       "task_assigned": "A task is assigned to me",
@@ -76,5 +96,371 @@
     "failed": "Something went wrong. Try again.",
     "week_locked": "This week is locked."
   },
-  "common": { "retry": "Retry", "undo": "Undo", "close": "Close", "cancel": "Cancel" }
+  "common": {
+    "retry": "Retry",
+    "undo": "Undo",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "add": "Add",
+    "remove": "Remove",
+    "delete": "Delete",
+    "edit": "Edit",
+    "none": "None",
+    "agent": "Agent",
+    "done": "Done"
+  },
+  "time": {
+    "now": "now",
+    "minutes": "{{n}}m",
+    "hours": "{{n}}h",
+    "days": "{{n}}d",
+    "weeks": "{{n}}w",
+    "daysLeft": "{{n}}d",
+    "daysLate": "{{n}}d late",
+    "today": "Today"
+  },
+  "health": {
+    "on_track": "On track",
+    "at_risk": "At risk",
+    "late": "Late",
+    "setBy": "Set by {{name}}",
+    "override": "Set health",
+    "overrideHint": "The pill shows your choice and reason until the current stage changes.",
+    "reason": "Reason",
+    "save": "Set health",
+    "clear": "Use the computed health",
+    "computed": "Computed: {{value}}"
+  },
+  "status": {
+    "active": "Active",
+    "on_hold": "On hold",
+    "completed": "Completed",
+    "archived": "Archived",
+    "all": "All statuses"
+  },
+  "taskStatus": {
+    "todo": "To do",
+    "in_progress": "In progress",
+    "in_review": "In review",
+    "done": "Done"
+  },
+  "projects": {
+    "new": "New Project",
+    "filters": "Project filters",
+    "filter": {
+      "all": "All",
+      "mine": "My projects",
+      "at_risk": "At risk"
+    },
+    "statusFilter": "Status",
+    "sort": "Sort",
+    "sorts": {
+      "updated": "Last update",
+      "deadline": "Next deadline",
+      "name": "Name"
+    },
+    "view": "View",
+    "views": {
+      "grid": "Grid",
+      "list": "List"
+    },
+    "emptyTitle": "No projects",
+    "empty": "No projects match these filters.",
+    "showAll": "Show all projects",
+    "noDeadline": "No deadline",
+    "noLeader": "No leader",
+    "morePeople": "+{{n}}",
+    "latest": "Latest updates",
+    "noUpdates": "No updates yet.",
+    "stageOf": "Stage {{n}} of {{total}}: {{name}}",
+    "menu": "Actions for {{name}}",
+    "open": "Open",
+    "postUpdate": "Post update",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied.",
+    "archive": "Archive",
+    "archived": "Project archived.",
+    "cover": "Cover image of {{name}}",
+    "openTasks": "Open tasks: {{n}}",
+    "loadFailed": "The projects did not load."
+  },
+  "projectForm": {
+    "createTitle": "New Project",
+    "editTitle": "Edit project",
+    "name": "Name",
+    "client": "Client",
+    "noClient": "No client",
+    "newClient": "New client",
+    "clientName": "Client name",
+    "contactName": "Contact name",
+    "phone": "Phone",
+    "email": "Email",
+    "addClient": "Add client",
+    "clientAdded": "Client added.",
+    "leader": "Leader",
+    "leaderMe": "Me",
+    "leaderNone": "No leader",
+    "location": "Location",
+    "locationHint": "City and district",
+    "area": "Area (m²)",
+    "startDate": "Start date",
+    "endDate": "Target end date",
+    "stages": "Stages",
+    "stageName": "Stage {{n}}",
+    "addStage": "Add stage",
+    "removeStage": "Remove {{name}}",
+    "team": "Team",
+    "modelFolder": "Model folder path",
+    "modelFolderHint": "Revit models stay on the office server.",
+    "description": "Description",
+    "cover": "Cover image",
+    "create": "Create project",
+    "save": "Save changes",
+    "created": "{{code}} created.",
+    "saved": "Project saved.",
+    "errors": {
+      "nameRequired": "Enter a name.",
+      "areaNumber": "Enter a number of 0 or more.",
+      "endAfterStart": "The end date must be after the start date.",
+      "stageRequired": "Keep at least one stage.",
+      "stageName": "Enter a name for each stage."
+    }
+  },
+  "project": {
+    "tabs": "Project sections",
+    "tab": {
+      "overview": "Overview",
+      "tasks": "Tasks",
+      "schedule": "Schedule",
+      "files": "Files",
+      "team": "Team"
+    },
+    "notFoundTitle": "Project not found",
+    "notFound": "This project does not exist anymore.",
+    "back": "Projects",
+    "more": "More actions",
+    "edit": "Edit project",
+    "changeLeader": "Change leader",
+    "statusTo": {
+      "active": "Mark as active",
+      "on_hold": "Put on hold",
+      "completed": "Mark as completed",
+      "archived": "Archive"
+    },
+    "delete": "Delete project",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "This removes the project with its tasks, files, posts and hours. You cannot undo it.",
+    "deleted": "Project deleted.",
+    "viewOnly": "View only",
+    "leaderChanged": "Leader changed.",
+    "statusChanged": "Status changed.",
+    "stageDates": "{{start}} to {{end}}",
+    "noDates": "No dates",
+    "stageTasks": "Tasks done: {{done}} of {{total}}",
+    "makeCurrent": "Make current stage",
+    "stageChanged": "Current stage changed.",
+    "current": "Current stage",
+    "comingSoon": "This tab arrives later in this build step."
+  },
+  "overview": {
+    "composer": "Post an update",
+    "placeholder": "Share progress. Type @ to mention someone.",
+    "attach": "Attach files",
+    "post": "Post",
+    "posted": "Update posted.",
+    "mentionList": "People to mention",
+    "removeFile": "Remove {{name}}",
+    "feed": "Updates",
+    "feedFilter": {
+      "all": "All",
+      "posts": "Posts",
+      "tasks": "Tasks",
+      "files": "Files"
+    },
+    "emptyFeed": "No updates yet.",
+    "facts": "Key facts",
+    "deadlines": "Next deadlines",
+    "noDeadlines": "No deadlines yet.",
+    "team": "Team",
+    "edited": "Edited",
+    "comments": "Comments: {{n}}",
+    "cannotPost": "Only the project team can post here.",
+    "none": "Not set"
+  },
+  "feed": {
+    "project": {
+      "created": "created the project",
+      "stage_changed": "moved the project to {{stage}}",
+      "leader_changed": "made {{leader}} the leader",
+      "leader_cleared": "removed the leader"
+    },
+    "task": {
+      "created": "added the task “{{label}}”",
+      "todo": "moved “{{label}}” to To do",
+      "in_progress": "started “{{label}}”",
+      "in_review": "sent “{{label}}” to review",
+      "done": "completed “{{label}}”",
+      "approved": "approved “{{label}}”",
+      "sent_back": "sent back “{{label}}”"
+    },
+    "file": {
+      "added": "added the file “{{label}}”",
+      "version_added": "added version {{version}} of “{{label}}”"
+    },
+    "member": {
+      "added": "added {{label}} to the team"
+    },
+    "other": "made a change"
+  },
+  "tasks": {
+    "view": "Task view",
+    "views": {
+      "list": "List",
+      "board": "Board"
+    },
+    "filters": "Task filters",
+    "filter": {
+      "all": "All",
+      "mine": "Mine",
+      "overdue": "Overdue",
+      "flagged": "Flagged"
+    },
+    "showDone": "Show done tasks",
+    "addTask": "Add a task",
+    "addTaskIn": "Add a task in {{stage}}",
+    "complete": "Complete {{title}}",
+    "completed": "Task done.",
+    "sentToReview": "Sent to review. The leader checks it next.",
+    "moved": "Moved to {{status}}.",
+    "moveTo": "Move {{title}}",
+    "drag": "Drag {{title}}",
+    "empty": "No tasks here yet.",
+    "emptyFiltered": "No tasks match this filter.",
+    "flagged": "Flagged",
+    "overdue": "Overdue",
+    "comments": "Comments: {{n}}",
+    "files": "Files: {{n}}",
+    "column": "{{status}}: {{n}}",
+    "count": "Tasks: {{n}}"
+  },
+  "taskSheet": {
+    "title": "Title",
+    "status": "Status",
+    "owner": "Owner",
+    "dueDate": "Due date",
+    "stage": "Stage",
+    "flag": "Flag",
+    "flagHint": "Mark this task as important.",
+    "needsReview": "Needs review",
+    "needsReviewHint": "The leader checks the task before it is done.",
+    "description": "Description",
+    "checklist": "Checklist",
+    "addItem": "Add an item",
+    "removeItem": "Remove {{text}}",
+    "files": "Files",
+    "noFiles": "No files on this task.",
+    "hours": "Hours logged",
+    "hoursValue": "{{n}} h",
+    "logTime": "Log time",
+    "history": "History",
+    "noHistory": "No changes yet.",
+    "approve": "Approve",
+    "approved": "Task approved.",
+    "sendBack": "Send back",
+    "sendBackNote": "What needs to change?",
+    "sentBack": "Task sent back.",
+    "delete": "Delete task",
+    "deleted": "Task deleted.",
+    "saved": "Saved.",
+    "readOnly": "You can view this task. Only its owner and the project leader can change it.",
+    "undoAgent": "Undo agent change",
+    "undone": "Change undone.",
+    "comments": "Comments: {{n}}. Comments arrive in build step 3.",
+    "review": "Review"
+  },
+  "taskHistory": {
+    "created": "created the task",
+    "updated": "changed {{fields}}",
+    "reassigned": "changed the owner",
+    "status": "moved it to {{status}}",
+    "approved": "approved it",
+    "sent_back": "sent it back",
+    "deleted": "deleted the task",
+    "undo": "undid a change",
+    "fields": {
+      "title": "the title",
+      "description": "the description",
+      "dueDate": "the due date",
+      "stageId": "the stage",
+      "ownerId": "the owner",
+      "flagged": "the flag",
+      "needsReview": "the review setting",
+      "checklist": "the checklist",
+      "status": "the status",
+      "completedAt": "the status"
+    }
+  },
+  "schedule": {
+    "chart": "Stage timeline",
+    "stages": "Stages",
+    "deadlines": "Deadlines",
+    "today": "Today",
+    "noDatesTitle": "No dates yet",
+    "noDates": "Add stage dates or a deadline to see the timeline.",
+    "startOf": "Start of {{stage}}",
+    "endOf": "End of {{stage}}",
+    "datesChanged": "Dates changed.",
+    "start": "Start",
+    "end": "End",
+    "addDeadline": "Add deadline",
+    "deadlineName": "Deadline name",
+    "deadlineDate": "Date",
+    "deadlineStage": "Stage",
+    "deleteDeadline": "Delete {{name}}",
+    "deadlineAdded": "Deadline added.",
+    "deadlineDeleted": "Deadline deleted.",
+    "noDeadlines": "No deadlines yet."
+  },
+  "files": {
+    "upload": "Upload files",
+    "drop": "Drop files here to upload them.",
+    "uploadStage": "Stage for new files",
+    "noStage": "No stage",
+    "uploaded": "Files uploaded: {{n}}.",
+    "tooBig": "{{name}} is larger than 25 MB.",
+    "emptyTitle": "No files yet",
+    "empty": "Upload drawings, renders and documents here.",
+    "version": "Version {{letter}}",
+    "versions": "Versions",
+    "preview": "Preview",
+    "download": "Download",
+    "setCover": "Set as cover",
+    "coverSet": "Cover changed.",
+    "isCover": "Cover",
+    "delete": "Delete",
+    "deleted": "File deleted.",
+    "actions": "Actions for {{name}}",
+    "kb": "{{n}} KB",
+    "mb": "{{n}} MB",
+    "noPreview": "There is no preview for this file type."
+  },
+  "team": {
+    "leader": "Leader",
+    "members": "Members",
+    "noLeader": "This project has no leader.",
+    "discipline": "Discipline of {{name}}",
+    "disciplineSaved": "Discipline saved.",
+    "openTasks": "Open tasks: {{n}}",
+    "hoursMonth": "{{n}} h this month",
+    "add": "Add member",
+    "person": "Person",
+    "newDiscipline": "Discipline",
+    "added": "{{name}} added to the team.",
+    "remove": "Remove from team",
+    "removed": "{{name}} removed from the team.",
+    "makeLeader": "Make leader",
+    "actions": "Actions for {{name}}",
+    "noOne": "Everyone is already on the team."
+  }
 }

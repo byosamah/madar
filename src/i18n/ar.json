@@ -1,5 +1,7 @@
 {
-  "app": { "name": "مدار" },
+  "app": {
+    "name": "مدار"
+  },
   "nav": {
     "main": "التنقل الرئيسي",
     "tabs": "الأقسام",
@@ -30,12 +32,19 @@
     "title": "هذه الشاشة قادمة",
     "body": "تصل هذه الشاشة في مرحلة البناء {{step}}."
   },
-  "storage": { "notSaved": "لن تُحفظ التغييرات في هذه النافذة." },
+  "storage": {
+    "notSaved": "لن تُحفظ التغييرات في هذه النافذة."
+  },
   "preview": {
     "label": "المعاينة باسم",
     "prototype": "نموذج أولي",
     "agentFor": "وكيل ذكي عن {{name}}",
-    "hint": { "admin": "مدير النظام", "leader": "قائد مشروع", "member": "عضو فريق", "agent": "وكيل ذكي" }
+    "hint": {
+      "admin": "مدير النظام",
+      "leader": "قائد مشروع",
+      "member": "عضو فريق",
+      "agent": "وكيل ذكي"
+    }
   },
   "settings": {
     "profile": "الملف الشخصي",
@@ -44,11 +53,22 @@
     "save": "حفظ",
     "saved": "تم حفظ الملف الشخصي.",
     "language": "اللغة",
-    "languages": { "en": "English", "ar": "العربية" },
+    "languages": {
+      "en": "English",
+      "ar": "العربية"
+    },
     "theme": "المظهر",
-    "themes": { "system": "حسب الجهاز", "light": "فاتح", "dark": "داكن" },
+    "themes": {
+      "system": "حسب الجهاز",
+      "light": "فاتح",
+      "dark": "داكن"
+    },
     "glass": "الزجاج",
-    "glassLevels": { "clear": "شفاف", "frosted": "مصنفر", "solid": "معتم" },
+    "glassLevels": {
+      "clear": "شفاف",
+      "frosted": "مصنفر",
+      "solid": "معتم"
+    },
     "notifications": "الإشعارات",
     "triggers": {
       "task_assigned": "إسناد مهمة إليّ",
@@ -76,5 +96,371 @@
     "failed": "حدث خطأ. حاول مرة أخرى.",
     "week_locked": "هذا الأسبوع مقفل."
   },
-  "common": { "retry": "إعادة المحاولة", "undo": "تراجع", "close": "إغلاق", "cancel": "إلغاء" }
+  "common": {
+    "retry": "إعادة المحاولة",
+    "undo": "تراجع",
+    "close": "إغلاق",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "add": "إضافة",
+    "remove": "إزالة",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "none": "لا شيء",
+    "agent": "وكيل",
+    "done": "تم"
+  },
+  "time": {
+    "now": "الآن",
+    "minutes": "{{n}} د",
+    "hours": "{{n}} س",
+    "days": "{{n}} ي",
+    "weeks": "{{n}} أ",
+    "daysLeft": "{{n}} ي",
+    "daysLate": "متأخر {{n}} ي",
+    "today": "اليوم"
+  },
+  "health": {
+    "on_track": "على المسار",
+    "at_risk": "معرض للتأخر",
+    "late": "متأخر",
+    "setBy": "حدّدها {{name}}",
+    "override": "تحديد الحالة",
+    "overrideHint": "تعرض الشارة اختيارك وسببه حتى تتغير المرحلة الحالية.",
+    "reason": "السبب",
+    "save": "تحديد الحالة",
+    "clear": "استخدام الحالة المحسوبة",
+    "computed": "المحسوبة: {{value}}"
+  },
+  "status": {
+    "active": "نشط",
+    "on_hold": "معلّق",
+    "completed": "مكتمل",
+    "archived": "مؤرشف",
+    "all": "كل الحالات"
+  },
+  "taskStatus": {
+    "todo": "للتنفيذ",
+    "in_progress": "قيد التنفيذ",
+    "in_review": "قيد المراجعة",
+    "done": "منجزة"
+  },
+  "projects": {
+    "new": "مشروع جديد",
+    "filters": "تصفية المشاريع",
+    "filter": {
+      "all": "الكل",
+      "mine": "مشاريعي",
+      "at_risk": "معرضة للتأخر"
+    },
+    "statusFilter": "الحالة",
+    "sort": "الترتيب",
+    "sorts": {
+      "updated": "آخر تحديث",
+      "deadline": "أقرب موعد",
+      "name": "الاسم"
+    },
+    "view": "العرض",
+    "views": {
+      "grid": "شبكة",
+      "list": "قائمة"
+    },
+    "emptyTitle": "لا توجد مشاريع",
+    "empty": "لا توجد مشاريع تطابق هذه التصفية.",
+    "showAll": "عرض كل المشاريع",
+    "noDeadline": "لا يوجد موعد",
+    "noLeader": "بلا قائد",
+    "morePeople": "+{{n}}",
+    "latest": "آخر التحديثات",
+    "noUpdates": "لا توجد تحديثات بعد.",
+    "stageOf": "المرحلة {{n}} من {{total}}: {{name}}",
+    "menu": "إجراءات {{name}}",
+    "open": "فتح",
+    "postUpdate": "نشر تحديث",
+    "copyLink": "نسخ الرابط",
+    "linkCopied": "تم نسخ الرابط.",
+    "archive": "أرشفة",
+    "archived": "تمت أرشفة المشروع.",
+    "cover": "صورة غلاف {{name}}",
+    "openTasks": "المهام المفتوحة: {{n}}",
+    "loadFailed": "لم يتم تحميل المشاريع."
+  },
+  "projectForm": {
+    "createTitle": "مشروع جديد",
+    "editTitle": "تعديل المشروع",
+    "name": "الاسم",
+    "client": "العميل",
+    "noClient": "بلا عميل",
+    "newClient": "عميل جديد",
+    "clientName": "اسم العميل",
+    "contactName": "اسم جهة الاتصال",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "addClient": "إضافة العميل",
+    "clientAdded": "تمت إضافة العميل.",
+    "leader": "قائد المشروع",
+    "leaderMe": "أنا",
+    "leaderNone": "بلا قائد",
+    "location": "الموقع",
+    "locationHint": "المدينة والحي",
+    "area": "المساحة (م²)",
+    "startDate": "تاريخ البدء",
+    "endDate": "تاريخ الانتهاء المستهدف",
+    "stages": "المراحل",
+    "stageName": "المرحلة {{n}}",
+    "addStage": "إضافة مرحلة",
+    "removeStage": "حذف {{name}}",
+    "team": "الفريق",
+    "modelFolder": "مسار مجلد النموذج",
+    "modelFolderHint": "تبقى نماذج Revit على خادم المكتب.",
+    "description": "الوصف",
+    "cover": "صورة الغلاف",
+    "create": "إنشاء المشروع",
+    "save": "حفظ التغييرات",
+    "created": "تم إنشاء {{code}}.",
+    "saved": "تم حفظ المشروع.",
+    "errors": {
+      "nameRequired": "أدخل اسمًا.",
+      "areaNumber": "أدخل رقمًا يساوي 0 أو أكثر.",
+      "endAfterStart": "يجب أن يكون تاريخ الانتهاء بعد تاريخ البدء.",
+      "stageRequired": "أبقِ مرحلة واحدة على الأقل.",
+      "stageName": "أدخل اسمًا لكل مرحلة."
+    }
+  },
+  "project": {
+    "tabs": "أقسام المشروع",
+    "tab": {
+      "overview": "نظرة عامة",
+      "tasks": "المهام",
+      "schedule": "الجدول الزمني",
+      "files": "الملفات",
+      "team": "الفريق"
+    },
+    "notFoundTitle": "المشروع غير موجود",
+    "notFound": "هذا المشروع لم يعد موجودًا.",
+    "back": "المشاريع",
+    "more": "إجراءات أخرى",
+    "edit": "تعديل المشروع",
+    "changeLeader": "تغيير القائد",
+    "statusTo": {
+      "active": "تعيينه نشطًا",
+      "on_hold": "تعليق المشروع",
+      "completed": "تعيينه مكتملًا",
+      "archived": "أرشفة"
+    },
+    "delete": "حذف المشروع",
+    "deleteTitle": "حذف {{name}}؟",
+    "deleteBody": "يحذف هذا المشروع مع مهامه وملفاته ومنشوراته وساعاته. لا يمكن التراجع عن ذلك.",
+    "deleted": "تم حذف المشروع.",
+    "viewOnly": "للعرض فقط",
+    "leaderChanged": "تم تغيير القائد.",
+    "statusChanged": "تم تغيير الحالة.",
+    "stageDates": "من {{start}} إلى {{end}}",
+    "noDates": "بلا تواريخ",
+    "stageTasks": "المهام المنجزة: {{done}} من {{total}}",
+    "makeCurrent": "اعتمادها مرحلة حالية",
+    "stageChanged": "تم تغيير المرحلة الحالية.",
+    "current": "المرحلة الحالية",
+    "comingSoon": "يصل هذا القسم لاحقًا في مرحلة البناء هذه."
+  },
+  "overview": {
+    "composer": "انشر تحديثًا",
+    "placeholder": "شارك التقدم. اكتب @ للإشارة إلى شخص.",
+    "attach": "إرفاق ملفات",
+    "post": "نشر",
+    "posted": "تم نشر التحديث.",
+    "mentionList": "أشخاص للإشارة إليهم",
+    "removeFile": "إزالة {{name}}",
+    "feed": "التحديثات",
+    "feedFilter": {
+      "all": "الكل",
+      "posts": "المنشورات",
+      "tasks": "المهام",
+      "files": "الملفات"
+    },
+    "emptyFeed": "لا توجد تحديثات بعد.",
+    "facts": "معلومات أساسية",
+    "deadlines": "المواعيد القادمة",
+    "noDeadlines": "لا توجد مواعيد بعد.",
+    "team": "الفريق",
+    "edited": "معدّل",
+    "comments": "التعليقات: {{n}}",
+    "cannotPost": "النشر هنا لفريق المشروع فقط.",
+    "none": "غير محدد"
+  },
+  "feed": {
+    "project": {
+      "created": "أنشأ المشروع",
+      "stage_changed": "نقل المشروع إلى {{stage}}",
+      "leader_changed": "عيّن {{leader}} قائدًا",
+      "leader_cleared": "أزال القائد"
+    },
+    "task": {
+      "created": "أضاف المهمة «{{label}}»",
+      "todo": "أعاد «{{label}}» إلى للتنفيذ",
+      "in_progress": "بدأ «{{label}}»",
+      "in_review": "أرسل «{{label}}» للمراجعة",
+      "done": "أنجز «{{label}}»",
+      "approved": "اعتمد «{{label}}»",
+      "sent_back": "أعاد «{{label}}» للتعديل"
+    },
+    "file": {
+      "added": "أضاف الملف «{{label}}»",
+      "version_added": "أضاف النسخة {{version}} من «{{label}}»"
+    },
+    "member": {
+      "added": "أضاف {{label}} إلى الفريق"
+    },
+    "other": "أجرى تغييرًا"
+  },
+  "tasks": {
+    "view": "عرض المهام",
+    "views": {
+      "list": "قائمة",
+      "board": "لوحة"
+    },
+    "filters": "تصفية المهام",
+    "filter": {
+      "all": "الكل",
+      "mine": "مهامي",
+      "overdue": "متأخرة",
+      "flagged": "مميّزة"
+    },
+    "showDone": "إظهار المهام المنجزة",
+    "addTask": "أضف مهمة",
+    "addTaskIn": "أضف مهمة في {{stage}}",
+    "complete": "إنجاز {{title}}",
+    "completed": "أُنجزت المهمة.",
+    "sentToReview": "أُرسلت للمراجعة. يراجعها القائد بعد ذلك.",
+    "moved": "نُقلت إلى {{status}}.",
+    "moveTo": "نقل {{title}}",
+    "drag": "اسحب {{title}}",
+    "empty": "لا توجد مهام هنا بعد.",
+    "emptyFiltered": "لا توجد مهام تطابق هذه التصفية.",
+    "flagged": "مميّزة",
+    "overdue": "متأخرة",
+    "comments": "التعليقات: {{n}}",
+    "files": "الملفات: {{n}}",
+    "column": "{{status}}: {{n}}",
+    "count": "المهام: {{n}}"
+  },
+  "taskSheet": {
+    "title": "العنوان",
+    "status": "الحالة",
+    "owner": "المسؤول",
+    "dueDate": "تاريخ الاستحقاق",
+    "stage": "المرحلة",
+    "flag": "تمييز",
+    "flagHint": "علّم هذه المهمة كمهمة مهمة.",
+    "needsReview": "تحتاج مراجعة",
+    "needsReviewHint": "يراجع القائد المهمة قبل إنجازها.",
+    "description": "الوصف",
+    "checklist": "قائمة التحقق",
+    "addItem": "أضف بندًا",
+    "removeItem": "حذف {{text}}",
+    "files": "الملفات",
+    "noFiles": "لا توجد ملفات لهذه المهمة.",
+    "hours": "الساعات المسجلة",
+    "hoursValue": "{{n}} س",
+    "logTime": "تسجيل الوقت",
+    "history": "السجل",
+    "noHistory": "لا توجد تغييرات بعد.",
+    "approve": "اعتماد",
+    "approved": "تم اعتماد المهمة.",
+    "sendBack": "إعادة للتعديل",
+    "sendBackNote": "ما الذي يجب تغييره؟",
+    "sentBack": "أُعيدت المهمة للتعديل.",
+    "delete": "حذف المهمة",
+    "deleted": "حُذفت المهمة.",
+    "saved": "تم الحفظ.",
+    "readOnly": "يمكنك عرض هذه المهمة. يغيّرها المسؤول عنها وقائد المشروع فقط.",
+    "undoAgent": "التراجع عن تغيير الوكيل",
+    "undone": "تم التراجع عن التغيير.",
+    "comments": "التعليقات: {{n}}. تصل التعليقات في مرحلة البناء 3.",
+    "review": "المراجعة"
+  },
+  "taskHistory": {
+    "created": "أنشأ المهمة",
+    "updated": "غيّر {{fields}}",
+    "reassigned": "غيّر المسؤول",
+    "status": "نقلها إلى {{status}}",
+    "approved": "اعتمدها",
+    "sent_back": "أعادها للتعديل",
+    "deleted": "حذف المهمة",
+    "undo": "تراجع عن تغيير",
+    "fields": {
+      "title": "العنوان",
+      "description": "الوصف",
+      "dueDate": "تاريخ الاستحقاق",
+      "stageId": "المرحلة",
+      "ownerId": "المسؤول",
+      "flagged": "التمييز",
+      "needsReview": "إعداد المراجعة",
+      "checklist": "قائمة التحقق",
+      "status": "الحالة",
+      "completedAt": "الحالة"
+    }
+  },
+  "schedule": {
+    "chart": "الخط الزمني للمراحل",
+    "stages": "المراحل",
+    "deadlines": "المواعيد",
+    "today": "اليوم",
+    "noDatesTitle": "لا توجد تواريخ بعد",
+    "noDates": "أضف تواريخ المراحل أو موعدًا لرؤية الخط الزمني.",
+    "startOf": "بداية {{stage}}",
+    "endOf": "نهاية {{stage}}",
+    "datesChanged": "تم تغيير التواريخ.",
+    "start": "البداية",
+    "end": "النهاية",
+    "addDeadline": "إضافة موعد",
+    "deadlineName": "اسم الموعد",
+    "deadlineDate": "التاريخ",
+    "deadlineStage": "المرحلة",
+    "deleteDeadline": "حذف {{name}}",
+    "deadlineAdded": "تمت إضافة الموعد.",
+    "deadlineDeleted": "تم حذف الموعد.",
+    "noDeadlines": "لا توجد مواعيد بعد."
+  },
+  "files": {
+    "upload": "رفع ملفات",
+    "drop": "أفلت الملفات هنا لرفعها.",
+    "uploadStage": "مرحلة الملفات الجديدة",
+    "noStage": "بلا مرحلة",
+    "uploaded": "الملفات المرفوعة: {{n}}.",
+    "tooBig": "حجم {{name}} أكبر من 25 ميغابايت.",
+    "emptyTitle": "لا توجد ملفات بعد",
+    "empty": "ارفع هنا المخططات والصور والمستندات.",
+    "version": "النسخة {{letter}}",
+    "versions": "النسخ",
+    "preview": "معاينة",
+    "download": "تنزيل",
+    "setCover": "تعيين كغلاف",
+    "coverSet": "تم تغيير الغلاف.",
+    "isCover": "الغلاف",
+    "delete": "حذف",
+    "deleted": "تم حذف الملف.",
+    "actions": "إجراءات {{name}}",
+    "kb": "{{n}} ك.ب",
+    "mb": "{{n}} م.ب",
+    "noPreview": "لا توجد معاينة لهذا النوع من الملفات."
+  },
+  "team": {
+    "leader": "القائد",
+    "members": "الأعضاء",
+    "noLeader": "لا يوجد قائد لهذا المشروع.",
+    "discipline": "تخصص {{name}}",
+    "disciplineSaved": "تم حفظ التخصص.",
+    "openTasks": "المهام المفتوحة: {{n}}",
+    "hoursMonth": "{{n}} س هذا الشهر",
+    "add": "إضافة عضو",
+    "person": "الشخص",
+    "newDiscipline": "التخصص",
+    "added": "تمت إضافة {{name}} إلى الفريق.",
+    "remove": "إزالة من الفريق",
+    "removed": "تمت إزالة {{name}} من الفريق.",
+    "makeLeader": "تعيينه قائدًا",
+    "actions": "إجراءات {{name}}",
+    "noOne": "كل الأشخاص في الفريق بالفعل."
+  }
 }
