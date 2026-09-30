@@ -15,7 +15,7 @@
 - [x] 13. Update, comment, file and event calls
 - [x] 14. Time and notification calls
 - [x] 15. Dashboard and search calls
-- [ ] 16. The call map
+- [x] 16. The call map
 - [ ] 17. Sample data, date shift and reset
 - [ ] 18. Languages
 - [ ] 19. Design tokens and appearance
