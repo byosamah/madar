@@ -59,4 +59,10 @@ describe('the project card', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.projects.prj_001.status).toBe('active'));
   });
+
+  it('shares its cover with the project header, so the card can grow into the screen', async () => {
+    await renderWithRuntime(<Card id="prj_005" />, undefined, { path: '/' });
+    const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
+    expect(cover.closest('[data-layout-id]')).toHaveAttribute('data-layout-id', 'cover-prj_005');
+  });
 });

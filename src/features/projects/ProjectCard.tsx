@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
@@ -8,20 +9,29 @@ import { AvatarStack } from '../../components/AvatarStack';
 import { HealthPill } from '../../components/HealthPill';
 import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { StageRail } from '../../components/StageRail';
+import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
 import { useCardMenu } from './cardMenu';
 import { FeedLine } from './FeedLine';
 
 /** The latest render at 16:9, or a tinted panel with the project code when there is no cover (spec 4.1). */
-export function ProjectCover({ summary, className = 'aspect-video' }: { summary: ProjectSummary; className?: string }) {
+export function ProjectCover({ summary, className = 'aspect-video', layoutId }: { summary: ProjectSummary; className?: string; layoutId?: string }) {
   const { t } = useTranslation();
   const url = useFileUrl(summary.project.coverFileId, summary.coverLetter ?? undefined);
   const label = t('projects.cover', { name: summary.project.name });
-  if (url) return <img src={url} alt={label} className={`w-full object-cover ${className}`} />;
+  const inner = url
+    ? <img src={url} alt={label} className={`w-full object-cover ${className}`} />
+    : (
+      <div role="img" aria-label={label} style={{ background: tintOf(summary.project.id) }} className={`grid w-full place-items-center ${className}`}>
+        <span className="tabular text-title-2 font-bold text-white">{summary.project.code}</span>
+      </div>
+    );
+  if (!layoutId) return inner;
+  // With a layoutId, the card and the project header share the cover, so the card grows into the screen and shrinks back (spec 10.6).
   return (
-    <div role="img" aria-label={label} style={{ background: tintOf(summary.project.id) }} className={`grid w-full place-items-center ${className}`}>
-      <span className="tabular text-title-2 font-bold text-white">{summary.project.code}</span>
-    </div>
+    <motion.div layoutId={layoutId} data-layout-id={layoutId} transition={spring.expand} className="overflow-hidden">
+      {inner}
+    </motion.div>
   );
 }
 
@@ -60,7 +70,7 @@ export function ProjectCard({ summary }: { summary: ProjectSummary }) {
   return (
     <article className="relative h-full" {...menu.handlers}>
       <Link to={`/projects/${project.id}`} className="pressable surface flex h-full flex-col overflow-hidden rounded-card">
-        <ProjectCover summary={summary} />
+        <ProjectCover summary={summary} layoutId={`cover-${project.id}`} />
         <div className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="tabular text-footnote font-semibold text-label-2">{project.code}</span>
