@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
+import { ToastProvider, useToast } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { TextField } from './Fields';
 import { ContextMenu, Menu, useContextMenu } from './Menu';
@@ -116,5 +117,19 @@ describe('overlays', () => {
     expect(screen.getByRole('tab', { name: 'Two' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Two' })).toHaveFocus();
     expect(screen.getByRole('tabpanel')).toHaveTextContent('two');
+  });
+
+  it('keeps toasts reachable for screen readers while a sheet is open', async () => {
+    function Inside() {
+      const toast = useToast();
+      return <button type="button" onClick={() => toast.show({ message: 'Saved.', action: { label: 'Undo', run: vi.fn() } })}>Save</button>;
+    }
+    render(
+      <ToastProvider>
+        <Sheet open onOpenChange={() => undefined} title="Task"><Inside /></Sheet>
+      </ToastProvider>,
+    );
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Task' })).getByText('Save'));
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
 });
