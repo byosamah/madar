@@ -27,6 +27,13 @@ const PEOPLE: { name: string; admin?: boolean; discipline: string; gender: 'fema
   { name: 'Khalid Al-Mutairi', discipline: 'Structural', gender: 'male' },
 ];
 
+export function sampleEmail(name: string): string {
+  return `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@madar.test`;
+}
+
+/** The sample people's grammatical gender by email, for offices saved before the field existed. */
+export const SAMPLE_GENDERS: Record<string, 'female' | 'male'> = Object.fromEntries(PEOPLE.map((person) => [sampleEmail(person.name), person.gender]));
+
 const CLIENTS: [string, string][] = [
   ['Gulf Crest Holding', 'Nawaf Al-Shehri'],
   ['Dune Line Developments', 'Maha Al-Dosari'],
@@ -331,7 +338,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const humans = PEOPLE.map((person) => {
     const id = nextId(state, 'usr');
     const user: User = {
-      id, name: person.name, email: `${person.name.toLowerCase().replace(/[^a-z]+/g, '.')}@madar.test`, avatarUrl: null, kind: 'human',
+      id, name: person.name, email: sampleEmail(person.name), avatarUrl: null, kind: 'human',
       systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, weeklyHourTarget: 40, active: true, ownerId: null,
       preferences: defaultPreferences(), gender: person.gender,
     };

@@ -3,6 +3,7 @@ import { createApi } from '../api/client';
 import { runScheduledTriggers } from '../api/notify';
 import { openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
+import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
 import { shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
@@ -13,7 +14,8 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
   const persister = options.persister ?? (await openPersister());
   const today = todayISO();
   let state = await persister.load().catch(() => null);
-  if (!state || state.version !== STATE_VERSION) {
+  if (state && state.version !== STATE_VERSION) state = migrateState(state);
+  if (!state) {
     await persister.clear().catch(() => undefined);
     state = await buildSeed(today, (key, blob) => persister.putBlob(key, blob));
   } else if (state.seededOn !== today) {

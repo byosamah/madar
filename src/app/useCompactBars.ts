@@ -12,7 +12,9 @@ export function useCompactBars(): boolean {
       frame = requestAnimationFrame(() => {
         frame = 0;
         const y = window.scrollY;
-        setCompact((current) => nextCompact(current, previous, y));
+        // React may run the updater later, so it gets its own copy of the old position.
+        const before = previous;
+        setCompact((current) => nextCompact(current, before, y));
         previous = y;
       });
     };

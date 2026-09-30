@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
@@ -96,5 +96,25 @@ describe('the Project screen header', () => {
     await userEvent.click(within(card).getAllByRole('link')[0]);
     expect(document.querySelector(`main [data-layout-id="${id}"]`)).not.toBeNull();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+  });
+
+  it('goes Back to the same filtered list the project was opened from', async () => {
+    await renderApp('/?filter=at_risk');
+    const card = (await screen.findAllByRole('article'))[0];
+    await userEvent.click(within(card).getAllByRole('link')[0]);
+    await screen.findByRole('heading', { level: 1 });
+    const header = document.querySelector('main header') as HTMLElement;
+    await userEvent.click(within(header).getByRole('link', { name: 'Projects' }));
+    await waitFor(() => expect(window.location.hash).toBe('#/?filter=at_risk'));
+  });
+
+  it('opens a project at the top of the page', async () => {
+    const scroll = vi.spyOn(window, 'scrollTo');
+    await renderApp('/');
+    const card = (await screen.findAllByRole('article'))[0];
+    await userEvent.click(within(card).getAllByRole('link')[0]);
+    await screen.findByRole('heading', { level: 1 });
+    expect(scroll).toHaveBeenCalledWith(0, 0);
+    scroll.mockRestore();
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bootstrap } from './bootstrap';
 import { memoryPersister } from '../api/persist';
-import { emptyState } from '../api/store';
+import { emptyState, STATE_VERSION } from '../api/store';
 import { addDays, setNow } from '../lib/dates';
 import { NOW, TODAY } from '../test/factories';
 
@@ -37,5 +37,22 @@ describe('bootstrap', () => {
     await persister.save(stale);
     const runtime = await bootstrap({ persister, latencyMs: 0 });
     expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+  });
+
+  it('adds the sample genders to an office saved before them, and keeps the local work', async () => {
+    setNow(NOW);
+    const persister = memoryPersister();
+    const first = await bootstrap({ persister, latencyMs: 0 });
+    await first.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower' } });
+    await first.store.flush();
+    const old = (await persister.load())!;
+    old.version = 1;
+    for (const user of Object.values(old.users)) delete user.gender;
+    await persister.save(old);
+    const second = await bootstrap({ persister, latencyMs: 0 });
+    expect(second.store.state.version).toBe(STATE_VERSION);
+    expect(second.store.state.projects.prj_001.name).toBe('Corniche Tower');
+    expect(second.store.state.users.usr_001.gender).toBe('female');
+    expect(second.store.state.users.usr_002.gender).toBe('male');
   });
 });

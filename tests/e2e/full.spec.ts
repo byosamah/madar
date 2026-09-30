@@ -65,3 +65,18 @@ test('reduce motion stops the card from growing', async ({ page }) => {
   const settled = await header.boundingBox();
   expect(Math.round(early!.width)).toBe(Math.round(settled!.width));
 });
+
+test('reduce motion keeps the bars still while the page scrolls', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/');
+  await expect(page.getByRole('article').first()).toBeVisible();
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(500);
+  const moved = await page.evaluate(() => [...document.querySelectorAll('[data-compact]')].map((el) => {
+    const style = getComputedStyle(el);
+    return `${el.tagName}:${style.transform}:${style.scale}:${style.translate}`;
+  }));
+  expect(moved.length).toBeGreaterThan(0);
+  for (const line of moved) expect(line).toMatch(/:none:none:none$/);
+});

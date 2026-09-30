@@ -4,7 +4,8 @@ import type {
 } from './contract/entities';
 import type { Persister } from './persist';
 
-export const STATE_VERSION = 1;
+/** Version 2 added the grammatical gender of people (src/data/migrate.ts brings version 1 up to date). */
+export const STATE_VERSION = 2;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',

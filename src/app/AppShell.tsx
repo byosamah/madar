@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router';
+import { Outlet, ScrollRestoration, useNavigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { StorageBanner } from './StorageBanner';
 import { TabBar } from './TabBar';
@@ -76,6 +76,8 @@ export function AppShell() {
         />
         <main className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6">
           <Outlet />
+          {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
+          <ScrollRestoration getKey={(location) => location.pathname} />
         </main>
       </div>
       <div className={tabletTabs ? 'lg:hidden' : 'sm:hidden'}>

@@ -34,6 +34,8 @@ if (typeof window.ResizeObserver === 'undefined') {
   } as unknown as typeof ResizeObserver;
 }
 if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
+// React Router's ScrollRestoration scrolls the page; jsdom has no page scroll.
+window.scrollTo = (() => undefined) as typeof window.scrollTo;
 
 afterEach(() => {
   window.localStorage.clear();

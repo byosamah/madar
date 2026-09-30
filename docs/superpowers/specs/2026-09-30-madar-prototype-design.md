@@ -573,7 +573,7 @@ All IDs are readable strings with a prefix (`usr_`, `cli_`, `prj_`, `stg_`, `ddl
 
 | Entity | Fields |
 |---|---|
-| User | id, name, email, avatarUrl, kind (`human`, `agent`), systemRole (`admin`, `member`), discipline, weeklyHourTarget, active, ownerId (for an agent: the person it acts for; for a person: null), preferences (language, theme, glass, notification switches) |
+| User | id, name, email, avatarUrl, kind (`human`, `agent`), systemRole (`admin`, `member`), discipline, weeklyHourTarget, active, ownerId (for an agent: the person it acts for; for a person: null), preferences (language, theme, glass, notification switches), gender (optional: `female`, `male`; Arabic grammar only, so a verb after the person's name agrees; added in build step 5, pending the owner's approval) |
 | Client | id, name, contactName, phone, email |
 | Project | id, code, name, clientId, status (`active`, `on_hold`, `completed`, `archived`), leaderId or null, currentStageId, location, areaM2, startDate, targetEndDate, coverFileId, modelFolderPath, description, healthOverride (value, reason, setBy, setAt) or null, createdBy, createdAt, updatedAt |
 | ProjectMember | projectId, userId, discipline |

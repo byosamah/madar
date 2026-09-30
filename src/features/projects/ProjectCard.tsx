@@ -11,6 +11,7 @@ import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { StageRail } from '../../components/StageRail';
 import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
+import { counted } from '../../lib/grammar';
 import { useCardMenu } from './cardMenu';
 import { FeedLine } from './FeedLine';
 
@@ -42,8 +43,8 @@ export function NextDeadlineLabel({ deadline }: { deadline: ProjectSummary['next
   if (!deadline) return <span className="text-footnote text-label-2">{t('projects.noDeadline')}</span>;
   const late = deadline.daysLeft < 0;
   const left = late
-    ? t('time.daysLate', { n: -deadline.daysLeft })
-    : deadline.daysLeft === 0 ? t('time.today') : t('time.daysLeft', { n: deadline.daysLeft });
+    ? counted(t, 'time.daysLate', -deadline.daysLeft)
+    : deadline.daysLeft === 0 ? t('time.today') : counted(t, 'time.daysLeft', deadline.daysLeft);
   return (
     <p className={`min-w-0 truncate text-footnote ${late ? 'text-red-text' : 'text-label-2'}`}>
       <bdi className={`font-medium ${late ? '' : 'text-label'}`}>{deadline.name}</bdi>

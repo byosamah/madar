@@ -1,8 +1,9 @@
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
+import { rememberProjectsList } from '../../app/lastList';
 import { errorMessage } from '../../app/errors';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
@@ -26,6 +27,8 @@ const SELECT = 'min-h-11 rounded-full bg-fill px-4 text-subheadline text-label';
 export function ProjectsScreen() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
+  const search = params.toString();
+  useEffect(() => rememberProjectsList(search ? `?${search}` : ''), [search]);
   const stageName = params.get('stage') ?? undefined;
   const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
   const filter = stageName ? `stage:${stageName}` : filterParam;

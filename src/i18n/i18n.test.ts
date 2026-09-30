@@ -24,8 +24,14 @@ describe('languages', () => {
 
   it('has the same keys in English and Arabic, plus Arabic feminine forms', () => {
     // Arabic verbs agree with a woman's name; English has one form. So "_female" keys exist in Arabic only.
-    const arabicBase = Object.keys(arabic).filter((key) => !key.endsWith('_female'));
+    // Arabic also inflects counts (_one, _two, _few, _many, _other), picked by i18next from "count".
+    const plural = /_(zero|one|two|few|many|other)$/;
+    const arabicBase = Object.keys(arabic).filter((key) => !key.endsWith('_female') && !plural.test(key));
     expect(arabicBase.sort()).toEqual(Object.keys(english).sort());
+    for (const key of Object.keys(arabic).filter((k) => plural.test(k))) {
+      expect({ key, base: key.replace(plural, '') in english }).toEqual({ key, base: true });
+      expect({ key, vars: placeholders(arabic[key]).filter((v) => v !== 'count') }).toEqual({ key, vars: [] });
+    }
     for (const key of Object.keys(arabic).filter((k) => k.endsWith('_female'))) {
       const base = key.slice(0, -'_female'.length);
       expect({ key, base: base in english }).toEqual({ key, base: true });

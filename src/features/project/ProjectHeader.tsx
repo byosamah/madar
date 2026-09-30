@@ -1,6 +1,7 @@
 import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { projectsListLink } from '../../app/lastList';
 import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
 import { ProjectCover } from '../projects/ProjectCard';
@@ -21,7 +22,9 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
       <div className="relative overflow-hidden rounded-card">
         <ProjectCover summary={detail} className={HEADER_COVER} layoutId={`cover-${detail.project.id}`} />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-3">
-          <Link to="/" className="glass-media pressable inline-flex min-h-11 items-center gap-1 rounded-full pe-4 ps-2 text-subheadline font-semibold">
+          <Link
+            to={projectsListLink()}
+            className="glass-media pressable inline-flex min-h-11 items-center gap-1 rounded-full pe-4 ps-2 text-subheadline font-semibold">
             <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
             {t('project.back')}
           </Link>

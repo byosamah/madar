@@ -12,7 +12,7 @@ export function Toolbar({ onShowSidebar, onUseSidebar }: { onShowSidebar?: () =>
   const compact = useCompactBars();
   const iconButton = 'pressable size-11 place-items-center rounded-full text-label-2 hover:bg-fill';
   return (
-    <header data-compact={compact || undefined} className={`glass toolbar-fade sticky top-0 z-20 flex min-h-14 items-center gap-2 px-4 pt-[env(safe-area-inset-top)] transition-transform duration-300 ${compact ? '-translate-y-1' : ''}`}>
+    <header data-compact={compact || undefined} className={`glass toolbar-fade sticky top-0 z-20 flex min-h-14 items-center gap-2 px-4 pt-[env(safe-area-inset-top)] motion-safe:transition-transform motion-safe:duration-300 ${compact ? 'motion-safe:-translate-y-1' : ''}`}>
       {onShowSidebar && (
         <button type="button" onClick={onShowSidebar} aria-label={t('nav.showSidebar')} className={`${iconButton} hidden lg:grid`}>
           <PanelLeft size={20} className="rtl:-scale-x-100" aria-hidden />

@@ -15,7 +15,7 @@ export function TabBar() {
     <nav
       aria-label={t('nav.tabs')}
       data-compact={compact || undefined}
-      className={`glass fixed inset-x-3 bottom-3 z-30 flex justify-around rounded-full px-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-1 origin-bottom transition-transform duration-300 ${compact ? 'scale-[0.92] translate-y-1' : ''}`}
+      className={`glass fixed inset-x-3 bottom-3 z-30 flex justify-around rounded-full px-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-1 origin-bottom motion-safe:transition-transform motion-safe:duration-300 ${compact ? 'motion-safe:scale-[0.92] motion-safe:translate-y-1' : ''}`}
     >
       {[...NAV, SEARCH_ITEM].map((item) => {
         const active = isNavActive(item.to, pathname);
