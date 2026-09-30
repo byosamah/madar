@@ -15,7 +15,21 @@ if (!window.matchMedia) {
     }) as MediaQueryList;
 }
 
+// jsdom has no pointer capture. Vaul calls it when a person presses inside a sheet.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => undefined;
+  Element.prototype.releasePointerCapture = () => undefined;
+  Element.prototype.hasPointerCapture = () => false;
+}
+
+// jsdom has no blob URLs. File previews and covers use them.
+if (!URL.createObjectURL) {
+  URL.createObjectURL = () => 'blob:madar-test';
+  URL.revokeObjectURL = () => undefined;
+}
+
 afterEach(() => {
+  window.localStorage.clear();
   cleanup();
   setNow(null);
   const root = document.documentElement;
