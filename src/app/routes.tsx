@@ -1,5 +1,6 @@
 import { createHashRouter } from 'react-router';
 import { AppShell } from './AppShell';
+import { InboxScreen } from '../features/inbox/InboxScreen';
 import { Placeholder } from '../features/placeholder/Placeholder';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
@@ -19,7 +20,7 @@ export function createAppRouter() {
         { path: 'projects/:projectId', element: <ProjectScreen /> },
         { path: 'work', element: <WorkScreen /> },
         { path: 'dashboard', element: <Placeholder titleKey="screens.dashboard" step={4} /> },
-        { path: 'inbox', element: <Placeholder titleKey="screens.inbox" step={3} /> },
+        { path: 'inbox', element: <InboxScreen /> },
         { path: 'search', element: <Placeholder titleKey="screens.search" step={3} /> },
         { path: 'tasks', element: <Placeholder titleKey="screens.tasks" step={4} /> },
         { path: 'settings', element: <SettingsScreen /> },
