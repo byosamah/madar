@@ -1,0 +1,24 @@
+# Madar plan 1 tasks
+
+- [ ] 1. Project setup and the RTL check
+- [ ] 2. Office dates
+- [ ] 3. Entity schemas and API errors
+- [ ] 4. Store and persisters
+- [ ] 5. Permissions and test factories
+- [ ] 6. Health rule
+- [ ] 7. Event log and undo
+- [ ] 8. Text helpers and notifications
+- [ ] 9. Call registry and dispatcher
+- [ ] 10. People, session, clients and settings calls
+- [ ] 11. Project, member, stage and deadline calls
+- [ ] 12. Task calls
+- [ ] 13. Update, comment, file and event calls
+- [ ] 14. Time and notification calls
+- [ ] 15. Dashboard and search calls
+- [ ] 16. The call map
+- [ ] 17. Sample data, date shift and reset
+- [ ] 18. Languages
+- [ ] 19. Design tokens and appearance
+- [ ] 20. Runtime, bootstrap and toasts
+- [ ] 21. App shell and Settings screen
+- [ ] 22. Verify, browser sweep and review link
