@@ -9,7 +9,7 @@
 - [x] 7. Event log and undo
 - [x] 8. Text helpers and notifications
 - [x] 9. Call registry and dispatcher
-- [ ] 10. People, session, clients and settings calls
+- [x] 10. People, session, clients and settings calls
 - [ ] 11. Project, member, stage and deadline calls
 - [ ] 12. Task calls
 - [ ] 13. Update, comment, file and event calls
