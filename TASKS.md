@@ -1,7 +1,7 @@
 # Madar plan 1 tasks
 
-- [ ] 1. Project setup and the RTL check
-- [ ] 2. Office dates
+- [x] 1. Project setup and the RTL check
+- [x] 2. Office dates
 - [ ] 3. Entity schemas and API errors
 - [ ] 4. Store and persisters
 - [ ] 5. Permissions and test factories
