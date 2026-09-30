@@ -6,5 +6,5 @@ Plan: docs/superpowers/plans/2026-09-30-madar-plan-5-polish.md. Plans 1 to 4 are
 - [x] 2. Bars go compact on scroll
 - [x] 3. Done stages say so
 - [x] 4. Arabic text pass
-- [ ] 5. The full sweep and the acceptance flows
-- [ ] 6. The team review guide and the final link
+- [x] 5. The full sweep and the acceptance flows
+- [x] 6. The team review guide and the final link
