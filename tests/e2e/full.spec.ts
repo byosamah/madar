@@ -1,0 +1,67 @@
+import { expect, test, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+const ROUTES = [
+  '/', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
+  '/projects/prj_001?tab=team', '/work', '/work?tab=hours', '/dashboard', '/tasks?filter=overdue', '/tasks?mode=deadlines', '/inbox', '/search', '/settings',
+];
+
+async function useArabic(page: Page): Promise<void> {
+  await page.goto('/#/settings');
+  await page.getByRole('radio', { name: 'العربية' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+}
+
+async function sweep(page: Page, folder: string): Promise<void> {
+  for (const route of ROUTES) {
+    await page.goto(`/#${route}`);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await page.waitForTimeout(400);
+    const name = route === '/' ? 'projects' : route.slice(1).replace(/[/?=&]/g, '-');
+    await page.screenshot({ path: `test-results/full/${folder}/${name}.png`, fullPage: true });
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    expect.soft(serious.map((v) => `${route}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  }
+}
+
+for (const width of [390, 820, 1440]) {
+  for (const lang of ['en', 'ar'] as const) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`every screen at ${width}px, ${lang}, ${theme}`, async ({ page }) => {
+        test.setTimeout(240_000);
+        await page.setViewportSize({ width, height: 900 });
+        await page.emulateMedia({ colorScheme: theme });
+        if (lang === 'ar') await useArabic(page);
+        await sweep(page, `${width}-${lang}-${theme}`);
+      });
+    }
+  }
+}
+
+test('every screen with reduced transparency and more contrast', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ contrast: 'more', reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => (query.includes('prefers-reduced-transparency')
+      ? ({ ...original(query), matches: true, media: query } as MediaQueryList)
+      : original(query));
+  });
+  await sweep(page, 'high-contrast');
+  await expect(page.locator('html')).toHaveAttribute('data-contrast', 'more');
+});
+
+test('reduce motion stops the card from growing', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/#/');
+  await page.getByRole('article').first().getByRole('link').click();
+  const header = page.locator('header [data-layout-id]');
+  await expect(header).toBeVisible();
+  const early = await header.boundingBox();
+  await page.waitForTimeout(700);
+  const settled = await header.boundingBox();
+  expect(Math.round(early!.width)).toBe(Math.round(settled!.width));
+});
