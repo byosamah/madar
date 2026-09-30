@@ -22,7 +22,7 @@ export function TabBar() {
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full py-1 ${active ? 'text-accent' : 'text-label-2'}`}
+            className={`pressable relative flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full py-1 ${active ? 'text-glass-accent' : 'text-label-2'}`}
           >
             <Icon size={22} aria-hidden />
             <span className="whitespace-nowrap text-caption font-medium">{t(item.tabKey ?? item.key)}</span>

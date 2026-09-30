@@ -42,12 +42,14 @@ test('hours typed in a cell stay after a reload', async ({ page }) => {
   await page.goto('/#/work?tab=hours');
   await page.getByRole('button', { name: 'Previous week' }).click();
   await expect(page).toHaveURL(/week=/);
-  const cell = page.getByRole('textbox', { name: /^Hours for / }).first();
-  await cell.fill('7.5');
-  await cell.press('Enter');
+  // Type only after last week has drawn: the cell for Sunday 20 September names its own day.
+  const sunday = () => page.getByRole('textbox', { name: /^Hours for .* on 20 September 2026$/ }).first();
+  await expect(sunday()).toBeVisible();
+  await sunday().fill('7.5');
+  await sunday().press('Enter');
   await page.waitForTimeout(700);
   await page.reload();
-  await expect(page.getByRole('textbox', { name: /^Hours for / }).first()).toHaveValue('7.5');
+  await expect(sunday()).toHaveValue('7.5');
 });
 
 test('Ctrl+K opens search, and Enter opens the project', async ({ page }) => {
