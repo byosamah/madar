@@ -93,6 +93,11 @@ export function formatMonth(day: string, lang: Lang): string {
   return new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
 }
 
+/** The short weekday name, for the timesheet columns. */
+export function formatWeekday(day: string, lang: Lang): string {
+  return new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
+}
+
 export function formatNumber(value: number, lang: Lang, fractionDigits = 0): string {
   return new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: fractionDigits }).format(value);
 }

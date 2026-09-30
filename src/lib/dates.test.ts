@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatNumber, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
+import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatNumber, formatWeekday, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
 
 describe('office dates', () => {
   afterEach(() => setNow(null));
@@ -58,5 +58,12 @@ describe('formatMonth', () => {
   it('gives the short month name with the Gregorian calendar in both languages', () => {
     expect(formatMonth('2026-10-01', 'en')).toBe('Oct');
     expect(formatMonth('2026-10-01', 'ar')).toBe('أكتوبر');
+  });
+});
+
+describe('formatWeekday', () => {
+  it('gives the short weekday name in both languages', () => {
+    expect(formatWeekday('2026-09-27', 'en')).toBe('Sun');
+    expect(formatWeekday('2026-09-27', 'ar')).toBe('الأحد');
   });
 });

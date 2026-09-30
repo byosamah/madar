@@ -26,16 +26,21 @@ export function normalizeForSearch(text: string): string {
     .trim();
 }
 
-export type Segment = { kind: 'text'; text: string } | { kind: 'mention'; name: string; userId: string };
+export type Segment =
+  | { kind: 'text'; text: string }
+  | { kind: 'mention'; name: string; userId: string }
+  | { kind: 'project'; code: string };
 
-/** Splits a post into plain text and mentions, for display. */
+const TOKEN = /@\[([^\]]{1,80})\]\((usr_\d{3,})\)|#([A-Z]{1,4}-\d{2}-\d{3,})\b/g;
+
+/** Splits a post into plain text, mentions and project links (spec 7.2), for display. */
 export function segmentsOf(body: string): Segment[] {
   const out: Segment[] = [];
   let last = 0;
-  for (const match of body.matchAll(MENTION)) {
+  for (const match of body.matchAll(TOKEN)) {
     const index = match.index ?? 0;
     if (index > last) out.push({ kind: 'text', text: body.slice(last, index) });
-    out.push({ kind: 'mention', name: match[1], userId: match[2] });
+    out.push(match[3] ? { kind: 'project', code: match[3] } : { kind: 'mention', name: match[1], userId: match[2] });
     last = index + match[0].length;
   }
   if (last < body.length) out.push({ kind: 'text', text: body.slice(last) });

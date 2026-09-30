@@ -25,6 +25,15 @@ if (!Element.prototype.setPointerCapture) {
 // File previews and covers use blob URLs. The test browser's own helper fails on these blobs, so tests use a fixed URL.
 URL.createObjectURL = () => 'blob:madar-test';
 URL.revokeObjectURL = () => undefined;
+// cmdk measures its list and scrolls the selected item into view. jsdom has neither.
+if (typeof window.ResizeObserver === 'undefined') {
+  window.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  } as unknown as typeof ResizeObserver;
+}
+if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
 
 afterEach(() => {
   window.localStorage.clear();

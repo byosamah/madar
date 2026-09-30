@@ -3,7 +3,7 @@
 Plan: docs/superpowers/plans/2026-09-30-madar-plan-3-personal-work.md. Plans 1 and 2 are done and reviewed.
 
 - [x] 1. API additions for comments, posts and notices
-- [ ] 2. Pure helpers, test stubs and all plan 3 text
+- [x] 2. Pure helpers, test stubs and all plan 3 text
 - [ ] 3. The shared mention box and project links
 - [ ] 4. Comments, reactions, and post edit and delete
 - [ ] 5. My Work, the Tasks tab

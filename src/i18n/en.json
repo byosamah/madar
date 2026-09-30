@@ -469,5 +469,134 @@
     "makeLeader": "Make leader",
     "actions": "Actions for {{name}}",
     "noOne": "Everyone is already on the team."
+  },
+  "work": {
+    "tabs": "My Work sections",
+    "tab": {
+      "tasks": "Tasks",
+      "hours": "Hours"
+    },
+    "group": {
+      "review": "Waiting for my review",
+      "overdue": "Overdue",
+      "today": "Today",
+      "week": "This week",
+      "later": "Later",
+      "none": "No date"
+    },
+    "emptyTitle": "All clear",
+    "empty": "You have no open tasks."
+  },
+  "hours": {
+    "weekRange": "{{start}} to {{end}}",
+    "previous": "Previous week",
+    "next": "Next week",
+    "thisWeek": "This week",
+    "logged": "{{logged}} of {{target}} h",
+    "copyLast": "Copy last week",
+    "copied": "Last week's rows are added.",
+    "addRow": "Add row",
+    "addTitle": "Add a row",
+    "project": "Project",
+    "stage": "Stage",
+    "task": "Task",
+    "noTask": "No task",
+    "rowAdded": "Row added.",
+    "row": "Row",
+    "removeRow": "Remove {{row}}",
+    "cell": "Hours for {{row}} on {{day}}",
+    "total": "Total",
+    "dayTotal": "Day total",
+    "showWeekend": "Show Friday and Saturday",
+    "hideWeekend": "Hide Friday and Saturday",
+    "locked": "This week is locked. Ask the Admin to unlock it.",
+    "invalid": "Use steps of 0.5, from 0 to 24.",
+    "emptyTitle": "No hours this week",
+    "empty": "Add a row, or copy last week's rows."
+  },
+  "inbox": {
+    "markAllRead": "Mark all read",
+    "allRead": "All caught up.",
+    "emptyTitle": "No notifications",
+    "empty": "Assignments, mentions and reviews show here.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "unread": "Unread",
+    "open": "Open",
+    "approve": "Approve",
+    "openTimesheet": "Open timesheet",
+    "someone": "Someone",
+    "trigger": {
+      "task_assigned": "{{actor}} gave you “{{target}}”",
+      "mention": "{{actor}} mentioned you in {{target}}",
+      "due_tomorrow": "“{{target}}” is due tomorrow",
+      "overdue": "“{{target}}” is overdue",
+      "review_requested": "{{actor}} sent “{{target}}” to review",
+      "task_approved": "{{actor}} approved “{{target}}”",
+      "task_sent_back": "{{actor}} sent back “{{target}}”",
+      "stage_changed": "{{actor}} changed the stage of {{target}}",
+      "added_to_project": "{{actor}} added you to {{target}}",
+      "week_under_target": "Your hours for the week of {{target}} are under target"
+    }
+  },
+  "comments": {
+    "title": "Comments",
+    "show": "Comments: {{n}}",
+    "start": "Comment",
+    "hide": "Hide comments",
+    "add": "Add a comment",
+    "placeholder": "Write a comment. Type @ to mention someone.",
+    "send": "Send",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleted": "Comment deleted.",
+    "save": "Save",
+    "edited": "edited",
+    "react": "React with {{emoji}}, {{n}}",
+    "actions": "Actions for this comment",
+    "empty": "No comments yet.",
+    "cannot": "Only the project team can comment here."
+  },
+  "posts": {
+    "actions": "Actions for this post",
+    "edit": "Edit post",
+    "delete": "Delete post",
+    "deleted": "Post deleted.",
+    "saved": "Post saved.",
+    "editLabel": "Post text"
+  },
+  "search": {
+    "label": "Search",
+    "placeholder": "Search projects, tasks, people and files",
+    "commands": "Commands",
+    "projects": "Projects",
+    "tasks": "Tasks",
+    "people": "People",
+    "files": "Files",
+    "empty": "No results for “{{text}}”.",
+    "command": {
+      "newTask": "New task",
+      "newProject": "New project",
+      "logTime": "Log time",
+      "dashboard": "Go to Dashboard",
+      "myWork": "Go to My Work"
+    }
+  },
+  "newTask": {
+    "title": "New task",
+    "project": "Project",
+    "name": "Title",
+    "stage": "Stage",
+    "due": "Due date",
+    "create": "Create task",
+    "created": "Task created.",
+    "open": "Open",
+    "noProjects": "You are on no active project yet."
+  },
+  "person": {
+    "projects": "Active projects",
+    "leads": "Leader",
+    "member": "Member",
+    "none": "No active projects."
   }
 }

@@ -50,4 +50,13 @@ describe('mentions in posts', () => {
     expect(activeMention('Hi @Sa\nnext', 11)).toBeNull();
     expect(activeMention('Hi there', 8)).toBeNull();
   });
+
+  it('finds project links', () => {
+    expect(segmentsOf('See #KH-26-014 and @[Sara Al-Qahtani](usr_005)')).toEqual([
+      { kind: 'text', text: 'See ' },
+      { kind: 'project', code: 'KH-26-014' },
+      { kind: 'text', text: ' and ' },
+      { kind: 'mention', name: 'Sara Al-Qahtani', userId: 'usr_005' },
+    ]);
+  });
 });
