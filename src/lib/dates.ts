@@ -88,6 +88,11 @@ export function formatDay(day: string, lang: Lang, style: 'short' | 'long' = 'sh
   return new Intl.DateTimeFormat(LOCALES[lang], options).format(new Date(toMs(day)));
 }
 
+/** The short month name, for the month scale of a schedule. */
+export function formatMonth(day: string, lang: Lang): string {
+  return new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
+}
+
 export function formatNumber(value: number, lang: Lang, fractionDigits = 0): string {
   return new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: fractionDigits }).format(value);
 }

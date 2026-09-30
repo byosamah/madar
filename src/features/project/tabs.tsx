@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { ProjectDetail } from '../../api/contract/views';
 import { OverviewTab } from './overview/OverviewTab';
+import { ScheduleTab } from './schedule/ScheduleTab';
 import { TasksTab } from './tasks/TasksTab';
 
 export const PROJECT_TABS = ['overview', 'tasks', 'schedule', 'files', 'team'] as const;
@@ -11,7 +12,7 @@ export type TabProps = { detail: ProjectDetail };
 export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   overview: OverviewTab,
   tasks: TasksTab,
-  schedule: null,
+  schedule: ScheduleTab,
   files: null,
   team: null,
 };
