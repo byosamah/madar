@@ -4,10 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { renderApp } from '../test/render';
 
 describe('app shell', () => {
-  it('shows the navigation and a placeholder screen', async () => {
+  it('shows the navigation and a screen', async () => {
     await renderApp('/dashboard');
     expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('This screen arrives in build step 4.')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'My Work' }).length).toBeGreaterThan(0);
   });
 
