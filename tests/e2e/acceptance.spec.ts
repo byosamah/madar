@@ -46,6 +46,8 @@ test('Leader review: approve from the Inbox with two steps', async ({ page }) =>
   // The two steps: reach Approve, press Enter.
   await page.goto('/#/inbox');
   await expect(page.getByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible();
+  // The list loads after the heading shows, so wait for the first Approve button before counting.
+  await expect(page.getByRole('button', { name: 'Approve' }).first()).toBeVisible();
   const before = await page.getByRole('button', { name: 'Approve' }).count();
   expect(before).toBeGreaterThan(0);
   await tabTo(page, (text) => text === 'Approve');

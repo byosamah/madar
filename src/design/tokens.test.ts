@@ -57,3 +57,17 @@ describe('chart marks', () => {
     }
   });
 });
+
+describe('status text', () => {
+  it('keeps 4.5:1 on the card and on a hovered row, in light and dark (WCAG 1.4.3)', () => {
+    for (const block of [':root', '[data-theme="dark"]']) {
+      const card = hex(token(block, '--c-card'));
+      const hovered = over(rgba(token(block, '--c-fill')), card);
+      for (const name of ['--c-red-text', '--c-orange-text', '--c-green-text']) {
+        const text = hex(token(block, name));
+        expect(contrast(text, card), `${name} on the card in ${block}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(text, hovered), `${name} on a hovered row in ${block}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+});

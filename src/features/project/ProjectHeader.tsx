@@ -8,6 +8,9 @@ import { HealthControl } from './HealthControl';
 import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
 
+/** The cover's shape in the project header. The loading cover uses the same shape, so the card grows into one place. */
+export const HEADER_COVER = 'aspect-[5/2] sm:aspect-[3/1] lg:aspect-[4/1]';
+
 /** Cover, code, name, client, health and stage rail. "Post update" is the one tinted action (spec 5.1). */
 export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPost: () => void }) {
   const { t } = useTranslation();
@@ -16,7 +19,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
   return (
     <header className="flex flex-col gap-4">
       <div className="relative overflow-hidden rounded-card">
-        <ProjectCover summary={detail} className="aspect-[5/2] sm:aspect-[3/1] lg:aspect-[4/1]" layoutId={`cover-${detail.project.id}`} />
+        <ProjectCover summary={detail} className={HEADER_COVER} layoutId={`cover-${detail.project.id}`} />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-3">
           <Link to="/" className="glass-media pressable inline-flex min-h-11 items-center gap-1 rounded-full pe-4 ps-2 text-subheadline font-semibold">
             <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
