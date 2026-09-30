@@ -9,6 +9,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { oneOf } from '../../lib/params';
 import { Charts } from './Charts';
 import { Tiles } from './Tiles';
+import { Workload } from './Workload';
 
 const PERIODS = ['month', 'quarter', 'year'] as const;
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
@@ -64,6 +65,7 @@ export function DashboardScreen() {
         <>
           <Tiles view={view} />
           <Charts view={view} />
+          <Workload view={view} />
         </>
       )}
     </div>
