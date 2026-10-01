@@ -735,5 +735,15 @@
       "male": "Masculine",
       "female": "Feminine"
     }
+  },
+  "due": {
+    "pastDue": "{{n}} days past due",
+    "pastDue_one": "1 day past due",
+    "pastDue_other": "{{count}} days past due",
+    "today": "Due today",
+    "in": "In {{n}} days",
+    "in_one": "Tomorrow",
+    "in_other": "In {{count}} days",
+    "on": "Due {{date}}"
   }
 }

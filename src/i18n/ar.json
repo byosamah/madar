@@ -785,5 +785,21 @@
       "male": "مذكّر",
       "female": "مؤنّث"
     }
+  },
+  "due": {
+    "pastDue": "متأخرة {{n}} يوم",
+    "pastDue_one": "متأخرة يومًا واحدًا",
+    "pastDue_two": "متأخرة يومين",
+    "pastDue_few": "متأخرة {{count}} أيام",
+    "pastDue_many": "متأخرة {{count}} يومًا",
+    "pastDue_other": "متأخرة {{count}} يوم",
+    "today": "مستحقة اليوم",
+    "in": "بعد {{n}} يوم",
+    "in_one": "غدًا",
+    "in_two": "بعد يومين",
+    "in_few": "بعد {{count}} أيام",
+    "in_many": "بعد {{count}} يومًا",
+    "in_other": "بعد {{count}} يوم",
+    "on": "مستحقة {{date}}"
   }
 }

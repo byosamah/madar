@@ -27,7 +27,12 @@ describe('languages', () => {
     // Arabic also inflects counts (_one, _two, _few, _many, _other), picked by i18next from "count".
     const plural = /_(zero|one|two|few|many|other)$/;
     const arabicBase = Object.keys(arabic).filter((key) => !key.endsWith('_female') && !plural.test(key));
-    expect(arabicBase.sort()).toEqual(Object.keys(english).sort());
+    // English inflects a few counts too ("1 day past due", "3 days past due"), with _one and _other.
+    const englishBase = Object.keys(english).filter((key) => !plural.test(key));
+    expect(arabicBase.sort()).toEqual(englishBase.sort());
+    for (const key of Object.keys(english).filter((k) => plural.test(k))) {
+      expect({ key, base: key.replace(plural, '') in english }).toEqual({ key, base: true });
+    }
     for (const key of Object.keys(arabic).filter((k) => plural.test(k))) {
       expect({ key, base: key.replace(plural, '') in english }).toEqual({ key, base: true });
       expect({ key, vars: placeholders(arabic[key]).filter((v) => v !== 'count') }).toEqual({ key, vars: [] });
