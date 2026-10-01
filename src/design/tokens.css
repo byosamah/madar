@@ -7,7 +7,7 @@
   --c-bg: #F4F4F7;
   --c-card: #FFFFFF;
   --c-label: #1D1D1F;
-  --c-label-2: #5E5E63;
+  --c-label-2: #6E6E73;
   --c-label-3: #A1A1A6;
   /* Chart marks that must hold 3:1 against the card (WCAG 1.4.11): the Created bars and the next stages. */
   --c-chart-muted: #8E8E93;
@@ -30,6 +30,8 @@
   --on-sig: #FFFFFF;
   /* Text on the glow keeps 4.5:1 on its brightest tints (tokens.test.ts). */
   --sig-text: #1F2A55;
+  /* The arrow of a dropdown, in Ink 2 for each theme. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #55555A;
   --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --panel-edge: transparent;
@@ -123,6 +125,7 @@
   --sig-to: #C9D4FF;
   --on-sig: #10183A;
   --sig-text: #C9D4FF;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A1A1A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
   --panel-edge: #26262B;
@@ -146,7 +149,7 @@
   --p-indigo-bg: #20234A;
   --p-indigo-fg: #A5ABFF;
   --c-label: #F5F5F7;
-  --c-label-2: #AEAEB2;
+  --c-label-2: #A1A1A6;
   --c-label-3: #636366;
   --c-chart-muted: #8E8E93;
   --c-separator: rgba(84, 84, 88, 0.6);
@@ -323,6 +326,50 @@
     background: var(--c-panel);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 18px 48px rgba(0, 0, 0, 0.14);
     border: 1px solid var(--panel-edge);
+  }
+  /* One look for every input, dropdown and text area: same height, padding, corners and focus ring (owner, 2026-10-01). */
+  .field {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background-color: var(--c-fill);
+    padding-inline: 14px;
+    color: var(--c-ink);
+    font-size: calc(var(--size-subheadline) * var(--boost) + 1px);
+    line-height: 1.4;
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+  .field::placeholder {
+    color: var(--c-ink-2);
+  }
+  .field:hover {
+    background-color: var(--c-fill-strong);
+  }
+  .field:focus-visible {
+    outline: 2px solid var(--c-link);
+    outline-offset: 1px;
+  }
+  textarea.field {
+    padding-block: 10px;
+  }
+  select.field {
+    appearance: none;
+    padding-inline-end: 40px;
+    background-image: var(--chevron);
+    background-repeat: no-repeat;
+    background-position: right 14px center; /* rtl-ok: flipped below */
+  }
+  [dir="rtl"] select.field {
+    background-position: left 14px center; /* rtl-ok: the end side in Arabic */
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--c-late-text);
+  }
+  .field-label {
+    font-size: calc(var(--size-footnote) * var(--boost));
+    font-weight: 500;
+    color: var(--c-ink-2);
   }
   .hairline > * + * {
     border-top: 1px solid var(--c-hairline);

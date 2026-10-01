@@ -8,16 +8,16 @@ export function PreviewAs({ id }: { id: string }) {
   const previewAs = useAction('session.previewAs');
   if (!session.data) return null;
   return (
-    <label className="block" htmlFor={id}>
-      <span className="flex items-center gap-1.5 text-caption text-label-2">
-        {t('preview.label')}
-        <span className="rounded-full bg-fill px-1.5">{t('preview.prototype')}</span>
+    <label className="flex flex-col gap-1.5" htmlFor={id}>
+      <span className="flex items-center gap-2">
+        <span className="field-label">{t('preview.label')}</span>
+        <span className="inline-flex h-5 items-center rounded-full bg-fill px-2 text-caption font-medium leading-none text-ink-2">{t('preview.prototype')}</span>
       </span>
       <select
         id={id}
         value={session.data.user.id}
         onChange={(event) => previewAs.mutate({ userId: event.target.value })}
-        className="mt-1 min-h-11 w-full rounded-control bg-fill px-2 text-subheadline text-label"
+        className="field"
       >
         {session.data.previewUsers.map((user) => (
           <option key={user.id} value={user.id}>

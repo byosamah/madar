@@ -87,7 +87,7 @@ export function MentionField({
         }}
         onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
         onKeyDown={onKeyDown}
-        className="w-full resize-y rounded-control bg-fill px-3 py-2 text-body text-label placeholder:text-label-2"
+        className="field resize-y"
       />
       {open && (
         <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className="float absolute inset-x-0 top-full z-30 mt-1 flex flex-col rounded-2xl p-1.5">

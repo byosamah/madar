@@ -95,7 +95,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
             value={text}
             dir="auto"
             onChange={(event) => setText(event.target.value)}
-            className="min-h-11 w-full rounded-control bg-fill px-3 text-body text-label placeholder:text-label-2"
+            className="field"
           />
         </form>
       )}

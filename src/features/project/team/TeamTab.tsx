@@ -53,7 +53,7 @@ function MemberRow({ member, detail }: { member: Member; detail: ProjectDetail }
             const value = discipline.trim();
             if (value && value !== member.discipline) save.mutate({ projectId: detail.project.id, userId: user.id, discipline: value });
           }}
-          className="min-h-11 w-40 rounded-control bg-fill px-3 text-subheadline text-label"
+          className="field w-40"
         />
       ) : <span className="text-subheadline text-label-2">{member.discipline}</span>}
       <div className="size-11 shrink-0">

@@ -22,9 +22,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Field({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="text-footnote text-label-2">{label}</span>
-      <input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 rounded-control bg-fill px-3 text-body text-label" />
+    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <span className="field-label">{label}</span>
+      <input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="field" />
     </label>
   );
 }

@@ -19,7 +19,7 @@ const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
-const SELECT = 'mt-1 min-h-11 w-full rounded-control bg-fill px-3 text-body font-normal text-ink';
+const SELECT = 'field mt-1.5 font-normal';
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 
 /** Every project as one calm list, with one filter button (redesign spec 3.3). */

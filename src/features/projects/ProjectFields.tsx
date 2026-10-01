@@ -103,7 +103,7 @@ export function StageList({
               dir="auto"
               onChange={(event) => onChange(stages.map((s, j) => (j === i ? { ...s, name: event.target.value } : s)))}
               onBlur={onBlur}
-              className="min-h-11 min-w-0 flex-1 rounded-control bg-fill px-3 text-body text-label"
+              className="field min-w-0 flex-1"
             />
             <IconButton label={t('projectForm.removeStage', { name: stage.name || String(i + 1) })} onClick={() => onChange(stages.filter((_, j) => j !== i))}>
               <X size={16} aria-hidden />

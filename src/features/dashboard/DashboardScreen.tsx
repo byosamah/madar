@@ -20,7 +20,7 @@ const VIEWS = ['projects', 'people', 'schedule'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
-const SELECT = 'min-h-11 w-full rounded-control bg-fill px-3 text-body font-normal text-ink';
+const SELECT = 'field mt-1.5 font-normal';
 
 /**
  * Everyone sees the same dashboard (spec 8). Three numbers, then one section at a time (redesign spec 3.6).
