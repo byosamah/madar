@@ -2,19 +2,19 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   Gender,
-  Client, ClientId, Glass, Language, Settings, Theme, User, UserId, defaultPreferences, type Preferences,
+  Client, ClientId, Glass, Language, Settings, SystemRole, Theme, User, UserId, defaultPreferences, type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
-import { invalid, notFound } from '../errors';
+import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { nextId } from '../store';
 import { userCard } from '../views';
+import { holdsAdminRights } from '../permissions';
 import { assertCan, byName, requireUser } from './shared';
 
 const Empty = z.object({});
 const Name = z.string().trim().min(1).max(80);
 const Discipline = z.string().trim().min(1).max(40);
-const SystemRole = z.enum(['admin', 'member']);
 const Kind = z.enum(['human', 'agent']);
 const ClientName = z.string().trim().min(1).max(120);
 const ContactName = z.string().trim().max(80);
@@ -23,7 +23,7 @@ const ClientEmail = z.union([z.email(), z.literal('')]);
 
 const PreviewUser = UserCard.extend({
   systemRole: SystemRole,
-  hint: z.enum(['admin', 'leader', 'member', 'agent']),
+  hint: z.enum(['admin', 'management', 'accounting', 'leader', 'member', 'agent']),
   actingForName: z.string().nullable(),
 });
 
@@ -45,7 +45,7 @@ export const sessionGet = defineCall({
         ...userCard(u),
         systemRole: u.systemRole,
         actingForName: u.kind === 'agent' && u.ownerId ? (ctx.state.users[u.ownerId]?.name ?? null) : null,
-        hint: u.kind === 'agent' ? ('agent' as const) : u.systemRole === 'admin' ? ('admin' as const) : leaders.has(u.id) ? ('leader' as const) : ('member' as const),
+        hint: u.kind === 'agent' ? ('agent' as const) : u.systemRole !== 'member' ? u.systemRole : leaders.has(u.id) ? ('leader' as const) : ('member' as const),
       }));
     const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
     // "authority" is the person whose rights and notification choices apply: the user, or the person an agent acts for.
@@ -105,6 +105,23 @@ function agentAdmin() {
   return invalid('systemRole', 'An agent cannot be an Admin. It has the rights of the person it acts for.', 'agent_admin');
 }
 
+/** An agent is always a member. Admin keeps its own message. */
+function assertAgentRole(role: SystemRole | undefined): void {
+  if (role === 'admin') throw agentAdmin();
+  if (role !== undefined && role !== 'member') throw invalid('systemRole', 'An agent has no role of its own. It has the rights of the person it acts for.', 'agent_role');
+}
+
+/**
+ * Management makes and changes people, but never makes an Admin and never changes one. An agent acts with the rights of its
+ * owner, so Management never adds an agent, and never changes an agent of an Admin. Only an Admin does these things.
+ */
+function assertMayTouch(ctx: Ctx, target: User | null, newRole: SystemRole | undefined, addsAgent = false): void {
+  if (ctx.authority.systemRole === 'admin') return;
+  if (addsAgent) throw forbidden('Only an Admin can add an agent.', { action: 'people.manage' });
+  if (newRole === 'admin') throw forbidden('Only an Admin can make someone an Admin.', { action: 'people.manage' });
+  if (holdsAdminRights(ctx.state, target)) throw forbidden('Only an Admin can change an Admin or the agent of an Admin.', { action: 'people.manage' });
+}
+
 export const usersCreate = defineCall({
   input: z.object({
     name: Name,
@@ -117,9 +134,10 @@ export const usersCreate = defineCall({
   }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'people.manage');
+    assertMayTouch(ctx, null, input.systemRole, input.kind === 'agent');
     assertEmailFree(ctx, input.email, null);
-    if (input.kind === 'agent' && input.systemRole === 'admin') throw agentAdmin();
+    if (input.kind === 'agent') assertAgentRole(input.systemRole);
     let ownerId: string | null = null;
     if (input.kind === 'agent') {
       const owner = input.ownerId ? ctx.state.users[input.ownerId] : undefined;
@@ -153,11 +171,12 @@ export const usersUpdate = defineCall({
   }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'people.manage');
     const user = requireUser(ctx, input.id);
+    assertMayTouch(ctx, user, input.patch.systemRole);
     if (input.patch.email) assertEmailFree(ctx, input.patch.email, user.id);
-    if (input.patch.systemRole === 'admin' && user.kind === 'agent') throw agentAdmin();
-    if (input.patch.systemRole === 'member' && user.systemRole === 'admin') {
+    if (user.kind === 'agent') assertAgentRole(input.patch.systemRole);
+    if (input.patch.systemRole !== undefined && input.patch.systemRole !== 'admin' && user.systemRole === 'admin') {
       // Only people count: an agent acts with its person's rights, so an agent can never keep the office's Admin work going.
       const admins = Object.values(ctx.state.users).filter((u) => u.kind === 'human' && u.systemRole === 'admin' && u.active);
       if (admins.length <= 1) throw invalid('systemRole', 'The office needs at least one Admin.', 'last_admin');
@@ -171,8 +190,9 @@ export const usersDeactivate = defineCall({
   input: z.object({ id: UserId }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'people.manage');
     const user = requireUser(ctx, input.id);
+    assertMayTouch(ctx, user, undefined);
     if (user.id === ctx.authority.id) throw invalid('id', 'You cannot turn off your own account.');
     applyPatch(ctx, user, { active: false }, { projectId: null, verb: 'user.deactivated', targetType: 'user', targetId: user.id });
     return user;

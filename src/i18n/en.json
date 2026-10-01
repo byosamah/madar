@@ -45,7 +45,9 @@
       "admin": "Admin",
       "leader": "Leader",
       "member": "Member",
-      "agent": "Agent"
+      "agent": "Agent",
+      "management": "Management",
+      "accounting": "Accounting"
     }
   },
   "settings": {
@@ -245,7 +247,8 @@
       "endAfterStart": "The end date must be after the start date.",
       "stageRequired": "Keep at least one stage.",
       "stageName": "Enter a name for each stage."
-    }
+    },
+    "contractStartDate": "Contract start date"
   },
   "project": {
     "tabs": "Project sections",
@@ -335,7 +338,8 @@
     "groups": {
       "pastDue": "Past due",
       "review": "Waiting for review",
-      "flagged": "Flagged"
+      "flagged": "Flagged",
+      "payment": "Awaiting payment"
     },
     "more": "{{n}} more",
     "more_one": "1 more",
@@ -760,7 +764,9 @@
     "role": "Role",
     "roles": {
       "admin": "Admin",
-      "member": "Member"
+      "member": "Member",
+      "management": "Management",
+      "accounting": "Accounting"
     },
     "kind": "Kind",
     "kinds": {
@@ -803,7 +809,7 @@
     },
     "title": "Admin",
     "subtitle": "People and office settings.",
-    "onlyAdmin": "Only the Admin can open this page."
+    "onlyAdmin": "Only the Admin and Management can open this page."
   },
   "due": {
     "pastDue": "{{n}} days past due",
@@ -982,5 +988,37 @@
     "noteField": "Note (optional)",
     "peopleField": "People (optional)",
     "openEntry": "Open {{title}}"
+  },
+  "payments": {
+    "title": "Payments",
+    "add": "Add payment",
+    "addTitle": "Add payment",
+    "editTitle": "Edit payment",
+    "empty": "No payments yet.",
+    "summary": "{{received}} of {{total}} received",
+    "amount": "SAR {{n}}",
+    "name": "Name",
+    "amountField": "Amount (SAR)",
+    "dueDate": "Due date",
+    "receivedOn": "Received on",
+    "note": "Note",
+    "due": "Due {{date}}",
+    "status": {
+      "received": "Received {{date}}",
+      "awaiting": "Awaiting",
+      "overdue": "Overdue"
+    },
+    "open": "Open payment {{name}}",
+    "markReceived": "Mark as received",
+    "added": "Payment added.",
+    "saved": "Payment saved.",
+    "receivedToast": "Marked as received.",
+    "deleted": "Payment deleted.",
+    "errors": {
+      "name": "Enter a name.",
+      "amount": "Enter an amount above zero.",
+      "dueDate": "Choose a due date.",
+      "futureReceived": "The received date cannot be in the future."
+    }
   }
 }

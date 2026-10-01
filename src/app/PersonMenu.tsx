@@ -19,7 +19,8 @@ export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
   const session = useCall('session.get', {}).data;
   const user = session?.user;
-  const admin = session?.authority.systemRole === 'admin';
+  // Management reaches the Admin page too, for the People section only.
+  const admin = session?.authority.systemRole === 'admin' || session?.authority.systemRole === 'management';
   const switchLanguage = useSwitchLanguage();
   const preferences = useAction('me.updatePreferences');
   const ref = useRef<HTMLButtonElement>(null);

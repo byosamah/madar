@@ -196,6 +196,9 @@ export function ProjectFields({ form, mode }: { form: ProjectForm; mode: 'create
         error={error('area')}
       />
       <div className="grid gap-4 sm:grid-cols-2">
+        <TextField id="project-contract-start" type="date" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(event) => set('contractStartDate', event.target.value)} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="project-start" type="date" label={t('projectForm.startDate')} value={values.startDate} onChange={(event) => set('startDate', event.target.value)} />
         <TextField
           id="project-end"

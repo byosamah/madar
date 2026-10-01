@@ -18,6 +18,7 @@ export const ConversationId = id('cnv');
 export const MessageId = id('msg');
 export const StageTemplateId = id('stt');
 export const TrackerId = id('trk');
+export const PaymentId = id('pay');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -47,7 +48,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'tracker',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'tracker', 'payment',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -69,13 +70,17 @@ export function defaultPreferences(): Preferences {
 export const Gender = z.enum(['female', 'male']);
 export type Gender = z.infer<typeof Gender>;
 
+/** One role for each person. Admin does everything. Management and Accounting also handle payments. Management also manages people. */
+export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']);
+export type SystemRole = z.infer<typeof SystemRole>;
+
 export const User = z.object({
   id: UserId,
   name: z.string().trim().min(1).max(80),
   email: z.email(),
   avatarUrl: z.string().max(2000).nullable(),
   kind: z.enum(['human', 'agent']),
-  systemRole: z.enum(['admin', 'member']),
+  systemRole: SystemRole,
   discipline: z.string().trim().min(1).max(40),
   active: z.boolean(),
   // For an agent: the person it acts for (spec 17). For a person: null.
@@ -152,6 +157,8 @@ export const Project = z.object({
   mark: z.number().int().nonnegative().optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
+  /** The day the client's contract starts (colleague comment 7, 2026-10-01). Optional, so older offices still load. */
+  contractStartDate: Day.nullable().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,
@@ -304,6 +311,23 @@ export const TrackerEntry = z.object({
   createdAt: Stamp,
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
+
+/**
+ * One payment the client owes the office for a project (colleague comment 6, owner, 2026-10-01). Amounts are in Saudi riyals.
+ * "receivedOn" is null until the money arrives. Only the Admin, Management and Accounting ever read or change payments.
+ */
+export const Payment = z.object({
+  id: PaymentId,
+  projectId: ProjectId,
+  name: z.string().trim().min(1).max(120),
+  amount: z.number().positive().max(1_000_000_000_000),
+  dueDate: Day,
+  receivedOn: Day.nullable(),
+  note: z.string().max(500),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type Payment = z.infer<typeof Payment>;
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 

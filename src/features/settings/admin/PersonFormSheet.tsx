@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { User } from '../../../api/contract/entities';
+import type { SystemRole, User } from '../../../api/contract/entities';
 import { fieldError } from '../../../app/errors';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -9,7 +9,7 @@ import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 
 type Form = {
-  name: string; email: string; systemRole: 'admin' | 'member'; kind: 'human' | 'agent'; ownerId: string; discipline: string;
+  name: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
   gender: 'male' | 'female';
 };
 const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male' };
@@ -19,6 +19,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const { t } = useTranslation();
   const toast = useToast();
   const users = useCall('users.list', {});
+  const viewerIsAdmin = useCall('session.get', {}).data?.authority.systemRole === 'admin';
   const [form, setForm] = useState<Form>(EMPTY);
   const done = (message: string) => {
     toast.show({ message });
@@ -65,7 +66,10 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
         {!isAgent && (
           <SelectField id="person-role" label={t('admin.role')} value={form.systemRole} error={errorFor('systemRole', t('errors.invalid_input'))} onChange={(event) => set('systemRole', event.target.value as Form['systemRole'])}>
             <option value="member">{t('admin.roles.member')}</option>
-            <option value="admin">{t('admin.roles.admin')}</option>
+            <option value="management">{t('admin.roles.management')}</option>
+            <option value="accounting">{t('admin.roles.accounting')}</option>
+            {/* Only an Admin makes an Admin. The API refuses it for Management too. */}
+            {viewerIsAdmin && <option value="admin">{t('admin.roles.admin')}</option>}
           </SelectField>
         )}
         {!person && (

@@ -20,6 +20,8 @@ export function PeopleSection() {
   const [editing, setEditing] = useState<User | null>(null);
   const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: user.name }) });
   const me = session.data?.authority.id;
+  // Management cannot change an Admin, so an Admin's row has no actions for it.
+  const viewerIsAdmin = session.data?.authority.systemRole === 'admin';
   return (
     <section aria-labelledby="admin-people" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -44,13 +46,13 @@ export function PeopleSection() {
                 <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi>
               </p>
             </div>
-            <Menu
+            {(viewerIsAdmin || user.systemRole !== 'admin') && <Menu
               label={t('admin.actions', { name: user.name })}
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.mutate({ id: user.id }), hidden: !user.active || user.id === me, destructive: true },
               ]}
-            />
+            />}
           </li>
         ))}
       </ul>

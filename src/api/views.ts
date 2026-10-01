@@ -1,6 +1,6 @@
-import type { Comment, Deadline, Event, FileRec, Project, Stage, Task, TrackerEntry, Update, User } from './contract/entities';
+import type { Comment, Deadline, Event, FileRec, Payment, Project, Stage, Task, TrackerEntry, Update, User } from './contract/entities';
 import type {
-  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, TrackerRow, UserCard,
+  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
@@ -127,6 +127,7 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     createTaskForSelf: can(viewer, 'task.createForSelf', r),
     post: can(viewer, 'content.post', r),
     review: can(viewer, 'task.review', r),
+    payments: can(viewer, 'payment.manage'),
   };
 }
 
@@ -254,5 +255,16 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
     canEdit: mayPost,
     canDelete: mayDeleteTracker(state, viewer, entry),
+  };
+}
+
+/** A milestone is overdue when its day has passed and the money has not arrived. */
+export function paymentRowOf(state: State, payment: Payment, today: string): PaymentRow {
+  const dueInDays = diffDays(today, payment.dueDate);
+  return {
+    payment,
+    status: payment.receivedOn ? 'received' : dueInDays < 0 ? 'overdue' : 'awaiting',
+    dueInDays,
+    createdBy: cardOf(state, payment.createdBy),
   };
 }

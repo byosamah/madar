@@ -6,6 +6,7 @@ import { fileCalls } from './handlers/files';
 import { historyCalls } from './handlers/history';
 import { insightCalls } from './handlers/insights';
 import { notificationCalls } from './handlers/notifications';
+import { paymentCalls } from './handlers/payments';
 import { peopleCalls } from './handlers/people';
 import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
@@ -29,6 +30,7 @@ export const calls = {
   ...insightCalls,
   ...stageTemplateCalls,
   ...trackerCalls,
+  ...paymentCalls,
 };
 
 export type Calls = typeof calls;

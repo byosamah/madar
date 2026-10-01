@@ -8,7 +8,7 @@ const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/
 const DAY_MS = 86_400_000;
 
 /** Only these fields hold dates. Text that people type never moves, even when it looks like a date. */
-const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'endDate', 'date', 'dueDate']);
+const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn']);
 const STAMP_FIELDS = new Set(['createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt']);
 
 function shiftDay(value: unknown, days: number): unknown {

@@ -30,12 +30,18 @@ const PEOPLE: { name: string; admin?: boolean; discipline: string; gender: 'fema
   { name: 'Khalid Al-Mutairi', discipline: 'Structural', gender: 'male' },
 ];
 
+// The two office roles of colleague comments 6 and 13. They come after the agent, so the ids of the first nine users stay as they were.
+const OFFICE_ROLES: { name: string; role: 'management' | 'accounting'; discipline: string; gender: 'female' | 'male' }[] = [
+  { name: 'Turki Al-Otaibi', role: 'management', discipline: 'Management', gender: 'male' },
+  { name: 'Noura Al-Shammari', role: 'accounting', discipline: 'Accounting', gender: 'female' },
+];
+
 export function sampleEmail(name: string): string {
   return `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@madar.test`;
 }
 
 /** The sample people's grammatical gender by email, for offices saved before the field existed. */
-export const SAMPLE_GENDERS: Record<string, 'female' | 'male'> = Object.fromEntries(PEOPLE.map((person) => [sampleEmail(person.name), person.gender]));
+export const SAMPLE_GENDERS: Record<string, 'female' | 'male'> = Object.fromEntries([...PEOPLE, ...OFFICE_ROLES].map((person) => [sampleEmail(person.name), person.gender]));
 
 const CLIENTS: [string, string][] = [
   ['Gulf Crest Holding', 'Nawaf Al-Shehri'],
@@ -468,6 +474,63 @@ function addTracker(state: State, today: string, humans: User[]): void {
   }
 }
 
+/**
+ * Payment milestones and contract start dates (colleagues' comments 6 and 7). "due" is days from today, "received" is days ago.
+ * One milestone is overdue (the Corniche tower stage 3 fee) and two fall due within a week (Townhouses and the clinic).
+ */
+const PAYMENTS: Record<string, { contractAgo: number; items: { name: string; amount: number; due: number; received?: number; note?: string }[] }> = {
+  'KH-26-001': {
+    contractAgo: 150,
+    items: [
+      { name: 'Concept stage fee', amount: 180000, due: -110, received: 104 },
+      { name: 'Schematic design fee', amount: 240000, due: -55, received: 49 },
+      { name: 'Design development fee', amount: 320000, due: -12, note: 'The client asked for a revised invoice.' },
+      { name: 'Construction documents fee', amount: 360000, due: 40 },
+    ],
+  },
+  'KH-26-002': {
+    contractAgo: 120,
+    items: [
+      { name: 'Concept stage fee', amount: 95000, due: -70, received: 66 },
+      { name: 'Schematic design fee', amount: 120000, due: 4 },
+      { name: 'Design development fee', amount: 140000, due: 45 },
+    ],
+  },
+  'KH-26-003': {
+    contractAgo: 60,
+    items: [
+      { name: 'Advance payment', amount: 150000, due: -50, received: 48 },
+      { name: 'Concept stage fee', amount: 110000, due: 25 },
+    ],
+  },
+  'KH-26-006': {
+    contractAgo: 90,
+    items: [
+      { name: 'Advance payment', amount: 45000, due: -80, received: 78 },
+      { name: 'Permit submission fee', amount: 38000, due: 3 },
+    ],
+  },
+  'KH-26-004': { contractAgo: 200, items: [] },
+  'KH-26-008': { contractAgo: 75, items: [] },
+};
+
+function addPayments(state: State, today: string, accountant: User): void {
+  state.payments = {};
+  for (const [code, plan] of Object.entries(PAYMENTS)) {
+    const project = Object.values(state.projects).find((p) => p.code === code);
+    if (!project) continue;
+    project.contractStartDate = addDays(today, -plan.contractAgo);
+    for (const item of plan.items) {
+      const id = nextId(state, 'pay');
+      state.payments[id] = {
+        id, projectId: project.id, name: item.name, amount: item.amount, dueDate: addDays(today, item.due),
+        receivedOn: item.received === undefined ? null : addDays(today, -item.received), note: item.note ?? '',
+        createdBy: accountant.id, createdAt: at(addDays(today, -plan.contractAgo + 1), 10),
+      };
+    }
+  }
+}
+
 export async function buildSeed(today: string, putBlob: PutBlob): Promise<State> {
   const state = emptyState(today);
   const blobJobs: Promise<void>[] = [];
@@ -492,6 +555,15 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     id: agentId, name: 'Madar Assistant', email: 'assistant@madar.test', avatarUrl: null, kind: 'agent', systemRole: 'member',
     discipline: 'Agent', active: true, ownerId: humans[0].id, preferences: defaultPreferences(),
   };
+  const accountant = OFFICE_ROLES.map((person) => {
+    const id = nextId(state, 'usr');
+    const user: User = {
+      id, name: person.name, email: sampleEmail(person.name), avatarUrl: null, kind: 'human', systemRole: person.role,
+      discipline: person.discipline, active: true, ownerId: null, preferences: defaultPreferences(), gender: person.gender,
+    };
+    state.users[id] = user;
+    return user;
+  })[1];
   state.session.currentUserId = humans[0].id;
 
   const templateAuthor = humans[0];
@@ -516,6 +588,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   addChatTalk(state, today, humans);
   addSampleLinks(state);
   addTracker(state, today, humans);
+  addPayments(state, today, accountant);
 
   const weekAgo = at(addDays(today, -7), 0);
   for (const n of Object.values(state.notifications)) if (n.createdAt < weekAgo) n.read = true;

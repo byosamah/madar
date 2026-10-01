@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
-  Message, Project,
+  Message, Payment, Project,
   ProjectId, Stage, StageId, Stamp, Task, TrackerEntry, UpdateId, UserId,
 } from './entities';
 
@@ -51,6 +51,8 @@ export type DeadlineRow = z.infer<typeof DeadlineRow>;
 export const ViewerCan = z.object({
   edit: z.boolean(), changeLeader: z.boolean(), archive: z.boolean(), delete: z.boolean(), healthOverride: z.boolean(),
   createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(),
+  /** The viewer may read and change the payments of every project. */
+  payments: z.boolean(),
 });
 
 export const ProjectSummary = z.object({
@@ -159,3 +161,12 @@ export const TrackerRow = z.object({
   canDelete: z.boolean(),
 });
 export type TrackerRow = z.infer<typeof TrackerRow>;
+
+/** One payment milestone as a screen reads it. "dueInDays" is negative after the due date. */
+export const PaymentRow = z.object({
+  payment: Payment,
+  status: z.enum(['received', 'awaiting', 'overdue']),
+  dueInDays: z.number().int(),
+  createdBy: UserCard,
+});
+export type PaymentRow = z.infer<typeof PaymentRow>;
