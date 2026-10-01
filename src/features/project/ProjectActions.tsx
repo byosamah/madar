@@ -77,7 +77,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
   );
 }
 
-/** The "…" menu over the cover: Edit, Change leader, the status changes and Delete (spec 5.1). */
+/** The "…" menu next to the main button: Edit, Change leader, the status changes and Delete (spec 5.1). */
 export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
   const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | null>(null);
@@ -102,7 +102,7 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   };
   return (
     <>
-      <Menu label={t('project.more')} items={items} triggerClassName="glass-media" />
+      <Menu label={t('project.more')} items={items} triggerClassName="bg-fill text-ink hover:bg-fill-strong" />
       <EditProjectSheet detail={detail} open={sheet === 'edit'} onOpenChange={onOpenChange} />
       <LeaderSheet detail={detail} open={sheet === 'leader'} onOpenChange={onOpenChange} />
       <DeleteProjectSheet detail={detail} open={sheet === 'delete'} onOpenChange={onOpenChange} />

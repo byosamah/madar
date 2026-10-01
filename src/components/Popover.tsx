@@ -39,7 +39,7 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
       animate={{ opacity: 1, scale: 1 }}
       transition={spring.standard}
       style={{ position: 'fixed', width, ...place }}
-      className="glass z-50 flex flex-col gap-3 rounded-3xl p-4 shadow-float"
+      className="glass z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4 shadow-float"
     >
       {children}
     </motion.div>,

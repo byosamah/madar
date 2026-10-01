@@ -261,7 +261,9 @@
     "makeCurrent": "Make current stage",
     "stageChanged": "Current stage changed.",
     "current": "Current stage",
-    "comingSoon": "This tab arrives later in this build step."
+    "comingSoon": "This tab arrives later in this build step.",
+    "about": "About",
+    "stages": "Stages"
   },
   "overview": {
     "composer": "Post an update",

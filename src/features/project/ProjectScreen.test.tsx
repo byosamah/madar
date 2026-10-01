@@ -10,14 +10,27 @@ const as = (userId: string) => (state: State) => {
 const PROJECT = '/projects/prj_001';
 
 describe('the Project screen header', () => {
-  it('shows the cover, code, name, client, health, stage rail and the main action', async () => {
+  it('shows a calm header: tile, name, client, one stage line and one main button', async () => {
     await renderApp(PROJECT);
-    expect(await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeInTheDocument();
-    expect(screen.getByText('Gulf Crest Holding')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Late/ })).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Stage 4 of 7: Construction Documents' })).toBeInTheDocument();
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' });
+    const header = heading.closest('header') as HTMLElement;
+    expect(within(header).getByText('CO')).toHaveAttribute('aria-hidden', 'true');
+    expect(within(header).getByText('Gulf Crest Holding')).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /Late/ })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /Construction Documents/ })).toBeInTheDocument();
+    expect(within(header).getByRole('progressbar', { name: 'Stage 4 of 7' })).toBeInTheDocument();
+    expect(within(header).queryByRole('img', { name: /Cover image/ })).toBeNull();
+    expect(within(header).getByRole('button', { name: 'Post update' })).toHaveClass('signature');
+    expect(document.querySelectorAll('main .signature')).toHaveLength(1);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Post update' })).toBeInTheDocument();
+  });
+
+  it('moves the cover into the About panel of the Overview', async () => {
+    await renderApp(PROJECT);
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(within(about).getByRole('img', { name: 'Cover image of Corniche Office Tower' })).toBeInTheDocument();
+    expect(within(about).getByText('Al Khobar, Corniche')).toBeInTheDocument();
+    expect(within(about).getByText('Faisal Al-Harbi')).toBeInTheDocument();
   });
 
   it('shows a project as view only to a person outside it', async () => {
@@ -39,13 +52,15 @@ describe('the Project screen header', () => {
     expect(await screen.findByText('Set by Faisal Al-Harbi')).toBeInTheDocument();
   });
 
-  it('makes another stage current from the rail', async () => {
+  it('makes another stage current from the stage list', async () => {
     await renderApp(PROJECT, as('usr_002'));
-    await userEvent.click(await screen.findByRole('button', { name: 'Permits' }));
-    const popover = screen.getByRole('dialog', { name: 'Permits' });
+    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
+    const popover = screen.getByRole('dialog', { name: 'Stages' });
+    await userEvent.click(within(popover).getByRole('button', { name: /Permits/ }));
     expect(await within(popover).findByText('Tasks done: 0 of 2')).toBeInTheDocument();
     await userEvent.click(within(popover).getByRole('button', { name: 'Make current stage' }));
-    expect(await screen.findByRole('list', { name: 'Stage 5 of 7: Permits' })).toBeInTheDocument();
+    expect(await screen.findByRole('progressbar', { name: 'Stage 5 of 7' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Permits/ })).toBeInTheDocument();
   });
 
   it('changes the leader', async () => {

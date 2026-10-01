@@ -76,7 +76,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
   };
 
   return (
-    <form onSubmit={post} aria-label={t('overview.composer')} className="surface flex flex-col gap-3 rounded-card p-4">
+    <form onSubmit={post} aria-label={t('overview.composer')} className="panel flex flex-col gap-3 p-4">
       <MentionField
         id="composer"
         label={t('overview.composer')}
@@ -113,7 +113,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
             }}
           />
         </label>
-        <Button variant="primary" type="submit" disabled={!text.trim() || posting}>{t('overview.post')}</Button>
+        <Button variant={text.trim() ? 'primary' : 'secondary'} type="submit" disabled={!text.trim() || posting}>{t('overview.post')}</Button>
       </div>
     </form>
   );
