@@ -85,3 +85,13 @@ describe('text on the glow', () => {
     }
   });
 });
+
+describe('the glow drift', () => {
+  it('moves only by transform, once every 8 seconds, and stops under Reduce motion', () => {
+    const keyframes = css.slice(css.indexOf('@keyframes glow-drift'), css.indexOf('}\n}', css.indexOf('@keyframes glow-drift')));
+    expect(keyframes).toMatch(/transform:/);
+    expect(keyframes).not.toMatch(/opacity|background|left|top/);
+    expect(css).toMatch(/animation: glow-drift 8s ease-in-out infinite;/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n  \.glow::before \{\n    animation: none;/);
+  });
+});

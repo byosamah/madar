@@ -78,7 +78,8 @@ test('the person menu switches between dark and light mode', async ({ page }) =>
   await page.getByRole('button', { name: USER }).click();
   await page.getByRole('dialog', { name: USER }).getByRole('button', { name: 'Dark mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.getByRole('button', { name: USER }).click();
+  // The menu stays open after the switch; open it again only if it closed.
+  if (!(await page.getByRole('dialog', { name: USER }).isVisible())) await page.getByRole('button', { name: USER }).click();
   await page.getByRole('dialog', { name: USER }).getByRole('button', { name: 'Light mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });

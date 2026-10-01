@@ -284,22 +284,27 @@
     background: linear-gradient(90deg, var(--sig-from), var(--sig-to));
     color: #FFFFFF;
   }
-  /* The glow: only behind "Next for you" (redesign spec 2.3). */
+  /* The glow: only behind "Next for you" (redesign spec 2.3). The tints sit on a layer that drifts slowly; only transform moves. */
   .glow {
-    background:
-      radial-gradient(120% 140% at 0% 0%, var(--glow-a) 0%, transparent 55%),
-      radial-gradient(120% 140% at 100% 0%, var(--glow-b) 0%, transparent 55%),
-      radial-gradient(140% 120% at 50% 120%, var(--glow-c) 0%, transparent 60%),
-      var(--c-panel);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--c-panel);
     box-shadow: var(--sh-panel);
     border: 1px solid var(--panel-edge);
     border-radius: var(--r-card);
   }
-  /* Floating layers (sheets, popovers, menus, toasts): a solid panel with a deeper shadow. No glass (redesign spec 2.1). */
-  .float {
-    background: var(--c-panel);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 18px 48px rgba(0, 0, 0, 0.14);
-    border: 1px solid var(--panel-edge);
+  .glow::before {
+    content: "";
+    position: absolute;
+    inset: -25%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 70% at 25% 25%, var(--glow-a) 0%, transparent 70%),
+      radial-gradient(60% 70% at 75% 25%, var(--glow-b) 0%, transparent 70%),
+      radial-gradient(70% 60% at 50% 85%, var(--glow-c) 0%, transparent 70%);
+    animation: glow-drift 8s ease-in-out infinite;
   }
   .hairline > * + * {
     border-top: 1px solid var(--c-hairline);
@@ -414,5 +419,21 @@
 @keyframes fade-in {
   from {
     opacity: 0;
+  }
+}
+
+/* The glow drifts once every 8 seconds, softly. With Reduce motion it stays still. */
+@keyframes glow-drift {
+  0%,
+  100% {
+    transform: translate3d(-5%, -3%, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(5%, 3%, 0) rotate(6deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow::before {
+    animation: none;
   }
 }
