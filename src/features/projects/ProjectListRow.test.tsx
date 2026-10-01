@@ -33,6 +33,11 @@ describe('the project row', () => {
     expect(within(row).getByText('Late')).toBeInTheDocument();
     expect(within(row).getByText('Gulf Crest Holding')).toBeInTheDocument();
     expect(within(row).getByRole('progressbar', { name: 'Stage 4 of 7' })).toHaveAttribute('aria-valuenow', '50');
+    // The stage has its own column: the name with the stage steps under it (colleague's comment 1, owner approved 2026-10-01).
+    const stage = within(row).getByRole('progressbar', { name: 'Stage 4 of 7' }).closest('[data-stage-column]') as HTMLElement;
+    expect(stage).toHaveTextContent('Construction Documents');
+    expect(within(row).getByText('Gulf Crest Holding').closest('[data-stage-column]')).toBeNull();
+    expect(within(row).queryByText(/Construction Documents ·/)).toBeNull();
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');
     expect(within(row).queryByRole('list', { name: 'Latest updates' })).toBeNull();
   });

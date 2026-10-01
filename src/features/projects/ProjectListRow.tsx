@@ -20,7 +20,7 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
   return null;
 }
 
-/** One project as one calm row: tile, name, stage, progress line, next deadline, and a state word only when needed (redesign spec 3.3). */
+/** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
 export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
   const { project } = summary;
@@ -39,7 +39,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
       <Link
         to={`/projects/${project.id}`}
         onClick={() => setSharedSource(source)}
-        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,14rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_8rem_minmax(0,14rem)] @4xl:gap-x-6"
+        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_minmax(0,14rem)] @4xl:gap-x-8"
       >
         <ProjectTile id={project.id} mark={project.mark} shared />
         <span className="min-w-0">
@@ -47,23 +47,24 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>
             <ProjectStateWord summary={summary} />
           </span>
-          <span dir="auto" className="block truncate text-footnote text-ink-2">
-            {summary.currentStage.name}
-            {summary.client && <> · <bdi>{summary.client.name}</bdi></>}
-          </span>
+          {summary.client && <bdi dir="auto" className="block truncate text-footnote text-ink-2">{summary.client.name}</bdi>}
         </span>
-        {/* The row follows its own width: line and deadline under the name, then in one end column, then in two (redesign spec 3.3). */}
-        <span className="col-start-2 flex min-w-0 flex-col gap-1.5 @xl:col-start-auto @xl:items-end @4xl:contents">
-          <ProgressLine
-            index={index}
-            total={summary.stages.length}
-            complete={project.status === 'completed'}
-            glow={false}
-            tone={signOf(summary.health, project.status)}
-            label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
-            className="w-full max-w-48 @xl:w-32 @4xl:w-full"
-          />
-          <span className="min-w-0 max-w-full @xl:text-end">
+        {/* The row follows its own width: stage and deadline under the name, then in one end column, then in two.
+            The stage is a column of its own: its name with the stage steps under it (colleague's comment 1, 2026-10-01). */}
+        <span className="col-start-2 flex min-w-0 flex-col gap-2 @xl:col-start-auto @4xl:contents">
+          <span data-stage-column className="flex min-w-0 flex-col gap-1.5">
+            <bdi dir="auto" className="truncate text-footnote font-medium text-ink">{summary.currentStage.name}</bdi>
+            <ProgressLine
+              index={index}
+              total={summary.stages.length}
+              complete={project.status === 'completed'}
+              glow={false}
+              tone={signOf(summary.health, project.status)}
+              label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
+              className="w-full max-w-48 @4xl:max-w-none"
+            />
+          </span>
+          <span className="min-w-0 max-w-full @4xl:text-end">
             <NextDeadlineLabel deadline={summary.nextDeadline} />
           </span>
         </span>
