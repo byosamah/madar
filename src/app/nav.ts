@@ -4,7 +4,7 @@ import { ClipboardCheckIcon } from '../components/icons/animated/clipboard-check
 import { FolderKanbanIcon } from '../components/icons/animated/folder-kanban';
 import { HomeIcon } from '../components/icons/animated/home';
 import { LayoutGridIcon } from '../components/icons/animated/layout-grid';
-import { MessageSquareMoreIcon } from '../components/icons/animated/message-square-more';
+import { InboxIcon } from '../components/icons/animated/inbox';
 import { SearchIcon } from '../components/icons/animated/search';
 
 /** Every tab has a moving icon (owner, 2026-10-01: all icons come from lucide-animated). */
@@ -16,7 +16,7 @@ export const NAV: NavItem[] = [
   { to: '/projects', key: 'nav.projects', animated: FolderKanbanIcon },
   { to: '/work', key: 'nav.tasks', animated: ClipboardCheckIcon },
   { to: '/dashboard', key: 'nav.dashboard', animated: LayoutGridIcon },
-  { to: '/inbox', key: 'nav.inbox', animated: MessageSquareMoreIcon, badge: true },
+  { to: '/inbox', key: 'nav.inbox', animated: InboxIcon, badge: true },
 ];
 
 export const SEARCH_ITEM: NavItem = { to: '/search', key: 'nav.search', animated: SearchIcon };
