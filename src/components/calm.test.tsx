@@ -7,7 +7,7 @@ import { FilterButton } from './FilterButton';
 import { ProgressLine } from './ProgressLine';
 import { ProjectTile } from './ProjectTile';
 import { StateWord } from './StateWord';
-import { StatusSign } from './StatusSign';
+import { StatusSign, type SignState } from './StatusSign';
 import { Tabs } from './Tabs';
 
 initI18n('en');
@@ -34,20 +34,40 @@ describe('calm parts', () => {
   });
 
   it('reports the progress line value to screen readers', () => {
-    render(<ProgressLine index={3} total={7} hue="blue" label="Stage 4 of 7" />);
+    render(<ProgressLine index={3} total={7} tone="on_track" label="Stage 4 of 7" />);
     expect(screen.getByRole('progressbar', { name: 'Stage 4 of 7' })).toHaveAttribute('aria-valuenow', '50');
   });
 
   it('draws one piece per stage: finished stages soft, the current stage glowing, the stages to come grey', () => {
-    const { container } = render(<ProgressLine index={3} total={7} hue="green" label="Stage 4 of 7" />);
+    const { container } = render(<ProgressLine index={3} total={7} tone="on_track" label="Stage 4 of 7" />);
     const steps = [...container.querySelectorAll('[data-step]')].map((piece) => piece.getAttribute('data-step'));
     expect(steps).toEqual(['done', 'done', 'done', 'now', 'next', 'next', 'next']);
     const now = container.querySelector('[data-step="now"]') as HTMLElement;
     expect(now).toHaveClass('step-now');
   });
 
+  it('keeps the current stage in full color but without the glow when asked (owner, 2026-10-01: the project list)', () => {
+    const { container } = render(<ProgressLine index={3} total={7} glow={false} tone="on_track" label="Stage 4 of 7" />);
+    const now = container.querySelector('[data-step="now"]') as HTMLElement;
+    expect(now).not.toHaveClass('step-now');
+    expect(now).toHaveClass('step-full');
+  });
+
+  it('takes the color of the project state, the same as its shape sign (owner, 2026-10-01)', () => {
+    const color = (tone: SignState) => {
+      const { container, unmount } = render(<ProgressLine index={1} total={7} tone={tone} label="Stage 2 of 7" />);
+      const value = (container.querySelector('[role="progressbar"]') as HTMLElement).style.getPropertyValue('--hue');
+      unmount();
+      return value;
+    };
+    expect(color('on_track')).toBe('var(--c-green-text)');
+    expect(color('at_risk')).toBe('var(--c-orange-text)');
+    expect(color('late')).toBe('var(--c-red-text)');
+    expect(color('paused')).toBe('var(--c-ink-2)');
+  });
+
   it('fills every piece and stops the glow when the project is complete', () => {
-    const { container } = render(<ProgressLine index={6} total={7} complete hue="green" label="Completed" />);
+    const { container } = render(<ProgressLine index={6} total={7} complete tone="on_track" label="Completed" />);
     expect(screen.getByRole('progressbar', { name: 'Completed' })).toHaveAttribute('aria-valuenow', '100');
     expect([...container.querySelectorAll('[data-step]')].every((piece) => piece.getAttribute('data-step') === 'full')).toBe(true);
   });

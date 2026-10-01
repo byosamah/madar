@@ -5,9 +5,8 @@ import type { ProjectSummary } from '../../api/contract/views';
 import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
-import { StatusSign, signOfStatus } from '../../components/StatusSign';
+import { signOf, StatusSign, signOfStatus } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
-import { projectHue } from '../../lib/projectColor';
 import { setSharedSource } from '../../app/sharedLayout';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
@@ -59,7 +58,8 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
             index={index}
             total={summary.stages.length}
             complete={project.status === 'completed'}
-            hue={projectHue(project.id)}
+            glow={false}
+            tone={signOf(summary.health, project.status)}
             label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
             className="w-full max-w-48 @xl:w-32 @4xl:w-full"
           />

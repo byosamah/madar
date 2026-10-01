@@ -37,3 +37,12 @@ export function StatusSign({ state, children }: { state: SignState; children: Re
 
 /** The sign for a project that is not active: paused, completed or archived. */
 export const signOfStatus = (status: ProjectStatus): SignState => (status === 'on_hold' ? 'paused' : status);
+
+/** The sign for any project: its health while it is active, else its status. */
+export const signOf = (health: { value: 'on_track' | 'at_risk' | 'late' } | null, status: ProjectStatus): SignState => (health ? health.value : signOfStatus(status));
+
+/** The color of each state, for the sign and for the progress line (owner, 2026-10-01: the line takes the status color). */
+export const SIGN_COLOR: Record<SignState, string> = {
+  on_track: 'var(--c-green-text)', at_risk: 'var(--c-orange-text)', late: 'var(--c-red-text)',
+  paused: 'var(--c-ink-2)', completed: 'var(--c-ink-2)', archived: 'var(--c-ink-2)', active: 'var(--c-ink-2)',
+};
