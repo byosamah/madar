@@ -1,4 +1,4 @@
-import { Languages, Moon, Settings, Sun } from 'lucide-react';
+import { Languages, Moon, Settings, ShieldCheck, Sun } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -12,7 +12,9 @@ import { useAction, useCall } from './runtime';
 /** The person's picture opens their name, Preview as (prototype), the language, light or dark mode and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
-  const user = useCall('session.get', {}).data?.user;
+  const session = useCall('session.get', {}).data;
+  const user = session?.user;
+  const admin = session?.authority.systemRole === 'admin';
   const switchLanguage = useSwitchLanguage();
   const preferences = useAction('me.updatePreferences');
   const ref = useRef<HTMLButtonElement>(null);
@@ -51,6 +53,12 @@ export function PersonMenu({ id }: { id: string }) {
               <ThemeIcon size={18} className="text-ink-2" aria-hidden />
               {t(dark ? 'nav.lightMode' : 'nav.darkMode')}
             </button>
+            {admin && (
+              <Link to="/admin" onClick={close} className={row}>
+                <ShieldCheck size={18} className="text-ink-2" aria-hidden />
+                {t('nav.admin')}
+              </Link>
+            )}
             <Link to="/settings" onClick={close} className={row}>
               <Settings size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}

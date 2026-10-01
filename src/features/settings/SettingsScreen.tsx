@@ -10,7 +10,6 @@ import { Button } from '../../components/Button';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { Switch } from '../../components/Switch';
-import { AdminSettings } from './admin/AdminSettings';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -105,7 +104,6 @@ export function SettingsScreen() {
         ))}
       </Section>
 
-      {session.data.authority.systemRole === 'admin' && <AdminSettings />}
 
       <Section title={t('settings.prototype')}>
         <PreviewAs id="preview-as-settings" />

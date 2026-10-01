@@ -20,7 +20,8 @@
     "inboxUnread_two": "رسالتان غير مقروءتين",
     "inboxUnread_few": "{{count}} رسائل غير مقروءة",
     "inboxUnread_many": "{{count}} رسالة غير مقروءة",
-    "inboxUnread_other": "{{count}} رسالة غير مقروءة"
+    "inboxUnread_other": "{{count}} رسالة غير مقروءة",
+    "admin": "الإدارة"
   },
   "screens": {
     "projects": "المشاريع",
@@ -812,7 +813,10 @@
     "genders": {
       "male": "مذكّر",
       "female": "مؤنّث"
-    }
+    },
+    "title": "الإدارة",
+    "subtitle": "الأشخاص وإعدادات المكتب.",
+    "onlyAdmin": "هذه الصفحة للمسؤول فقط."
   },
   "due": {
     "pastDue": "متأخرة {{n}} يوم",

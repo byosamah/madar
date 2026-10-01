@@ -10,20 +10,20 @@ const openMenu = async (name: string) => {
   return screen.getByRole('menu');
 };
 
-describe('Admin settings', () => {
-  it('shows the Admin sections only to the Admin', async () => {
-    const first = await renderApp('/settings');
+describe('the Admin page', () => {
+  it('shows the Admin sections only to the Admin, and Settings no longer holds them', async () => {
+    const first = await renderApp('/admin');
     for (const name of ['People', 'Office settings']) expect(await region(name)).toBeInTheDocument();
     first.unmount();
-    await renderApp('/settings', (state: State) => {
+    await renderApp('/admin', (state: State) => {
       state.session.currentUserId = 'usr_005';
     });
-    await screen.findByRole('heading', { level: 1, name: 'Settings' });
+    expect(await screen.findByText('Only the Admin can open this page.')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
   });
 
   it('adds a person', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
@@ -34,7 +34,7 @@ describe('Admin settings', () => {
   });
 
   it('deactivates a person, then brings them back with Undo', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     await userEvent.click(within(await openMenu('Omar Haddad')).getByRole('menuitem', { name: 'Deactivate' }));
     await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
@@ -42,7 +42,7 @@ describe('Admin settings', () => {
   });
 
   it('offers no Deactivate on my own row, and refuses to drop the last Admin', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     const menu = await openMenu('Hala Nasser');
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Edit']);
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
@@ -54,7 +54,7 @@ describe('Admin settings', () => {
   });
 
   it('saves the office settings', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     const office = await region('Office settings');
     const limit = await within(office).findByLabelText('Workload limit');
     await userEvent.clear(limit);
@@ -64,7 +64,7 @@ describe('Admin settings', () => {
   });
 
   it('keeps what the Admin typed in the office form when other data changes', async () => {
-    const { store, api } = await renderApp('/settings');
+    const { store, api } = await renderApp('/admin');
     const office = await region('Office settings');
     const limit = await within(office).findByLabelText('Workload limit');
     await userEvent.clear(limit);
@@ -77,7 +77,7 @@ describe('Admin settings', () => {
   });
 
   it('shows why an email cannot be used, under the Email field', async () => {
-    await renderApp('/settings');
+    await renderApp('/admin');
     await userEvent.click(within(await openMenu('Sara Al-Qahtani')).getByRole('menuitem', { name: 'Edit' }));
     const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
     const email = within(sheet).getByLabelText('Email');
@@ -88,7 +88,7 @@ describe('Admin settings', () => {
   });
 
   it('offers no Admin role for an agent', async () => {
-    await renderApp('/settings');
+    await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     expect(within(sheet).getByLabelText('Role')).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe('Admin settings', () => {
   });
 
   it('shows Retry when the office settings cannot load, and no empty form', async () => {
-    await renderApp('/settings', undefined, { failFirst: 'settings.get' });
+    await renderApp('/admin', undefined, { failFirst: 'settings.get' });
     const office = await region('Office settings');
     expect(within(office).queryByLabelText('Workload limit')).toBeNull();
     await userEvent.click(await within(office).findByRole('button', { name: 'Retry' }));
@@ -105,14 +105,14 @@ describe('Admin settings', () => {
   });
 
   it('shows Retry when the people list cannot load', async () => {
-    await renderApp('/settings', undefined, { failFirst: (name, input) => name === 'users.list' && (input as { includeInactive?: boolean }).includeInactive === true });
+    await renderApp('/admin', undefined, { failFirst: (name, input) => name === 'users.list' && (input as { includeInactive?: boolean }).includeInactive === true });
     const people = await region('People');
     await userEvent.click(await within(people).findByRole('button', { name: 'Retry' }));
     expect(await within(people).findByText('Sara Al-Qahtani')).toBeInTheDocument();
   });
 
   it('says what is wrong with the office settings under the fields', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     const office = await region('Office settings');
     const limit = await within(office).findByLabelText('Workload limit');
     await userEvent.clear(limit);
@@ -123,7 +123,7 @@ describe('Admin settings', () => {
   });
 
   it('keeps the Arabic form of address of a new person', async () => {
-    const { store } = await renderApp('/settings');
+    const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
@@ -132,5 +132,19 @@ describe('Admin settings', () => {
     await userEvent.selectOptions(within(sheet).getByLabelText('Form of address in Arabic'), 'female');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(Object.values(store.state.users).find((u) => u.name === 'Nora Salem')?.gender).toBe('female'));
+  });
+});
+
+describe('the person menu', () => {
+  it('links the Admin to the Admin page, and nobody else', async () => {
+    const first = await renderApp('/');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '#/admin');
+    first.unmount();
+    await renderApp('/', (state: State) => {
+      state.session.currentUserId = 'usr_005';
+    });
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Sara Al-Qahtani' }))[0]);
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
   });
 });

@@ -15,7 +15,8 @@
     "darkMode": "Dark mode",
     "tasks": "Tasks",
     "notifications": "Notifications",
-    "inboxUnread": "Unread messages: {{count}}"
+    "inboxUnread": "Unread messages: {{count}}",
+    "admin": "Admin"
   },
   "screens": {
     "projects": "Projects",
@@ -744,7 +745,10 @@
     "genders": {
       "male": "Masculine",
       "female": "Feminine"
-    }
+    },
+    "title": "Admin",
+    "subtitle": "People and office settings.",
+    "onlyAdmin": "Only the Admin can open this page."
   },
   "due": {
     "pastDue": "{{n}} days past due",

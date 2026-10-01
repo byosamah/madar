@@ -11,6 +11,7 @@ import { ProjectScreen } from '../features/project/ProjectScreen';
 import { SearchScreen } from '../features/search/SearchScreen';
 import { TaskListScreen } from '../features/tasklist/TaskListScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { AdminScreen } from '../features/settings/admin/AdminScreen';
 import { WorkScreen } from '../features/work/WorkScreen';
 
 /** Hash links, so the build runs on any static host, the review link included. */
@@ -33,6 +34,7 @@ export function createAppRouter() {
         { path: 'search', element: <SearchScreen /> },
         { path: 'tasks', element: <TaskListScreen /> },
         { path: 'settings', element: <SettingsScreen /> },
+        { path: 'admin', element: <AdminScreen /> },
       ],
     },
   ]);
