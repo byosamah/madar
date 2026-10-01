@@ -89,18 +89,9 @@ describe('the Project screen header', () => {
     expect(await screen.findByText('This project does not exist anymore.')).toBeInTheDocument();
   });
 
-  it('draws the cover at once while the project loads, so the card can grow into it', async () => {
-    await renderApp('/projects', undefined, { latencyMs: 60 });
-    const card = (await screen.findAllByRole('article'))[0];
-    const id = card.querySelector('[data-layout-id]')?.getAttribute('data-layout-id');
-    await userEvent.click(within(card).getAllByRole('link')[0]);
-    expect(document.querySelector(`main [data-layout-id="${id}"]`)).not.toBeNull();
-    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
-  });
-
   it('goes Back to the same filtered list the project was opened from', async () => {
     await renderApp('/projects?filter=at_risk');
-    const card = (await screen.findAllByRole('article'))[0];
+    const card = within(await screen.findByRole('list', { name: 'Projects' })).getAllByRole('listitem')[0];
     await userEvent.click(within(card).getAllByRole('link')[0]);
     await screen.findByRole('heading', { level: 1 });
     const header = document.querySelector('main header') as HTMLElement;
@@ -111,7 +102,7 @@ describe('the Project screen header', () => {
   it('opens a project at the top of the page', async () => {
     const scroll = vi.spyOn(window, 'scrollTo');
     await renderApp('/projects');
-    const card = (await screen.findAllByRole('article'))[0];
+    const card = within(await screen.findByRole('list', { name: 'Projects' })).getAllByRole('listitem')[0];
     await userEvent.click(within(card).getAllByRole('link')[0]);
     await screen.findByRole('heading', { level: 1 });
     expect(scroll).toHaveBeenCalledWith(0, 0);

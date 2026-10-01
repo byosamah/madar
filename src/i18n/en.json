@@ -167,7 +167,7 @@
     "showAll": "Show all projects",
     "noDeadline": "No deadline",
     "morePeople": "+{{n}}",
-    "stageOf": "Stage {{n}} of {{total}}",
+    "stageOf": "Stage {{n}} of {{total}}: {{name}}",
     "menu": "Actions for {{name}}",
     "open": "Open",
     "postUpdate": "Post update",
@@ -182,7 +182,8 @@
     "clearHealth": "Show all health",
     "show": "Show",
     "stage": "Stage",
-    "anyStage": "Any stage"
+    "anyStage": "Any stage",
+    "stageCount": "Stage {{n}} of {{total}}"
   },
   "projectForm": {
     "createTitle": "New Project",

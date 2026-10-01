@@ -45,7 +45,7 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
         <ProgressLine
           value={stageProgress(summary)}
           hue={projectHue(project.id)}
-          label={t('projects.stageOf', { n: index + 1, total: summary.stages.length })}
+          label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
           className="col-start-2 md:col-start-auto"
         />
         <span className="col-start-2 min-w-0 md:col-start-auto md:text-end">

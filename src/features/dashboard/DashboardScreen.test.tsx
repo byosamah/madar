@@ -18,7 +18,7 @@ describe('the Dashboard', () => {
     await renderApp('/dashboard');
     await userEvent.click(await tile(/At risk or late/));
     expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(5));
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(5));
   });
 
   it('keeps its filters in the link', async () => {

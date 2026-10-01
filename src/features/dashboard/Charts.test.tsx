@@ -9,7 +9,9 @@ describe('the Dashboard charts', () => {
   it('links each stage bar to the Projects screen with that stage', async () => {
     await renderApp('/dashboard');
     await userEvent.click(within(await chart('Projects per stage')).getByRole('link', { name: /Construction Documents/ }));
-    expect(await screen.findByRole('radio', { name: 'Construction Documents' })).toHaveAttribute('aria-checked', 'true');
+    await waitFor(() => expect(window.location.hash).toBe('#/projects?stage=Construction%20Documents'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Filter, 1 active' }));
+    expect(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Stage' })).toHaveValue('Construction Documents');
   });
 
   it('shows the health mix with a word and a number for each color', async () => {
@@ -44,7 +46,7 @@ describe('the Dashboard charts', () => {
     for (const [word, n] of [['Late', 2], ['At risk', 3], ['On track', 5]] as const) {
       const view = await renderApp('/dashboard');
       await userEvent.click(within(await chart('Health mix')).getByRole('link', { name: new RegExp(word) }));
-      await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(n));
+      await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(n));
       view.unmount();
     }
   });
