@@ -9,7 +9,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] 3. Calm shared parts
 - [x] 4. The tab pill, the person menu and the routes
 - [x] 5. The Projects list
-- [ ] 6. Home
+- [x] 6. Home
 - [ ] 7. A calm project header and the About panel
 - [ ] 8. Calm task rows and one filter button
 - [ ] 9. Browser sweep and the review link

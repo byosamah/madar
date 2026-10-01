@@ -741,5 +741,37 @@
   "filter": {
     "label": "Filter",
     "withCount": "{{label}}, {{n}} active"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Good morning, {{name}}",
+      "afternoon": "Good afternoon, {{name}}",
+      "evening": "Good evening, {{name}}"
+    },
+    "ringLabel": "{{done}} of {{total}} done today",
+    "ringText": "{{done}} of {{total}}",
+    "things": "{{n}} things today",
+    "things_one": "1 thing today",
+    "things_other": "{{count}} things today",
+    "next": {
+      "title": "Next for you",
+      "review": "Review",
+      "open": "Open task",
+      "logHours": "Log hours",
+      "reviewLine": "Approve “{{title}}”",
+      "pastDue": "Finish “{{title}}”",
+      "dueToday": "Finish “{{title}}”",
+      "continue": "Continue “{{title}}”",
+      "hours": "Log today's hours",
+      "clear": "You are all caught up."
+    },
+    "today": "Today",
+    "todayClear": "Nothing is due today.",
+    "logToday": "Log hours for today",
+    "allTasks": "See all my tasks",
+    "projects": "Your projects",
+    "projectCount": "{{n}} active",
+    "noProjects": "You are not on a project yet.",
+    "allProjects": "All projects"
   }
 }

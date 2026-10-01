@@ -797,5 +797,40 @@
   "filter": {
     "label": "تصفية",
     "withCount": "{{label}}، {{n}} مفعّلة"
+  },
+  "home": {
+    "greeting": {
+      "morning": "صباح الخير يا {{name}}",
+      "afternoon": "مساء الخير يا {{name}}",
+      "evening": "مساء الخير يا {{name}}"
+    },
+    "ringLabel": "أُنجز {{done}} من {{total}} اليوم",
+    "ringText": "{{done}} من {{total}}",
+    "things": "{{n}} مهام اليوم",
+    "things_one": "مهمة واحدة اليوم",
+    "things_two": "مهمتان اليوم",
+    "things_few": "{{count}} مهام اليوم",
+    "things_many": "{{count}} مهمة اليوم",
+    "things_other": "{{count}} مهمة اليوم",
+    "next": {
+      "title": "التالي لك",
+      "review": "مراجعة",
+      "open": "فتح المهمة",
+      "logHours": "تسجيل الساعات",
+      "reviewLine": "اعتماد «{{title}}»",
+      "pastDue": "إنهاء «{{title}}»",
+      "dueToday": "إنهاء «{{title}}»",
+      "continue": "متابعة «{{title}}»",
+      "hours": "سجّل ساعات اليوم",
+      "clear": "لا شيء بانتظارك."
+    },
+    "today": "اليوم",
+    "todayClear": "لا شيء مستحق اليوم.",
+    "logToday": "سجّل ساعات اليوم",
+    "allTasks": "كل مهامي",
+    "projects": "مشاريعك",
+    "projectCount": "{{n}} نشطة",
+    "noProjects": "لست في أي مشروع بعد.",
+    "allProjects": "كل المشاريع"
   }
 }
