@@ -892,5 +892,35 @@
     "removed": "File removed",
     "download": "Download {{name}}",
     "tooMany": "You can attach {{count}} files at most."
+  },
+  "links": {
+    "title": "Links",
+    "kinds": {
+      "moodboard": "Moodboard",
+      "folder": "Office folder",
+      "location": "Location",
+      "delivery": "Client delivery",
+      "other": "Other"
+    },
+    "modelFolder": "Model folder",
+    "addLink": "Add link",
+    "addTitle": "Add a link",
+    "editTitle": "Change the link",
+    "hint": "A web link opens in a new tab. An office network path gets a Copy button.",
+    "kind": "Kind",
+    "name": "Name",
+    "nameHint": "Optional, for example \"{{example}}\".",
+    "url": "Link",
+    "add": "Add link",
+    "save": "Save",
+    "remove": "Remove link",
+    "added": "Link added.",
+    "saved": "Link saved.",
+    "removed": "Link removed.",
+    "copied": "Path copied.",
+    "copy": "Copy {{name}}",
+    "edit": "Change {{name}}",
+    "badWeb": "Use a web link that starts with {{scheme}}.",
+    "badFolder": "Use a web link ({{scheme}}...) or an office network path ({{path}})."
   }
 }

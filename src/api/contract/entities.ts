@@ -116,6 +116,19 @@ export type HealthOverride = z.infer<typeof HealthOverride>;
 export const ProjectPause = z.object({ reason: z.string().trim().min(1).max(280), resumeOn: Day.nullable(), by: UserId, at: Stamp });
 export type ProjectPause = z.infer<typeof ProjectPause>;
 
+/** A link to a place outside Madar: a moodboard, an office folder, a map pin, the client's delivery folder (colleague comment 5, 2026-10-01). */
+export const LinkKind = z.enum(['moodboard', 'folder', 'location', 'delivery', 'other']);
+export type LinkKind = z.infer<typeof LinkKind>;
+const WEB_LINK = /^https?:\/\/[^\s/$.?#][^\s]*$/i;
+const NETWORK_PATH = /^\\\\[^\\\s]+\\.+$/;
+/** Only web links open from Madar, so a link can never run code. An office folder may also be a network path (\\SERVER\folder), which Madar copies. */
+export function linkUrlOk(kind: LinkKind, url: string): boolean {
+  return WEB_LINK.test(url) || (kind === 'folder' && NETWORK_PATH.test(url));
+}
+export const isNetworkPath = (url: string): boolean => NETWORK_PATH.test(url);
+export const ProjectLink = z.object({ id: z.string(), kind: LinkKind, label: z.string().trim().max(80), url: z.string().trim().min(1).max(500) });
+export type ProjectLink = z.infer<typeof ProjectLink>;
+
 export const Project = z.object({
   id: ProjectId,
   code: z.string().regex(/^[A-Z]{1,4}-\d{2}-\d{3,}$/),
@@ -136,6 +149,8 @@ export const Project = z.object({
   pause: ProjectPause.nullable().optional(),
   /** The project's picture: one form and a second light, never the same as another project's (owner, 2026-10-01). */
   mark: z.number().int().nonnegative().optional(),
+  /** Optional, so offices saved before links existed still load. */
+  links: z.array(ProjectLink).max(20).optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

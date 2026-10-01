@@ -2,6 +2,7 @@ import { addDirectConversation, addProjectConversation } from '../api/chatState'
 import { chatReadKey, emptyState, memberKey, nextId, type State } from '../api/store';
 import {
   defaultPreferences, emptyReactions, type FileRec, type FileVersion, type Project, type Task, type User,
+  type LinkKind,
 } from '../api/contract/entities';
 import { writeEvent, type EventContext } from '../api/events';
 import { notify, reviewersOf } from '../api/notify';
@@ -392,6 +393,27 @@ function addChatTalk(state: State, today: string, humans: User[]): void {
 }
 
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */
+/** A few links to places outside Madar, so the About panel shows what the list looks like (colleague comment 5). */
+function addSampleLinks(state: State) {
+  const links: Record<string, [LinkKind, string, string][]> = {
+    prj_001: [
+      ['moodboard', 'Pinterest: facades', 'https://www.pinterest.com/madar-studio/corniche-facades/'],
+      ['location', 'Google Maps', 'https://maps.google.com/?q=26.2928,50.2172'],
+      ['delivery', 'Google Drive: deliveries', 'https://drive.google.com/drive/folders/corniche-client-deliveries'],
+    ],
+    prj_002: [
+      ['moodboard', 'Pinterest: courtyards', 'https://www.pinterest.com/madar-studio/dune-line-courtyards/'],
+      ['location', 'Google Maps', 'https://maps.google.com/?q=26.3412,50.1951'],
+    ],
+    prj_003: [['location', 'Google Maps', 'https://maps.google.com/?q=26.3069,50.1453']],
+  };
+  for (const [projectId, rows] of Object.entries(links)) {
+    const project = state.projects[projectId];
+    if (!project) continue;
+    project.links = rows.map(([kind, label, url]) => ({ id: nextId(state, 'lnk'), kind, label, url }));
+  }
+}
+
 export async function buildSeed(today: string, putBlob: PutBlob): Promise<State> {
   const state = emptyState(today);
   const blobJobs: Promise<void>[] = [];
@@ -438,6 +460,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
   addAgentSummaries(state, today, agentId);
   addChatTalk(state, today, humans);
+  addSampleLinks(state);
 
   const weekAgo = at(addDays(today, -7), 0);
   for (const n of Object.values(state.notifications)) if (n.createdAt < weekAgo) n.read = true;

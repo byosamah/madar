@@ -24,7 +24,7 @@ const SPEC_CALLS = [
 ];
 // Plan clarification 3.
 // Owner's requests after the redesign (2026-10-01).
-const OWNER_CALLS = ['projects.pause', 'projects.resume'];
+const OWNER_CALLS = ['projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink', 'projects.removeLink'];
 // Saved stage lists (owner request, 2026-10-01).
 const TEMPLATE_CALLS = ['stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete'];
 const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];

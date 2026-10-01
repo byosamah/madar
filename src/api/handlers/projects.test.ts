@@ -304,3 +304,38 @@ describe('pausing a project', () => {
     await expect(t.api.call('projects.resume', { id: 'prj_001' })).rejects.toMatchObject({ code: 'conflict' });
   });
 });
+
+describe('project links (colleague comment 5, 2026-10-01)', () => {
+  it('lets the leader and the team add, change and remove links; others only read them', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const added = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'moodboard', label: 'Pinterest: facades', url: 'https://www.pinterest.com/office/facades/' });
+    const link = added.project.links!.at(-1)!;
+    expect(link).toMatchObject({ kind: 'moodboard', label: 'Pinterest: facades', url: 'https://www.pinterest.com/office/facades/' });
+    t.as('usr_003');
+    const changed = await t.api.call('projects.updateLink', { projectId: 'prj_001', linkId: link.id, label: 'Pinterest: lobby' });
+    expect(changed.project.links!.find((l) => l.id === link.id)?.label).toBe('Pinterest: lobby');
+    t.as('usr_004');
+    await expect(t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'other', label: '', url: 'https://example.com' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('projects.removeLink', { projectId: 'prj_001', linkId: link.id })).rejects.toMatchObject({ code: 'forbidden' });
+    t.as('usr_002');
+    const removed = await t.api.call('projects.removeLink', { projectId: 'prj_001', linkId: link.id });
+    expect(removed.project.links!.some((l) => l.id === link.id)).toBe(false);
+    await expect(t.api.call('projects.removeLink', { projectId: 'prj_001', linkId: link.id })).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('accepts only web links, and network paths only for an office folder', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const bad = (kind: 'other' | 'folder' | 'location', url: string) =>
+      expect(t.api.call('projects.addLink', { projectId: 'prj_001', kind, label: '', url })).rejects.toMatchObject({ code: 'invalid_input' });
+    await bad('other', 'javascript:alert(1)');
+    await bad('other', 'data:text/html,hi');
+    await bad('other', 'ftp://files.example.com');
+    await bad('location', '\\\\STUDIO\\Projects\\KH-26-001');
+    const folder = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'folder', label: '', url: '\\\\STUDIO\\Projects\\KH-26-001\\Renders' });
+    expect(folder.project.links!.at(-1)!.url).toBe('\\\\STUDIO\\Projects\\KH-26-001\\Renders');
+    const plain = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: 'http://maps.google.com/?q=26.28,50.21' });
+    expect(plain.project.links!.at(-1)!.kind).toBe('location');
+  });
+});

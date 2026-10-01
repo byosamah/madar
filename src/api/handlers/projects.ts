@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, Day, DeadlineId, FileId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
+import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
@@ -243,6 +243,64 @@ export const projectsPause = defineCall({
     applyPatch(ctx, project, { status: 'on_hold', pause }, { projectId: project.id, verb: 'project.paused', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
+  },
+});
+
+const LinkLabel = z.string().trim().max(80);
+const LinkUrl = z.string().trim().min(1, 'Paste the link.').max(500);
+
+function assertLink(kind: LinkKind, url: string) {
+  if (linkUrlOk(kind, url)) return;
+  throw invalid('url', kind === 'folder' ? 'Use a web link (https://...) or an office network path (\\\\SERVER\\folder).' : 'Use a web link that starts with https://.');
+}
+
+function requireLink(project: Project, linkId: string) {
+  const link = (project.links ?? []).find((item) => item.id === linkId);
+  if (!link) throw notFound('Link', linkId);
+  return link;
+}
+
+function saveLinks(ctx: Ctx, project: Project, links: Project['links']) {
+  applyPatch(ctx, project, { links }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
+  touch(ctx, project.id);
+  return detail(ctx, project);
+}
+
+/** The leader and the team add a link to a place outside Madar; everyone who opens the project can use it (colleague comment 5). */
+export const projectsAddLink = defineCall({
+  input: z.object({ projectId: ProjectId, kind: LinkKind, label: LinkLabel.default(''), url: LinkUrl }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.projectId);
+    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    assertLink(input.kind, input.url);
+    const links = project.links ?? [];
+    if (links.length >= 20) throw invalid('url', 'A project holds up to 20 links.');
+    return saveLinks(ctx, project, [...links, { id: nextId(ctx.state, 'lnk'), kind: input.kind, label: input.label, url: input.url }]);
+  },
+});
+
+export const projectsUpdateLink = defineCall({
+  input: z.object({ projectId: ProjectId, linkId: z.string(), kind: LinkKind.optional(), label: LinkLabel.optional(), url: LinkUrl.optional() }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.projectId);
+    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    const link = requireLink(project, input.linkId);
+    const next = { ...link, ...(input.kind ? { kind: input.kind } : {}), ...(input.label !== undefined ? { label: input.label } : {}), ...(input.url ? { url: input.url } : {}) };
+    assertLink(next.kind, next.url);
+    return saveLinks(ctx, project, (project.links ?? []).map((item) => (item.id === link.id ? next : item)));
+  },
+});
+
+export const projectsRemoveLink = defineCall({
+  input: z.object({ projectId: ProjectId, linkId: z.string() }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.projectId);
+    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    requireLink(project, input.linkId);
+    return saveLinks(ctx, project, (project.links ?? []).filter((item) => item.id !== input.linkId));
   },
 });
 
@@ -507,6 +565,9 @@ export const projectCalls = {
   'projects.setStatus': projectsSetStatus,
   'projects.pause': projectsPause,
   'projects.resume': projectsResume,
+  'projects.addLink': projectsAddLink,
+  'projects.updateLink': projectsUpdateLink,
+  'projects.removeLink': projectsRemoveLink,
   'projects.setHealthOverride': projectsSetHealthOverride,
   'projects.clearHealthOverride': projectsClearHealthOverride,
   'projects.delete': projectsDelete,
