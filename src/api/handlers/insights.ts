@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, ProjectId, ProjectStatus, Stage, StageId, TaskId, UserId, type Project,
+  ClientId, Day, Deadline, FileId, HealthValue, ProjectId, ProjectStatus, Stage, StageId, TaskId, UserId, type Project,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
@@ -31,7 +31,7 @@ export const DashboardView = z.object({
     limit: Count,
     rows: z.array(z.object({ user: UserCard, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
   }),
-  schedule: z.array(z.object({ project: Ref, currentStageId: StageId, stages: z.array(Stage), deadlines: z.array(Deadline) })),
+  schedule: z.array(z.object({ project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline) })),
 });
 export type DashboardView = z.infer<typeof DashboardView>;
 
@@ -54,6 +54,7 @@ export const dashboardGet = defineCall({
     const activeIds = new Set(active.map((p) => p.id));
     const tasks = Object.values(state.tasks);
     const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: tasks.filter((t) => t.projectId === p.id) }, today));
+    const healthOf = new Map(active.flatMap((p, i) => (healths[i] ? [[p.id, healths[i].value] as const] : [])));
     const healthMix = { on_track: 0, at_risk: 0, late: 0 };
     for (const health of healths) if (health) healthMix[health.value] += 1;
 
@@ -103,7 +104,7 @@ export const dashboardGet = defineCall({
       workload: { weeks, limit, rows: workloadRows },
       schedule: [...active]
         .sort((a, b) => (a.targetEndDate ?? '9999-12-31').localeCompare(b.targetEndDate ?? '9999-12-31') || a.code.localeCompare(b.code))
-        .map((p) => ({ project: refOf(p), currentStageId: p.currentStageId, stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id) })),
+        .map((p) => ({ project: refOf(p), currentStageId: p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id) })),
     };
   },
 });

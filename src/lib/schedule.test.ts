@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartRange, clipSpan, dayDelta, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct } from './schedule';
+import { addMonths, chartRange, clipSpan, dayDelta, meetingWindow, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct } from './schedule';
 
 describe('the chart range', () => {
   it('runs from the first month start to the last month end', () => {
@@ -53,5 +53,28 @@ describe('office schedule windows', () => {
     expect(clipSpan({ start: '2026-08-20', end: '2026-09-10' }, window)).toEqual({ start: '2026-09-01', end: '2026-09-10' });
     expect(clipSpan({ start: '2026-09-05', end: '2026-10-10' }, window)).toEqual({ start: '2026-09-05', end: '2026-09-30' });
     expect(clipSpan({ start: '2026-10-01', end: '2026-10-10' }, window)).toBeNull();
+  });
+});
+
+describe('meeting windows', () => {
+  it('shows whole months around today for each zoom', () => {
+    expect(meetingWindow('2026-10-01', 'quarter')).toEqual({
+      span: { start: '2026-09-01', end: '2026-11-30' },
+      ticks: ['2026-09-01', '2026-10-01', '2026-11-01'],
+    });
+    const half = meetingWindow('2026-10-15', 'half');
+    expect(half.span).toEqual({ start: '2026-09-01', end: '2027-02-28' });
+    expect(half.ticks).toHaveLength(6);
+    const year = meetingWindow('2026-10-15', 'year');
+    expect(year.span).toEqual({ start: '2026-08-01', end: '2027-07-31' });
+    expect(year.ticks).toHaveLength(12);
+  });
+
+  it('moves by months, across a year edge, and back', () => {
+    expect(meetingWindow('2026-10-01', 'quarter', 1).span.start).toBe('2026-10-01');
+    expect(meetingWindow('2026-10-01', 'quarter', 3).span).toEqual({ start: '2026-12-01', end: '2027-02-28' });
+    expect(meetingWindow('2026-01-10', 'quarter', -1).span).toEqual({ start: '2025-11-01', end: '2026-01-31' });
+    expect(addMonths('2026-12-20', 1)).toBe('2027-01-01');
+    expect(addMonths('2026-01-20', -2)).toBe('2025-11-01');
   });
 });

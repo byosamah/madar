@@ -30,6 +30,16 @@ describe('dashboard.get', () => {
     expect(d.schedule.map((row) => row.project.code)).toEqual(['KH-26-001']);
   });
 
+  it('gives each schedule row its health, as the health mix counts it', async () => {
+    const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
+    expect(d.schedule.map((row) => row.health)).toEqual(['at_risk']);
+    const state = world();
+    state.projects.prj_001.healthOverride = { value: 'late', reason: 'Client paused the work', setBy: 'usr_001', setAt: '2026-09-30T09:00:00.000+03:00' };
+    const late = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    expect(late.schedule[0].health).toBe('late');
+    expect(late.charts.healthMix.late).toBe(1);
+  });
+
   it('counts created and done tasks per week for 12 weeks', async () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.charts.throughput).toHaveLength(12);

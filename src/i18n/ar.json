@@ -649,6 +649,34 @@
       "today": "اليوم"
     },
     "sections": "أقسام لوحة المعلومات",
+    "meetingButton": "عرض الاجتماع",
+    "meeting": {
+      "title": "عرض الاجتماع",
+      "timeline": "الجدول الزمني للمشاريع",
+      "controls": "أدوات عرض الاجتماع",
+      "zoom": "التكبير",
+      "zooms": {
+        "quarter": "ربع سنة",
+        "half": "نصف سنة",
+        "year": "سنة"
+      },
+      "earlier": "شهر أبكر",
+      "later": "شهر أحدث",
+      "today": "اليوم",
+      "exit": "خروج",
+      "filters": "التصفية: {{list}}",
+      "noFilters": "بلا تصفية",
+      "leader": "القائد: {{name}}",
+      "client": "العميل: {{name}}",
+      "status": "الحالة: {{name}}",
+      "deadline": "موعد: {{name}}، {{date}}",
+      "stage": "{{stage}}، {{state}}",
+      "stageStates": {
+        "done": "منجزة",
+        "current": "حالية",
+        "next": "قادمة"
+      }
+    },
     "views": {
       "projects": "المشاريع",
       "people": "الأشخاص",

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
@@ -30,6 +30,7 @@ export function DashboardScreen() {
   const { t } = useTranslation();
   const lang = useLang();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const section = oneOf(params.get('view'), VIEWS, 'projects');
   const leader = params.get('leader') ?? '';
@@ -47,13 +48,15 @@ export function DashboardScreen() {
     else next.set(key, value);
     return next;
   }, { replace: true });
+  // The meeting view takes the filters, not the section.
+  const meetingSearch = new URLSearchParams([...params].filter(([key]) => ['status', 'leader', 'client'].includes(key))).toString();
   const active = [status !== 'active', leader !== '', client !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
   return (
     <div className="flex flex-col gap-5">
       <ScreenTitle title={t('screens.dashboard')} />
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <FilterButton label={t('filter.label')} count={active}>
           <label className={LABEL}>{t('dashboard.statusLabel')}
             <select value={status} onChange={(event) => set('status', event.target.value, 'active')} className={SELECT}>
@@ -73,6 +76,7 @@ export function DashboardScreen() {
             </select>
           </label>
         </FilterButton>
+        <Button variant="primary" onClick={() => navigate({ pathname: '/dashboard/meeting', search: meetingSearch })}>{t('dashboard.meetingButton')}</Button>
       </div>
       {dashboard.error && (
         <EmptyState title={t('screens.dashboard')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />
