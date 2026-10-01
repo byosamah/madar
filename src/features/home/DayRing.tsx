@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 export function DayRing({ done, total }: { done: number; total: number }) {
   const { t } = useTranslation();
   const gradient = useId();
+  const reduce = useReducedMotion();
   if (total === 0) return null;
   const r = 15;
   const length = 2 * Math.PI * r;
@@ -27,7 +28,7 @@ export function DayRing({ done, total }: { done: number; total: number }) {
           cx="18" cy="18" r={r} fill="none" stroke={`url(#${gradient})`} strokeWidth="4" strokeLinecap="round" strokeDasharray={length}
           initial={{ strokeDashoffset: length }}
           animate={{ strokeDashoffset: length * (1 - done / total) }}
-          transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
+          transition={{ duration: reduce ? 0 : 0.9, ease: [0.2, 0.8, 0.2, 1] }}
         />
       </svg>
       <span aria-hidden className="tabular text-subheadline font-semibold text-ink">{t('home.ringText', { done, total })}</span>

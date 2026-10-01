@@ -48,6 +48,7 @@ export function useAction<N extends CallName>(name: N, options: { onSuccess?: (o
   const { t } = useTranslation();
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
   const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
+    mutationKey: ['api', name],
     mutationFn: (input) => api.call(name, input),
     onSuccess: (output) => options.onSuccess?.(output),
     onError: (error, input) => toast.show({

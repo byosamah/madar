@@ -55,6 +55,14 @@ describe('the Tasks tab list', () => {
     expect(await screen.findByText('Fire strategy report')).toBeInTheDocument();
   });
 
+  it('does not count the board view as a filter', async () => {
+    await renderApp(TASKS);
+    await screen.findByText('Stair details');
+    await userEvent.click(within(await filter()).getByRole('radio', { name: 'Board' }));
+    await userEvent.keyboard('{Escape}');
+    expect(await screen.findByRole('button', { name: 'Filter' })).toBeInTheDocument();
+  });
+
   it('says how late a task is, gently, and shows counts only when there are some', async () => {
     await renderApp(TASKS);
     const row = (await screen.findByText('Stair details')).closest('li') as HTMLElement;

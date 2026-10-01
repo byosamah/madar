@@ -76,3 +76,12 @@ describe('calm palette', () => {
     for (const name of ['--sig-from', '--sig-to']) expect(contrast([255, 255, 255], hex(token(':root', name))), name).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe('text on the glow', () => {
+  it('keeps the Next for you label and context at 4.5:1 on the brightest glow tints', () => {
+    for (const tint of ['--glow-a', '--glow-b', '--glow-c']) {
+      const bg = hex(token(':root', tint));
+      for (const text of ['--sig-text', '--c-glow-ink-2']) expect(contrast(hex(token(':root', text)), bg), `${text} on ${tint}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

@@ -47,8 +47,8 @@ export function AppShell() {
       <div className="fixed end-4 top-4 z-30 hidden sm:block">
         <PersonMenu id="wide" />
       </div>
-      <main className="app-page mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
-        <div className="-me-1.5 flex justify-end sm:hidden">
+      <main className="app-page relative mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
+        <div className="absolute end-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 sm:hidden">
           <PersonMenu id="phone" />
         </div>
         <ScreenEntrance key={pathname} />

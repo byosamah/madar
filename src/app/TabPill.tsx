@@ -17,6 +17,7 @@ export function TabPill() {
   return (
     <nav
       aria-label={t('nav.main')}
+      data-pill
       data-compact={compact || undefined}
       className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100vw-24px)] items-center gap-0.5 rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >

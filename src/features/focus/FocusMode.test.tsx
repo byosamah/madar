@@ -17,10 +17,13 @@ describe('Focus mode', () => {
     expect(within(focus).getByRole('heading', { level: 1, name: 'Civil Defense drawings' })).toBeInTheDocument();
     expect(within(focus).getByText('Corniche Office Tower')).toBeInTheDocument();
     expect(window.location.hash).toContain('focus=tsk_012');
+    await waitFor(() => expect(within(focus).getByRole('button', { name: 'Done' })).toHaveFocus());
+    expect(document.querySelector('.app-page')).toHaveProperty('inert', true);
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Focus' })).toBeNull());
     expect(window.location.hash).toContain('task=tsk_012');
     expect(await screen.findByRole('dialog', { name: 'Civil Defense drawings' })).toBeInTheDocument();
+    expect(document.querySelector('.app-page')).toHaveProperty('inert', false);
   });
 
   it('follows the review rule on Done, then closes', async () => {

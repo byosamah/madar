@@ -38,7 +38,7 @@ export function TasksTab({ detail }: TabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <FilterButton label={t('filter.label')} count={[filter !== 'all', showDone && view === 'list', view === 'board'].filter(Boolean).length}>
+        <FilterButton label={t('filter.label')} count={[filter !== 'all', showDone && view === 'list'].filter(Boolean).length}>
           <fieldset className="flex flex-col">
             <legend className={LEGEND}>{t('projects.show')}</legend>
             {FILTERS.map((value) => (

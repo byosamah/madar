@@ -16,7 +16,10 @@ export function PersonMenu({ id }: { id: string }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   if (!user) return null;
-  const close = () => setOpen(false);
+  const close = () => {
+    setOpen(false);
+    ref.current?.focus();
+  };
   const nextLanguage = user.preferences.language === 'ar' ? 'en' : 'ar';
   const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-body text-ink hover:bg-fill';
   return (

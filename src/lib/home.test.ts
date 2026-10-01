@@ -51,7 +51,9 @@ describe('day ring', () => {
     const late = row('tsk_004', { dueDate: '2026-09-28', status: 'todo' }, true);
     const later = row('tsk_005', { dueDate: '2026-10-08', status: 'todo' });
     const waiting = row('tsk_006', { dueDate: '2026-09-28', status: 'in_review' });
-    expect(dayRing([doneToday, doneBefore, dueToday, late, later, waiting], TODAY)).toEqual({ done: 1, total: 3 });
+    expect(dayRing([doneToday, doneBefore, dueToday, late, later], TODAY)).toEqual({ done: 1, total: 3 });
+    // A task I sent to review fills the ring: the member's part is done.
+    expect(dayRing([doneToday, dueToday, late, waiting], TODAY)).toEqual({ done: 2, total: 4 });
     expect(dayRing([later], TODAY)).toEqual({ done: 0, total: 0 });
     expect(STAMP.startsWith(TODAY)).toBe(true);
   });

@@ -13,6 +13,9 @@ export function CountUp({ id, value, format }: { id: string; value: number; form
   const ref = useRef<HTMLSpanElement>(null);
   const reduce = useReducedMotion();
   const final = format(value);
+  // The format function is new on every render; a ref keeps a re-render from stopping the count.
+  const formatRef = useRef(format);
+  formatRef.current = format;
   useEffect(() => {
     const node = ref.current;
     if (!ANIMATE || reduce || !node || seen.has(id) || value === 0) return;
@@ -22,14 +25,14 @@ export function CountUp({ id, value, format }: { id: string; value: number; form
     const step = (now: number) => {
       const p = Math.min(1, (now - start) / 900);
       const eased = 1 - (1 - p) ** 3;
-      node.textContent = p < 1 ? format(Math.round(value * eased)) : final;
+      node.textContent = formatRef.current(p < 1 ? Math.round(value * eased) : value);
       if (p < 1) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(frame);
-      node.textContent = final;
+      node.textContent = formatRef.current(value);
     };
-  }, [id, value, final, format, reduce]);
+  }, [id, value, reduce]);
   return <span ref={ref} className="tabular">{final}</span>;
 }

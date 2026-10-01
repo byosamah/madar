@@ -14,7 +14,7 @@ describe('Home', () => {
     await renderApp('/', as('usr_005'));
     expect(await screen.findByRole('heading', { level: 1, name: 'Good morning, Sara' })).toBeInTheDocument();
     expect(screen.getByText(/30 September/)).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: '0 of 1 done today' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: '1 of 2 done today' })).toBeInTheDocument();
   });
 
   it('offers the oldest past-due task as the one next thing', async () => {
@@ -65,6 +65,15 @@ describe('Home', () => {
     expect(within(await next()).getByText('Approve “Authority comments response”')).toBeInTheDocument();
     const projects = screen.getByRole('region', { name: 'Your projects' });
     await waitFor(() => expect(within(projects).getAllByRole('listitem')).toHaveLength(10));
+  });
+
+  it('says what is left only after the person finishes something', async () => {
+    await renderApp('/', as('usr_006'));
+    const card = await next();
+    expect(within(card).queryByText(/more today/)).toBeNull();
+    const today = screen.getByRole('region', { name: 'Today' });
+    await userEvent.click(within(today).getByRole('checkbox', { name: 'Complete Stair details' }));
+    expect(await within(card).findByText(/^Done\. \d+ more today\.$/, {}, { timeout: 2000 })).toBeInTheDocument();
   });
 
   it('keeps one main button on the screen', async () => {

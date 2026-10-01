@@ -1,5 +1,6 @@
 import { AnimatePresence } from 'motion/react';
-import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
@@ -37,9 +38,25 @@ export function HomeScreen() {
     next.delete('project');
     return next;
   }), [setParams]);
-  const [lastNext, setLastNext] = useState<string | null>(null);
   const [showLeft, setShowLeft] = useState(false);
-  const failed = [mine, review, week].find((query) => query.error);
+  const queryClient = useQueryClient();
+  // The "Done. N more today." line shows only after the person finishes something here, and fades after 5 seconds (moment 3).
+  useEffect(() => {
+    let timer = 0;
+    const stop = queryClient.getMutationCache().subscribe((event) => {
+      const key = event.mutation?.options.mutationKey;
+      const finished = key?.[1] === 'tasks.complete' || key?.[1] === 'tasks.approve';
+      if (event.type !== 'updated' || !finished || event.action.type !== 'success') return;
+      setShowLeft(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setShowLeft(false), 5000);
+    });
+    return () => {
+      stop();
+      window.clearTimeout(timer);
+    };
+  }, [queryClient]);
+  const failed = [session, mine, review, week].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   const user = session.data?.user;
   if (!user || !mine.data || !review.data || !week.data) return null;
@@ -50,19 +67,13 @@ export function HomeScreen() {
   const loggedToday = week.data.dayTotals[dayIndex] ?? 0;
   const next = nextForYou({ review: review.data, mine: mine.data, today, hoursUnderTarget: week.data.weekTotal < week.data.target, workday });
   const ring = dayRing(mine.data, today);
-  // After the person finishes the item, one line says what is left today (moment 3).
-  const nextKey = next.kind === 'hours' || next.kind === 'clear' ? next.kind : next.row.task.id;
-  if (lastNext !== nextKey) {
-    setShowLeft(lastNext !== null);
-    setLastNext(nextKey);
-  }
   const todayRows = dueByToday(mine.data, today);
   const things = todayRows.length + review.data.length;
   const firstName = user.name.split(' ')[0];
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
+    <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
       <div className="flex min-w-0 flex-col gap-4">
         <ScreenTitle title={t(`home.greeting.${greetingKey(officeHour())}`, { name: firstName })}>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -76,7 +87,7 @@ export function HomeScreen() {
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
         <TodayPanel rows={todayRows} logHours={workday && loggedToday === 0 && week.data.target > 0} onOpen={(row) => open(row.project.id, row.task.id)} />
       </div>
-      <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 lg:pt-[4.25rem]">
+      <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">
           <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
           {projects.data && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.data.length)}</span>}

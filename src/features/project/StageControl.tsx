@@ -84,7 +84,7 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
               );
             })}
           </ol>
-          <StageDetails key={selected.id} detail={detail} stage={selected} onClose={() => setOpen(false)} />
+          <StageDetails key={selected.id} detail={detail} stage={selected} onClose={() => { setOpen(false); ref.current?.focus(); }} />
         </Popover>
       )}
     </>

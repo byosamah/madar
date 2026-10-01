@@ -29,9 +29,14 @@ export function dueByToday(mine: TaskRow[], today: string): TaskRow[] {
   return mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate <= today).sort(byDue);
 }
 
-/** The day ring (redesign spec 5.2): done today, against done today plus what is due today or past due. */
+/**
+ * The day ring (redesign spec 5.2): what today asks of me, and how much of it I finished.
+ * A task I sent to review is finished from my side, so it fills the ring too; otherwise a member who ticks a task sees the ring shrink.
+ */
 export function dayRing(mine: TaskRow[], today: string): { done: number; total: number } {
-  const done = mine.filter((row) => row.task.status === 'done' && row.task.completedAt !== null && stampDay(row.task.completedAt) === today).length;
+  const doneToday = mine.filter((row) => row.task.status === 'done' && row.task.completedAt !== null && stampDay(row.task.completedAt) === today).length;
+  const waiting = mine.filter((row) => row.task.status === 'in_review' && row.task.dueDate !== null && row.task.dueDate <= today).length;
+  const done = doneToday + waiting;
   return { done, total: done + dueByToday(mine, today).length };
 }
 

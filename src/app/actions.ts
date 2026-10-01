@@ -23,6 +23,7 @@ export function useUndoable<N extends CallName>(
   latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
   const mutation = useMutation<{ output: CallOutput<N>; storyId: string }, unknown, CallInput<N>>({
+    mutationKey: ['api', name],
     mutationFn: async (input) => {
       const storyId = newStoryId();
       return { output: await api.call(name, input, { correlationId: storyId }), storyId };

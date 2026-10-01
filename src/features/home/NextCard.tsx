@@ -23,7 +23,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
   }
   return (
     <section aria-labelledby="next-title" className="glow flex flex-col gap-1.5 overflow-hidden p-5 sm:p-6">
-      <h2 id="next-title" className="text-caption font-semibold uppercase tracking-[0.06em] text-[var(--sig-from)] dark:text-[#A5ABFF]">{t('home.next.title')}</h2>
+      <h2 id="next-title" className="text-caption font-semibold uppercase tracking-[0.06em] text-[var(--sig-text)]">{t('home.next.title')}</h2>
       {/* Moment 3 (redesign spec 4): the done item lifts away and the next one rises into place. */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
@@ -34,7 +34,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
           className="flex flex-col gap-1.5"
         >
           <p dir="auto" className="text-[calc(19px*var(--boost))] font-semibold leading-snug tracking-[-0.01em] text-ink [text-wrap:balance]">{line}</p>
-          {context && <p dir="auto" className="text-subheadline text-ink-2">{context}</p>}
+          {context && <p dir="auto" className="text-subheadline text-[var(--c-glow-ink-2)]">{context}</p>}
           {action && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button variant="primary" onClick={action.run}>
@@ -51,7 +51,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
           )}
         </motion.div>
       </AnimatePresence>
-      {left !== null && <p role="status" className="pt-1 text-footnote font-medium text-ink-2">{t('home.next.doneLeft', { count: left, n: left })}</p>}
+      {left !== null && <p role="status" className="pt-1 text-footnote font-medium text-[var(--c-glow-ink-2)]">{t('home.next.doneLeft', { count: left, n: left })}</p>}
     </section>
   );
 }
