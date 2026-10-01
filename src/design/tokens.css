@@ -32,9 +32,9 @@
   --c-glow-ink-2: #55555A;
   --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --panel-edge: transparent;
-  --glow-a: #DCEBFF;
-  --glow-b: #F3E3FF;
-  --glow-c: #DFF7EC;
+  --glow-a: #CCE0FF;
+  --glow-b: #EAD5FF;
+  --glow-c: #CFF2E2;
   /* Project hues (redesign spec 2.3): tile text keeps 4.5:1 on its tile, and the line keeps 3:1 on the panel. */
   --p-blue-bg: #E8F0FE;
   --p-blue-fg: #1A56DB;
@@ -121,9 +121,9 @@
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
   --panel-edge: #26262B;
-  --glow-a: rgba(91, 108, 255, 0.22);
-  --glow-b: rgba(139, 92, 246, 0.22);
-  --glow-c: rgba(52, 199, 89, 0.12);
+  --glow-a: rgba(91, 108, 255, 0.3);
+  --glow-b: rgba(139, 92, 246, 0.3);
+  --glow-c: rgba(52, 199, 89, 0.16);
   --p-blue-bg: #1B2A44;
   --p-blue-fg: #7EA8FF;
   --p-orange-bg: #3A2618;
@@ -294,17 +294,24 @@
     border: 1px solid var(--panel-edge);
     border-radius: var(--r-card);
   }
-  .glow::before {
+  .glow::before,
+  .glow::after {
     content: "";
     position: absolute;
-    inset: -25%;
+    inset: -40%;
     z-index: -1;
     pointer-events: none;
+  }
+  /* Two soft color patches drift on separate paths, so the light seems to move under the card. */
+  .glow::before {
     background:
-      radial-gradient(60% 70% at 25% 25%, var(--glow-a) 0%, transparent 70%),
-      radial-gradient(60% 70% at 75% 25%, var(--glow-b) 0%, transparent 70%),
-      radial-gradient(70% 60% at 50% 85%, var(--glow-c) 0%, transparent 70%);
+      radial-gradient(28% 34% at 30% 32%, var(--glow-a) 0%, transparent 100%),
+      radial-gradient(26% 30% at 70% 38%, var(--glow-b) 0%, transparent 100%);
     animation: glow-drift 8s ease-in-out infinite;
+  }
+  .glow::after {
+    background: radial-gradient(30% 26% at 50% 70%, var(--glow-c) 0%, transparent 100%);
+    animation: glow-drift-2 8s ease-in-out infinite;
   }
   .hairline > * + * {
     border-top: 1px solid var(--c-hairline);
@@ -426,14 +433,24 @@
 @keyframes glow-drift {
   0%,
   100% {
-    transform: translate3d(-5%, -3%, 0) rotate(0deg);
+    transform: translate3d(-12%, -8%, 0) rotate(0deg) scale(1);
   }
   50% {
-    transform: translate3d(5%, 3%, 0) rotate(6deg);
+    transform: translate3d(12%, 8%, 0) rotate(18deg) scale(1.15);
+  }
+}
+@keyframes glow-drift-2 {
+  0%,
+  100% {
+    transform: translate3d(14%, 6%, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-14%, -10%, 0) scale(0.95);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .glow::before {
+  .glow::before,
+  .glow::after {
     animation: none;
   }
 }
