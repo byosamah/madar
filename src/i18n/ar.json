@@ -744,7 +744,20 @@
         "done": "منجزة",
         "current": "حالية",
         "next": "قادمة"
-      }
+      },
+      "mode": "العرض",
+      "modes": {
+        "timeline": "الجدول الزمني",
+        "projects": "المشاريع"
+      },
+      "previous": "المشروع السابق",
+      "next": "المشروع التالي",
+      "projectOf": "المشروع {{n}} من {{total}}",
+      "inProgress": "قيد التنفيذ الآن",
+      "nothingInProgress": "لا شيء قيد التنفيذ.",
+      "countInProgress": "قيد التنفيذ: {{n}}",
+      "countPastDue": "متأخرة: {{n}}",
+      "countReview": "بانتظار المراجعة: {{n}}"
     },
     "views": {
       "projects": "المشاريع",

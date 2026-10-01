@@ -80,3 +80,24 @@ describe('the meeting view', () => {
     expect(months(main)[0]).toBe(first);
   });
 });
+
+describe('the meeting view project screens', () => {
+  it('shows each project with its work in progress, then moves with the arrow keys', async () => {
+    await renderApp('/dashboard/meeting?mode=projects');
+    const first = await screen.findByRole('article');
+    expect(within(first).getByText(/Project 1 of 10/)).toBeInTheDocument();
+    expect(within(first).getByRole('region', { name: 'In progress now' })).toBeInTheDocument();
+    expect(within(first).getByRole('region', { name: 'Needs attention' })).toBeInTheDocument();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(await screen.findByText(/Project 2 of 10/)).toBeInTheDocument();
+  });
+
+  it('lists the work counts on the timeline and opens a project screen from its name', async () => {
+    await renderApp('/dashboard/meeting');
+    const timeline = await screen.findByRole('list', { name: /timeline/i });
+    await waitFor(() => expect(within(timeline).getAllByText(/in progress/).length).toBeGreaterThan(0));
+    await userEvent.click(within(timeline).getAllByRole('button', { name: /Corniche Office Tower/ })[0]);
+    expect(await screen.findByRole('article', { name: 'Corniche Office Tower' })).toBeInTheDocument();
+    expect(window.location.hash).toContain('mode=projects');
+  });
+});

@@ -676,7 +676,20 @@
         "done": "done",
         "current": "current",
         "next": "next"
-      }
+      },
+      "mode": "View",
+      "modes": {
+        "timeline": "Timeline",
+        "projects": "Projects"
+      },
+      "previous": "Previous project",
+      "next": "Next project",
+      "projectOf": "Project {{n}} of {{total}}",
+      "inProgress": "In progress now",
+      "nothingInProgress": "Nothing is in progress.",
+      "countInProgress": "{{n}} in progress",
+      "countPastDue": "{{n}} past due",
+      "countReview": "{{n}} waiting for review"
     },
     "views": {
       "projects": "Projects",

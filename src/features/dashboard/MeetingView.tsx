@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
@@ -16,9 +16,11 @@ import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
 import { clipSpan, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { oneOf } from '../../lib/params';
+import { MeetingProject, meetingWork } from './MeetingProjects';
 import type { DashboardData } from './Tiles';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
+const MODES = ['timeline', 'projects'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
 // A stage bar shows its name when it spans at least this share of the window.
@@ -53,6 +55,17 @@ function DeadlineMark({ name, label, at }: { name: string; label: string; at: nu
       </span>
     </button>
   );
+}
+
+/** "2 in progress · 1 past due · 1 waits for review" under a project name on the timeline. */
+function WorkLine({ work }: { work: ReturnType<typeof meetingWork> }) {
+  const { t } = useTranslation();
+  const parts = [
+    t('dashboard.meeting.countInProgress', { n: work.doing.length }),
+    work.pastDue.length > 0 ? t('dashboard.meeting.countPastDue', { n: work.pastDue.length }) : null,
+    work.review.length > 0 ? t('dashboard.meeting.countReview', { n: work.review.length }) : null,
+  ].filter(Boolean);
+  return <span className={`block truncate text-[15px] ${work.pastDue.length > 0 ? 'text-attn' : 'text-ink-2'}`}>{parts.join(' · ')}</span>;
 }
 
 function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; end: string }; drawing: boolean; index: number }) {
@@ -103,7 +116,8 @@ export function MeetingView() {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const mode = oneOf(params.get('mode'), MODES, 'timeline');
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
@@ -112,10 +126,22 @@ export function MeetingView() {
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
   });
+  // Every open task of the office, once, for the counts on the timeline and the project screens.
+  const tasks = useCall('tasks.list', { includeDone: false, activeProjectsOnly: false });
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
+  const [slide, setSlide] = useState(0);
+  const setMode = (next: (typeof MODES)[number], at?: number) => {
+    if (at !== undefined) setSlide(at);
+    setParams((current) => {
+      const value = new URLSearchParams(current);
+      if (next === 'timeline') value.delete('mode');
+      else value.set('mode', next);
+      return value;
+    }, { replace: true });
+  };
   // The bars draw in once, when the view opens. A later move of the window does not draw them again.
   const [drawing, setDrawing] = useState(true);
   useEffect(() => {
@@ -124,6 +150,10 @@ export function MeetingView() {
   }, []);
 
   const rtl = lang === 'ar';
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const countRef = useRef(0);
+  countRef.current = dashboard.data?.schedule.length ?? 0;
   const exit = () => navigate({ pathname: '/dashboard', search: params.toString() });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -137,7 +167,9 @@ export function MeetingView() {
       if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
-      setShift((n) => n + (toEnd ? 1 : -1));
+      // On the project screens the arrows move between projects; on the timeline they move one month.
+      if (modeRef.current === 'projects') setSlide((n) => Math.min(Math.max(0, n + (toEnd ? 1 : -1)), countRef.current - 1));
+      else setShift((n) => n + (toEnd ? 1 : -1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -169,6 +201,24 @@ export function MeetingView() {
         </div>
         <div role="group" aria-label={t('dashboard.meeting.controls')} className="flex flex-wrap items-center gap-2">
           <SegmentedControl
+            label={t('dashboard.meeting.mode')}
+            value={mode}
+            onChange={(next) => setMode(next)}
+            options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
+          />
+          {mode === 'projects' && view && view.schedule.length > 0 && (
+            <>
+              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={slide === 0} onClick={() => setSlide((n) => Math.max(0, n - 1))}>
+                <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
+              </Button>
+              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={slide >= view.schedule.length - 1} onClick={() => setSlide((n) => Math.min(view.schedule.length - 1, n + 1))}>
+                <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
+              </Button>
+            </>
+          )}
+          {mode === 'timeline' && (
+          <>
+          <SegmentedControl
             label={t('dashboard.meeting.zoom')}
             value={zoom}
             onChange={(next) => { setZoom(next); setShift(0); }}
@@ -181,6 +231,8 @@ export function MeetingView() {
           <Button aria-label={t('dashboard.meeting.later')} title={t('dashboard.meeting.later')} className="!px-3" onClick={() => setShift((n) => n + 1)}>
             <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
           </Button>
+          </>
+          )}
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
       </header>
@@ -189,7 +241,16 @@ export function MeetingView() {
         <EmptyState title={t('dashboard.meeting.title')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
-      {view && view.schedule.length > 0 && (
+      {mode === 'projects' && view && view.schedule.length > 0 && (
+        <MeetingProject
+          key={view.schedule[Math.min(slide, view.schedule.length - 1)].project.id}
+          row={view.schedule[Math.min(slide, view.schedule.length - 1)]}
+          tasks={tasks.data ?? []}
+          index={Math.min(slide, view.schedule.length - 1)}
+          total={view.schedule.length}
+        />
+      )}
+      {mode === 'timeline' && view && view.schedule.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-card panel">
           <div className={`sticky top-0 z-20 border-b border-separator bg-[var(--c-panel)] px-5 ${COLUMNS}`}>
             <div />
@@ -209,11 +270,16 @@ export function MeetingView() {
           <ul aria-label={t('dashboard.meeting.timeline')} className="px-5">
             {view.schedule.map((row, index) => (
               <li key={row.project.id} className={`${COLUMNS} items-center border-b border-separator last:border-b-0`}>
-                <div className="flex min-w-0 items-center gap-3 py-3">
+                <button type="button" onClick={() => setMode('projects', index)} className="pressable flex min-w-0 items-center gap-3 rounded-2xl py-3 text-start">
                   <ProjectTile id={row.project.id} name={row.project.name} size={48} />
-                  <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
-                  <StateOfRow health={row.health} />
-                </div>
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
+                      <StateOfRow health={row.health} />
+                    </span>
+                    {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
+                  </span>
+                </button>
                 <div className="relative h-16">
                   {todayIn && <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 bg-ink/70" />}
                   <Bars row={row} span={span} drawing={drawing} index={index} />
