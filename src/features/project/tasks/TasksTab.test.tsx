@@ -73,7 +73,7 @@ describe('the Tasks tab list', () => {
 
   it('puts the open task in the link', async () => {
     await renderApp(TASKS);
-    await userEvent.click(await screen.findByRole('button', { name: /Stair details/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     await waitFor(() => expect(window.location.hash).toContain('task=tsk_007'));
   });
 
@@ -81,5 +81,14 @@ describe('the Tasks tab list', () => {
     await renderApp(TASKS);
     expect(await within(await screen.findByRole('region', { name: 'Schematic Design' })).findByText('All tasks in this stage are done.')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Concept' })).getByText('No tasks here yet.')).toBeInTheDocument();
+  });
+});
+
+describe('the conversation button on a task row', () => {
+  it('opens the task straight at its conversation', async () => {
+    await renderApp(TASKS);
+    await userEvent.click(await screen.findByRole('button', { name: /^Conversation about “Toilet details”/ }));
+    await waitFor(() => expect(window.location.hash).toContain('thread=1'));
+    expect(await screen.findByRole('tab', { name: /^Conversation/ })).toHaveAttribute('aria-selected', 'true');
   });
 });

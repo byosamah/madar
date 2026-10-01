@@ -25,14 +25,17 @@ export function TasksTab({ detail }: TabProps) {
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
   for (const row of rows) if (row.task.status === 'done') doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
-  const open = (taskId: string) => setParams((current) => {
+  const open = (taskId: string, thread = false) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('task', taskId);
+    if (thread) next.set('thread', '1');
+    else next.delete('thread');
     return next;
   });
   const closeTask = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
+    next.delete('thread');
     return next;
   }), [setParams]);
   return (

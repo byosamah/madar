@@ -67,16 +67,19 @@ function TaskResults() {
     filter, ownerId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
-  const open = (row: TaskRow) => setParams((current) => {
+  const open = (row: TaskRow, thread = false) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('task', row.task.id);
     next.set('project', row.project.id);
+    if (thread) next.set('thread', '1');
+    else next.delete('thread');
     return next;
   });
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
     next.delete('project');
+    next.delete('thread');
     return next;
   }), [setParams]);
   const person = users.data?.find((user) => user.id === ownerId);
@@ -97,7 +100,7 @@ function TaskResults() {
       {tasks.data && rows.length === 0 ? <EmptyState title={title} body={t('taskList.empty')} /> : (
         <ul className="surface overflow-hidden rounded-card py-1">
           <AnimatePresence initial={false}>
-            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={() => open(row)} showProject />)}
+            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => open(row, thread)} showProject />)}
           </AnimatePresence>
         </ul>
       )}

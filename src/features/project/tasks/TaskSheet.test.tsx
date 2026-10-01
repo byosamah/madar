@@ -12,7 +12,7 @@ const TASK = (id: string) => `/projects/prj_001?tab=tasks&task=${id}`;
 describe('the task sheet', () => {
   it('opens from the row', async () => {
     await renderApp('/projects/prj_001?tab=tasks');
-    await userEvent.click(await screen.findByRole('button', { name: /Stair details/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     expect(within(sheet).getByLabelText('Owner')).toHaveDisplayValue('Yousef Saleh');
   });

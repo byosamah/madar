@@ -5,7 +5,7 @@ import type { TaskRow } from '../../api/contract/views';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 
 /** My open tasks that are due today or past due (redesign spec 3.2). */
-export function TodayPanel({ rows, onOpen }: { rows: TaskRow[]; onOpen: (row: TaskRow) => void }) {
+export function TodayPanel({ rows, onOpen }: { rows: TaskRow[]; onOpen: (row: TaskRow, thread?: boolean) => void }) {
   const { t } = useTranslation();
   return (
     <section aria-labelledby="today-title" className="panel flex flex-col px-3 pb-2 pt-4">
@@ -14,7 +14,7 @@ export function TodayPanel({ rows, onOpen }: { rows: TaskRow[]; onOpen: (row: Ta
       {rows.length > 0 && (
         <ul className="hairline">
           <AnimatePresence initial={false}>
-            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={() => onOpen(row)} showProject />)}
+            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
           </AnimatePresence>
         </ul>
       )}

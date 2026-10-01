@@ -391,7 +391,8 @@
       "dropped": "{{title}} dropped on {{status}}.",
       "cancelled": "The move of {{title}} is cancelled."
     },
-    "allDone": "All tasks in this stage are done."
+    "allDone": "All tasks in this stage are done.",
+    "openConversation": "Conversation about “{{title}}”"
   },
   "taskSheet": {
     "title": "Title",

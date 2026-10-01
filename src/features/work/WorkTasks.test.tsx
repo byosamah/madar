@@ -33,7 +33,7 @@ describe('My Work tasks', () => {
 
   it('opens the task panel in place', async () => {
     await renderApp('/work', as('usr_005'));
-    await userEvent.click(await screen.findByRole('button', { name: /Civil Defense drawings/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Civil Defense drawings/ }));
     expect(await screen.findByRole('dialog', { name: 'Civil Defense drawings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Tasks', hidden: true })).toBeInTheDocument();
   });

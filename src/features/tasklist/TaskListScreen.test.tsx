@@ -33,7 +33,7 @@ describe('the Task list', () => {
 
   it('opens a task in place', async () => {
     await renderApp('/tasks?filter=overdue');
-    await userEvent.click(await screen.findByRole('button', { name: /Stair details/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     expect(await screen.findByRole('dialog', { name: 'Stair details' })).toBeInTheDocument();
   });
 

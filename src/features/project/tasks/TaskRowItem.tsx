@@ -19,7 +19,7 @@ import { dueText, dueWord } from '../../../lib/due';
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
  * A tick fills the circle at once, and the call runs after 0.5 s, so the row slides away then (spec 5.5).
  */
-export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string) => void; showProject?: boolean }) {
+export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const [ticking, setTicking] = useState(false);
@@ -73,10 +73,21 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (word?.tone === 'attn' ? <StateWord tone="attn">{when}</StateWord> : <span className="tabular">{when}</span>)}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><Flag size={12} aria-hidden />{t('tasks.flagged')}</span>}
-          {row.commentCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={MessageCircleIcon} size={12} aria-hidden />{t('tasks.comments', { n: row.commentCount })}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}
         </span>
+      </button>
+      {/* The task's conversation, one press away (owner, 2026-10-01). The count shows when there are comments. */}
+      <button
+        type="button"
+        onClick={() => onOpen(task.id, true)}
+        aria-label={row.commentCount > 0 ? `${t('tasks.openConversation', { title: task.title })}, ${t('tasks.comments', { n: row.commentCount })}` : t('tasks.openConversation', { title: task.title })}
+        className="pressable relative grid size-11 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-fill hover:text-ink"
+      >
+        <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
+        {row.commentCount > 0 && (
+          <span aria-hidden className="tabular absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold leading-none text-panel">{row.commentCount}</span>
+        )}
       </button>
       {showProject
         ? <span className="pe-2"><ProjectTile id={row.project.id} name={row.project.name} size={22} /></span>

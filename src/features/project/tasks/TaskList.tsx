@@ -38,7 +38,7 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
 
 /** Tasks grouped by stage (spec 5.3). With a filter on, empty groups hide. */
 export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
-  detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string) => void; doneCounts: Record<string, number>;
+  detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string, thread?: boolean) => void; doneCounts: Record<string, number>;
 }) {
   const { t } = useTranslation();
   const groups = detail.stages

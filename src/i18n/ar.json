@@ -444,7 +444,8 @@
       "dropped": "أُفلتت {{title}} في عمود «{{status}}».",
       "cancelled": "أُلغي نقل {{title}}."
     },
-    "allDone": "أُنجزت كل مهام هذه المرحلة."
+    "allDone": "أُنجزت كل مهام هذه المرحلة.",
+    "openConversation": "المحادثة حول «{{title}}»"
   },
   "taskSheet": {
     "title": "العنوان",

@@ -30,11 +30,12 @@ export function HomeScreen() {
   // The Admin sees every active project; anyone else sees the projects they lead or work on.
   const admin = session.data?.user.systemRole === 'admin';
   const projects = useCall('projects.list', { filter: admin ? 'all' : 'mine', sort: 'deadline' }, );
-  const open = useCallback((projectId: string, taskId: string) => setParams({ project: projectId, task: taskId }), [setParams]);
+  const open = useCallback((projectId: string, taskId: string, thread = false) => setParams({ project: projectId, task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
     next.delete('project');
+    next.delete('thread');
     return next;
   }), [setParams]);
   const [showLeft, setShowLeft] = useState(false);
@@ -80,7 +81,7 @@ export function HomeScreen() {
           </span>
         </ScreenTitle>
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} onOpen={(row) => open(row.project.id, row.task.id)} />
+        <TodayPanel rows={todayRows} onOpen={(row, thread) => open(row.project.id, row.task.id, thread)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">
