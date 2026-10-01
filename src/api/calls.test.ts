@@ -30,11 +30,13 @@ const TEMPLATE_CALLS = ['stageTemplates.list', 'stageTemplates.save', 'stageTemp
 const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];
 // The chat (owner decision, 2026-10-01).
 const CHAT_CALLS = ['chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount'];
-const CHAT_READS = new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
+// Share an existing file into a chat or a task conversation (owner request, 2026-10-01).
+const SHARE_CALLS = ['files.share'];
+const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {
-    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...CHAT_CALLS].sort());
+    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...CHAT_CALLS, ...SHARE_CALLS].sort());
   });
 
   it('marks exactly the read calls as read-only', () => {

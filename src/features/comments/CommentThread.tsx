@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/entities';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
+import { newStoryId } from '../../app/actions';
+import { errorMessage } from '../../app/errors';
 import { useAction, useCall } from '../../app/runtime';
+import { useToast } from '../../app/toasts';
 import { Age } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
 import { Avatar } from '../../components/Avatar';
@@ -13,11 +16,12 @@ import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
+import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
 
 function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
   const session = useCall('session.get', {});
-  const { comment, author, canEdit } = view;
+  const { comment, author, canEdit, files } = view;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const update = useAction('comments.update', { onSuccess: () => setEditing(false) });
@@ -52,6 +56,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
             </div>
           </form>
         ) : <RichText body={comment.body} className="text-subheadline" />}
+        <FileChips files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {REACTIONS.map((emoji) => {
             const ids = comment.reactions[emoji];
@@ -101,12 +106,32 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
 
 /** Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author. */
 export function CommentThread({
-  targetType, targetId, people, canPost,
-}: { targetType: 'task' | 'update'; targetId: string; people: UserCard[]; canPost: boolean }) {
+  targetType, targetId, projectId, stageId = null, people, canPost,
+}: { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
+  const toast = useToast();
+  const attachments = useAttachments();
+  const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
   const [body, setBody] = useState('');
-  const create = useAction('comments.create', { onSuccess: () => setBody('') });
+  const create = useAction('comments.create', {
+    onSuccess: () => {
+      setBody('');
+      attachments.clear();
+    },
+  });
+  // The files go up first, to the project of the comment. A comment on a task also links them to the task.
+  const send = async (text: string) => {
+    setUploading(true);
+    try {
+      const fileIds = await attachments.upload({ projectId, stageId, taskId: targetType === 'task' ? targetId : null }, { correlationId: newStoryId() });
+      create.mutate({ targetType, targetId, body: text, fileIds });
+    } catch (error) {
+      toast.show({ tone: 'error', message: errorMessage(error, t) });
+    } finally {
+      setUploading(false);
+    }
+  };
   const list = comments.data ?? [];
   return (
     <section aria-label={t('comments.title')} className="flex flex-col gap-3">
@@ -124,11 +149,15 @@ export function CommentThread({
           onSubmit={(event) => {
             event.preventDefault();
             const text = withMentionMarkup(body.trim(), people);
-            if (text) create.mutate({ targetType, targetId, body: text });
+            if (text && !uploading) void send(text);
           }}
         >
           <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
-          <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" className="self-end" disabled={!body.trim() || create.isPending}>{t('comments.send')}</Button>
+          <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+          <div className="flex items-center justify-between gap-2">
+            <AttachButton onPick={attachments.add} />
+            <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
+          </div>
         </form>
       ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
     </section>

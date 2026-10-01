@@ -20,6 +20,33 @@ describe('comments', () => {
     expect(await within(sheet).findByText('@Khalid Al-Mutairi')).toBeInTheDocument();
   });
 
+  it('attaches a file to a task comment and shows it as a chip', async () => {
+    const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.upload(within(sheet).getByLabelText('Attach files'), new File(['x'], 'Stair detail.pdf', { type: 'application/pdf' }));
+    expect(within(sheet).getByText('Stair detail.pdf')).toBeInTheDocument();
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Detail attached.');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
+    const chip = await within(sheet).findByRole('button', { name: 'Download Stair detail.pdf' });
+    expect(chip).toBeInTheDocument();
+    const file = Object.values(store.state.files).find((f) => f.name === 'Stair detail.pdf');
+    expect(file).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
+    expect(Object.values(store.state.comments).find((c) => c.body === 'Detail attached.')?.fileIds).toEqual([file?.id]);
+  });
+
+  it('shows a deleted file in a comment as removed', async () => {
+    await renderApp(TASK('tsk_007'), (state) => {
+      state.session.currentUserId = 'usr_006';
+      state.comments.cmt_902 = {
+        id: 'cmt_902', targetType: 'task', targetId: 'tsk_007', authorId: 'usr_006', body: 'The old detail.', fileIds: ['fil_999'],
+        reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T07:00:00.000+03:00', editedAt: null,
+      };
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await within(sheet).findByText('The old detail.')).toBeInTheDocument();
+    expect(within(sheet).getByText('File removed')).toBeInTheDocument();
+  });
+
   it('toggles a reaction', async () => {
     const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });

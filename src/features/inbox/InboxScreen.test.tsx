@@ -50,6 +50,20 @@ describe('the Inbox chat', () => {
       .toBeDefined();
   });
 
+  it('attaches a file in a project chat, and a direct chat has no attach control', async () => {
+    const { store } = await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Beam B14.pdf', { type: 'application/pdf' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The beam sheet.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('button', { name: 'Download Beam B14.pdf' })).toBeInTheDocument();
+    const file = Object.values(store.state.files).find((f) => f.name === 'Beam B14.pdf');
+    expect(file?.projectId).toBe('prj_001');
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await screen.findByRole('textbox', { name: 'Message' });
+    expect(screen.queryByLabelText('Attach files')).toBeNull();
+  });
+
   it('sends a message with the Send button and with Enter, and keeps a new line for Shift+Enter', async () => {
     const { store } = await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));

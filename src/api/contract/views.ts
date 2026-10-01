@@ -99,7 +99,11 @@ export const TaskDetail = TaskRow.extend({
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
 
-export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean() });
+/** A file that a comment or a message carries. A null name means the file was deleted. */
+export const Attachment = z.object({ id: FileId, name: z.string().nullable() });
+export type Attachment = z.infer<typeof Attachment>;
+
+export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment) });
 export type CommentView = z.infer<typeof CommentView>;
 
 /** One row of the Inbox list: a project chat, a direct chat or a task thread. A task thread has the task id as its id. */
@@ -124,6 +128,7 @@ export const MessageView = z.object({
   /** The person an agent acted for, when it is not the author. */
   actingFor: UserCard.nullable(),
   mine: z.boolean(),
+  files: z.array(Attachment),
 });
 export type MessageView = z.infer<typeof MessageView>;
 

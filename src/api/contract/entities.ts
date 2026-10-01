@@ -206,6 +206,9 @@ export function emptyReactions(): Record<Reaction, string[]> {
   return { '👍': [], '✅': [], '👀': [] };
 }
 
+/** The most files one comment or one chat message carries. */
+export const MAX_ATTACHMENTS = 10;
+
 export const Comment = z.object({
   id: CommentId,
   targetType: z.enum(['task', 'update']),
@@ -213,6 +216,8 @@ export const Comment = z.object({
   authorId: UserId,
   body: z.string().trim().min(1).max(5000),
   reactions: z.record(Reaction, z.array(UserId)),
+  // Older saved comments have no list. A missing list means no files.
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS).optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });
@@ -238,6 +243,8 @@ export const Message = z.object({
   actingForId: UserId,
   body: z.string().trim().min(1).max(MESSAGE_MAX),
   mentions: z.array(UserId),
+  // Older saved messages have no list. A missing list means no files.
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS).optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });
