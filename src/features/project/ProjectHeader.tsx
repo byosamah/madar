@@ -9,7 +9,7 @@ import { Button } from '../../components/Button';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { spring } from '../../design/motion';
-import { projectHue, stageProgress } from '../../lib/projectColor';
+import { projectHue } from '../../lib/projectColor';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
 import { ProjectActions } from './ProjectActions';
@@ -59,7 +59,9 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <StageControl detail={detail} />
         <ProgressLine
-          value={stageProgress(detail)}
+          index={index}
+          total={detail.stages.length}
+          complete={project.status === 'completed'}
           hue={projectHue(project.id)}
           label={t('projects.stageCount', { n: index + 1, total: detail.stages.length })}
           className="w-28 sm:w-36"

@@ -7,7 +7,7 @@ import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { StatusSign, signOfStatus } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
-import { projectHue, stageProgress } from '../../lib/projectColor';
+import { projectHue } from '../../lib/projectColor';
 import { setSharedSource } from '../../app/sharedLayout';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
@@ -56,7 +56,9 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
         {/* The row follows its own width: line and deadline under the name, then in one end column, then in two (redesign spec 3.3). */}
         <span className="col-start-2 flex min-w-0 flex-col gap-1.5 @xl:col-start-auto @xl:items-end @4xl:contents">
           <ProgressLine
-            value={stageProgress(summary)}
+            index={index}
+            total={summary.stages.length}
+            complete={project.status === 'completed'}
             hue={projectHue(project.id)}
             label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
             className="w-full max-w-48 @xl:w-32 @4xl:w-full"

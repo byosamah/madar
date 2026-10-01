@@ -32,6 +32,7 @@
   --sig-text: #1F2A55;
   /* How strong the two lights of a person's picture are; ink letters keep 4.5:1 on the strongest point. */
   --avatar-glow: 35%;
+  --step-glow: 38%;
   /* The arrow of a dropdown, in Ink 2 for each theme. */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #55555A;
@@ -128,6 +129,7 @@
   --on-sig: #10183A;
   --sig-text: #C9D4FF;
   --avatar-glow: 40%;
+  --step-glow: 55%;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A1A1A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
@@ -461,6 +463,46 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .draw-line {
+    animation: none;
+  }
+}
+
+/* Stage steps (owner's choice A, 2026-10-01). Each piece grows in, 70 ms after the one before; the current stage then glows once. */
+.step-done {
+  background: color-mix(in srgb, var(--hue) 42%, transparent);
+}
+.step-full {
+  background: var(--hue);
+}
+.step-now {
+  background: var(--hue);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--hue) var(--step-glow), transparent);
+}
+.step-in {
+  animation: step-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.step-in.step-now {
+  animation: step-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both, step-glow 1400ms ease-out both;
+  animation-delay: calc(var(--i, 0) * 70ms), calc(var(--i, 0) * 70ms + 300ms);
+}
+@keyframes step-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+@keyframes step-glow {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  40% {
+    box-shadow: 0 0 16px 3px color-mix(in srgb, var(--hue) var(--step-glow), transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-in,
+  .step-in.step-now {
     animation: none;
   }
 }

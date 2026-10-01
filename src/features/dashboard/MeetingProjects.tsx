@@ -69,7 +69,6 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
   const work = meetingWork(tasks, row.project.id, today);
   const stageIndex = row.stages.findIndex((stage) => stage.id === row.currentStageId);
   const stage = row.stages[stageIndex];
-  const progress = (stageIndex + 1) / (row.stages.length + 1);
   const next = row.deadlines.filter((deadline) => deadline.date >= today).slice(0, 4);
   const posts = useCall('updates.list', { projectId: row.project.id, filter: 'posts' });
   const latest = posts.data?.find((item) => item.kind === 'update');
@@ -91,7 +90,7 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
             </span>
             <StatusSign state={row.health}>{t(`health.${row.health}`)}</StatusSign>
           </div>
-          <ProgressLine value={progress} hue={projectHue(row.project.id)} label={t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })} className="h-2" />
+          <ProgressLine index={stageIndex} total={row.stages.length} size="lg" hue={projectHue(row.project.id)} label={t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })} />
           {stage?.endDate && stageLeft !== null && (
             <span className={`tabular text-[15px] ${stageLeft < 0 ? 'text-attn' : 'text-ink-2'}`}>
               {t('overview.stageEndLabel')}: {formatDay(stage.endDate, lang)}
