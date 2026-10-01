@@ -145,6 +145,17 @@ describe('taskTemplates.rename and delete', () => {
 });
 
 describe('tasks.createFromTemplate', () => {
+  it('keeps the template\'s "no review" only for the leader or the Admin (security review, 2026-10-01)', async () => {
+    const t = world();
+    t.as('usr_002');
+    await t.api.call('taskTemplates.save', { fromTaskId: 'tsk_001' });
+    const byLeader = await t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002' });
+    expect(byLeader.task.needsReview).toBe(false);
+    t.as('usr_003');
+    const byMember = await t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002' });
+    expect(byMember.task.needsReview).toBe(true);
+  });
+
   async function withTemplate() {
     const t = world();
     t.as('usr_002');
@@ -157,8 +168,10 @@ describe('tasks.createFromTemplate', () => {
     t.as('usr_003');
     const made = await t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002' });
     expect(made.task).toMatchObject({
-      title: 'Floor plans set', description: 'All levels.', needsReview: false, status: 'todo', ownerId: 'usr_003', stageId: 'stg_002', projectId: 'prj_001',
+      title: 'Floor plans set', description: 'All levels.', status: 'todo', ownerId: 'usr_003', stageId: 'stg_002', projectId: 'prj_001',
     });
+    // Security: only the leader or the Admin may skip the review step, so a team member's task from a template keeps it.
+    expect(made.task.needsReview).toBe(true);
     expect(made.task.checklist.map((item) => [item.text, item.done])).toEqual([['Ground floor', false], ['Typical floor', false], ['Roof plan', false]]);
     expect(new Set(made.task.checklist.map((item) => item.id)).size).toBe(3);
     // The source task and the template do not change.

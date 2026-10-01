@@ -170,6 +170,9 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   const ownerId = input.ownerId ?? ctx.authority.id;
   assertCan(ctx, ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
   if ((input.needsReview !== undefined && !input.fromTemplate) || (input.helperIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
+  // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
+  // member cannot skip review through a leader's template (security review, 2026-10-01).
+  const needsReview = input.fromTemplate && !can(ctx.authority, 'task.updateAny', { projectRole: role }) ? true : input.needsReview ?? true;
   const stageId = input.stageId ?? project.currentStageId;
   requireStage(ctx, project.id, stageId);
   const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
@@ -178,7 +181,7 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   const id = nextId(ctx.state, 'tsk');
   const task: Task = {
     id, projectId: project.id, stageId, title: input.title, description: input.description, ownerId, status: 'todo',
-    ...when, flagged: input.flagged, needsReview: input.needsReview ?? true,
+    ...when, flagged: input.flagged, needsReview,
     checklist: (input.checklist ?? []).map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
     createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
   };
