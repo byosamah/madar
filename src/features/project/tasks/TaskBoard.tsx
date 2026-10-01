@@ -14,7 +14,7 @@ import { Avatar } from '../../../components/Avatar';
 import { Menu } from '../../../components/Menu';
 import { BOARD_COLUMNS, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
-import { dueText, dueWord } from '../../../lib/due';
+import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
@@ -33,11 +33,13 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
+  const starts = startsLater(row.task.startDate, todayISO(), row.task.status);
   return (
     <div className={`surface flex flex-col gap-2 rounded-2xl p-3 pe-24 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
       <p dir="auto" className="text-subheadline font-medium text-ink">{row.task.title}</p>
       <div className="flex items-center gap-2 text-footnote text-ink-2">
-        {word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
+        {starts && <span className="tabular">{startsText(row.task.startDate as string, t, lang)}</span>}
+        {!starts && word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
         {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
         <span className="ms-auto"><Avatar user={row.owner} size={22} /></span>
       </div>

@@ -30,3 +30,12 @@ export function dueText(word: DueWord, t: TFunction, lang: Lang, dueDate: string
   if (word.key === 'dueIn') return counted(t, 'due.in', word.n);
   return t('due.on', { date: formatDay(dueDate, lang) });
 }
+
+/** A task that has not started yet shows "Starts Sun 4 Oct" in place of its due word. A done task shows neither. */
+export function startsLater(startDate: string | null | undefined, today: string, status: TaskStatus): startDate is string {
+  return !!startDate && startDate > today && status !== 'done';
+}
+
+export function startsText(startDate: string, t: TFunction, lang: Lang): string {
+  return t('tasks.startsOn', { date: formatDay(startDate, lang, 'withWeekday') });
+}

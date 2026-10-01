@@ -5,7 +5,10 @@ import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { SelectField, TextField } from '../../components/Fields';
+import { TaskTiming, type Timing } from '../project/tasks/TaskTiming';
 import { Sheet } from '../../components/Sheet';
+
+const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: null, dueDate: null };
 
 /** The "New task" command: a task for me on one of my projects, in its current stage unless I pick another. */
 export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -17,7 +20,8 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const [projectId, setProjectId] = useState('');
   const [title, setTitle] = useState('');
   const [stageId, setStageId] = useState('');
-  const [due, setDue] = useState('');
+  const [timing, setTiming] = useState<Timing>(NO_TIMING);
+  const dynamic = timing.schedule === 'dynamic';
   const summary = options.find((option) => option.project.id === projectId);
   const create = useAction('tasks.create', {
     onSuccess: (detail) => {
@@ -34,7 +38,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     setProjectId('');
     setTitle('');
     setStageId('');
-    setDue('');
+    setTiming(NO_TIMING);
   }, [open]);
 
   return (
@@ -45,8 +49,11 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
       footer={(
         <Button
           variant="primary"
-          disabled={!projectId || !title.trim() || create.isPending}
-          onClick={() => create.mutate({ projectId, title: title.trim(), stageId: stageId || undefined, dueDate: due || null })}
+          disabled={!projectId || !title.trim() || (dynamic && !timing.startDate) || create.isPending}
+          onClick={() => create.mutate({
+            projectId, title: title.trim(), stageId: stageId || undefined, startDate: timing.startDate, schedule: timing.schedule,
+            ...(dynamic ? { durationDays: timing.durationDays } : { dueDate: timing.dueDate }),
+          })}
         >
           {t('newTask.create')}
         </Button>
@@ -70,7 +77,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           <SelectField id="new-task-stage" label={t('newTask.stage')} value={stageId} disabled={!summary} onChange={(event) => setStageId(event.target.value)}>
             {(summary?.stages ?? []).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
           </SelectField>
-          <TextField id="new-task-due" type="date" label={t('newTask.due')} value={due} onChange={(event) => setDue(event.target.value)} />
+          <TaskTiming idPrefix="new-task" value={timing} onPatch={(changes) => setTiming((current) => ({ ...current, ...changes, ...(changes.schedule === 'dynamic' ? { dueDate: null } : {}) }))} />
         </div>
       )}
     </Sheet>

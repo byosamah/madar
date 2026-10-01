@@ -12,7 +12,7 @@ import { ProjectTile } from '../../../components/ProjectTile';
 import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
-import { dueText, dueWord } from '../../../lib/due';
+import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
@@ -40,7 +40,8 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
   };
   const rtl = document.documentElement.dir === 'rtl';
   const word = dueWord(task.dueDate, todayISO(), task.status);
-  const when = word && task.dueDate ? dueText(word, t, lang, task.dueDate) : null;
+  const starts = startsLater(task.startDate, todayISO(), task.status);
+  const when = starts ? startsText(task.startDate as string, t, lang) : word && task.dueDate ? dueText(word, t, lang, task.dueDate) : null;
   return (
     // Moments 2 and 8 (redesign spec 4): a ticked row slides out toward the end side; a row that Undo brings back slides in from there.
     <motion.li
@@ -74,7 +75,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         <span dir="auto" className={`block truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
-          {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
+          {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={12} aria-hidden />{t('tasks.flagged')}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={AttachFileIcon} size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}
