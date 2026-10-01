@@ -136,13 +136,13 @@ export function Composer({
           value={text}
           onChange={setText}
           people={people}
-          rows={2}
+          rows={1}
           inputRef={field}
           placeholder={t('chat.placeholder')}
-          className="[&_textarea]:max-h-40 [&_textarea]:resize-none"
+          className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>
-      <Button variant="primary" type="submit" disabled={!text.trim() || pending}>{t('chat.send')}</Button>
+      <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || pending}>{t('chat.send')}</Button>
     </form>
   );
 }
