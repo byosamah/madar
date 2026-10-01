@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const TABS = ['overview', 'tasks', 'schedule', 'files', 'team'];
+const TABS = ['overview', 'tasks', 'activity', 'schedule', 'files', 'team'];
 
 async function expectNoSeriousA11yIssues(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
@@ -103,6 +103,7 @@ test('the board moves a card with the keyboard', async ({ page }) => {
   await page.keyboard.press('Space');
   // The keyboard drag reads the column positions after the lift. Wait for the drop target to light up before each move.
   await expect(page.getByRole('region', { name: 'To do: 4' })).toHaveClass(/bg-fill-strong/);
+  await page.waitForTimeout(500); // the lift animation finishes before the arrow key counts
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('region', { name: 'In progress: 2' })).toHaveClass(/bg-fill-strong/);
   await page.keyboard.press('Space');

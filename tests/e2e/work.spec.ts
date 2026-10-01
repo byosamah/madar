@@ -17,10 +17,10 @@ async function useArabic(page: Page): Promise<void> {
 
 const SCREENS: { name: string; path: string; ready: (page: Page) => Promise<void>; scope?: string }[] = [
   { name: 'work', path: '/#/work', ready: async (page) => { await expect(page.getByRole('region').first()).toBeVisible(); } },
-  { name: 'hours', path: '/#/work?tab=hours', ready: async (page) => { await expect(page.getByRole('table')).toBeVisible(); } },
-  { name: 'inbox', path: '/#/inbox', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
+  { name: 'inbox', path: '/#/inbox', ready: async (page) => { await expect(page.locator('aside ul li').first()).toBeVisible(); } },
+  { name: 'notifications', path: '/#/notifications', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
   { name: 'search', path: '/#/search', ready: async (page) => { await page.locator('input[role="combobox"]').fill('a'); await expect(page.locator('[cmdk-root] [role="option"]').first()).toBeVisible(); } },
-  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); } },
+  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007&thread=1', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); } },
 ];
 
 for (const width of [390, 1440]) {
@@ -39,21 +39,6 @@ for (const width of [390, 1440]) {
   }
 }
 
-test('hours typed in a cell stay after a reload', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/#/work?tab=hours');
-  await page.getByRole('button', { name: 'Previous week' }).click();
-  await expect(page).toHaveURL(/week=/);
-  // Type only after last week has drawn: the cell for Sunday 20 September names its own day.
-  const sunday = () => page.getByRole('textbox', { name: /^Hours for .* on 20 September 2026$/ }).first();
-  await expect(sunday()).toBeVisible();
-  await sunday().fill('7.5');
-  await sunday().press('Enter');
-  await page.waitForTimeout(700);
-  await page.reload();
-  await expect(sunday()).toHaveValue('7.5');
-});
-
 test('Ctrl+K opens search, and Enter opens the project', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');
@@ -65,12 +50,13 @@ test('Ctrl+K opens search, and Enter opens the project', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeVisible();
 });
 
-test('Mark all read clears the Inbox badge', async ({ page }) => {
+test('Mark all read clears the bell count', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/#/inbox');
+  await page.goto('/#/notifications');
+  await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
   const markAll = page.getByRole('button', { name: 'Mark all read' });
   if (await markAll.isVisible()) await markAll.click();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByText(/items need action/)).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Notifications' }).getByText(/items need action/)).toHaveCount(0);
 });
 
 test('Arabic search for a project word shows results or the no-results sentence', async ({ page }) => {
@@ -90,8 +76,8 @@ test('Arabic search for a project word shows results or the no-results sentence'
 test('no screen scrolls sideways on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const paths = [
-    '/#/', '/#/projects', '/#/projects/prj_001', '/#/projects/prj_001?tab=tasks', '/#/projects/prj_001?tab=schedule', '/#/projects/prj_001?tab=files',
-    '/#/projects/prj_001?tab=team', '/#/work', '/#/work?tab=hours', '/#/inbox', '/#/search', '/#/settings',
+    '/#/', '/#/projects', '/#/projects/prj_001', '/#/projects/prj_001?tab=tasks', '/#/projects/prj_001?tab=activity', '/#/projects/prj_001?tab=schedule', '/#/projects/prj_001?tab=files',
+    '/#/projects/prj_001?tab=team', '/#/work', '/#/inbox', '/#/notifications', '/#/admin', '/#/search', '/#/settings',
     '/#/dashboard', '/#/dashboard?view=people', '/#/dashboard?view=schedule', '/#/tasks?filter=overdue', '/#/tasks?mode=deadlines',
   ];
   for (const path of paths) {

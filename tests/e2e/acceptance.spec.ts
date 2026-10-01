@@ -28,16 +28,16 @@ test('Admin overview: the at-risk and late projects in one step from the first s
 });
 
 test("Member daily work: today's tasks with one step from any screen", async ({ page }) => {
-  // Home has no My Work tab. The link "See all my tasks" sits under the Today panel.
+  // The Tasks page is /#/work. The link "See all my tasks" sits under the Today panel.
   await page.goto('/#/');
   await expect(page.getByRole('region', { name: 'Today' })).toBeVisible();
   await tabTo(page, (text) => text === 'See all my tasks');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { level: 1, name: 'My Work' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Tasks' })).toBeVisible();
   await expect(page.getByRole('region').first()).toBeVisible();
 });
 
-test('Leader review: approve from the Inbox with two steps', async ({ page }) => {
+test('Leader review: approve from Notifications with two steps', async ({ page }) => {
   // Setup: Sara sends a task to review, which puts a review notice in Faisal's Inbox.
   await page.goto('/#/settings');
   await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label: 'Sara Al-Qahtani · Member' });
@@ -47,8 +47,8 @@ test('Leader review: approve from the Inbox with two steps', async ({ page }) =>
   await page.goto('/#/settings');
   await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label: 'Faisal Al-Harbi · Leader' });
   // The two steps: reach Approve, press Enter.
-  await page.goto('/#/inbox');
-  await expect(page.getByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible();
+  await page.goto('/#/notifications');
+  await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
   // The list loads after the heading shows, so wait for the first Approve button before counting.
   await expect(page.getByRole('button', { name: 'Approve' }).first()).toBeVisible();
   const before = await page.getByRole('button', { name: 'Approve' }).count();

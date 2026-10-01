@@ -1,6 +1,7 @@
+import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-const SWEEP = '/private/tmp/claude-501/-Users-osamakhalil/5721f5d8-5441-480d-b8e1-5ea30aba78f8/scratchpad/shots/sweep';
+const SWEEP = '/private/tmp/claude-501/-Users-osamakhalil/5721f5d8-5441-480d-b8e1-5ea30aba78f8/scratchpad/shots/sweep2';
 const USER = 'Hala Nasser';
 
 const homeRows = (page: Page) => page.getByRole('list', { name: 'Your projects' }).getByRole('listitem');
@@ -32,17 +33,22 @@ for (const width of [390, 820, 1440]) {
   });
 }
 
-test('the pill has the four links and Search, and the person menu has its four controls', async ({ page }) => {
+test('the pill has the five tabs, Search and the bell, and the person menu has its controls', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');
   const pill = page.getByRole('navigation', { name: 'Main navigation' });
-  for (const name of ['Home', 'Projects', 'Dashboard', 'Inbox', 'Search']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
+  for (const name of ['Home', 'Projects', 'Tasks', 'Dashboard', 'Inbox']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
+  await expect(pill.getByRole('link', { name: 'Search' })).toBeVisible();
+  await expect(pill.getByRole('link', { name: /^Notifications/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Hours' })).toHaveCount(0);
   await page.getByRole('button', { name: USER }).click();
   const menu = page.getByRole('dialog', { name: USER });
   await expect(menu.getByRole('combobox', { name: /Preview as/ })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'العربية' })).toBeVisible();
-  await expect(menu.getByRole('link', { name: 'My hours' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Dark mode' })).toBeVisible();
+  await expect(menu.getByRole('link', { name: 'Admin' })).toBeVisible();
   await expect(menu.getByRole('link', { name: 'Settings' })).toBeVisible();
+  await expect(menu.getByRole('link', { name: 'My hours' })).toHaveCount(0);
 });
 
 test('Home and Projects at 1440 have no glass panel and no picture in the projects list', async ({ page }) => {
@@ -130,6 +136,7 @@ test('the Next for you card offers Focus for a task', async ({ page }) => {
 
 test('screenshots for the sweep', async ({ page }) => {
   test.setTimeout(240_000);
+  mkdirSync(SWEEP, { recursive: true });
   const shot = async (name: string) => { await page.waitForTimeout(900); await page.screenshot({ path: `${SWEEP}/${name}.png` }); };
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: 'light' });
@@ -141,24 +148,24 @@ test('screenshots for the sweep', async ({ page }) => {
   await expect(homeRows(page).first()).toBeVisible();
   await shot('home-1440-dark');
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.goto('/#/projects');
-  await expect(projectRows(page).first()).toBeVisible();
-  await shot('projects-1440');
+  await page.goto('/#/inbox');
+  await expect(page.getByRole('list', { name: 'Chats' }).getByRole('link').first()).toBeVisible();
+  await page.getByRole('list', { name: 'Chats' }).getByRole('link').first().click();
+  await expect(page.getByRole('log', { name: 'Messages' })).toBeVisible();
+  await shot('inbox-1440');
   await page.goto('/#/projects/prj_001');
   await expect(page.getByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeVisible();
-  await shot('project-1440');
-  await page.goto('/#/dashboard');
-  await expect(page.getByRole('link', { name: /At risk or late/ })).toBeVisible();
-  await shot('dashboard-1440');
-  await page.goto('/#/projects/prj_001?tab=tasks&focus=tsk_012');
-  await expect(page.getByRole('dialog', { name: 'Focus', exact: true })).toBeVisible();
-  await shot('focus-1440');
+  await expect(page.getByRole('region', { name: 'Where the project stands' })).toBeVisible();
+  await shot('project-overview-1440');
+  await page.goto('/#/dashboard/meeting');
+  await expect(page.getByRole('main', { name: 'Meeting view' })).toBeVisible();
+  await shot('meeting-1440');
+  await page.goto('/#/admin');
+  await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
+  await shot('admin-1440');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/#/projects/prj_001?tab=tasks');
-  await expect(page.getByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeVisible();
-  await shot('tasks-390');
   await page.goto('/#/inbox');
-  await expect(page.getByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Chats' })).toBeVisible();
   await shot('inbox-390');
   await page.goto('/#/settings');
   await page.getByRole('radio', { name: 'العربية' }).click();
