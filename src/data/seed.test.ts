@@ -30,15 +30,15 @@ describe('sample data', () => {
 
   it('has the health mix from the spec', async () => {
     const { state } = await seed();
-    expect(healthCounts(state, TODAY)).toEqual({ on_track: 5, at_risk: 3, late: 2 });
+    expect(healthCounts(state, TODAY)).toEqual({ on_track: 4, at_risk: 3, late: 2 });
     const statuses = Object.values(state.projects).map((p) => p.status);
-    expect(statuses.filter((s) => s === 'on_hold')).toHaveLength(1);
+    expect(statuses.filter((s) => s === 'on_hold')).toHaveLength(2);
     expect(statuses.filter((s) => s === 'completed')).toHaveLength(1);
   });
 
   it('keeps the same mix on another day', async () => {
     const other = '2027-03-14';
-    expect(healthCounts((await seed(other)).state, other)).toEqual({ on_track: 5, at_risk: 3, late: 2 });
+    expect(healthCounts((await seed(other)).state, other)).toEqual({ on_track: 4, at_risk: 3, late: 2 });
   });
 
   it('passes every entity schema', async () => {
@@ -98,13 +98,13 @@ it('writes agent summaries with relative days, so the date shift keeps them true
   expect(bodies.some((body) => /in \d+ days|today|tomorrow/.test(body))).toBe(true);
 });
 
-it('has a client record on three projects, with one question waiting on us and one item waiting on the client', async () => {
+it('has a client record on four projects, with one question waiting on us and one item waiting on the client', async () => {
   const { state } = await seed();
   const entries = Object.values(state.tracker ?? {});
-  expect(new Set(entries.map((e) => e.projectId)).size).toBe(3);
+  expect(new Set(entries.map((e) => e.projectId)).size).toBe(4);
   for (const entry of entries) expect(E.TrackerEntry.safeParse(entry).success).toBe(true);
   const open = entries.filter((e) => e.waiting !== null && e.closedAt === null);
-  expect(open.map((e) => e.waiting).sort()).toEqual(['client', 'client', 'us', 'us']);
+  expect(open.map((e) => e.waiting).sort()).toEqual(['client', 'client', 'client', 'us', 'us']);
   // A closed loop names who closed it. Every file chip points at a file of the same project.
   expect(entries.filter((e) => e.closedAt !== null).every((e) => e.closedBy !== null)).toBe(true);
   for (const entry of entries) for (const id of entry.fileIds) expect(state.files[id].projectId).toBe(entry.projectId);

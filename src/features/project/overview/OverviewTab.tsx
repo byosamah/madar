@@ -10,7 +10,8 @@ import { Avatar } from '../../../components/Avatar';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { ProgressLine } from '../../../components/ProgressLine';
 import { RichText } from '../../../components/RichText';
-import { signOf, StatusSign, signOfStatus } from '../../../components/StatusSign';
+import { ProjectSign } from '../../../components/ProjectSign';
+import { signOfProject, StatusSign } from '../../../components/StatusSign';
 import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { counted } from '../../../lib/grammar';
@@ -60,9 +61,9 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
           <p className="text-footnote text-ink-2">{t('projects.stageCount', { n: index + 1, total: stages.length })}</p>
           <p dir="auto" className="text-section text-ink">{currentStage.name}</p>
         </div>
-        {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <StatusSign state={signOfStatus(project.status)}>{t(`status.${project.status}`)}</StatusSign>}
+        {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <ProjectSign project={project} staleDays={detail.staleDays} />}
       </div>
-      <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOf(health, project.status)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
+      <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOfProject(detail)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
       {project.stageBack && project.stageBack.toStageId === currentStage.id && (
         // Why the project went back a stage, until it moves forward again (colleague comment 12).
         <p className="flex items-start gap-2 text-subheadline text-ink-2">

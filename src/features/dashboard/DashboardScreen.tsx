@@ -13,6 +13,7 @@ import { oneOf } from '../../lib/params';
 import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { OfficeSchedule } from './OfficeSchedule';
+import { StaleProjects } from './StaleProjects';
 import { Workload } from './Workload';
 import { clientName } from '../../lib/clientName';
 
@@ -20,6 +21,7 @@ const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const VIEWS = ['projects', 'people', 'schedule'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
+const TEAM_ID = /^tm_\d{3,}$/;
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
 const SELECT = 'field mt-1.5 font-normal';
 
@@ -36,13 +38,16 @@ export function DashboardScreen() {
   const section = oneOf(params.get('view'), VIEWS, 'projects');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
+  const team = params.get('team') ?? '';
   const dashboard = useCall('dashboard.get', {
     status,
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
+    teamId: TEAM_ID.test(team) ? team : undefined,
   });
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
+  const teams = useCall('teams.list', {});
   const set = (key: string, value: string, fallback: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     if (value === fallback) next.delete(key);
@@ -50,8 +55,8 @@ export function DashboardScreen() {
     return next;
   }, { replace: true });
   // The meeting view takes the filters, not the section.
-  const meetingSearch = new URLSearchParams([...params].filter(([key]) => ['status', 'leader', 'client'].includes(key))).toString();
-  const active = [status !== 'active', leader !== '', client !== ''].filter(Boolean).length;
+  const meetingSearch = new URLSearchParams([...params].filter(([key]) => ['status', 'leader', 'client', 'team'].includes(key))).toString();
+  const active = [status !== 'active', leader !== '', client !== '', team !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
   return (
@@ -68,6 +73,12 @@ export function DashboardScreen() {
             <select value={leader} onChange={(event) => set('leader', event.target.value, '')} className={SELECT}>
               <option value="">{t('dashboard.anyLeader')}</option>
               {(users.data ?? []).filter((user) => user.kind === 'human').map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </select>
+          </label>
+          <label className={LABEL}>{t('dashboard.team')}
+            <select value={team} onChange={(event) => set('team', event.target.value, '')} className={SELECT}>
+              <option value="">{t('dashboard.anyTeam')}</option>
+              {(teams.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
           <label className={LABEL}>{t('dashboard.client')}
@@ -95,6 +106,7 @@ export function DashboardScreen() {
           <TabPanel value={section} idPrefix="dash-section">
             {section === 'projects' && (
               <div className="grid gap-4 lg:grid-cols-2">
+                <div className="empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: `/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}` },

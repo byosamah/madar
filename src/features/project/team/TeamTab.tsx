@@ -11,6 +11,7 @@ import { SelectField, TextField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatNumber } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
+import { AddTeam } from './AddTeam';
 
 type Member = ProjectDetail['members'][number];
 
@@ -127,6 +128,7 @@ export function TeamTab({ detail }: TabProps) {
         <ul>{members.map((member) => <MemberRow key={member.user.id} member={member} detail={detail} />)}</ul>
       </section>
       {detail.viewerCan.edit && <AddMember detail={detail} />}
+      {detail.viewerCan.edit && <AddTeam detail={detail} />}
     </div>
   );
 }

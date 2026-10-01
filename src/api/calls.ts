@@ -12,6 +12,7 @@ import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { shareCalls } from './handlers/sharing';
+import { teamCalls } from './handlers/teams';
 import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
 
@@ -31,6 +32,7 @@ export const calls = {
   ...stageTemplateCalls,
   ...trackerCalls,
   ...paymentCalls,
+  ...teamCalls,
 };
 
 export type Calls = typeof calls;

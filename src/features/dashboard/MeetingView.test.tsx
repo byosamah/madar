@@ -20,7 +20,7 @@ describe('the meeting view', () => {
   it('lists the projects with their state words, and the date and filters in the title row', async () => {
     await renderApp('/dashboard/meeting');
     const list = await screen.findByRole('list', { name: 'Project timeline' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(10);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(9);
     const states = within(list).queryAllByText(/^(Late|At risk)$/);
     expect(states).toHaveLength(5);
     expect(within(list).queryAllByText('On track')).toHaveLength(0);
@@ -85,11 +85,11 @@ describe('the meeting view project screens', () => {
   it('shows each project with its work in progress, then moves with the arrow keys', async () => {
     await renderApp('/dashboard/meeting?mode=projects');
     const first = await screen.findByRole('article');
-    expect(within(first).getByText(/Project 1 of 10/)).toBeInTheDocument();
+    expect(within(first).getByText(/Project 1 of 9/)).toBeInTheDocument();
     expect(within(first).getByRole('region', { name: 'In progress now' })).toBeInTheDocument();
     expect(within(first).getByRole('region', { name: 'Needs attention' })).toBeInTheDocument();
     await userEvent.keyboard('{ArrowRight}');
-    expect(await screen.findByText(/Project 2 of 10/)).toBeInTheDocument();
+    expect(await screen.findByText(/Project 2 of 9/)).toBeInTheDocument();
   });
 
   it('lists the work counts on the timeline and opens a project screen from its name', async () => {

@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
+import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { notify, projectPeople } from '../notify';
+import { projectTouchesTeam } from '../pause';
 import { projectRoleOf } from '../permissions';
-import { memberKey, nextId, paymentsOf, type State } from '../store';
+import { memberKey, nextId, paymentsOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import { markOf, pickMark } from '../../lib/projectMark';
@@ -78,12 +79,15 @@ export const projectsList = defineCall({
     health: HealthValue.optional(),
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
+    /** A project matches when any person of the team leads it or is on its team (colleague comment 15). */
+    teamId: TeamId.optional(),
     sort: z.enum(['updated', 'deadline', 'name']).default('updated'),
   }),
   output: z.array(ProjectSummary),
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
+    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .map((p) => summaryOf(state, p, today, ctx.authority))
@@ -93,6 +97,8 @@ export const projectsList = defineCall({
       .filter((s) => !input.health || s.health?.value === input.health)
       .filter((s) => !input.leaderId || s.project.leaderId === input.leaderId)
       .filter((s) => !input.clientId || s.project.clientId === input.clientId)
+      // A team that does not exist matches nothing, like a leader or a client that does not exist.
+      .filter((s) => !input.teamId || (team !== undefined && projectTouchesTeam(state, s.project, team.memberIds)))
       .sort(SORTS[input.sort]);
   },
 });
@@ -244,15 +250,36 @@ export const projectsSetStatus = defineCall({
   },
 });
 
-/** The leader or the Admin pauses a project with a reason and an optional restart date (owner, 2026-10-01). */
+/** A Tracker title is shorter than a pause reason. The whole reason then goes in the note. */
+const TITLE_MAX = 200;
+
+/**
+ * The leader or the Admin pauses a project with a reason and an optional restart date (owner, 2026-10-01).
+ * "internal" is the office's own pause. "client" says the project waits for the client: the pause then logs a Tracker
+ * entry that waits for the client, so it shows in "Waiting for the client" and in the Overview (colleague comment 16).
+ */
 export const projectsPause = defineCall({
-  input: z.object({ id: ProjectId, reason: z.string().trim().min(1, 'Write why the project pauses.').max(280), resumeOn: Day.nullable().optional() }),
+  input: z.object({
+    id: ProjectId,
+    reason: z.string().trim().min(1, 'Write why the project pauses.').max(280),
+    resumeOn: Day.nullable().optional(),
+    kind: PauseKind.default('internal'),
+  }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
+    if (project.status === 'on_hold') throw new ApiError('conflict', 'This project is already paused. Resume it first.');
     if (input.resumeOn && input.resumeOn <= ctx.today) throw invalid('resumeOn', 'The restart date must be after today.');
-    const pause = { reason: input.reason, resumeOn: input.resumeOn ?? null, by: ctx.actor.id, at: ctx.stamp };
+    const pause: NonNullable<Project['pause']> = { reason: input.reason, resumeOn: input.resumeOn ?? null, by: ctx.actor.id, at: ctx.stamp, kind: input.kind };
+    if (input.kind === 'client') {
+      const long = input.reason.length > TITLE_MAX;
+      // The entry comes first, so an Undo takes the pause away first and then the entry that the pause points to.
+      pause.trackerId = addTrackerEntry(ctx, {
+        projectId: project.id, type: 'message', direction: 'out', waiting: 'client',
+        title: long ? `${input.reason.slice(0, TITLE_MAX - 1)}…` : input.reason, note: long ? input.reason : '',
+      }).id;
+    }
     applyPatch(ctx, project, { status: 'on_hold', pause }, { projectId: project.id, verb: 'project.paused', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
@@ -325,7 +352,13 @@ export const projectsResume = defineCall({
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
     if (project.status !== 'on_hold') throw new ApiError('conflict', 'This project is not paused.');
+    const waiting = project.pause?.trackerId ? trackerOf(ctx.state)[project.pause.trackerId] : undefined;
     applyPatch(ctx, project, { status: 'active', pause: null }, { projectId: project.id, verb: 'project.resumed', targetType: 'project', targetId: project.id });
+    // The wait is over, so the open entry of a client pause closes with the pause. An entry that a person already closed,
+    // changed or deleted stays as it is.
+    if (waiting && waiting.waiting === 'client' && waiting.closedAt === null) {
+      applyPatch(ctx, waiting, { closedAt: ctx.stamp, closedBy: ctx.actor.id }, { projectId: project.id, verb: 'tracker.closed', targetType: 'tracker', targetId: waiting.id });
+    }
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -403,6 +436,29 @@ export const membersAdd = defineCall({
     addMember(ctx, project.id, user.id, input.discipline);
     touch(ctx, project.id);
     return detail(ctx, project);
+  },
+});
+
+/**
+ * Adds every active person of an office team who is not on the project yet (colleague comment 15). The rules are those of
+ * members.add: only a person who may edit the project does it, and each new person gets the same notice. It says how many it added.
+ */
+export const membersAddTeam = defineCall({
+  input: z.object({ projectId: ProjectId, teamId: TeamId }),
+  output: z.object({ detail: ProjectDetail, added: z.number().int().min(0) }),
+  run(input, ctx) {
+    const project = requireEditable(ctx, input.projectId);
+    const team = teamsOf(ctx.state)[input.teamId];
+    if (!team) throw notFound('Team', input.teamId);
+    let added = 0;
+    for (const userId of team.memberIds) {
+      const user = ctx.state.users[userId];
+      if (!user?.active || user.kind !== 'human' || ctx.state.members[memberKey(project.id, userId)]) continue;
+      addMember(ctx, project.id, userId);
+      added += 1;
+    }
+    if (added > 0) touch(ctx, project.id);
+    return { detail: detail(ctx, project), added };
   },
 });
 
@@ -586,6 +642,7 @@ export const projectCalls = {
   'projects.clearHealthOverride': projectsClearHealthOverride,
   'projects.delete': projectsDelete,
   'members.add': membersAdd,
+  'members.addTeam': membersAddTeam,
   'members.remove': membersRemove,
   'members.update': membersUpdate,
   'stages.replace': stagesReplace,

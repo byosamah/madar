@@ -16,6 +16,7 @@ export function PeopleSection() {
   const { t } = useTranslation();
   const users = useCall('users.list', { includeInactive: true });
   const session = useCall('session.get', {});
+  const teams = useCall('teams.list', {});
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: user.name }) });
@@ -33,7 +34,10 @@ export function PeopleSection() {
       </div>
       {users.error && !users.data && <LoadFailed error={users.error} onRetry={() => void users.refetch()} />}
       <ul className="flex flex-col">
-        {(users.data ?? []).map((user) => (
+        {(users.data ?? []).map((user) => {
+          // The office teams of this person, shown quietly after the discipline.
+          const inTeams = (teams.data ?? []).filter((team) => team.members.some((member) => member.id === user.id)).map((team) => team.name);
+          return (
           <li key={user.id} className="flex items-center gap-3 py-2">
             <Avatar user={user} size={36} />
             <div className="min-w-0 flex-1">
@@ -44,6 +48,7 @@ export function PeopleSection() {
               </p>
               <p className="truncate text-footnote text-label-2">
                 <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi>
+                {inTeams.length > 0 && <> · <bdi>{inTeams.join(', ')}</bdi></>}
               </p>
             </div>
             {(viewerIsAdmin || user.systemRole !== 'admin') && <Menu
@@ -54,7 +59,8 @@ export function PeopleSection() {
               ]}
             />}
           </li>
-        ))}
+          );
+        })}
       </ul>
       <PersonFormSheet open={adding} onOpenChange={setAdding} person={null} />
       <PersonFormSheet open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} person={editing} />

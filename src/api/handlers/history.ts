@@ -111,6 +111,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     }
     case 'payment':
       return need('payment.manage');
+    case 'team':
+      return need('people.manage');
     case 'stageTemplate': {
       // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
       if (event.verb === 'stageTemplate.created') need('project.create');

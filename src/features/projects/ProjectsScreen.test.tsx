@@ -14,10 +14,10 @@ const openFilter = async () => {
 };
 
 describe('the Projects screen', () => {
-  it('shows the 10 active projects as calm rows, with no chips and no covers', async () => {
+  it('shows the 9 active projects as calm rows, with no chips and no covers', async () => {
     await renderApp('/projects');
     await ready();
-    expect(rows()).toHaveLength(10);
+    expect(rows()).toHaveLength(9);
     expect(screen.queryByRole('radiogroup')).toBeNull();
     expect(screen.queryAllByRole('img', { name: /Cover image/ })).toHaveLength(0);
   });
@@ -51,8 +51,9 @@ describe('the Projects screen', () => {
     await userEvent.click(within(dialog).getByRole('radio', { name: 'All' }));
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'on_hold');
     expect(await screen.findByRole('link', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
-    expect(rows()).toHaveLength(1);
-    expect(within(rows()[0]).getByText('Paused')).toBeInTheDocument();
+    expect(rows()).toHaveLength(2);
+    // The two paused samples: Gulf Crest waits for the client, Tamr Staff Housing has been paused long enough to be stale.
+    expect(within(rows()[0]).getByText(/Awaiting client|Stale/)).toBeInTheDocument();
   });
 
   it('shows a member only their projects under My projects', async () => {
@@ -61,7 +62,7 @@ describe('the Projects screen', () => {
     });
     await ready();
     await userEvent.click(within(await openFilter()).getByRole('radio', { name: 'My projects' }));
-    await waitFor(() => expect(rows()).toHaveLength(5));
+    await waitFor(() => expect(rows()).toHaveLength(4));
     expect(screen.queryByRole('link', { name: /Tamr Boutique Hotel/ })).toBeNull();
   });
 

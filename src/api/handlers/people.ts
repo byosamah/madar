@@ -283,6 +283,7 @@ export const settingsUpdate = defineCall({
     defaultStages: Settings.shape.defaultStages.optional(),
     codePrefix: Settings.shape.codePrefix.optional(),
     workloadLimit: Settings.shape.workloadLimit.optional(),
+    staleAfterDays: Settings.shape.staleAfterDays,
   }),
   output: Settings,
   run(input, ctx) {

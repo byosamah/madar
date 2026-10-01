@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, HealthValue, ProjectId, ProjectStatus, Stage, StageId, TaskId, UserId, type Project,
+  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Project,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
-import type { State } from '../store';
+import { pauseKindOf, projectTouchesTeam, staleDaysOf } from '../pause';
+import { teamsOf, type State } from '../store';
 import { deadlinesOf, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
@@ -32,7 +33,15 @@ export const DashboardView = z.object({
     limit: Count,
     rows: z.array(z.object({ user: UserCard, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
   }),
-  schedule: z.array(z.object({ project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline) })),
+  schedule: z.array(z.object({
+    project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline),
+    /** Set for a paused project (it shows when the status filter asks for paused projects): its kind, and the days it waited once stale. */
+    pause: z.object({ kind: PauseKind, staleDays: Count.nullable() }).nullable(),
+  })),
+  /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
+  attention: z.object({
+    stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
+  }),
 });
 export type DashboardView = z.infer<typeof DashboardView>;
 
@@ -43,13 +52,17 @@ export const dashboardGet = defineCall({
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
+    teamId: TeamId.optional(),
   }),
   output: DashboardView,
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority: actor } = ctx;
-    const projects = Object.values(state.projects).filter((p) =>
-      (input.status === 'all' || p.status === input.status) && (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId));
+    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
+    // The people filters apply to every number. A team that does not exist matches nothing, like a leader that does not exist.
+    const inFilters = (p: Project) => (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId)
+      && (!input.teamId || (team !== undefined && projectTouchesTeam(state, p, team.memberIds)));
+    const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
     const active = projects.filter((p) => p.status === 'active');
     const inScope = new Set(projects.map((p) => p.id));
     const activeIds = new Set(active.map((p) => p.id));
@@ -103,9 +116,18 @@ export const dashboardGet = defineCall({
         throughput,
       },
       workload: { weeks, limit, rows: workloadRows },
-      schedule: [...active]
+      attention: {
+        stale: Object.values(state.projects)
+          .filter(inFilters)
+          .flatMap((p) => { const days = staleDaysOf(state, p, today); return days === null ? [] : [{ project: refOf(p), days, kind: pauseKindOf(p) }]; })
+          .sort((a, b) => b.days - a.days || a.project.name.localeCompare(b.project.name)),
+      },
+      schedule: [...active, ...projects.filter((p) => p.status === 'on_hold')]
         .sort((a, b) => (a.targetEndDate ?? '9999-12-31').localeCompare(b.targetEndDate ?? '9999-12-31') || a.code.localeCompare(b.code))
-        .map((p) => ({ project: refOf(p), currentStageId: p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id) })),
+        .map((p) => ({
+          project: refOf(p), currentStageId: p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id),
+          pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
+        })),
     };
   },
 });

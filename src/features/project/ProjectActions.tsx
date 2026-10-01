@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import type { ProjectStatus } from '../../api/contract/entities';
+import type { PauseKind, ProjectStatus } from '../../api/contract/entities';
 import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { useAction, useCall } from '../../app/runtime';
@@ -9,6 +9,7 @@ import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { Menu, type MenuItem } from '../../components/Menu';
+import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
 import { fieldError } from '../../app/errors';
 import { todayISO, addDays } from '../../lib/dates';
@@ -84,10 +85,12 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
   const { t } = useTranslation();
   const [reason, setReason] = useState('');
   const [resumeOn, setResumeOn] = useState('');
+  const [kind, setKind] = useState<PauseKind>('internal');
   useEffect(() => {
     if (!open) return;
     setReason('');
     setResumeOn('');
+    setKind('internal');
   }, [open]);
   const pause = useUndoable('projects.pause', { message: () => t('project.pausedToast'), onSuccess: () => onOpenChange(false) });
   return (
@@ -99,13 +102,23 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
       footer={(
         <>
           <Button onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={!reason.trim() || pause.isPending} onClick={() => pause.mutate({ id: detail.project.id, reason: reason.trim(), resumeOn: resumeOn || null })}>
+          <Button variant="primary" disabled={!reason.trim() || pause.isPending} onClick={() => pause.mutate({ id: detail.project.id, reason: reason.trim(), resumeOn: resumeOn || null, kind })}>
             {t('project.pause')}
           </Button>
         </>
       )}
     >
       <div className="flex flex-col gap-4 pt-1">
+        <div className="flex flex-col gap-1.5">
+          <span className="field-label">{t('project.pauseWhy')}</span>
+          <SegmentedControl
+            label={t('project.pauseWhy')}
+            value={kind}
+            onChange={setKind}
+            options={(['internal', 'client'] as const).map((value) => ({ value, label: t(`project.pauseKinds.${value}`) }))}
+          />
+          {kind === 'client' && <p className="text-caption text-ink-2">{t('project.pauseClientHint')}</p>}
+        </div>
         <TextArea id="pause-reason" label={t('project.pauseReason')} value={reason} dir="auto" maxLength={280} error={fieldError(pause.error, 'reason', t, t('errors.invalid_input'))} onChange={(event) => setReason(event.target.value)} />
         <TextField id="pause-resume" type="date" label={t('project.resumeOn')} min={addDays(todayISO(), 1)} value={resumeOn} error={fieldError(pause.error, 'resumeOn', t, t('errors.invalid_input'))} onChange={(event) => setResumeOn(event.target.value)} />
       </div>

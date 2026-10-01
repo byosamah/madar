@@ -97,6 +97,7 @@
       "email_taken": "This email is already in use.",
       "agent_admin": "An agent cannot be an Admin. It has the rights of the person it acts for.",
       "duplicate_name": "A template with this name exists. Use another name.",
+      "duplicate_team": "A team with this name exists. Use another name.",
       "duplicate_stage": "A stage name is in the list twice.",
       "stage_has_tasks": "A stage with tasks cannot be removed. Move its tasks first.",
       "due_before_start": "The due date cannot be before the start date.",
@@ -110,6 +111,23 @@
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back."
     }
+  },
+  "teams": {
+    "title": "Teams",
+    "add": "Add team",
+    "editTitle": "Edit team",
+    "name": "Team name",
+    "members": "People",
+    "created": "{{name}} added.",
+    "saved": "Team saved.",
+    "deleted": "Team deleted.",
+    "empty": "No teams yet.",
+    "count": "{{n}} people",
+    "count_one": "1 person",
+    "count_other": "{{count}} people",
+    "actions": "Actions for {{name}}",
+    "edit": "Edit",
+    "delete": "Delete team"
   },
   "stageTemplates": {
     "title": "Stage templates",
@@ -166,6 +184,10 @@
   "status": {
     "active": "Active",
     "on_hold": "Paused",
+    "awaiting_client": "Awaiting client",
+    "stale": "Stale · paused {{count}} days",
+    "stale_one": "Stale · paused 1 day",
+    "stale_other": "Stale · paused {{count}} days",
     "completed": "Completed",
     "archived": "Archived",
     "all": "All statuses"
@@ -184,6 +206,8 @@
       "at_risk": "Needs attention"
     },
     "statusFilter": "Status",
+    "team": "Team",
+    "anyTeam": "Any team",
     "sort": "Sort",
     "sorts": {
       "updated": "Last update",
@@ -301,6 +325,12 @@
     "resume": "Resume project",
     "pauseTitle": "Pause this project?",
     "pauseHint": "The team sees the reason. Tasks and dates stay as they are.",
+    "pauseWhy": "Why?",
+    "pauseKinds": {
+      "internal": "Our side",
+      "client": "Awaiting client"
+    },
+    "pauseClientHint": "The Tracker gets a line that waits for the client. Resume closes it.",
     "pauseReason": "Reason",
     "resumeOn": "Restart date (optional)",
     "pausedToast": "Project paused.",
@@ -579,7 +609,14 @@
     "removed": "{{name}} removed from the team.",
     "makeLeader": "Make leader",
     "actions": "Actions for {{name}}",
-    "noOne": "Everyone is already on the team."
+    "noOne": "Everyone is already on the team.",
+    "addTeam": "Add a team",
+    "addTeamHint": "Adds every person of the team who is not on this project yet.",
+    "team": "Team",
+    "teamAdded": "{{n}} people added",
+    "teamAdded_one": "1 person added",
+    "teamAdded_other": "{{count}} people added",
+    "teamNone": "Everyone in {{name}} is already on this project."
   },
   "work": {
     "group": {
@@ -681,6 +718,13 @@
     "anyLeader": "Any leader",
     "client": "Client",
     "anyClient": "Any client",
+    "team": "Team",
+    "anyTeam": "Any team",
+    "stale": {
+      "title": "Stale projects",
+      "internal": "Paused by the office",
+      "client": "Waiting for the client"
+    },
     "tiles": {
       "activeProjects": "Active projects",
       "atRiskOrLate": "At risk or late",
@@ -738,6 +782,7 @@
       "noFilters": "No filters",
       "leader": "Leader: {{name}}",
       "client": "Client: {{name}}",
+      "team": "Team: {{name}}",
       "status": "Status: {{name}}",
       "deadline": "Deadline: {{name}}, {{date}}",
       "deadlineCount": "{{count}} deadlines",
@@ -817,6 +862,8 @@
     "prefixHint": "One to four capital letters, for example KH.",
     "limit": "Workload limit",
     "limitHint": "Open tasks per person in one week before the cell turns red.",
+    "staleAfter": "Days until a paused project is stale",
+    "staleAfterHint": "A paused project turns stale after this many days. Use 7 to 365.",
     "saveOffice": "Save office settings",
     "officeSaved": "Office settings saved.",
     "person": "Person",
@@ -824,6 +871,7 @@
     "errors": {
       "email": "Use a valid email address.",
       "limit": "Use a whole number from 1 to 100.",
+      "stale": "Use a whole number from 7 to 365.",
       "prefix": "Use one to four capital letters.",
       "stages": "Give every stage a name.",
       "name": "Enter a name.",

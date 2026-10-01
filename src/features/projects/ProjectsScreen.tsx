@@ -20,6 +20,7 @@ const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
+const TEAM_ID = /^tm_\d{3,}$/;
 const SELECT = 'field mt-1.5 font-normal';
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 
@@ -33,6 +34,8 @@ export function ProjectsScreen() {
   const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
+  const teamParam = params.get('team') ?? '';
+  const teamId = TEAM_ID.test(teamParam) ? teamParam : undefined;
   const healthParam = params.get('health');
   const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
@@ -55,14 +58,16 @@ export function ProjectsScreen() {
   const [sort, setSort] = usePersistentChoice('madar.projects.sort', SORTS, 'updated');
   const [creating, setCreating] = useState(false);
   const settings = useCall('settings.get', {});
+  const teams = useCall('teams.list', {});
   const list = useCall('projects.list', {
     status,
     sort,
     filter: stageName ? 'all' : filterParam,
     stageName,
     health,
+    teamId,
   });
-  const active = [filterParam !== 'all' || stageName, status !== 'active', sort !== 'updated'].filter(Boolean).length;
+  const active = [filterParam !== 'all' || stageName, status !== 'active', sort !== 'updated', teamId].filter(Boolean).length;
   const showAll = () => setParams({ status: 'all' }, { replace: true });
 
   let body = null;
@@ -108,6 +113,13 @@ export function ProjectsScreen() {
             <select value={stageName ?? ''} onChange={(event) => setFilter(event.target.value ? `stage:${event.target.value}` : 'all')} className={SELECT}>
               <option value="">{t('projects.anyStage')}</option>
               {(settings.data?.defaultStages ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          <label className={LEGEND}>
+            {t('projects.team')}
+            <select value={teamId ?? ''} onChange={(event) => update((next) => (event.target.value ? next.set('team', event.target.value) : next.delete('team')))} className={SELECT}>
+              <option value="">{t('projects.anyTeam')}</option>
+              {(teams.data ?? []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
             </select>
           </label>
           <label className={LEGEND}>

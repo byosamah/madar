@@ -63,7 +63,7 @@ describe('Home', () => {
     await renderApp('/');
     expect(within(await next()).getByText('Approve “Authority comments response”')).toBeInTheDocument();
     const projects = screen.getByRole('region', { name: 'Your projects' });
-    await waitFor(() => expect(within(projects).getAllByRole('listitem')).toHaveLength(10));
+    await waitFor(() => expect(within(projects).getAllByRole('listitem')).toHaveLength(9));
   });
 
   it('says what is left only after the person finishes something', async () => {

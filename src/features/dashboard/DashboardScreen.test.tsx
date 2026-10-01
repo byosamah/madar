@@ -8,7 +8,7 @@ const tile = (name: RegExp) => screen.findByRole('link', { name });
 describe('the Dashboard', () => {
   it('shows the numbers, then the Projects section with its rows', async () => {
     await renderApp('/dashboard');
-    expect(await tile(/Active projects/)).toHaveTextContent('10');
+    expect(await tile(/Active projects/)).toHaveTextContent('9');
     expect(await tile(/At risk or late/)).toHaveTextContent('5');
     for (const name of [/Past-due tasks/, /Deadlines, next 14 days/, /Area in design/]) expect(await tile(name)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true');

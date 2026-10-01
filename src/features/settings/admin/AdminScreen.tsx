@@ -5,6 +5,7 @@ import { ScreenTitle } from '../../../components/ScreenTitle';
 import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
 import { StageTemplatesSection } from './StageTemplatesSection';
+import { TeamsSection } from './TeamsSection';
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
@@ -27,6 +28,8 @@ export function AdminScreen() {
     <div className="flex flex-col gap-6">
       <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
       <PeopleSection />
+      {/* Management makes and changes the office teams too: they are about people. */}
+      <TeamsSection />
       {/* Management makes and changes people. The office settings and the stage templates stay with the Admin. */}
       {role === 'admin' && <OfficeSection />}
       {role === 'admin' && <StageTemplatesSection />}
