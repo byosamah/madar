@@ -4,12 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
 describe('settings screen', () => {
-  it('changes the theme and the glass', async () => {
+  it('changes the theme, and has no glass setting left', async () => {
     await renderApp('/settings');
     await userEvent.click(await screen.findByRole('radio', { name: 'Dark' }));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
-    await userEvent.click(screen.getByRole('radio', { name: 'Solid' }));
-    await waitFor(() => expect(document.documentElement.dataset.glass).toBe('solid'));
+    expect(screen.queryByRole('heading', { name: 'Glass' })).toBeNull();
   });
 
   it('turns a notification trigger off', async () => {

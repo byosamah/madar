@@ -60,12 +60,6 @@
       "light": "Light",
       "dark": "Dark"
     },
-    "glass": "Glass",
-    "glassLevels": {
-      "clear": "Clear",
-      "frosted": "Frosted",
-      "solid": "Solid"
-    },
     "notifications": "Notifications",
     "triggers": {
       "task_assigned": "A task is assigned to me",

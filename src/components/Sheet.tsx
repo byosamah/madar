@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
+import { usePanelOpen } from '../app/panelOpen';
 import { useIsPhone } from '../app/useIsPhone';
 
 /**
@@ -25,6 +26,7 @@ export function Sheet({
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
   const direction = phone ? 'bottom' : rtl ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
+  usePanelOpen(open && modal);
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
     : `inset-y-3 end-3 rounded-sheet ${wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]'}`;
@@ -33,18 +35,18 @@ export function Sheet({
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal={modal} handleOnly={!phone}>
       <Drawer.Portal>
         {modal && <Drawer.Overlay className="fixed inset-0 z-40 bg-[var(--c-scrim)]" />}
-        <Drawer.Content {...described} className={`glass fixed z-50 flex flex-col shadow-float outline-none ${shape}`}>
+        <Drawer.Content {...described} className={`float fixed z-50 flex flex-col outline-none ${shape}`}>
           {phone && <Drawer.Handle className="mt-2" />}
           <div className="flex items-start gap-3 px-5 pb-2 pt-4">
             <div className="min-w-0 flex-1">
-              <Drawer.Title className="text-title-3 font-bold [text-wrap:balance]">{title}</Drawer.Title>
+              <Drawer.Title className="text-section text-ink [text-wrap:balance]">{title}</Drawer.Title>
               {description && <Drawer.Description className="text-footnote text-label-2">{description}</Drawer.Description>}
             </div>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
               aria-label={t('common.close')}
-              className="pressable grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2"
+              className="pressable grid size-11 shrink-0 place-items-center rounded-full bg-fill text-ink-2"
             >
               <X size={18} aria-hidden />
             </button>

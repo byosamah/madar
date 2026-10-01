@@ -25,13 +25,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             role={toast.tone === 'error' ? 'alert' : 'status'}
-            className="glass pointer-events-auto flex min-h-11 max-w-full items-center gap-3 rounded-full px-5 py-2 text-subheadline shadow-float"
+            className="float pointer-events-auto flex min-h-11 max-w-full items-center gap-3 rounded-full px-5 py-2 text-subheadline text-ink"
           >
             <span>{toast.message}</span>
             {toast.action && (
               <button
                 type="button"
-                className="pressable min-h-11 font-semibold text-accent"
+                className="pressable min-h-11 font-semibold text-link"
                 onClick={() => {
                   toast.action?.run();
                   dismiss(toast.id);

@@ -13,8 +13,8 @@ import { AdminSettings } from './admin/AdminSettings';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="surface flex flex-col gap-3 rounded-card p-5">
-      <h2 className="text-headline">{title}</h2>
+    <section className="panel flex flex-col gap-3 p-5">
+      <h2 className="text-section text-ink">{title}</h2>
       {children}
     </section>
   );
@@ -88,15 +88,6 @@ export function SettingsScreen() {
           value={prefs.theme}
           options={(['system', 'light', 'dark'] as const).map((value) => ({ value, label: t(`settings.themes.${value}`) }))}
           onChange={(theme) => preferences.mutate({ theme })}
-        />
-      </Section>
-
-      <Section title={t('settings.glass')}>
-        <SegmentedControl
-          label={t('settings.glass')}
-          value={prefs.glass}
-          options={(['clear', 'frosted', 'solid'] as const).map((value) => ({ value, label: t(`settings.glassLevels.${value}`) }))}
-          onChange={(glass) => preferences.mutate({ glass })}
         />
       </Section>
 

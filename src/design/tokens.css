@@ -52,8 +52,6 @@
   --c-fill: rgba(120, 120, 128, 0.12);
   --c-fill-strong: rgba(120, 120, 128, 0.2);
   --c-accent: #0066CC;
-  /* Accent text on frosted glass: a deeper blue keeps 4.5:1 over any content under the glass. */
-  --c-glass-accent: #0055AA;
   --c-accent-fill: #0071E3;
   --c-on-accent: #FFFFFF;
   --c-green: #34C759;
@@ -66,11 +64,6 @@
   --c-scrim: rgba(0, 0, 0, 0.35);
   --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --sh-float: 0 8px 32px rgba(0, 0, 0, 0.12);
-  /* 0.85 keeps secondary labels on glass at 4.5:1 over any content (tokens.test.ts). */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-filter: blur(24px) saturate(180%);
-  --glass-edge: rgba(255, 255, 255, 0.55);
-  --glass-border: transparent;
   --r-card: 20px;
   --r-sheet: 28px;
   --r-control: 8px;
@@ -150,7 +143,6 @@
   --c-fill: rgba(120, 120, 128, 0.24);
   --c-fill-strong: rgba(120, 120, 128, 0.36);
   --c-accent: #0A84FF;
-  --c-glass-accent: #64B5FF;
   --c-accent-fill: #0071E3;
   --c-green: #30D158;
   --c-orange: #FF9F0A;
@@ -162,27 +154,10 @@
   --c-scrim: rgba(0, 0, 0, 0.5);
   --sh-card: none;
   --sh-float: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --glass-bg: rgba(28, 28, 30, 0.85);
-  --glass-edge: rgba(255, 255, 255, 0.08);
   color-scheme: dark;
 }
 
-[data-glass="clear"] {
-  --glass-bg: rgba(255, 255, 255, 0.25);
-  --glass-filter: blur(12px);
-}
-
-[data-theme="dark"][data-glass="clear"] {
-  --glass-bg: rgba(0, 0, 0, 0.25);
-}
-
-[data-glass="solid"] {
-  --glass-bg: var(--c-card);
-  --glass-filter: none;
-}
-
 [data-contrast="more"] {
-  --glass-border: var(--c-label);
   --c-separator: var(--c-label-2);
   --c-hairline: var(--c-ink-2);
   --panel-edge: var(--c-ink-2);
@@ -200,7 +175,6 @@
   --color-fill: var(--c-fill);
   --color-fill-strong: var(--c-fill-strong);
   --color-accent: var(--c-accent);
-  --color-glass-accent: var(--c-glass-accent);
   --color-accent-fill: var(--c-accent-fill);
   --color-on-accent: var(--c-on-accent);
   --color-green: var(--c-green);
@@ -292,14 +266,6 @@
 }
 
 @layer components {
-  /* Liquid Glass: navigation layer only (spec 10.1). */
-  .glass {
-    background: var(--glass-bg);
-    -webkit-backdrop-filter: var(--glass-filter);
-    backdrop-filter: var(--glass-filter);
-    box-shadow: inset 0 1px 0 var(--glass-edge);
-    border: 1px solid var(--glass-border);
-  }
   /* Calm panels (redesign spec 2.1): white on the soft gray page, a soft shadow in light, a thin edge in dark. */
   .surface,
   .panel {
@@ -323,6 +289,12 @@
     box-shadow: var(--sh-panel);
     border: 1px solid var(--panel-edge);
     border-radius: var(--r-card);
+  }
+  /* Floating layers (sheets, popovers, menus, toasts): a solid panel with a deeper shadow. No glass (redesign spec 2.1). */
+  .float {
+    background: var(--c-panel);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 18px 48px rgba(0, 0, 0, 0.14);
+    border: 1px solid var(--panel-edge);
   }
   .hairline > * + * {
     border-top: 1px solid var(--c-hairline);
@@ -348,25 +320,8 @@
   .pressable:active {
     transform: scale(0.97);
   }
-  /* Soft scroll edge under a floating toolbar, instead of a hard divider line. */
-  .toolbar-fade::after {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: 100%;
-    height: 16px;
-    background: linear-gradient(var(--glass-bg), transparent);
-    pointer-events: none;
-  }
   .tabular {
     font-variant-numeric: tabular-nums;
-  }
-  /* Clear glass on a cover image, with the 35% dark layer behind the buttons (spec 10.1). */
-  .glass-media {
-    background: rgba(0, 0, 0, 0.35);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-    backdrop-filter: blur(12px) saturate(160%);
-    color: #fff;
   }
 }
 
@@ -384,14 +339,22 @@
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-  .glass {
-    background: var(--c-card);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+}
+
+/* Motion moment 5: while a modal panel is open, the page behind steps back (redesign spec 4). */
+.app-page {
+  transform-origin: 50% 0;
+  transition: transform 520ms cubic-bezier(0.2, 0.9, 0.25, 1), opacity 520ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+:root[data-panel-open] .app-page {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-page {
+    transition: opacity 180ms linear;
   }
-  .glass-media {
-    background: rgba(0, 0, 0, 0.6);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  :root[data-panel-open] .app-page {
+    transform: none;
   }
 }

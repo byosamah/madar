@@ -26,7 +26,7 @@ export function AppShell() {
       <div className="fixed end-4 top-4 z-30 hidden sm:block">
         <PersonMenu id="wide" />
       </div>
-      <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
+      <main className="app-page mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
         <div className="-me-1.5 flex justify-end sm:hidden">
           <PersonMenu id="phone" />
         </div>

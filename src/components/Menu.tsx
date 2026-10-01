@@ -61,7 +61,7 @@ export function MenuList({
       exit={{ opacity: 0, scale: 0.96 }}
       transition={spring.standard}
       style={style}
-      className={`glass z-50 flex min-w-52 flex-col rounded-2xl p-1.5 shadow-float ${className}`}
+      className={`float z-50 flex min-w-52 flex-col rounded-2xl p-1.5 ${className}`}
     >
       {items.filter((item) => !item.hidden).map((item) => (
         <button

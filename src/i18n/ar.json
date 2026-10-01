@@ -60,12 +60,6 @@
       "light": "فاتح",
       "dark": "داكن"
     },
-    "glass": "الزجاج",
-    "glassLevels": {
-      "clear": "شفاف",
-      "frosted": "مصنفر",
-      "solid": "معتم"
-    },
     "notifications": "الإشعارات",
     "triggers": {
       "task_assigned": "إسناد مهمة إليّ",

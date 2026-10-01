@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 
-/** A small glass panel next to its control, for a short choice. Escape or a press outside closes it. */
+/** A small floating panel next to its control, for a short choice. Escape or a press outside closes it. */
 export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElement; label: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -39,7 +39,7 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
       animate={{ opacity: 1, scale: 1 }}
       transition={spring.standard}
       style={{ position: 'fixed', width, ...place }}
-      className="glass z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4 shadow-float"
+      className="float z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4"
     >
       {children}
     </motion.div>,
