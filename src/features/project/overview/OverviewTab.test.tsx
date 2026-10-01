@@ -85,3 +85,14 @@ describe('project links from stored data (security)', () => {
     expect(about.querySelector('a[href^="javascript"]')).toBeNull();
   });
 });
+
+describe('pending items from the client (colleague comment 6)', () => {
+  it('lists what we wait for from the client in Needs attention, and Received closes it', async () => {
+    await renderApp('/projects/prj_001', as('usr_002'));
+    const attention = await screen.findByRole('region', { name: 'Needs attention' });
+    expect(await within(attention).findByRole('heading', { name: /^Waiting for the client/ })).toBeInTheDocument();
+    expect(within(attention).getByText('Asked the client for the signed fee agreement')).toBeInTheDocument();
+    await userEvent.click(within(attention).getByRole('button', { name: /^Received.*signed fee agreement/ }));
+    await waitFor(() => expect(within(attention).queryByText('Asked the client for the signed fee agreement')).toBeNull());
+  });
+});

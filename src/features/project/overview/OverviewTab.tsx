@@ -17,6 +17,7 @@ import { counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
+import { Loop } from '../tracker/OpenLoops';
 import { AboutPanel } from './AboutPanel';
 
 const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
@@ -82,9 +83,17 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
   );
 }
 
-function Attention({ rows, onOpen }: { rows: TaskRow[]; onOpen: (id: string) => void }) {
+function Attention({ projectId, rows, onOpen }: { projectId: string; rows: TaskRow[]; onOpen: (id: string) => void }) {
   const { t } = useTranslation();
+  const [, setParams] = useSearchParams();
   const groups = needsAttention(rows, todayISO());
+  // What the office waits for from the client (a land survey, a soil report), from the Tracker (colleague comment 6).
+  const waiting = (useCall('tracker.list', { projectId, openOnly: true }).data ?? []).filter((row) => row.entry.waiting === 'client');
+  const toTracker = () => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('tab', 'tracker');
+    return next;
+  });
   const parts = [
     { key: 'pastDue', items: groups.pastDue },
     { key: 'review', items: groups.review },
@@ -93,7 +102,7 @@ function Attention({ rows, onOpen }: { rows: TaskRow[]; onOpen: (id: string) => 
   return (
     <section aria-labelledby="overview-attention" className="panel flex flex-col gap-3 p-5">
       <h2 id="overview-attention" className={HEADING}>{t('overview.attention')}</h2>
-      {parts.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.allClear')}</p>}
+      {parts.length === 0 && waiting.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.allClear')}</p>}
       {parts.map((part) => (
         <div key={part.key} className="flex flex-col gap-1">
           <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
@@ -106,6 +115,17 @@ function Attention({ rows, onOpen }: { rows: TaskRow[]; onOpen: (id: string) => 
           {part.items.length > 3 && <p className="text-footnote text-ink-2">{counted(t, 'overview.more', part.items.length - 3)}</p>}
         </div>
       ))}
+      {waiting.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
+            {t('tracker.waitingClient')}
+            <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{waiting.length}</span>
+          </h3>
+          <ul className="flex flex-col">
+            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={toTracker} compact />)}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -213,7 +233,7 @@ export function OverviewTab({ detail }: TabProps) {
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
         <Standing detail={detail} rows={rows} />
-        <Attention rows={rows} onOpen={open} />
+        <Attention projectId={detail.project.id} rows={rows} onOpen={open} />
         <People detail={detail} rows={rows} onOpen={open} />
       </div>
       <aside className="flex min-w-0 flex-col gap-5">
