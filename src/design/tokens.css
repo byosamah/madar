@@ -7,7 +7,8 @@
   --c-bg: #F4F4F7;
   --c-card: #FFFFFF;
   --c-label: #1D1D1F;
-  --c-label-2: #6E6E73;
+  /* #636366 holds 4.5:1 on the grey fill, on a panel (5.2:1) and on the page (4.8:1). #6E6E73 measured 4.4:1 (axe, 2026-10-01). */
+  --c-label-2: #636366;
   --c-label-3: #A1A1A6;
   /* Chart marks that must hold 3:1 against the card (WCAG 1.4.11): the Created bars and the next stages. */
   --c-chart-muted: #8E8E93;
@@ -16,7 +17,7 @@
   --c-page-bottom: #F1F1F4;
   --c-panel: #FFFFFF;
   --c-ink: #1D1D1F;
-  --c-ink-2: #6E6E73;
+  --c-ink-2: #636366;
   --c-hairline: #F0F0F2;
   --c-attn-bg: #FFF4E5;
   --c-attn-text: #B54708;
@@ -34,7 +35,7 @@
   --avatar-glow: 35%;
   --step-glow: 38%;
   /* The arrow of a dropdown, in Ink 2 for each theme. */
-  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23636366' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #55555A;
   --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --panel-edge: transparent;

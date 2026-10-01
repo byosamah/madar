@@ -43,8 +43,9 @@ function DeadlineMark({ name, label, at }: { name: string; label: string; at: nu
       type="button"
       title={label}
       aria-label={label}
-      style={{ insetInlineStart: `calc(${at}% - 9px)` }}
-      className="group absolute bottom-1 z-10 grid size-[18px] place-items-center rounded-sm outline-offset-4"
+      style={{ insetInlineStart: `calc(${at}% - 12px)` }}
+      // 24 px to press (WCAG 2.2 target size); the drawn diamond stays 12 px.
+      className="group absolute bottom-px z-10 grid size-6 place-items-center rounded-sm outline-offset-2"
     >
       <span aria-hidden className="size-3 rotate-45 rounded-sm bg-attn" />
       <span
