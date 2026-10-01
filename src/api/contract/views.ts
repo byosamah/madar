@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
   Message, Project,
-  ProjectId, Stage, StageId, Stamp, Task, UpdateId, UserId,
+  ProjectId, Stage, StageId, Stamp, Task, TrackerEntry, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -146,3 +146,16 @@ export type ChatThread = z.infer<typeof ChatThread>;
 
 export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });
 export type FileView = z.infer<typeof FileView>;
+
+/** One tracker entry as a screen reads it, with the people and files named and the rights of the viewer. */
+export const TrackerRow = z.object({
+  entry: TrackerEntry,
+  createdBy: UserCard,
+  closedBy: UserCard.nullable(),
+  people: z.array(UserCard),
+  files: z.array(Attachment),
+  canClose: z.boolean(),
+  canEdit: z.boolean(),
+  canDelete: z.boolean(),
+});
+export type TrackerRow = z.infer<typeof TrackerRow>;

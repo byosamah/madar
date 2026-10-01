@@ -280,7 +280,8 @@
       "activity": "النشاط",
       "schedule": "الجدول الزمني",
       "files": "الملفات",
-      "team": "الفريق"
+      "team": "الفريق",
+      "tracker": "المتابعة"
     },
     "notFoundTitle": "المشروع غير موجود",
     "notFound": "هذا المشروع لم يعد موجودًا.",
@@ -588,7 +589,10 @@
     "shareMessage": "رسالة (اختياري)",
     "shareSend": "مشاركة",
     "shared": "تمت مشاركة الملف.",
-    "shareNoTasks": "لا توجد مهام في هذا المشروع بعد."
+    "shareNoTasks": "لا توجد مهام في هذا المشروع بعد.",
+    "receivedFromClient": "مستلمة من العميل",
+    "markDelivered": "تحديد كمُسلَّم إلى العميل",
+    "delivered": "تم تحديد الملف كمُسلَّم إلى العميل."
   },
   "team": {
     "leader": "القائد",
@@ -1010,5 +1014,66 @@
     "edit": "تعديل {{name}}",
     "badWeb": "استخدم رابط ويب يبدأ بـ {{scheme}}.",
     "badFolder": "استخدم رابط ويب ({{scheme}}...) أو مسار شبكة المكتب ({{path}})."
+  },
+  "tracker": {
+    "region": "متابعة العميل",
+    "open": "مفتوح",
+    "waitingUs": "بانتظار ردنا",
+    "waitingClient": "بانتظار العميل",
+    "answered": "تم الرد",
+    "received": "تم الاستلام",
+    "closeLabel": "{{action}}: {{title}}",
+    "closedToast": "تم الإغلاق.",
+    "age": "{{n}} يوم",
+    "age_one": "يوم",
+    "age_two": "يومان",
+    "age_few": "{{count}} أيام",
+    "age_many": "{{count}} يومًا",
+    "age_other": "{{count}} يوم",
+    "ageToday": "اليوم",
+    "logLabel": "سجّل تواصلًا",
+    "placeholder": "سجّل شيئًا… مثال: أرسل العميل مسح الأرض",
+    "save": "تسجيل",
+    "logged": "تم التسجيل.",
+    "typeLabel": "النوع",
+    "type": {
+      "meeting": "اجتماع",
+      "message": "رسالة",
+      "file": "ملف",
+      "balady": "بلدي"
+    },
+    "directionLabel": "الاتجاه",
+    "direction": {
+      "in": "من العميل",
+      "out": "إلى العميل"
+    },
+    "date": "التاريخ",
+    "needsReply": "يحتاج إلى رد",
+    "waitingToggle": "بانتظار العميل",
+    "history": "السجل",
+    "thisWeek": "هذا الأسبوع",
+    "lastWeek": "الأسبوع الماضي",
+    "weekOf": "أسبوع {{date}}",
+    "emptyTitle": "لا يوجد تواصل مسجل بعد",
+    "empty": "سجّل في الأعلى أول اجتماع أو رسالة أو ملف مع العميل.",
+    "emptyFilter": "لا يوجد ما يطابق هذا الفلتر.",
+    "filterAll": "الكل",
+    "openOnly": "المفتوح فقط",
+    "cannotLog": "فريق المشروع فقط يسجّل هنا.",
+    "openMark": "مفتوح",
+    "note": "ملاحظة",
+    "people": "الأشخاص",
+    "files": "الملفات",
+    "loggedBy": "سجّله {{name}} في {{date}}",
+    "loggedBy_female": "سجّلته {{name}} في {{date}}",
+    "closedBy": "أغلقه {{name}} في {{date}}",
+    "closedBy_female": "أغلقته {{name}} في {{date}}",
+    "autoUpload": "أُضيف تلقائيًا عند رفع ملف على أنه مستلم من العميل.",
+    "autoDelivered": "أُضيف تلقائيًا عند تحديد ملف على أنه مُسلَّم إلى العميل.",
+    "deleted": "تم حذف السجل.",
+    "titleField": "ماذا حدث",
+    "noteField": "ملاحظة (اختياري)",
+    "peopleField": "الأشخاص (اختياري)",
+    "openEntry": "فتح {{title}}"
   }
 }

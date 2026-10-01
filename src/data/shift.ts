@@ -9,7 +9,7 @@ const DAY_MS = 86_400_000;
 
 /** Only these fields hold dates. Text that people type never moves, even when it looks like a date. */
 const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'endDate', 'date', 'dueDate']);
-const STAMP_FIELDS = new Set(['createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt']);
+const STAMP_FIELDS = new Set(['createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt']);
 
 function shiftDay(value: unknown, days: number): unknown {
   return typeof value === 'string' && DAY.test(value) ? addDays(value, days) : value;

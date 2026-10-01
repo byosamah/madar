@@ -45,6 +45,39 @@ describe('the Files tab', () => {
     await waitFor(() => expect(store.state.files.fil_004).toBeDefined());
   });
 
+  it('logs a File entry from the client when the upload says so, and only then', async () => {
+    const { store } = await renderApp(FILES, as('usr_005'));
+    const input = await screen.findByLabelText('Upload files');
+    await userEvent.upload(input, new File(['a'], 'Plain.txt', { type: 'text/plain' }));
+    await waitFor(() => expect(Object.values(store.state.files).find((f) => f.name === 'Plain.txt')).toBeDefined());
+    expect(Object.values(store.state.tracker ?? {}).find((e) => e.title === 'Plain.txt')).toBeUndefined();
+    const box = screen.getByRole('checkbox', { name: 'Received from the client' });
+    await userEvent.click(box);
+    await userEvent.upload(input, new File(['b'], 'Land survey.txt', { type: 'text/plain' }));
+    const file = await waitFor(() => {
+      const found = Object.values(store.state.files).find((f) => f.name === 'Land survey.txt');
+      expect(found).toBeDefined();
+      return found!;
+    });
+    expect(Object.values(store.state.tracker ?? {}).find((e) => e.title === 'Land survey.txt')).toMatchObject({
+      type: 'file', direction: 'in', fileIds: [file.id], auto: 'upload', createdBy: 'usr_005', date: '2026-09-30', projectId: 'prj_001',
+    });
+    // The option does not stay on for the next upload.
+    await waitFor(() => expect(box).not.toBeChecked());
+  });
+
+  it('marks a file as delivered to the client from its menu, with Undo', async () => {
+    const { store } = await renderApp(FILES, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Site plan.pdf' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Mark as delivered to client' }));
+    expect(await screen.findByText('Marked as delivered to the client.')).toBeInTheDocument();
+    const entries = () => Object.values(store.state.tracker ?? {}).filter((e) => e.auto === 'delivered' && e.fileIds.includes('fil_004'));
+    expect(entries()).toHaveLength(1);
+    expect(entries()[0]).toMatchObject({ type: 'file', direction: 'out', title: 'Site plan.pdf', createdBy: 'usr_002' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(entries()).toHaveLength(0));
+  });
+
   it('sets an image as the project cover', async () => {
     const { store } = await renderApp(FILES, as('usr_002'));
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Massing view.svg' }));

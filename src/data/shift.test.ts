@@ -18,6 +18,15 @@ describe('shiftState', () => {
     expect(healthCounts(moved, addDays(TODAY, 10))).toEqual(healthCounts(state, TODAY));
   });
 
+  it('moves the dates and the close time of the tracker', async () => {
+    const state = await buildSeed(TODAY, async () => undefined);
+    const closed = Object.values(state.tracker ?? {}).find((e) => e.closedAt !== null)!;
+    const moved = shiftState(structuredClone(state), 10);
+    expect(moved.tracker?.[closed.id].date).toBe(addDays(closed.date, 10));
+    expect(moved.tracker?.[closed.id].closedAt).toBe(shiftState(structuredClone(state), 10).tracker?.[closed.id].closedAt);
+    expect(moved.tracker?.[closed.id].closedAt).not.toBe(closed.closedAt);
+  });
+
   it('returns the same state for a zero shift', async () => {
     const state = await buildSeed(TODAY, async () => undefined);
     expect(shiftState(state, 0)).toBe(state);

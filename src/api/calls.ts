@@ -12,6 +12,7 @@ import { taskCalls } from './handlers/tasks';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { shareCalls } from './handlers/sharing';
 import { systemCalls } from './handlers/system';
+import { trackerCalls } from './handlers/tracker';
 
 /** Every action in Madar. Screens and, later, AI agents use exactly these calls. */
 export const calls = {
@@ -27,6 +28,7 @@ export const calls = {
   ...chatCalls,
   ...insightCalls,
   ...stageTemplateCalls,
+  ...trackerCalls,
 };
 
 export type Calls = typeof calls;

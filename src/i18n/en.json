@@ -255,7 +255,8 @@
       "activity": "Activity",
       "schedule": "Schedule",
       "files": "Files",
-      "team": "Team"
+      "team": "Team",
+      "tracker": "Tracker"
     },
     "notFoundTitle": "Project not found",
     "notFound": "This project does not exist anymore.",
@@ -527,7 +528,10 @@
     "shareMessage": "Message (optional)",
     "shareSend": "Share",
     "shared": "File shared.",
-    "shareNoTasks": "This project has no tasks yet."
+    "shareNoTasks": "This project has no tasks yet.",
+    "receivedFromClient": "Received from the client",
+    "markDelivered": "Mark as delivered to client",
+    "delivered": "Marked as delivered to the client."
   },
   "team": {
     "leader": "Leader",
@@ -922,5 +926,61 @@
     "edit": "Change {{name}}",
     "badWeb": "Use a web link that starts with {{scheme}}.",
     "badFolder": "Use a web link ({{scheme}}...) or an office network path ({{path}})."
+  },
+  "tracker": {
+    "region": "Client tracker",
+    "open": "Open",
+    "waitingUs": "Waiting for our reply",
+    "waitingClient": "Waiting for the client",
+    "answered": "Answered",
+    "received": "Received",
+    "closeLabel": "{{action}}: {{title}}",
+    "closedToast": "Marked as closed.",
+    "age": "{{n}} days",
+    "age_one": "1 day",
+    "age_other": "{{count}} days",
+    "ageToday": "Today",
+    "logLabel": "Log an exchange",
+    "placeholder": "Log something… e.g. Client sent the land survey",
+    "save": "Log it",
+    "logged": "Logged.",
+    "typeLabel": "Type",
+    "type": {
+      "meeting": "Meeting",
+      "message": "Message",
+      "file": "File",
+      "balady": "Balady"
+    },
+    "directionLabel": "Direction",
+    "direction": {
+      "in": "From the client",
+      "out": "To the client"
+    },
+    "date": "Date",
+    "needsReply": "Needs a reply",
+    "waitingToggle": "Waiting for the client",
+    "history": "History",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "weekOf": "Week of {{date}}",
+    "emptyTitle": "Nothing logged yet",
+    "empty": "Log the first meeting, message or file with the client above.",
+    "emptyFilter": "Nothing matches this filter.",
+    "filterAll": "All",
+    "openOnly": "Open only",
+    "cannotLog": "Only the team of the project can log here.",
+    "openMark": "Open",
+    "note": "Note",
+    "people": "People",
+    "files": "Files",
+    "loggedBy": "Logged by {{name}} on {{date}}",
+    "closedBy": "Closed by {{name}} on {{date}}",
+    "autoUpload": "Added automatically when a file was uploaded as received from the client.",
+    "autoDelivered": "Added automatically when a file was marked as delivered to the client.",
+    "deleted": "Entry deleted.",
+    "titleField": "What happened",
+    "noteField": "Note (optional)",
+    "peopleField": "People (optional)",
+    "openEntry": "Open {{title}}"
   }
 }

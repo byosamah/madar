@@ -1,6 +1,6 @@
-import type { Comment, Deadline, Event, FileRec, Project, Stage, Task, Update, User } from './contract/entities';
+import type { Comment, Deadline, Event, FileRec, Project, Stage, Task, TrackerEntry, Update, User } from './contract/entities';
 import type {
-  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
+  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
@@ -234,4 +234,25 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
 export function fileViewOf(state: State, file: FileRec): FileView {
   const latest = file.versions[file.versions.length - 1];
   return { file, latest, uploader: cardOf(state, latest.uploadedBy) };
+}
+
+/** True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. */
+export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry): boolean {
+  if (!viewer.active) return false;
+  return can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })
+    || principalOf(state, entry.createdBy) === viewer.id;
+}
+
+export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {
+  const mayPost = can(viewer, 'content.post', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
+  return {
+    entry,
+    createdBy: cardOf(state, entry.createdBy),
+    closedBy: entry.closedBy ? cardOf(state, entry.closedBy) : null,
+    people: entry.peopleIds.map((id) => cardOf(state, id)),
+    files: attachmentsOf(state, entry.fileIds),
+    canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
+    canEdit: mayPost,
+    canDelete: mayDeleteTracker(state, viewer, entry),
+  };
 }

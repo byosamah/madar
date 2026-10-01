@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version } from '../contract/entities';
-import { FileView } from '../contract/views';
+import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { can, principalOf } from '../permissions';
 import { nextId } from '../store';
-import { fileViewOf } from '../views';
+import { fileViewOf, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, roleIn, touch } from './shared';
+import { addTrackerEntry } from './tracker';
 
 /** A, B, ... Z, AA, AB: the version letters. */
 export function nextLetter(previous: string): string {
@@ -65,6 +66,8 @@ export const filesUpload = defineCall({
       stageId: StageId.nullable().default(null),
       taskId: TaskId.nullable().default(null),
       asCover: z.boolean().default(false),
+      /** The client sent this file: the upload also logs a File entry on the tracker. */
+      receivedFromClient: z.boolean().default(false),
     })
     .refine((value) => value.blob.size <= MAX_FILE_BYTES, { path: ['blob'], message: 'Files must be 25 MB or smaller.' }),
   output: FileView,
@@ -101,8 +104,29 @@ export const filesUpload = defineCall({
     if (input.asCover) {
       applyPatch(ctx, project, { coverFileId: file.id }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }
+    if (input.receivedFromClient) {
+      const letter = file.versions[file.versions.length - 1].letter;
+      addTrackerEntry(ctx, {
+        projectId: project.id, type: 'file', direction: 'in', title: file.name, note: `Version ${letter}`, fileIds: [file.id], auto: 'upload',
+      });
+    }
     touch(ctx, project.id);
     return fileViewOf(ctx.state, file);
+  },
+});
+
+export const filesMarkDelivered = defineCall({
+  input: z.object({ id: FileId }),
+  output: TrackerRow,
+  run(input, ctx) {
+    const file = ctx.state.files[input.id];
+    if (!file) throw notFound('File', input.id);
+    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, file.projectId) });
+    const letter = file.versions[file.versions.length - 1].letter;
+    const entry = addTrackerEntry(ctx, {
+      projectId: file.projectId, type: 'file', direction: 'out', title: file.name, note: `Version ${letter}`, fileIds: [file.id], auto: 'delivered',
+    });
+    return trackerRowOf(ctx.state, entry, ctx.authority);
   },
 });
 
@@ -132,4 +156,5 @@ export const fileCalls = {
   'files.get': filesGet,
   'files.upload': filesUpload,
   'files.delete': filesDelete,
+  'files.markDelivered': filesMarkDelivered,
 };

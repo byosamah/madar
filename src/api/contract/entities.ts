@@ -17,6 +17,7 @@ export const EventId = id('evt');
 export const ConversationId = id('cnv');
 export const MessageId = id('msg');
 export const StageTemplateId = id('stt');
+export const TrackerId = id('trk');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -46,7 +47,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'tracker',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -270,6 +271,39 @@ export type Message = z.infer<typeof Message>;
 /** When a person last read a conversation. */
 export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
+
+export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady'] as const;
+export const TrackerType = z.enum(TRACKER_TYPES);
+export type TrackerType = z.infer<typeof TrackerType>;
+/** "in" is from the client to the office. "out" is from the office to the client. */
+export const TrackerDirection = z.enum(['in', 'out']);
+export type TrackerDirection = z.infer<typeof TrackerDirection>;
+/** Who an open loop waits for: "us" (the office owes a reply) or "client" (the office waits for the client). */
+export const TrackerWaiting = z.enum(['us', 'client']);
+export type TrackerWaiting = z.infer<typeof TrackerWaiting>;
+
+/**
+ * One exchange with the client: a meeting, a message, a file or a Balady permit-portal update (owner, 2026-10-01).
+ * An entry with "waiting" set and no "closedAt" is an open loop. "auto" says the office made the entry itself.
+ */
+export const TrackerEntry = z.object({
+  id: TrackerId,
+  projectId: ProjectId,
+  type: TrackerType,
+  direction: TrackerDirection,
+  title: z.string().trim().min(1).max(200),
+  note: z.string().max(2000),
+  date: Day,
+  waiting: TrackerWaiting.nullable(),
+  closedAt: Stamp.nullable(),
+  closedBy: UserId.nullable(),
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
+  peopleIds: z.array(UserId).max(20),
+  auto: z.enum(['upload', 'delivered']).nullable(),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type TrackerEntry = z.infer<typeof TrackerEntry>;
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
