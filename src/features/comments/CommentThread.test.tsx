@@ -7,7 +7,7 @@ import { renderApp } from '../../test/render';
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
 };
-const TASK = (id: string) => `/projects/prj_001?tab=tasks&task=${id}`;
+const TASK = (id: string) => `/projects/prj_001?tab=tasks&task=${id}&thread=1`;
 
 describe('comments', () => {
   it('adds a comment with a mention on a task', async () => {
@@ -62,12 +62,12 @@ describe('comments', () => {
   });
 
   it('opens the thread of the post in the link', async () => {
-    await renderApp('/projects/prj_001?tab=overview&update=upd_002', as('usr_002'));
+    await renderApp('/projects/prj_001?tab=activity&update=upd_002', as('usr_002'));
     expect(await screen.findByRole('textbox', { name: 'Add a comment' })).toBeInTheDocument();
   });
 
   it('lets the author delete a post, then brings it back with Undo', async () => {
-    const { store } = await renderApp('/projects/prj_001', as('usr_005'));
+    const { store } = await renderApp('/projects/prj_001?tab=activity', as('usr_005'));
     const post = (await screen.findByText(/I uploaded revision B/)).closest('li') as HTMLElement;
     await userEvent.click(within(post).getByRole('button', { name: 'Actions for this post' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Delete post' }));

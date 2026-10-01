@@ -226,6 +226,7 @@
     "tab": {
       "overview": "Overview",
       "tasks": "Tasks",
+      "activity": "Activity",
       "schedule": "Schedule",
       "files": "Files",
       "team": "Team"
@@ -281,7 +282,37 @@
     "team": "Team",
     "edited": "Edited",
     "cannotPost": "Only the project team can post here.",
-    "none": "Not set"
+    "none": "Not set",
+    "standing": "Where the project stands",
+    "stageTasksLabel": "Tasks in this stage",
+    "stageTasks": "{{done}} of {{total}} done",
+    "stageEndLabel": "Stage end",
+    "stageLate": "{{n}} days late",
+    "stageLate_one": "1 day late",
+    "stageLate_other": "{{count}} days late",
+    "stageLeft": "{{n}} days left",
+    "stageLeft_one": "1 day left",
+    "stageLeft_other": "{{count}} days left",
+    "healthNote": "Set by {{name}}:",
+    "attention": "Needs attention",
+    "allClear": "Nothing needs attention.",
+    "groups": {
+      "pastDue": "Past due",
+      "review": "Waiting for review",
+      "flagged": "Flagged"
+    },
+    "more": "{{n}} more",
+    "more_one": "1 more",
+    "more_other": "{{count}} more",
+    "people": "Who is doing what",
+    "openTasks": "{{n}} open tasks",
+    "openTasks_one": "1 open task",
+    "openTasks_other": "{{count}} open tasks",
+    "noOpen": "No open tasks",
+    "comingUp": "Coming up",
+    "latest": "Latest update",
+    "noPosts": "No updates yet.",
+    "seeActivity": "See all activity"
   },
   "feed": {
     "project": {
@@ -376,7 +407,11 @@
     "readOnly": "You can view this task. Only its owner and the project leader can change it.",
     "undoAgent": "Undo agent change",
     "undone": "Change undone.",
-    "review": "Review"
+    "review": "Review",
+    "sections": "Task sections",
+    "details": "Details",
+    "conversation": "Conversation",
+    "conversationCount": "Conversation ({{n}})"
   },
   "taskHistory": {
     "created": "created the task",

@@ -246,6 +246,7 @@
     "tab": {
       "overview": "نظرة عامة",
       "tasks": "المهام",
+      "activity": "النشاط",
       "schedule": "الجدول الزمني",
       "files": "الملفات",
       "team": "الفريق"
@@ -301,7 +302,49 @@
     "team": "الفريق",
     "edited": "معدّل",
     "cannotPost": "النشر هنا لفريق المشروع فقط.",
-    "none": "غير محدد"
+    "none": "غير محدد",
+    "standing": "أين وصل المشروع",
+    "stageTasksLabel": "مهام هذه المرحلة",
+    "stageTasks": "أُنجز {{done}} من {{total}}",
+    "stageEndLabel": "نهاية المرحلة",
+    "stageLate": "متأخرة {{n}} يوم",
+    "stageLate_one": "متأخرة يومًا واحدًا",
+    "stageLate_two": "متأخرة يومين",
+    "stageLate_few": "متأخرة {{count}} أيام",
+    "stageLate_many": "متأخرة {{count}} يومًا",
+    "stageLate_other": "متأخرة {{count}} يوم",
+    "stageLeft": "بقي {{n}} يوم",
+    "stageLeft_one": "بقي يوم واحد",
+    "stageLeft_two": "بقي يومان",
+    "stageLeft_few": "بقيت {{count}} أيام",
+    "stageLeft_many": "بقي {{count}} يومًا",
+    "stageLeft_other": "بقي {{count}} يوم",
+    "healthNote": "حدّده {{name}}:",
+    "attention": "يحتاج انتباهًا",
+    "allClear": "لا شيء يحتاج انتباهًا.",
+    "groups": {
+      "pastDue": "متأخرة",
+      "review": "بانتظار المراجعة",
+      "flagged": "مُعلَّمة"
+    },
+    "more": "{{n}} أخرى",
+    "more_one": "واحدة أخرى",
+    "more_two": "اثنتان أخريان",
+    "more_few": "{{count}} أخرى",
+    "more_many": "{{count}} أخرى",
+    "more_other": "{{count}} أخرى",
+    "people": "من يعمل على ماذا",
+    "openTasks": "{{n}} مهام مفتوحة",
+    "openTasks_one": "مهمة مفتوحة واحدة",
+    "openTasks_two": "مهمتان مفتوحتان",
+    "openTasks_few": "{{count}} مهام مفتوحة",
+    "openTasks_many": "{{count}} مهمة مفتوحة",
+    "openTasks_other": "{{count}} مهمة مفتوحة",
+    "noOpen": "لا مهام مفتوحة",
+    "comingUp": "القادم",
+    "latest": "آخر تحديث",
+    "noPosts": "لا تحديثات بعد.",
+    "seeActivity": "كل النشاط"
   },
   "feed": {
     "project": {
@@ -411,7 +454,11 @@
     "readOnly": "يمكنك عرض هذه المهمة. يغيّرها المسؤول عنها وقائد المشروع فقط.",
     "undoAgent": "التراجع عن تغيير الوكيل",
     "undone": "تم التراجع عن التغيير.",
-    "review": "المراجعة"
+    "review": "المراجعة",
+    "sections": "أقسام المهمة",
+    "details": "التفاصيل",
+    "conversation": "المحادثة",
+    "conversationCount": "المحادثة ({{n}})"
   },
   "taskHistory": {
     "created": "أنشأ المهمة",

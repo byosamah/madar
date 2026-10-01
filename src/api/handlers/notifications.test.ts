@@ -59,7 +59,7 @@ describe('notice links and approval', () => {
     const review = views.find((v) => v.notification.trigger === 'review_requested');
     expect(review?.link).toBe('/projects/prj_001?tab=tasks&task=tsk_001');
     expect(review?.canApprove).toBe(true);
-    expect(views.find((v) => v.notification.trigger === 'mention')?.link).toBe(`/projects/prj_001?tab=overview&update=${post.id}`);
+    expect(views.find((v) => v.notification.trigger === 'mention')?.link).toBe(`/projects/prj_001?tab=activity&update=${post.id}`);
     await t.api.call('tasks.approve', { id: 'tsk_001' });
     const after = await t.api.call('notifications.list', {});
     expect(after.find((v) => v.notification.trigger === 'review_requested')?.canApprove).toBe(false);

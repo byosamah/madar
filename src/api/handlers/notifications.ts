@@ -69,7 +69,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name } : null;
     gone = !update;
-    if (update) link = `/projects/${update.projectId}?tab=overview&update=${update.id}`;
+    if (update) link = `/projects/${update.projectId}?tab=activity&update=${update.id}`;
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);

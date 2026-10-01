@@ -30,7 +30,6 @@ describe('the Project screen header', () => {
     const about = await screen.findByRole('region', { name: 'About' });
     expect(within(about).getByRole('img', { name: 'Cover image of Corniche Office Tower' })).toBeInTheDocument();
     expect(within(about).getByText('Al Khobar, Corniche')).toBeInTheDocument();
-    expect(within(about).getByText('Faisal Al-Harbi')).toBeInTheDocument();
   });
 
   it('shows a project as view only to a person outside it', async () => {
@@ -59,7 +58,8 @@ describe('the Project screen header', () => {
     await userEvent.click(within(popover).getByRole('button', { name: /Permits/ }));
     expect(await within(popover).findByText('Tasks done: 0 of 2')).toBeInTheDocument();
     await userEvent.click(within(popover).getByRole('button', { name: 'Make current stage' }));
-    expect(await screen.findByRole('progressbar', { name: 'Stage 5 of 7' })).toBeInTheDocument();
+    const header = (await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).closest('header') as HTMLElement;
+    expect(await within(header).findByRole('progressbar', { name: 'Stage 5 of 7' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Permits/ })).toBeInTheDocument();
   });
 

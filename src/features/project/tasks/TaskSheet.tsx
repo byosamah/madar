@@ -1,7 +1,7 @@
 import { Circle, CircleCheck, Crosshair, Flag, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
 import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
@@ -17,6 +17,7 @@ import { IconButton } from '../../../components/IconButton';
 import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
+import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
@@ -166,78 +167,106 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
   const me = session.data?.authority.id;
   const canUndoAgent = (actingForId: string) => detail.viewerCan.review || actingForId === me;
+  // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
+  const [params, setParams] = useSearchParams();
+  const section = params.get('thread') === '1' ? 'conversation' : 'details';
+  const setSection = (next: 'details' | 'conversation') => setParams((current) => {
+    const value = new URLSearchParams(current);
+    if (next === 'conversation') value.set('thread', '1');
+    else value.delete('thread');
+    return value;
+  }, { replace: true });
 
   return (
     <div className="flex flex-col gap-5 pt-1">
-      {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
-      {edit ? (
-        <TextField
-          id="task-title"
-          label={t('taskSheet.title')}
-          value={title}
-          dir="auto"
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={() => {
-            if (title.trim() && title.trim() !== task.title) patch({ title: title.trim() });
-          }}
-        />
-      ) : <Fact label={t('taskSheet.title')}><bdi>{task.title}</bdi></Fact>}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {data.canMove ? (
-          <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
-            {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
-          </SelectField>
-        ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
-        {viewerCan.editAll ? (
-          <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
-            {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
-          </SelectField>
-        ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
-        {edit
-          ? <DateDraftField id="task-due" label={t('taskSheet.dueDate')} value={task.dueDate ?? ''} onCommit={(dueDate) => patch({ dueDate })} />
-          : <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>}
-        {edit ? (
-          <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
-            {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-          </SelectField>
-        ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
-      </div>
-      {edit
-        ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
-        : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><Flag size={14} aria-hidden />{t('tasks.flagged')}</p>}
-      {viewerCan.editAll && (
-        <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
-      )}
-      {viewerCan.review && (
-        <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-          <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
-          <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-          <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
-        </section>
-      )}
-      {edit ? (
-        <TextArea
-          id="task-description"
-          label={t('taskSheet.description')}
-          value={description}
-          dir="auto"
-          onChange={(event) => setDescription(event.target.value)}
-          onBlur={() => {
-            if (description !== task.description) patch({ description });
-          }}
-        />
-      ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-      <Checklist task={task} edit={edit} onChange={(checklist) => patch({ checklist })} />
-      <section className="flex flex-col gap-1">
-        <h3 className="text-headline">{t('taskSheet.files')}</h3>
-        {(files.data ?? []).length === 0
-          ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p>
-          : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
-      </section>
-      <CommentThread targetType="task" targetId={task.id} people={people} canPost={detail.viewerCan.post} />
-      <History data={data} canUndoAgent={canUndoAgent} />
-      {viewerCan.delete && (
-        <Button variant="destructive" className="self-start" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
+      <Tabs
+        label={t('taskSheet.sections')}
+        idPrefix="task-section"
+        value={section}
+        onChange={setSection}
+        options={[
+          { value: 'details', label: t('taskSheet.details') },
+          { value: 'conversation', label: data.commentCount > 0 ? t('taskSheet.conversationCount', { n: data.commentCount }) : t('taskSheet.conversation') },
+        ]}
+      />
+      {section === 'conversation' ? (
+        <TabPanel value="conversation" idPrefix="task-section">
+          <CommentThread targetType="task" targetId={task.id} people={people} canPost={detail.viewerCan.post} />
+        </TabPanel>
+      ) : (
+        <TabPanel value="details" idPrefix="task-section">
+          <div className="flex flex-col gap-5">
+            {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {edit ? (
+              <TextField
+                id="task-title"
+                label={t('taskSheet.title')}
+                value={title}
+                dir="auto"
+                onChange={(event) => setTitle(event.target.value)}
+                onBlur={() => {
+                  if (title.trim() && title.trim() !== task.title) patch({ title: title.trim() });
+                }}
+              />
+            ) : <Fact label={t('taskSheet.title')}><bdi>{task.title}</bdi></Fact>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {data.canMove ? (
+                <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
+                  {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
+                </SelectField>
+              ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
+              {viewerCan.editAll ? (
+                <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
+                  {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                </SelectField>
+              ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
+              {edit
+                ? <DateDraftField id="task-due" label={t('taskSheet.dueDate')} value={task.dueDate ?? ''} onCommit={(dueDate) => patch({ dueDate })} />
+                : <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>}
+              {edit ? (
+                <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
+                  {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                </SelectField>
+              ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
+            </div>
+            {edit
+              ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
+              : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><Flag size={14} aria-hidden />{t('tasks.flagged')}</p>}
+            {viewerCan.editAll && (
+              <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
+            )}
+            {viewerCan.review && (
+              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
+                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
+                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+              </section>
+            )}
+            {edit ? (
+              <TextArea
+                id="task-description"
+                label={t('taskSheet.description')}
+                value={description}
+                dir="auto"
+                onChange={(event) => setDescription(event.target.value)}
+                onBlur={() => {
+                  if (description !== task.description) patch({ description });
+                }}
+              />
+            ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
+            <Checklist task={task} edit={edit} onChange={(checklist) => patch({ checklist })} />
+            <section className="flex flex-col gap-1">
+              <h3 className="text-headline">{t('taskSheet.files')}</h3>
+              {(files.data ?? []).length === 0
+                ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p>
+                : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
+            </section>
+            <History data={data} canUndoAgent={canUndoAgent} />
+            {viewerCan.delete && (
+              <Button variant="destructive" className="self-start" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
+            )}
+          </div>
+        </TabPanel>
       )}
     </div>
   );

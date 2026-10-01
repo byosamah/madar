@@ -45,7 +45,7 @@ export function ProjectScreen() {
   const Body = TAB_BODY[tab];
   return (
     <div className="flex flex-col gap-5">
-      <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'overview', compose: '1' })} />
+      <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'activity', compose: '1' })} />
       <Tabs
         label={t('project.tabs')}
         value={tab}
