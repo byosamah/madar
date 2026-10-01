@@ -1,10 +1,22 @@
-# Madar plan 5 tasks
+# Madar redesign tasks
 
-Plan: docs/superpowers/plans/2026-09-30-madar-plan-5-polish.md. Plans 1 to 4 are done.
+Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 to 5 are done.
 
-- [x] 1. The card grows into the project screen
-- [x] 2. Bars go compact on scroll
-- [x] 3. Done stages say so
-- [x] 4. Arabic text pass
-- [x] 5. The full sweep and the acceptance flows
-- [x] 6. The team review guide and the final link
+## Step A: docs/superpowers/plans/2026-10-01-madar-redesign-a.md
+
+- [x] 1. Tokens and project colors
+- [ ] 2. Gentle due words
+- [ ] 3. Calm shared parts
+- [ ] 4. The tab pill, the person menu and the routes
+- [ ] 5. The Projects list
+- [ ] 6. Home
+- [ ] 7. A calm project header and the About panel
+- [ ] 8. Calm task rows and one filter button
+- [ ] 9. Browser sweep and the review link
+
+## Step B (plan to come)
+
+- [ ] Dashboard, Inbox, Search, Task list, Settings, Schedule, Files, Team restyle
+- [ ] Focus mode
+- [ ] The 8 motion moments and reduce motion
+- [ ] Guide, report, merge

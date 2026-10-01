@@ -4,7 +4,7 @@
 /* Design tokens from spec section 10, with the contrast values from plan clarification 7.
    label-3 is for icons and disabled states only, never for text. */
 :root {
-  --c-bg: #F5F5F7;
+  --c-bg: #F4F4F7;
   --c-card: #FFFFFF;
   --c-label: #1D1D1F;
   --c-label-2: #5E5E63;
@@ -12,6 +12,43 @@
   /* Chart marks that must hold 3:1 against the card (WCAG 1.4.11): the Created bars and the next stages. */
   --c-chart-muted: #8E8E93;
   --c-separator: rgba(60, 60, 67, 0.14);
+  --c-page-top: #F7F7F9;
+  --c-page-bottom: #F1F1F4;
+  --c-panel: #FFFFFF;
+  --c-ink: #1D1D1F;
+  --c-ink-2: #6E6E73;
+  --c-hairline: #F0F0F2;
+  --c-attn-bg: #FFF4E5;
+  --c-attn-text: #B54708;
+  --c-late-bg: #FDECEC;
+  --c-late-text: #B42318;
+  --c-done: #067647;
+  --c-link: #0066CC;
+  /* The signature gradient (redesign spec 2.3), one step deeper than the spec so white text keeps 4.5:1 (tokens.test.ts). */
+  --sig-from: #4F5DF5;
+  --sig-to: #7C4DEB;
+  --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
+  --panel-edge: transparent;
+  --glow-a: #DCEBFF;
+  --glow-b: #F3E3FF;
+  --glow-c: #DFF7EC;
+  /* Project hues (redesign spec 2.3): tile text keeps 4.5:1 on its tile, and the line keeps 3:1 on the panel. */
+  --p-blue-bg: #E8F0FE;
+  --p-blue-fg: #1A56DB;
+  --p-orange-bg: #FDF2E9;
+  --p-orange-fg: #C2410C;
+  --p-green-bg: #E7F6EE;
+  --p-green-fg: #047857;
+  --p-purple-bg: #F3E8FF;
+  --p-purple-fg: #7E22CE;
+  --p-pink-bg: #FCE7F3;
+  --p-pink-fg: #BE185D;
+  --p-teal-bg: #E0F5F5;
+  --p-teal-fg: #0F766E;
+  --p-amber-bg: #FEF6E1;
+  --p-amber-fg: #A16207;
+  --p-indigo-bg: #EAEBFF;
+  --p-indigo-fg: #4338CA;
   --c-fill: rgba(120, 120, 128, 0.12);
   --c-fill-strong: rgba(120, 120, 128, 0.2);
   --c-accent: #0066CC;
@@ -27,14 +64,14 @@
   --c-red-text: #D70015;
   --c-badge: #D70015;
   --c-scrim: rgba(0, 0, 0, 0.35);
-  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --sh-float: 0 8px 32px rgba(0, 0, 0, 0.12);
   /* 0.85 keeps secondary labels on glass at 4.5:1 over any content (tokens.test.ts). */
   --glass-bg: rgba(255, 255, 255, 0.85);
   --glass-filter: blur(24px) saturate(180%);
   --glass-edge: rgba(255, 255, 255, 0.55);
   --glass-border: transparent;
-  --r-card: 22px;
+  --r-card: 20px;
   --r-sheet: 28px;
   --r-control: 8px;
   --boost: 1;
@@ -60,7 +97,7 @@
     --size-body: 15px;
     --size-subheadline: 13px;
     --size-footnote: 12px;
-    --size-caption: 11px;
+    --size-caption: 12px;
   }
 }
 
@@ -70,8 +107,41 @@
 }
 
 [data-theme="dark"] {
-  --c-bg: #000000;
-  --c-card: #1C1C1E;
+  --c-bg: #0D0D10;
+  --c-card: #1A1A1E;
+  --c-page-top: #0F0F12;
+  --c-page-bottom: #0B0B0D;
+  --c-panel: #1A1A1E;
+  --c-ink: #F5F5F7;
+  --c-ink-2: #A1A1A6;
+  --c-hairline: #26262B;
+  --c-attn-bg: #3A2A12;
+  --c-attn-text: #FFB65C;
+  --c-late-bg: #3B1D1B;
+  --c-late-text: #FF8A80;
+  --c-done: #4ADE80;
+  --c-link: #4DA3FF;
+  --sh-panel: none;
+  --panel-edge: #26262B;
+  --glow-a: rgba(91, 108, 255, 0.22);
+  --glow-b: rgba(139, 92, 246, 0.22);
+  --glow-c: rgba(52, 199, 89, 0.12);
+  --p-blue-bg: #1B2A44;
+  --p-blue-fg: #7EA8FF;
+  --p-orange-bg: #3A2618;
+  --p-orange-fg: #FF9E6B;
+  --p-green-bg: #14301F;
+  --p-green-fg: #5FD3A0;
+  --p-purple-bg: #2C1D44;
+  --p-purple-fg: #C29BFF;
+  --p-pink-bg: #3A1A2B;
+  --p-pink-fg: #FF8CC6;
+  --p-teal-bg: #123236;
+  --p-teal-fg: #5ED6CB;
+  --p-amber-bg: #3A2E12;
+  --p-amber-fg: #F5C451;
+  --p-indigo-bg: #20234A;
+  --p-indigo-fg: #A5ABFF;
   --c-label: #F5F5F7;
   --c-label-2: #AEAEB2;
   --c-label-3: #636366;
@@ -90,7 +160,7 @@
   /* Lighter than --c-red so red words keep 4.5:1 on a hovered row too (tokens.test.ts). */
   --c-red-text: #FF7066;
   --c-scrim: rgba(0, 0, 0, 0.5);
-  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-card: none;
   --sh-float: 0 8px 32px rgba(0, 0, 0, 0.5);
   --glass-bg: rgba(28, 28, 30, 0.85);
   --glass-edge: rgba(255, 255, 255, 0.08);
@@ -114,6 +184,8 @@
 [data-contrast="more"] {
   --glass-border: var(--c-label);
   --c-separator: var(--c-label-2);
+  --c-hairline: var(--c-ink-2);
+  --panel-edge: var(--c-ink-2);
 }
 
 @theme inline {
@@ -138,6 +210,16 @@
   --color-orange-text: var(--c-orange-text);
   --color-red-text: var(--c-red-text);
   --color-badge: var(--c-badge);
+  --color-panel: var(--c-panel);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-hairline: var(--c-hairline);
+  --color-attn: var(--c-attn-text);
+  --color-attn-bg: var(--c-attn-bg);
+  --color-late: var(--c-late-text);
+  --color-late-bg: var(--c-late-bg);
+  --color-done: var(--c-done);
+  --color-link: var(--c-link);
   --radius-card: var(--r-card);
   --radius-sheet: var(--r-sheet);
   --radius-control: var(--r-control);
@@ -174,8 +256,8 @@
 
 @layer base {
   html {
-    background: var(--c-bg);
-    color: var(--c-label);
+    background: linear-gradient(180deg, var(--c-page-top), var(--c-page-bottom)) fixed, var(--c-page-bottom);
+    color: var(--c-ink);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -192,7 +274,7 @@
     font-family: "IBM Plex Sans Arabic", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   :focus-visible {
-    outline: 2px solid var(--c-accent);
+    outline: 2px solid var(--c-link);
     outline-offset: 2px;
   }
   * {
@@ -209,10 +291,46 @@
     box-shadow: inset 0 1px 0 var(--glass-edge);
     border: 1px solid var(--glass-border);
   }
-  .surface {
-    background: var(--c-card);
-    box-shadow: var(--sh-card);
-    border: 1px solid var(--glass-border);
+  /* Calm panels (redesign spec 2.1): white on the soft gray page, a soft shadow in light, a thin edge in dark. */
+  .surface,
+  .panel {
+    background: var(--c-panel);
+    box-shadow: var(--sh-panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--r-card);
+  }
+  /* The signature: only the one main button of a screen, the open tab and the day ring (redesign spec 2.3). */
+  .signature {
+    background: linear-gradient(90deg, var(--sig-from), var(--sig-to));
+    color: #FFFFFF;
+  }
+  /* The glow: only behind "Next for you" (redesign spec 2.3). */
+  .glow {
+    background:
+      radial-gradient(120% 140% at 0% 0%, var(--glow-a) 0%, transparent 55%),
+      radial-gradient(120% 140% at 100% 0%, var(--glow-b) 0%, transparent 55%),
+      radial-gradient(140% 120% at 50% 120%, var(--glow-c) 0%, transparent 60%),
+      var(--c-panel);
+    box-shadow: var(--sh-panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--r-card);
+  }
+  .hairline > * + * {
+    border-top: 1px solid var(--c-hairline);
+  }
+  /* The floating tab pill: the only glass left (redesign spec 2.1). */
+  .pill {
+    background: color-mix(in srgb, var(--c-panel) 92%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--panel-edge);
+  }
+  [data-contrast="more"] .pill {
+    background: var(--c-panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--c-ink-2);
   }
   /* Press feedback starts on pointer-down (spec 10.6). */
   .pressable {
@@ -252,6 +370,11 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .pill {
+    background: var(--c-panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   .glass {
     background: var(--c-card);
     -webkit-backdrop-filter: none;

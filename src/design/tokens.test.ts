@@ -71,3 +71,24 @@ describe('status text', () => {
     }
   });
 });
+
+describe('calm palette', () => {
+  it('keeps every project tile text at 4.5:1 and every line at 3:1, in light and dark', () => {
+    for (const block of [':root', '[data-theme="dark"]']) {
+      const panel = hex(token(block, '--c-panel'));
+      for (const hue of ['blue', 'orange', 'green', 'purple', 'pink', 'teal', 'amber', 'indigo']) {
+        const bg = hex(token(block, `--p-${hue}-bg`));
+        const fg = hex(token(block, `--p-${hue}-fg`));
+        expect(contrast(fg, bg), `${hue} tile in ${block}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(fg, panel), `${hue} line in ${block}`).toBeGreaterThanOrEqual(3);
+      }
+      for (const [text, bg] of [['--c-attn-text', '--c-attn-bg'], ['--c-late-text', '--c-late-bg'], ['--c-ink-2', '--c-panel'], ['--c-link', '--c-panel']]) {
+        expect(contrast(hex(token(block, text)), hex(token(block, bg))), `${text} in ${block}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('keeps white text on the signature gradient at 4.5:1 at both ends', () => {
+    for (const name of ['--sig-from', '--sig-to']) expect(contrast([255, 255, 255], hex(token(':root', name))), name).toBeGreaterThanOrEqual(4.5);
+  });
+});
