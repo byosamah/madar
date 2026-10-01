@@ -1,4 +1,5 @@
 import { ChevronLeft } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { projectsListLink } from '../../app/lastList';
@@ -6,11 +7,24 @@ import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
+import { spring } from '../../design/motion';
 import { projectHue, stageProgress } from '../../lib/projectColor';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
 import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
+
+/** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
+export function HeaderShell({ id, name }: { id: string; name: string }) {
+  return (
+    <div className="flex items-start gap-4 pt-14">
+      <ProjectTile id={id} name={name} size={48} shared />
+      <p dir="auto" className="text-page-title text-ink">
+        <motion.span layoutId={`name-${id}`} transition={spring.expand} className="inline-block">{name}</motion.span>
+      </p>
+    </div>
+  );
+}
 
 /** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
 export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPost: () => void }) {
@@ -25,9 +39,11 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
         {t('project.back')}
       </Link>
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-        <ProjectTile id={project.id} name={project.name} size={48} />
+        <ProjectTile id={project.id} name={project.name} size={48} shared />
         <div className="min-w-0 flex-1 basis-60">
-          <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">{project.name}</h1>
+          <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
+          </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
             <span className="tabular">{project.code}</span>
             {detail.client && <><span aria-hidden>·</span><bdi>{detail.client.name}</bdi></>}

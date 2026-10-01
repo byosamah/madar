@@ -28,7 +28,7 @@ function BarRow({ to, label, value, max, detail }: { to: string; label: string; 
       <Link to={to} className="pressable grid min-h-11 grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 hover:bg-fill">
         <bdi className="truncate text-subheadline">{label}</bdi>
         <span aria-hidden className="h-2 overflow-hidden rounded-full bg-fill">
-          <span className="draw-line block h-full rounded-full bg-ink" style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }} />
+          <span className="draw-line block h-full rounded-full bg-ink/60" style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }} />
         </span>
         <span className="tabular text-subheadline">{detail}</span>
       </Link>

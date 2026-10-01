@@ -823,7 +823,13 @@
       "dueToday": "إنهاء «{{title}}»",
       "continue": "متابعة «{{title}}»",
       "hours": "سجّل ساعات اليوم",
-      "clear": "لا شيء بانتظارك."
+      "clear": "لا شيء بانتظارك.",
+      "doneLeft": "تم. بقي {{n}} اليوم.",
+      "doneLeft_one": "تم. بقيت مهمة واحدة اليوم.",
+      "doneLeft_two": "تم. بقيت مهمتان اليوم.",
+      "doneLeft_few": "تم. بقيت {{count}} مهام اليوم.",
+      "doneLeft_many": "تم. بقيت {{count}} مهمة اليوم.",
+      "doneLeft_other": "تم. بقيت {{count}} مهمة اليوم."
     },
     "today": "اليوم",
     "todayClear": "لا شيء مستحق اليوم.",

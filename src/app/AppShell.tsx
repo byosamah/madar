@@ -1,13 +1,32 @@
-import { useEffect } from 'react';
-import { Outlet, ScrollRestoration, useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
 import { FocusMode } from '../features/focus/FocusMode';
 import { PersonMenu } from './PersonMenu';
 import { StorageBanner } from './StorageBanner';
 import { TabPill } from './TabPill';
 
 /** The calm shell (redesign spec 2.5): a floating pill of four tabs and the person's picture. No sidebar and no toolbar. */
+// Screens already shown in this visit. A screen's panels rise in only the first time (redesign spec 4).
+const seen = new Set<string>();
+
+/** The first panels of a screen rise 10 px and fade in, 60 ms apart, once per visit. */
+function ScreenEntrance() {
+  const { pathname } = useLocation();
+  // A project page has its own entrance: the tapped row grows into its header (moment 1).
+  const [first] = useState(() => !seen.has(pathname) && !/^\/projects\/[^/]+$/.test(pathname));
+  useEffect(() => {
+    seen.add(pathname);
+  }, [pathname]);
+  return (
+    <div className={first ? 'screen-enter' : undefined}>
+      <Outlet />
+    </div>
+  );
+}
+
 export function AppShell() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -32,7 +51,7 @@ export function AppShell() {
         <div className="-me-1.5 flex justify-end sm:hidden">
           <PersonMenu id="phone" />
         </div>
-        <Outlet />
+        <ScreenEntrance key={pathname} />
         {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
         <ScrollRestoration getKey={(location) => location.pathname} />
       </main>

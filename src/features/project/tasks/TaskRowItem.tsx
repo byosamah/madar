@@ -36,7 +36,15 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
   const word = dueWord(task.dueDate, todayISO(), task.status);
   const when = word && task.dueDate ? dueText(word, t, lang, task.dueDate) : null;
   return (
-    <motion.li layout exit={{ opacity: 0, x: rtl ? -24 : 24 }} transition={spring.standard} className="flex min-h-14 items-center gap-2 px-2">
+    // Moments 2 and 8 (redesign spec 4): a ticked row slides out toward the end side; a row that Undo brings back slides in from there.
+    <motion.li
+      layout="position"
+      initial={{ opacity: 0, x: rtl ? -24 : 24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: rtl ? -32 : 32 }}
+      transition={{ ...spring.standard, duration: 0.46 }}
+      className="flex min-h-14 items-center gap-2 px-2"
+    >
       <button
         type="button"
         role="checkbox"
@@ -46,12 +54,18 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         onClick={tick}
         className="pressable grid size-11 shrink-0 place-items-center rounded-full disabled:opacity-60"
       >
-        {done || ticking
-          ? <CircleCheck size={22} className="text-[var(--sig-from)] dark:text-[#A5ABFF]" aria-hidden />
-          : inReview ? <CircleDot size={22} className="text-attn" aria-hidden /> : <Circle size={22} strokeWidth={1.75} className="text-ink-2" aria-hidden />}
+        <motion.span
+          animate={ticking ? { scale: [1, 0.82, 1] } : { scale: 1 }}
+          transition={{ duration: 0.42, times: [0, 0.35, 1], ease: 'easeOut' }}
+          className="grid place-items-center"
+        >
+          {done || ticking
+            ? <CircleCheck size={22} className="text-[var(--sig-from)] dark:text-[#A5ABFF]" aria-hidden />
+            : inReview ? <CircleDot size={22} className="text-attn" aria-hidden /> : <Circle size={22} strokeWidth={1.75} className="text-ink-2" aria-hidden />}
+        </motion.span>
       </button>
       <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 py-2 text-start">
-        <span dir="auto" className={`block truncate text-[calc(15px*var(--boost))] font-medium ${done ? 'text-ink-2 line-through' : 'text-ink'}`}>{task.title}</span>
+        <span dir="auto" className={`block truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (word?.tone === 'attn' ? <StateWord tone="attn">{when}</StateWord> : <span className="tabular">{when}</span>)}

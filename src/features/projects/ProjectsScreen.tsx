@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'motion/react';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -71,7 +72,9 @@ export function ProjectsScreen() {
   } else if (list.data) {
     body = (
       <ul aria-label={t('screens.projects')} className="@container panel hairline overflow-hidden">
-        {list.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
+        <AnimatePresence initial={false}>
+          {list.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
+        </AnimatePresence>
       </ul>
     );
   }

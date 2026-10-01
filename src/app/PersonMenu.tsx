@@ -5,13 +5,14 @@ import { Link } from 'react-router';
 import { Avatar } from '../components/Avatar';
 import { Popover } from '../components/Popover';
 import { PreviewAs } from './PreviewAs';
-import { useAction, useCall } from './runtime';
+import { useSwitchLanguage } from './languageTurn';
+import { useCall } from './runtime';
 
 /** The person's picture opens their name, Preview as (prototype), the language, My hours and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
   const user = useCall('session.get', {}).data?.user;
-  const setPreferences = useAction('me.updatePreferences');
+  const switchLanguage = useSwitchLanguage();
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   if (!user) return null;
@@ -34,7 +35,7 @@ export function PersonMenu({ id }: { id: string }) {
           </div>
           <PreviewAs id={`preview-as-${id}`} />
           <nav aria-label={user.name} className="-mx-2 flex flex-col">
-            <button type="button" onClick={() => setPreferences.mutate({ language: nextLanguage })} className={row}>
+            <button type="button" onClick={() => { setOpen(false); switchLanguage(nextLanguage); }} className={row}>
               <Languages size={18} className="text-ink-2" aria-hidden />
               {t(`settings.languages.${nextLanguage}`)}
             </button>

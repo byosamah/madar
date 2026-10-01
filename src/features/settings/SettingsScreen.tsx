@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TRIGGERS } from '../../api/contract/entities';
+import { useSwitchLanguage } from '../../app/languageTurn';
 import { PreviewAs } from '../../app/PreviewAs';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -34,6 +35,7 @@ export function SettingsScreen() {
   const toast = useToast();
   const session = useCall('session.get', {});
   const preferences = useAction('me.updatePreferences');
+  const switchLanguage = useSwitchLanguage();
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const trigger = useAction('notifications.updateSettings');
   const simulate = useAction('session.setSimulateErrors');
@@ -78,7 +80,7 @@ export function SettingsScreen() {
           label={t('settings.language')}
           value={prefs.language}
           options={(['en', 'ar'] as const).map((value) => ({ value, label: t(`settings.languages.${value}`) }))}
-          onChange={(language) => preferences.mutate({ language })}
+          onChange={switchLanguage}
         />
       </Section>
 

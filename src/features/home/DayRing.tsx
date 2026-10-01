@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -22,7 +23,12 @@ export function DayRing({ done, total }: { done: number; total: number }) {
           </linearGradient>
         </defs>
         <circle cx="18" cy="18" r={r} fill="none" stroke="var(--c-fill-strong)" strokeWidth="4" />
-        <circle cx="18" cy="18" r={r} fill="none" stroke={`url(#${gradient})`} strokeWidth="4" strokeLinecap="round" strokeDasharray={length} strokeDashoffset={length * (1 - done / total)} />
+        <motion.circle
+          cx="18" cy="18" r={r} fill="none" stroke={`url(#${gradient})`} strokeWidth="4" strokeLinecap="round" strokeDasharray={length}
+          initial={{ strokeDashoffset: length }}
+          animate={{ strokeDashoffset: length * (1 - done / total) }}
+          transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
+        />
       </svg>
       <span aria-hidden className="tabular text-subheadline font-semibold text-ink">{t('home.ringText', { done, total })}</span>
     </span>

@@ -764,7 +764,10 @@
       "dueToday": "Finish “{{title}}”",
       "continue": "Continue “{{title}}”",
       "hours": "Log today's hours",
-      "clear": "You are all caught up."
+      "clear": "You are all caught up.",
+      "doneLeft": "Done. {{n}} more today.",
+      "doneLeft_one": "Done. 1 more today.",
+      "doneLeft_other": "Done. {{count}} more today."
     },
     "today": "Today",
     "todayClear": "Nothing is due today.",

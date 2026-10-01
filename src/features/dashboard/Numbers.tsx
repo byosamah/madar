@@ -16,7 +16,7 @@ export function Numbers({ view }: { view: DashboardData }) {
   const count = (n: number) => formatNumber(n, lang);
   const cell = 'pressable flex flex-col items-start gap-1 px-5 py-4 text-start hover:bg-fill/50';
   const label = 'text-footnote font-medium text-ink-2';
-  const big = 'text-[calc(34px*var(--boost))] font-bold leading-none tracking-[-0.02em] text-ink';
+  const big = 'text-[calc(34px*var(--boost))] font-bold leading-none tracking-[-0.02em]';
   const percent = Math.min(100, tiles.officeHours.percent);
   return (
     <>
@@ -24,19 +24,19 @@ export function Numbers({ view }: { view: DashboardData }) {
         <li>
           <Link to="/projects?status=active" className={cell}>
             <span className={label}>{t('dashboard.tiles.activeProjects')}</span>
-            <span className={big}><CountUp id="dash-active" value={tiles.activeProjects} format={count} /></span>
+            <span className={`${big} text-ink`}><CountUp id="dash-active" value={tiles.activeProjects} format={count} /></span>
           </Link>
         </li>
         <li>
           <Link to="/projects?filter=at_risk" className={cell}>
             <span className={label}>{t('dashboard.tiles.atRiskOrLate')}</span>
-            <span className={`${big} ${tiles.atRiskOrLate > 0 ? 'text-attn' : ''}`}><CountUp id="dash-attention" value={tiles.atRiskOrLate} format={count} /></span>
+            <span className={`${big} ${tiles.atRiskOrLate > 0 ? 'text-attn' : 'text-ink'}`}><CountUp id="dash-attention" value={tiles.atRiskOrLate} format={count} /></span>
           </Link>
         </li>
         <li>
           <button type="button" onClick={() => setHoursOpen(true)} className={`${cell} w-full`}>
             <span className={label}>{t('dashboard.tiles.officeHours')}</span>
-            <span className={big}><CountUp id="dash-hours" value={tiles.officeHours.percent} format={(n) => t('dashboard.percent', { n: formatNumber(n, lang) })} /></span>
+            <span className={`${big} text-ink`}><CountUp id="dash-hours" value={tiles.officeHours.percent} format={(n) => t('dashboard.percent', { n: formatNumber(n, lang) })} /></span>
             <span aria-hidden className="mt-1 block h-1 w-full max-w-40 overflow-hidden rounded-full bg-fill">
               <span className="draw-line block h-full rounded-full bg-ink" style={{ width: `${percent}%` }} />
             </span>

@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
@@ -5,6 +6,7 @@ import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { StateWord } from '../../components/StateWord';
+import { spring } from '../../design/motion';
 import { projectHue, stageProgress } from '../../lib/projectColor';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
@@ -26,15 +28,22 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
   const items = useCardMenu(summary);
   const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
-    <li {...menu.handlers}>
+    <motion.li
+      {...menu.handlers}
+      layout="position"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ ...spring.standard, duration: 0.46 }}
+    >
       <Link
         to={`/projects/${project.id}`}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,14rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_8rem_minmax(0,14rem)] @4xl:gap-x-6"
       >
-        <ProjectTile id={project.id} name={project.name} />
+        <ProjectTile id={project.id} name={project.name} shared />
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
-            <span dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</span>
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>
             <ProjectStateWord summary={summary} />
           </span>
           <span dir="auto" className="block truncate text-footnote text-ink-2">
@@ -56,6 +65,6 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
         </span>
       </Link>
       <ContextMenu label={t('projects.menu', { name: project.name })} items={items} point={menu.point} onClose={menu.close} />
-    </li>
+    </motion.li>
   );
 }

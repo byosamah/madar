@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { AnimatePresence } from 'motion/react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
@@ -36,6 +37,8 @@ export function HomeScreen() {
     next.delete('project');
     return next;
   }), [setParams]);
+  const [lastNext, setLastNext] = useState<string | null>(null);
+  const [showLeft, setShowLeft] = useState(false);
   const failed = [mine, review, week].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   const user = session.data?.user;
@@ -47,6 +50,12 @@ export function HomeScreen() {
   const loggedToday = week.data.dayTotals[dayIndex] ?? 0;
   const next = nextForYou({ review: review.data, mine: mine.data, today, hoursUnderTarget: week.data.weekTotal < week.data.target, workday });
   const ring = dayRing(mine.data, today);
+  // After the person finishes the item, one line says what is left today (moment 3).
+  const nextKey = next.kind === 'hours' || next.kind === 'clear' ? next.kind : next.row.task.id;
+  if (lastNext !== nextKey) {
+    setShowLeft(lastNext !== null);
+    setLastNext(nextKey);
+  }
   const todayRows = dueByToday(mine.data, today);
   const things = todayRows.length + review.data.length;
   const firstName = user.name.split(' ')[0];
@@ -64,7 +73,7 @@ export function HomeScreen() {
             <DayRing done={ring.done} total={ring.total} />
           </span>
         </ScreenTitle>
-        <NextCard item={next} onOpen={open} onFocus={focus.open} />
+        <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
         <TodayPanel rows={todayRows} logHours={workday && loggedToday === 0 && week.data.target > 0} onOpen={(row) => open(row.project.id, row.task.id)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 lg:pt-[4.25rem]">
@@ -76,7 +85,9 @@ export function HomeScreen() {
         {projects.data && projects.data.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
         {projects.data && projects.data.length > 0 && (
           <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
-            {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
+            <AnimatePresence initial={false}>
+              {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
+            </AnimatePresence>
           </ul>
         )}
         <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
