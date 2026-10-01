@@ -1,4 +1,5 @@
-import { Sparkles } from 'lucide-react';
+import { AnimatedIcon } from './icons/AnimatedIcon';
+import { SparklesIcon } from './icons/animated/sparkles';
 import type { UserCard } from '../api/contract/views';
 import { projectHue } from '../lib/projectColor';
 
@@ -20,7 +21,7 @@ export function Avatar({ user, size = 32 }: { user: Pick<UserCard, 'id' | 'name'
   if (user.kind === 'agent') {
     return (
       <span role="img" aria-label={user.name} style={{ ...box, background: 'var(--p-indigo-bg)', color: 'var(--p-indigo-fg)' }} className="inline-flex shrink-0 items-center justify-center rounded-full">
-        <Sparkles size={Math.round(size * 0.5)} aria-hidden />
+        <AnimatedIcon icon={SparklesIcon} size={Math.round(size * 0.5)} aria-hidden />
       </span>
     );
   }

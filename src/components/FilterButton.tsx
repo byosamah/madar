@@ -1,4 +1,5 @@
-import { SlidersHorizontal } from 'lucide-react';
+import { AnimatedIcon } from './icons/AnimatedIcon';
+import { SlidersHorizontalIcon } from './icons/animated/sliders-horizontal';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../app/useIsPhone';
@@ -25,7 +26,7 @@ export function FilterButton({ label, count, children }: { label: string; count:
         onClick={() => setOpen((value) => !value)}
         className="pressable panel inline-flex min-h-11 items-center gap-2 !rounded-full px-4 text-subheadline font-semibold text-ink"
       >
-        <SlidersHorizontal size={16} aria-hidden />
+        <AnimatedIcon icon={SlidersHorizontalIcon} size={16} aria-hidden />
         {label}
         {count > 0 && <span className="tabular grid min-w-5 place-items-center rounded-full bg-ink px-1.5 text-caption text-panel">{count}</span>}
       </button>

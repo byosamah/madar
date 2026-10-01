@@ -1,4 +1,6 @@
-import { Paperclip, X } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { XIcon } from '../../../components/icons/animated/x';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -93,7 +95,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
             <li key={`${file.name}-${i}`} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-fill ps-3">
               <bdi className="text-footnote">{file.name}</bdi>
               <IconButton label={t('overview.removeFile', { name: file.name })} onClick={() => setFiles((list) => list.filter((_, j) => j !== i))}>
-                <X size={14} aria-hidden />
+                <AnimatedIcon icon={XIcon} size={14} aria-hidden />
               </IconButton>
             </li>
           ))}

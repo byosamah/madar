@@ -1,4 +1,6 @@
-import { ArrowRight, Crosshair } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ArrowRightIcon } from '../../components/icons/animated/arrow-right';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
@@ -34,7 +36,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button variant="primary" onClick={action.run}>
                 {action.label}
-                <ArrowRight size={16} className="rtl:-scale-x-100" aria-hidden />
+                <AnimatedIcon icon={ArrowRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
               </Button>
               {(item.kind === 'pastDue' || item.kind === 'dueToday' || item.kind === 'continue') && (
                 <Button variant="plain" className="px-3" onClick={() => onFocus(item.row.task.id)}>

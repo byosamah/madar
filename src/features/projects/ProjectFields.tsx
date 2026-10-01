@@ -1,4 +1,6 @@
-import { Plus, X } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../components/icons/animated/plus';
+import { XIcon } from '../../components/icons/animated/x';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client, User } from '../../api/contract/entities';
@@ -106,13 +108,13 @@ export function StageList({
               className="field min-w-0 flex-1"
             />
             <IconButton label={t('projectForm.removeStage', { name: stage.name || String(i + 1) })} onClick={() => onChange(stages.filter((_, j) => j !== i))}>
-              <X size={16} aria-hidden />
+              <AnimatedIcon icon={XIcon} size={16} aria-hidden />
             </IconButton>
           </li>
         ))}
       </ol>
       <Button className="self-start" onClick={() => onChange([...stages, { name: '' }])}>
-        <Plus size={16} aria-hidden />
+        <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
         {t('projectForm.addStage')}
       </Button>
       {error && <p role="alert" className="text-footnote text-late">{error}</p>}

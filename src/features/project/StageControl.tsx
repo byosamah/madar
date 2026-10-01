@@ -1,4 +1,6 @@
-import { Check, ChevronDown } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { CheckIcon } from '../../components/icons/animated/check';
+import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../api/contract/entities';
@@ -57,7 +59,7 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
         className="pressable -ms-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-subheadline font-semibold text-ink hover:bg-fill"
       >
         <bdi>{detail.currentStage.name}</bdi>
-        <ChevronDown size={16} className="text-ink-2" aria-hidden />
+        <AnimatedIcon icon={ChevronDownIcon} size={16} className="text-ink-2" aria-hidden />
       </button>
       {open && ref.current && (
         <Popover anchor={ref.current} label={t('project.stages')} onClose={() => setOpen(false)}>
@@ -75,7 +77,7 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
                     className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 text-start text-subheadline ${stage.id === selected.id ? 'bg-fill font-semibold text-ink' : 'text-ink hover:bg-fill'}`}
                   >
                     <span aria-hidden className={`grid size-6 shrink-0 place-items-center rounded-full text-caption font-semibold ${isCurrent ? 'bg-ink text-panel' : past ? 'bg-fill-strong text-ink' : 'border border-hairline text-ink-2'}`}>
-                      {past ? <Check size={13} /> : index + 1}
+                      {past ? <AnimatedIcon icon={CheckIcon} size={13} /> : index + 1}
                     </span>
                     <bdi className="min-w-0 flex-1 truncate">{stage.name}</bdi>
                     {isCurrent && <span className="text-caption font-semibold text-ink-2">{t('project.current')}</span>}

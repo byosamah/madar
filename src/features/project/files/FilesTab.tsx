@@ -1,4 +1,6 @@
-import { FileText, Upload } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { FileTextIcon } from '../../../components/icons/animated/file-text';
+import { UploadIcon } from '../../../components/icons/animated/upload';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_FILE_BYTES } from '../../../api/contract/entities';
@@ -61,7 +63,7 @@ function FileRow({ view, detail, onPreview }: { view: FileView; detail: ProjectD
     <li className="flex flex-col">
       <div className="flex min-h-14 items-center gap-3 px-2">
         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-          {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <FileText size={20} aria-hidden />}
+          {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-2">
@@ -159,7 +161,7 @@ export function FilesTab({ detail }: TabProps) {
       {canUpload && (
         <div className="flex flex-wrap items-end gap-3">
           <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-fill px-5 text-subheadline font-semibold text-ink hover:bg-fill-strong has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
-            <Upload size={18} aria-hidden />
+            <AnimatedIcon icon={UploadIcon} size={18} aria-hidden />
             {t('files.upload')}
             <input
               type="file"

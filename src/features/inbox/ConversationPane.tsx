@@ -1,4 +1,6 @@
-import { ChevronLeft, ListChecks } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -17,7 +19,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
       <Link to="/inbox" aria-label={t('chat.back')} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink sm:hidden">
-        <ChevronLeft size={22} className="rtl:-scale-x-100" aria-hidden />
+        <AnimatedIcon icon={ChevronLeftIcon} size={22} className="rtl:-scale-x-100" aria-hidden />
       </Link>
       {lead}
       <div className="min-w-0 flex-1">

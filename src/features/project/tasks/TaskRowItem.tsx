@@ -1,4 +1,7 @@
-import { Circle, CircleCheck, CircleDot, Flag, MessageCircle, Paperclip } from 'lucide-react';
+import { Circle, CircleDot, Flag, Paperclip } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
+import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -60,7 +63,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           className="grid place-items-center"
         >
           {done || ticking
-            ? <CircleCheck size={22} className="text-[var(--sig-from)]" aria-hidden />
+            ? <AnimatedIcon icon={CircleCheckIcon} size={22} className="text-[var(--sig-from)]" aria-hidden />
             : inReview ? <CircleDot size={22} className="text-attn" aria-hidden /> : <Circle size={22} strokeWidth={1.75} className="text-ink-2" aria-hidden />}
         </motion.span>
       </button>
@@ -70,7 +73,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (word?.tone === 'attn' ? <StateWord tone="attn">{when}</StateWord> : <span className="tabular">{when}</span>)}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><Flag size={12} aria-hidden />{t('tasks.flagged')}</span>}
-          {row.commentCount > 0 && <span className="inline-flex items-center gap-1"><MessageCircle size={12} aria-hidden />{t('tasks.comments', { n: row.commentCount })}</span>}
+          {row.commentCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={MessageCircleIcon} size={12} aria-hidden />{t('tasks.comments', { n: row.commentCount })}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}
         </span>

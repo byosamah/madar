@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { AnimatedIcon } from './icons/AnimatedIcon';
+import { XIcon } from './icons/animated/x';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
@@ -51,7 +52,7 @@ export function Sheet({
               aria-label={t('common.close')}
               className="pressable grid size-11 shrink-0 place-items-center rounded-full bg-fill text-ink-2"
             >
-              <X size={18} aria-hidden />
+              <AnimatedIcon icon={XIcon} size={18} aria-hidden />
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>

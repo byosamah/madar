@@ -1,4 +1,5 @@
-import { ChevronRight } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { useLang } from '../../app/lang';
@@ -48,7 +49,7 @@ export function NumberRows({ rows }: { rows: { key: string; label: string; value
           <Link to={row.to} className="pressable flex min-h-14 items-center gap-3 px-5 hover:bg-fill/50">
             <span className="min-w-0 flex-1 text-subheadline font-medium text-ink">{row.label}</span>
             <span className="tabular text-headline text-ink">{row.value}</span>
-            <ChevronRight size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
+            <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
           </Link>
         </li>
       ))}
