@@ -8,6 +8,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { StateWord } from '../../components/StateWord';
 import { spring } from '../../design/motion';
 import { projectHue, stageProgress } from '../../lib/projectColor';
+import { setSharedSource } from '../../app/sharedLayout';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
 
@@ -21,7 +22,7 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
 }
 
 /** One project as one calm row: tile, name, stage, progress line, next deadline, and a state word only when needed (redesign spec 3.3). */
-export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
+export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
   const { project } = summary;
   const menu = useContextMenu();
@@ -38,6 +39,7 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
     >
       <Link
         to={`/projects/${project.id}`}
+        onClick={() => setSharedSource(source)}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,14rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_8rem_minmax(0,14rem)] @4xl:gap-x-6"
       >
         <ProjectTile id={project.id} name={project.name} shared />

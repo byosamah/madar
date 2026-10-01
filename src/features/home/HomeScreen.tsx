@@ -1,4 +1,4 @@
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, LayoutGroup } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -90,11 +90,13 @@ export function HomeScreen() {
         {projects.error && <LoadFailed error={projects.error} onRetry={() => void projects.refetch()} />}
         {projects.data && projects.data.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
         {projects.data && projects.data.length > 0 && (
-          <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
-            <AnimatePresence initial={false}>
-              {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
-            </AnimatePresence>
-          </ul>
+          <LayoutGroup id="home">
+            <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
+              <AnimatePresence initial={false}>
+                {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="home" />)}
+              </AnimatePresence>
+            </ul>
+          </LayoutGroup>
         )}
         <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
       </section>

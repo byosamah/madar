@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { LayoutGroup } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ApiError } from '../../api/errors';
@@ -9,6 +10,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import type { ProjectSummary } from '../../api/contract/views';
+import { sharedSource } from '../../app/sharedLayout';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PROJECT_TABS, TAB_BODY, type ProjectTab } from './tabs';
 
@@ -40,12 +42,14 @@ export function ProjectScreen() {
   if (!detail.data) {
     const summary = queryClient.getQueriesData<ProjectSummary[]>({ queryKey: ['api', 'projects.list'] })
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
-    return summary ? <HeaderShell id={summary.project.id} name={summary.project.name} /> : null;
+    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} /></LayoutGroup> : null;
   }
   const Body = TAB_BODY[tab];
   return (
     <div className="flex flex-col gap-5">
-      <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'activity', compose: '1' })} />
+      <LayoutGroup id={sharedSource()}>
+        <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'activity', compose: '1' })} />
+      </LayoutGroup>
       <Tabs
         label={t('project.tabs')}
         value={tab}

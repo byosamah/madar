@@ -10,7 +10,7 @@ import { ProjectListRow } from './ProjectListRow';
 function Card({ id }: { id: string }) {
   const list = useCall('projects.list', { status: 'all' });
   const summary = list.data?.find((s) => s.project.id === id);
-  return summary ? <ul><ProjectListRow summary={summary} /></ul> : null;
+  return summary ? <ul><ProjectListRow summary={summary} source="projects" /></ul> : null;
 }
 function Cover({ id }: { id: string }) {
   const list = useCall('projects.list', { status: 'all' });
