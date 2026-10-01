@@ -108,7 +108,8 @@
       "file_not_visible": "You are not on the project of this file.",
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
       "client_name_missing": "Write the client name in English or in Arabic.",
-      "stage_back_reason": "Write why the project moves back."
+      "stage_back_reason": "Write why the project moves back.",
+      "duplicate_team": "A team with this name exists. Use another name."
     }
   },
   "taskTemplates": {
@@ -178,7 +179,11 @@
     "on_hold": "Paused",
     "completed": "Completed",
     "archived": "Archived",
-    "all": "All statuses"
+    "all": "All statuses",
+    "awaiting_client": "Awaiting client",
+    "stale": "Stale · paused {{count}} days",
+    "stale_one": "Stale · paused 1 day",
+    "stale_other": "Stale · paused {{count}} days"
   },
   "taskStatus": {
     "todo": "To do",
@@ -221,7 +226,9 @@
     "show": "Show",
     "stage": "Stage",
     "anyStage": "Any stage",
-    "stageCount": "Stage {{n}} of {{total}}"
+    "stageCount": "Stage {{n}} of {{total}}",
+    "team": "Team",
+    "anyTeam": "Any team"
   },
   "projectForm": {
     "createTitle": "New Project",
@@ -320,7 +327,13 @@
     "restarts": "Restarts {{date}}.",
     "moveBack": "Move back to {{stage}}",
     "moveBackWhy": "Why does the project move back?",
-    "moveBackLog": "Log it in the Tracker as a Balady update"
+    "moveBackLog": "Log it in the Tracker as a Balady update",
+    "pauseWhy": "Why?",
+    "pauseKinds": {
+      "internal": "Our side",
+      "client": "Awaiting client"
+    },
+    "pauseClientHint": "The Tracker gets a line that waits for the client. Resume closes it."
   },
   "overview": {
     "composer": "Post an update",
@@ -615,7 +628,14 @@
     "removed": "{{name}} removed from the team.",
     "makeLeader": "Make leader",
     "actions": "Actions for {{name}}",
-    "noOne": "Everyone is already on the team."
+    "noOne": "Everyone is already on the team.",
+    "addTeam": "Add a team",
+    "addTeamHint": "Adds every person of the team who is not on this project yet.",
+    "team": "Team",
+    "teamAdded": "{{n}} people added",
+    "teamAdded_one": "1 person added",
+    "teamAdded_other": "{{count}} people added",
+    "teamNone": "Everyone in {{name}} is already on this project."
   },
   "work": {
     "group": {
@@ -797,12 +817,20 @@
       "nothingInProgress": "Nothing is in progress.",
       "countInProgress": "{{n}} in progress",
       "countPastDue": "{{n}} past due",
-      "countReview": "{{n}} waiting for review"
+      "countReview": "{{n}} waiting for review",
+      "team": "Team: {{name}}"
     },
     "views": {
       "projects": "Projects",
       "people": "People",
       "schedule": "Schedule"
+    },
+    "team": "Team",
+    "anyTeam": "Any team",
+    "stale": {
+      "title": "Stale projects",
+      "internal": "Paused by the office",
+      "client": "Waiting for the client"
     }
   },
   "taskList": {
@@ -863,7 +891,8 @@
       "prefix": "Use one to four capital letters.",
       "stages": "Give every stage a name.",
       "name": "Enter a name.",
-      "discipline": "Enter a discipline."
+      "discipline": "Enter a discipline.",
+      "stale": "Use a whole number from 7 to 365."
     },
     "gender": "Form of address in Arabic",
     "genders": {
@@ -872,7 +901,9 @@
     },
     "title": "Admin",
     "subtitle": "People and office settings.",
-    "onlyAdmin": "Only the Admin and Management can open this page."
+    "onlyAdmin": "Only the Admin and Management can open this page.",
+    "staleAfter": "Days until a paused project is stale",
+    "staleAfterHint": "A paused project turns stale after this many days. Use 7 to 365."
   },
   "due": {
     "pastDue": "{{n}} days past due",
@@ -1109,5 +1140,22 @@
     "done": "Done",
     "markDone": "Mark done",
     "reopen": "Open again"
+  },
+  "teams": {
+    "title": "Teams",
+    "add": "Add team",
+    "editTitle": "Edit team",
+    "name": "Team name",
+    "members": "People",
+    "created": "{{name}} added.",
+    "saved": "Team saved.",
+    "deleted": "Team deleted.",
+    "empty": "No teams yet.",
+    "count": "{{n}} people",
+    "count_one": "1 person",
+    "count_other": "{{count}} people",
+    "actions": "Actions for {{name}}",
+    "edit": "Edit",
+    "delete": "Delete team"
   }
 }

@@ -7,7 +7,8 @@ import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
 import { Popover } from '../../components/Popover';
 import { SegmentedControl } from '../../components/SegmentedControl';
-import { StatusSign, signOfStatus } from '../../components/StatusSign';
+import { ProjectSign } from '../../components/ProjectSign';
+import { StatusSign } from '../../components/StatusSign';
 
 const VALUES: HealthValue[] = ['on_track', 'at_risk', 'late'];
 
@@ -41,7 +42,7 @@ function HealthPopover({ detail, anchor, onClose }: { detail: ProjectDetail; anc
 function HealthWord({ detail, canSet }: { detail: ProjectDetail; canSet: boolean }) {
   const { t } = useTranslation();
   const { health, healthSetBy } = detail;
-  if (!health) return <StatusSign state={signOfStatus(detail.project.status)}>{t(`status.${detail.project.status}`)}</StatusSign>;
+  if (!health) return <ProjectSign project={detail.project} staleDays={detail.staleDays} />;
   if (health.value === 'on_track' && !canSet && !health.overridden) return null;
   return (
     <span title={health.overridden && health.reason ? health.reason : undefined} className="inline-flex items-center gap-2">

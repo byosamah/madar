@@ -20,11 +20,12 @@ export function PausedBanner({ detail }: { detail: ProjectDetail }) {
     <section aria-labelledby="paused-title" className="panel flex flex-wrap items-start gap-4 p-4 sm:items-center">
       <AnimatedIcon icon={PauseIcon} size={24} className="mt-0.5 shrink-0 text-attn sm:mt-0" aria-hidden />
       <div className="min-w-0 flex-1 basis-60">
-        <h2 id="paused-title" className="text-headline text-ink">{t('project.pausedTitle')}</h2>
+        <h2 id="paused-title" className="text-headline text-ink">{pause.kind === 'client' ? t('status.awaiting_client') : t('project.pausedTitle')}</h2>
         <p dir="auto" className="text-subheadline text-ink">{pause.reason}</p>
         <p className="text-footnote text-ink-2">
           {pausedBy && t('project.pausedBy', { name: pausedBy.name, context: actorContext(pausedBy), date: formatDay(stampDay(pause.at), lang, 'long') })}
           {pause.resumeOn && <> {t('project.restarts', { date: formatDay(pause.resumeOn, lang, 'long') })}</>}
+          {detail.staleDays !== null && <> {t('status.stale', { count: detail.staleDays })}</>}
         </p>
       </div>
       {detail.viewerCan.archive && (

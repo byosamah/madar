@@ -20,6 +20,7 @@ export const StageTemplateId = id('stt');
 export const TaskTemplateId = id('ttp');
 export const TrackerId = id('trk');
 export const PaymentId = id('pay');
+export const TeamId = id('tm');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -49,7 +50,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -122,8 +123,19 @@ export const HealthOverride = z.object({
 });
 export type HealthOverride = z.infer<typeof HealthOverride>;
 
-/** Why and until when a leader paused a project (owner, 2026-10-01). The project status is on_hold while it is set. */
-export const ProjectPause = z.object({ reason: z.string().trim().min(1).max(280), resumeOn: Day.nullable(), by: UserId, at: Stamp });
+/** "internal": the office pauses its own work. "client": the project waits for the client (colleague comment 16). */
+export const PauseKind = z.enum(['internal', 'client']);
+export type PauseKind = z.infer<typeof PauseKind>;
+
+/**
+ * Why and until when a leader paused a project (owner, 2026-10-01). The project status is on_hold while it is set.
+ * "kind" and "trackerId" are optional, so a pause saved before them reads as internal with no tracker entry.
+ * A client pause logs a Tracker entry that waits for the client. "trackerId" names it, so Resume can close it.
+ */
+export const ProjectPause = z.object({
+  reason: z.string().trim().min(1).max(280), resumeOn: Day.nullable(), by: UserId, at: Stamp,
+  kind: PauseKind.optional(), trackerId: TrackerId.optional(),
+});
 export type ProjectPause = z.infer<typeof ProjectPause>;
 
 /** A link to a place outside Madar: a moodboard, an office folder, a map pin, the client's delivery folder (colleague comment 5, 2026-10-01). */
@@ -456,10 +468,23 @@ export const Event = z.object({
 });
 export type Event = z.infer<typeof Event>;
 
+/** An office team, such as Design or Site, apart from the team of one project (colleague comment 15). One person may be in several teams. */
+export const Team = z.object({
+  id: TeamId,
+  name: z.string().trim().min(1).max(60),
+  /** People only: an agent acts for a person, so it never joins a team. */
+  memberIds: z.array(UserId).max(100),
+});
+export type Team = z.infer<typeof Team>;
+
+export const DEFAULT_STALE_DAYS = 30;
+
 export const Settings = z.object({
   defaultStages: z.array(z.string().trim().min(1).max(60)).min(1).max(20),
   codePrefix: z.string().regex(/^[A-Z]{1,4}$/),
   workloadLimit: z.number().int().min(1).max(100),
+  /** A paused project turns stale after this many days (colleague comment 16). Optional, so older offices read DEFAULT_STALE_DAYS. */
+  staleAfterDays: z.number().int().min(7).max(365).optional(),
 });
 export type Settings = z.infer<typeof Settings>;
 

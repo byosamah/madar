@@ -8,7 +8,7 @@ import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
-import { signOf } from '../../components/StatusSign';
+import { signOfProject } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
@@ -65,7 +65,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
           index={index}
           total={detail.stages.length}
           complete={project.status === 'completed'}
-          tone={signOf(detail.health, project.status)}
+          tone={signOfProject(detail)}
           label={t('projects.stageCount', { n: index + 1, total: detail.stages.length })}
           className="w-28 sm:w-36"
         />

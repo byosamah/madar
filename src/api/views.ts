@@ -8,6 +8,7 @@ import type { State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
 import { helpersOf } from '../lib/taskPeople';
+import { staleDaysOf } from './pause';
 
 export function userCard(user: User): UserCard {
   return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline, gender: user.gender };
@@ -149,6 +150,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     health,
     healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,
     pausedBy: project.status === 'on_hold' && project.pause ? cardOf(state, project.pause.by) : null,
+    staleDays: staleDaysOf(state, project, today),
     coverLetter: cover ? cover.versions[cover.versions.length - 1].letter : null,
     stages,
     currentStage: state.stages[project.currentStageId] ?? stages[0],

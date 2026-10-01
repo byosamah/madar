@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
-  Message, Payment, Project,
+  Message, Payment, Project, Team,
   ProjectId, Stage, StageId, Stamp, Task, TrackerEntry, UpdateId, UserId,
 } from './entities';
 
@@ -62,6 +62,8 @@ export const ProjectSummary = z.object({
   healthSetBy: UserCard.nullable(),
   /** The person who paused the project, while it is paused. */
   pausedBy: UserCard.nullable(),
+  /** The days a paused project has waited, once that is longer than the office's limit (colleague comment 16). Else null. */
+  staleDays: z.number().int().nullable(),
   coverLetter: z.string().nullable(),
   stages: z.array(Stage),
   currentStage: Stage,
@@ -75,6 +77,10 @@ export const ProjectSummary = z.object({
   viewerCan: ViewerCan,
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
+
+/** An office team as a screen reads it: the people who are active, as cards. */
+export const TeamRow = Team.extend({ members: z.array(UserCard) });
+export type TeamRow = z.infer<typeof TeamRow>;
 
 export const ProjectDetail = ProjectSummary.extend({
   members: z.array(z.object({

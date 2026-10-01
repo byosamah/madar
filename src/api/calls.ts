@@ -14,6 +14,7 @@ import { feedbackCalls } from './handlers/feedback';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
 import { shareCalls } from './handlers/sharing';
+import { teamCalls } from './handlers/teams';
 import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
 
@@ -35,6 +36,7 @@ export const calls = {
   ...taskTemplateCalls,
   ...trackerCalls,
   ...paymentCalls,
+  ...teamCalls,
 };
 
 export type Calls = typeof calls;

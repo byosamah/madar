@@ -8,7 +8,7 @@ describe('the office schedule', () => {
     await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     const links = within(schedule).getAllByRole('link');
-    expect(links).toHaveLength(10);
+    expect(links).toHaveLength(9);
     await userEvent.click(within(schedule).getByRole('link', { name: /Corniche Office Tower/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeInTheDocument();
   });

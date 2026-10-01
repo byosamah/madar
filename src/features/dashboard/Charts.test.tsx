@@ -39,7 +39,7 @@ describe('the Dashboard charts', () => {
   });
 
   it('opens exactly the projects behind each health number', async () => {
-    for (const [word, n] of [['Late', 2], ['At risk', 3], ['On track', 5]] as const) {
+    for (const [word, n] of [['Late', 2], ['At risk', 3], ['On track', 4]] as const) {
       const view = await renderApp('/dashboard');
       await userEvent.click(within(await chart('Health mix')).getByRole('link', { name: new RegExp(word) }));
       await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(n));

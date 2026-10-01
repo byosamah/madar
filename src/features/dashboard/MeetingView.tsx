@@ -11,6 +11,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ProjectTile } from '../../components/ProjectTile';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { ProjectSign } from '../../components/ProjectSign';
 import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
@@ -24,14 +25,16 @@ const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
+const TEAM_ID = /^tm_\d{3,}$/;
 // A stage bar shows its name when it spans at least this share of the window.
 const LABEL_MIN_PCT = 11;
 const COLUMNS = 'grid grid-cols-[minmax(14rem,24rem)_minmax(0,1fr)] gap-x-6';
 
 type Row = DashboardData['schedule'][number];
 
-function StateOfRow({ health }: { health: Row['health'] }) {
+function StateOfRow({ health, pause }: { health: Row['health']; pause: Row['pause'] }) {
   const { t } = useTranslation();
+  if (pause) return <ProjectSign project={{ status: 'on_hold', pause }} staleDays={pause.staleDays} />;
   if (health === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
   if (health === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
@@ -166,15 +169,18 @@ export function MeetingView() {
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
+  const team = params.get('team') ?? '';
   const dashboard = useCall('dashboard.get', {
     status,
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
+    teamId: TEAM_ID.test(team) ? team : undefined,
   });
   // Every open task of the office, once, for the counts on the timeline and the project screens.
   const tasks = useCall('tasks.list', { includeDone: false, activeProjectsOnly: false });
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
+  const teams = useCall('teams.list', {});
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
   const [slide, setSlide] = useState(0);
@@ -230,6 +236,7 @@ export function MeetingView() {
   const filters = [
     status !== 'active' ? t('dashboard.meeting.status', { name: t(`status.${status}`) }) : null,
     leader ? t('dashboard.meeting.leader', { name: users.data?.find((u) => u.id === leader)?.name ?? leader }) : null,
+    team ? t('dashboard.meeting.team', { name: teams.data?.find((item) => item.id === team)?.name ?? team }) : null,
     client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);
 
@@ -320,7 +327,7 @@ export function MeetingView() {
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
                       <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
-                      <StateOfRow health={row.health} />
+                      <StateOfRow health={row.health} pause={row.pause} />
                     </span>
                     {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
                   </span>

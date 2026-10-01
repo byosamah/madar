@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Settings } from '../../../api/contract/entities';
+import { DEFAULT_STALE_DAYS, type Settings } from '../../../api/contract/entities';
 import { fieldError } from '../../../app/errors';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -9,7 +9,7 @@ import { TextField } from '../../../components/Fields';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { StageList } from '../../projects/ProjectFields';
 
-type Problems = { stages?: string; prefix?: string; limit?: string };
+type Problems = { stages?: string; prefix?: string; limit?: string; stale?: string };
 
 /** The form starts from the saved settings once. A refresh of the settings never replaces what the Admin typed. */
 function OfficeForm({ saved }: { saved: Settings }) {
@@ -18,21 +18,24 @@ function OfficeForm({ saved }: { saved: Settings }) {
   const [stages, setStages] = useState(() => saved.defaultStages.map((name) => ({ name })));
   const [prefix, setPrefix] = useState(saved.codePrefix);
   const [limit, setLimit] = useState(String(saved.workloadLimit));
+  const [stale, setStale] = useState(String(saved.staleAfterDays ?? DEFAULT_STALE_DAYS));
   const [problems, setProblems] = useState<Problems>({});
   const save = useAction('settings.update', { onSuccess: () => toast.show({ message: t('admin.officeSaved') }) });
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const names = stages.map((stage) => stage.name.trim());
     const value = Number(limit);
+    const staleValue = Number(stale);
     // The screen checks the API's rules first, so the message shows under the field at once (spec 11.6).
     const next: Problems = {
       stages: names.length === 0 || names.some((name) => !name) ? t('admin.errors.stages') : undefined,
       prefix: /^[A-Z]{1,4}$/.test(prefix.trim()) ? undefined : t('admin.errors.prefix'),
       limit: Number.isInteger(value) && value >= 1 && value <= 100 ? undefined : t('admin.errors.limit'),
+      stale: stale.trim() !== '' && Number.isInteger(staleValue) && staleValue >= 7 && staleValue <= 365 ? undefined : t('admin.errors.stale'),
     };
     setProblems(next);
-    if (next.stages || next.prefix || next.limit) return;
-    save.mutate({ defaultStages: names, codePrefix: prefix.trim(), workloadLimit: value });
+    if (next.stages || next.prefix || next.limit || next.stale) return;
+    save.mutate({ defaultStages: names, codePrefix: prefix.trim(), workloadLimit: value, staleAfterDays: staleValue });
   };
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
@@ -47,6 +50,11 @@ function OfficeForm({ saved }: { saved: Settings }) {
           id="office-limit" label={t('admin.limit')} hint={t('admin.limitHint')} inputMode="numeric" value={limit}
           error={problems.limit ?? fieldError(save.error, 'workloadLimit', t, t('admin.errors.limit'))}
           onChange={(event) => setLimit(event.target.value)}
+        />
+        <TextField
+          id="office-stale" label={t('admin.staleAfter')} hint={t('admin.staleAfterHint')} inputMode="numeric" value={stale}
+          error={problems.stale ?? fieldError(save.error, 'staleAfterDays', t, t('admin.errors.stale'))}
+          onChange={(event) => setStale(event.target.value)}
         />
       </div>
       <Button type="submit" className="self-start" disabled={save.isPending}>{t('admin.saveOffice')}</Button>

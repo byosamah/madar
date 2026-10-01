@@ -40,11 +40,13 @@ const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.
 const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'];
 // Feature requests and bug reports from the person menu (owner, 2026-10-01).
 const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
+// Office teams (colleague comment 15). Adding a whole team to a project is a member call.
+const TEAM_CALLS = ['teams.list', 'teams.create', 'teams.update', 'teams.delete', 'members.addTeam'];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {
-    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS].sort());
+    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS].sort());
   });
 
   it('marks exactly the read calls as read-only', () => {

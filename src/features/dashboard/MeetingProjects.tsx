@@ -7,7 +7,8 @@ import { Avatar } from '../../components/Avatar';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { RichText } from '../../components/RichText';
-import { StatusSign } from '../../components/StatusSign';
+import { ProjectSign } from '../../components/ProjectSign';
+import { signOfProject, StatusSign } from '../../components/StatusSign';
 import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
@@ -86,9 +87,11 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
               <bdi>{stage?.name ?? ''}</bdi>
               <span className="text-ink-2"> · {t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })}</span>
             </span>
-            <StatusSign state={row.health}>{t(`health.${row.health}`)}</StatusSign>
+            {row.pause
+              ? <ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} />
+              : <StatusSign state={row.health}>{t(`health.${row.health}`)}</StatusSign>}
           </div>
-          <ProgressLine index={stageIndex} total={row.stages.length} size="lg" tone={row.health} label={t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })} />
+          <ProgressLine index={stageIndex} total={row.stages.length} size="lg" tone={signOfProject({ project: { status: row.pause ? 'on_hold' : 'active', pause: row.pause }, health: row.pause ? null : { value: row.health }, staleDays: row.pause?.staleDays ?? null })} label={t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })} />
           {stage?.endDate && stageLeft !== null && (
             <span className={`tabular text-[15px] ${stageLeft < 0 ? 'text-attn' : 'text-ink-2'}`}>
               {t('overview.stageEndLabel')}: {formatDay(stage.endDate, lang)}

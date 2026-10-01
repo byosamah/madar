@@ -58,6 +58,8 @@ type Shape = 'late' | 'risk_overdue' | 'risk_stage' | 'on_track' | 'on_hold' | '
 type Plan = {
   code: string; name: string; client: number; shape: Shape; stage: number; leader: number; team: number[];
   area: number; location: string; cover: boolean; hue: number;
+  /** For a paused project: when the leader paused it (days ago), why, and who it waits for (colleague comment 16). */
+  pause?: { daysAgo: number; kind: 'internal' | 'client'; reason: string };
 };
 
 // "leader" and "team" are indexes into PEOPLE. "stage" is an index into the default stage list.
@@ -70,10 +72,12 @@ const PLANS: Plan[] = [
   { code: 'KH-26-006', name: 'Al Waha Clinic Fit-out', client: 5, shape: 'late', stage: 4, leader: 0, team: [5, 6], area: 1800, location: 'Al Khobar, Al Aqrabiyah', cover: true, hue: 190 },
   { code: 'KH-26-007', name: 'Seaside Villa Compound', client: 1, shape: 'risk_overdue', stage: 2, leader: 3, team: [4, 7], area: 14200, location: 'Al Khobar, Half Moon Bay', cover: true, hue: 45 },
   { code: 'KH-26-008', name: 'Rakah Neighbourhood Mosque', client: 2, shape: 'on_track', stage: 5, leader: 2, team: [5, 7], area: 1200, location: 'Al Khobar, Al Rakah', cover: false, hue: 120 },
-  { code: 'KH-25-014', name: 'Gulf Crest HQ Interiors', client: 0, shape: 'on_hold', stage: 2, leader: 1, team: [6], area: 3600, location: 'Al Khobar, Prince Turki Street', cover: true, hue: 300 },
+  { code: 'KH-25-014', name: 'Gulf Crest HQ Interiors', client: 0, shape: 'on_hold', stage: 2, leader: 1, team: [6], area: 3600, location: 'Al Khobar, Prince Turki Street', cover: true, hue: 300,
+    pause: { daysAgo: 12, kind: 'client', reason: 'Waiting for the client to approve the revised fit-out brief.' } },
   { code: 'KH-25-009', name: 'Dune Line Show Villa', client: 1, shape: 'completed', stage: 6, leader: 3, team: [4], area: 650, location: 'Al Khobar, Al Rakah', cover: true, hue: 80 },
   { code: 'KH-26-009', name: 'Shore Walk Retail Kiosks', client: 3, shape: 'on_track', stage: 6, leader: 1, team: [5, 7], area: 900, location: 'Al Khobar, Corniche', cover: false, hue: 170 },
-  { code: 'KH-26-010', name: 'Tamr Staff Housing', client: 4, shape: 'on_track', stage: 1, leader: 2, team: [4, 6], area: 5200, location: 'Dammam, Al Faisaliyah', cover: true, hue: 340 },
+  { code: 'KH-26-010', name: 'Tamr Staff Housing', client: 4, shape: 'on_hold', stage: 1, leader: 2, team: [4, 6], area: 5200, location: 'Dammam, Al Faisaliyah', cover: true, hue: 340,
+    pause: { daysAgo: 45, kind: 'internal', reason: 'The office waits for the land title to be settled before it designs further.' } },
 ];
 
 // The current stage window, in days from today. These windows make the health mix come out the same every day.
@@ -174,6 +178,7 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     currentStageId: stageIds[plan.stage], location: plan.location, areaM2: plan.area, startDate: firstStart, targetEndDate: lastEnd,
     coverFileId: null, modelFolderPath: `\\\\STUDIO\\Projects\\${plan.code}`, description: `${plan.name} for ${CLIENTS[plan.client][0]}.`,
     healthOverride: null, mark: pickMark(projectId, Object.values(state.projects)), createdBy: leader.id, createdAt: created, updatedAt: created,
+    ...(plan.pause ? { pause: { reason: plan.pause.reason, resumeOn: null, by: leader.id, at: at(addDays(today, -plan.pause.daysAgo), 9), kind: plan.pause.kind } } : {}),
   };
   state.projects[projectId] = project;
 
@@ -441,6 +446,8 @@ function addSampleLinks(state: State) {
 }
 
 type TrackerPlan = {
+  /** The entry that a client pause logs. The pause points to it, so Resume closes it. */
+  pause?: true;
   daysAgo: number; type: TrackerEntry['type']; direction: TrackerEntry['direction']; title: string; note?: string;
   waiting?: TrackerEntry['waiting']; closedDaysAgo?: number; file?: string; auto?: TrackerEntry['auto']; by: number; people?: number[];
 };
@@ -456,6 +463,9 @@ const TRACKER: Record<string, TrackerPlan[]> = {
     { daysAgo: 5, type: 'message', direction: 'in', title: 'The client asked to move the lobby entrance', note: 'Nawaf phoned the office. He wants the entrance on the Corniche side.', waiting: 'us', by: 4, people: [1] },
     { daysAgo: 3, type: 'file', direction: 'out', title: 'Ground floor plan.pdf', note: 'Version B', file: 'Ground floor plan.pdf', auto: 'delivered', by: 4 },
     { daysAgo: 2, type: 'balady', direction: 'in', title: 'Balady portal: the request moved to Review', by: 5 },
+  ],
+  'KH-25-014': [
+    { pause: true, daysAgo: 12, type: 'message', direction: 'out', title: 'Waiting for the client to approve the revised fit-out brief.', waiting: 'client', by: 1 },
   ],
   'KH-26-002': [
     { daysAgo: 21, type: 'meeting', direction: 'in', title: 'Design review meeting with Maha Al-Dosari', note: 'She accepted the townhouse layout. She will send the colour choices.', by: 2, people: [2, 4] },
@@ -490,6 +500,7 @@ function addTracker(state: State, today: string, humans: User[]): void {
         closedBy: closed ? humans[plan.by].id : null, fileIds: file ? [file.id] : [], peopleIds: (plan.people ?? []).map((n) => humans[n].id),
         auto: plan.auto ?? null, createdBy: humans[plan.by].id, createdAt: at(day, 10, plan.daysAgo),
       };
+      if (plan.pause && project.pause) project.pause.trackerId = id;
     }
   }
 }
@@ -585,6 +596,12 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     return user;
   })[1];
   state.session.currentUserId = humans[0].id;
+
+  // Four office teams, with some people in two of them (colleague comment 15). Indexes into PEOPLE.
+  [['Design', [1, 2, 4, 6]], ['Technical', [3, 5, 7]], ['Interiors', [2, 6]], ['Site', [5, 7, 4]]].forEach(([name, members]) => {
+    const id = nextId(state, 'tm');
+    state.teams![id] = { id, name: name as string, memberIds: (members as number[]).map((i) => humans[i].id) };
+  });
 
   const templateAuthor = humans[0];
   [['Interior fit-out', ['Concept', 'Design Development', 'Construction Documents', 'Permits', 'Supervision']],

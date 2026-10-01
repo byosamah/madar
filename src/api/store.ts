@@ -1,7 +1,8 @@
 import type {
   ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task, TaskTemplate,
-  TrackerEntry, Update, User,
+  Team, TrackerEntry, Update, User,
 } from './contract/entities';
+import { DEFAULT_STALE_DAYS } from './contract/entities';
 import type { Persister } from './persist';
 
 /**
@@ -45,6 +46,8 @@ export type State = {
   payments?: Record<string, Payment>;
   /** Feature requests and bug reports. Optional, so older offices still load. */
   feedback?: Record<string, Feedback>;
+  /** The office teams. Offices saved before this feature have none, so reads go through teamsOf. */
+  teams?: Record<string, Team>;
   settings: Settings;
   counters: Record<string, number>;
 };
@@ -73,7 +76,8 @@ export function emptyState(today: string): State {
     taskTemplates: {},
     tracker: {},
     payments: {},
-    settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10 },
+    teams: {},
+    settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10, staleAfterDays: DEFAULT_STALE_DAYS },
     counters: {},
   };
 }
@@ -105,6 +109,12 @@ export function feedbackOf(state: State): Record<string, Feedback> {
 export function paymentsOf(state: State): Record<string, Payment> {
   state.payments ??= {};
   return state.payments;
+}
+
+/** The office teams. An old office has none, so this makes the collection when it is missing. */
+export function teamsOf(state: State): Record<string, Team> {
+  state.teams ??= {};
+  return state.teams;
 }
 
 export function memberKey(projectId: string, userId: string): string {

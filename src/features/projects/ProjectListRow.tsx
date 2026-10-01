@@ -6,7 +6,8 @@ import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { AvatarStack } from '../../components/AvatarStack';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
-import { signOf, StatusSign, signOfStatus } from '../../components/StatusSign';
+import { ProjectSign } from '../../components/ProjectSign';
+import { signOfProject, StatusSign } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { setSharedSource } from '../../app/sharedLayout';
 import { useCardMenu } from './cardMenu';
@@ -17,7 +18,7 @@ import { useLang } from '../../app/lang';
 /** The word a row shows only when there is something to say: Late, At risk, or the status of a project that is not active. */
 export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
   const { t } = useTranslation();
-  if (!summary.health) return <StatusSign state={signOfStatus(summary.project.status)}>{t(`status.${summary.project.status}`)}</StatusSign>;
+  if (!summary.health) return <ProjectSign project={summary.project} staleDays={summary.staleDays} />;
   if (summary.health.value === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
   if (summary.health.value === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
@@ -63,7 +64,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
               total={summary.stages.length}
               complete={project.status === 'completed'}
               glow={false}
-              tone={signOf(summary.health, project.status)}
+              tone={signOfProject(summary)}
               label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
               className="w-full max-w-48 @4xl:max-w-none"
             />

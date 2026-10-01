@@ -7,6 +7,7 @@ import { PeopleSection } from './PeopleSection';
 import { StageTemplatesSection } from './StageTemplatesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
 import { FeedbackSection } from './FeedbackSection';
+import { TeamsSection } from './TeamsSection';
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
@@ -29,7 +30,9 @@ export function AdminScreen() {
     <div className="flex flex-col gap-6">
       <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
       <PeopleSection />
-      {/* Management makes and changes people. The office settings and the templates stay with the Admin. */}
+      {/* Management makes and changes the office teams too: they are about people. */}
+      <TeamsSection />
+      {/* The office settings and the templates stay with the Admin, and so do the requests and bug reports. */}
       {role === 'admin' && <OfficeSection />}
       {role === 'admin' && <StageTemplatesSection />}
       {role === 'admin' && <TaskTemplatesSection />}
