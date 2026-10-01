@@ -46,6 +46,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const thumb = useFileUrl(image ? file.id : null, latest.letter);
   const remove = useUndoable('files.delete', { message: () => t('files.deleted') });
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
+  const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
   const isCover = detail.project.coverFileId === file.id;
   const canDelete = detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id;
   const size = latest.size < 1024 * 1024
@@ -58,6 +59,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
     { label: t('files.preview'), onSelect: onPreview, hidden: !(image || latest.mimeType === 'application/pdf') },
     { label: t('files.download'), onSelect: () => download() },
     { label: t('files.share'), onSelect: onShare, hidden: !detail.viewerCan.post },
+    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.post },
     { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.edit || isCover },
     { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },
   ];
@@ -106,6 +108,7 @@ export function FilesTab({ detail }: TabProps) {
   const [stageId, setStageId] = useState(detail.currentStage.id);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [received, setReceived] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
   const canUpload = detail.viewerCan.post;
@@ -116,10 +119,11 @@ export function FilesTab({ detail }: TabProps) {
     let sent = 0;
     try {
       for (const file of queue) {
-        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null }, meta);
+        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null, receivedFromClient: received }, meta);
         sent += 1;
       }
       toast.show({ message: t('files.uploaded', { n: queue.length }) });
+      setReceived(false);
     } catch (error) {
       const rest = queue.slice(sent);
       toast.show({
@@ -181,6 +185,10 @@ export function FilesTab({ detail }: TabProps) {
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
             <option value="">{t('files.noStage')}</option>
           </SelectField>
+          <label className="flex min-h-11 items-center gap-2 text-subheadline text-ink">
+            <input type="checkbox" checked={received} onChange={(event) => setReceived(event.target.checked)} className="size-5 accent-[var(--sig-from)]" />
+            {t('files.receivedFromClient')}
+          </label>
           <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
         </div>
       )}

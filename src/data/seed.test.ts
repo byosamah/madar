@@ -96,3 +96,16 @@ it('writes agent summaries with relative days, so the date shift keeps them true
   for (const body of bodies) expect(body).not.toMatch(/\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/);
   expect(bodies.some((body) => /in \d+ days|today|tomorrow/.test(body))).toBe(true);
 });
+
+it('has a client record on three projects, with one question waiting on us and one item waiting on the client', async () => {
+  const { state } = await seed();
+  const entries = Object.values(state.tracker ?? {});
+  expect(new Set(entries.map((e) => e.projectId)).size).toBe(3);
+  for (const entry of entries) expect(E.TrackerEntry.safeParse(entry).success).toBe(true);
+  const open = entries.filter((e) => e.waiting !== null && e.closedAt === null);
+  expect(open.map((e) => e.waiting).sort()).toEqual(['client', 'client', 'us', 'us']);
+  // A closed loop names who closed it. Every file chip points at a file of the same project.
+  expect(entries.filter((e) => e.closedAt !== null).every((e) => e.closedBy !== null)).toBe(true);
+  for (const entry of entries) for (const id of entry.fileIds) expect(state.files[id].projectId).toBe(entry.projectId);
+  expect(entries.some((e) => e.auto === 'upload') && entries.some((e) => e.auto === 'delivered')).toBe(true);
+});

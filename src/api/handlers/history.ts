@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, type Event, type FileRec } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, type Event, type FileRec, type TrackerEntry } from '../contract/entities';
 import { EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { NOT_UNDOABLE, undoEvent } from '../events';
 import { can, principalOf, type Action, type Resource } from '../permissions';
-import { eventViewOf } from '../views';
+import { eventViewOf, mayDeleteTracker } from '../views';
 import { assertCan, roleIn, touch } from './shared';
 
 type Fields = Record<string, unknown>;
@@ -97,6 +97,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       const allowed = can(ctx.authority, 'task.delete', { projectRole })
         || can(ctx.authority, 'content.editOwn', { projectRole, authorId: principalOf(ctx.state, uploader) });
       if (!allowed) throw forbidden('Only the uploader or the project leader can undo this.');
+      return;
+    }
+    case 'tracker': {
+      // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of posting.
+      if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('content.post');
+      const entry = (ctx.state.tracker?.[event.targetId] ?? event.before ?? event.after) as TrackerEntry;
+      if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can undo this.');
       return;
     }
     case 'stageTemplate': {
