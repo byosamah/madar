@@ -38,6 +38,11 @@ describe('the project row', () => {
     expect(stage).toHaveTextContent('Construction Documents');
     expect(within(row).getByText('Gulf Crest Holding').closest('[data-stage-column]')).toBeNull();
     expect(within(row).queryByText(/Construction Documents ·/)).toBeNull();
+    // The team as pictures only, the leader first and bigger (colleague's comment 2).
+    const team = within(row.querySelector('[data-team-column]') as HTMLElement).getAllByRole('img');
+    expect(team[0]).toHaveAccessibleName('Faisal Al-Harbi');
+    expect(team[0]).toHaveStyle({ width: '30px' });
+    expect(team[1]).toHaveStyle({ width: '26px' });
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');
     expect(within(row).queryByRole('list', { name: 'Latest updates' })).toBeNull();
   });

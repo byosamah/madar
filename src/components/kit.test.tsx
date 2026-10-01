@@ -59,6 +59,20 @@ describe('the display kit', () => {
     expect(screen.getByText('+1')).toBeInTheDocument();
   });
 
+  it('can draw the leader bigger and names each picture on hover, in a label outside any clipping box', async () => {
+    render(<div style={{ overflow: 'hidden' }}><AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={[person('usr_005', 'Sara A')]} size={26} leaderSize={30} /></div>);
+    const [leader, member] = screen.getAllByRole('img');
+    expect(leader).toHaveStyle({ width: '30px' });
+    expect(member).toHaveStyle({ width: '26px' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    await userEvent.hover(member);
+    const tip = await screen.findByRole('tooltip');
+    expect(tip).toHaveTextContent('Sara A');
+    expect(tip.closest('div[style]')).toBeNull();
+    await userEvent.unhover(member);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
   it('shows short ages', () => {
     render(<Age stamp="2026-09-30T08:55:00.000+03:00" />);
     expect(screen.getByText('5m')).toBeInTheDocument();

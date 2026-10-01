@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
 import { ContextMenu, useContextMenu } from '../../components/Menu';
+import { AvatarStack } from '../../components/AvatarStack';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { signOf, StatusSign, signOfStatus } from '../../components/StatusSign';
@@ -39,7 +40,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
       <Link
         to={`/projects/${project.id}`}
         onClick={() => setSharedSource(source)}
-        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_minmax(0,14rem)] @4xl:gap-x-8"
+        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,18rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_7rem_minmax(0,14rem)] @4xl:gap-x-8"
       >
         <ProjectTile id={project.id} mark={project.mark} shared />
         <span className="min-w-0">
@@ -64,8 +65,14 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
               className="w-full max-w-48 @4xl:max-w-none"
             />
           </span>
-          <span className="min-w-0 max-w-full @4xl:text-end">
-            <NextDeadlineLabel deadline={summary.nextDeadline} />
+          {/* The team as pictures only, the leader first and bigger (colleague's comment 2). Beside the deadline until the row is wide. */}
+          <span className="flex min-w-0 items-center justify-between gap-3 @4xl:contents">
+            <span data-team-column className="order-last @4xl:order-none">
+              <AvatarStack leader={summary.leader} team={summary.team} size={26} leaderSize={30} />
+            </span>
+            <span className="min-w-0 max-w-full @4xl:text-end">
+              <NextDeadlineLabel deadline={summary.nextDeadline} />
+            </span>
           </span>
         </span>
       </Link>

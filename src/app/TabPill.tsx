@@ -7,6 +7,7 @@ import { spring } from '../design/motion';
 import { NAV, NOTIFICATIONS_ITEM, SEARCH_ITEM, isNavActive } from './nav';
 import { useCall } from './runtime';
 import { useCompactBars } from './useCompactBars';
+import { useIsPhone } from './useIsPhone';
 
 /** The floating pill (redesign spec 2.5): top center from 640 px, bottom center on a phone. The open tab carries the signature. */
 export function TabPill() {
@@ -14,6 +15,8 @@ export function TabPill() {
   const { pathname } = useLocation();
   const unreadChats = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const compact = useCompactBars();
+  // From 640 px the Inbox is a round icon beside Search and the bell (owner, 2026-10-01). On a phone it stays a tab.
+  const phone = useIsPhone();
   return (
     <nav
       aria-label={t('nav.main')}
@@ -21,7 +24,7 @@ export function TabPill() {
       data-compact={compact || undefined}
       className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
-      {NAV.map((item) => {
+      {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Icon = item.icon;
         const Moving = item.animated;
@@ -40,6 +43,7 @@ export function TabPill() {
         );
       })}
       <SearchButton className="max-sm:hidden" />
+      {!phone && <InboxButton />}
       <BellButton className="max-sm:hidden" />
     </nav>
   );
@@ -59,6 +63,27 @@ export function SearchButton({ className = '' }: { className?: string }) {
       className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
     >
       <AnimatedIcon icon={SearchTab} size={20} playWhen={on} aria-hidden />
+    </Link>
+  );
+}
+
+/** The chat Inbox as a round icon with its unread count, from 640 px (owner, 2026-10-01). */
+export function InboxButton() {
+  const { t } = useTranslation();
+  const item = NAV.find((entry) => entry.badge)!;
+  const Icon = item.icon;
+  const { pathname } = useLocation();
+  const unread = useCall('chats.unreadCount', {}).data?.unread ?? 0;
+  const on = isNavActive(item.to, pathname);
+  return (
+    <Link
+      to={item.to}
+      aria-label={t(item.key)}
+      aria-current={on ? 'page' : undefined}
+      className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
+    >
+      <Icon size={20} aria-hidden />
+      {unread > 0 && <Badge count={unread} label={t('nav.inboxUnread', { count: unread })} className="absolute -top-1 -end-1" />}
     </Link>
   );
 }
