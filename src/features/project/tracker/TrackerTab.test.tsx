@@ -211,9 +211,9 @@ describe('the Tracker tab', () => {
   it('gives every direction arrow the class that flips it on a right-to-left page', async () => {
     await renderApp(TRACKER, as('usr_002'));
     const history = await historyReady();
-    const arrows = history.querySelectorAll('svg.lucide-arrow-down-left, svg.lucide-arrow-up-right');
-    expect(arrows.length).toBeGreaterThan(0);
-    for (const arrow of arrows) expect(arrow.getAttribute('class')).toContain('rtl:-scale-x-100');
+    const marks = history.querySelectorAll('[data-direction]');
+    expect(marks.length).toBeGreaterThan(0);
+    for (const mark of marks) expect(mark.querySelector('[class*="rtl:-scale-x-100"]')).not.toBeNull();
   });
 
   it('is the tab after Activity', async () => {
