@@ -1,34 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Outlet, ScrollRestoration, useNavigate } from 'react-router';
-import { Sidebar } from './Sidebar';
+import { PersonMenu } from './PersonMenu';
 import { StorageBanner } from './StorageBanner';
-import { TabBar } from './TabBar';
-import { Toolbar } from './Toolbar';
+import { TabPill } from './TabPill';
 
-const SIDEBAR_HIDDEN = 'madar.sidebarHidden';
-const TABLET_TABS = 'madar.tabletTabs';
-
-// Per-viewer layout choices only. The app works the same when storage is blocked.
-function readFlag(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeFlag(key: string, on: boolean): void {
-  try {
-    window.localStorage.setItem(key, on ? '1' : '0');
-  } catch {
-    // Storage is blocked. The choice lasts for this visit only.
-  }
-}
-
+/** The calm shell (redesign spec 2.5): a floating pill of four tabs and the person's picture. No sidebar and no toolbar. */
 export function AppShell() {
   const navigate = useNavigate();
-  const [sidebarHidden, setSidebarHidden] = useState(() => readFlag(SIDEBAR_HIDDEN));
-  const [tabletTabs, setTabletTabs] = useState(() => readFlag(TABLET_TABS));
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -41,48 +19,21 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, [navigate]);
 
-  const hideSidebar = (on: boolean) => {
-    setSidebarHidden(on);
-    writeFlag(SIDEBAR_HIDDEN, on);
-  };
-  const chooseTabletTabs = (on: boolean) => {
-    setTabletTabs(on);
-    writeFlag(TABLET_TABS, on);
-  };
-
   return (
-    <div className="min-h-dvh bg-bg text-label">
-      {!sidebarHidden && (
-        <div className="fixed inset-y-3 start-3 z-30 hidden lg:block">
-          <Sidebar compact={false} onHide={() => hideSidebar(true)} />
-        </div>
-      )}
-      {!tabletTabs && (
-        <div className="fixed inset-y-3 start-3 z-30 hidden sm:max-lg:block">
-          <Sidebar compact onUseTabBar={() => chooseTabletTabs(true)} />
-        </div>
-      )}
-      <div
-        className={[
-          'pb-28 sm:pb-8',
-          sidebarHidden ? '' : 'lg:ps-[17.5rem]',
-          tabletTabs ? 'sm:max-lg:pb-28' : 'sm:max-lg:ps-[5.5rem]',
-        ].join(' ')}
-      >
-        <StorageBanner />
-        <Toolbar
-          onShowSidebar={sidebarHidden ? () => hideSidebar(false) : undefined}
-          onUseSidebar={tabletTabs ? () => chooseTabletTabs(false) : undefined}
-        />
-        <main className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6">
-          <Outlet />
-          {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
-          <ScrollRestoration getKey={(location) => location.pathname} />
-        </main>
+    <div className="min-h-dvh text-ink">
+      <StorageBanner />
+      <TabPill />
+      <div className="fixed end-4 top-4 z-30 hidden sm:block">
+        <PersonMenu id="wide" />
       </div>
-      <div className={tabletTabs ? 'lg:hidden' : 'sm:hidden'}>
-        <TabBar />
-      </div>
+      <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
+        <div className="-me-1.5 flex justify-end sm:hidden">
+          <PersonMenu id="phone" />
+        </div>
+        <Outlet />
+        {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
+        <ScrollRestoration getKey={(location) => location.pathname} />
+      </main>
     </div>
   );
 }

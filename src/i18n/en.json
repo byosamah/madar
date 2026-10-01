@@ -4,19 +4,15 @@
   },
   "nav": {
     "main": "Main navigation",
-    "tabs": "Sections",
     "projects": "Projects",
     "myWork": "My Work",
     "dashboard": "Dashboard",
-    "dashboardTab": "Dashboard",
     "inbox": "Inbox",
     "search": "Search",
     "settings": "Settings",
-    "showSidebar": "Show sidebar",
-    "hideSidebar": "Hide sidebar",
-    "useTabBar": "Use tab bar",
-    "useSidebar": "Use sidebar",
-    "inboxBadge": "{{count}} items need action"
+    "inboxBadge": "{{count}} items need action",
+    "home": "Home",
+    "myHours": "My hours"
   },
   "screens": {
     "projects": "Projects",
@@ -26,7 +22,8 @@
     "inbox": "Inbox",
     "search": "Search",
     "tasks": "Tasks",
-    "settings": "Settings"
+    "settings": "Settings",
+    "home": "Home"
   },
   "placeholder": {
     "title": "This screen comes next",

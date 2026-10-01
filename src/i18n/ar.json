@@ -4,19 +4,15 @@
   },
   "nav": {
     "main": "التنقل الرئيسي",
-    "tabs": "الأقسام",
     "projects": "المشاريع",
     "myWork": "عملي",
     "dashboard": "لوحة المعلومات",
-    "dashboardTab": "اللوحة",
     "inbox": "الوارد",
     "search": "البحث",
     "settings": "الإعدادات",
-    "showSidebar": "إظهار الشريط الجانبي",
-    "hideSidebar": "إخفاء الشريط الجانبي",
-    "useTabBar": "استخدام شريط التبويب",
-    "useSidebar": "استخدام الشريط الجانبي",
-    "inboxBadge": "عناصر تحتاج إلى إجراء: {{count}}"
+    "inboxBadge": "عناصر تحتاج إلى إجراء: {{count}}",
+    "home": "الرئيسية",
+    "myHours": "ساعاتي"
   },
   "screens": {
     "projects": "المشاريع",
@@ -26,7 +22,8 @@
     "inbox": "الوارد",
     "search": "البحث",
     "tasks": "المهام",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "home": "الرئيسية"
   },
   "placeholder": {
     "title": "هذه الشاشة قادمة",

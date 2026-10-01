@@ -44,16 +44,16 @@ function PerStage({ view }: { view: DashboardData }) {
   return (
     <Card title={t('dashboard.charts.perStage')}>
       {rows.length === 0 ? <NoData /> : (
-        <ul>{rows.map((row) => <BarRow key={row.stage} to={`/?stage=${encodeURIComponent(row.stage)}`} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
+        <ul>{rows.map((row) => <BarRow key={row.stage} to={`/projects?stage=${encodeURIComponent(row.stage)}`} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
       )}
     </Card>
   );
 }
 
 const HEALTH = [
-  { key: 'on_track', color: 'bg-green', to: '/?health=on_track' },
-  { key: 'at_risk', color: 'bg-orange', to: '/?health=at_risk' },
-  { key: 'late', color: 'bg-red', to: '/?health=late' },
+  { key: 'on_track', color: 'bg-green', to: '/projects?health=on_track' },
+  { key: 'at_risk', color: 'bg-orange', to: '/projects?health=at_risk' },
+  { key: 'late', color: 'bg-red', to: '/projects?health=late' },
 ] as const;
 
 function HealthMix({ view }: { view: DashboardData }) {

@@ -60,8 +60,8 @@ export function Tiles({ view }: { view: DashboardData }) {
   const today = todayISO();
   const { tiles } = view;
   const items: { key: string; value: string; detail?: string; open: () => void }[] = [
-    { key: 'activeProjects', value: formatNumber(tiles.activeProjects, lang), open: () => navigate('/?status=active') },
-    { key: 'atRiskOrLate', value: formatNumber(tiles.atRiskOrLate, lang), open: () => navigate('/?filter=at_risk') },
+    { key: 'activeProjects', value: formatNumber(tiles.activeProjects, lang), open: () => navigate('/projects?status=active') },
+    { key: 'atRiskOrLate', value: formatNumber(tiles.atRiskOrLate, lang), open: () => navigate('/projects?filter=at_risk') },
     { key: 'overdueTasks', value: formatNumber(tiles.overdueTasks, lang), open: () => navigate('/tasks?filter=overdue') },
     { key: 'deadlines', value: formatNumber(tiles.deadlinesNext14, lang), open: () => navigate(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`) },
     {
@@ -70,7 +70,7 @@ export function Tiles({ view }: { view: DashboardData }) {
       detail: t('dashboard.hoursOf', { hours: formatNumber(tiles.officeHours.hours, lang, 1), target: formatNumber(tiles.officeHours.target, lang) }),
       open: () => setHoursOpen(true),
     },
-    { key: 'area', value: t('dashboard.areaValue', { n: formatNumber(tiles.areaInDesign, lang) }), open: () => navigate('/?status=active') },
+    { key: 'area', value: t('dashboard.areaValue', { n: formatNumber(tiles.areaInDesign, lang) }), open: () => navigate('/projects?status=active') },
   ];
   return (
     <>

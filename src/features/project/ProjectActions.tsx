@@ -54,7 +54,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
     onSuccess: () => {
       toast.show({ message: t('project.deleted') });
       onOpenChange(false);
-      navigate('/');
+      navigate('/projects');
     },
   });
   return (

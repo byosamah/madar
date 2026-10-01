@@ -32,7 +32,7 @@ export function ProjectScreen() {
           title={t('project.notFoundTitle')}
           body={gone ? t('project.notFound') : errorMessage(detail.error, t)}
           action={gone
-            ? <Link to="/" className="pressable inline-flex min-h-11 items-center font-semibold text-accent">{t('project.back')}</Link>
+            ? <Link to="/projects" className="pressable inline-flex min-h-11 items-center font-semibold text-accent">{t('project.back')}</Link>
             : <Button onClick={() => void detail.refetch()}>{t('common.retry')}</Button>}
         />
       </>

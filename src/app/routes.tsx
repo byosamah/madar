@@ -1,5 +1,6 @@
 import { createHashRouter } from 'react-router';
 import { AppShell } from './AppShell';
+import { HomeOrRedirect } from '../features/home/HomeOrRedirect';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { InboxScreen } from '../features/inbox/InboxScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
@@ -17,7 +18,8 @@ export function createAppRouter() {
       path: '/',
       element: <AppShell />,
       children: [
-        { index: true, element: <ProjectsScreen /> },
+        { index: true, element: <HomeOrRedirect /> },
+        { path: 'projects', element: <ProjectsScreen /> },
         { path: 'projects/code/:code', element: <ProjectByCode /> },
         { path: 'projects/:projectId', element: <ProjectScreen /> },
         { path: 'work', element: <WorkScreen /> },

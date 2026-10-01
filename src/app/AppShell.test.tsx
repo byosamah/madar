@@ -1,42 +1,63 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../test/render';
 
+const pill = () => screen.findByRole('navigation', { name: 'Main navigation' });
+
 describe('app shell', () => {
-  it('shows the navigation and a screen', async () => {
+  it('shows the floating pill with four tabs and search', async () => {
     await renderApp('/dashboard');
     expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'My Work' }).length).toBeGreaterThan(0);
+    const nav = await pill();
+    for (const name of ['Home', 'Projects', 'Dashboard', 'Inbox']) expect(within(nav).getByRole('link', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
   it('moves between screens', async () => {
-    await renderApp('/');
-    await userEvent.click((await screen.findAllByRole('link', { name: 'My Work' }))[0]);
-    expect(await screen.findByRole('heading', { level: 1, name: 'My Work' })).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/work');
+    await renderApp('/dashboard');
+    await userEvent.click(within(await pill()).getByRole('link', { name: 'Projects' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/projects');
+  });
+
+  it('opens old Projects links on the new route', async () => {
+    await renderApp('/?filter=at_risk');
+    await waitFor(() => expect(window.location.hash).toBe('#/projects?filter=at_risk'));
+  });
+
+  it('opens the person menu with Preview as, language, My hours and Settings', async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
+    expect(within(menu).getByRole('combobox', { name: /Preview as/ })).toBeInTheDocument();
+    expect(within(menu).getByRole('link', { name: 'My hours' })).toHaveAttribute('href', '#/work?tab=hours');
+    expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('warns that changes are not saved when storage is in memory', async () => {
-    await renderApp('/');
+    await renderApp('/dashboard');
     expect(await screen.findByText('Changes will not be saved in this window.')).toBeInTheDocument();
   });
 
   it('shows the Inbox badge for items that need action', async () => {
-    await renderApp('/');
+    await renderApp('/dashboard');
     expect((await screen.findAllByText(/items need action/)).length).toBeGreaterThan(0);
   });
 
-  it('switches to Arabic and mirrors the page', async () => {
+  it('switches to Arabic from the person menu and mirrors the page', async () => {
     await renderApp('/dashboard');
-    await userEvent.click((await screen.findAllByRole('button', { name: 'العربية' }))[0]);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
   });
 
   it('opens Search with Ctrl+K', async () => {
-    await renderApp('/');
-    await screen.findAllByRole('link', { name: 'My Work' });
+    await renderApp('/dashboard');
+    await pill();
     await userEvent.keyboard('{Control>}k{/Control}');
     expect(await screen.findByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument();
   });
