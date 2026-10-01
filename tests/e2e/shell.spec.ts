@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const ROUTES = ['/', '/work', '/dashboard', '/inbox', '/search', '/settings'];
+const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/search', '/settings'];
 const WIDTHS = [390, 820, 1440];
 
 for (const width of WIDTHS) {
@@ -20,9 +20,10 @@ for (const width of WIDTHS) {
         for (const route of ROUTES) {
           await page.goto(`/#${route}`);
           await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-          // The Projects screen draws its cards after the heading. Check them too.
-          if (route === '/') await expect(page.getByRole('article').first()).toBeVisible();
-          const name = route === '/' ? 'projects' : route.slice(1);
+          // Home and Projects draw their rows after the heading. Check them too.
+          if (route === '/' || route === '/projects') await expect(page.locator('main ul li').first()).toBeVisible();
+          await page.waitForTimeout(1200); // the entrance and count-up motion settle before the contrast check
+          const name = route === '/' ? 'home' : route.slice(1);
           await page.screenshot({ path: `test-results/shell/${width}-${lang}-${theme}-${name}.png`, fullPage: true });
           const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
           const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
@@ -33,14 +34,14 @@ for (const width of WIDTHS) {
   }
 }
 
-test('keyboard users reach the main navigation', async ({ page }) => {
+test('keyboard users reach the floating navigation pill', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   let reached = false;
   for (let i = 0; i < 20 && !reached; i += 1) {
     await page.keyboard.press('Tab');
-    reached = await page.evaluate(() => document.activeElement?.textContent?.includes('My Work') ?? false);
+    reached = await page.evaluate(() => (document.activeElement?.textContent ?? '').trim() === 'Dashboard' && !!document.activeElement?.closest('nav[aria-label="Main navigation"]'));
   }
   expect(reached).toBe(true);
 });

@@ -15,6 +15,8 @@ async function useArabic(page: Page): Promise<void> {
 
 const SCREENS = [
   { name: 'dashboard', path: '/#/dashboard' },
+  { name: 'dashboard-people', path: '/#/dashboard?view=people' },
+  { name: 'dashboard-schedule', path: '/#/dashboard?view=schedule' },
   { name: 'task-list', path: '/#/tasks?filter=overdue' },
   { name: 'deadlines', path: '/#/tasks?mode=deadlines' },
   { name: 'settings-admin', path: '/#/settings' },
@@ -28,7 +30,7 @@ for (const width of [390, 1440]) {
       for (const screen of SCREENS) {
         await page.goto(screen.path);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        await page.waitForTimeout(400);
+        await page.waitForTimeout(1200);
         await page.screenshot({ path: `test-results/dashboard/${width}-${lang}-${screen.name}.png`, fullPage: true });
         await expectNoSeriousA11yIssues(page);
       }
@@ -39,9 +41,11 @@ for (const width of [390, 1440]) {
 test('a tile and a workload cell open the lists behind them', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/dashboard');
-  await page.getByRole('button', { name: /Overdue tasks/ }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Overdue tasks' })).toBeVisible();
+  await page.getByRole('link', { name: /Past-due tasks/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeVisible();
   await page.goBack();
+  // Workload sits under the People tab.
+  await page.getByRole('tab', { name: 'People' }).click();
   await page.getByRole('region', { name: 'Workload' }).getByRole('link').first().click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Tasks of');
 });
@@ -49,7 +53,7 @@ test('a tile and a workload cell open the lists behind them', async ({ page }) =
 test('the office schedule runs right to left in Arabic', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await useArabic(page);
-  await page.goto('/#/dashboard');
+  await page.goto('/#/dashboard?view=schedule');
   const schedule = page.getByRole('region', { name: 'جدول المكتب' });
   await expect(schedule).toBeVisible();
   const ticks = await schedule.locator('span.border-s').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left)); // rtl-ok: screen positions

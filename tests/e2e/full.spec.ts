@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 const ROUTES = [
-  '/', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
-  '/projects/prj_001?tab=team', '/work', '/work?tab=hours', '/dashboard', '/tasks?filter=overdue', '/tasks?mode=deadlines', '/inbox', '/search', '/settings',
+  '/', '/projects', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
+  '/projects/prj_001?tab=team', '/work', '/work?tab=hours', '/dashboard', '/dashboard?view=people', '/dashboard?view=schedule', '/tasks?filter=overdue', '/tasks?mode=deadlines', '/inbox', '/search', '/settings',
 ];
 
 async function useArabic(page: Page): Promise<void> {
@@ -16,8 +16,8 @@ async function sweep(page: Page, folder: string): Promise<void> {
   for (const route of ROUTES) {
     await page.goto(`/#${route}`);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await page.waitForTimeout(400);
-    const name = route === '/' ? 'projects' : route.slice(1).replace(/[/?=&]/g, '-');
+    await page.waitForTimeout(1200);
+    const name = route === '/' ? 'home' : route.slice(1).replace(/[/?=&]/g, '-');
     await page.screenshot({ path: `test-results/full/${folder}/${name}.png`, fullPage: true });
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
@@ -53,12 +53,12 @@ test('every screen with reduced transparency and more contrast', async ({ page }
   await expect(page.locator('html')).toHaveAttribute('data-contrast', 'more');
 });
 
-test('reduce motion stops the card from growing', async ({ page }) => {
+test('reduce motion stops the project row from growing', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/#/');
-  await page.getByRole('article').first().getByRole('link').click();
-  const header = page.locator('header [data-layout-id]');
+  await page.goto('/#/projects');
+  await page.getByRole('list', { name: 'Projects' }).getByRole('link').first().click();
+  const header = page.locator('header h1 > span');
   await expect(header).toBeVisible();
   const early = await header.boundingBox();
   await page.waitForTimeout(700);
@@ -70,7 +70,7 @@ test('reduce motion keeps the bars still while the page scrolls', async ({ page 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/');
-  await expect(page.getByRole('article').first()).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('listitem').first()).toBeVisible();
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(500);
   const moved = await page.evaluate(() => [...document.querySelectorAll('[data-compact]')].map((el) => {

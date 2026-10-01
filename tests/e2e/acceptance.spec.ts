@@ -18,17 +18,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Admin overview: the at-risk and late projects in one step from the first screen', async ({ page }) => {
-  await page.goto('/#/');
-  await expect(page.getByRole('article').first()).toBeVisible();
-  await tabTo(page, (text, role) => role === 'radio' && text === 'At risk');
+  // The dashboard shows "At risk or late" as one of three numbers. One keypress opens the list behind it.
+  await page.goto('/#/dashboard');
+  await expect(page.getByRole('link', { name: /At risk or late/ })).toBeVisible();
+  await tabTo(page, (text, role) => role === 'a' && text.startsWith('At risk or late'));
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('article')).toHaveCount(5);
+  await expect(page).toHaveURL(/#\/projects\?filter=at_risk/);
+  await expect(page.getByRole('list', { name: 'Projects' }).getByRole('listitem')).toHaveCount(5);
 });
 
 test("Member daily work: today's tasks with one step from any screen", async ({ page }) => {
-  await page.goto('/#/dashboard');
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await tabTo(page, (text) => text === 'My Work');
+  // Home has no My Work tab. The link "See all my tasks" sits under the Today panel.
+  await page.goto('/#/');
+  await expect(page.getByRole('region', { name: 'Today' })).toBeVisible();
+  await tabTo(page, (text) => text === 'See all my tasks');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { level: 1, name: 'My Work' })).toBeVisible();
   await expect(page.getByRole('region').first()).toBeVisible();

@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-async function expectNoSeriousA11yIssues(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+async function expectNoSeriousA11yIssues(page: Page, scope?: string): Promise<void> {
+  const builder = new AxeBuilder({ page });
+  if (scope) builder.include(scope);
+  const results = await builder.withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   expect.soft(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 }
@@ -13,12 +15,12 @@ async function useArabic(page: Page): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 }
 
-const SCREENS: { name: string; path: string; ready: (page: Page) => Promise<void> }[] = [
+const SCREENS: { name: string; path: string; ready: (page: Page) => Promise<void>; scope?: string }[] = [
   { name: 'work', path: '/#/work', ready: async (page) => { await expect(page.getByRole('region').first()).toBeVisible(); } },
   { name: 'hours', path: '/#/work?tab=hours', ready: async (page) => { await expect(page.getByRole('table')).toBeVisible(); } },
   { name: 'inbox', path: '/#/inbox', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
   { name: 'search', path: '/#/search', ready: async (page) => { await page.locator('input[role="combobox"]').fill('a'); await expect(page.locator('[cmdk-root] [role="option"]').first()).toBeVisible(); } },
-  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); } },
+  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); }, scope: '[role="dialog"]' }, // a modal panel dims the page behind it, so axe scans the panel alone
 ];
 
 for (const width of [390, 1440]) {
@@ -29,9 +31,9 @@ for (const width of [390, 1440]) {
       for (const screen of SCREENS) {
         await page.goto(screen.path);
         await screen.ready(page);
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(1200);
         await page.screenshot({ path: `test-results/work/${width}-${lang}-${screen.name}.png`, fullPage: true });
-        await expectNoSeriousA11yIssues(page);
+        await expectNoSeriousA11yIssues(page, screen.scope);
       }
     });
   }
@@ -55,7 +57,7 @@ test('hours typed in a cell stay after a reload', async ({ page }) => {
 test('Ctrl+K opens search, and Enter opens the project', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');
-  await expect(page.getByRole('article').first()).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('listitem').first()).toBeVisible();
   await page.keyboard.press('Control+k');
   await page.locator('input[role="combobox"]').fill('corniche');
   await expect(page.locator('[cmdk-root]').getByRole('option', { name: /Corniche Office Tower/ })).toBeVisible();
@@ -68,7 +70,7 @@ test('Mark all read clears the Inbox badge', async ({ page }) => {
   await page.goto('/#/inbox');
   const markAll = page.getByRole('button', { name: 'Mark all read' });
   if (await markAll.isVisible()) await markAll.click();
-  await expect(page.getByRole('navigation').first().getByText(/items need action/)).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByText(/items need action/)).toHaveCount(0);
 });
 
 test('Arabic search for a project word shows results or the no-results sentence', async ({ page }) => {
@@ -88,9 +90,9 @@ test('Arabic search for a project word shows results or the no-results sentence'
 test('no screen scrolls sideways on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const paths = [
-    '/#/', '/#/projects/prj_001', '/#/projects/prj_001?tab=tasks', '/#/projects/prj_001?tab=schedule', '/#/projects/prj_001?tab=files',
+    '/#/', '/#/projects', '/#/projects/prj_001', '/#/projects/prj_001?tab=tasks', '/#/projects/prj_001?tab=schedule', '/#/projects/prj_001?tab=files',
     '/#/projects/prj_001?tab=team', '/#/work', '/#/work?tab=hours', '/#/inbox', '/#/search', '/#/settings',
-    '/#/dashboard', '/#/tasks?filter=overdue', '/#/tasks?mode=deadlines',
+    '/#/dashboard', '/#/dashboard?view=people', '/#/dashboard?view=schedule', '/#/tasks?filter=overdue', '/#/tasks?mode=deadlines',
   ];
   for (const path of paths) {
     await page.goto(path);
