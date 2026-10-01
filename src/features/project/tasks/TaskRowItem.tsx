@@ -60,7 +60,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           className="grid place-items-center"
         >
           {done || ticking
-            ? <CircleCheck size={22} className="text-ink" aria-hidden />
+            ? <CircleCheck size={22} className="text-[var(--sig-from)]" aria-hidden />
             : inReview ? <CircleDot size={22} className="text-attn" aria-hidden /> : <Circle size={22} strokeWidth={1.75} className="text-ink-2" aria-hidden />}
         </motion.span>
       </button>

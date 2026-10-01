@@ -24,12 +24,12 @@
   --c-late-text: #B42318;
   --c-done: #067647;
   --c-link: #0066CC;
-  /* The signature: solid ink, not a gradient (owner's choice 2026-10-01). It marks the one main button, the open tab, the day ring and the timer. */
-  --sig-from: #1D1D1F;
-  --sig-to: #1D1D1F;
+  /* The signature: solid blueprint navy, not a gradient (owner's choice 2026-10-01). It marks the one main button, the open tab, the day ring and the timer. */
+  --sig-from: #1F2A55;
+  --sig-to: #1F2A55;
   --on-sig: #FFFFFF;
   /* Text on the glow keeps 4.5:1 on its brightest tints (tokens.test.ts). */
-  --sig-text: #3A3A3E;
+  --sig-text: #1F2A55;
   --c-glow-ink-2: #55555A;
   --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --panel-edge: transparent;
@@ -119,10 +119,10 @@
   --c-late-text: #FF8A80;
   --c-done: #4ADE80;
   --c-link: #4DA3FF;
-  --sig-from: #F5F5F7;
-  --sig-to: #F5F5F7;
-  --on-sig: #111113;
-  --sig-text: #D1D1D6;
+  --sig-from: #C9D4FF;
+  --sig-to: #C9D4FF;
+  --on-sig: #10183A;
+  --sig-text: #C9D4FF;
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
   --panel-edge: #26262B;
@@ -284,7 +284,7 @@
     border: 1px solid var(--panel-edge);
     border-radius: var(--r-card);
   }
-  /* The signature: only the one main button of a screen, the open tab, the day ring and the timer (redesign spec 2.3). Solid ink. */
+  /* The signature: only the one main button of a screen, the open tab, the day ring and the timer (redesign spec 2.3). Solid navy. */
   .signature {
     background: var(--sig-from);
     color: var(--on-sig);

@@ -63,7 +63,7 @@ Project colors: 8 soft hues. Each project gets one from its id (a stable hash), 
 
 Every tile text reaches 4.5:1 on its tile. Every line color reaches 3:1 on the panel.
 
-> **Change 2026-10-01 (owner):** the signature is solid ink, not a gradient: near-black (#1D1D1F) with white text in light mode, near-white (#F5F5F7) with near-black text in dark mode. The glow uses sand and warm stone (#EEDFC6, #E6E1DA, #F2E8D8). The owner found the blue-to-violet gradient read as generic AI styling.
+> **Change 2026-10-01 (owner):** the signature is solid blueprint navy, not a gradient: #1F2A55 with white text in light mode, #C9D4FF with #10183A text in dark mode. The owner found the blue-to-violet gradient on buttons read as generic AI styling. The glow behind Next for you keeps its soft blue, lilac and mint (#CCE0FF, #EAD5FF, #CFF2E2).
 
 ### 2.4 Shared parts
 

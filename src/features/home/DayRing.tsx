@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
-/** A 36 px ring in the signature ink: what I finished today against what today asks (redesign spec 5.2). */
+/** A 36 px ring in the signature navy: what I finished today against what today asks (redesign spec 5.2). */
 export function DayRing({ done, total }: { done: number; total: number }) {
   const { t } = useTranslation();
   const gradient = useId();
