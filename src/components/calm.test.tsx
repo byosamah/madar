@@ -48,12 +48,13 @@ describe('calm parts', () => {
 });
 
 describe('person pictures', () => {
-  it('use the soft tile hues instead of a strong color', async () => {
+  it('use the Glow style: two soft lights in project hues, letters in ink', async () => {
     const { Avatar } = await import('./Avatar');
     render(<Avatar user={{ id: 'usr_001', name: 'Hala Nasser', avatarUrl: null, kind: 'human' }} />);
     const picture = screen.getByRole('img', { name: 'Hala Nasser' });
-    expect(picture.getAttribute('style')).toMatch(/--p-\w+-bg/);
+    expect(picture.getAttribute('style')).toMatch(/radial-gradient/);
     expect(picture.getAttribute('style')).toMatch(/--p-\w+-fg/);
+    expect(picture).toHaveClass('text-ink');
     expect(picture).toHaveTextContent('HN');
   });
 });

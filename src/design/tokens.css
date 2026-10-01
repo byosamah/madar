@@ -30,6 +30,8 @@
   --on-sig: #FFFFFF;
   /* Text on the glow keeps 4.5:1 on its brightest tints (tokens.test.ts). */
   --sig-text: #1F2A55;
+  /* How strong the two lights of a person's picture are; ink letters keep 4.5:1 on the strongest point. */
+  --avatar-glow: 35%;
   /* The arrow of a dropdown, in Ink 2 for each theme. */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236E6E73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #55555A;
@@ -125,6 +127,7 @@
   --sig-to: #C9D4FF;
   --on-sig: #10183A;
   --sig-text: #C9D4FF;
+  --avatar-glow: 40%;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A1A1A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
