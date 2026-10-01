@@ -228,3 +228,60 @@ Review fixes: 6. Rulings: 15. Deferred minors: 4.
 - admin.gender: صيغة المخاطبة بالعربية: "form of address" means how the app speaks to the person; the field changes sentences about the person
 - feed.project.leader_changed: عيّن {{leader}} قائدًا: a woman leader needs قائدةً, and the feed does not carry the leader's gender
 
+
+## Calm redesign (2026-10-01)
+
+The owner asked for the redesign on 2026-10-01. The work is on the branch `redesign-a-calm`. It ran in two build steps, A and B, each with its own plan.
+
+Unit tests: 618 pass at the time of writing.
+
+Browser sweep: pending
+
+### Why
+
+The owner found the first design busy. He said a team member with ADHD would get lost. The goal is a clean product that still gives a few perfect motions. Each screen now has one title, at most one main button and one color highlight.
+
+### What changed, by screen
+
+- Tab pill: five buttons (Home, Projects, Dashboard, Inbox, Search) replace the sidebar and the toolbar. The pill sits at the top on a computer and at the bottom on a phone.
+- Person menu: the picture at the top end opens Preview as, Language, My hours and Settings.
+- Home (new): the greeting, the day ring, the Next for you card, Today, and Your projects.
+- Projects: one list at `/projects` with one Filter button. The grid view and the filter chips are gone.
+- Project page: a calm header with the tile, name, client, stage, progress line and next deadline. The cover picture moves into the About panel.
+- Task rows: fewer parts, and gentle words such as "3 days past due" in place of "Overdue".
+- Dashboard: three numbers at the top. A switch shows one section at a time: Projects, People or Schedule.
+- Inbox: items in day groups. The project tile and the actions sit on the row.
+- Panels and sheets: solid, with no glass. The Glass setting is gone. The stored value stays in the data, and the app ignores it.
+- Colors: each project keeps one of 8 soft colors for life.
+
+### Focus helpers
+
+- Focus mode: the Focus button in the task panel and on the Next for you card opens one task on a calm full page. The page holds the checklist, a Done button and a quiet Exit focus button.
+- Focus timer: the 25-minute timer is optional. It saves nothing, makes no sound and stops when Focus mode closes.
+- Day ring: it shows the tasks done today out of the tasks due today or past due.
+- One Filter button: each list has one Filter button and no rows of chips.
+- Gentle words: "3 days past due" replaces "Overdue". "At risk" and "Late" keep their own colors.
+
+### Motion moments
+
+The motion uses only movement and fade. Under Reduce motion, each moment becomes a short fade.
+
+- A row grows into the project header, and back.
+- A ticked task squeezes, fills, then slides away.
+- The next item for you rises into place.
+- Numbers count up once per visit.
+- Sheets and panels rise like paper.
+- Lists glide when a filter or a sort changes.
+- Arabic turns the page when the language changes.
+- Undo slides the item back to its place.
+
+### What stayed the same
+
+- The data, the roles, the permissions and the rules.
+- The fake server, Undo, the error messages and the sample data.
+- Every feature of the first build, except the controls this redesign removes: the sidebar, the Glass setting, the grid view and the filter chips.
+- Saved links still work. The old link `/#/?filter=at_risk` redirects to `/#/projects?filter=at_risk`.
+
+### Tests
+
+New pure helpers have unit tests written first. They cover Next for you, the day ring, the project color and initials, the progress value and the gentle due words.

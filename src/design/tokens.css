@@ -349,15 +349,14 @@
 /* Motion moment 5: while a modal panel is open, the page behind steps back (redesign spec 4). */
 .app-page {
   transform-origin: 50% 0;
-  transition: transform 520ms cubic-bezier(0.2, 0.9, 0.25, 1), opacity 520ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  transition: transform 520ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 :root[data-panel-open] .app-page {
   transform: scale(0.97);
-  opacity: 0.92;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-page {
-    transition: opacity 180ms linear;
+    transition: none;
   }
   :root[data-panel-open] .app-page {
     transform: none;

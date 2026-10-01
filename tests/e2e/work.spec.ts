@@ -20,7 +20,7 @@ const SCREENS: { name: string; path: string; ready: (page: Page) => Promise<void
   { name: 'hours', path: '/#/work?tab=hours', ready: async (page) => { await expect(page.getByRole('table')).toBeVisible(); } },
   { name: 'inbox', path: '/#/inbox', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
   { name: 'search', path: '/#/search', ready: async (page) => { await page.locator('input[role="combobox"]').fill('a'); await expect(page.locator('[cmdk-root] [role="option"]').first()).toBeVisible(); } },
-  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); }, scope: '[role="dialog"]' }, // a modal panel dims the page behind it, so axe scans the panel alone
+  { name: 'task-comments', path: '/#/projects/prj_001?tab=tasks&task=tsk_007', ready: async (page) => { await expect(page.getByRole('dialog')).toBeVisible(); } },
 ];
 
 for (const width of [390, 1440]) {

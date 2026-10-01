@@ -113,7 +113,11 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
     const height = items.filter((item) => !item.hidden).length * 44 + 12;
     const below = rect.bottom + 4 + height <= window.innerHeight;
     const vertical = below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 };
-    const side = rtl ? { left: rect.left } : { right: window.innerWidth - rect.right }; // rtl-ok: screen coordinates from the button
+    // The menu grows from its button toward the start side; near the screen edge it stays 8 px inside the screen.
+    const width = 224;
+    const side = rtl
+      ? (rect.left + width <= window.innerWidth - 8 ? { left: rect.left } : { right: 8 }) // rtl-ok: screen coordinates from the button
+      : (rect.right - width >= 8 ? { right: window.innerWidth - rect.right } : { left: 8 }); // rtl-ok: screen coordinates from the button
     const origin = `${below ? 'top' : 'bottom'} ${rtl ? 'left' : 'right'}`; // rtl-ok: the menu grows from the corner of its button
     setPlace({ position: 'fixed', ...vertical, ...side, transformOrigin: origin });
     setOpen(true);
