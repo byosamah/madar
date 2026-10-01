@@ -1,4 +1,3 @@
-import { Trash } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
@@ -16,6 +15,8 @@ import { diffDays, formatDay, formatMonth, todayISO } from '../../../lib/dates';
 import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import type { TabProps } from '../tabs';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { DeleteIcon } from '../../../components/icons/animated/delete';
 
 type Edge = 'start' | 'end';
 
@@ -230,7 +231,7 @@ function Deadlines({ detail }: TabProps) {
               <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
               {detail.viewerCan.edit && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
-                  <Trash size={16} aria-hidden />
+                  <AnimatedIcon icon={DeleteIcon} size={16} aria-hidden />
                 </IconButton>
               )}
             </li>

@@ -1,4 +1,3 @@
-import { Circle, Crosshair, Flag } from 'lucide-react';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { XIcon } from '../../../components/icons/animated/x';
@@ -26,6 +25,9 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
+import { CircleIcon } from '../../../components/icons/animated/circle';
+import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
+import { TimerIcon } from '../../../components/icons/animated/timer';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
 
@@ -58,7 +60,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
       <ul>
         {!edit && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
-            {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
+            {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-label-3" aria-hidden />}
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
             {item.done && <span className="sr-only">{t('common.done')}</span>}
           </li>
@@ -234,7 +236,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             </div>
             {edit
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
-              : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><Flag size={14} aria-hidden />{t('tasks.flagged')}</p>}
+              : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
             {viewerCan.editAll && (
               <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
             )}
@@ -293,7 +295,7 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
       blocking={false}
       headerAction={(
         <button type="button" onClick={() => focus.open(taskId)} className="pressable inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">
-          <Crosshair size={16} aria-hidden />
+          <AnimatedIcon icon={TimerIcon} size={16} aria-hidden />
           {t('focus.open')}
         </button>
       )}

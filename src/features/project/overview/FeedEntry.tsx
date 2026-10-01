@@ -1,4 +1,3 @@
-import { Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FeedItem, UserCard } from '../../../api/contract/views';
@@ -15,6 +14,8 @@ import { RichText } from '../../../components/RichText';
 import { plainText, withMentionMarkup } from '../../../lib/text';
 import { CommentThread } from '../../comments/CommentThread';
 import { feedText } from '../../projects/feed';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 type PostItem = Extract<FeedItem, { kind: 'update' }>;
 
@@ -88,7 +89,7 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
         <ul className="flex flex-wrap gap-2">
           {item.fileIds.map((id) => (
             <li key={id} className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote">
-              <Paperclip size={14} aria-hidden />
+              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
               <bdi>{fileNames.get(id) ?? id}</bdi>
             </li>
           ))}

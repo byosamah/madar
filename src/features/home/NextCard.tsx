@@ -1,10 +1,10 @@
-import { Crosshair } from 'lucide-react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ArrowRightIcon } from '../../components/icons/animated/arrow-right';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import type { NextItem } from '../../lib/home';
+import { TimerIcon } from '../../components/icons/animated/timer';
 
 /** "Next for you": one thing to do, on the glow (redesign spec 3.2). */
 export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOpen: (projectId: string, taskId: string) => void; onFocus: (taskId: string) => void; left: number | null }) {
@@ -40,7 +40,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
               </Button>
               {(item.kind === 'pastDue' || item.kind === 'dueToday' || item.kind === 'continue') && (
                 <Button variant="plain" className="px-3" onClick={() => onFocus(item.row.task.id)}>
-                  <Crosshair size={16} aria-hidden />
+                  <AnimatedIcon icon={TimerIcon} size={16} aria-hidden />
                   {t('focus.open')}
                 </Button>
               )}

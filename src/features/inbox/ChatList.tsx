@@ -1,4 +1,3 @@
-import { ListChecks } from 'lucide-react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
 import { useState } from 'react';
@@ -9,13 +8,14 @@ import { Age } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
+import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 
 type Row = CallOutput<'chats.list'>[number];
 
 function Lead({ row }: { row: Row }) {
   if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} size={40} />;
   if (row.kind === 'direct' && row.person) return <Avatar user={row.person} size={40} />;
-  return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><ListChecks size={18} /></span>;
+  return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>;
 }
 
 function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {

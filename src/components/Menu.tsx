@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Ellipsis } from 'lucide-react';
 import {
   useCallback, useEffect, useRef, useState,
   type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
+import { AnimatedIcon } from './icons/AnimatedIcon';
+import { EllipsisIcon } from './icons/animated/ellipsis';
 
 export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
 
@@ -134,7 +135,7 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
         onClick={() => (open ? close(false) : openMenu())}
         className={`pressable grid size-11 place-items-center rounded-full ${triggerClassName || 'text-label-2 hover:bg-fill'}`}
       >
-        {icon ?? <Ellipsis size={20} aria-hidden />}
+        {icon ?? <AnimatedIcon icon={EllipsisIcon} size={20} aria-hidden />}
       </button>
       {createPortal(
         <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,

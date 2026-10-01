@@ -1,4 +1,3 @@
-import { ListChecks } from 'lucide-react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, type ReactNode } from 'react';
@@ -11,6 +10,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
+import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 
 type Thread = CallOutput<'chats.messages'>;
 
@@ -93,7 +93,7 @@ export function TaskPane({ id }: { id: string }) {
   return (
     <>
       <Header
-        lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><ListChecks size={18} /></span>}
+        lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
         title={<bdi>{task.data.task.title}</bdi>}
         subtitle={`${t('chat.taskThread')} · ${task.data.project.name}`}
         action={(

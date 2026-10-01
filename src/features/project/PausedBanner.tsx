@@ -1,4 +1,3 @@
-import { PauseCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
@@ -6,6 +5,8 @@ import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
 import { formatDay, stampDay } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { PauseIcon } from '../../components/icons/animated/pause';
 
 /** A paused project says so at the top: who paused it, when, why, and when it restarts (owner, 2026-10-01). */
 export function PausedBanner({ detail }: { detail: ProjectDetail }) {
@@ -17,7 +18,7 @@ export function PausedBanner({ detail }: { detail: ProjectDetail }) {
   const { pause } = project;
   return (
     <section aria-labelledby="paused-title" className="panel flex flex-wrap items-start gap-4 p-4 sm:items-center">
-      <PauseCircle size={24} className="mt-0.5 shrink-0 text-attn sm:mt-0" aria-hidden />
+      <AnimatedIcon icon={PauseIcon} size={24} className="mt-0.5 shrink-0 text-attn sm:mt-0" aria-hidden />
       <div className="min-w-0 flex-1 basis-60">
         <h2 id="paused-title" className="text-headline text-ink">{t('project.pausedTitle')}</h2>
         <p dir="auto" className="text-subheadline text-ink">{pause.reason}</p>

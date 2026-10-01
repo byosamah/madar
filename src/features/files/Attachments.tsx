@@ -1,4 +1,3 @@
-import { Paperclip } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_ATTACHMENTS, MAX_FILE_BYTES } from '../../api/contract/entities';
@@ -10,6 +9,7 @@ import { useToast } from '../../app/toasts';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { XIcon } from '../../components/icons/animated/x';
 import { IconButton } from '../../components/IconButton';
+import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 
 /** Where the new files go. A task comment also links the file to its task. */
 export type UploadTarget = { projectId: string; stageId?: string | null; taskId?: string | null };
@@ -67,7 +67,7 @@ export function AttachButton({ onPick, compact = false, disabled = false }: { on
   const shape = compact ? 'size-11 justify-center rounded-full text-label-2' : 'min-h-11 gap-2 rounded-full px-3 text-subheadline font-semibold text-link';
   return (
     <label className={`pressable inline-flex shrink-0 cursor-pointer items-center hover:bg-fill has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${shape}`}>
-      <Paperclip size={18} aria-hidden />
+      <AnimatedIcon icon={AttachFileIcon} size={18} aria-hidden />
       <span className={compact ? 'sr-only' : undefined}>{t('attachments.attach')}</span>
       <input
         type="file"
@@ -113,7 +113,7 @@ export function FileChips({ files }: { files: Attachment[] }) {
         <li key={file.id}>
           {file.name === null ? (
             <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-label-2">
-              <Paperclip size={14} aria-hidden />
+              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
               {t('attachments.removed')}
             </span>
           ) : (
@@ -123,7 +123,7 @@ export function FileChips({ files }: { files: Attachment[] }) {
               onClick={() => downloadFile(api, file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }))}
               className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
             >
-              <Paperclip size={14} aria-hidden className="shrink-0" />
+              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
               <bdi className="truncate">{file.name}</bdi>
             </button>
           )}

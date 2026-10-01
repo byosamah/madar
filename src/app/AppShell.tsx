@@ -1,6 +1,5 @@
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
 import { projectsListLink } from './lastList';
@@ -9,6 +8,8 @@ import { NAV, isNavActive } from './nav';
 import { PersonMenu } from './PersonMenu';
 import { StorageBanner } from './StorageBanner';
 import { BellButton, SearchButton, TabPill } from './TabPill';
+import { AnimatedIcon } from '../components/icons/AnimatedIcon';
+import { ChevronLeftIcon } from '../components/icons/animated/chevron-left';
 
 /** The calm shell (redesign spec 2.5): a floating pill of four tabs and the person's picture. No sidebar and no toolbar. */
 // Screens already shown in this visit. A screen's panels rise in only the first time (redesign spec 4).
@@ -81,7 +82,7 @@ export function AppShell() {
         <div className="-me-1.5 flex items-center justify-end gap-0.5 pb-1 sm:hidden">
           {PROJECT_PAGE.test(pathname) && (
             <Link to={projectsListLink()} className="pressable -ms-2 me-auto inline-flex min-h-11 items-center gap-0.5 rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
-              <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
+              <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
               {t('project.back')}
             </Link>
           )}

@@ -1,4 +1,3 @@
-import { Circle, CircleDot, Flag, Paperclip } from 'lucide-react';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
@@ -14,6 +13,10 @@ import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord } from '../../../lib/due';
+import { CircleIcon } from '../../../components/icons/animated/circle';
+import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
+import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
+import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
@@ -64,7 +67,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         >
           {done || ticking
             ? <AnimatedIcon icon={CircleCheckIcon} size={22} className="text-[var(--sig-from)]" aria-hidden />
-            : inReview ? <CircleDot size={22} className="text-attn" aria-hidden /> : <Circle size={22} strokeWidth={1.75} className="text-ink-2" aria-hidden />}
+            : inReview ? <AnimatedIcon icon={CircleDashedIcon} size={22} className="text-attn" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={22} className="text-ink-2" aria-hidden />}
         </motion.span>
       </button>
       <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 py-2 text-start">
@@ -72,8 +75,8 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
-          {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><Flag size={12} aria-hidden />{t('tasks.flagged')}</span>}
-          {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
+          {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={12} aria-hidden />{t('tasks.flagged')}</span>}
+          {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={AttachFileIcon} size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}
         </span>
       </button>

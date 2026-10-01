@@ -26,7 +26,6 @@ export function TabPill() {
     >
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
-        const Icon = item.icon;
         const Moving = item.animated;
         return (
           <Link
@@ -36,7 +35,7 @@ export function TabPill() {
             className={`pressable relative isolate flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
-            {Moving ? <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden /> : <Icon size={20} className="sm:hidden" aria-hidden />}
+            <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
             <span className="whitespace-nowrap">{t(item.key)}</span>
             {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
           </Link>
@@ -52,7 +51,7 @@ export function TabPill() {
 /** Search, round. In the tab pill from 640 px; on a phone it sits at the top beside the person's picture. */
 export function SearchButton({ className = '' }: { className?: string }) {
   const { t } = useTranslation();
-  const SearchTab = SEARCH_ITEM.animated!;
+  const SearchTab = SEARCH_ITEM.animated;
   const { pathname } = useLocation();
   const on = pathname === SEARCH_ITEM.to;
   return (
@@ -71,7 +70,6 @@ export function SearchButton({ className = '' }: { className?: string }) {
 export function InboxButton() {
   const { t } = useTranslation();
   const item = NAV.find((entry) => entry.badge)!;
-  const Icon = item.icon;
   const { pathname } = useLocation();
   const unread = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const on = isNavActive(item.to, pathname);
@@ -82,7 +80,7 @@ export function InboxButton() {
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
     >
-      <Icon size={20} aria-hidden />
+      <AnimatedIcon icon={item.animated} size={20} playWhen={on} aria-hidden />
       {unread > 0 && <Badge count={unread} label={t('nav.inboxUnread', { count: unread })} className="absolute -top-1 -end-1" />}
     </Link>
   );
@@ -91,7 +89,7 @@ export function InboxButton() {
 /** The notifications bell with its red count. In the tab pill from 640 px; on a phone it sits at the top. */
 export function BellButton({ className = '' }: { className?: string }) {
   const { t } = useTranslation();
-  const BellTab = NOTIFICATIONS_ITEM.animated!;
+  const BellTab = NOTIFICATIONS_ITEM.animated;
   const { pathname } = useLocation();
   const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
   const on = pathname === NOTIFICATIONS_ITEM.to;

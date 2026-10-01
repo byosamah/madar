@@ -1,4 +1,3 @@
-import { ShieldCheck } from 'lucide-react';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
 import { LanguagesIcon } from '../components/icons/animated/languages';
 import { MoonIcon } from '../components/icons/animated/moon';
@@ -13,6 +12,7 @@ import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { useSwitchLanguage } from './languageTurn';
 import { useAction, useCall } from './runtime';
+import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 
 /** The person's picture opens their name, Preview as (prototype), the language, light or dark mode and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
@@ -60,7 +60,7 @@ export function PersonMenu({ id }: { id: string }) {
             </button>
             {admin && (
               <Link to="/admin" onClick={close} className={row}>
-                <ShieldCheck size={18} className="text-ink-2" aria-hidden />
+                <AnimatedIcon icon={ShieldCheckIcon} size={18} className="text-ink-2" aria-hidden />
                 {t('nav.admin')}
               </Link>
             )}

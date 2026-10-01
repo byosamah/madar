@@ -2,7 +2,6 @@ import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { Flag } from 'lucide-react';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
 import { useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
@@ -16,6 +15,7 @@ import { Menu } from '../../../components/Menu';
 import { BOARD_COLUMNS, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord } from '../../../lib/due';
+import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
 const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
@@ -38,7 +38,7 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
       <p dir="auto" className="text-subheadline font-medium text-ink">{row.task.title}</p>
       <div className="flex items-center gap-2 text-footnote text-ink-2">
         {word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
-        {row.task.flagged && <Flag size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
+        {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
         <span className="ms-auto"><Avatar user={row.owner} size={22} /></span>
       </div>
     </div>

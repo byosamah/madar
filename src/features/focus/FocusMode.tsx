@@ -1,4 +1,3 @@
-import { Circle } from 'lucide-react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../components/icons/animated/check';
 import { CircleCheckIcon } from '../../components/icons/animated/circle-check';
@@ -16,6 +15,7 @@ import { RichText } from '../../components/RichText';
 import { spring } from '../../design/motion';
 import { FocusTimer } from './FocusTimer';
 import { returnFocus, useFocusLink } from './focusLink';
+import { CircleIcon } from '../../components/icons/animated/circle';
 
 function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean) => void }) {
   const { t } = useTranslation();
@@ -82,7 +82,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
               <li key={item.id} className="flex min-h-12 items-center gap-3 px-2">
                 {edit ? (
                   <input type="checkbox" aria-label={item.text} checked={item.done} onChange={(event) => tick(item.id, event.target.checked)} className="size-5 shrink-0 accent-[var(--sig-from)]" />
-                ) : item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-label={t('common.done')} /> : <Circle size={20} className="shrink-0 text-ink-2" aria-hidden />}
+                ) : item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-label={t('common.done')} /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-ink-2" aria-hidden />}
                 <span dir="auto" className={`min-w-0 flex-1 text-body ${item.done ? 'text-ink-2 line-through' : 'text-ink'}`}>{item.text}</span>
               </li>
             ))}
