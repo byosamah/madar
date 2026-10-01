@@ -29,7 +29,7 @@ export function TabPill() {
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center gap-0.5 rounded-full px-3 text-caption font-semibold sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-white' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center gap-0.5 rounded-full px-3 text-caption font-semibold sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
             <Icon size={20} className="sm:hidden" aria-hidden />

@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react';
 type Variant = 'primary' | 'secondary' | 'plain' | 'destructive';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'signature shadow-[0_6px_16px_rgba(79,93,245,0.25)]',
+  primary: 'signature shadow-[0_4px_12px_rgba(0,0,0,0.16)]',
   secondary: 'bg-fill text-ink',
   plain: 'text-link',
   destructive: 'bg-fill text-late',

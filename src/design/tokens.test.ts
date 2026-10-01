@@ -72,8 +72,10 @@ describe('calm palette', () => {
     }
   });
 
-  it('keeps white text on the signature gradient at 4.5:1 at both ends', () => {
-    for (const name of ['--sig-from', '--sig-to']) expect(contrast([255, 255, 255], hex(token(':root', name))), name).toBeGreaterThanOrEqual(4.5);
+  it('keeps the text on the signature ink at 4.5:1, in light and dark', () => {
+    for (const block of [':root', '[data-theme="dark"]']) {
+      expect(contrast(hex(token(block, '--on-sig')), hex(token(block, '--sig-from'))), block).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 
