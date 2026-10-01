@@ -90,3 +90,13 @@ describe('the display kit', () => {
     expect(screen.getByText('Late')).not.toHaveClass('bg-fill');
   });
 });
+
+describe('the Glow picture of a person', () => {
+  it('uses one color for both lights (owner, 2026-10-01)', async () => {
+    const { glowOf } = await import('./Avatar');
+    for (const id of ['usr_001', 'usr_002', 'usr_005', 'usr_010']) {
+      const hues = new Set([...glowOf(id).matchAll(/--p-(\w+)-fg/g)].map((match) => match[1]));
+      expect(hues.size).toBe(1);
+    }
+  });
+});
