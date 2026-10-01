@@ -36,7 +36,7 @@ export function UnlockSection() {
           {humans.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
         </SelectField>
         <TextField id="unlock-day" type="date" label={t('admin.week')} value={day} onChange={(event) => setDay(event.target.value)} />
-        <Button variant="primary" type="submit" disabled={!userId || !day || unlock.isPending}>{t('admin.unlockButton')}</Button>
+        <Button type="submit" disabled={!userId || !day || unlock.isPending}>{t('admin.unlockButton')}</Button>
       </form>
     </section>
   );

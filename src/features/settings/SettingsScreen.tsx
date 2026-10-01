@@ -69,7 +69,7 @@ export function SettingsScreen() {
         >
           <Field id="profile-name" label={t('settings.name')} value={name} onChange={setName} />
           <Field id="profile-discipline" label={t('settings.discipline')} value={discipline} onChange={setDiscipline} />
-          <Button type="submit" variant="primary">{t('settings.save')}</Button>
+          <Button type="submit">{t('settings.save')}</Button>
         </form>
       </Section>
 

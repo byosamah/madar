@@ -16,6 +16,7 @@ import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
+import { ProjectTile } from '../../components/ProjectTile';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
 
@@ -25,7 +26,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   const toast = useToast();
   const navigate = useNavigate();
   const phone = useIsPhone();
-  const { notification: n, actor, target, projectCode, link, canApprove, gone } = view;
+  const { notification: n, actor, target, project, link, canApprove, gone } = view;
   const markRead = useAction('notifications.markRead');
   const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const read = () => {
@@ -44,27 +45,26 @@ function InboxItem({ view }: { view: NoticeView }) {
         // A swipe to either side marks the item read (plan clarification 7).
         if (Math.abs(info.offset.x) > 80) read();
       }}
-      className="flex flex-wrap items-start gap-3 bg-card px-4 py-3"
+      className="flex flex-wrap items-start gap-3 bg-panel px-4 py-3.5"
     >
       <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />
       {actor
         ? <Avatar user={actor} size={36} />
-        : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-label-2"><Bell size={16} aria-hidden /></span>}
+        : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><Bell size={16} aria-hidden /></span>}
       <div className="min-w-48 flex-1">
-        <p className={`text-subheadline ${n.read ? 'text-label-2' : 'font-medium text-label'}`}>
+        <p className={`text-subheadline ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>
           {!n.read && <span className="sr-only">{t('inbox.unread')}: </span>}
           {sentence}
         </p>
-        <p className="text-footnote text-label-2">
-          {projectCode && <span className="tabular">{projectCode} · </span>}
-          <Age stamp={n.createdAt} />
+        <p className="flex min-w-0 items-center gap-1.5 pt-1 text-footnote text-ink-2">
+          {project && <><ProjectTile id={project.id} name={project.name} size={20} /><bdi className="min-w-0 truncate">{project.name}</bdi><span aria-hidden>·</span></>}
+          <span className="shrink-0"><Age stamp={n.createdAt} /></span>
         </p>
-        {gone && <p className="text-footnote text-label-2">{t('errors.not_found')}</p>}
+        {gone && <p className="text-footnote text-ink-2">{t('errors.not_found')}</p>}
       </div>
       <div className="ms-auto flex gap-2">
         {canApprove && (
           <Button
-            variant="primary"
             disabled={approve.isPending}
             onClick={() => {
               approve.mutate({ id: n.targetId });
@@ -76,6 +76,8 @@ function InboxItem({ view }: { view: NoticeView }) {
         )}
         {!gone && (
           <Button
+            variant="plain"
+            className="px-3"
             onClick={() => {
               read();
               navigate(link);
@@ -104,15 +106,15 @@ export function InboxScreen() {
     <>
       <div className="flex items-start justify-between gap-3">
         <ScreenTitle title={t('screens.inbox')} />
-        {unread && <Button className="shrink-0" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button>}
+        {unread && <Button variant="plain" className="shrink-0 px-3" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button>}
       </div>
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}
       <div className="flex flex-col gap-5">
         {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group) => (
           <section key={group.day} aria-labelledby={`inbox-${group.day}`}>
-            <h2 id={`inbox-${group.day}`} className="pb-2 text-headline">{dayLabel(group.day)}</h2>
-            <ul className="surface flex flex-col divide-y divide-separator overflow-hidden rounded-card">
+            <h2 id={`inbox-${group.day}`} className="px-1 pb-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{dayLabel(group.day)}</h2>
+            <ul className="panel hairline flex flex-col overflow-hidden">
               {group.items.map((view) => <InboxItem key={view.notification.id} view={view} />)}
             </ul>
           </section>

@@ -128,7 +128,7 @@ export function CommentThread({
           }}
         >
           <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
-          <Button variant="primary" type="submit" className="self-end" disabled={!body.trim() || create.isPending}>{t('comments.send')}</Button>
+          <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" className="self-end" disabled={!body.trim() || create.isPending}>{t('comments.send')}</Button>
         </form>
       ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
     </section>

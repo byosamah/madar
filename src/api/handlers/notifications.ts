@@ -18,6 +18,8 @@ export const NotificationView = z.object({
   actor: UserCard.nullable(),
   target: z.string(),
   projectCode: z.string().nullable(),
+  /** The project, for its color tile in the Inbox (redesign spec 3.7). Null for a timesheet notice or a deleted project. */
+  project: z.object({ id: z.string(), name: z.string() }).nullable(),
   link: z.string(),
   needsAction: z.boolean(),
   canApprove: z.boolean(),
@@ -44,6 +46,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
+  let tile: { id: string; name: string } | null = null;
   let link = '/inbox';
   let canApprove = false;
   let gone = false;
@@ -53,6 +56,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const project = state.projects[text(copy?.projectId)];
     target = text(copy?.title);
     projectCode = project?.code ?? null;
+    tile = project ? { id: project.id, name: project.name } : null;
     gone = !task;
     if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
@@ -63,6 +67,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const project = state.projects[text(copy?.projectId)];
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
+    tile = project ? { id: project.id, name: project.name } : null;
     gone = !update;
     if (update) link = `/projects/${update.projectId}?tab=overview&update=${update.id}`;
   } else if (n.targetType === 'project') {
@@ -70,6 +75,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);
     target = text(copy?.name);
     projectCode = copy ? text(copy.code) || null : null;
+    tile = project ? { id: project.id, name: project.name } : null;
     gone = !project;
     if (project) link = `/projects/${project.id}`;
   } else {
@@ -77,7 +83,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     link = `/work?tab=hours&week=${n.targetId}`;
   }
   return {
-    notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, link,
+    notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
     needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone,
   };
 }

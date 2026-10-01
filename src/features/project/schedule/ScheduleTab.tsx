@@ -251,7 +251,7 @@ function Deadlines({ detail }: TabProps) {
             <option value="">{t('files.noStage')}</option>
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
           </SelectField>
-          <Button variant="primary" type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
+          <Button type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
         </form>
       )}
     </section>

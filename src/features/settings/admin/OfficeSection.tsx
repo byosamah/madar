@@ -49,7 +49,7 @@ function OfficeForm({ saved }: { saved: Settings }) {
           onChange={(event) => setLimit(event.target.value)}
         />
       </div>
-      <Button variant="primary" type="submit" className="self-start" disabled={save.isPending}>{t('admin.saveOffice')}</Button>
+      <Button type="submit" className="self-start" disabled={save.isPending}>{t('admin.saveOffice')}</Button>
     </form>
   );
 }

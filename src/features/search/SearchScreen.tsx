@@ -104,7 +104,7 @@ export function SearchScreen() {
           value={text}
           onValueChange={setText}
           placeholder={t('search.placeholder')}
-          className="min-h-12 w-full rounded-2xl bg-fill px-4 text-body text-label placeholder:text-label-2"
+          className="panel min-h-14 w-full !rounded-2xl px-5 text-[calc(18px*var(--boost))] text-ink placeholder:text-ink-2 focus-visible:outline-2 focus-visible:outline-[var(--c-link)]"
         />
         <Command.List className="surface flex flex-col gap-2 rounded-card p-2">
           {commands.length > 0 && (

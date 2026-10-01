@@ -105,7 +105,7 @@ function AddMember({ detail }: TabProps) {
             {candidates.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
           <TextField id="add-discipline" label={t('team.newDiscipline')} value={discipline} dir="auto" onChange={(event) => setDiscipline(event.target.value)} />
-          <Button variant="primary" type="submit" disabled={!userId || add.isPending}>{t('common.add')}</Button>
+          <Button type="submit" disabled={!userId || add.isPending}>{t('common.add')}</Button>
         </form>
       )}
     </section>
