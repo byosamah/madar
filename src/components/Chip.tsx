@@ -15,7 +15,7 @@ export function ChipGroup<T extends string>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(option.value)}
-            className={`pressable min-h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-subheadline font-medium ${selected ? 'bg-accent-fill text-on-accent' : 'bg-fill text-label'}`}
+            className={`pressable min-h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-subheadline font-medium ${selected ? 'bg-ink text-panel' : 'bg-fill text-ink'}`}
           >
             {option.label}
           </button>

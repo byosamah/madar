@@ -46,7 +46,7 @@ function InboxItem({ view }: { view: NoticeView }) {
       }}
       className="flex flex-wrap items-start gap-3 bg-card px-4 py-3"
     >
-      <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-accent-fill'}`} />
+      <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />
       {actor
         ? <Avatar user={actor} size={36} />
         : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-label-2"><Bell size={16} aria-hidden /></span>}

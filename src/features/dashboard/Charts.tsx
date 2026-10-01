@@ -9,8 +9,8 @@ import type { DashboardData } from './Tiles';
 function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="surface flex min-w-0 flex-col gap-3 rounded-card p-4">
-      <h2 id={id} className="text-headline">{title}</h2>
+    <section aria-labelledby={id} className="panel flex min-w-0 flex-col gap-3 p-5">
+      <h2 id={id} className="text-headline text-ink">{title}</h2>
       {children}
     </section>
   );
@@ -18,7 +18,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 
 function NoData() {
   const { t } = useTranslation();
-  return <p className="text-footnote text-label-2">{t('dashboard.noData')}</p>;
+  return <p className="text-footnote text-ink-2">{t('dashboard.noData')}</p>;
 }
 
 /** One bar with its label and value. The whole row is a link to the list behind it (spec 8.3). */
@@ -27,8 +27,8 @@ function BarRow({ to, label, value, max, detail }: { to: string; label: string; 
     <li>
       <Link to={to} className="pressable grid min-h-11 grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 hover:bg-fill">
         <bdi className="truncate text-subheadline">{label}</bdi>
-        <span aria-hidden className="h-2.5 rounded-full bg-fill">
-          <span className="block h-full rounded-full bg-accent-fill" style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }} />
+        <span aria-hidden className="h-2 overflow-hidden rounded-full bg-fill">
+          <span className="draw-line block h-full rounded-full bg-ink" style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }} />
         </span>
         <span className="tabular text-subheadline">{detail}</span>
       </Link>
@@ -36,7 +36,7 @@ function BarRow({ to, label, value, max, detail }: { to: string; label: string; 
   );
 }
 
-function PerStage({ view }: { view: DashboardData }) {
+export function PerStage({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
   const lang = useLang();
   const rows = view.charts.projectsPerStage;
@@ -51,12 +51,12 @@ function PerStage({ view }: { view: DashboardData }) {
 }
 
 const HEALTH = [
-  { key: 'on_track', color: 'bg-green', to: '/projects?health=on_track' },
-  { key: 'at_risk', color: 'bg-orange', to: '/projects?health=at_risk' },
-  { key: 'late', color: 'bg-red', to: '/projects?health=late' },
+  { key: 'on_track', text: 'text-ink', to: '/projects?health=on_track' },
+  { key: 'at_risk', text: 'text-attn', to: '/projects?health=at_risk' },
+  { key: 'late', text: 'text-late', to: '/projects?health=late' },
 ] as const;
 
-function HealthMix({ view }: { view: DashboardData }) {
+export function HealthMix({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
   const lang = useLang();
   const mix = view.charts.healthMix;
@@ -64,28 +64,22 @@ function HealthMix({ view }: { view: DashboardData }) {
   return (
     <Card title={t('dashboard.charts.health')}>
       {total === 0 ? <NoData /> : (
-        <>
-          <div aria-hidden className="flex h-4 gap-0.5 overflow-hidden rounded-full">
-            {HEALTH.map((item) => mix[item.key] > 0 && <span key={item.key} className={item.color} style={{ width: `${(mix[item.key] / total) * 100}%` }} />)}
-          </div>
-          <ul className="flex flex-wrap gap-2">
-            {HEALTH.map((item) => (
-              <li key={item.key}>
-                <Link to={item.to} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-3 text-subheadline">
-                  <span aria-hidden className={`size-2.5 rounded-full ${item.color}`} />
-                  {t(`health.${item.key}`)}
-                  <span className="tabular font-semibold">{formatNumber(mix[item.key], lang)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="grid grid-cols-3 gap-2">
+          {HEALTH.map((item) => (
+            <li key={item.key}>
+              <Link to={item.to} className="pressable flex min-h-20 flex-col justify-center gap-1 rounded-2xl bg-fill/60 px-4 hover:bg-fill">
+                <span className={`tabular text-title-2 font-bold ${item.text}`}>{formatNumber(mix[item.key], lang)}</span>
+                <span className="text-footnote font-medium text-ink-2">{t(`health.${item.key}`)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );
 }
 
-function Throughput({ view }: { view: DashboardData }) {
+export function Throughput({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
@@ -97,18 +91,18 @@ function Throughput({ view }: { view: DashboardData }) {
     <Card title={t('dashboard.charts.throughput')}>
       {rows.every((row) => row.created === 0 && row.done === 0) ? <NoData /> : (
         <>
-          <div className="flex gap-4 text-footnote text-label-2" aria-hidden>
+          <div className="flex gap-4 text-footnote text-ink-2" aria-hidden>
             <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-chart-muted" />{t('dashboard.created')}</span>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-accent-fill" />{t('dashboard.done')}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-ink" />{t('dashboard.done')}</span>
           </div>
           <div aria-hidden className="h-52">
             <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
               {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
               <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
-                <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-label-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
                 <Bar dataKey="created" fill="var(--c-chart-muted)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="done" fill="var(--c-accent-fill)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
+                <Bar dataKey="done" fill="var(--c-ink)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -139,7 +133,7 @@ function Throughput({ view }: { view: DashboardData }) {
   );
 }
 
-function HoursPerProject({ view }: { view: DashboardData }) {
+export function HoursPerProject({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
   const lang = useLang();
   const rows = view.charts.hoursPerProject;
@@ -161,17 +155,5 @@ function HoursPerProject({ view }: { view: DashboardData }) {
         </ul>
       )}
     </Card>
-  );
-}
-
-/** Four charts; a click on any bar opens the list behind it (spec 8.3). */
-export function Charts({ view }: { view: DashboardData }) {
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <PerStage view={view} />
-      <HealthMix view={view} />
-      <Throughput view={view} />
-      <HoursPerProject view={view} />
-    </div>
   );
 }

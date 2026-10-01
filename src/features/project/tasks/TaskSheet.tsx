@@ -53,7 +53,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
       <ul>
         {!edit && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
-            {item.done ? <CircleCheck size={20} className="shrink-0 text-accent" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
+            {item.done ? <CircleCheck size={20} className="shrink-0 text-link" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
             {item.done && <span className="sr-only">{t('common.done')}</span>}
           </li>
@@ -203,7 +203,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
       </div>
       {edit
         ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
-        : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-orange-text"><Flag size={14} aria-hidden />{t('tasks.flagged')}</p>}
+        : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><Flag size={14} aria-hidden />{t('tasks.flagged')}</p>}
       {viewerCan.editAll && (
         <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
       )}

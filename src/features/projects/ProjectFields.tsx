@@ -115,7 +115,7 @@ export function StageList({
         <Plus size={16} aria-hidden />
         {t('projectForm.addStage')}
       </Button>
-      {error && <p role="alert" className="text-footnote text-red-text">{error}</p>}
+      {error && <p role="alert" className="text-footnote text-late">{error}</p>}
     </fieldset>
   );
 }

@@ -13,18 +13,20 @@ import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { diffDays, formatDay, formatMonth, todayISO } from '../../../lib/dates';
+import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import type { TabProps } from '../tabs';
 
 type Edge = 'start' | 'end';
 
 function StageBar({
-  stage, span: saved, range, current, editable, width, onCommit,
+  stage, span: saved, range, place, color, editable, width, onCommit,
 }: {
   stage: Stage;
   span: Span;
   range: Span;
-  current: boolean;
+  place: 'done' | 'current' | 'later';
+  color: string;
   editable: boolean;
   width: () => number;
   onCommit: (span: Span, onError: () => void) => void;
@@ -94,8 +96,8 @@ function StageBar({
   return (
     <div
       title={t('project.stageDates', { start: formatDay(span.start, lang), end: formatDay(span.end, lang) })}
-      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%` }}
-      className={`absolute top-2 h-7 rounded-full ${current ? 'bg-accent-fill' : 'bg-fill-strong'}`}
+      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%`, ...(place === 'current' ? { background: color } : {}) }}
+      className={`absolute top-2 h-7 rounded-full ${place === 'done' ? 'bg-ink-2/35' : place === 'later' ? 'ring-1 ring-inset ring-chart-muted' : ''}`}
     >
       {editable && handle('start')}
       {editable && handle('end')}
@@ -111,20 +113,21 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
   const width = () => scale.current?.getBoundingClientRect().width ?? 0;
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
-  const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-px bg-red" />;
+  const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   return (
-    <section aria-label={t('schedule.chart')} className="surface overflow-x-auto rounded-card p-4">
+    <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
       <div className="grid min-w-[40rem] grid-cols-[10rem_minmax(0,1fr)] gap-x-3">
         <div />
         <div ref={scale} className="relative h-7">
           {monthStarts(range).map((month) => (
-            <span key={month} aria-hidden style={{ insetInlineStart: `${offsetPct(range, month)}%` }} className="absolute top-0 border-s border-separator ps-1 text-caption text-label-2">
+            <span key={month} aria-hidden style={{ insetInlineStart: `${offsetPct(range, month)}%` }} className="absolute top-0 border-s border-separator ps-1 text-caption text-ink-2">
               {formatMonth(month, lang)}
             </span>
           ))}
-          <span style={todayAt} className="absolute bottom-0 -translate-x-1/2 text-caption font-semibold text-red-text rtl:translate-x-1/2">{t('schedule.today')}</span>
+          <span style={todayAt} className="absolute bottom-0 -translate-x-1/2 text-caption font-semibold text-ink rtl:translate-x-1/2">{t('schedule.today')}</span>
         </div>
-        {detail.stages.map((stage) => {
+        {detail.stages.map((stage, index) => {
+          const currentIndex = detail.stages.findIndex((item) => item.id === detail.currentStage.id);
           const saved = stage.startDate && stage.endDate ? { start: stage.startDate, end: stage.endDate } : null;
           const span = saved;
           return (
@@ -137,17 +140,18 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     stage={stage}
                     span={span}
                     range={range}
-                    current={stage.id === detail.currentStage.id}
+                    place={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'later'}
+                    color={`var(--p-${projectHue(detail.project.id)}-fg)`}
                     editable={detail.viewerCan.edit}
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
-                ) : <span className="flex h-11 items-center text-footnote text-label-2">{t('project.noDates')}</span>}
+                ) : <span className="flex h-11 items-center text-footnote text-ink-2">{t('project.noDates')}</span>}
               </div>
             </Fragment>
           );
         })}
-        <div className="flex min-h-11 items-center text-subheadline text-label-2">{t('schedule.deadlines')}</div>
+        <div className="flex min-h-11 items-center text-subheadline text-ink-2">{t('schedule.deadlines')}</div>
         <div className="relative min-h-11" aria-hidden>
           {todayLine}
           {detail.deadlines.map((deadline) => (
@@ -155,7 +159,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
               key={deadline.id}
               title={`${deadline.name} · ${formatDay(deadline.date, lang)}`}
               style={{ insetInlineStart: `calc(${offsetPct(range, deadline.date)}% - 6px)` }}
-              className="absolute top-4 size-3 rotate-45 rounded-sm bg-orange"
+              className="absolute top-4 size-3 rotate-45 rounded-sm bg-attn"
             />
           ))}
         </div>
@@ -171,8 +175,8 @@ function StageDates({ detail }: TabProps) {
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
   const edit = detail.viewerCan.edit;
   return (
-    <section aria-labelledby="schedule-stages" className="surface rounded-card p-4">
-      <h2 id="schedule-stages" className="text-headline">{t('schedule.stages')}</h2>
+    <section aria-labelledby="schedule-stages" className="panel p-5">
+      <h2 id="schedule-stages" className="text-headline text-ink">{t('schedule.stages')}</h2>
       <ul className="mt-2 flex flex-col gap-3">
         {detail.stages.map((stage) => (
           <li key={stage.id} className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -185,7 +189,7 @@ function StageDates({ detail }: TabProps) {
                   onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate })} />
               </>
             ) : (
-              <span className="tabular text-footnote text-label-2">
+              <span className="tabular text-footnote text-ink-2">
                 {stage.startDate && stage.endDate
                   ? t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })
                   : t('project.noDates')}
@@ -215,15 +219,15 @@ function Deadlines({ detail }: TabProps) {
   const remove = useUndoable('deadlines.delete', { message: () => t('schedule.deadlineDeleted') });
   const today = todayISO();
   return (
-    <section aria-labelledby="schedule-deadlines" className="surface rounded-card p-4">
-      <h2 id="schedule-deadlines" className="text-headline">{t('schedule.deadlines')}</h2>
-      {detail.deadlines.length === 0 ? <p className="mt-2 text-footnote text-label-2">{t('schedule.noDeadlines')}</p> : (
+    <section aria-labelledby="schedule-deadlines" className="panel p-5">
+      <h2 id="schedule-deadlines" className="text-headline text-ink">{t('schedule.deadlines')}</h2>
+      {detail.deadlines.length === 0 ? <p className="mt-2 text-footnote text-ink-2">{t('schedule.noDeadlines')}</p> : (
         <ul className="mt-1">
           {detail.deadlines.map((deadline) => (
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
-              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-orange" />
+              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-attn" />
               <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>
-              <span className={`tabular text-footnote ${deadline.date < today ? 'text-label-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
+              <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
               {detail.viewerCan.edit && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
                   <Trash size={16} aria-hidden />

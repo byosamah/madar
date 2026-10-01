@@ -596,7 +596,6 @@
     "none": "No active projects."
   },
   "dashboard": {
-    "filters": "Dashboard filters",
     "period": "Period",
     "periods": {
       "month": "This month",
@@ -630,7 +629,7 @@
     "week": "Week of {{date}}",
     "noData": "No data for these filters.",
     "workload": "Workload",
-    "workloadHint": "Open tasks due each week. A red cell has more than {{n}}.",
+    "workloadHint": "Open tasks due each week. A highlighted cell has more than {{n}}.",
     "person": "Person",
     "over": "Over the limit",
     "overShort": "Over",
@@ -652,6 +651,12 @@
       "next": "Next stages",
       "deadline": "Deadline",
       "today": "Today"
+    },
+    "sections": "Dashboard sections",
+    "views": {
+      "projects": "Projects",
+      "people": "People",
+      "schedule": "Schedule"
     }
   },
   "taskList": {

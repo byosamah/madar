@@ -5,7 +5,7 @@ import { renderApp } from '../../test/render';
 
 describe('the office schedule', () => {
   it('lists the active projects by target end date, each a link', async () => {
-    await renderApp('/dashboard');
+    await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     const links = within(schedule).getAllByRole('link');
     expect(links).toHaveLength(10);
@@ -14,17 +14,17 @@ describe('the office schedule', () => {
   });
 
   it('keeps the zoom for the next visit', async () => {
-    const first = await renderApp('/dashboard');
+    const first = await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     await userEvent.click(within(schedule).getByRole('radio', { name: 'Month' }));
     first.unmount();
-    await renderApp('/dashboard');
+    await renderApp('/dashboard?view=schedule');
     const again = await screen.findByRole('region', { name: 'Office schedule' });
     expect(within(again).getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('names every color and mark in a legend', async () => {
-    await renderApp('/dashboard');
+    await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
   });

@@ -8,8 +8,8 @@ export function RichText({ body, className = '' }: { body: string; className?: s
     <p dir="auto" className={`whitespace-pre-line break-words ${className}`}>
       {segmentsOf(body).map((segment, i) => {
         if (segment.kind === 'text') return <Fragment key={i}>{segment.text}</Fragment>;
-        if (segment.kind === 'mention') return <span key={i} className="font-semibold text-accent">@{segment.name}</span>;
-        return <Link key={i} to={`/projects/code/${segment.code}`} className="font-semibold text-accent underline-offset-2 hover:underline">#{segment.code}</Link>;
+        if (segment.kind === 'mention') return <span key={i} className="font-semibold text-link">@{segment.name}</span>;
+        return <Link key={i} to={`/projects/code/${segment.code}`} className="font-semibold text-link underline-offset-2 hover:underline">#{segment.code}</Link>;
       })}
     </p>
   );

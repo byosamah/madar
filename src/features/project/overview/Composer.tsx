@@ -100,7 +100,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
         </ul>
       )}
       <div className="flex items-center justify-between gap-2">
-        <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-subheadline font-semibold text-accent hover:bg-fill has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
+        <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-subheadline font-semibold text-link hover:bg-fill has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
           <Paperclip size={18} aria-hidden />
           {t('overview.attach')}
           <input

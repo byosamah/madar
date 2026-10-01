@@ -12,7 +12,8 @@ import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
 import { Menu } from '../../../components/Menu';
 import { BOARD_COLUMNS, nextColumn } from '../../../lib/board';
-import { formatDay } from '../../../lib/dates';
+import { todayISO } from '../../../lib/dates';
+import { dueText, dueWord } from '../../../lib/due';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
 const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
@@ -27,13 +28,15 @@ const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
 };
 
 function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
+  const { t } = useTranslation();
   const lang = useLang();
+  const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   return (
     <div className={`surface flex flex-col gap-2 rounded-2xl p-3 pe-24 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
-      <p dir="auto" className="text-subheadline font-medium">{row.task.title}</p>
-      <div className="flex items-center gap-2 text-footnote text-label-2">
-        {row.task.dueDate && <span className={`tabular ${row.overdue ? 'font-medium text-red-text' : ''}`}>{formatDay(row.task.dueDate, lang)}</span>}
-        {row.task.flagged && <Flag size={12} className="text-orange-text" aria-hidden />}
+      <p dir="auto" className="text-subheadline font-medium text-ink">{row.task.title}</p>
+      <div className="flex items-center gap-2 text-footnote text-ink-2">
+        {word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
+        {row.task.flagged && <Flag size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
         <span className="ms-auto"><Avatar user={row.owner} size={22} /></span>
       </div>
     </div>
@@ -48,7 +51,7 @@ function Column({ status, count, children }: { status: TaskStatus; count: number
     <section ref={setNodeRef} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 ${isOver ? 'bg-fill-strong' : 'bg-fill'}`}>
       <h3 className="flex items-center justify-between px-2 pt-1 text-subheadline font-semibold">
         {label}
-        <span className="tabular text-footnote text-label-2">{count}</span>
+        <span className="tabular text-footnote text-ink-2">{count}</span>
       </h3>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>

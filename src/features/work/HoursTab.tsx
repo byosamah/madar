@@ -151,7 +151,7 @@ export function HoursTab() {
         <div className="ms-auto flex min-w-48 flex-col gap-1">
           <p className="tabular text-footnote text-label-2">{t('hours.logged', { logged: formatNumber(view.weekTotal, lang, 1), target: formatNumber(view.target, lang) })}</p>
           <div className="h-2 overflow-hidden rounded-full bg-fill">
-            <div style={{ width: `${percent}%` }} className={`h-full rounded-full ${view.weekTotal >= view.target ? 'bg-green' : 'bg-accent-fill'}`} />
+            <div style={{ width: `${percent}%` }} className={`h-full rounded-full ${view.weekTotal >= view.target ? 'bg-done' : 'bg-ink'}`} />
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@ export function HoursTab() {
                 {columns.map((i) => {
                   const day = view.days[i];
                   return (
-                    <th key={day} scope="col" className={`p-2 text-center font-medium ${day === today ? 'text-accent' : 'text-label-2'}`}>
+                    <th key={day} scope="col" className={`p-2 text-center font-medium ${day === today ? 'text-link' : 'text-ink-2'}`}>
                       <span className="block text-caption">{formatWeekday(day, lang)}</span>
                       <span className="tabular">{Number(day.slice(8))}</span>
                     </th>

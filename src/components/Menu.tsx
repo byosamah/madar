@@ -73,7 +73,7 @@ export function MenuList({
             onClose(true);
             item.onSelect();
           }}
-          className={`flex min-h-11 w-full items-center rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-red-text' : 'text-label'}`}
+          className={`flex min-h-11 w-full items-center rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-late' : 'text-ink'}`}
         >
           {item.label}
         </button>

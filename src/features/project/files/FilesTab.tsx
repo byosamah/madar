@@ -158,7 +158,7 @@ export function FilesTab({ detail }: TabProps) {
     >
       {canUpload && (
         <div className="flex flex-wrap items-end gap-3">
-          <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-accent-fill px-5 text-body font-semibold text-on-accent has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
+          <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-fill px-5 text-subheadline font-semibold text-ink hover:bg-fill-strong has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
             <Upload size={18} aria-hidden />
             {t('files.upload')}
             <input

@@ -15,7 +15,7 @@ function Shell({ id, label, error, hint, className = '', children }: FieldProps 
       <label htmlFor={id} className="text-footnote text-label-2">{label}</label>
       {children}
       {hint && <p id={`${id}-hint`} className="text-caption text-label-2">{hint}</p>}
-      {error && <p id={`${id}-error`} className="text-footnote text-red-text">{error}</p>}
+      {error && <p id={`${id}-error`} className="text-footnote text-late">{error}</p>}
     </div>
   );
 }
