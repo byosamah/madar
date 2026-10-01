@@ -15,6 +15,7 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
   const facts: [string, ReactNode][] = [
     [t('projectForm.location'), project.location || none],
     [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
+    [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],
     [t('projectForm.startDate'), project.startDate ? formatDay(project.startDate, lang, 'long') : none],
     [t('projectForm.endDate'), project.targetEndDate ? formatDay(project.targetEndDate, lang, 'long') : none],
   ];

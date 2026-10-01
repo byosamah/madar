@@ -4,7 +4,7 @@ import { EventId, EventTarget, ProjectId, type Event, type FileRec, type Tracker
 import { EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { NOT_UNDOABLE, undoEvent } from '../events';
-import { can, principalOf, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
 import { eventViewOf, mayDeleteTracker } from '../views';
 import { assertCan, roleIn, touch } from './shared';
 
@@ -22,8 +22,11 @@ export const eventsList = defineCall({
   output: z.array(EventView),
   readOnly: true,
   run(input, ctx) {
+    // A payment event holds an amount, so only the people who may handle payments ever read one.
+    const seesPayments = can(ctx.authority, 'payment.manage');
     return Object.values(ctx.state.events)
-      .filter((e) => (!input.projectId || e.projectId === input.projectId)
+      .filter((e) => (seesPayments || e.targetType !== 'payment')
+        && (!input.projectId || e.projectId === input.projectId)
         && (!input.targetType || e.targetType === input.targetType)
         && (!input.targetId || e.targetId === input.targetId)
         && (!input.correlationId || e.correlationId === input.correlationId))
@@ -106,6 +109,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can undo this.');
       return;
     }
+    case 'payment':
+      return need('payment.manage');
     case 'stageTemplate': {
       // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
       if (event.verb === 'stageTemplate.created') need('project.create');
@@ -120,7 +125,12 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         if (principalOf(ctx.state, event.targetId) !== ctx.authority.id) throw forbidden('You can undo changes to your own profile only.');
         return;
       }
-      return need('admin.manage');
+      // Management may undo its own changes to people, but never a change that makes or touches an Admin.
+      need('people.manage');
+      if (ctx.authority.systemRole !== 'admin' && (record.systemRole === 'admin' || holdsAdminRights(ctx.state, ctx.state.users[event.targetId]))) {
+        throw forbidden('Only an Admin can change an Admin or the agent of an Admin.');
+      }
+      return;
     default:
       return need('admin.manage');
   }

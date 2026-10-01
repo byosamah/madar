@@ -129,3 +129,21 @@ describe('the New Project sheet', () => {
     await waitFor(() => expect(store.state.projects[made[0].id].coverFileId).not.toBeNull());
   });
 });
+
+describe('the New Project sheet: contract start date', () => {
+  it('has the field, and saves the date on the project', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Contract Test Villa');
+    fireEvent.change(within(sheet).getByLabelText('Contract start date'), { target: { value: '2026-10-05' } });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(Object.values(store.state.projects).find((p) => p.name === 'Contract Test Villa')?.contractStartDate).toBe('2026-10-05'));
+  });
+
+  it('leaves the date empty when none is chosen', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'No Contract Villa');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(Object.values(store.state.projects).some((p) => p.name === 'No Contract Villa')).toBe(true));
+    expect(Object.values(store.state.projects).find((p) => p.name === 'No Contract Villa')?.contractStartDate).toBeNull();
+  });
+});

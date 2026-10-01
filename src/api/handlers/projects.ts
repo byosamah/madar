@@ -7,7 +7,7 @@ import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { notify, projectPeople } from '../notify';
 import { projectRoleOf } from '../permissions';
-import { memberKey, nextId, type State } from '../store';
+import { memberKey, nextId, paymentsOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import { markOf, pickMark } from '../../lib/projectMark';
@@ -114,6 +114,7 @@ export const projectsCreate = defineCall({
     areaM2: Area.nullable().default(null),
     startDate: Day.nullable().default(null),
     targetEndDate: Day.nullable().default(null),
+    contractStartDate: Day.nullable().default(null),
     stages: z.array(StageName).min(1).max(20).optional(),
     teamIds: z.array(UserId).max(50).default([]),
     modelFolderPath: FolderPath.default(''),
@@ -140,7 +141,7 @@ export const projectsCreate = defineCall({
     const project: Project = {
       id, code: nextProjectCode(state, state.settings.codePrefix, today), name: input.name, clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
-      startDate: input.startDate, targetEndDate: input.targetEndDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
+      startDate: input.startDate, targetEndDate: input.targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
     };
@@ -163,6 +164,7 @@ export const projectsUpdate = defineCall({
       areaM2: Area.nullable().optional(),
       startDate: Day.nullable().optional(),
       targetEndDate: Day.nullable().optional(),
+      contractStartDate: Day.nullable().optional(),
       modelFolderPath: FolderPath.optional(),
       description: Description.optional(),
       coverFileId: FileId.nullable().optional(),
@@ -360,6 +362,7 @@ export const projectsDelete = defineCall({
     drop(state.updates);
     drop(state.files);
     drop(state.members);
+    drop(paymentsOf(state));
     for (const [key, comment] of Object.entries(state.comments)) {
       const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
       if (!target) delete state.comments[key];

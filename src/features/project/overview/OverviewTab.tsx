@@ -18,6 +18,7 @@ import { currentWork, needsAttention, stageStanding } from '../../../lib/overvie
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
+import { amountText, PaymentsPanel } from '../payments/PaymentsPanel';
 import { AboutPanel } from './AboutPanel';
 
 const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
@@ -83,12 +84,21 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
   );
 }
 
-function Attention({ projectId, rows, onOpen }: { projectId: string; rows: TaskRow[]; onOpen: (id: string) => void }) {
+function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: string; rows: TaskRow[]; onOpen: (id: string) => void; seesPayments: boolean }) {
   const { t } = useTranslation();
+  const lang = useLang();
   const [, setParams] = useSearchParams();
   const groups = needsAttention(rows, todayISO());
   // What the office waits for from the client (a land survey, a soil report), from the Tracker (colleague comment 6).
   const waiting = (useCall('tracker.list', { projectId, openOnly: true }).data ?? []).filter((row) => row.entry.waiting === 'client');
+  // Payments that are overdue or fall due within a week. Only the people who handle payments ask for them (colleague comment 6).
+  const payments = useCall('payments.list', { projectId }, { enabled: seesPayments });
+  const awaiting = (payments.data ?? []).filter((row) => row.status !== 'received' && row.dueInDays <= 7);
+  const toPayment = (id: string) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('payment', id);
+    return next;
+  });
   const toTracker = () => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('tab', 'tracker');
@@ -102,7 +112,7 @@ function Attention({ projectId, rows, onOpen }: { projectId: string; rows: TaskR
   return (
     <section aria-labelledby="overview-attention" className="panel flex flex-col gap-3 p-5">
       <h2 id="overview-attention" className={HEADING}>{t('overview.attention')}</h2>
-      {parts.length === 0 && waiting.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.allClear')}</p>}
+      {parts.length === 0 && waiting.length === 0 && awaiting.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.allClear')}</p>}
       {parts.map((part) => (
         <div key={part.key} className="flex flex-col gap-1">
           <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
@@ -115,6 +125,32 @@ function Attention({ projectId, rows, onOpen }: { projectId: string; rows: TaskR
           {part.items.length > 3 && <p className="text-footnote text-ink-2">{counted(t, 'overview.more', part.items.length - 3)}</p>}
         </div>
       ))}
+      {awaiting.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
+            {t('overview.groups.payment')}
+            <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{awaiting.length}</span>
+          </h3>
+          <ul className="-mx-2 flex flex-col">
+            {awaiting.map((row) => {
+              const word = wordForDays(row.dueInDays);
+              return (
+                <li key={row.payment.id}>
+                  <button type="button" onClick={() => toPayment(row.payment.id)} className="pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start transition-colors hover:bg-fill/50">
+                    <span className="min-w-0 flex-1">
+                      <bdi className="block truncate text-subheadline font-medium text-ink">{row.payment.name}</bdi>
+                      <span className="tabular block text-footnote text-ink-2">{amountText(t, lang, row.payment.amount)}</span>
+                    </span>
+                    {word.tone === 'attn'
+                      ? <StatusSign state="late">{dueText(word, t, lang, row.payment.dueDate)}</StatusSign>
+                      : <span className="tabular shrink-0 text-footnote text-ink-2">{dueText(word, t, lang, row.payment.dueDate)}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {waiting.length > 0 && (
         <div className="flex flex-col gap-1">
           <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
@@ -233,7 +269,8 @@ export function OverviewTab({ detail }: TabProps) {
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
         <Standing detail={detail} rows={rows} />
-        <Attention projectId={detail.project.id} rows={rows} onOpen={open} />
+        <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+        {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
         <People detail={detail} rows={rows} onOpen={open} />
       </div>
       <aside className="flex min-w-0 flex-col gap-5">

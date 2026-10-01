@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { peopleCalls } from './people';
-import { NOW, testApi } from '../../test/factories';
+import { historyCalls } from './history';
+import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -153,5 +154,142 @@ describe('Admins are people', () => {
     const taken = t.store.state.users.usr_002.email;
     await expect(t.api.call('users.update', { id: 'usr_003', patch: { email: taken } }))
       .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'email_taken', fields: ['email'] } });
+  });
+});
+
+// Management and Accounting roles (colleague comments 6 and 13, owner, 2026-10-01).
+// usr_001 is the Admin, usr_003 is a member. usr_006 is Management, usr_007 is Accounting, usr_008 is an agent of the Admin, usr_009 is an agent of usr_003.
+function roleWorld() {
+  const t = testApi({ ...peopleCalls, ...historyCalls });
+  const users = t.store.state.users;
+  users.usr_006 = makeUser('usr_006', { name: 'Turki Management', systemRole: 'management' });
+  users.usr_007 = makeUser('usr_007', { name: 'Noura Accounting', systemRole: 'accounting' });
+  users.usr_008 = makeUser('usr_008', { name: 'Admin Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' });
+  users.usr_009 = makeUser('usr_009', { name: 'Member Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_003' });
+  t.store.state.counters.usr = 9;
+  return t;
+}
+const PERSON = { name: 'New Person', email: 'new@madar.test', discipline: 'MEP' };
+
+describe('Management and people', () => {
+  it('lets Management add a person with any role except Admin', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    for (const systemRole of ['member', 'management', 'accounting'] as const) {
+      const created = await t.api.call('users.create', { ...PERSON, email: `${systemRole}@madar.test`, systemRole });
+      expect(created.systemRole).toBe(systemRole);
+    }
+    await expect(t.api.call('users.create', { ...PERSON, systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(Object.values(t.store.state.users).filter((u) => u.systemRole === 'admin')).toHaveLength(1);
+  });
+
+  it('lets Management change a role among member, management and accounting, and turn a person off', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } })).systemRole).toBe('accounting');
+    expect((await t.api.call('users.update', { id: 'usr_007', patch: { systemRole: 'member' } })).systemRole).toBe('member');
+    expect((await t.api.call('users.deactivate', { id: 'usr_004' })).active).toBe(false);
+  });
+
+  it('never lets Management make an Admin, change an Admin, or change an Admin through another path', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'admin' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_006', patch: { systemRole: 'admin' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { systemRole: 'member' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { name: 'Renamed' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { email: 'other@madar.test' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.deactivate', { id: 'usr_001' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.users.usr_001).toMatchObject({ systemRole: 'admin', name: 'Hala Admin', active: true });
+    expect(t.store.state.users.usr_003.systemRole).toBe('member');
+  });
+
+  it('refuses Management every new agent and every call about an agent of an Admin', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    // An agent acts with the rights of its owner. An agent for the Admin has the Admin's rights.
+    await expect(t.api.call('users.create', { ...PERSON, kind: 'agent', ownerId: 'usr_001' })).rejects.toMatchObject({ code: 'forbidden' });
+    // Also an agent for itself, and an agent for a member.
+    await expect(t.api.call('users.create', { ...PERSON, kind: 'agent', ownerId: 'usr_006' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.create', { ...PERSON, kind: 'agent', ownerId: 'usr_003' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_008', patch: { name: 'Mine now' } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.deactivate', { id: 'usr_008' })).rejects.toMatchObject({ code: 'forbidden' });
+    // There is no way to give an agent another owner: the update call has no owner field.
+    await expect(t.api.call('users.update', { id: 'usr_009', patch: { ownerId: 'usr_001' } as never })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('users.update', { id: 'usr_009', patch: { ownerId: 'usr_006' } as never })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(t.store.state.users.usr_009.ownerId).toBe('usr_003');
+    expect(t.store.state.users.usr_008).toMatchObject({ ownerId: 'usr_001', active: true, name: 'Admin Agent' });
+    expect(Object.values(t.store.state.users).filter((u) => u.kind === 'agent')).toHaveLength(3);
+  });
+
+  it('lets the Admin add an agent for anyone and change any person, an Admin included', async () => {
+    const t = roleWorld();
+    const forAdmin = await t.api.call('users.create', { ...PERSON, kind: 'agent', ownerId: 'usr_001' });
+    expect(forAdmin).toMatchObject({ kind: 'agent', ownerId: 'usr_001', systemRole: 'member' });
+    expect(await t.api.call('users.create', { ...PERSON, email: 'b@madar.test', kind: 'agent', ownerId: 'usr_006' })).toMatchObject({ ownerId: 'usr_006' });
+    expect(await t.api.call('users.create', { ...PERSON, email: 'c@madar.test', kind: 'agent', ownerId: 'usr_003' })).toMatchObject({ ownerId: 'usr_003' });
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'admin' } })).systemRole).toBe('admin');
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'management' } })).systemRole).toBe('management');
+    expect((await t.api.call('users.update', { id: 'usr_008', patch: { name: 'Renamed agent' } })).name).toBe('Renamed agent');
+    await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'admin' } });
+    expect((await t.api.call('users.deactivate', { id: 'usr_003' })).active).toBe(false);
+  });
+
+  it('keeps an agent a member, and refuses the last Admin leaving', async () => {
+    const t = roleWorld();
+    await expect(t.api.call('users.update', { id: 'usr_009', patch: { systemRole: 'management' } })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'agent_role' } });
+    await expect(t.api.call('users.update', { id: 'usr_009', patch: { systemRole: 'admin' } })).rejects.toMatchObject({ details: { reason: 'agent_admin' } });
+    await expect(t.api.call('users.create', { ...PERSON, kind: 'agent', ownerId: 'usr_003', systemRole: 'accounting' })).rejects.toMatchObject({ details: { reason: 'agent_role' } });
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { systemRole: 'accounting' } })).rejects.toMatchObject({ details: { reason: 'last_admin' } });
+  });
+
+  it('refuses Accounting, a member and an agent of a member every people call', async () => {
+    const t = roleWorld();
+    for (const user of ['usr_007', 'usr_003', 'usr_009']) {
+      t.as(user);
+      await expect(t.api.call('users.create', { ...PERSON })).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(t.api.call('users.update', { id: 'usr_004', patch: { systemRole: 'accounting' } })).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(t.api.call('users.deactivate', { id: 'usr_004' })).rejects.toMatchObject({ code: 'forbidden' });
+    }
+  });
+
+  it('keeps the agent of Management as strong as Management, and no stronger', async () => {
+    const t = roleWorld();
+    t.store.state.users.usr_009.ownerId = 'usr_006';
+    t.as('usr_009');
+    expect((await t.api.call('users.create', { ...PERSON, systemRole: 'accounting' })).systemRole).toBe('accounting');
+    await expect(t.api.call('users.create', { ...PERSON, email: 'z@madar.test', systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_001', patch: { name: 'x' } })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('keeps the office settings and the clients with the Admin', async () => {
+    const t = roleWorld();
+    t.store.state.clients.cli_001 = { id: 'cli_001', name: 'Client', contactName: '', phone: '', email: '' };
+    for (const user of ['usr_006', 'usr_007']) {
+      t.as(user);
+      await expect(t.api.call('settings.update', { workloadLimit: 20 })).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(t.api.call('clients.update', { id: 'cli_001', patch: { name: 'Other' } })).rejects.toMatchObject({ code: 'forbidden' });
+    }
+    t.as('usr_001');
+    expect((await t.api.call('settings.update', { workloadLimit: 20 })).workloadLimit).toBe(20);
+  });
+
+  it('shows the role in the Preview as list', async () => {
+    const t = roleWorld();
+    const hints = Object.fromEntries((await t.api.call('session.get', {})).previewUsers.map((u) => [u.id, u.hint]));
+    expect(hints).toMatchObject({ usr_001: 'admin', usr_006: 'management', usr_007: 'accounting', usr_002: 'leader', usr_003: 'member' });
+  });
+
+  it('undoes its own change to a person, and refuses an undo that touches an Admin', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } }, { correlationId: 'story_role' });
+    await t.api.call('events.undoStory', { correlationId: 'story_role' });
+    expect(t.store.state.users.usr_003.systemRole).toBe('member');
+    await t.api.call('users.update', { id: 'usr_004', patch: { systemRole: 'accounting' } }, { correlationId: 'story_two' });
+    // An Admin made that person an Admin since. Management cannot undo its change to a person who is now an Admin.
+    t.store.state.users.usr_004.systemRole = 'admin';
+    await expect(t.api.call('events.undoStory', { correlationId: 'story_two' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.users.usr_004.systemRole).toBe('admin');
   });
 });

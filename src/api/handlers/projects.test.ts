@@ -339,3 +339,31 @@ describe('project links (colleague comment 5, 2026-10-01)', () => {
     expect(plain.project.links!.at(-1)!.kind).toBe('location');
   });
 });
+
+describe('the contract start date', () => {
+  it('is saved on create, changed on update, cleared with null and shown to every viewer', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_003');
+    const created = await t.api.call('projects.create', { name: 'Beach Pavilion', contractStartDate: '2026-09-01' });
+    expect(created.project.contractStartDate).toBe('2026-09-01');
+    const plain = await t.api.call('projects.create', { name: 'Kiosk' });
+    expect(plain.project.contractStartDate).toBeNull();
+    const id = created.project.id;
+    expect((await t.api.call('projects.update', { id, patch: { contractStartDate: '2026-09-15' } })).project.contractStartDate).toBe('2026-09-15');
+    t.as('usr_004');
+    expect((await t.api.call('projects.get', { id })).project.contractStartDate).toBe('2026-09-15');
+    t.as('usr_003');
+    expect((await t.api.call('projects.update', { id, patch: { contractStartDate: null } })).project.contractStartDate).toBeNull();
+    await expect(t.api.call('projects.update', { id, patch: { contractStartDate: 'next week' } })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('works on a project saved before the field existed', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    expect('contractStartDate' in t.store.state.projects.prj_001).toBe(false);
+    const detail = await t.api.call('projects.get', { id: 'prj_001' });
+    expect(detail.project.contractStartDate).toBeUndefined();
+    const updated = await t.api.call('projects.update', { id: 'prj_001', patch: { contractStartDate: '2026-08-20' } });
+    expect(updated.project.contractStartDate).toBe('2026-08-20');
+  });
+});

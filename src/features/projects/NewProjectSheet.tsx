@@ -67,6 +67,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         leader: v.leader,
         location: v.location.trim(),
         areaM2: v.area.trim() ? Number(v.area) : null,
+        contractStartDate: v.contractStartDate || null,
         startDate: v.startDate || null,
         targetEndDate: v.targetEndDate || null,
         stages: v.stages.map((stage) => stage.name.trim()),

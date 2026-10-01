@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -94,5 +94,35 @@ describe('pending items from the client (colleague comment 6)', () => {
     expect(within(attention).getByText('Asked the client for the signed fee agreement')).toBeInTheDocument();
     await userEvent.click(within(attention).getByRole('button', { name: /^Received.*signed fee agreement/ }));
     await waitFor(() => expect(within(attention).queryByText('Asked the client for the signed fee agreement')).toBeNull());
+  });
+});
+
+describe('the contract start date (colleague comment 7)', () => {
+  it('shows in the About panel to a member, and says Not set when there is none', async () => {
+    await renderApp('/projects/prj_001', as('usr_005'));
+    const about = await screen.findByRole('region', { name: 'About' });
+    const fact = within(about).getByText('Contract start date').closest('div') as HTMLElement;
+    expect(fact).toHaveTextContent('3 May 2026');
+    expect(screen.queryByRole('region', { name: 'Payments' })).toBeNull();
+  });
+
+  it('shows Not set for a project with no contract date', async () => {
+    await renderApp('/projects/prj_005', as('usr_005'));
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(within(about).getByText('Contract start date').closest('div')).toHaveTextContent('Not set');
+  });
+
+  it('is in the Edit project form, and a change saves and shows in the About panel', async () => {
+    const { store } = await renderApp('/projects/prj_001', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
+    const field = within(sheet).getByLabelText('Contract start date');
+    expect(field).toHaveValue('2026-05-03');
+    fireEvent.change(field, { target: { value: '2026-05-10' } });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_001.contractStartDate).toBe('2026-05-10'));
+    const about = await screen.findByRole('region', { name: 'About' });
+    await waitFor(() => expect(within(about).getByText('Contract start date').closest('div')).toHaveTextContent('10 May 2026'));
   });
 });

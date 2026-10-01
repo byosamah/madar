@@ -17,7 +17,8 @@ describe('sample data', () => {
     const { state } = await seed();
     const users = Object.values(state.users);
     expect(Object.keys(state.projects)).toHaveLength(12);
-    expect(users.filter((u) => u.kind === 'human')).toHaveLength(8);
+    // Eight office people, then the Management and Accounting people of colleague comments 6 and 13.
+    expect(users.filter((u) => u.kind === 'human')).toHaveLength(10);
     expect(users.filter((u) => u.kind === 'agent')).toHaveLength(1);
     expect(users.filter((u) => u.systemRole === 'admin').map((u) => u.name)).toEqual(['Hala Nasser']);
     expect(users.find((u) => u.kind === 'agent')?.ownerId).toBe('usr_001');

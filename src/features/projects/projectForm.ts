@@ -4,6 +4,7 @@ export type ProjectFormValues = {
   leader: string;
   location: string;
   area: string;
+  contractStartDate: string;
   startDate: string;
   targetEndDate: string;
   stages: { id?: string; name: string }[];
@@ -17,7 +18,7 @@ export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'targetEndDate'
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', clientId: '', leader: 'me', location: '', area: '', startDate: '', targetEndDate: '',
+    name: '', clientId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '',
   };
 }

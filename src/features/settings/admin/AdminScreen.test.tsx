@@ -18,7 +18,7 @@ describe('the Admin page', () => {
     await renderApp('/admin', (state: State) => {
       state.session.currentUserId = 'usr_005';
     });
-    expect(await screen.findByText('Only the Admin can open this page.')).toBeInTheDocument();
+    expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
   });
 
@@ -158,5 +158,94 @@ describe('the person menu', () => {
     });
     await userEvent.click((await screen.findAllByRole('button', { name: 'Sara Al-Qahtani' }))[0]);
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+});
+
+// Management and Accounting (colleague comments 6 and 13). Turki (usr_010) is Management, Noura (usr_011) is Accounting.
+describe('the Admin page for Management and Accounting', () => {
+  const as = (userId: string) => (state: State) => {
+    state.session.currentUserId = userId;
+  };
+
+  it('shows the role of each person in the people list', async () => {
+    await renderApp('/admin');
+    const people = await region('People');
+    const turki = (await within(people).findByText('Turki Al-Otaibi')).closest('li') as HTMLElement;
+    expect(turki).toHaveTextContent('· Management ·');
+    const noura = within(people).getByText('Noura Al-Shammari').closest('li') as HTMLElement;
+    expect(noura).toHaveTextContent('· Accounting ·');
+    const hala = within(people).getByText('Hala Nasser').closest('li') as HTMLElement;
+    expect(hala).toHaveTextContent('· Admin ·');
+  });
+
+  it('gives the Admin four roles in the form, and saves the Accounting role', async () => {
+    const { store } = await renderApp('/admin');
+    await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add person' });
+    const role = within(sheet).getByLabelText('Role');
+    expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Admin']);
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
+    await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Finance');
+    await userEvent.selectOptions(role, 'accounting');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(Object.values(store.state.users).find((u) => u.name === 'Nora Salem')?.systemRole).toBe('accounting'));
+  });
+
+  it('shows Management the People section only, with no Admin role to give', async () => {
+    const { store } = await renderApp('/admin', as('usr_010'));
+    const people = await region('People');
+    expect(screen.queryByRole('region', { name: 'Office settings' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Stage templates' })).toBeNull();
+    expect(screen.queryByText('Only the Admin and Management can open this page.')).toBeNull();
+    await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add person' });
+    expect(within(within(sheet).getByLabelText('Role')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting']);
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
+    await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(Object.values(store.state.users).some((u) => u.name === 'Nora Salem' && u.systemRole === 'member')).toBe(true));
+  });
+
+  it('lets Management change a role, and offers no actions on an Admin', async () => {
+    const { store } = await renderApp('/admin', as('usr_010'));
+    const people = await region('People');
+    expect(within(people).queryByRole('button', { name: 'Actions for Hala Nasser' })).toBeNull();
+    await userEvent.click(await within(people).findByRole('button', { name: 'Actions for Omar Haddad' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Edit' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
+    await userEvent.selectOptions(within(sheet).getByLabelText('Role'), 'accounting');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(store.state.users.usr_004.systemRole).toBe('accounting'));
+  });
+
+  it('tells Accounting and a member the page is not theirs', async () => {
+    for (const user of ['usr_011', 'usr_005']) {
+      const view = await renderApp('/admin', as(user));
+      expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
+      view.unmount();
+    }
+  });
+
+  it('links Management to the Admin page, and Accounting not', async () => {
+    const first = await renderApp('/', as('usr_010'));
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Turki Al-Otaibi' }))[0]);
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '#/admin');
+    first.unmount();
+    await renderApp('/', as('usr_011'));
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Noura Al-Shammari' }))[0]);
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+
+  it('lets the owner preview as a Management person and an Accounting person', async () => {
+    const { store } = await renderApp('/');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const select = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('combobox', { name: /Preview as/ });
+    expect(within(select).getByRole('option', { name: 'Turki Al-Otaibi · Management' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Noura Al-Shammari · Accounting' })).toBeInTheDocument();
+    await userEvent.selectOptions(select, 'usr_011');
+    await waitFor(() => expect(store.state.session.currentUserId).toBe('usr_011'));
   });
 });
