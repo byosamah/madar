@@ -47,12 +47,12 @@ function TaskItem({ row, label }: { row: TaskRow; label?: string }) {
 
 function Column({ title, empty, children, count }: { title: string; empty: string; children: React.ReactNode; count: number }) {
   return (
-    <section aria-label={title} className="panel flex min-h-0 min-w-0 flex-col p-5">
+    <section aria-label={title} className="panel flex min-w-0 flex-col p-5">
       <h3 className={`${HEADING} flex items-center gap-2`}>
         {title}
         <span className="tabular rounded-full bg-fill px-2 text-[13px] text-ink-2">{count}</span>
       </h3>
-      {count === 0 ? <p className="pt-3 text-[17px] text-ink-2">{empty}</p> : <ul className="hairline min-h-0 overflow-y-auto pt-1">{children}</ul>}
+      {count === 0 ? <p className="pt-3 text-[17px] text-ink-2">{empty}</p> : <ul className="hairline pt-1">{children}</ul>}
     </section>
   );
 }
@@ -100,7 +100,7 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
           )}
         </div>
       </header>
-      <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-3">
+      <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
         <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
           {work.doing.map((item) => <TaskItem key={item.task.id} row={item} />)}
         </Column>

@@ -24,7 +24,7 @@ export function FilterButton({ label, count, children }: { label: string; count:
         aria-label={count > 0 ? t('filter.withCount', { label, n: count }) : label}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="pressable panel inline-flex min-h-11 items-center gap-2 !rounded-full px-4 text-subheadline font-semibold text-ink"
+        className="pressable panel inline-flex min-h-11 items-center gap-2 !rounded-full px-4 text-subheadline font-semibold text-ink transition-colors hover:!bg-fill"
       >
         <AnimatedIcon icon={SlidersHorizontalIcon} size={16} aria-hidden />
         {label}

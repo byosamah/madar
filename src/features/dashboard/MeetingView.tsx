@@ -44,9 +44,9 @@ function DeadlineMark({ name, label, at }: { name: string; label: string; at: nu
       title={label}
       aria-label={label}
       style={{ insetInlineStart: `calc(${at}% - 9px)` }}
-      className="group absolute top-1/2 z-10 grid size-[18px] -translate-y-1/2 place-items-center rounded-sm outline-offset-4"
+      className="group absolute bottom-1 z-10 grid size-[18px] place-items-center rounded-sm outline-offset-4"
     >
-      <span aria-hidden className="size-3.5 rotate-45 rounded-sm bg-attn" />
+      <span aria-hidden className="size-3 rotate-45 rounded-sm bg-attn" />
       <span
         aria-hidden
         className={`pointer-events-none absolute bottom-full mb-2 hidden w-max max-w-72 rounded-xl bg-ink px-3 py-1.5 text-[16px] font-medium text-bg group-hover:block group-focus-visible:block ${at > 70 ? 'end-0' : 'start-0'}`}
@@ -95,7 +95,7 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
             role="img"
             aria-label={t('dashboard.meeting.stage', { stage: stage.name, state: t(`dashboard.meeting.stageStates.${kind}`) })}
             style={style}
-            className={`absolute top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden rounded-full px-3 text-[16px] font-semibold leading-none ${tone} ${drawing ? 'draw-line' : ''}`}
+            className={`absolute top-2 flex h-9 items-center overflow-hidden rounded-full px-3 text-[16px] font-semibold leading-none ${tone} ${drawing ? 'draw-line' : ''}`}
           >
             {width >= LABEL_MIN_PCT && <bdi className="truncate">{stage.name}</bdi>}
           </span>
@@ -280,7 +280,7 @@ export function MeetingView() {
                     {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
                   </span>
                 </button>
-                <div className="relative h-16">
+                <div className="relative h-[4.5rem]">
                   {todayIn && <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 bg-ink/70" />}
                   <Bars row={row} span={span} drawing={drawing} index={index} />
                 </div>

@@ -10,7 +10,7 @@ export function SegmentedControl<T extends string>({
           role="radio"
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}
-          className={`pressable min-h-11 rounded-full px-4 text-subheadline font-medium ${option.value === value ? 'bg-card text-label shadow-card' : 'text-label-2'}`}
+          className={`pressable min-h-11 rounded-full px-4 text-subheadline font-medium ${option.value === value ? 'bg-card text-ink shadow-card' : 'text-ink-2 transition-colors hover:text-ink'}`}
         >
           {option.label}
         </button>
