@@ -262,3 +262,34 @@ describe('projects by health', () => {
     }
   });
 });
+
+describe('pausing a project', () => {
+  it('lets the leader pause with a reason and a restart date, and resume', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const paused = await t.api.call('projects.pause', { id: 'prj_001', reason: 'The client reviews the budget.', resumeOn: '2026-10-15' });
+    expect(paused.project.status).toBe('on_hold');
+    expect(paused.project.pause).toMatchObject({ reason: 'The client reviews the budget.', resumeOn: '2026-10-15', by: 'usr_002' });
+    const resumed = await t.api.call('projects.resume', { id: 'prj_001' });
+    expect(resumed.project.status).toBe('active');
+    expect(resumed.project.pause).toBeNull();
+    const verbs = Object.values(t.store.state.events).map((e) => e.verb);
+    expect(verbs).toContain('project.paused');
+    expect(verbs).toContain('project.resumed');
+  });
+
+  it('refuses a team member, an empty reason and a restart date in the past', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_003');
+    await expect(t.api.call('projects.pause', { id: 'prj_001', reason: 'No time.' })).rejects.toMatchObject({ code: 'forbidden' });
+    t.as('usr_002');
+    await expect(t.api.call('projects.pause', { id: 'prj_001', reason: '  ' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('projects.pause', { id: 'prj_001', reason: 'Wait.', resumeOn: '2026-09-01' })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('refuses to resume a project that is not paused', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await expect(t.api.call('projects.resume', { id: 'prj_001' })).rejects.toMatchObject({ code: 'conflict' });
+  });
+});

@@ -53,6 +53,8 @@ export const ProjectSummary = z.object({
   client: Client.nullable(),
   health: HealthResult.nullable(),
   healthSetBy: UserCard.nullable(),
+  /** The person who paused the project, while it is paused. */
+  pausedBy: UserCard.nullable(),
   coverLetter: z.string().nullable(),
   stages: z.array(Stage),
   currentStage: Stage,

@@ -7,9 +7,11 @@ import { useUndoable } from '../../app/actions';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
-import { SelectField } from '../../components/Fields';
+import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { Menu, type MenuItem } from '../../components/Menu';
 import { Sheet } from '../../components/Sheet';
+import { fieldError } from '../../app/errors';
+import { todayISO, addDays } from '../../lib/dates';
 import { EditProjectSheet } from '../projects/EditProjectSheet';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
@@ -77,22 +79,59 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
   );
 }
 
+/** The leader pauses the project with a reason the team can read, and an optional restart date (owner, 2026-10-01). */
+function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
+  const { t } = useTranslation();
+  const [reason, setReason] = useState('');
+  const [resumeOn, setResumeOn] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    setReason('');
+    setResumeOn('');
+  }, [open]);
+  const pause = useUndoable('projects.pause', { message: () => t('project.pausedToast'), onSuccess: () => onOpenChange(false) });
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('project.pauseTitle')}
+      description={t('project.pauseHint')}
+      footer={(
+        <>
+          <Button onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!reason.trim() || pause.isPending} onClick={() => pause.mutate({ id: detail.project.id, reason: reason.trim(), resumeOn: resumeOn || null })}>
+            {t('project.pause')}
+          </Button>
+        </>
+      )}
+    >
+      <div className="flex flex-col gap-4 pt-1">
+        <TextArea id="pause-reason" label={t('project.pauseReason')} value={reason} dir="auto" maxLength={280} error={fieldError(pause.error, 'reason', t, t('errors.invalid_input'))} onChange={(event) => setReason(event.target.value)} />
+        <TextField id="pause-resume" type="date" label={t('project.resumeOn')} min={addDays(todayISO(), 1)} value={resumeOn} error={fieldError(pause.error, 'resumeOn', t, t('errors.invalid_input'))} onChange={(event) => setResumeOn(event.target.value)} />
+      </div>
+    </Sheet>
+  );
+}
+
 /** The "…" menu next to the main button: Edit, Change leader, the status changes and Delete (spec 5.1). */
 export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
-  const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | 'pause' | null>(null);
   const status = useUndoable('projects.setStatus', { message: () => t('project.statusChanged') });
+  const resume = useUndoable('projects.resume', { message: () => t('project.resumedToast') });
   const { project, viewerCan } = detail;
+  // A paused project comes back with Resume, so "Reopen" shows only for a completed or archived project.
   const statusItem = (to: ProjectStatus): MenuItem => ({
     label: t(`project.statusTo.${to}`),
     onSelect: () => status.mutate({ id: project.id, status: to }),
-    hidden: !viewerCan.archive || project.status === to,
+    hidden: !viewerCan.archive || project.status === to || (to === 'active' && project.status === 'on_hold'),
   });
   const items: MenuItem[] = [
     { label: t('project.edit'), onSelect: () => setSheet('edit'), hidden: !viewerCan.edit },
     { label: t('project.changeLeader'), onSelect: () => setSheet('leader'), hidden: !viewerCan.changeLeader },
+    { label: t('project.pause'), onSelect: () => setSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
+    { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' },
     statusItem('active'),
-    statusItem('on_hold'),
     statusItem('completed'),
     statusItem('archived'),
     { label: t('project.delete'), onSelect: () => setSheet('delete'), hidden: !viewerCan.delete, destructive: true },
@@ -106,6 +145,7 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
       <EditProjectSheet detail={detail} open={sheet === 'edit'} onOpenChange={onOpenChange} />
       <LeaderSheet detail={detail} open={sheet === 'leader'} onOpenChange={onOpenChange} />
       <DeleteProjectSheet detail={detail} open={sheet === 'delete'} onOpenChange={onOpenChange} />
+      <PauseSheet detail={detail} open={sheet === 'pause'} onOpenChange={onOpenChange} />
     </>
   );
 }

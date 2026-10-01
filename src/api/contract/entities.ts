@@ -99,6 +99,10 @@ export const HealthOverride = z.object({
 });
 export type HealthOverride = z.infer<typeof HealthOverride>;
 
+/** Why and until when a leader paused a project (owner, 2026-10-01). The project status is on_hold while it is set. */
+export const ProjectPause = z.object({ reason: z.string().trim().min(1).max(280), resumeOn: Day.nullable(), by: UserId, at: Stamp });
+export type ProjectPause = z.infer<typeof ProjectPause>;
+
 export const Project = z.object({
   id: ProjectId,
   code: z.string().regex(/^[A-Z]{1,4}-\d{2}-\d{3,}$/),
@@ -115,6 +119,8 @@ export const Project = z.object({
   modelFolderPath: z.string().max(260),
   description: z.string().max(5000),
   healthOverride: HealthOverride.nullable(),
+  // Optional, so offices saved before pauses existed still load.
+  pause: ProjectPause.nullable().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

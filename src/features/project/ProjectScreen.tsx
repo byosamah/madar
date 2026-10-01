@@ -12,6 +12,7 @@ import { TabPanel, Tabs } from '../../components/Tabs';
 import type { ProjectSummary } from '../../api/contract/views';
 import { sharedSource } from '../../app/sharedLayout';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
+import { PausedBanner } from './PausedBanner';
 import { PROJECT_TABS, TAB_BODY, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files and Team (spec 5). The tab lives in the link. */
@@ -50,6 +51,7 @@ export function ProjectScreen() {
       <LayoutGroup id={sharedSource()}>
         <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'activity', compose: '1' })} />
       </LayoutGroup>
+      <PausedBanner detail={detail.data} />
       <Tabs
         label={t('project.tabs')}
         value={tab}

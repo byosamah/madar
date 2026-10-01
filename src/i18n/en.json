@@ -131,7 +131,7 @@
   },
   "status": {
     "active": "Active",
-    "on_hold": "On hold",
+    "on_hold": "Paused",
     "completed": "Completed",
     "archived": "Archived",
     "all": "All statuses"
@@ -258,7 +258,18 @@
     "current": "Current stage",
     "comingSoon": "This tab arrives later in this build step.",
     "about": "About",
-    "stages": "Stages"
+    "stages": "Stages",
+    "pause": "Pause project",
+    "resume": "Resume project",
+    "pauseTitle": "Pause this project?",
+    "pauseHint": "The team sees the reason. Tasks and dates stay as they are.",
+    "pauseReason": "Reason",
+    "resumeOn": "Restart date (optional)",
+    "pausedToast": "Project paused.",
+    "resumedToast": "Project resumed.",
+    "pausedTitle": "Paused",
+    "pausedBy": "{{name}} paused this project on {{date}}.",
+    "restarts": "Restarts {{date}}."
   },
   "overview": {
     "composer": "Post an update",

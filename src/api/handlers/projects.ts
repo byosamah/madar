@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ClientId, Day, DeadlineId, FileId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
-import { invalid, notFound } from '../errors';
+import { ApiError, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { notify, projectPeople } from '../notify';
 import { projectRoleOf } from '../permissions';
@@ -222,6 +222,35 @@ export const projectsSetStatus = defineCall({
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
     applyPatch(ctx, project, { status: input.status }, { projectId: project.id, verb: 'project.status_changed', targetType: 'project', targetId: project.id });
+    touch(ctx, project.id);
+    return detail(ctx, project);
+  },
+});
+
+/** The leader or the Admin pauses a project with a reason and an optional restart date (owner, 2026-10-01). */
+export const projectsPause = defineCall({
+  input: z.object({ id: ProjectId, reason: z.string().trim().min(1, 'Write why the project pauses.').max(280), resumeOn: Day.nullable().optional() }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.id);
+    assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
+    if (input.resumeOn && input.resumeOn <= ctx.today) throw invalid('resumeOn', 'The restart date must be after today.');
+    const pause = { reason: input.reason, resumeOn: input.resumeOn ?? null, by: ctx.actor.id, at: ctx.stamp };
+    applyPatch(ctx, project, { status: 'on_hold', pause }, { projectId: project.id, verb: 'project.paused', targetType: 'project', targetId: project.id });
+    touch(ctx, project.id);
+    return detail(ctx, project);
+  },
+});
+
+/** The leader or the Admin starts a paused project again. */
+export const projectsResume = defineCall({
+  input: z.object({ id: ProjectId }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.id);
+    assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
+    if (project.status !== 'on_hold') throw new ApiError('conflict', 'This project is not paused.');
+    applyPatch(ctx, project, { status: 'active', pause: null }, { projectId: project.id, verb: 'project.resumed', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -471,6 +500,8 @@ export const projectCalls = {
   'projects.setStage': projectsSetStage,
   'projects.setLeader': projectsSetLeader,
   'projects.setStatus': projectsSetStatus,
+  'projects.pause': projectsPause,
+  'projects.resume': projectsResume,
   'projects.setHealthOverride': projectsSetHealthOverride,
   'projects.clearHealthOverride': projectsClearHealthOverride,
   'projects.delete': projectsDelete,

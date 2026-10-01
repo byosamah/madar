@@ -124,3 +124,29 @@ describe('the Project screen header', () => {
     scroll.mockRestore();
   });
 });
+
+describe('pausing a project', () => {
+  it('lets the leader pause with a reason, shows the banner, then resumes', async () => {
+    const { store } = await renderApp('/projects/prj_001', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Pause project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Pause this project?' });
+    const pause = within(sheet).getByRole('button', { name: 'Pause project' });
+    expect(pause).toBeDisabled();
+    await userEvent.type(within(sheet).getByLabelText('Reason'), 'The client reviews the budget.');
+    await userEvent.click(pause);
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    expect(within(banner).getByText('The client reviews the budget.')).toBeInTheDocument();
+    expect(within(banner).getByText(/Faisal Al-Harbi paused this project on/)).toBeInTheDocument();
+    expect(store.state.projects.prj_001.status).toBe('on_hold');
+    await userEvent.click(within(banner).getByRole('button', { name: 'Resume project' }));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Paused' })).toBeNull());
+    expect(store.state.projects.prj_001.status).toBe('active');
+  });
+
+  it('does not offer Pause to a team member', async () => {
+    await renderApp('/projects/prj_001', as('usr_005'));
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }).catch(() => document.body));
+    expect(screen.queryByRole('menuitem', { name: 'Pause project' })).toBeNull();
+  });
+});

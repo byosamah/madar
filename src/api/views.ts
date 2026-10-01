@@ -145,6 +145,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
     health,
     healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,
+    pausedBy: project.status === 'on_hold' && project.pause ? cardOf(state, project.pause.by) : null,
     coverLetter: cover ? cover.versions[cover.versions.length - 1].letter : null,
     stages,
     currentStage: state.stages[project.currentStageId] ?? stages[0],
