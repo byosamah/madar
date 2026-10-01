@@ -387,7 +387,7 @@ export const stagesReplace = defineCall({
     const removed = existing.filter((stage) => !keep.has(stage.id));
     for (const stage of removed) {
       const used = Object.values(state.tasks).some((t) => t.stageId === stage.id);
-      if (used) throw invalid('stages', `Move the tasks out of "${stage.name}" first.`);
+      if (used) throw invalid('stages', `Move the tasks out of "${stage.name}" first.`, 'stage_has_tasks');
     }
     const before = existing.map((stage) => ({ ...stage }));
     for (const stage of removed) {

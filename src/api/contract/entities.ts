@@ -16,6 +16,7 @@ export const NotificationId = id('ntf');
 export const EventId = id('evt');
 export const ConversationId = id('cnv');
 export const MessageId = id('msg');
+export const StageTemplateId = id('stt');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -45,7 +46,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -92,6 +93,16 @@ export const Client = z.object({
   email: z.union([z.email(), z.literal('')]),
 });
 export type Client = z.infer<typeof Client>;
+
+export const StageName = z.string().trim().min(1).max(60);
+export const StageTemplate = z.object({
+  id: StageTemplateId,
+  name: z.string().trim().min(1).max(60),
+  stages: z.array(StageName).min(1).max(20),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type StageTemplate = z.infer<typeof StageTemplate>;
 
 export const HealthOverride = z.object({
   value: HealthValue,

@@ -1,5 +1,5 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Project, ProjectMember, Settings, Stage, Task,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Project, ProjectMember, Settings, Stage, StageTemplate, Task,
   Update, User,
 } from './contract/entities';
 import type { Persister } from './persist';
@@ -35,6 +35,8 @@ export type State = {
   messages: Record<string, Message>;
   /** Keyed by chatReadKey: one mark for each person and conversation. */
   chatReads: Record<string, ChatRead>;
+  /** Saved stage lists. Offices saved before this feature have none, so reads go through stageTemplatesOf. */
+  stageTemplates?: Record<string, StageTemplate>;
   settings: Settings;
   counters: Record<string, number>;
 };
@@ -59,9 +61,16 @@ export function emptyState(today: string): State {
     conversations: {},
     messages: {},
     chatReads: {},
+    stageTemplates: {},
     settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10 },
     counters: {},
   };
+}
+
+/** The saved stage templates. An old office has none, so this makes the collection when it is missing. */
+export function stageTemplatesOf(state: State): Record<string, StageTemplate> {
+  state.stageTemplates ??= {};
+  return state.stageTemplates;
 }
 
 export function memberKey(projectId: string, userId: string): string {
