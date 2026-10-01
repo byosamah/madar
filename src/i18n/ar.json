@@ -12,7 +12,9 @@
     "settings": "الإعدادات",
     "inboxBadge": "عناصر تحتاج إلى إجراء: {{count}}",
     "home": "الرئيسية",
-    "myHours": "ساعاتي"
+    "myHours": "ساعاتي",
+    "lightMode": "الوضع الفاتح",
+    "darkMode": "الوضع الداكن"
   },
   "screens": {
     "projects": "المشاريع",

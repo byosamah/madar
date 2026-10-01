@@ -12,7 +12,9 @@
     "settings": "Settings",
     "inboxBadge": "{{count}} items need action",
     "home": "Home",
-    "myHours": "My hours"
+    "myHours": "My hours",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode"
   },
   "screens": {
     "projects": "Projects",

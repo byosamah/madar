@@ -39,7 +39,7 @@ describe('the Inbox', () => {
   it('marks a notice read when it opens, and goes to the task', async () => {
     const { store } = await renderApp('/inbox', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]));
     await screen.findByText(/gave you/);
-    await userEvent.click(within(itemWith(/gave you/)).getByRole('button', { name: 'Open' }));
+    await userEvent.click(within(itemWith(/gave you/)).getByRole('link', { name: /gave you/ }));
     await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
     expect(window.location.hash).toContain('tab=tasks&task=tsk_012');
   });
@@ -65,7 +65,7 @@ describe('the Inbox', () => {
   it('opens the timesheet from a week reminder', async () => {
     await renderApp('/inbox', withNotices('usr_005', [notice('ntf_905', 'week_under_target', 'week', '2026-09-20', TODAY_8, null)]));
     expect(await screen.findByText(/week of 20 September 2026 are under target/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Open timesheet' }));
+    await userEvent.click(screen.getByRole('link', { name: /are under target/ }));
     await waitFor(() => expect(window.location.hash).toContain('week=2026-09-20'));
   });
 
@@ -80,7 +80,7 @@ describe('the Inbox', () => {
     await api.call('tasks.delete', { id: 'tsk_010' });
     expect(await screen.findByText('This item does not exist anymore.')).toBeInTheDocument();
     const item = itemWith(/sent “Toilet details” to review/);
-    expect(within(item).queryByRole('button', { name: 'Open' })).toBeNull();
+    expect(within(item).queryByRole('link')).toBeNull();
     expect(within(item).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 

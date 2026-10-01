@@ -37,6 +37,15 @@ describe('app shell', () => {
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
+  it('switches between light and dark from the person menu', async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'Dark mode' }));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+    await userEvent.click(await within(screen.getByRole('dialog', { name: 'Hala Nasser' })).findByRole('button', { name: 'Light mode' }));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'));
+  });
+
   it('warns that changes are not saved when storage is in memory', async () => {
     await renderApp('/dashboard');
     expect(await screen.findByText('Changes will not be saved in this window.')).toBeInTheDocument();

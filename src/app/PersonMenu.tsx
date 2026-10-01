@@ -1,18 +1,20 @@
-import { Clock, Languages, Settings } from 'lucide-react';
+import { Clock, Languages, Moon, Settings, Sun } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Avatar } from '../components/Avatar';
 import { Popover } from '../components/Popover';
+import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { useSwitchLanguage } from './languageTurn';
-import { useCall } from './runtime';
+import { useAction, useCall } from './runtime';
 
-/** The person's picture opens their name, Preview as (prototype), the language, My hours and Settings (redesign spec 2.5). */
+/** The person's picture opens their name, Preview as (prototype), the language, light or dark mode, My hours and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
   const user = useCall('session.get', {}).data?.user;
   const switchLanguage = useSwitchLanguage();
+  const preferences = useAction('me.updatePreferences');
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   if (!user) return null;
@@ -21,6 +23,9 @@ export function PersonMenu({ id }: { id: string }) {
     ref.current?.focus();
   };
   const nextLanguage = user.preferences.language === 'ar' ? 'en' : 'ar';
+  // One press switches between light and dark. Settings keeps the third choice, System.
+  const dark = resolveAppearance(user.preferences, readEnvironment()).theme === 'dark';
+  const ThemeIcon = dark ? Sun : Moon;
   const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-body text-ink hover:bg-fill';
   return (
     <>
@@ -41,6 +46,10 @@ export function PersonMenu({ id }: { id: string }) {
             <button type="button" onClick={() => { setOpen(false); switchLanguage(nextLanguage); }} className={row}>
               <Languages size={18} className="text-ink-2" aria-hidden />
               {t(`settings.languages.${nextLanguage}`)}
+            </button>
+            <button type="button" onClick={() => preferences.mutate({ theme: dark ? 'light' : 'dark' })} className={row}>
+              <ThemeIcon size={18} className="text-ink-2" aria-hidden />
+              {t(dark ? 'nav.lightMode' : 'nav.darkMode')}
             </button>
             <Link to="/work?tab=hours" onClick={close} className={row}>
               <Clock size={18} className="text-ink-2" aria-hidden />
