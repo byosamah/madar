@@ -46,3 +46,14 @@ describe('calm parts', () => {
     expect(screen.getByRole('tab', { name: 'Tasks' })).toHaveClass('text-ink-2');
   });
 });
+
+describe('person pictures', () => {
+  it('use the soft tile hues instead of a strong color', async () => {
+    const { Avatar } = await import('./Avatar');
+    render(<Avatar user={{ id: 'usr_001', name: 'Hala Nasser', avatarUrl: null, kind: 'human' }} />);
+    const picture = screen.getByRole('img', { name: 'Hala Nasser' });
+    expect(picture.getAttribute('style')).toMatch(/--p-\w+-bg/);
+    expect(picture.getAttribute('style')).toMatch(/--p-\w+-fg/);
+    expect(picture).toHaveTextContent('HN');
+  });
+});
