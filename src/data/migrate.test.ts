@@ -35,7 +35,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(3);
+    expect(STATE_VERSION).toBe(4);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);

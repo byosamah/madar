@@ -1,14 +1,15 @@
 import type {
-  Client, Comment, Deadline, Event, FileRec, Notification, Project, ProjectMember, Settings, Stage, Task,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Project, ProjectMember, Settings, Stage, Task,
   Update, User,
 } from './contract/entities';
 import type { Persister } from './persist';
 
 /**
  * Version 2 added the grammatical gender of people. Version 3 removed the hours system (owner, 2026-10-01).
+ * Version 4 added the chat: conversations, messages and read marks.
  * src/data/migrate.ts brings older offices up to date.
  */
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',
@@ -30,6 +31,10 @@ export type State = {
   files: Record<string, FileRec>;
   notifications: Record<string, Notification>;
   events: Record<string, Event>;
+  conversations: Record<string, Conversation>;
+  messages: Record<string, Message>;
+  /** Keyed by chatReadKey: one mark for each person and conversation. */
+  chatReads: Record<string, ChatRead>;
   settings: Settings;
   counters: Record<string, number>;
 };
@@ -51,6 +56,9 @@ export function emptyState(today: string): State {
     files: {},
     notifications: {},
     events: {},
+    conversations: {},
+    messages: {},
+    chatReads: {},
     settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10 },
     counters: {},
   };
@@ -58,6 +66,10 @@ export function emptyState(today: string): State {
 
 export function memberKey(projectId: string, userId: string): string {
   return `${projectId}:${userId}`;
+}
+
+export function chatReadKey(conversationId: string, userId: string): string {
+  return `${conversationId}:${userId}`;
 }
 
 export function nextId(state: State, prefix: string): string {

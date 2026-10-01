@@ -13,7 +13,14 @@
     "home": "الرئيسية",
     "lightMode": "الوضع الفاتح",
     "darkMode": "الوضع الداكن",
-    "tasks": "المهام"
+    "tasks": "المهام",
+    "notifications": "الإشعارات",
+    "inboxUnread": "{{count}} رسالة غير مقروءة",
+    "inboxUnread_one": "رسالة غير مقروءة",
+    "inboxUnread_two": "رسالتان غير مقروءتين",
+    "inboxUnread_few": "{{count}} رسائل غير مقروءة",
+    "inboxUnread_many": "{{count}} رسالة غير مقروءة",
+    "inboxUnread_other": "{{count}} رسالة غير مقروءة"
   },
   "screens": {
     "projects": "المشاريع",
@@ -24,7 +31,8 @@
     "search": "البحث",
     "tasks": "المهام",
     "settings": "الإعدادات",
-    "home": "الرئيسية"
+    "home": "الرئيسية",
+    "notifications": "الإشعارات"
   },
   "placeholder": {
     "title": "هذه الشاشة قادمة",
@@ -787,5 +795,36 @@
     "pause": "إيقاف مؤقت",
     "reset": "إعادة",
     "break": "حان وقت استراحة قصيرة."
+  },
+  "chat": {
+    "title": "المحادثات",
+    "list": "المحادثات",
+    "search": "ابحث في المحادثات",
+    "newMessage": "رسالة جديدة",
+    "pickPerson": "اختر شخصًا",
+    "noPeople": "لا يوجد أحد آخر بعد.",
+    "emptyTitle": "لا توجد محادثات بعد",
+    "empty": "تظهر هنا محادثات المشاريع والرسائل المباشرة.",
+    "noMatch": "لا توجد محادثة مطابقة.",
+    "selectTitle": "اختر محادثة",
+    "selectBody": "اختر محادثة من القائمة لقراءتها.",
+    "back": "العودة إلى المحادثات",
+    "openTask": "فتح المهمة",
+    "projectChat": "محادثة المشروع",
+    "directChat": "رسالة مباشرة",
+    "taskThread": "نقاش المهمة",
+    "you": "أنت",
+    "messages": "الرسائل",
+    "noMessages": "لا توجد رسائل بعد. ابدأ بالتحية.",
+    "composer": "الرسالة",
+    "placeholder": "اكتب رسالة. اكتب @ للإشارة إلى شخص.",
+    "send": "إرسال",
+    "actingFor": "نيابةً عن {{name}}",
+    "unread": "{{count}} غير مقروءة",
+    "unread_one": "رسالة غير مقروءة",
+    "unread_two": "رسالتان غير مقروءتين",
+    "unread_few": "{{count}} رسائل غير مقروءة",
+    "unread_many": "{{count}} رسالة غير مقروءة",
+    "unread_other": "{{count}} رسالة غير مقروءة"
   }
 }

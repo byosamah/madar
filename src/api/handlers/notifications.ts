@@ -3,6 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
+import { canSeeConversation } from '../chatState';
 import { applyPatch } from '../events';
 import type { State } from '../store';
 import { can, projectRoleOf } from '../permissions';
@@ -47,7 +48,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
   let tile: { id: string; name: string } | null = null;
-  let link = '/inbox';
+  let link = '/notifications';
   let canApprove = false;
   let gone = false;
   if (n.targetType === 'task') {
@@ -70,6 +71,15 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     tile = project ? { id: project.id, name: project.name } : null;
     gone = !update;
     if (update) link = `/projects/${update.projectId}?tab=overview&update=${update.id}`;
+  } else if (n.targetType === 'chat') {
+    const conversation = state.conversations[n.targetId];
+    const project = conversation?.projectId ? state.projects[conversation.projectId] : undefined;
+    const otherId = conversation?.memberIds.find((id) => id !== viewer.id);
+    target = project?.name ?? (otherId ? (state.users[otherId]?.name ?? '') : '');
+    projectCode = project?.code ?? null;
+    tile = project ? { id: project.id, name: project.name } : null;
+    gone = !conversation || !canSeeConversation(state, conversation, viewer);
+    if (!gone) link = `/inbox/${n.targetId}`;
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);

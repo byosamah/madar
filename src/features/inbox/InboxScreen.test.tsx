@@ -4,83 +4,123 @@ import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
-type Notice = State['notifications'][string];
+const list = async () => within(await screen.findByRole('list', { name: 'Chats' }));
+const rowLink = async (name: RegExp) => (await list()).getByRole('link', { name });
 
-const notice = (id: string, trigger: Notice['trigger'], targetType: Notice['targetType'], targetId: string, createdAt: string, actorId: string | null = 'usr_002'): Notice => ({
-  id, userId: '', trigger, actorId, targetType, targetId, read: false, createdAt, dedupeKey: null,
-});
-
-const withNotices = (userId: string, list: Notice[]) => (state: State) => {
-  state.session.currentUserId = userId;
-  for (const [id, n] of Object.entries(state.notifications)) if (n.userId === userId) delete state.notifications[id];
-  for (const n of list) state.notifications[n.id] = { ...n, userId };
+// Hala is the Admin and leads the clinic project. The sample talk leaves two unread messages in the tower chat and one in Faisal's chat.
+const withTaskTalk = (state: State) => {
+  const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_006');
+  if (!task) throw new Error('The sample has no task in the clinic project.');
+  task.title = 'Room finish schedule';
+  for (const [id, c] of Object.entries(state.comments)) if (c.targetType === 'task' && c.targetId === task.id) delete state.comments[id];
+  state.comments.cmt_901 = {
+    id: 'cmt_901', targetType: 'task', targetId: task.id, authorId: 'usr_006', body: 'The finish codes are ready.',
+    reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T07:00:00.000+03:00', editedAt: null,
+  };
 };
 
-const TODAY_8 = '2026-09-30T08:00:00.000+03:00';
-const TODAY_7 = '2026-09-30T07:00:00.000+03:00';
-const YESTERDAY = '2026-09-29T16:00:00.000+03:00';
-
-const itemWith = (text: RegExp) => screen.getByText(text).closest('li') as HTMLElement;
-
-describe('the Inbox', () => {
-  it('groups notices by day and writes one sentence for each', async () => {
-    await renderApp('/inbox', withNotices('usr_005', [
-      notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8),
-      notice('ntf_902', 'mention', 'update', 'upd_001', TODAY_7),
-      notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
-    ]));
-    expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Yesterday' })).toBeInTheDocument();
-    expect(screen.getByText('Faisal Al-Harbi gave you “Civil Defense drawings”')).toBeInTheDocument();
-    expect(screen.getByText('Faisal Al-Harbi mentioned you in Corniche Office Tower')).toBeInTheDocument();
-    expect(screen.getByText('“Toilet details” is past due')).toBeInTheDocument();
+describe('the Inbox chat', () => {
+  it('lists project chats, direct chats and task threads', async () => {
+    await renderApp('/inbox', withTaskTalk);
+    expect(await rowLink(/Corniche Office Tower/)).toHaveAttribute('href', expect.stringMatching(/#?\/inbox\/cnv_\d+/));
+    expect(await rowLink(/Faisal Al-Harbi/)).toBeInTheDocument();
+    expect(await rowLink(/Reem Al-Ghamdi/)).toBeInTheDocument();
+    const thread = await rowLink(/Room finish schedule/);
+    expect(thread).toHaveAttribute('href', expect.stringMatching(/#?\/inbox\/tsk_\d+/));
+    expect(within(thread).getByText(/The finish codes are ready/)).toBeInTheDocument();
   });
 
-  it('marks a notice read when it opens, and goes to the task', async () => {
-    const { store } = await renderApp('/inbox', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]));
-    await screen.findByText(/gave you/);
-    await userEvent.click(within(itemWith(/gave you/)).getByRole('link', { name: /gave you/ }));
-    await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
-    expect(window.location.hash).toContain('tab=tasks&task=tsk_012');
+  it('filters the list by title', async () => {
+    await renderApp('/inbox', withTaskTalk);
+    await userEvent.type(await screen.findByRole('searchbox', { name: 'Search chats' }), 'faisal');
+    const chats = await list();
+    expect(chats.getByRole('link', { name: /Faisal Al-Harbi/ })).toBeInTheDocument();
+    expect(chats.queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull();
   });
 
-  it('marks all read', async () => {
-    const { store } = await renderApp('/inbox', withNotices('usr_005', [
-      notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8),
-      notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
-    ]));
-    await userEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
-    expect(await screen.findByText('All caught up.')).toBeInTheDocument();
-    expect(Object.values(store.state.notifications).filter((n) => n.userId === 'usr_005').every((n) => n.read)).toBe(true);
-    expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
+  it('shows the unread count of a chat and clears it when the chat opens', async () => {
+    const { store } = await renderApp('/inbox');
+    const row = await rowLink(/Corniche Office Tower/);
+    expect(within(row).getByText('Unread: 2')).toBeInTheDocument();
+    await userEvent.click(row);
+    const log = await screen.findByRole('log', { name: 'Messages' });
+    expect(within(log).getByText(/The sprinkler riser clashes with beam B14/)).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Chats' })).queryByText('Unread: 2')).toBeNull());
+    expect(Object.values(store.state.chatReads).find((r) => r.userId === 'usr_001' && store.state.conversations[r.conversationId].projectId === 'prj_001')?.lastReadAt)
+      .toBeDefined();
   });
 
-  it('lets the leader approve from the Inbox while the task waits', async () => {
-    const { store } = await renderApp('/inbox', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
-    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull());
+  it('sends a message with the Send button and with Enter, and keeps a new line for Shift+Enter', async () => {
+    const { store } = await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    const box = await screen.findByRole('textbox', { name: 'Message' });
+    await waitFor(() => expect(box).toHaveFocus());
+    await userEvent.type(box, 'Please send the new section.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const log = screen.getByRole('log', { name: 'Messages' });
+    expect(await within(log).findByText('Please send the new section.')).toBeInTheDocument();
+    expect(box).toHaveValue('');
+    await userEvent.type(box, 'First line{Shift>}{Enter}{/Shift}Second line');
+    expect(box).toHaveValue('First line\nSecond line');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(Object.values(store.state.messages).some((m) => m.body === 'First line\nSecond line')).toBe(true));
+    expect(box).toHaveValue('');
   });
 
-  it('says when there is nothing', async () => {
-    await renderApp('/inbox', withNotices('usr_005', []));
-    expect(await screen.findByText('No notifications')).toBeInTheDocument();
+  it('opens a task thread, posts a task comment, and links to the task', async () => {
+    const { store } = await renderApp('/inbox', withTaskTalk);
+    await userEvent.click(await rowLink(/Room finish schedule/));
+    expect(await within(await screen.findByRole('log', { name: 'Messages' })).findByText('The finish codes are ready.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open task' })).toHaveAttribute('href', expect.stringMatching(/\/projects\/prj_006\?tab=tasks&task=tsk_\d+/));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Thanks, I will check them.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(Object.values(store.state.comments).some((c) => c.body === 'Thanks, I will check them.')).toBe(true));
+    expect(await within(screen.getByRole('log', { name: 'Messages' })).findByText('Thanks, I will check them.')).toBeInTheDocument();
   });
 
-  it('keeps the sentence of a notice whose task was deleted, and says the task is gone', async () => {
-    const { api } = await renderApp('/inbox', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
-    await screen.findByText(/sent “Toilet details” to review/);
-    await api.call('tasks.delete', { id: 'tsk_010' });
-    expect(await screen.findByText('This item does not exist anymore.')).toBeInTheDocument();
-    const item = itemWith(/sent “Toilet details” to review/);
-    expect(within(item).queryByRole('link')).toBeNull();
-    expect(within(item).queryByRole('button', { name: 'Approve' })).toBeNull();
+  it('starts a direct chat with a person', async () => {
+    const { store } = await renderApp('/inbox');
+    await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Omar Haddad/ }));
+    await waitFor(() => expect(window.location.hash).toMatch(/#\/inbox\/cnv_\d+/));
+    expect(Object.values(store.state.conversations).some((c) => c.kind === 'direct' && c.memberIds.includes('usr_004'))).toBe(true);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Omar Haddad' })).toBeInTheDocument();
   });
 
-  it('shows Retry when the Inbox cannot load', async () => {
-    const { api } = await renderApp('/inbox', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]), { failFirst: 'notifications.list' });
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText(/gave you/)).toBeInTheDocument();
-    void api;
+  it('shows a message from another person that arrives while the chat is open', async () => {
+    const { api, store } = await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    expect(await within(await screen.findByRole('log', { name: 'Messages' })).findByText('I will bring the new stage dates.')).toBeInTheDocument();
+    store.state.session.currentUserId = 'usr_002';
+    const room = Object.values(store.state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'));
+    await api.call('chats.send', { conversationId: room?.id ?? '', body: 'One more thing.' });
+    store.state.session.currentUserId = 'usr_001';
+    expect(await within(screen.getByRole('log', { name: 'Messages' })).findByText('One more thing.')).toBeInTheDocument();
+  });
+});
+
+describe('the bell and the Inbox badge', () => {
+  it('opens the notifications from the bell in the pill', async () => {
+    await renderApp('/dashboard');
+    const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
+    await userEvent.click(within(nav).getByRole('link', { name: 'Notifications' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/notifications');
+    expect(within(nav).getByRole('link', { name: 'Notifications' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('counts unread chat messages on the Inbox tab', async () => {
+    await renderApp('/dashboard');
+    const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
+    const inbox = within(nav).getByRole('link', { name: /^Inbox/ });
+    expect(await within(inbox).findByText('Unread messages: 3')).toBeInTheDocument();
+  });
+
+  it('counts a new chat message and clears the count once the chat is read', async () => {
+    const { api, store } = await renderApp('/dashboard');
+    const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
+    await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 3');
+    await api.call('chats.markRead', { conversationId: Object.values(store.state.conversations).find((c) => c.projectId === 'prj_001')?.id ?? '' });
+    expect(await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 1')).toBeInTheDocument();
   });
 });

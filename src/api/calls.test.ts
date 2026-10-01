@@ -24,15 +24,18 @@ const SPEC_CALLS = [
 ];
 // Plan clarification 3.
 const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];
+// The chat (owner decision, 2026-10-01).
+const CHAT_CALLS = ['chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount'];
+const CHAT_READS = new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {
-    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS].sort());
+    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...CHAT_CALLS].sort());
   });
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
-      const read = /\.(list|get|count|query)$/.test(name);
+      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name);
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });

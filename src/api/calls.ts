@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { Api } from './client';
+import { chatCalls } from './handlers/chats';
 import { contentCalls } from './handlers/content';
 import { fileCalls } from './handlers/files';
 import { historyCalls } from './handlers/history';
@@ -20,6 +21,7 @@ export const calls = {
   ...fileCalls,
   ...historyCalls,
   ...notificationCalls,
+  ...chatCalls,
   ...insightCalls,
 };
 
