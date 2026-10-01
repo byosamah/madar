@@ -68,7 +68,7 @@ export function HomeScreen() {
         {projects.error && <LoadFailed error={projects.error} onRetry={() => void projects.refetch()} />}
         {projects.data && projects.data.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
         {projects.data && projects.data.length > 0 && (
-          <ul aria-label={t('home.projects')} className="panel hairline overflow-hidden">
+          <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
             {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
           </ul>
         )}

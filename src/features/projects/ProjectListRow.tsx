@@ -29,7 +29,7 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
     <li {...menu.handlers}>
       <Link
         to={`/projects/${project.id}`}
-        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 md:grid-cols-[34px_minmax(0,1fr)_7.5rem_minmax(0,13rem)] md:gap-x-5"
+        className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,14rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_8rem_minmax(0,14rem)] @4xl:gap-x-6"
       >
         <ProjectTile id={project.id} name={project.name} />
         <span className="min-w-0">
@@ -42,14 +42,17 @@ export function ProjectListRow({ summary }: { summary: ProjectSummary }) {
             {summary.client && <> · <bdi>{summary.client.name}</bdi></>}
           </span>
         </span>
-        <ProgressLine
-          value={stageProgress(summary)}
-          hue={projectHue(project.id)}
-          label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
-          className="col-start-2 md:col-start-auto"
-        />
-        <span className="col-start-2 min-w-0 md:col-start-auto md:text-end">
-          <NextDeadlineLabel deadline={summary.nextDeadline} />
+        {/* The row follows its own width: line and deadline under the name, then in one end column, then in two (redesign spec 3.3). */}
+        <span className="col-start-2 flex min-w-0 flex-col gap-1.5 @xl:col-start-auto @xl:items-end @4xl:contents">
+          <ProgressLine
+            value={stageProgress(summary)}
+            hue={projectHue(project.id)}
+            label={t('projects.stageCount', { n: index + 1, total: summary.stages.length })}
+            className="w-full max-w-48 @xl:w-32 @4xl:w-full"
+          />
+          <span className="min-w-0 max-w-full @xl:text-end">
+            <NextDeadlineLabel deadline={summary.nextDeadline} />
+          </span>
         </span>
       </Link>
       <ContextMenu label={t('projects.menu', { name: project.name })} items={items} point={menu.point} onClose={menu.close} />

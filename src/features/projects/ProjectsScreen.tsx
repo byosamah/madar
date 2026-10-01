@@ -70,7 +70,7 @@ export function ProjectsScreen() {
     body = <EmptyState title={t('projects.emptyTitle')} body={t('projects.empty')} action={<Button onClick={showAll}>{t('projects.showAll')}</Button>} />;
   } else if (list.data) {
     body = (
-      <ul aria-label={t('screens.projects')} className="panel hairline overflow-hidden">
+      <ul aria-label={t('screens.projects')} className="@container panel hairline overflow-hidden">
         {list.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
       </ul>
     );
