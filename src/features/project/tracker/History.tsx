@@ -15,13 +15,13 @@ function Line({ row, onOpen }: { row: TrackerRow; onOpen: () => void }) {
   const closedLoop = entry.waiting !== null && !open;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-2 hover:bg-fill">
-      <button type="button" onClick={onOpen} className="pressable flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
+      <button type="button" onClick={onOpen} className="pressable flex min-h-12 min-w-0 flex-1 basis-56 items-center gap-3 text-start">
         <span className="shrink-0 text-ink-2">
           <TypeIcon type={entry.type} />
           <span className="sr-only">{t(`tracker.type.${entry.type}`)}</span>
         </span>
         <DirectionMark direction={entry.direction} />
-        <bdi className="truncate text-body">{entry.title}</bdi>
+        <bdi className="line-clamp-2 min-w-0 text-body">{entry.title}</bdi>
         {open && <StatusSign state="active">{t('tracker.openMark')}</StatusSign>}
         {closedLoop && <StatusSign state="completed">{t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received')}</StatusSign>}
       </button>
