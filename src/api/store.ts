@@ -1,5 +1,5 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task, TaskTemplate,
   TrackerEntry, Update, User,
 } from './contract/entities';
 import type { Persister } from './persist';
@@ -37,6 +37,8 @@ export type State = {
   chatReads: Record<string, ChatRead>;
   /** Saved stage lists. Offices saved before this feature have none, so reads go through stageTemplatesOf. */
   stageTemplates?: Record<string, StageTemplate>;
+  /** Saved tasks, one stage each. Offices saved before this feature have none, so reads go through taskTemplatesOf. */
+  taskTemplates?: Record<string, TaskTemplate>;
   /** The client tracker. Offices saved before this feature have none, so reads go through trackerOf. */
   tracker?: Record<string, TrackerEntry>;
   /** The payment milestones. Offices saved before this feature have none, so reads go through paymentsOf. */
@@ -66,6 +68,7 @@ export function emptyState(today: string): State {
     messages: {},
     chatReads: {},
     stageTemplates: {},
+    taskTemplates: {},
     tracker: {},
     payments: {},
     settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10 },
@@ -77,6 +80,12 @@ export function emptyState(today: string): State {
 export function stageTemplatesOf(state: State): Record<string, StageTemplate> {
   state.stageTemplates ??= {};
   return state.stageTemplates;
+}
+
+/** The saved task templates. An old office has none, so this makes the collection when it is missing. */
+export function taskTemplatesOf(state: State): Record<string, TaskTemplate> {
+  state.taskTemplates ??= {};
+  return state.taskTemplates;
 }
 
 /** The tracker entries. An old office has none, so this makes the collection when it is missing. */

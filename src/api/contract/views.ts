@@ -90,6 +90,8 @@ export type EventView = z.infer<typeof EventView>;
 export const TaskRow = z.object({
   task: Task,
   owner: UserCard,
+  /** The helpers beside the lead, in the order they were added. */
+  helpers: z.array(UserCard),
   project: ProjectRef,
   stage: z.object({ id: StageId, name: z.string() }),
   commentCount: z.number().int().min(0),
@@ -100,7 +102,15 @@ export const TaskRow = z.object({
 export type TaskRow = z.infer<typeof TaskRow>;
 
 export const TaskDetail = TaskRow.extend({
-  viewerCan: z.object({ edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean() }),
+  viewerCan: z.object({
+    edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean(),
+    /** Ticks checklist items: the lead, a helper, the leader and the Admin. */
+    contribute: z.boolean(),
+    /** Opens a new version: the lead, the leader and the Admin, on a done task. */
+    newVersion: z.boolean(),
+    /** Saves the task as a template: the leader and the Admin. */
+    saveTemplate: z.boolean(),
+  }),
   history: z.array(EventView),
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;

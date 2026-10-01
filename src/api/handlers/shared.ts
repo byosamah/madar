@@ -4,7 +4,7 @@ import { can, projectRoleOf, type Action, type ProjectRole, type Resource } from
 import { forbidden, invalid, notFound } from '../errors';
 import { recordCreate } from '../events';
 import { notify } from '../notify';
-import { nextId, type State } from '../store';
+import { memberKey, nextId, type State } from '../store';
 import { mentionedUserIds } from '../../lib/text';
 
 export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): void {
@@ -62,4 +62,27 @@ export function insertComment(ctx: Ctx, targetType: 'task' | 'update', targetId:
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
   notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId });
   return comment;
+}
+
+/** Adds a person to a project team with their discipline, and tells them. A person already on the team stays as they are. */
+export function addMember(ctx: Ctx, projectId: string, userId: string, discipline?: string): void {
+  const key = memberKey(projectId, userId);
+  if (ctx.state.members[key]) return;
+  const member = { projectId, userId, discipline: discipline ?? ctx.state.users[userId].discipline };
+  ctx.state.members[key] = member;
+  recordCreate(ctx, { projectId, verb: 'member.added', targetType: 'member', targetId: key, entity: member });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId });
+}
+
+/**
+ * A person who leads a task or helps with it must be on the project team. The leader and the Admin may name someone outside it:
+ * Madar adds that person to the team, with their discipline, and tells them. Anyone else gets the refusal.
+ */
+export function ensureOnTeam(ctx: Ctx, projectId: string, userId: string, field: 'ownerId' | 'helperIds'): void {
+  const user = requireUser(ctx, userId);
+  if (projectRoleOf(ctx.state, projectId, userId) !== 'other') return;
+  const message = field === 'ownerId' ? 'The owner must be on the project team.' : 'A helper must be on the project team.';
+  if (!can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, projectId) })) throw invalid(field, message, 'not_on_team');
+  if (!user.active || user.kind === 'agent') throw invalid(field, 'This person cannot join the project team.', 'cannot_join');
+  addMember(ctx, projectId, userId);
 }

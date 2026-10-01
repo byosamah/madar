@@ -111,6 +111,16 @@
       "stage_back_reason": "Write why the project moves back."
     }
   },
+  "taskTemplates": {
+    "title": "Task templates",
+    "empty": "No task templates are saved yet.",
+    "savedBy": "Saved by {{name}}",
+    "actions": "Actions for template {{name}}",
+    "name": "Template name",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleted": "Template deleted."
+  },
   "stageTemplates": {
     "title": "Stage templates",
     "empty": "No templates are saved yet.",
@@ -380,7 +390,8 @@
       "in_review": "sent “{{label}}” to review",
       "done": "completed “{{label}}”",
       "approved": "approved “{{label}}”",
-      "sent_back": "sent back “{{label}}”"
+      "sent_back": "sent back “{{label}}”",
+      "version_opened": "started a new version of “{{label}}”"
     },
     "file": {
       "added": "added the file “{{label}}”",
@@ -392,6 +403,10 @@
     "other": "made a change"
   },
   "tasks": {
+    "fromTemplate": "From a template in {{stage}}",
+    "addedFromTemplate": "Added “{{title}}” from a template.",
+    "versionBadge": "v{{n}}",
+    "versionLabel": "Version {{n}}",
     "view": "Task view",
     "views": {
       "list": "List",
@@ -435,7 +450,7 @@
   "taskSheet": {
     "title": "Title",
     "status": "Status",
-    "owner": "Owner",
+    "owner": "Lead",
     "dueDate": "Due date",
     "startDate": "Start date",
     "scheduleMode": "How the task is timed",
@@ -469,19 +484,39 @@
     "delete": "Delete task",
     "deleted": "Task deleted.",
     "saved": "Saved.",
-    "readOnly": "You can view this task. Only its owner and the project leader can change it.",
+    "readOnly": "You can view this task. Only its lead and the project leader can change it.",
     "undoAgent": "Undo agent change",
     "undone": "Change undone.",
     "review": "Review",
     "sections": "Task sections",
     "details": "Details",
     "conversation": "Conversation",
-    "conversationCount": "Conversation ({{n}})"
+    "conversationCount": "Conversation ({{n}})",
+    "helpers": "Helpers",
+    "noHelpers": "No helpers yet.",
+    "addHelper": "Add a helper",
+    "pickHelper": "Pick a person",
+    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the task. A person outside the team joins it.",
+    "removeHelper": "Remove helper {{name}}",
+    "joinsTeam": "{{name}} (joins the team)",
+    "versions": "Versions",
+    "versionOpen": "Version {{n}} open since {{date}}",
+    "versionDone": "Version {{n}} finished {{date}}",
+    "newVersion": "New version",
+    "newVersionHint": "Did the client send comments? Open this finished task again as a new version.",
+    "newVersionTitle": "Version {{n}} of this task",
+    "versionReason": "Why does it open again?",
+    "versionReasonHint": "For example: Client comments, 12 Oct",
+    "startVersion": "Start version {{n}}",
+    "versionStarted": "Version {{n}} started.",
+    "saveTemplate": "Save as template",
+    "templateSaved": "Saved as a template for {{stage}}."
   },
   "taskHistory": {
     "created": "created the task",
     "updated": "changed {{fields}}",
-    "reassigned": "changed the owner",
+    "reassigned": "changed the lead",
+    "version_opened": "opened version {{n}}",
     "status": "moved it to {{status}}",
     "approved": "approved it",
     "sent_back": "sent it back",
@@ -495,7 +530,8 @@
       "schedule": "the timing",
       "durationDays": "the duration",
       "stageId": "the stage",
-      "ownerId": "the owner",
+      "ownerId": "the lead",
+      "helperIds": "the helpers",
       "flagged": "the flag",
       "needsReview": "the review setting",
       "checklist": "the checklist",
@@ -1010,6 +1046,7 @@
     "closedBy": "Closed by {{name}} on {{date}}",
     "autoUpload": "Added automatically when a file was uploaded as received from the client.",
     "autoDelivered": "Added automatically when a file was marked as delivered to the client.",
+    "autoVersion": "Added automatically when a finished task got a new version.",
     "deleted": "Entry deleted.",
     "titleField": "What happened",
     "noteField": "Note (optional)",

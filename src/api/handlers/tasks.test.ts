@@ -37,9 +37,6 @@ describe('tasks.create', () => {
     t.as('usr_002');
     await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Wall sections', ownerId: 'usr_003', dueDate: '2026-10-08' });
     expect(notices(t.store, 'task_assigned', 'usr_003')).toHaveLength(1);
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_004' })).rejects.toMatchObject({
-      code: 'invalid_input', details: { fields: ['ownerId'] },
-    });
   });
 
   it('stops an outsider', async () => {

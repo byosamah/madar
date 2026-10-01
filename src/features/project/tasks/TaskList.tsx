@@ -8,6 +8,7 @@ import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
 import { useAction } from '../../../app/runtime';
 import { EmptyState } from '../../../components/EmptyState';
 import { TaskRowItem } from './TaskRowItem';
+import { TemplateMenu } from './TemplateMenu';
 
 /** "Add a task" at the top of a group. Enter creates it. The owner is the creator and the stage is the group's (spec 5.3). */
 function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
@@ -32,6 +33,7 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
         onChange={(event) => setTitle(event.target.value)}
         className="min-h-11 min-w-0 flex-1 bg-transparent text-body text-label placeholder:text-label-2"
       />
+      <TemplateMenu stage={stage} />
     </form>
   );
 }

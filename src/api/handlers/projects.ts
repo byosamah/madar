@@ -11,7 +11,8 @@ import { memberKey, nextId, paymentsOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import { markOf, pickMark } from '../../lib/projectMark';
-import { assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
+import { involves } from '../../lib/taskPeople';
+import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
 const ProjectName = z.string().trim().min(1).max(120);
@@ -37,15 +38,6 @@ function assertDates(start: string | null, end: string | null, field: string): v
 function assertLeader(ctx: Ctx, userId: string): void {
   const user = ctx.state.users[userId];
   if (!user || !user.active || user.kind !== 'human') throw invalid('leaderId', 'The leader must be an active person.');
-}
-
-function addMember(ctx: Ctx, projectId: string, userId: string, discipline?: string): void {
-  const key = memberKey(projectId, userId);
-  if (ctx.state.members[key]) return;
-  const member = { projectId, userId, discipline: discipline ?? ctx.state.users[userId].discipline };
-  ctx.state.members[key] = member;
-  recordCreate(ctx, { projectId, verb: 'member.added', targetType: 'member', targetId: key, entity: member });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId });
 }
 
 const detail = (ctx: Ctx, project: Project) => detailOf(ctx.state, project, ctx.today, ctx.authority);
@@ -415,7 +407,7 @@ export const membersRemove = defineCall({
     const member = ctx.state.members[key];
     if (!member) throw notFound('Member', key);
     if (project.leaderId === input.userId) throw invalid('userId', 'Change the leader first.');
-    const hasOpenTasks = Object.values(ctx.state.tasks).some((t) => t.projectId === project.id && t.ownerId === input.userId && t.status !== 'done');
+    const hasOpenTasks = Object.values(ctx.state.tasks).some((t) => t.projectId === project.id && involves(t, input.userId) && t.status !== 'done');
     if (hasOpenTasks) throw invalid('userId', 'Give their open tasks to someone else first.');
     delete ctx.state.members[key];
     recordDelete(ctx, { projectId: project.id, verb: 'member.removed', targetType: 'member', targetId: key, entity: member });

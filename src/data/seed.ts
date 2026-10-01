@@ -593,6 +593,20 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     state.stageTemplates![id] = { id, name: name as string, stages: stages as string[], createdBy: templateAuthor.id, createdAt: at(addDays(today, -30), 0) };
   });
 
+  // Saved tasks, one stage each, for the stages that repeat on every project.
+  const TASK_TEMPLATES: [string, string, string, string[], boolean, 'static' | 'dynamic', number | null][] = [
+    ['Construction Documents', 'Floor plans set', 'Dimensioned plans for every level, ready for the contractor.', ['Ground floor', 'Typical floor', 'Roof plan'], true, 'static', null],
+    ['Construction Documents', 'Sections and elevations set', 'Building sections and all elevations with levels and finishes.', ['Building sections', 'Street elevations', 'Courtyard elevations'], true, 'dynamic', 10],
+    ['Construction Documents', 'Wall sections and details', 'The typical wall build-ups and the key junctions.', ['Typical wall section', 'Parapet detail', 'Window sill detail'], true, 'static', null],
+    ['Design Development', 'Material board', 'Facade, interior and landscape materials for the client to approve.', ['Facade materials', 'Interior finishes', 'Landscape surfaces'], true, 'static', null],
+    ['Design Development', 'Structural coordination review', 'Check the architectural model against the structural model.', ['Column grid', 'Slab openings', 'Beam depths'], true, 'dynamic', 5],
+    ['Permits', 'Balady submission pack', 'Everything the municipality asks for in one upload.', ['Application form', 'Signed drawings set', 'Ownership deed copy', 'Fee payment receipt'], true, 'static', null],
+  ];
+  TASK_TEMPLATES.forEach(([stageName, name, description, checklist, needsReview, schedule, durationDays]) => {
+    const id = nextId(state, 'ttp');
+    state.taskTemplates![id] = { id, name, stageName, description, checklist, needsReview, schedule, durationDays, createdBy: templateAuthor.id, createdAt: at(addDays(today, -21), 0) };
+  });
+
   const clientIds = CLIENTS.map(([name, contactName, nameAr], i) => {
     const id = nextId(state, 'cli');
     state.clients[id] = {

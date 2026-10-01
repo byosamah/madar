@@ -7,6 +7,7 @@ import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
+import { helpersOf } from '../lib/taskPeople';
 
 export function userCard(user: User): UserCard {
   return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline, gender: user.gender };
@@ -34,7 +35,7 @@ export function countComments(state: State, targetType: 'task' | 'update', targe
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
 export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'task.created', 'task.status_changed',
-  'task.approved', 'task.sent_back', 'file.added', 'file.version_added', 'member.added',
+  'task.approved', 'task.sent_back', 'task.version_opened', 'file.added', 'file.version_added', 'member.added',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -189,6 +190,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
   return {
     task,
     owner: cardOf(state, task.ownerId),
+    helpers: helpersOf(task).map((id) => cardOf(state, id)),
     project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
     stage: { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
@@ -212,6 +214,9 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       delete: can(viewer, 'task.delete', r),
+      contribute: can(viewer, 'task.contribute', { ...r, helperIds: helpersOf(task) }),
+      newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
+      saveTemplate: can(viewer, 'task.updateAny', r),
     },
     history,
   };

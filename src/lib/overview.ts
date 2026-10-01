@@ -1,5 +1,6 @@
 import type { TaskRow } from '../api/contract/views';
 import { diffDays } from './dates';
+import { involves } from './taskPeople';
 
 const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status === 'in_progress';
 const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
@@ -9,7 +10,7 @@ const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').local
  * or else the next task to do. Also how many open tasks the person has.
  */
 export function currentWork(rows: TaskRow[], userId: string): { now: TaskRow | null; open: number } {
-  const mine = rows.filter((row) => row.task.ownerId === userId && open(row)).sort(byDue);
+  const mine = rows.filter((row) => involves(row.task, userId) && open(row)).sort(byDue);
   const doing = mine.filter((row) => row.task.status === 'in_progress');
   return { now: doing[0] ?? mine[0] ?? null, open: mine.length };
 }

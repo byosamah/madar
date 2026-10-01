@@ -11,6 +11,7 @@ import { peopleCalls } from './handlers/people';
 import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
 import { stageTemplateCalls } from './handlers/stageTemplates';
+import { taskTemplateCalls } from './handlers/taskTemplates';
 import { shareCalls } from './handlers/sharing';
 import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
@@ -29,6 +30,7 @@ export const calls = {
   ...chatCalls,
   ...insightCalls,
   ...stageTemplateCalls,
+  ...taskTemplateCalls,
   ...trackerCalls,
   ...paymentCalls,
 };
