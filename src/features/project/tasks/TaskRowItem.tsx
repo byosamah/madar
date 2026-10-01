@@ -8,11 +8,13 @@ import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
+import { AvatarStack } from '../../../components/AvatarStack';
 import { ProjectTile } from '../../../components/ProjectTile';
 import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
+import { versionOf } from '../../../lib/taskPeople';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
@@ -72,7 +74,15 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         </motion.span>
       </button>
       <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 py-2 text-start">
-        <span dir="auto" className={`block truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
+        <span className="flex items-center gap-2">
+          <span dir="auto" className={`block min-w-0 truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
+          {versionOf(task) > 1 && (
+            <span title={t('tasks.versionLabel', { n: versionOf(task) })} className="tabular shrink-0 rounded-full bg-fill px-1.5 text-caption font-semibold text-ink-2">
+              <span aria-hidden>{t('tasks.versionBadge', { n: versionOf(task) })}</span>
+              <span className="sr-only">{t('tasks.versionLabel', { n: versionOf(task) })}</span>
+            </span>
+          )}
+        </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
@@ -95,7 +105,9 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
       </button>
       {showProject
         ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
-        : <span className="pe-1"><Avatar user={row.owner} size={26} /></span>}
+        : <span className="pe-1">{row.helpers.length > 0
+          ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={20} leaderSize={28} />
+          : <Avatar user={row.owner} size={26} />}</span>}
     </motion.li>
   );
 }

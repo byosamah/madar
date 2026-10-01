@@ -4,13 +4,13 @@ import { memberKey, type State } from './store';
 export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride'
-  | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.updateAny' | 'task.review' | 'task.delete'
+  | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
 
-export type Resource = { projectRole?: ProjectRole; ownerId?: string; authorId?: string; targetUserId?: string };
+export type Resource = { projectRole?: ProjectRole; ownerId?: string; helperIds?: string[]; authorId?: string; targetUserId?: string };
 
 export function projectRoleOf(state: State, projectId: string, userId: string): ProjectRole {
   const project = state.projects[projectId];
@@ -57,6 +57,9 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
       return onProject;
     case 'task.updateOwn':
       return leads || (onProject && resource.ownerId === actor.id);
+    // A helper ticks checklist items beside the lead. The lead, the leader and the Admin may do it too.
+    case 'task.contribute':
+      return leads || (onProject && (resource.ownerId === actor.id || (resource.helperIds ?? []).includes(actor.id)));
     case 'content.editOwn':
       return onProject && resource.authorId === actor.id;
     default:

@@ -148,7 +148,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
               {t('tracker.loggedBy', { name: row.createdBy.name, date: formatDay(stampDay(entry.createdAt), lang), context: actorContext(row.createdBy) })}
               {row.createdBy.kind === 'agent' && <> <AgentLabel /></>}
             </p>
-            {entry.auto && <p>{t(entry.auto === 'upload' ? 'tracker.autoUpload' : 'tracker.autoDelivered')}</p>}
+            {entry.auto && <p>{t(entry.auto === 'upload' ? 'tracker.autoUpload' : entry.auto === 'version' ? 'tracker.autoVersion' : 'tracker.autoDelivered')}</p>}
           </div>
         </div>
       )}

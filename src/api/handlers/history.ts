@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, type Event, type FileRec, type TrackerEntry } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, type ChecklistItem, type Event, type FileRec, type TrackerEntry } from '../contract/entities';
 import { EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { NOT_UNDOABLE, undoEvent } from '../events';
 import { can, principalOf, type Action, type Resource } from '../permissions';
 import { eventViewOf, mayDeleteTracker } from '../views';
+import { involves, onlyTicks } from '../../lib/taskPeople';
 import { assertCan, roleIn, touch } from './shared';
 
 type Fields = Record<string, unknown>;
@@ -39,11 +40,11 @@ function assertMemberUndo(ctx: Ctx, event: Event): void {
   const userId = String(fieldsOf(event.after).userId);
   const project = event.projectId ? ctx.state.projects[event.projectId] : undefined;
   if (project?.leaderId === userId) throw new ApiError('conflict', 'This person now leads the project. Undo is not available.');
-  const openTasks = Object.values(ctx.state.tasks).some((t) => t.projectId === event.projectId && t.ownerId === userId && t.status !== 'done');
+  const openTasks = Object.values(ctx.state.tasks).some((t) => t.projectId === event.projectId && involves(t, userId) && t.status !== 'done');
   if (openTasks) throw new ApiError('conflict', 'This person now has open tasks here. Undo is not available.');
 }
 
-const ANY_TASK_FIELDS = ['ownerId', 'needsReview'];
+const ANY_TASK_FIELDS = ['ownerId', 'needsReview', 'helperIds'];
 
 /** The cover comes back with its file only for a person who may undo that file delete. */
 function coverComesBackWithFile(ctx: Ctx, event: Event): boolean {
@@ -58,6 +59,15 @@ function coverComesBackWithFile(ctx: Ctx, event: Event): boolean {
   } catch {
     return false;
   }
+}
+
+/** True when the event changed nothing but ticks: only the checklist, with the same items in the same order and the same texts. */
+function isTickOnly(event: Event): boolean {
+  const keys = Object.keys(fieldsOf(event.after));
+  const before = fieldsOf(event.before).checklist;
+  const after = fieldsOf(event.after).checklist;
+  return keys.length === 1 && keys[0] === 'checklist' && Array.isArray(before) && Array.isArray(after)
+    && onlyTicks(before as ChecklistItem[], after as ChecklistItem[]);
 }
 
 /** An undo is a new change: the person must have the right to make it now, under the same rules as the original call. */
@@ -83,7 +93,10 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'task.created' || event.verb === 'task.deleted') return need('task.delete');
       if (event.verb === 'task.approved') return need('task.review');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
-      return need('task.updateOwn', { ownerId: ctx.state.tasks[event.targetId]?.ownerId });
+      const current = ctx.state.tasks[event.targetId];
+      // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.
+      if (isTickOnly(event)) return need('task.contribute', { ownerId: current?.ownerId, helperIds: current?.helperIds });
+      return need('task.updateOwn', { ownerId: current?.ownerId });
     }
     case 'update':
     case 'comment': {
@@ -109,6 +122,12 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'stageTemplate': {
       // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
       if (event.verb === 'stageTemplate.created') need('project.create');
+      const saved = (event.before ?? event.after) as { createdBy?: string } | null;
+      if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
+      return;
+    }
+    case 'taskTemplate': {
+      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
       const saved = (event.before ?? event.after) as { createdBy?: string } | null;
       if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
       return;

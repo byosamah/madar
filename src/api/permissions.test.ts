@@ -29,6 +29,7 @@ const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<
   ['task.createForAnyone', [true, true, false, false], none],
   ['task.createForSelf', [true, true, true, false], none],
   ['task.updateOwn', [true, true, true, false], own],
+  ['task.contribute', [true, true, true, false], own],
   ['task.updateAny', [true, true, false, false], none],
   ['task.review', [true, true, false, false], none],
   ['task.delete', [true, true, false, false], none],
@@ -51,6 +52,13 @@ describe('permission table (spec 2.3)', () => {
 describe('permission details', () => {
   it('stops a team member from changing a task they do not own', () => {
     expect(can(team, 'task.updateOwn', { projectRole: 'team', ownerId: 'usr_002' })).toBe(false);
+  });
+
+  it('lets a helper contribute to a task but not change it', () => {
+    expect(can(team, 'task.contribute', { projectRole: 'team', ownerId: 'usr_002', helperIds: ['usr_003'] })).toBe(true);
+    expect(can(team, 'task.updateOwn', { projectRole: 'team', ownerId: 'usr_002' })).toBe(false);
+    expect(can(team, 'task.contribute', { projectRole: 'team', ownerId: 'usr_002', helperIds: [] })).toBe(false);
+    expect(can(other, 'task.contribute', { projectRole: 'other', ownerId: 'usr_002', helperIds: ['usr_004'] })).toBe(false);
   });
 
   it('stops a team member from editing a comment they did not write', () => {

@@ -7,6 +7,7 @@ const TODAY = '2026-09-30';
 const row = (id: string, patch: Partial<TaskRow['task']>, overdue = false): TaskRow => ({
   task: makeTask({ id, ...patch }),
   owner: { id: 'usr_003', name: 'Sara Team', avatarUrl: null, kind: 'human', discipline: 'Architect' },
+  helpers: [],
   project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower', mark: 0 },
   stage: { id: 'stg_002', name: 'Schematic Design' },
   commentCount: 0, fileCount: 0, overdue, canMove: true,

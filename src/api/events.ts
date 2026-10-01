@@ -7,7 +7,7 @@ export type EventMeta = { projectId: string | null; verb: string; targetType: Ev
 
 const COLLECTION: Record<EventTarget, keyof State | null> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates',
-  comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', tracker: 'tracker',
+  comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker',
 };
 
 export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'undo']);

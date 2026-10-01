@@ -5,6 +5,7 @@ import { ScreenTitle } from '../../../components/ScreenTitle';
 import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
 import { StageTemplatesSection } from './StageTemplatesSection';
+import { TaskTemplatesSection } from './TaskTemplatesSection';
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
@@ -28,6 +29,7 @@ export function AdminScreen() {
       <PeopleSection />
       <OfficeSection />
       <StageTemplatesSection />
+      <TaskTemplatesSection />
     </div>
   );
 }

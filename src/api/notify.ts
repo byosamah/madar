@@ -1,6 +1,7 @@
 import type { Notification, NotificationTarget, Trigger, User } from './contract/entities';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
+import { peopleOfTask } from '../lib/taskPeople';
 
 export type NotifyInput = {
   userIds: string[];
@@ -57,12 +58,12 @@ export function runScheduledTriggers(state: State, at: Date): number {
     if (!task.dueDate || (task.status !== 'todo' && task.status !== 'in_progress')) continue;
     if (task.dueDate === tomorrow) {
       count += notify(state, null, stamp, {
-        userIds: [task.ownerId], trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`,
+        userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`,
       }).length;
     }
     if (task.dueDate < today) {
       count += notify(state, null, stamp, {
-        userIds: [task.ownerId], trigger: 'overdue', targetType: 'task', targetId: task.id, dedupeKey: `overdue:${task.id}:${task.dueDate}`,
+        userIds: peopleOfTask(task), trigger: 'overdue', targetType: 'task', targetId: task.id, dedupeKey: `overdue:${task.id}:${task.dueDate}`,
       }).length;
     }
   }

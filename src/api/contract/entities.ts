@@ -17,6 +17,7 @@ export const EventId = id('evt');
 export const ConversationId = id('cnv');
 export const MessageId = id('msg');
 export const StageTemplateId = id('stt');
+export const TaskTemplateId = id('ttp');
 export const TrackerId = id('trk');
 
 export const Day = z.iso.date();
@@ -47,7 +48,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'tracker',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -199,6 +200,19 @@ export const TaskSchedule = z.enum(['static', 'dynamic']);
 export type TaskSchedule = z.infer<typeof TaskSchedule>;
 export const DurationDays = z.number().int().min(1).max(365);
 
+/** One round of a task. A finished task that is opened again starts the next one (colleague comment 8, 2026-10-01). */
+export const TaskVersion = z.object({
+  n: z.number().int().min(1),
+  reason: z.string().max(280),
+  openedAt: Stamp,
+  openedBy: UserId,
+  finishedAt: Stamp.nullable(),
+});
+export type TaskVersion = z.infer<typeof TaskVersion>;
+
+/** The most helpers one task has. */
+export const MAX_HELPERS = 10;
+
 export const Task = z.object({
   id: TaskId,
   projectId: ProjectId,
@@ -215,11 +229,36 @@ export const Task = z.object({
   flagged: z.boolean(),
   needsReview: z.boolean(),
   checklist: z.array(ChecklistItem).max(100),
+  /** Optional, so an office saved before versions still loads: missing means version 1. */
+  version: z.number().int().min(1).optional(),
+  versions: z.array(TaskVersion).max(50).optional(),
+  /** Optional, so an office saved before helpers still loads. The lead is ownerId and is never in this list. */
+  helperIds: z.array(UserId).max(MAX_HELPERS).optional(),
   createdBy: UserId,
   createdAt: Stamp,
   completedAt: Stamp.nullable(),
 });
 export type Task = z.infer<typeof Task>;
+
+/**
+ * A task saved for one stage (colleague comments 8 and 12). It belongs to a stage by the stage's name, because every project
+ * has its own stage records. The checklist holds item titles only: a task made from it starts with every item unticked.
+ */
+export const TaskTemplate = z.object({
+  id: TaskTemplateId,
+  /** The title of a task made from it. */
+  name: z.string().trim().min(1).max(200),
+  stageName: StageName,
+  description: z.string().max(5000),
+  checklist: z.array(z.string().trim().min(1).max(200)).max(100),
+  needsReview: z.boolean(),
+  schedule: TaskSchedule,
+  /** Working days. Set when schedule is dynamic, null when it is static. */
+  durationDays: DurationDays.nullable(),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type TaskTemplate = z.infer<typeof TaskTemplate>;
 
 export const Update = z.object({
   id: UpdateId,
@@ -311,7 +350,7 @@ export const TrackerEntry = z.object({
   closedBy: UserId.nullable(),
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
   peopleIds: z.array(UserId).max(20),
-  auto: z.enum(['upload', 'delivered']).nullable(),
+  auto: z.enum(['upload', 'delivered', 'version']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
 });

@@ -65,6 +65,28 @@ describe('the Admin page', () => {
     await waitFor(() => expect(Object.keys(store.state.stageTemplates ?? {})).toHaveLength(2));
   });
 
+  it('lists the task templates by stage, and lets the Admin rename and delete one, with Undo', async () => {
+    const { store } = await renderApp('/admin');
+    const section = await region('Task templates');
+    const stage = await within(section).findByRole('group', { name: 'Construction Documents' });
+    expect(within(stage).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Construction Documents']);
+    expect(within(stage).getByText('Floor plans set')).toBeInTheDocument();
+    expect(within(stage).getByText('Ground floor · Typical floor · Roof plan')).toBeInTheDocument();
+    expect(within(await within(section).findByRole('group', { name: 'Permits' })).getByText('Balady submission pack')).toBeInTheDocument();
+    expect(within(stage).queryByText('Balady submission pack')).toBeNull();
+    await userEvent.click(within(section).getByRole('button', { name: 'Actions for template Floor plans set' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Rename' }));
+    const name = within(section).getByLabelText('Template name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Plans set{Enter}');
+    await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(true));
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Plans set' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(false));
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(true));
+  });
+
   it('saves the office settings', async () => {
     const { store } = await renderApp('/admin');
     const office = await region('Office settings');

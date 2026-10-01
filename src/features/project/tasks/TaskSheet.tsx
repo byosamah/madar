@@ -25,12 +25,14 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
+import { personOption, TaskHelpers } from './TaskHelpers';
 import { durationText, TaskTiming } from './TaskTiming';
+import { NewVersion, TaskVersions } from './TaskVersions';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 
-type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
+type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
 /** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -42,7 +44,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChange: (items: ChecklistItem[]) => void }) {
+/** edit: add, remove and tick. tick: a helper ticks only. Otherwise the list is plain text. */
+function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   // A local copy, so two quick ticks build on each other before the saved list comes back.
@@ -59,14 +62,14 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
       <ul>
-        {!edit && items.map((item) => (
+        {!edit && !tick && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
             {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-label-3" aria-hidden />}
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
             {item.done && <span className="sr-only">{t('common.done')}</span>}
           </li>
         ))}
-        {edit && items.map((item) => (
+        {(edit || tick) && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
             <input
               type="checkbox"
@@ -76,7 +79,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
               onChange={(event) => change(items.map((i) => (i.id === item.id ? { ...i, done: event.target.checked } : i)))}
             />
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
-            {(
+            {edit && (
               <IconButton label={t('taskSheet.removeItem', { text: item.text })} onClick={() => change(items.filter((i) => i.id !== item.id))}>
                 <AnimatedIcon icon={XIcon} size={16} aria-hidden />
               </IconButton>
@@ -159,6 +162,8 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
     },
   });
   const remove = useUndoable('tasks.delete', { message: () => t('taskSheet.deleted'), onSuccess: onClose });
+  const saveTemplate = useAction('taskTemplates.save', { onSuccess: (template) => toast.show({ message: t('taskSheet.templateSaved', { stage: template.stageName }) }) });
+  const everyone = useCall('users.list', {});
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [note, setNote] = useState('');
@@ -171,6 +176,9 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const edit = viewerCan.edit;
   const people = detail.members.map((member) => member.user);
   if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
+  // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
+  const teamIds = new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]);
+  const pickable = (everyone.data ?? []).filter((person) => person.kind === 'human');
   const me = session.data?.authority.id;
   const canUndoAgent = (actingForId: string) => detail.viewerCan.review || actingForId === me;
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
@@ -223,7 +231,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
               {viewerCan.editAll ? (
                 <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
-                  {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                  {(pickable.some((person) => person.id === task.ownerId) ? pickable : [...pickable, data.owner]).map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
               {edit ? (
@@ -232,6 +240,15 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 </SelectField>
               ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
             </div>
+            <TaskHelpers
+              helpers={data.helpers}
+              leadId={task.ownerId}
+              people={pickable}
+              teamIds={teamIds}
+              canEdit={viewerCan.editAll}
+              onChange={(helperIds) => patch({ helperIds })}
+            />
+            {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
                 idPrefix="task"
@@ -270,7 +287,8 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist task={task} edit={edit} onChange={(checklist) => patch({ checklist })} />
+            <Checklist task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
+            <TaskVersions task={task} />
             <section className="flex flex-col gap-1">
               <h3 className="text-headline">{t('taskSheet.files')}</h3>
               {(files.data ?? []).length === 0
@@ -278,8 +296,15 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
             </section>
             <History data={data} canUndoAgent={canUndoAgent} />
-            {viewerCan.delete && (
-              <Button variant="destructive" className="self-start" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
+            {(viewerCan.saveTemplate || viewerCan.delete) && (
+              <div className="flex flex-wrap gap-3">
+                {viewerCan.saveTemplate && (
+                  <Button disabled={saveTemplate.isPending} onClick={() => saveTemplate.mutate({ fromTaskId: task.id })}>{t('taskSheet.saveTemplate')}</Button>
+                )}
+                {viewerCan.delete && (
+                  <Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
+                )}
+              </div>
             )}
           </div>
         </TabPanel>

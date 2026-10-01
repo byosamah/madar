@@ -14,7 +14,7 @@ describe('the task sheet', () => {
     await renderApp('/projects/prj_001?tab=tasks');
     await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
-    expect(within(sheet).getByLabelText('Owner')).toHaveDisplayValue('Yousef Saleh');
+    expect(within(sheet).getByLabelText('Lead')).toHaveDisplayValue('Yousef Saleh');
   });
 
   it('saves a new title when the person leaves the field, and lists the change', async () => {
@@ -48,10 +48,10 @@ describe('the task sheet', () => {
   it("shows another person's task as read only", async () => {
     await renderApp(TASK('tsk_011'), as('usr_005'));
     const sheet = await screen.findByRole('dialog', { name: 'Balady submission set' });
-    expect(within(sheet).getByText('You can view this task. Only its owner and the project leader can change it.')).toBeInTheDocument();
+    expect(within(sheet).getByText('You can view this task. Only its lead and the project leader can change it.')).toBeInTheDocument();
     expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull();
     expect(within(sheet).queryAllByRole('combobox')).toHaveLength(0);
-    expect(within(sheet).getByText('Owner').parentElement).toHaveTextContent('Faisal Al-Harbi');
+    expect(within(sheet).getByText('Lead').parentElement).toHaveTextContent('Faisal Al-Harbi');
     expect(within(sheet).queryByRole('button', { name: 'Delete task' })).toBeNull();
   });
 
