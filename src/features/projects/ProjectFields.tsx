@@ -4,12 +4,14 @@ import { XIcon } from '../../components/icons/animated/x';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client, User } from '../../api/contract/entities';
+import { useLang } from '../../app/lang';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { IconButton } from '../../components/IconButton';
+import { clientName } from '../../lib/clientName';
 import { StageTemplatePicker } from './StageTemplatePicker';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormValues } from './projectForm';
 
@@ -46,14 +48,19 @@ export type ProjectForm = ReturnType<typeof useProjectForm>;
 function ClientPicker({ value, onChange, clients }: { value: string; onChange: (id: string) => void; clients: Client[] }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const empty = { name: '', contactName: '', phone: '', email: '' };
+  const lang = useLang();
+  const empty = { name: '', nameAr: '', contactName: '', phone: '', email: '' };
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(empty);
+  // The client is the contact person, for example a private villa owner (colleague comment 10).
+  const [same, setSame] = useState(false);
+  const named = clientName({ name: draft.name.trim(), nameAr: draft.nameAr.trim() }, lang);
   const create = useAction('clients.create', {
     onSuccess: (client) => {
       onChange(client.id);
       setAdding(false);
       setDraft(empty);
+      setSame(false);
       toast.show({ message: t('projectForm.clientAdded') });
     },
   });
@@ -66,21 +73,28 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
       <div className="flex items-end gap-2">
         <SelectField id="project-client" className="flex-1" label={t('projectForm.client')} value={value} onChange={(event) => onChange(event.target.value)}>
           <option value="">{t('projectForm.noClient')}</option>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          {clients.map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
         </SelectField>
         <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>
       </div>
       {adding && (
         <div className="grid gap-3 rounded-2xl bg-fill p-3 sm:grid-cols-2">
-          <TextField id="client-name" label={t('projectForm.clientName')} dir="auto" {...field('name')} />
-          <TextField id="client-contact" label={t('projectForm.contactName')} dir="auto" {...field('contactName')} />
+          <TextField id="client-name" label={t('projectForm.clientName')} dir="ltr" {...field('name')} />
+          <TextField id="client-name-ar" label={t('projectForm.clientNameAr')} dir="rtl" lang="ar" {...field('nameAr')} />
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <TextField id="client-contact" label={t('projectForm.contactName')} dir="auto" disabled={same} {...(same ? { value: named, onChange: () => undefined } : field('contactName'))} />
+            <label className="flex min-h-11 items-center gap-3 self-start rounded-xl px-2 hover:bg-fill">
+              <input type="checkbox" className="size-5 shrink-0 accent-[var(--c-accent-fill)]" checked={same} onChange={(event) => setSame(event.target.checked)} />
+              <span className="text-subheadline text-ink">{t('projectForm.sameAsClient')}</span>
+            </label>
+          </div>
           <TextField id="client-phone" type="tel" dir="ltr" label={t('projectForm.phone')} {...field('phone')} />
           <TextField id="client-email" type="email" dir="ltr" label={t('projectForm.email')} {...field('email')} />
           <Button
             variant="primary"
             className="sm:col-span-2"
-            disabled={!draft.name.trim() || create.isPending}
-            onClick={() => create.mutate({ ...draft, name: draft.name.trim() })}
+            disabled={!named || create.isPending}
+            onClick={() => create.mutate({ ...draft, name: draft.name.trim(), nameAr: draft.nameAr.trim(), contactName: same ? named : draft.contactName })}
           >
             {t('projectForm.addClient')}
           </Button>

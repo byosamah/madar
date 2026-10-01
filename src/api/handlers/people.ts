@@ -16,7 +16,12 @@ const Name = z.string().trim().min(1).max(80);
 const Discipline = z.string().trim().min(1).max(40);
 const SystemRole = z.enum(['admin', 'member']);
 const Kind = z.enum(['human', 'agent']);
-const ClientName = z.string().trim().min(1).max(120);
+const ClientName = z.string().trim().max(120);
+
+/** A client needs a name in English or in Arabic (colleague comment 11). */
+function assertClientNamed(client: { name: string; nameAr?: string }) {
+  if (!client.name.trim() && !client.nameAr?.trim()) throw invalid('name', 'Write the client name in English or in Arabic.', 'client_name_missing');
+}
 const ContactName = z.string().trim().max(80);
 const Phone = z.string().trim().max(40);
 const ClientEmail = z.union([z.email(), z.literal('')]);
@@ -209,15 +214,17 @@ export const clientsList = defineCall({
   output: z.array(Client),
   readOnly: true,
   run(_input, ctx) {
-    return Object.values(ctx.state.clients).sort(byName);
+    const label = (client: Client) => client.name || client.nameAr || '';
+    return Object.values(ctx.state.clients).sort((a, b) => label(a).localeCompare(label(b)));
   },
 });
 
 export const clientsCreate = defineCall({
-  input: z.object({ name: ClientName, contactName: ContactName.default(''), phone: Phone.default(''), email: ClientEmail.default('') }),
+  input: z.object({ name: ClientName.default(''), nameAr: ClientName.default(''), contactName: ContactName.default(''), phone: Phone.default(''), email: ClientEmail.default('') }),
   output: Client,
   run(input, ctx) {
     assertCan(ctx, 'project.create');
+    assertClientNamed(input);
     const id = nextId(ctx.state, 'cli');
     const client: Client = { id, ...input };
     ctx.state.clients[id] = client;
@@ -229,13 +236,14 @@ export const clientsCreate = defineCall({
 export const clientsUpdate = defineCall({
   input: z.object({
     id: ClientId,
-    patch: z.object({ name: ClientName.optional(), contactName: ContactName.optional(), phone: Phone.optional(), email: ClientEmail.optional() }),
+    patch: z.object({ name: ClientName.optional(), nameAr: ClientName.optional(), contactName: ContactName.optional(), phone: Phone.optional(), email: ClientEmail.optional() }),
   }),
   output: Client,
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const client = ctx.state.clients[input.id];
     if (!client) throw notFound('Client', input.id);
+    assertClientNamed({ ...client, ...input.patch });
     applyPatch(ctx, client, input.patch, { projectId: null, verb: 'client.updated', targetType: 'client', targetId: client.id });
     return client;
   },

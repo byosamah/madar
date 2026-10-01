@@ -88,7 +88,10 @@ export type User = z.infer<typeof User>;
 
 export const Client = z.object({
   id: ClientId,
-  name: z.string().trim().min(1).max(120),
+  /** The English name. A client may have only an Arabic name, so either one may be empty, never both (colleague comment 11). */
+  name: z.string().trim().max(120),
+  /** Optional, so offices saved before Arabic names existed still load. */
+  nameAr: z.string().trim().max(120).optional(),
   contactName: z.string().max(80),
   phone: z.string().max(40),
   email: z.union([z.email(), z.literal('')]),

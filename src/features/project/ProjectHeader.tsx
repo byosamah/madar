@@ -14,6 +14,8 @@ import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
 import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
+import { clientName } from '../../lib/clientName';
+import { useLang } from '../../app/lang';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
 export function HeaderShell({ id, name, mark }: { id: string; name: string; mark?: number }) {
@@ -30,6 +32,7 @@ export function HeaderShell({ id, name, mark }: { id: string; name: string; mark
 /** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
 export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPost: () => void }) {
   const { t } = useTranslation();
+  const lang = useLang();
   const { project } = detail;
   const viewOnly = !detail.viewerCan.post && !detail.viewerCan.edit;
   const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
@@ -47,7 +50,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
             <span className="tabular">{project.code}</span>
-            {detail.client && <><span aria-hidden>·</span><bdi>{detail.client.name}</bdi></>}
+            {detail.client && <><span aria-hidden>·</span><bdi>{clientName(detail.client, lang)}</bdi></>}
             {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
           </p>
         </div>

@@ -11,6 +11,8 @@ import { spring } from '../../design/motion';
 import { setSharedSource } from '../../app/sharedLayout';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
+import { clientName } from '../../lib/clientName';
+import { useLang } from '../../app/lang';
 
 /** The word a row shows only when there is something to say: Late, At risk, or the status of a project that is not active. */
 export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
@@ -24,6 +26,7 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
 /** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
 export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
+  const lang = useLang();
   const { project } = summary;
   const menu = useContextMenu();
   const items = useCardMenu(summary);
@@ -48,7 +51,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>
             <ProjectStateWord summary={summary} />
           </span>
-          {summary.client && <bdi dir="auto" className="block truncate text-footnote text-ink-2">{summary.client.name}</bdi>}
+          {summary.client && <bdi dir="auto" className="block truncate text-footnote text-ink-2">{clientName(summary.client, lang)}</bdi>}
         </span>
         {/* The row follows its own width: stage and deadline under the name, then in one end column, then in two.
             The stage is a column of its own: its name with the stage steps under it (colleague's comment 1, 2026-10-01). */}

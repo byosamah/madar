@@ -47,7 +47,7 @@ describe('the New Project sheet', () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
     await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
-    await userEvent.type(within(sheet).getByLabelText('Client name'), 'Harbour Holding');
+    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Harbour Holding');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add client' }));
     await waitFor(() => expect((within(sheet).getByLabelText('Client') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Harbour Holding'));
     await userEvent.selectOptions(within(sheet).getByLabelText('Leader'), 'Faisal Al-Harbi');
@@ -58,6 +58,20 @@ describe('the New Project sheet', () => {
     expect(project?.leaderId).toBe('usr_002');
     expect(store.state.clients[project!.clientId!].name).toBe('Harbour Holding');
     expect(store.state.members[`${project!.id}:usr_005`]).toBeDefined();
+  });
+
+  it('adds a client with an Arabic name and the contact the same as the client (colleague comments 10 and 11)', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Villa Owner');
+    await userEvent.type(within(sheet).getByLabelText('Client name (Arabic)'), 'مالك الفيلا');
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Same as client' }));
+    expect(within(sheet).getByLabelText('Contact name')).toBeDisabled();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add client' }));
+    await waitFor(() => expect(Object.values(store.state.clients).some((c) => c.name === 'Villa Owner')).toBe(true));
+    const client = Object.values(store.state.clients).find((c) => c.name === 'Villa Owner')!;
+    expect(client.nameAr).toBe('مالك الفيلا');
+    expect(client.contactName).toBe('Villa Owner');
   });
 
   it('fills the stage list from a saved template, and the person can still edit it', async () => {

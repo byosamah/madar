@@ -37,13 +37,14 @@ export function sampleEmail(name: string): string {
 /** The sample people's grammatical gender by email, for offices saved before the field existed. */
 export const SAMPLE_GENDERS: Record<string, 'female' | 'male'> = Object.fromEntries(PEOPLE.map((person) => [sampleEmail(person.name), person.gender]));
 
-const CLIENTS: [string, string][] = [
-  ['Gulf Crest Holding', 'Nawaf Al-Shehri'],
-  ['Dune Line Developments', 'Maha Al-Dosari'],
-  ['Eastern Shore Schools Co.', 'Tariq Al-Anazi'],
-  ['Nakhla Retail Group', 'Dana Al-Omari'],
-  ['Tamr Hospitality', 'Bader Al-Zahrani'],
-  ['Al Waha Healthcare', 'Rana Al-Subaie'],
+// English name, contact, Arabic name (colleague comment 11).
+const CLIENTS: [string, string, string][] = [
+  ['Gulf Crest Holding', 'Nawaf Al-Shehri', 'شركة قمة الخليج القابضة'],
+  ['Dune Line Developments', 'Maha Al-Dosari', 'شركة خط الكثبان للتطوير'],
+  ['Eastern Shore Schools Co.', 'Tariq Al-Anazi', 'شركة مدارس الساحل الشرقي'],
+  ['Nakhla Retail Group', 'Dana Al-Omari', 'مجموعة نخلة للتجزئة'],
+  ['Tamr Hospitality', 'Bader Al-Zahrani', 'تمر للضيافة'],
+  ['Al Waha Healthcare', 'Rana Al-Subaie', 'الواحة للرعاية الصحية'],
 ];
 
 type Shape = 'late' | 'risk_overdue' | 'risk_stage' | 'on_track' | 'on_hold' | 'completed';
@@ -501,10 +502,10 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     state.stageTemplates![id] = { id, name: name as string, stages: stages as string[], createdBy: templateAuthor.id, createdAt: at(addDays(today, -30), 0) };
   });
 
-  const clientIds = CLIENTS.map(([name, contactName], i) => {
+  const clientIds = CLIENTS.map(([name, contactName, nameAr], i) => {
     const id = nextId(state, 'cli');
     state.clients[id] = {
-      id, name, contactName, phone: `+966 13 864 ${1000 + i * 37}`,
+      id, name, nameAr, contactName, phone: `+966 13 864 ${1000 + i * 37}`,
       email: `${contactName.split(' ')[0].toLowerCase()}@${name.split(' ')[0].toLowerCase()}.test`,
     };
     return id;

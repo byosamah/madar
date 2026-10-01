@@ -96,6 +96,18 @@ describe('client and settings calls', () => {
     expect((await t.api.call('clients.update', { id: client.id, patch: { phone: '+966 13 864 1000' } })).phone).toBe('+966 13 864 1000');
   });
 
+  it('takes the client name in English, Arabic or both, and refuses neither (colleague comments 10 and 11)', async () => {
+    const t = testApi(peopleCalls);
+    t.as('usr_003');
+    const arabic = await t.api.call('clients.create', { nameAr: 'تمر للضيافة' });
+    expect(arabic).toMatchObject({ name: '', nameAr: 'تمر للضيافة' });
+    const both = await t.api.call('clients.create', { name: 'Tamr Hospitality', nameAr: 'تمر للضيافة', contactName: 'Tamr Hospitality' });
+    expect(both).toMatchObject({ name: 'Tamr Hospitality', nameAr: 'تمر للضيافة', contactName: 'Tamr Hospitality' });
+    await expect(t.api.call('clients.create', { name: ' ', nameAr: '' })).rejects.toMatchObject({ code: 'invalid_input' });
+    t.as('usr_001');
+    await expect(t.api.call('clients.update', { id: both.id, patch: { name: '', nameAr: '' } })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
   it('lets only the Admin change settings and checks the code prefix', async () => {
     const t = testApi(peopleCalls);
     expect((await t.api.call('settings.update', { workloadLimit: 8 })).workloadLimit).toBe(8);

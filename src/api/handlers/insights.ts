@@ -128,7 +128,7 @@ export const searchQuery = defineCall({
     const codeOf = (projectId: string) => state.projects[projectId]?.code ?? '';
     return {
       projects: Object.values(state.projects)
-        .filter((p) => hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined))
+        .filter((p) => hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((p) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) })),

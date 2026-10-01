@@ -18,6 +18,7 @@ import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct
 import { oneOf } from '../../lib/params';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import type { DashboardData } from './Tiles';
+import { clientName } from '../../lib/clientName';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
@@ -229,7 +230,7 @@ export function MeetingView() {
   const filters = [
     status !== 'active' ? t('dashboard.meeting.status', { name: t(`status.${status}`) }) : null,
     leader ? t('dashboard.meeting.leader', { name: users.data?.find((u) => u.id === leader)?.name ?? leader }) : null,
-    client ? t('dashboard.meeting.client', { name: clients.data?.find((c) => c.id === client)?.name ?? client }) : null,
+    client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);
 
   return (

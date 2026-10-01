@@ -100,7 +100,8 @@
       "file_missing": "A file is no longer here.",
       "file_other_project": "A file belongs to another project.",
       "file_not_visible": "You are not on the project of this file.",
-      "recipient_not_on_project": "This person is not on the project of this file. They cannot open it."
+      "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
+      "client_name_missing": "Write the client name in English or in Arabic."
     }
   },
   "stageTemplates": {
@@ -212,7 +213,7 @@
     "client": "Client",
     "noClient": "No client",
     "newClient": "New client",
-    "clientName": "Client name",
+    "clientName": "Client name (English)",
     "contactName": "Contact name",
     "phone": "Phone",
     "email": "Email",
@@ -245,7 +246,9 @@
       "endAfterStart": "The end date must be after the start date.",
       "stageRequired": "Keep at least one stage.",
       "stageName": "Enter a name for each stage."
-    }
+    },
+    "clientNameAr": "Client name (Arabic)",
+    "sameAsClient": "Same as client"
   },
   "project": {
     "tabs": "Project sections",

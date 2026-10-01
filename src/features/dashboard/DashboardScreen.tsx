@@ -14,6 +14,7 @@ import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { OfficeSchedule } from './OfficeSchedule';
 import { Workload } from './Workload';
+import { clientName } from '../../lib/clientName';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const VIEWS = ['projects', 'people', 'schedule'] as const;
@@ -72,7 +73,7 @@ export function DashboardScreen() {
           <label className={LABEL}>{t('dashboard.client')}
             <select value={client} onChange={(event) => set('client', event.target.value, '')} className={SELECT}>
               <option value="">{t('dashboard.anyClient')}</option>
-              {(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{clientName(c, lang)}</option>)}
             </select>
           </label>
         </FilterButton>
