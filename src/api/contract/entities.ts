@@ -49,7 +49,7 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -384,6 +384,24 @@ export const Payment = z.object({
   createdAt: Stamp,
 });
 export type Payment = z.infer<typeof Payment>;
+
+/** A feature request or a bug report from the person menu, with up to three screenshots (owner, 2026-10-01). */
+export const FeedbackKind = z.enum(['feature', 'bug']);
+export type FeedbackKind = z.infer<typeof FeedbackKind>;
+export const Feedback = z.object({
+  id: z.string(),
+  kind: FeedbackKind,
+  message: z.string().trim().min(1).max(2000),
+  /** The screen the person was on, so a bug report says where it happened. */
+  page: z.string().max(300),
+  screenshots: z.array(z.object({ blobKey: z.string(), type: z.string().max(60) })).max(3),
+  status: z.enum(['new', 'done']),
+  createdBy: UserId,
+  createdAt: Stamp,
+  doneBy: UserId.nullable(),
+  doneAt: Stamp.nullable(),
+});
+export type Feedback = z.infer<typeof Feedback>;
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 

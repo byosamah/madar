@@ -1,5 +1,5 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task, TaskTemplate,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task, TaskTemplate,
   TrackerEntry, Update, User,
 } from './contract/entities';
 import type { Persister } from './persist';
@@ -43,6 +43,8 @@ export type State = {
   tracker?: Record<string, TrackerEntry>;
   /** The payment milestones. Offices saved before this feature have none, so reads go through paymentsOf. */
   payments?: Record<string, Payment>;
+  /** Feature requests and bug reports. Optional, so older offices still load. */
+  feedback?: Record<string, Feedback>;
   settings: Settings;
   counters: Record<string, number>;
 };
@@ -95,6 +97,11 @@ export function trackerOf(state: State): Record<string, TrackerEntry> {
 }
 
 /** The payment milestones. An old office has none, so this makes the collection when it is missing. */
+export function feedbackOf(state: State): Record<string, Feedback> {
+  state.feedback ??= {};
+  return state.feedback;
+}
+
 export function paymentsOf(state: State): Record<string, Payment> {
   state.payments ??= {};
   return state.payments;

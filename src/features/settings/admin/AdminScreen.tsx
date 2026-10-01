@@ -6,6 +6,7 @@ import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
 import { StageTemplatesSection } from './StageTemplatesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
+import { FeedbackSection } from './FeedbackSection';
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
@@ -32,6 +33,7 @@ export function AdminScreen() {
       {role === 'admin' && <OfficeSection />}
       {role === 'admin' && <StageTemplatesSection />}
       {role === 'admin' && <TaskTemplatesSection />}
+      {role === 'admin' && <FeedbackSection />}
     </div>
   );
 }

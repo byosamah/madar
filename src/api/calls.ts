@@ -10,6 +10,7 @@ import { paymentCalls } from './handlers/payments';
 import { peopleCalls } from './handlers/people';
 import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
+import { feedbackCalls } from './handlers/feedback';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
 import { shareCalls } from './handlers/sharing';
@@ -30,6 +31,7 @@ export const calls = {
   ...chatCalls,
   ...insightCalls,
   ...stageTemplateCalls,
+  ...feedbackCalls,
   ...taskTemplateCalls,
   ...trackerCalls,
   ...paymentCalls,

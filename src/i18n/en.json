@@ -1084,5 +1084,30 @@
       "dueDate": "Choose a due date.",
       "futureReceived": "The received date cannot be in the future."
     }
+  },
+  "feedback": {
+    "menu": "Request a feature or report a bug",
+    "title": "Request a feature or report a bug",
+    "hint": "The Admin reads every message.",
+    "kindLabel": "Kind",
+    "kinds": {
+      "feature": "Feature request",
+      "bug": "Bug report"
+    },
+    "whatHelp": "What would help you?",
+    "whatWrong": "What went wrong?",
+    "addScreenshot": "Add a screenshot",
+    "pasteHint": "Or paste one. Up to 3.",
+    "screenshots": "Screenshots",
+    "screenshotN": "Screenshot {{n}}",
+    "removeScreenshot": "Remove screenshot {{n}}",
+    "pageNote": "Madar also sends the screen you are on: {{page}}",
+    "send": "Send",
+    "sent": "Thank you. The Admin will read it.",
+    "adminTitle": "Requests and bugs",
+    "none": "No requests or bug reports yet.",
+    "done": "Done",
+    "markDone": "Mark done",
+    "reopen": "Open again"
   }
 }

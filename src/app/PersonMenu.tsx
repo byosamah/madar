@@ -13,6 +13,8 @@ import { PreviewAs } from './PreviewAs';
 import { useSwitchLanguage } from './languageTurn';
 import { useAction, useCall } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
+import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
+import { FeedbackSheet } from '../features/feedback/FeedbackSheet';
 
 /** The person's picture opens their name, Preview as (prototype), the language, light or dark mode and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
@@ -25,6 +27,7 @@ export function PersonMenu({ id }: { id: string }) {
   const preferences = useAction('me.updatePreferences');
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [feedback, setFeedback] = useState(false);
   if (!user) return null;
   const close = () => {
     setOpen(false);
@@ -69,9 +72,14 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
             </Link>
+            <button type="button" onClick={() => { setOpen(false); setFeedback(true); }} className={row}>
+              <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
+              {t('feedback.menu')}
+            </button>
           </nav>
         </Popover>
       )}
+      <FeedbackSheet open={feedback} onOpenChange={setFeedback} />
     </>
   );
 }

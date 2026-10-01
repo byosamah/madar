@@ -38,16 +38,18 @@ const SHARE_CALLS = ['files.share'];
 const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.update', 'tracker.delete', 'files.markDelivered'];
 // Payment milestones (colleague comment 6, owner, 2026-10-01).
 const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'];
+// Feature requests and bug reports from the person menu (owner, 2026-10-01).
+const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {
-    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS].sort());
+    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS].sort());
   });
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
-      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name);
+      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'feedback.screenshot';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });
