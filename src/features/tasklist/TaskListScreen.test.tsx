@@ -6,7 +6,7 @@ import { renderApp } from '../../test/render';
 describe('the Task list', () => {
   it('shows overdue tasks', async () => {
     await renderApp('/tasks?filter=overdue');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Overdue tasks' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeInTheDocument();
     expect(await screen.findByText('Stair details')).toBeInTheDocument();
   });
 

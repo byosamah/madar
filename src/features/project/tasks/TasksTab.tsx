@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
 import { useCall } from '../../../app/runtime';
-import { ChipGroup } from '../../../components/Chip';
-import { SegmentedControl } from '../../../components/SegmentedControl';
+import { FilterButton } from '../../../components/FilterButton';
 import type { TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
@@ -12,6 +11,8 @@ import { TaskSheet } from './TaskSheet';
 
 const FILTERS = ['all', 'mine', 'overdue', 'flagged'] as const;
 const VIEWS = ['list', 'board'] as const;
+const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
+const RADIO = 'flex min-h-11 items-center gap-3 text-body text-ink';
 
 export function TasksTab({ detail }: TabProps) {
   const { t } = useTranslation();
@@ -37,16 +38,32 @@ export function TasksTab({ detail }: TabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <ChipGroup label={t('tasks.filters')} value={filter} onChange={setFilter} options={FILTERS.map((value) => ({ value, label: t(`tasks.filter.${value}`) }))} />
-        <div className="ms-auto flex flex-wrap items-center gap-3">
+        <FilterButton label={t('filter.label')} count={[filter !== 'all', showDone && view === 'list', view === 'board'].filter(Boolean).length}>
+          <fieldset className="flex flex-col">
+            <legend className={LEGEND}>{t('projects.show')}</legend>
+            {FILTERS.map((value) => (
+              <label key={value} className={RADIO}>
+                <input type="radio" name="tasks-show" checked={filter === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
+                {t(`tasks.filter.${value}`)}
+              </label>
+            ))}
+          </fieldset>
           {view === 'list' && (
-            <label className="flex min-h-11 items-center gap-2 text-subheadline">
-              <input type="checkbox" className="size-5 accent-[var(--c-accent-fill)]" checked={showDone} onChange={(event) => setShowDone(event.target.checked)} />
+            <label className={`${RADIO} border-t border-hairline pt-1`}>
+              <input type="checkbox" className="size-5 accent-[var(--sig-from)]" checked={showDone} onChange={(event) => setShowDone(event.target.checked)} />
               {t('tasks.showDone')}
             </label>
           )}
-          <SegmentedControl label={t('tasks.view')} value={view} onChange={setView} options={VIEWS.map((value) => ({ value, label: t(`tasks.views.${value}`) }))} />
-        </div>
+          <fieldset className="flex flex-col border-t border-hairline pt-2">
+            <legend className={LEGEND}>{t('tasks.view')}</legend>
+            {VIEWS.map((value) => (
+              <label key={value} className={RADIO}>
+                <input type="radio" name="tasks-view" checked={view === value} onChange={() => setView(value)} className="size-5 accent-[var(--sig-from)]" />
+                {t(`tasks.views.${value}`)}
+              </label>
+            ))}
+          </fieldset>
+        </FilterButton>
       </div>
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />

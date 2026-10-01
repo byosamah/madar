@@ -11,7 +11,7 @@ describe('the Dashboard', () => {
     await renderApp('/dashboard');
     expect(await tile(/Active projects/)).toHaveTextContent('10');
     expect(await tile(/At risk or late/)).toHaveTextContent('5');
-    for (const name of [/Overdue tasks/, /Deadlines, next 14 days/, /Office hours this week/, /Area in design/]) expect(await tile(name)).toBeInTheDocument();
+    for (const name of [/Past-due tasks/, /Deadlines, next 14 days/, /Office hours this week/, /Area in design/]) expect(await tile(name)).toBeInTheDocument();
   });
 
   it('opens the list behind a tile', async () => {

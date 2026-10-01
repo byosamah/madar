@@ -26,7 +26,8 @@ describe('the Overview tab', () => {
     await screen.findByText(/I uploaded revision B/);
     await api.call('tasks.complete', { id: 'tsk_009' });
     expect(await screen.findByText('completed “Specifications draft”')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('radio', { name: 'Posts' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Posts' }));
     await waitFor(() => expect(screen.queryByText('completed “Specifications draft”')).toBeNull());
     expect(screen.getByText(/I uploaded revision B/)).toBeInTheDocument();
   });

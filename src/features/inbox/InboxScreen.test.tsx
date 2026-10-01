@@ -33,7 +33,7 @@ describe('the Inbox', () => {
     expect(screen.getByRole('heading', { name: 'Yesterday' })).toBeInTheDocument();
     expect(screen.getByText('Faisal Al-Harbi gave you “Civil Defense drawings”')).toBeInTheDocument();
     expect(screen.getByText('Faisal Al-Harbi mentioned you in Corniche Office Tower')).toBeInTheDocument();
-    expect(screen.getByText('“Toilet details” is overdue')).toBeInTheDocument();
+    expect(screen.getByText('“Toilet details” is past due')).toBeInTheDocument();
   });
 
   it('marks a notice read when it opens, and goes to the task', async () => {

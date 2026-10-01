@@ -8,6 +8,10 @@ const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
 };
 const TASKS = '/projects/prj_001?tab=tasks';
+const filter = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+  return screen.getByRole('dialog', { name: 'Filter' });
+};
 
 describe('the Tasks tab list', () => {
   it('groups open tasks by stage and shows done tasks on request', async () => {
@@ -15,14 +19,16 @@ describe('the Tasks tab list', () => {
     const group = await screen.findByRole('region', { name: 'Construction Documents' });
     expect(within(group).getByText('Stair details')).toBeInTheDocument();
     expect(within(group).queryByText('Door and window schedule')).toBeNull();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Show done tasks' }));
+    await userEvent.click(within(await filter()).getByRole('checkbox', { name: 'Show done tasks' }));
     expect(await within(group).findByText('Door and window schedule')).toBeInTheDocument();
   });
 
-  it('filters to overdue tasks', async () => {
+  it('keeps the task choices in one filter button, with no chip row', async () => {
     await renderApp(TASKS);
     await screen.findByText('Stair details');
-    await userEvent.click(screen.getByRole('radio', { name: 'Overdue' }));
+    expect(screen.queryByRole('radiogroup')).toBeNull();
+    await userEvent.click(within(await filter()).getByRole('radio', { name: 'Past due' }));
+    expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Specifications draft')).toBeNull());
     expect(screen.getByText('Stair details')).toBeInTheDocument();
   });
@@ -47,6 +53,14 @@ describe('the Tasks tab list', () => {
     await waitFor(() => expect(Object.values(store.state.tasks)
       .some((task) => task.title === 'Fire strategy report' && task.stageId === 'stg_005' && task.ownerId === 'usr_005')).toBe(true));
     expect(await screen.findByText('Fire strategy report')).toBeInTheDocument();
+  });
+
+  it('says how late a task is, gently, and shows counts only when there are some', async () => {
+    await renderApp(TASKS);
+    const row = (await screen.findByText('Stair details')).closest('li') as HTMLElement;
+    expect(within(row).getByText(/days past due$/)).toHaveClass('text-attn');
+    expect(within(row).queryByText('Overdue')).toBeNull();
+    expect(within(row).queryByText(/^0 /)).toBeNull();
   });
 
   it('puts the open task in the link', async () => {

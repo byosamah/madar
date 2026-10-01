@@ -71,7 +71,7 @@
       "task_assigned": "A task is assigned to me",
       "mention": "Someone mentions me",
       "due_tomorrow": "My task is due tomorrow",
-      "overdue": "My task is overdue",
+      "overdue": "My task is past due",
       "review_requested": "A task goes to review",
       "task_approved": "My task is approved",
       "task_sent_back": "My task is sent back",
@@ -324,7 +324,7 @@
     "filter": {
       "all": "All",
       "mine": "Mine",
-      "overdue": "Overdue",
+      "overdue": "Past due",
       "flagged": "Flagged"
     },
     "showDone": "Show done tasks",
@@ -339,7 +339,7 @@
     "empty": "No tasks here yet.",
     "emptyFiltered": "No tasks match this filter.",
     "flagged": "Flagged",
-    "overdue": "Overdue",
+    "overdue": "Past due",
     "comments": "Comments: {{n}}",
     "files": "Files: {{n}}",
     "column": "{{status}}: {{n}}",
@@ -479,7 +479,7 @@
     },
     "group": {
       "review": "Waiting for my review",
-      "overdue": "Overdue",
+      "overdue": "Past due",
       "today": "Today",
       "week": "This week",
       "later": "Later",
@@ -532,7 +532,7 @@
       "task_assigned": "{{actor}} gave you “{{target}}”",
       "mention": "{{actor}} mentioned you in {{target}}",
       "due_tomorrow": "“{{target}}” is due tomorrow",
-      "overdue": "“{{target}}” is overdue",
+      "overdue": "“{{target}}” is past due",
       "review_requested": "{{actor}} sent “{{target}}” to review",
       "task_approved": "{{actor}} approved “{{target}}”",
       "task_sent_back": "{{actor}} sent back “{{target}}”",
@@ -617,7 +617,7 @@
     "tiles": {
       "activeProjects": "Active projects",
       "atRiskOrLate": "At risk or late",
-      "overdueTasks": "Overdue tasks",
+      "overdueTasks": "Past-due tasks",
       "deadlines": "Deadlines, next 14 days",
       "officeHours": "Office hours this week",
       "area": "Area in design"
@@ -663,7 +663,7 @@
   "taskList": {
     "title": "Task list",
     "deadlinesTitle": "Deadlines",
-    "overdue": "Overdue tasks",
+    "overdue": "Past-due tasks",
     "flagged": "Flagged tasks",
     "forPerson": "Tasks of {{name}}",
     "dueRange": "Due {{from}} to {{to}}",
