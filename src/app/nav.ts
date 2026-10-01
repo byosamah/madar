@@ -1,4 +1,4 @@
-import { FolderKanban, Home, Inbox, LayoutDashboard, ListChecks, Search } from 'lucide-react';
+import { Bell, FolderKanban, Home, Inbox, LayoutDashboard, ListChecks, Search } from 'lucide-react';
 
 export type NavItem = { to: string; key: string; icon: typeof Home; badge?: boolean };
 
@@ -12,6 +12,9 @@ export const NAV: NavItem[] = [
 ];
 
 export const SEARCH_ITEM: NavItem = { to: '/search', key: 'nav.search', icon: Search };
+
+/** The bell beside Search opens the notifications (owner, 2026-10-01). The Inbox tab is the chat. */
+export const NOTIFICATIONS_ITEM: NavItem = { to: '/notifications', key: 'nav.notifications', icon: Bell };
 
 /** A project belongs to Projects; the lists behind the Dashboard numbers belong to the Dashboard. */
 export function isNavActive(to: string, pathname: string): boolean {

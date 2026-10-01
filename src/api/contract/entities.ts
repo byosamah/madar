@@ -14,6 +14,8 @@ export const CommentId = id('cmt');
 export const FileId = id('fil');
 export const NotificationId = id('ntf');
 export const EventId = id('evt');
+export const ConversationId = id('cnv');
+export const MessageId = id('msg');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -46,7 +48,7 @@ export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
-export const NotificationTarget = z.enum(['project', 'task', 'update']);
+export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
 export const Preferences = z.object({
@@ -204,6 +206,35 @@ export const Comment = z.object({
   editedAt: Stamp.nullable(),
 });
 export type Comment = z.infer<typeof Comment>;
+
+/** A chat room. A project chat has no member list: its people are the project team and the Admin. A direct chat has exactly two. */
+export const Conversation = z.object({
+  id: ConversationId,
+  kind: z.enum(['project', 'direct']),
+  projectId: ProjectId.nullable(),
+  memberIds: z.array(UserId).max(2),
+  createdAt: Stamp,
+});
+export type Conversation = z.infer<typeof Conversation>;
+
+export const MESSAGE_MAX = 4000;
+
+export const Message = z.object({
+  id: MessageId,
+  conversationId: ConversationId,
+  authorId: UserId,
+  // The person an agent acted for. For a person's own message it is the author.
+  actingForId: UserId,
+  body: z.string().trim().min(1).max(MESSAGE_MAX),
+  mentions: z.array(UserId),
+  createdAt: Stamp,
+  editedAt: Stamp.nullable(),
+});
+export type Message = z.infer<typeof Message>;
+
+/** When a person last read a conversation. */
+export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
+export type ChatRead = z.infer<typeof ChatRead>;
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 

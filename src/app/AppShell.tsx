@@ -46,6 +46,9 @@ function ScreenEntrance() {
   );
 }
 
+/** The chat is one screen: opening another conversation keeps the list, its search and its place. */
+const screenKey = (pathname: string): string => (pathname.startsWith('/inbox/') ? '/inbox' : pathname);
+
 export function AppShell() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -73,7 +76,7 @@ export function AppShell() {
         <div className="absolute end-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 sm:hidden">
           <PersonMenu id="phone" />
         </div>
-        <ScreenEntrance key={pathname} />
+        <ScreenEntrance key={screenKey(pathname)} />
         {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
         <ScrollRestoration getKey={(location) => location.pathname} />
       </main>

@@ -4,6 +4,7 @@ import { HomeOrRedirect } from '../features/home/HomeOrRedirect';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { MeetingView } from '../features/dashboard/MeetingView';
 import { InboxScreen } from '../features/inbox/InboxScreen';
+import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
 import { ProjectScreen } from '../features/project/ProjectScreen';
@@ -27,7 +28,8 @@ export function createAppRouter() {
         { path: 'projects/:projectId', element: <ProjectScreen /> },
         { path: 'work', element: <WorkScreen /> },
         { path: 'dashboard', element: <DashboardScreen /> },
-        { path: 'inbox', element: <InboxScreen /> },
+        { path: 'inbox/:conversationId?', element: <InboxScreen /> },
+        { path: 'notifications', element: <NotificationsScreen /> },
         { path: 'search', element: <SearchScreen /> },
         { path: 'tasks', element: <TaskListScreen /> },
         { path: 'settings', element: <SettingsScreen /> },

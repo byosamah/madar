@@ -13,6 +13,7 @@ describe('app shell', () => {
     for (const name of ['Home', 'Projects', 'Dashboard', 'Inbox']) expect(within(nav).getByRole('link', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Search' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
@@ -50,7 +51,7 @@ describe('app shell', () => {
     expect(await screen.findByText('Changes will not be saved in this window.')).toBeInTheDocument();
   });
 
-  it('shows the Inbox badge for items that need action', async () => {
+  it('shows the bell badge for notifications that need action', async () => {
     await renderApp('/dashboard');
     expect((await screen.findAllByText(/items need action/)).length).toBeGreaterThan(0);
   });

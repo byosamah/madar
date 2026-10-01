@@ -5,7 +5,7 @@ export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride'
   | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.updateAny' | 'task.review' | 'task.delete'
-  | 'content.post' | 'content.editOwn'
+  | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
@@ -35,6 +35,8 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
   switch (action) {
     case 'project.view':
     case 'project.create':
+    // Every active person reads task comments, as the project page shows them to non-members too. The Inbox task threads use the same rule.
+    case 'comment.read':
       return true;
     case 'project.edit':
     case 'project.changeLeader':
@@ -51,6 +53,7 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
       return admin;
     case 'task.createForSelf':
     case 'content.post':
+    case 'chat.project':
       return onProject;
     case 'task.updateOwn':
       return leads || (onProject && resource.ownerId === actor.id);

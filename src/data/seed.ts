@@ -1,4 +1,5 @@
-import { emptyState, memberKey, nextId, type State } from '../api/store';
+import { addDirectConversation, addProjectConversation } from '../api/chatState';
+import { chatReadKey, emptyState, memberKey, nextId, type State } from '../api/store';
 import {
   defaultPreferences, emptyReactions, type FileRec, type FileVersion, type Project, type Task, type User,
 } from '../api/contract/entities';
@@ -153,6 +154,7 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
   for (const userId of memberIds) {
     state.members[memberKey(projectId, userId)] = { projectId, userId, discipline: state.users[userId].discipline };
   }
+  addProjectConversation(state, projectId, created);
   writeEvent(ec(leader, created), { projectId, verb: 'project.created', targetType: 'project', targetId: projectId, before: null, after: { ...project } });
   if (plan.stage > 0) {
     writeEvent(ec(leader, at(curStart, 10)), {
@@ -304,6 +306,90 @@ function addAgentSummaries(state: State, today: string, agentId: string): void {
   }
 }
 
+type Talk = { by: number; days: number; hour: number; minute: number; text: string };
+
+/** Sample chat. "by" is an index into PEOPLE. Days count back from today. The Admin keeps a few messages unread. */
+function addChatTalk(state: State, today: string, humans: User[]): void {
+  const who = (index: number) => humans[index];
+  const tag = (index: number) => mentionMarkup(who(index).name, who(index).id);
+  const project = (code: string) => Object.values(state.projects).find((p) => p.code === code);
+  const post = (conversationId: string, talk: Talk[]): void => {
+    for (const line of talk) {
+      const id = nextId(state, 'msg');
+      const author = who(line.by);
+      const mentions = [...line.text.matchAll(/\((usr_\d{3,})\)/g)].map((m) => m[1]);
+      state.messages[id] = {
+        id, conversationId, authorId: author.id, actingForId: author.id, body: line.text, mentions,
+        createdAt: at(addDays(today, -line.days), line.hour, line.minute), editedAt: null,
+      };
+    }
+  };
+  const lastOf = (conversationId: string): string =>
+    Object.values(state.messages).filter((m) => m.conversationId === conversationId).map((m) => m.createdAt).sort().at(-1) ?? '';
+  const read = (conversationId: string, userId: string, lastReadAt: string): void => {
+    state.chatReads[chatReadKey(conversationId, userId)] = { conversationId, userId, lastReadAt };
+  };
+  const rooms: { id: string; people: string[] }[] = [];
+
+  const talks: [string, Talk[]][] = [
+    ['KH-26-001', [
+      { by: 1, days: 1, hour: 9, minute: 10, text: 'Good morning team. The civil defense comments came back. We must fix the stair widths before Thursday.' },
+      { by: 4, days: 1, hour: 9, minute: 40, text: 'I checked the plans. Stair 2 is 1.10 m wide. The code asks for 1.20 m.' },
+      { by: 7, days: 1, hour: 10, minute: 5, text: `I can move the core wall by 100 mm. ${tag(4)} send me the section line when you are ready.` },
+      { by: 4, days: 1, hour: 10, minute: 20, text: 'Done. I put the new section on the shared sheet.' },
+      { by: 5, days: 0, hour: 7, minute: 15, text: `The sprinkler riser clashes with beam B14. ${tag(1)} can we shift it 300 mm east?` },
+      { by: 1, days: 0, hour: 7, minute: 50, text: 'Yes, go ahead. Update the MEP model and tell Khalid.' },
+    ]],
+    ['KH-26-002', [
+      { by: 2, days: 1, hour: 14, minute: 0, text: 'The client wants the townhouse facade in light sand stone. I will send the sample photos today.' },
+      { by: 6, days: 1, hour: 14, minute: 30, text: 'I prepared two interior palettes. Both work with the sand stone.' },
+      { by: 4, days: 0, hour: 6, minute: 55, text: 'The front garden wall was 40 cm too long on the site plan. I fixed it in revision C.' },
+      { by: 2, days: 0, hour: 7, minute: 30, text: `Thanks Sara. ${tag(6)} please check the garden lights against the new wall.` },
+    ]],
+    ['KH-26-006', [
+      { by: 0, days: 2, hour: 11, minute: 0, text: 'The health authority visits next week. We need the clinic room schedule final by Monday.' },
+      { by: 5, days: 2, hour: 11, minute: 20, text: 'The air handling unit schedule is ready. I wait for the room list.' },
+      { by: 6, days: 1, hour: 13, minute: 0, text: 'The room list is ready. I put the finish codes in column F.' },
+    ]],
+  ];
+  for (const [code, talk] of talks) {
+    const target = project(code);
+    const room = target && Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === target.id);
+    if (!target || !room) continue;
+    post(room.id, talk);
+    rooms.push({ id: room.id, people: [...new Set([target.leaderId ?? '', ...Object.values(state.members).filter((m) => m.projectId === target.id).map((m) => m.userId)])] });
+  }
+
+  const direct: [number, number, Talk[]][] = [
+    [0, 1, [
+      { by: 1, days: 1, hour: 17, minute: 0, text: 'Hala, do you have ten minutes tomorrow about the tower schedule?' },
+      { by: 0, days: 1, hour: 17, minute: 12, text: 'Yes. Come to my desk at 10.' },
+      { by: 1, days: 0, hour: 7, minute: 40, text: 'I will bring the new stage dates.' },
+    ]],
+    [0, 2, [
+      { by: 2, days: 2, hour: 15, minute: 0, text: 'The client approved the townhouse massing.' },
+      { by: 0, days: 2, hour: 15, minute: 5, text: 'Good news. Please tell the team and update the stage.' },
+    ]],
+  ];
+  const unreadFor = humans[0].id;
+  for (const [a, b, talk] of direct) {
+    const room = addDirectConversation(state, who(a).id, who(b).id, at(addDays(today, -talk[0].days), talk[0].hour));
+    post(room.id, talk);
+    rooms.push({ id: room.id, people: [who(a).id, who(b).id] });
+  }
+
+  for (const room of rooms) {
+    for (const userId of room.people) read(room.id, userId, lastOf(room.id));
+    // The Admin reads every room, except two that keep unread messages for the demo.
+    read(room.id, unreadFor, lastOf(room.id));
+  }
+  const tower = project('KH-26-001');
+  const towerRoom = tower && Object.values(state.conversations).find((c) => c.projectId === tower.id);
+  if (towerRoom) read(towerRoom.id, unreadFor, at(addDays(today, -1), 11, 0));
+  const withFaisal = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(who(0).id) && c.memberIds.includes(who(1).id));
+  if (withFaisal) read(withFaisal.id, unreadFor, at(addDays(today, -1), 17, 12));
+}
+
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */
 export async function buildSeed(today: string, putBlob: PutBlob): Promise<State> {
   const state = emptyState(today);
@@ -343,6 +429,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const seed: SeedCtx = { state, today, humans, clientIds, saveBlob };
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
   addAgentSummaries(state, today, agentId);
+  addChatTalk(state, today, humans);
 
   const weekAgo = at(addDays(today, -7), 0);
   for (const n of Object.values(state.notifications)) if (n.createdAt < weekAgo) n.read = true;

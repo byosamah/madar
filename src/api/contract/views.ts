@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
-  Client, Comment, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue, Project,
+  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
+  Message, Project,
   ProjectId, Stage, StageId, Stamp, Task, UpdateId, UserId,
 } from './entities';
 
@@ -101,5 +102,38 @@ export type TaskDetail = z.infer<typeof TaskDetail>;
 export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean() });
 export type CommentView = z.infer<typeof CommentView>;
 
-export const FileView = z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });
+/** One row of the Inbox list: a project chat, a direct chat or a task thread. A task thread has the task id as its id. */
+export const ChatRow = z.object({
+  kind: z.enum(['project', 'direct', 'task']),
+  id: z.string(),
+  title: z.string(),
+  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }).nullable(),
+  person: UserCard.nullable(),
+  taskId: z.string().nullable(),
+  preview: z.string(),
+  previewAuthor: UserCard.nullable(),
+  previewMine: z.boolean(),
+  lastAt: Stamp,
+  unread: z.number().int().min(0),
+});
+export type ChatRow = z.infer<typeof ChatRow>;
+
+export const MessageView = z.object({
+  message: Message,
+  author: UserCard,
+  /** The person an agent acted for, when it is not the author. */
+  actingFor: UserCard.nullable(),
+  mine: z.boolean(),
+});
+export type MessageView = z.infer<typeof MessageView>;
+
+export const ChatThread = z.object({
+  chat: ChatRow.extend({ id: ConversationId }),
+  /** People the composer can mention. */
+  people: z.array(UserCard),
+  messages: z.array(MessageView),
+});
+export type ChatThread = z.infer<typeof ChatThread>;
+
+export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });
 export type FileView = z.infer<typeof FileView>;

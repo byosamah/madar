@@ -1,3 +1,4 @@
+import { addProjectConversation } from '../api/chatState';
 import { STATE_VERSION, type State } from '../api/store';
 import { SAMPLE_GENDERS } from './seed';
 
@@ -28,6 +29,17 @@ export function migrateState(state: State): State | null {
       if ((event.targetType as string) === 'time') delete state.events[id];
     }
     state.version = 3;
+  }
+  if (state.version === 3) {
+    // Version 4: the Inbox is a chat. Every project gets its chat room. The collections start empty.
+    state.conversations ??= {};
+    state.messages ??= {};
+    state.chatReads ??= {};
+    for (const project of Object.values(state.projects)) {
+      const has = Object.values(state.conversations).some((c) => c.kind === 'project' && c.projectId === project.id);
+      if (!has) addProjectConversation(state, project.id, project.createdAt);
+    }
+    state.version = 4;
   }
   return state.version === STATE_VERSION ? state : null;
 }

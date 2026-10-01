@@ -103,6 +103,7 @@ export const commentsList = defineCall({
   readOnly: true,
   run(input, ctx) {
     projectOfTarget(ctx, input.targetType, input.targetId);
+    assertCan(ctx, 'comment.read');
     return Object.values(ctx.state.comments)
       .filter((c) => c.targetType === input.targetType && c.targetId === input.targetId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))

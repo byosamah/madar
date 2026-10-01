@@ -3,6 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { ClientId, Day, DeadlineId, FileId, HealthValue, ProjectId, ProjectStatus, StageId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
+import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { notify, projectPeople } from '../notify';
 import { projectRoleOf } from '../permissions';
@@ -145,6 +146,7 @@ export const projectsCreate = defineCall({
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });
     const people = new Set([ctx.authority.id, ...(leaderId ? [leaderId] : []), ...input.teamIds]);
     for (const userId of people) addMember(ctx, id, userId);
+    addProjectConversation(state, id, stamp);
     return detail(ctx, project);
   },
 });
@@ -308,6 +310,7 @@ export const projectsDelete = defineCall({
         || (n.targetType === 'update' && !state.updates[n.targetId]);
       if (gone) delete state.notifications[key];
     }
+    dropProjectConversation(state, pid);
     delete state.projects[pid];
     recordDelete(ctx, { projectId: pid, verb: 'project.deleted', targetType: 'project', targetId: pid, entity: project });
     return { deleted: true as const };

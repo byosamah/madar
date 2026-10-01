@@ -13,7 +13,9 @@
     "home": "Home",
     "lightMode": "Light mode",
     "darkMode": "Dark mode",
-    "tasks": "Tasks"
+    "tasks": "Tasks",
+    "notifications": "Notifications",
+    "inboxUnread": "Unread messages: {{count}}"
   },
   "screens": {
     "projects": "Projects",
@@ -24,7 +26,8 @@
     "search": "Search",
     "tasks": "Tasks",
     "settings": "Settings",
-    "home": "Home"
+    "home": "Home",
+    "notifications": "Notifications"
   },
   "placeholder": {
     "title": "This screen comes next",
@@ -799,5 +802,31 @@
     "pause": "Pause",
     "reset": "Reset",
     "break": "Time for a short break."
+  },
+  "chat": {
+    "title": "Chats",
+    "list": "Chats",
+    "search": "Search chats",
+    "newMessage": "New message",
+    "pickPerson": "Pick a person",
+    "noPeople": "No one else is here yet.",
+    "emptyTitle": "No chats yet",
+    "empty": "Project chats and direct messages show here.",
+    "noMatch": "No chat matches.",
+    "selectTitle": "Pick a chat",
+    "selectBody": "Choose a chat from the list to read it.",
+    "back": "Back to chats",
+    "openTask": "Open task",
+    "projectChat": "Project chat",
+    "directChat": "Direct message",
+    "taskThread": "Task thread",
+    "you": "You",
+    "messages": "Messages",
+    "noMessages": "No messages yet. Say hello.",
+    "composer": "Message",
+    "placeholder": "Write a message. Type @ to mention someone.",
+    "send": "Send",
+    "actingFor": "for {{name}}",
+    "unread": "Unread: {{count}}"
   }
 }
