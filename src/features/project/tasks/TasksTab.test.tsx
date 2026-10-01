@@ -66,7 +66,8 @@ describe('the Tasks tab list', () => {
   it('says how late a task is, gently, and shows counts only when there are some', async () => {
     await renderApp(TASKS);
     const row = (await screen.findByText('Stair details')).closest('li') as HTMLElement;
-    expect(within(row).getByText(/days past due$/)).toHaveClass('text-attn');
+    // The late sign, the same shape and color as a late project (owner, 2026-10-01); the word stays in ink.
+    expect(within(row).getByText(/days past due$/)).toHaveAttribute('data-sign', 'late');
     expect(within(row).queryByText('Overdue')).toBeNull();
     expect(within(row).queryByText(/^0 /)).toBeNull();
   });

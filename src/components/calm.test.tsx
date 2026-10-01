@@ -6,7 +6,6 @@ import { Button } from './Button';
 import { FilterButton } from './FilterButton';
 import { ProgressLine } from './ProgressLine';
 import { ProjectTile } from './ProjectTile';
-import { StateWord } from './StateWord';
 import { StatusSign, type SignState } from './StatusSign';
 import { Tabs } from './Tabs';
 
@@ -70,11 +69,6 @@ describe('calm parts', () => {
     const { container } = render(<ProgressLine index={6} total={7} complete tone="on_track" label="Completed" />);
     expect(screen.getByRole('progressbar', { name: 'Completed' })).toHaveAttribute('aria-valuenow', '100');
     expect([...container.querySelectorAll('[data-step]')].every((piece) => piece.getAttribute('data-step') === 'full')).toBe(true);
-  });
-
-  it('shows a state word with its tone', () => {
-    render(<StateWord tone="late">Late</StateWord>);
-    expect(screen.getByText('Late')).toHaveClass('text-late');
   });
 
   it('opens the filter choices, counts the active ones and returns focus on Escape', async () => {

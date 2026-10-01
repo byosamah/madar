@@ -10,7 +10,7 @@ import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
 import { ProjectTile } from '../../../components/ProjectTile';
-import { StateWord } from '../../../components/StateWord';
+import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord } from '../../../lib/due';
@@ -71,7 +71,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         <span dir="auto" className={`block truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
-          {when && (word?.tone === 'attn' ? <StateWord tone="attn">{when}</StateWord> : <span className="tabular">{when}</span>)}
+          {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><Flag size={12} aria-hidden />{t('tasks.flagged')}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}

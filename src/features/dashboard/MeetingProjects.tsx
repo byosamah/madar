@@ -7,7 +7,6 @@ import { Avatar } from '../../components/Avatar';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { RichText } from '../../components/RichText';
-import { StateWord } from '../../components/StateWord';
 import { StatusSign } from '../../components/StatusSign';
 import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
@@ -40,7 +39,7 @@ function TaskItem({ row, label }: { row: TaskRow; label?: string }) {
           <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
         </span>
       </span>
-      {when && (word?.tone === 'attn' ? <StateWord tone="attn">{when}</StateWord> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+      {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
     </li>
   );
 }
