@@ -29,7 +29,7 @@ describe('the project row', () => {
   it('shows the tile, name, stage, client, progress, next deadline and the state word', async () => {
     await renderWithRuntime(<Card id="prj_001" />, undefined, { path: '/' });
     const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
-    expect(within(row).getByText('CO')).toHaveAttribute('aria-hidden', 'true');
+    expect(row.querySelector('[data-project-mark]')).toHaveAttribute('aria-hidden', 'true');
     expect(within(row).getByText('Late')).toBeInTheDocument();
     expect(within(row).getByText('Gulf Crest Holding')).toBeInTheDocument();
     expect(within(row).getByRole('progressbar', { name: 'Stage 4 of 7' })).toHaveAttribute('aria-valuenow', '50');
@@ -45,9 +45,11 @@ describe('the project row', () => {
     expect(within(row).getByText(/Corniche Office Tower and Podium/)).toHaveClass('truncate');
   });
 
-  it('draws the code on a tinted panel when there is no cover', async () => {
+  it('draws the project picture large when there is no cover', async () => {
     await renderWithRuntime(<Cover id="prj_005" />, undefined, { path: '/' });
-    expect(await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' })).toHaveTextContent('KH-26-005');
+    const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
+    expect(cover).toHaveAttribute('data-project-mark');
+    expect(cover.querySelector('svg path')).not.toBeNull();
   });
 
   it('offers a person outside the project only Open and Copy link', async () => {

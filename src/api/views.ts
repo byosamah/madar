@@ -6,6 +6,7 @@ import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
+import { markOf } from '../lib/projectMark';
 
 export function userCard(user: User): UserCard {
   return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline, gender: user.gender };
@@ -187,7 +188,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
   return {
     task,
     owner: cardOf(state, task.ownerId),
-    project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '' },
+    project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
     stage: { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
     fileCount: Object.values(state.files).filter((f) => f.taskId === task.id).length,

@@ -1,5 +1,6 @@
 import { addProjectConversation } from '../api/chatState';
 import { STATE_VERSION, type State } from '../api/store';
+import { pickMark } from '../lib/projectMark';
 import { SAMPLE_GENDERS } from './seed';
 
 /** Brings an office saved by an older prototype up to date and keeps the work in it. Null means: build a fresh office. */
@@ -40,6 +41,16 @@ export function migrateState(state: State): State | null {
       if (!has) addProjectConversation(state, project.id, project.createdAt);
     }
     state.version = 4;
+  }
+  if (state.version === 4) {
+    // Version 5: every project gets its own picture (owner, 2026-10-01). The oldest project chooses first.
+    const projects = Object.values(state.projects).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const done: { id: string; mark: number }[] = [];
+    for (const project of projects) {
+      project.mark ??= pickMark(project.id, done);
+      done.push({ id: project.id, mark: project.mark });
+    }
+    state.version = 5;
   }
   return state.version === STATE_VERSION ? state : null;
 }

@@ -52,7 +52,7 @@ function InboxItem({ view }: { view: NoticeView }) {
           {sentence}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 pt-1 text-footnote text-ink-2">
-          {project && <><ProjectTile id={project.id} name={project.name} size={20} /><bdi className="min-w-0 truncate">{project.name}</bdi><span aria-hidden>·</span></>}
+          {project && <><ProjectTile id={project.id} mark={project.mark} size={20} /><bdi className="min-w-0 truncate">{project.name}</bdi><span aria-hidden>·</span></>}
           <span className="shrink-0"><Age stamp={n.createdAt} /></span>
         </span>
         {gone && <span className="text-footnote text-ink-2">{t('errors.not_found')}</span>}

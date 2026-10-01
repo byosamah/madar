@@ -8,6 +8,7 @@ import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { RichText } from '../../components/RichText';
 import { StateWord } from '../../components/StateWord';
+import { StatusSign } from '../../components/StatusSign';
 import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
@@ -77,7 +78,7 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
   return (
     <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
       <header className="panel flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
-        <ProjectTile id={row.project.id} name={row.project.name} size={64} />
+        <ProjectTile id={row.project.id} mark={row.project.mark} size={64} />
         <div className="min-w-0 flex-1 basis-80">
           <p className="text-[15px] font-medium text-ink-2">{t('dashboard.meeting.projectOf', { n: index + 1, total })}</p>
           <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
@@ -88,9 +89,7 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
               <bdi>{stage?.name ?? ''}</bdi>
               <span className="text-ink-2"> · {t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })}</span>
             </span>
-            {row.health === 'late' && <StateWord tone="late">{t('health.late')}</StateWord>}
-            {row.health === 'at_risk' && <StateWord tone="attn">{t('health.at_risk')}</StateWord>}
-            {row.health === 'on_track' && <StateWord tone="quiet">{t('health.on_track')}</StateWord>}
+            <StatusSign state={row.health}>{t(`health.${row.health}`)}</StatusSign>
           </div>
           <ProgressLine value={progress} hue={projectHue(row.project.id)} label={t('projects.stageCount', { n: stageIndex + 1, total: row.stages.length })} className="h-2" />
           {stage?.endDate && stageLeft !== null && (

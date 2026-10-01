@@ -13,7 +13,7 @@ import { normalizeForSearch } from '../../lib/text';
 type Row = CallOutput<'chats.list'>[number];
 
 function Lead({ row }: { row: Row }) {
-  if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} name={row.project.name} size={40} />;
+  if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} size={40} />;
   if (row.kind === 'direct' && row.person) return <Avatar user={row.person} size={40} />;
   return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><ListChecks size={18} /></span>;
 }

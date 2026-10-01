@@ -54,7 +54,7 @@ export function ChatPane({ id }: { id: string }) {
   if (!data) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
   const lead = chat.kind === 'project' && chat.project
-    ? <ProjectTile id={chat.project.id} name={chat.project.name} size={40} />
+    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
     : chat.person ? <Avatar user={chat.person} size={40} /> : null;
   return (
     <>

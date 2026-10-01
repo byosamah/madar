@@ -10,6 +10,7 @@ import { chatReadKey, nextId, type State } from '../store';
 import { attachmentsOf, cardOf } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { mentionedUserIds, plainText } from '../../lib/text';
+import { markOf } from '../../lib/projectMark';
 
 const PREVIEW_MAX = 140;
 
@@ -43,7 +44,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     kind: conversation.kind,
     id: conversation.id,
     title: conversation.kind === 'project' ? (project?.name ?? '') : (person?.name ?? ''),
-    project: project ? { id: project.id, code: project.code, name: project.name } : null,
+    project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     person,
     taskId: null,
     preview: last ? previewOf(last.body) : '',
@@ -69,7 +70,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
       || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
     if (!involved) continue;
     rows.push({
-      kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name }, person: null,
+      kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: 0,
     });

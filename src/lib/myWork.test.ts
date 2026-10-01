@@ -7,7 +7,7 @@ const TODAY = '2026-09-30'; // a Wednesday; the office week ends on Saturday 3 O
 const row = (id: string, dueDate: string | null, overdue = false): TaskRow => ({
   task: makeTask({ id, dueDate }),
   owner: { id: 'usr_003', name: 'Sara Team', avatarUrl: null, kind: 'human', discipline: 'Architect' },
-  project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower' },
+  project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower', mark: 0 },
   stage: { id: 'stg_002', name: 'Schematic Design' },
   commentCount: 0,
   fileCount: 0,

@@ -11,7 +11,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ProjectTile } from '../../components/ProjectTile';
 import { SegmentedControl } from '../../components/SegmentedControl';
-import { StateWord } from '../../components/StateWord';
+import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
 import { clipSpan, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
@@ -31,8 +31,8 @@ type Row = DashboardData['schedule'][number];
 
 function StateOfRow({ health }: { health: Row['health'] }) {
   const { t } = useTranslation();
-  if (health === 'late') return <StateWord tone="late">{t('health.late')}</StateWord>;
-  if (health === 'at_risk') return <StateWord tone="attn">{t('health.at_risk')}</StateWord>;
+  if (health === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
+  if (health === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
 }
 
@@ -271,7 +271,7 @@ export function MeetingView() {
             {view.schedule.map((row, index) => (
               <li key={row.project.id} className={`${COLUMNS} items-center border-b border-separator last:border-b-0`}>
                 <button type="button" onClick={() => setMode('projects', index)} className="pressable flex min-w-0 items-center gap-3 rounded-2xl py-3 text-start">
-                  <ProjectTile id={row.project.id} name={row.project.name} size={48} />
+                  <ProjectTile id={row.project.id} mark={row.project.mark} size={48} />
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
                       <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>

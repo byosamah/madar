@@ -3,15 +3,6 @@ import { SparklesIcon } from './icons/animated/sparkles';
 import type { UserCard } from '../api/contract/views';
 import { HUES } from '../lib/projectColor';
 
-// Darker tints so white initials pass the 4.5:1 contrast rule. Only the cover panel of a project without a picture uses them now.
-const TINTS = ['#C93400', '#1E7A34', '#0040DD', '#8944AB', '#D30F45', '#0071A4', '#B25000', '#6C6C70'];
-
-export function tintOf(id: string): string {
-  let sum = 0;
-  for (const ch of id) sum += ch.charCodeAt(0);
-  return TINTS[sum % TINTS.length];
-}
-
 function hashOf(id: string): number {
   let hash = 0;
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;

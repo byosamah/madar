@@ -3,6 +3,7 @@ import { nextProjectCode, projectCalls } from './projects';
 import type { Store } from '../store';
 import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { FORMS, markOf } from '../../lib/projectMark';
 
 beforeEach(() => setNow(NOW));
 
@@ -25,6 +26,16 @@ describe('projects.create', () => {
     expect(detail.members.map((m) => m.user.id)).toEqual(['usr_003', 'usr_004']);
     expect(notices(t.store, 'added_to_project', 'usr_004')).toHaveLength(1);
     expect(notices(t.store, 'added_to_project', 'usr_003')).toHaveLength(0);
+  });
+
+  it('gives each new project its own picture, with a form no other project uses yet', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_003');
+    for (const name of ['Beach Pavilion', 'Kiosk', 'Shade Canopy', 'Pier Cafe']) await t.api.call('projects.create', { name });
+    const created = Object.values(t.store.state.projects).filter((project) => project.id !== 'prj_001');
+    expect(created.every((project) => typeof project.mark === 'number')).toBe(true);
+    const forms = Object.values(t.store.state.projects).map((project) => markOf(project) % FORMS.length);
+    expect(new Set(forms).size).toBe(forms.length);
   });
 
   it('keeps the creator on the team when the leader is someone else or nobody', async () => {

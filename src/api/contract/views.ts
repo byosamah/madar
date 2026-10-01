@@ -35,11 +35,15 @@ export const FeedItem = z.discriminatedUnion('kind', [
 ]);
 export type FeedItem = z.infer<typeof FeedItem>;
 
+/** A project named in another view, with its picture mark. */
+export const ProjectRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+export type ProjectRef = z.infer<typeof ProjectRef>;
+
 export const NextDeadline = z.object({ id: DeadlineId, name: z.string(), date: Day, daysLeft: z.number().int() });
 
 export const DeadlineRow = z.object({
   deadline: Deadline,
-  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }),
+  project: ProjectRef,
   daysLeft: z.number().int(),
 });
 export type DeadlineRow = z.infer<typeof DeadlineRow>;
@@ -84,7 +88,7 @@ export type EventView = z.infer<typeof EventView>;
 export const TaskRow = z.object({
   task: Task,
   owner: UserCard,
-  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }),
+  project: ProjectRef,
   stage: z.object({ id: StageId, name: z.string() }),
   commentCount: z.number().int().min(0),
   fileCount: z.number().int().min(0),
@@ -111,7 +115,7 @@ export const ChatRow = z.object({
   kind: z.enum(['project', 'direct', 'task']),
   id: z.string(),
   title: z.string(),
-  project: z.object({ id: ProjectId, code: z.string(), name: z.string() }).nullable(),
+  project: ProjectRef.nullable(),
   person: UserCard.nullable(),
   taskId: z.string().nullable(),
   preview: z.string(),

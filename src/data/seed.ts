@@ -7,6 +7,7 @@ import { writeEvent, type EventContext } from '../api/events';
 import { notify, reviewersOf } from '../api/notify';
 import { addDays, dayOfWeek, diffDays, maxDay, minDay, weekStartOf } from '../lib/dates';
 import { mentionMarkup } from '../lib/text';
+import { pickMark } from '../lib/projectMark';
 import { drawingPdf, renderSvg } from './assets';
 
 export type PutBlob = (key: string, blob: Blob) => Promise<void>;
@@ -145,7 +146,7 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     id: projectId, code: plan.code, name: plan.name, clientId: clientIds[plan.client], status, leaderId: leader.id,
     currentStageId: stageIds[plan.stage], location: plan.location, areaM2: plan.area, startDate: firstStart, targetEndDate: lastEnd,
     coverFileId: null, modelFolderPath: `\\\\STUDIO\\Projects\\${plan.code}`, description: `${plan.name} for ${CLIENTS[plan.client][0]}.`,
-    healthOverride: null, createdBy: leader.id, createdAt: created, updatedAt: created,
+    healthOverride: null, mark: pickMark(projectId, Object.values(state.projects)), createdBy: leader.id, createdAt: created, updatedAt: created,
   };
   state.projects[projectId] = project;
 

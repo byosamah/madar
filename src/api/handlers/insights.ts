@@ -9,9 +9,10 @@ import type { State } from '../store';
 import { deadlinesOf, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
+import { markOf } from '../../lib/projectMark';
 
 const Count = z.number().int().min(0);
-const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string() });
+const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
 
 export const DashboardView = z.object({
   tiles: z.object({
@@ -60,7 +61,7 @@ export const dashboardGet = defineCall({
 
     const weekStart = weekStartOf(today);
     const humans = Object.values(state.users).filter((u) => u.kind === 'human' && u.active).sort((a, b) => a.name.localeCompare(b.name));
-    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name });
+    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) });
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
@@ -130,7 +131,7 @@ export const searchQuery = defineCall({
         .filter((p) => hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
-        .map((p) => ({ id: p.id, code: p.code, name: p.name })),
+        .map((p) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) })),
       tasks: Object.values(state.tasks)
         .filter((t) => state.projects[t.projectId]?.status === 'active' && hit(t.title))
         .slice(0, 5)

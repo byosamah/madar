@@ -90,7 +90,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         )}
       </button>
       {showProject
-        ? <span className="pe-2"><ProjectTile id={row.project.id} name={row.project.name} size={22} /></span>
+        ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
         : <span className="pe-1"><Avatar user={row.owner} size={26} /></span>}
     </motion.li>
   );

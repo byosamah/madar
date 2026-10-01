@@ -5,7 +5,7 @@ import type { ProjectSummary } from '../../api/contract/views';
 import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
-import { StateWord } from '../../components/StateWord';
+import { StatusSign, signOfStatus } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { projectHue, stageProgress } from '../../lib/projectColor';
 import { setSharedSource } from '../../app/sharedLayout';
@@ -15,9 +15,9 @@ import { NextDeadlineLabel } from './ProjectCard';
 /** The word a row shows only when there is something to say: Late, At risk, or the status of a project that is not active. */
 export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
   const { t } = useTranslation();
-  if (!summary.health) return <StateWord tone="quiet">{t(`status.${summary.project.status}`)}</StateWord>;
-  if (summary.health.value === 'late') return <StateWord tone="late">{t('health.late')}</StateWord>;
-  if (summary.health.value === 'at_risk') return <StateWord tone="attn">{t('health.at_risk')}</StateWord>;
+  if (!summary.health) return <StatusSign state={signOfStatus(summary.project.status)}>{t(`status.${summary.project.status}`)}</StatusSign>;
+  if (summary.health.value === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
+  if (summary.health.value === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
 }
 
@@ -42,7 +42,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
         onClick={() => setSharedSource(source)}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,14rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_8rem_minmax(0,14rem)] @4xl:gap-x-6"
       >
-        <ProjectTile id={project.id} name={project.name} shared />
+        <ProjectTile id={project.id} mark={project.mark} shared />
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>

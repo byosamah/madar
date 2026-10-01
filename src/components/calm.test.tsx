@@ -7,16 +7,30 @@ import { FilterButton } from './FilterButton';
 import { ProgressLine } from './ProgressLine';
 import { ProjectTile } from './ProjectTile';
 import { StateWord } from './StateWord';
+import { StatusSign } from './StatusSign';
 import { Tabs } from './Tabs';
 
 initI18n('en');
 
 describe('calm parts', () => {
-  it('draws a project tile with two letters in the project hue', () => {
-    render(<ProjectTile id="prj_001" name="Corniche Office Tower" />);
-    const tile = screen.getByText('CO');
-    expect(tile.getAttribute('style')).toMatch(/--p-\w+-bg/);
+  it('draws a project picture: the Glow light in the project color and one form in ink', () => {
+    const { container } = render(<ProjectTile id="prj_001" mark={30} />);
+    const tile = container.querySelector('[data-project-mark]')!;
+    expect(tile).toHaveAttribute('data-project-mark', '30');
     expect(tile).toHaveAttribute('aria-hidden', 'true');
+    expect(tile.getAttribute('style')).toMatch(/radial-gradient.*--p-\w+-fg/);
+    expect(tile.querySelector('svg path')).toHaveAttribute('fill', 'currentColor');
+    expect(tile.textContent).toBe('');
+  });
+
+  it('shows a project state as a shape sign: the shape carries the color, the word stays in ink', () => {
+    const { container } = render(<><StatusSign state="late">Late</StatusSign><StatusSign state="paused">Paused</StatusSign></>);
+    const late = screen.getByText('Late');
+    expect(late).toHaveAttribute('data-sign', 'late');
+    expect(late).toHaveClass('text-ink');
+    expect(late.querySelector('svg')).toHaveClass('text-red-text');
+    expect(screen.getByText('Paused')).toHaveClass('text-ink-2');
+    expect(container.querySelectorAll('svg')).toHaveLength(2);
   });
 
   it('reports the progress line value to screen readers', () => {

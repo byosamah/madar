@@ -10,6 +10,7 @@ import { projectRoleOf } from '../permissions';
 import { memberKey, nextId, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
+import { markOf, pickMark } from '../../lib/projectMark';
 import { assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
 
 const ProjectName = z.string().trim().min(1).max(120);
@@ -140,7 +141,8 @@ export const projectsCreate = defineCall({
       id, code: nextProjectCode(state, state.settings.codePrefix, today), name: input.name, clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
       startDate: input.startDate, targetEndDate: input.targetEndDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
-      description: input.description, healthOverride: null, createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
+      description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
+      createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
     };
     state.projects[id] = project;
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });
@@ -489,7 +491,7 @@ export const deadlinesList = defineCall({
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
       .map((d) => {
         const project = state.projects[d.projectId];
-        return { deadline: d, project: { id: project.id, code: project.code, name: project.name }, daysLeft: diffDays(today, d.date) };
+        return { deadline: d, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, daysLeft: diffDays(today, d.date) };
       });
   },
 });

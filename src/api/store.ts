@@ -9,7 +9,7 @@ import type { Persister } from './persist';
  * Version 4 added the chat: conversations, messages and read marks.
  * src/data/migrate.ts brings older offices up to date.
  */
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',

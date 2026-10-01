@@ -134,6 +134,8 @@ export const Project = z.object({
   healthOverride: HealthOverride.nullable(),
   // Optional, so offices saved before pauses existed still load.
   pause: ProjectPause.nullable().optional(),
+  /** The project's picture: one form and a second light, never the same as another project's (owner, 2026-10-01). */
+  mark: z.number().int().nonnegative().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

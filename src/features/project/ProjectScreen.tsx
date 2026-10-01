@@ -43,7 +43,7 @@ export function ProjectScreen() {
   if (!detail.data) {
     const summary = queryClient.getQueriesData<ProjectSummary[]>({ queryKey: ['api', 'projects.list'] })
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
-    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} /></LayoutGroup> : null;
+    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} mark={summary.project.mark} /></LayoutGroup> : null;
   }
   const Body = TAB_BODY[tab];
   return (

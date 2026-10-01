@@ -11,6 +11,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { ProgressLine } from '../../../components/ProgressLine';
 import { RichText } from '../../../components/RichText';
 import { StateWord } from '../../../components/StateWord';
+import { StatusSign, signOfStatus } from '../../../components/StatusSign';
 import { formatDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { counted } from '../../../lib/grammar';
@@ -57,10 +58,7 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
           <p className="text-footnote text-ink-2">{t('projects.stageCount', { n: index + 1, total: stages.length })}</p>
           <p dir="auto" className="text-section text-ink">{currentStage.name}</p>
         </div>
-        {health?.value === 'late' && <StateWord tone="late">{t('health.late')}</StateWord>}
-        {health?.value === 'at_risk' && <StateWord tone="attn">{t('health.at_risk')}</StateWord>}
-        {health?.value === 'on_track' && <StateWord tone="quiet">{t('health.on_track')}</StateWord>}
-        {!health && <StateWord tone="quiet">{t(`status.${project.status}`)}</StateWord>}
+        {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <StatusSign state={signOfStatus(project.status)}>{t(`status.${project.status}`)}</StatusSign>}
       </div>
       <ProgressLine value={stageProgress(detail)} hue={projectHue(project.id)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} className="h-1.5" />
       <dl className="grid gap-x-6 gap-y-2 text-subheadline sm:grid-cols-2">

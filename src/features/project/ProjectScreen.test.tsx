@@ -14,7 +14,7 @@ describe('the Project screen header', () => {
     await renderApp(PROJECT);
     const heading = await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' });
     const header = heading.closest('header') as HTMLElement;
-    expect(within(header).getByText('CO')).toHaveAttribute('aria-hidden', 'true');
+    expect(header.querySelector('[data-project-mark]')).toHaveAttribute('aria-hidden', 'true');
     expect(within(header).getByText('Gulf Crest Holding')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Late/ })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Construction Documents/ })).toBeInTheDocument();

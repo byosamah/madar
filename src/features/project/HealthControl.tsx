@@ -7,7 +7,7 @@ import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
 import { Popover } from '../../components/Popover';
 import { SegmentedControl } from '../../components/SegmentedControl';
-import { StateWord } from '../../components/StateWord';
+import { StatusSign, signOfStatus } from '../../components/StatusSign';
 
 const VALUES: HealthValue[] = ['on_track', 'at_risk', 'late'];
 
@@ -41,12 +41,11 @@ function HealthPopover({ detail, anchor, onClose }: { detail: ProjectDetail; anc
 function HealthWord({ detail, canSet }: { detail: ProjectDetail; canSet: boolean }) {
   const { t } = useTranslation();
   const { health, healthSetBy } = detail;
-  if (!health) return <StateWord tone="quiet">{t(`status.${detail.project.status}`)}</StateWord>;
+  if (!health) return <StatusSign state={signOfStatus(detail.project.status)}>{t(`status.${detail.project.status}`)}</StatusSign>;
   if (health.value === 'on_track' && !canSet && !health.overridden) return null;
-  const tone = health.value === 'late' ? 'late' : health.value === 'at_risk' ? 'attn' : 'quiet';
   return (
     <span title={health.overridden && health.reason ? health.reason : undefined} className="inline-flex items-center gap-2">
-      <StateWord tone={tone}>{t(`health.${health.value}`)}</StateWord>
+      <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign>
       {health.overridden && healthSetBy && <span className="text-footnote text-ink-2">{t('health.setBy', { name: healthSetBy.name })}</span>}
     </span>
   );

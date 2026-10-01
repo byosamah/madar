@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { migrateState } from './migrate';
 import { STATE_VERSION, type State } from '../api/store';
 import { makeTask, makeWorld, STAMP } from '../test/factories';
+import { FORMS } from '../lib/projectMark';
 
 const notice = (id: string, trigger: string, targetType: string, targetId: string) => ({
   id, userId: 'usr_003', trigger, actorId: null, targetType, targetId, read: false, createdAt: STAMP, dedupeKey: null,
@@ -12,6 +13,18 @@ const event = (id: string, seq: number, targetType: string, targetId: string) =>
 });
 
 describe('migrateState', () => {
+  it('takes a version 4 office to version 5 and gives every project its own picture', () => {
+    const world = makeWorld();
+    world.projects.prj_002 = { ...world.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Second' };
+    for (const project of Object.values(world.projects)) delete project.mark;
+    world.version = 4;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(STATE_VERSION);
+    const marks = Object.values(done.projects).map((project) => project.mark);
+    expect(marks.every((mark) => typeof mark === 'number')).toBe(true);
+    expect(new Set(marks.map((mark) => mark! % FORMS.length)).size).toBe(marks.length);
+  });
+
   it('takes a version 2 office to version 3 and drops the hours data, and keeps everything else', () => {
     const world = makeWorld();
     world.tasks.tsk_001 = makeTask();
@@ -35,7 +48,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(4);
+    expect(STATE_VERSION).toBe(5);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);

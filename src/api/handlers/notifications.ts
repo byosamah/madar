@@ -8,6 +8,7 @@ import { applyPatch } from '../events';
 import type { State } from '../store';
 import { can, projectRoleOf } from '../permissions';
 import { cardOf } from '../views';
+import { markOf } from '../../lib/projectMark';
 
 /** The Inbox badge counts only unread items of these kinds (spec 3.2). */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
@@ -20,7 +21,7 @@ export const NotificationView = z.object({
   target: z.string(),
   projectCode: z.string().nullable(),
   /** The project, for its color tile in the Inbox (redesign spec 3.7). Null for a timesheet notice or a deleted project. */
-  project: z.object({ id: z.string(), name: z.string() }).nullable(),
+  project: z.object({ id: z.string(), name: z.string(), mark: z.number().int().nonnegative() }).nullable(),
   link: z.string(),
   needsAction: z.boolean(),
   canApprove: z.boolean(),
@@ -47,7 +48,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
-  let tile: { id: string; name: string } | null = null;
+  let tile: { id: string; name: string; mark: number } | null = null;
   let link = '/notifications';
   let canApprove = false;
   let gone = false;
@@ -57,7 +58,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const project = state.projects[text(copy?.projectId)];
     target = text(copy?.title);
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name } : null;
+    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !task;
     if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
@@ -68,7 +69,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const project = state.projects[text(copy?.projectId)];
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name } : null;
+    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !update;
     if (update) link = `/projects/${update.projectId}?tab=activity&update=${update.id}`;
   } else if (n.targetType === 'chat') {
@@ -77,7 +78,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const otherId = conversation?.memberIds.find((id) => id !== viewer.id);
     target = project?.name ?? (otherId ? (state.users[otherId]?.name ?? '') : '');
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name } : null;
+    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !conversation || !canSeeConversation(state, conversation, viewer);
     if (!gone) link = `/inbox/${n.targetId}`;
   } else if (n.targetType === 'project') {
@@ -85,7 +86,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);
     target = text(copy?.name);
     projectCode = copy ? text(copy.code) || null : null;
-    tile = project ? { id: project.id, name: project.name } : null;
+    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !project;
     if (project) link = `/projects/${project.id}`;
   }

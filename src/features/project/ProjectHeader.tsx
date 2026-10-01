@@ -16,10 +16,10 @@ import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
-export function HeaderShell({ id, name }: { id: string; name: string }) {
+export function HeaderShell({ id, name, mark }: { id: string; name: string; mark?: number }) {
   return (
     <div className="flex items-start gap-4 pt-14">
-      <ProjectTile id={id} name={name} size={48} shared />
+      <ProjectTile id={id} mark={mark} size={48} shared />
       <p dir="auto" className="text-page-title text-ink">
         <motion.span layoutId={`name-${id}`} transition={spring.expand} className="inline-block">{name}</motion.span>
       </p>
@@ -40,7 +40,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
         {t('project.back')}
       </Link>
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-        <ProjectTile id={project.id} name={project.name} size={48} shared />
+        <ProjectTile id={project.id} mark={project.mark} size={48} shared />
         <div className="min-w-0 flex-1 basis-60">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
