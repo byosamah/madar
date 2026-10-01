@@ -33,10 +33,10 @@
   --c-glow-ink-2: #55555A;
   --sh-panel: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --panel-edge: transparent;
-  /* The glow: soft sand and warm stone, so it reads as daylight on paper, not as a tech gradient. */
-  --glow-a: #EEDFC6;
-  --glow-b: #E6E1DA;
-  --glow-c: #F2E8D8;
+  /* The glow behind Next for you: soft blue, lilac and mint (owner's choice). */
+  --glow-a: #CCE0FF;
+  --glow-b: #EAD5FF;
+  --glow-c: #CFF2E2;
   /* Project hues (redesign spec 2.3): tile text keeps 4.5:1 on its tile, and the line keeps 3:1 on the panel. */
   --p-blue-bg: #E8F0FE;
   --p-blue-fg: #1A56DB;
@@ -126,9 +126,9 @@
   --c-glow-ink-2: #A1A1A6;
   --sh-panel: none;
   --panel-edge: #26262B;
-  --glow-a: rgba(214, 186, 140, 0.2);
-  --glow-b: rgba(255, 255, 255, 0.08);
-  --glow-c: rgba(214, 186, 140, 0.12);
+  --glow-a: rgba(91, 108, 255, 0.3);
+  --glow-b: rgba(139, 92, 246, 0.3);
+  --glow-c: rgba(52, 199, 89, 0.16);
   --p-blue-bg: #1B2A44;
   --p-blue-fg: #7EA8FF;
   --p-orange-bg: #3A2618;
