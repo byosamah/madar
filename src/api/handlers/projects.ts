@@ -12,6 +12,7 @@ import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
+import { addTrackerEntry } from './tracker';
 
 const ProjectName = z.string().trim().min(1).max(120);
 const StageName = z.string().trim().min(1).max(60);
@@ -189,16 +190,26 @@ export const projectsUpdate = defineCall({
   },
 });
 
+/**
+ * Makes a stage current. Going back to an earlier stage needs a reason, which the Overview shows until the project moves
+ * forward again; the leader may also log it in the Tracker as a Balady update (colleague comment 12, 2026-10-01).
+ */
 export const projectsSetStage = defineCall({
-  input: z.object({ id: ProjectId, stageId: StageId }),
+  input: z.object({ id: ProjectId, stageId: StageId, reason: z.string().trim().max(280).optional(), logInTracker: z.boolean().optional() }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireEditable(ctx, input.id);
-    requireStage(ctx, project.id, input.stageId);
+    const to = requireStage(ctx, project.id, input.stageId);
     if (project.currentStageId === input.stageId) return detail(ctx, project);
-    applyPatch(ctx, project, { currentStageId: input.stageId, healthOverride: null }, {
+    const from = ctx.state.stages[project.currentStageId];
+    const back = from !== undefined && to.order < from.order;
+    const reason = input.reason?.trim() ?? '';
+    if (back && !reason) throw invalid('reason', 'Write why the project moves back.', 'stage_back_reason');
+    const stageBack = back ? { fromStageId: from.id, toStageId: to.id, reason, by: ctx.actor.id, at: ctx.stamp } : null;
+    applyPatch(ctx, project, { currentStageId: input.stageId, healthOverride: null, stageBack }, {
       projectId: project.id, verb: 'project.stage_changed', targetType: 'project', targetId: project.id,
     });
+    if (back && input.logInTracker) addTrackerEntry(ctx, { projectId: project.id, type: 'balady', direction: 'in', title: reason });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, project.id), trigger: 'stage_changed', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);

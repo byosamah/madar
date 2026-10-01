@@ -63,6 +63,20 @@ describe('the Project screen header', () => {
     expect(screen.getByRole('button', { name: /Permits/ })).toBeInTheDocument();
   });
 
+  it('moves back to an earlier stage only with a reason, and the Overview says why (colleague comment 12)', async () => {
+    await renderApp(PROJECT, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
+    const popover = screen.getByRole('dialog', { name: 'Stages' });
+    await userEvent.click(within(popover).getByRole('button', { name: /Design Development/ }));
+    const move = await within(popover).findByRole('button', { name: 'Move back to Design Development' });
+    expect(move).toBeDisabled();
+    await userEvent.type(within(popover).getByLabelText('Why does the project move back?'), 'Balady asked for changes to the drawings');
+    await userEvent.click(within(popover).getByRole('checkbox', { name: 'Log it in the Tracker as a Balady update' }));
+    await userEvent.click(move);
+    const standing = await screen.findByRole('region', { name: 'Where the project stands' });
+    expect(await within(standing).findByText(/Moved back from Construction Documents/)).toHaveTextContent('Balady asked for changes to the drawings');
+  });
+
   it('changes the leader', async () => {
     const { store } = await renderApp(PROJECT);
     await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));

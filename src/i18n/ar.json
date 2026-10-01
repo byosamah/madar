@@ -112,7 +112,8 @@
       "file_other_project": "أحد الملفات يتبع مشروعًا آخر.",
       "file_not_visible": "أنت لست ضمن فريق مشروع هذا الملف.",
       "recipient_not_on_project": "هذا الشخص ليس ضمن فريق مشروع هذا الملف. لا يستطيع فتحه.",
-      "client_name_missing": "اكتب اسم العميل بالإنجليزية أو بالعربية."
+      "client_name_missing": "اكتب اسم العميل بالإنجليزية أو بالعربية.",
+      "stage_back_reason": "اكتب سبب رجوع المشروع."
     }
   },
   "stageTemplates": {
@@ -332,7 +333,10 @@
     "pausedTitle": "متوقف مؤقتًا",
     "pausedBy": "أوقف {{name}} المشروع مؤقتًا في {{date}}.",
     "pausedBy_female": "أوقفت {{name}} المشروع مؤقتًا في {{date}}.",
-    "restarts": "يُستأنف في {{date}}."
+    "restarts": "يُستأنف في {{date}}.",
+    "moveBack": "الرجوع إلى {{stage}}",
+    "moveBackWhy": "لماذا يرجع المشروع إلى مرحلة سابقة؟",
+    "moveBackLog": "سجّله في المتابعة كتحديث من بلدي"
   },
   "overview": {
     "composer": "انشر تحديثًا",
@@ -397,7 +401,8 @@
     "comingUp": "القادم",
     "latest": "آخر تحديث",
     "noPosts": "لا تحديثات بعد.",
-    "seeActivity": "كل النشاط"
+    "seeActivity": "كل النشاط",
+    "movedBack": "رجع من {{stage}} في {{date}}: {{reason}}"
   },
   "feed": {
     "project": {

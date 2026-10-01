@@ -11,7 +11,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { ProgressLine } from '../../../components/ProgressLine';
 import { RichText } from '../../../components/RichText';
 import { signOf, StatusSign, signOfStatus } from '../../../components/StatusSign';
-import { formatDay, todayISO } from '../../../lib/dates';
+import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
@@ -20,6 +20,8 @@ import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
 import { amountText, PaymentsPanel } from '../payments/PaymentsPanel';
 import { AboutPanel } from './AboutPanel';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { CornerUpLeftIcon } from '../../../components/icons/animated/corner-up-left';
 
 const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
 
@@ -61,6 +63,19 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
         {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <StatusSign state={signOfStatus(project.status)}>{t(`status.${project.status}`)}</StatusSign>}
       </div>
       <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOf(health, project.status)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
+      {project.stageBack && project.stageBack.toStageId === currentStage.id && (
+        // Why the project went back a stage, until it moves forward again (colleague comment 12).
+        <p className="flex items-start gap-2 text-subheadline text-ink-2">
+          <AnimatedIcon icon={CornerUpLeftIcon} size={16} className="mt-0.5 shrink-0 rtl:-scale-x-100" aria-hidden />
+          <span dir="auto">
+            {t('overview.movedBack', {
+              stage: stages.find((stage) => stage.id === project.stageBack!.fromStageId)?.name ?? '',
+              date: formatDay(stampDay(project.stageBack.at), lang),
+              reason: project.stageBack.reason,
+            })}
+          </span>
+        </p>
+      )}
       <dl className="grid gap-x-6 gap-y-2 text-subheadline sm:grid-cols-2">
         <div>
           <dt className="text-footnote text-ink-2">{t('overview.stageTasksLabel')}</dt>

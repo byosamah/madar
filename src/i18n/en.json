@@ -107,7 +107,8 @@
       "file_other_project": "A file belongs to another project.",
       "file_not_visible": "You are not on the project of this file.",
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
-      "client_name_missing": "Write the client name in English or in Arabic."
+      "client_name_missing": "Write the client name in English or in Arabic.",
+      "stage_back_reason": "Write why the project moves back."
     }
   },
   "stageTemplates": {
@@ -306,7 +307,10 @@
     "resumedToast": "Project resumed.",
     "pausedTitle": "Paused",
     "pausedBy": "{{name}} paused this project on {{date}}.",
-    "restarts": "Restarts {{date}}."
+    "restarts": "Restarts {{date}}.",
+    "moveBack": "Move back to {{stage}}",
+    "moveBackWhy": "Why does the project move back?",
+    "moveBackLog": "Log it in the Tracker as a Balady update"
   },
   "overview": {
     "composer": "Post an update",
@@ -359,7 +363,8 @@
     "comingUp": "Coming up",
     "latest": "Latest update",
     "noPosts": "No updates yet.",
-    "seeActivity": "See all activity"
+    "seeActivity": "See all activity",
+    "movedBack": "Moved back from {{stage}} on {{date}}: {{reason}}"
   },
   "feed": {
     "project": {

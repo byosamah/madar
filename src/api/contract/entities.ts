@@ -138,6 +138,10 @@ export const isNetworkPath = (url: string): boolean => NETWORK_PATH.test(url);
 export const ProjectLink = z.object({ id: z.string(), kind: LinkKind, label: z.string().trim().max(80), url: z.string().trim().min(1).max(500) });
 export type ProjectLink = z.infer<typeof ProjectLink>;
 
+/** Why a project went back to an earlier stage, shown until it moves forward again (colleague comment 12, 2026-10-01). */
+export const StageBack = z.object({ fromStageId: StageId, toStageId: StageId, reason: z.string().trim().min(1).max(280), by: UserId, at: Stamp });
+export type StageBack = z.infer<typeof StageBack>;
+
 export const Project = z.object({
   id: ProjectId,
   code: z.string().regex(/^[A-Z]{1,4}-\d{2}-\d{3,}$/),
@@ -160,6 +164,7 @@ export const Project = z.object({
   mark: z.number().int().nonnegative().optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
+  stageBack: StageBack.nullable().optional(),
   /** The day the client's contract starts (colleague comment 7, 2026-10-01). Optional, so older offices still load. */
   contractStartDate: Day.nullable().optional(),
   createdBy: UserId,
