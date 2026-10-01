@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isNetworkPath, LinkKind, type ProjectLink } from '../../../api/contract/entities';
+import { isNetworkPath, LinkKind, linkUrlOk, type ProjectLink } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { fieldError } from '../../../app/errors';
@@ -130,7 +130,10 @@ export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
             );
             return (
               <li key={link.id} className="flex min-h-11 items-center gap-1">
-                {isNetworkPath(link.url) ? (
+                {/* The server refuses other links, but stored data is checked again here: only a web link ever gets an href. */}
+                {!linkUrlOk('other', link.url) && !isNetworkPath(link.url) ? (
+                  <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">{body}</span>
+                ) : isNetworkPath(link.url) ? (
                   <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">
                     {body}
                     <button type="button" onClick={() => copy(link.url)} aria-label={t('links.copy', { name })} className="pressable grid size-9 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-fill hover:text-ink">

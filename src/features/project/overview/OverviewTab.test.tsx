@@ -73,3 +73,15 @@ describe('project links (colleague comment 5)', () => {
     expect(within(about).queryByRole('button', { name: /^Change / })).toBeNull();
   });
 });
+
+describe('project links from stored data (security)', () => {
+  it('never makes a stored link that is not a web link pressable', async () => {
+    await renderApp('/projects/prj_001', (state) => {
+      state.projects.prj_001.links = [{ id: 'lnk_bad', kind: 'other', label: 'Bad link', url: 'javascript:alert(1)' }];
+    });
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(await within(about).findByText('Bad link')).toBeInTheDocument();
+    expect(within(about).queryByRole('link', { name: /Bad link/ })).toBeNull();
+    expect(about.querySelector('a[href^="javascript"]')).toBeNull();
+  });
+});
