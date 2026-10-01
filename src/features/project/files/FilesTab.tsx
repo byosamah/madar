@@ -18,6 +18,7 @@ import { Menu, type MenuItem } from '../../../components/Menu';
 import { Sheet } from '../../../components/Sheet';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
+import { ShareFileSheet } from './ShareFileSheet';
 
 function PreviewSheet({ view, onClose }: { view: FileView; onClose: () => void }) {
   const { t } = useTranslation();
@@ -33,7 +34,7 @@ function PreviewSheet({ view, onClose }: { view: FileView; onClose: () => void }
   );
 }
 
-function FileRow({ view, detail, onPreview }: { view: FileView; detail: ProjectDetail; onPreview: () => void }) {
+function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { api } = useRuntime();
@@ -56,6 +57,7 @@ function FileRow({ view, detail, onPreview }: { view: FileView; detail: ProjectD
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !(image || latest.mimeType === 'application/pdf') },
     { label: t('files.download'), onSelect: () => download() },
+    { label: t('files.share'), onSelect: onShare, hidden: !detail.viewerCan.post },
     { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.edit || isCover },
     { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },
   ];
@@ -105,6 +107,7 @@ export function FilesTab({ detail }: TabProps) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
+  const [sharing, setSharing] = useState<FileView | null>(null);
   const canUpload = detail.viewerCan.post;
 
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
@@ -187,11 +190,12 @@ export function FilesTab({ detail }: TabProps) {
         return (
           <section key={id} aria-labelledby={id} className="surface rounded-card p-2">
             <h3 id={id} dir="auto" className="px-2 pt-1 text-headline">{group.name}</h3>
-            <ul>{group.files.map((view) => <FileRow key={view.file.id} view={view} detail={detail} onPreview={() => setPreview(view)} />)}</ul>
+            <ul>{group.files.map((view) => <FileRow key={view.file.id} view={view} detail={detail} onPreview={() => setPreview(view)} onShare={() => setSharing(view)} />)}</ul>
           </section>
         );
       })}
       {preview && <PreviewSheet view={preview} onClose={() => setPreview(null)} />}
+      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} onClose={() => setSharing(null)} />}
     </div>
   );
 }

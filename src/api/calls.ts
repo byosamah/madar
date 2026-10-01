@@ -10,6 +10,7 @@ import { peopleCalls } from './handlers/people';
 import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
 import { stageTemplateCalls } from './handlers/stageTemplates';
+import { shareCalls } from './handlers/sharing';
 import { systemCalls } from './handlers/system';
 
 /** Every action in Madar. Screens and, later, AI agents use exactly these calls. */
@@ -20,6 +21,7 @@ export const calls = {
   ...taskCalls,
   ...contentCalls,
   ...fileCalls,
+  ...shareCalls,
   ...historyCalls,
   ...notificationCalls,
   ...chatCalls,

@@ -18,8 +18,8 @@ import { feedText } from '../../projects/feed';
 
 type PostItem = Extract<FeedItem, { kind: 'update' }>;
 
-function PostCard({ item, fileNames, people, canPost, startOpen }: {
-  item: PostItem; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
+  item: PostItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -95,7 +95,7 @@ function PostCard({ item, fileNames, people, canPost, startOpen }: {
         </ul>
       )}
       <Button variant="plain" className="self-start px-0" aria-expanded={showComments} onClick={() => setShowComments((open) => !open)}>{commentLabel}</Button>
-      {showComments && <CommentThread targetType="update" targetId={item.id} people={people} canPost={canPost} />}
+      {showComments && <CommentThread targetType="update" targetId={item.id} projectId={projectId} people={people} canPost={canPost} />}
     </li>
   );
 }
@@ -124,9 +124,9 @@ function EventLine({ item }: { item: EventItem }) {
 }
 
 /** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
-export function FeedEntry({ item, fileNames, people, canPost, startOpen }: {
-  item: FeedItem; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+export function FeedEntry({ item, projectId, fileNames, people, canPost, startOpen }: {
+  item: FeedItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
-  if (item.kind === 'update') return <PostCard item={item} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
+  if (item.kind === 'update') return <PostCard item={item} projectId={projectId} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
   return <EventLine item={item} />;
 }

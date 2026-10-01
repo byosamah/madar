@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { CommentId, FileId, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
+import { CommentId, FileId, MAX_ATTACHMENTS, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
 import { CommentView, FeedItem } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
@@ -11,6 +11,7 @@ import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, insertComment, requireProject, roleIn, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
+import { assertFilesInProject } from './attach';
 
 const Body = z.string().trim().min(1).max(5000);
 const Target = z.object({ targetType: z.enum(['task', 'update']), targetId: z.union([TaskId, UpdateId]) });
@@ -112,12 +113,13 @@ export const commentsList = defineCall({
 });
 
 export const commentsCreate = defineCall({
-  input: Target.extend({ body: Body }),
+  input: Target.extend({ body: Body, fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]) }),
   output: CommentView,
   run(input, ctx) {
     const projectId = projectOfTarget(ctx, input.targetType, input.targetId);
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
-    const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body);
+    assertFilesInProject(ctx, input.fileIds, projectId);
+    const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds);
     touch(ctx, projectId);
     return commentViewOf(ctx.state, comment, ctx.authority);
   },

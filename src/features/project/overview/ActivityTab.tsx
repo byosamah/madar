@@ -42,6 +42,7 @@ export function ActivityTab({ detail }: TabProps) {
             <FeedEntry
               key={item.id}
               item={item}
+              projectId={detail.project.id}
               fileNames={fileNames}
               people={detail.members.map((member) => member.user)}
               canPost={detail.viewerCan.post}

@@ -194,7 +194,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
       />
       {section === 'conversation' ? (
         <TabPanel value="conversation" idPrefix="task-section">
-          <CommentThread targetType="task" targetId={task.id} people={people} canPost={detail.viewerCan.post} />
+          <CommentThread targetType="task" targetId={task.id} projectId={detail.project.id} stageId={task.stageId} people={people} canPost={detail.viewerCan.post} />
         </TabPanel>
       ) : (
         <TabPanel value="details" idPrefix="task-section">

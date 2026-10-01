@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, MESSAGE_MAX, UserId, type Conversation, type Message, type User } from '../contract/entities';
+import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, UserId, type Conversation, type Message, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
 import { addDirectConversation, canSeeConversation, messagesOf, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notify } from '../notify';
 import { can, principalOf } from '../permissions';
 import { chatReadKey, nextId, type State } from '../store';
-import { cardOf } from '../views';
+import { attachmentsOf, cardOf } from '../views';
+import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { mentionedUserIds, plainText } from '../../lib/text';
 
 const PREVIEW_MAX = 140;
@@ -82,6 +83,7 @@ function messageViewOf(state: State, message: Message, viewerId: string): Messag
     author: cardOf(state, message.authorId),
     actingFor: message.actingForId !== message.authorId ? cardOf(state, message.actingForId) : null,
     mine: isMine(state, message, viewerId),
+    files: attachmentsOf(state, message.fileIds),
   };
 }
 
@@ -122,24 +124,43 @@ export const chatsMessages = defineCall({
   },
 });
 
+/** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
+export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[]): MessageView {
+  // Files are refused unless a rule below allows them.
+  if (fileIds.length > 0) {
+    if (conversation.kind === 'project') {
+      if (!conversation.projectId) throw invalid('fileIds', 'This chat has no project for files.', 'file_not_visible');
+      assertFilesInProject(ctx, fileIds, conversation.projectId);
+    } else {
+      const others = conversation.memberIds.filter((id) => id !== ctx.authority.id);
+      if (others.length === 0) throw invalid('fileIds', 'This chat has no other person.', 'file_not_visible');
+      assertFilesForDirect(ctx, fileIds, others);
+    }
+  }
+  const mentions = mentionedUserIds(body).filter((id) => {
+    const user = ctx.state.users[id];
+    return user?.active === true && canSeeConversation(ctx.state, conversation, user);
+  });
+  const id = nextId(ctx.state, 'msg');
+  const message: Message = {
+    id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body, mentions, fileIds,
+    createdAt: ctx.stamp, editedAt: null,
+  };
+  ctx.state.messages[id] = message;
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
+  markReadNow(ctx, conversation);
+  return messageViewOf(ctx.state, message, ctx.authority.id);
+}
+
 export const chatsSend = defineCall({
-  input: z.object({ conversationId: ConversationId, body: z.string().trim().min(1).max(MESSAGE_MAX) }),
+  input: z.object({
+    conversationId: ConversationId,
+    body: z.string().trim().min(1).max(MESSAGE_MAX),
+    fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+  }),
   output: MessageView,
   run(input, ctx) {
-    const conversation = requireConversation(ctx, input.conversationId);
-    const mentions = mentionedUserIds(input.body).filter((id) => {
-      const user = ctx.state.users[id];
-      return user?.active === true && canSeeConversation(ctx.state, conversation, user);
-    });
-    const id = nextId(ctx.state, 'msg');
-    const message: Message = {
-      id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body: input.body, mentions,
-      createdAt: ctx.stamp, editedAt: null,
-    };
-    ctx.state.messages[id] = message;
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
-    markReadNow(ctx, conversation);
-    return messageViewOf(ctx.state, message, ctx.authority.id);
+    return postMessage(ctx, requireConversation(ctx, input.conversationId), input.body, input.fileIds);
   },
 });
 
@@ -152,18 +173,27 @@ export const chatsMarkRead = defineCall({
   },
 });
 
+/** The direct chat of the sender with another person. It is made when it does not exist. */
+export function directWith(ctx: Ctx, other: User): Conversation {
+  const existing = Object.values(ctx.state.conversations).find(
+    (c) => c.kind === 'direct' && c.memberIds.includes(ctx.authority.id) && c.memberIds.includes(other.id),
+  );
+  return existing ?? addDirectConversation(ctx.state, ctx.authority.id, other.id, ctx.stamp);
+}
+
+export function requireDirectPartner(ctx: Ctx, userId: string): User {
+  const other = ctx.state.users[userId];
+  if (!other) throw notFound('User', userId);
+  if (principalOf(ctx.state, other.id) === ctx.authority.id) throw invalid('userId', 'You cannot message yourself.');
+  if (other.kind !== 'human' || !other.active) throw invalid('userId', 'Pick an active person. Agents act for a person.');
+  return other;
+}
+
 export const chatsOpenDirect = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
-    const other = ctx.state.users[input.userId];
-    if (!other) throw notFound('User', input.userId);
-    if (principalOf(ctx.state, other.id) === ctx.authority.id) throw invalid('userId', 'You cannot message yourself.');
-    if (other.kind !== 'human' || !other.active) throw invalid('userId', 'Pick an active person. Agents act for a person.');
-    const existing = Object.values(ctx.state.conversations).find(
-      (c) => c.kind === 'direct' && c.memberIds.includes(ctx.authority.id) && c.memberIds.includes(other.id),
-    );
-    return { id: (existing ?? addDirectConversation(ctx.state, ctx.authority.id, other.id, ctx.stamp)).id };
+    return { id: directWith(ctx, requireDirectPartner(ctx, input.userId)).id };
   },
 });
 

@@ -33,7 +33,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
 
 function bubblesOf(thread: Thread): Bubble[] {
   return thread.messages.map((view) => ({
-    id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body,
+    id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
     createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
   }));
 }
@@ -64,7 +64,8 @@ export function ChatPane({ id }: { id: string }) {
         id={id}
         people={data.people}
         pending={send.isPending}
-        onSend={(body, clear) => send.mutate({ conversationId: id, body }, { onSuccess: clear })}
+        upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
+        onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
       />
     </>
   );
@@ -84,7 +85,7 @@ export function TaskPane({ id }: { id: string }) {
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
   const me = session.data?.authority.id;
   const bubbles: Bubble[] = comments.data.map((view) => ({
-    id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, createdAt: view.comment.createdAt,
+    id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null,
   }));
   const canPost = project.data?.viewerCan.post ?? false;
@@ -110,7 +111,8 @@ export function TaskPane({ id }: { id: string }) {
           id={id}
           people={people}
           pending={create.isPending}
-          onSend={(body, clear) => create.mutate({ targetType: 'task', targetId: id, body }, { onSuccess: clear })}
+          upload={{ projectId: task.data.project.id, stageId: task.data.task.stageId, taskId: id }}
+          onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
     </>

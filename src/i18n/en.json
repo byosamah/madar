@@ -96,7 +96,11 @@
       "agent_admin": "An agent cannot be an Admin. It has the rights of the person it acts for.",
       "duplicate_name": "A template with this name exists. Use another name.",
       "duplicate_stage": "A stage name is in the list twice.",
-      "stage_has_tasks": "A stage with tasks cannot be removed. Move its tasks first."
+      "stage_has_tasks": "A stage with tasks cannot be removed. Move its tasks first.",
+      "file_missing": "A file is no longer here.",
+      "file_other_project": "A file belongs to another project.",
+      "file_not_visible": "You are not on the project of this file.",
+      "recipient_not_on_project": "This person is not on the project of this file. They cannot open it."
     }
   },
   "stageTemplates": {
@@ -296,11 +300,9 @@
   "overview": {
     "composer": "Post an update",
     "placeholder": "Share progress. Type @ to mention someone.",
-    "attach": "Attach files",
     "post": "Post",
     "posted": "Update posted.",
     "mentionList": "People to mention",
-    "removeFile": "Remove {{name}}",
     "feed": "Updates",
     "feedFilter": {
       "all": "All",
@@ -511,7 +513,21 @@
     "actions": "Actions for {{name}}",
     "kb": "{{n}} KB",
     "mb": "{{n}} MB",
-    "noPreview": "There is no preview for this file type."
+    "noPreview": "There is no preview for this file type.",
+    "share": "Share in chat",
+    "shareTitle": "Share {{name}}",
+    "shareWhere": "Share to",
+    "shareChat": "Project chat",
+    "sharePerson": "Person",
+    "shareTask": "Task",
+    "pickPerson": "Person",
+    "pickTask": "Task",
+    "sharePickPerson": "Pick a person",
+    "sharePickTask": "Pick a task",
+    "shareMessage": "Message (optional)",
+    "shareSend": "Share",
+    "shared": "File shared.",
+    "shareNoTasks": "This project has no tasks yet."
   },
   "team": {
     "leader": "Leader",
@@ -864,5 +880,14 @@
     "send": "Send",
     "actingFor": "for {{name}}",
     "unread": "Unread: {{count}}"
+  },
+  "attachments": {
+    "attach": "Attach files",
+    "picked": "Files to send",
+    "remove": "Remove {{name}}",
+    "files": "Files",
+    "removed": "File removed",
+    "download": "Download {{name}}",
+    "tooMany": "You can attach {{count}} files at most."
   }
 }

@@ -53,10 +53,10 @@ export function activeMentions(state: State, body: string): string[] {
   return mentionedUserIds(body).filter((id) => state.users[id]?.active === true);
 }
 
-export function insertComment(ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string, body: string): Comment {
+export function insertComment(ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string, body: string, fileIds: string[] = []): Comment {
   const id = nextId(ctx.state, 'cmt');
   const comment: Comment = {
-    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), createdAt: ctx.stamp, editedAt: null,
+    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });

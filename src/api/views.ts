@@ -1,6 +1,6 @@
 import type { Comment, Deadline, Event, FileRec, Project, Stage, Task, Update, User } from './contract/entities';
 import type {
-  CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
+  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, TaskDetail, TaskRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
@@ -215,12 +215,18 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
   };
 }
 
+/** The files of a comment or a message. A deleted file keeps its place with no name. */
+export function attachmentsOf(state: State, fileIds: string[] | undefined): Attachment[] {
+  return (fileIds ?? []).map((id) => ({ id, name: state.files[id]?.name ?? null }));
+}
+
 export function commentViewOf(state: State, comment: Comment, viewer: User): CommentView {
   const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
   return {
     comment,
     author: cardOf(state, comment.authorId),
     canEdit: target ? canEditContent(state, target.projectId, comment.authorId, viewer) : false,
+    files: attachmentsOf(state, comment.fileIds),
   };
 }
 

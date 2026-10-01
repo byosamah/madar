@@ -69,6 +69,34 @@ describe('the Files tab', () => {
     expect(Object.values(store.state.files).find((f) => f.name === 'One.txt')?.versions).toHaveLength(1);
   });
 
+  it('shares a file into the project chat from the file menu', async () => {
+    const { store } = await renderApp(FILES, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Site plan.pdf' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Share in chat' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Share Site plan.pdf' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Message (optional)' }), 'Please check this.');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
+    expect(await screen.findByText('File shared.')).toBeInTheDocument();
+    const room = Object.values(store.state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001');
+    const message = Object.values(store.state.messages).find((m) => m.conversationId === room?.id && m.body === 'Please check this.');
+    expect(message?.fileIds).toEqual(['fil_004']);
+  });
+
+  it('shows the refusal when the person picked is not on the project', async () => {
+    const { store } = await renderApp(FILES, as('usr_002'));
+    const outsider = Object.values(store.state.users).find((u) => u.kind === 'human' && u.active && u.id !== 'usr_002'
+      && !store.state.members[`prj_001:${u.id}`] && store.state.projects.prj_001.leaderId !== u.id && u.systemRole !== 'admin');
+    expect(outsider).toBeDefined();
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Site plan.pdf' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Share in chat' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Share Site plan.pdf' });
+    await userEvent.click(within(sheet).getByRole('radio', { name: 'Person' }));
+    await userEvent.selectOptions(within(sheet).getByRole('combobox', { name: 'Person' }), outsider?.id as string);
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
+    expect(await screen.findByText('This person is not on the project of this file. They cannot open it.')).toBeInTheDocument();
+    expect(Object.values(store.state.messages).some((m) => m.fileIds?.includes('fil_004'))).toBe(false);
+  });
+
   it('shows a focus ring on Upload files', async () => {
     await renderApp(FILES, as('usr_005'));
     expect((await screen.findByText('Upload files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
