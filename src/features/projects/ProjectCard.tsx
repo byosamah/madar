@@ -1,19 +1,12 @@
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
 import { useFileUrl } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { tintOf } from '../../components/Avatar';
-import { AvatarStack } from '../../components/AvatarStack';
-import { HealthPill } from '../../components/HealthPill';
-import { ContextMenu, useContextMenu } from '../../components/Menu';
-import { StageRail } from '../../components/StageRail';
 import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
-import { counted } from '../../lib/grammar';
-import { useCardMenu } from './cardMenu';
-import { FeedLine } from './FeedLine';
+import { dueText, wordForDays } from '../../lib/due';
 
 /** The latest render at 16:9, or a tinted panel with the project code when there is no cover (spec 4.1). */
 export function ProjectCover({ summary, className = 'aspect-video', layoutId }: { summary: ProjectSummary; className?: string; layoutId?: string }) {
@@ -36,64 +29,17 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
   );
 }
 
-/** "12 Oct · 5d". A deadline in the past shows in red (spec 4.1). */
+/** "Permit set · 12 Oct", or "Permit set · In 3 days". A deadline in the past says so in the attention color (redesign spec 5.4). */
 export function NextDeadlineLabel({ deadline }: { deadline: ProjectSummary['nextDeadline'] }) {
   const { t } = useTranslation();
   const lang = useLang();
-  if (!deadline) return <span className="text-footnote text-label-2">{t('projects.noDeadline')}</span>;
-  const late = deadline.daysLeft < 0;
-  const left = late
-    ? counted(t, 'time.daysLate', -deadline.daysLeft)
-    : deadline.daysLeft === 0 ? t('time.today') : counted(t, 'time.daysLeft', deadline.daysLeft);
+  if (!deadline) return <span className="text-footnote text-ink-2">{t('projects.noDeadline')}</span>;
+  const word = wordForDays(deadline.daysLeft);
+  const when = word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date);
   return (
-    <p className={`min-w-0 truncate text-footnote ${late ? 'text-red-text' : 'text-label-2'}`}>
-      <bdi className={`font-medium ${late ? '' : 'text-label'}`}>{deadline.name}</bdi>
-      <span className="tabular"> · {formatDay(deadline.date, lang)} · {left}</span>
+    <p className={`min-w-0 truncate text-footnote ${word.tone === 'attn' ? 'text-attn' : 'text-ink-2'}`}>
+      <bdi className={`font-medium ${word.tone === 'attn' ? '' : 'text-ink'}`}>{deadline.name}</bdi>
+      <span className="tabular"> · {when}</span>
     </p>
-  );
-}
-
-export function People({ summary }: { summary: ProjectSummary }) {
-  const { t } = useTranslation();
-  return (
-    <div role="group" aria-label={t('overview.team')} className="flex shrink-0 items-center gap-2">
-      {!summary.leader && <span className="text-caption text-label-2">{t('projects.noLeader')}</span>}
-      <AvatarStack leader={summary.leader} team={summary.team} />
-    </div>
-  );
-}
-
-export function ProjectCard({ summary }: { summary: ProjectSummary }) {
-  const { t } = useTranslation();
-  const { project } = summary;
-  const menu = useContextMenu();
-  const items = useCardMenu(summary);
-  return (
-    <article className="relative h-full" {...menu.handlers}>
-      <Link to={`/projects/${project.id}`} className="pressable surface flex h-full flex-col overflow-hidden rounded-card">
-        <ProjectCover summary={summary} layoutId={`cover-${project.id}`} />
-        <div className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="tabular text-footnote font-semibold text-label-2">{project.code}</span>
-            <HealthPill health={summary.health} status={project.status} setBy={summary.healthSetBy} />
-          </div>
-          <div className="min-w-0">
-            <h2 dir="auto" className="line-clamp-2 text-headline">{project.name}</h2>
-            {summary.client && <p dir="auto" className="truncate text-footnote text-label-2">{summary.client.name}</p>}
-          </div>
-          <StageRail stages={summary.stages} currentId={summary.currentStage.id} />
-          <ul aria-label={t('projects.latest')} className="flex flex-col gap-1.5">
-            {summary.latest.length > 0
-              ? summary.latest.map((item) => <FeedLine key={item.id} item={item} />)
-              : <li className="text-footnote text-label-2">{t('projects.noUpdates')}</li>}
-          </ul>
-          <div className="mt-auto flex items-center justify-between gap-3 pt-1">
-            <NextDeadlineLabel deadline={summary.nextDeadline} />
-            <People summary={summary} />
-          </div>
-        </div>
-      </Link>
-      <ContextMenu label={t('projects.menu', { name: project.name })} items={items} point={menu.point} onClose={menu.close} />
-    </article>
   );
 }

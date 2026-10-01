@@ -150,11 +150,10 @@
   },
   "projects": {
     "new": "New Project",
-    "filters": "Project filters",
     "filter": {
       "all": "All",
       "mine": "My projects",
-      "at_risk": "At risk"
+      "at_risk": "Needs attention"
     },
     "statusFilter": "Status",
     "sort": "Sort",
@@ -163,20 +162,12 @@
       "deadline": "Next deadline",
       "name": "Name"
     },
-    "view": "View",
-    "views": {
-      "grid": "Grid",
-      "list": "List"
-    },
     "emptyTitle": "No projects",
     "empty": "No projects match these filters.",
     "showAll": "Show all projects",
     "noDeadline": "No deadline",
-    "noLeader": "No leader",
     "morePeople": "+{{n}}",
-    "latest": "Latest updates",
-    "noUpdates": "No updates yet.",
-    "stageOf": "Stage {{n}} of {{total}}: {{name}}",
+    "stageOf": "Stage {{n}} of {{total}}",
     "menu": "Actions for {{name}}",
     "open": "Open",
     "postUpdate": "Post update",
@@ -188,7 +179,10 @@
     "openTasks": "Open tasks: {{n}}",
     "loadFailed": "The projects did not load.",
     "healthFilter": "Health: {{health}}",
-    "clearHealth": "Show all health"
+    "clearHealth": "Show all health",
+    "show": "Show",
+    "stage": "Stage",
+    "anyStage": "Any stage"
   },
   "projectForm": {
     "createTitle": "New Project",

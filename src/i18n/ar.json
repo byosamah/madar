@@ -170,11 +170,10 @@
   },
   "projects": {
     "new": "مشروع جديد",
-    "filters": "تصفية المشاريع",
     "filter": {
       "all": "الكل",
       "mine": "مشاريعي",
-      "at_risk": "معرّضة للتأخر"
+      "at_risk": "تحتاج انتباهًا"
     },
     "statusFilter": "الحالة",
     "sort": "الترتيب",
@@ -183,20 +182,12 @@
       "deadline": "أقرب موعد",
       "name": "الاسم"
     },
-    "view": "العرض",
-    "views": {
-      "grid": "شبكة",
-      "list": "قائمة"
-    },
     "emptyTitle": "لا توجد مشاريع",
     "empty": "لا توجد مشاريع تطابق هذه التصفية.",
     "showAll": "عرض كل المشاريع",
     "noDeadline": "لا يوجد موعد",
-    "noLeader": "بلا قائد",
     "morePeople": "+{{n}}",
-    "latest": "آخر التحديثات",
-    "noUpdates": "لا توجد تحديثات بعد.",
-    "stageOf": "المرحلة {{n}} من {{total}}: {{name}}",
+    "stageOf": "المرحلة {{n}} من {{total}}",
     "menu": "إجراءات {{name}}",
     "open": "فتح",
     "postUpdate": "نشر تحديث",
@@ -208,7 +199,10 @@
     "openTasks": "المهام المفتوحة: {{n}}",
     "loadFailed": "لم يتم تحميل المشاريع.",
     "healthFilter": "الحالة الصحية: {{health}}",
-    "clearHealth": "إظهار كل الحالات"
+    "clearHealth": "إظهار كل الحالات",
+    "show": "إظهار",
+    "stage": "المرحلة",
+    "anyStage": "أي مرحلة"
   },
   "projectForm": {
     "createTitle": "مشروع جديد",

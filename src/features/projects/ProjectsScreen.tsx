@@ -7,23 +7,21 @@ import { rememberProjectsList } from '../../app/lastList';
 import { errorMessage } from '../../app/errors';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
-import { ChipGroup } from '../../components/Chip';
 import { EmptyState } from '../../components/EmptyState';
+import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { oneOf } from '../../lib/params';
-import { SegmentedControl } from '../../components/SegmentedControl';
 import { NewProjectSheet } from './NewProjectSheet';
-import { ProjectCard } from './ProjectCard';
-import { ProjectRow } from './ProjectRow';
+import { ProjectListRow } from './ProjectListRow';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
-const VIEWS = ['grid', 'list'] as const;
-const SELECT = 'min-h-11 rounded-full bg-fill px-4 text-subheadline text-label';
+const SELECT = 'mt-1 min-h-11 w-full rounded-control bg-fill px-3 text-body font-normal text-ink';
+const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 
-/** The home screen: a grid of project cards with filters, sort and a list view (spec 4.3). */
+/** Every project as one calm list, with one filter button (redesign spec 3.3). */
 export function ProjectsScreen() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
@@ -53,7 +51,6 @@ export function ProjectsScreen() {
     else next.set('status', value);
   });
   const [sort, setSort] = usePersistentChoice('madar.projects.sort', SORTS, 'updated');
-  const [view, setView] = usePersistentChoice('madar.projects.view', VIEWS, 'grid');
   const [creating, setCreating] = useState(false);
   const settings = useCall('settings.get', {});
   const list = useCall('projects.list', {
@@ -63,12 +60,7 @@ export function ProjectsScreen() {
     stageName,
     health,
   });
-  const chips = [
-    { value: 'all', label: t('projects.filter.all') },
-    { value: 'mine', label: t('projects.filter.mine') },
-    { value: 'at_risk', label: t('projects.filter.at_risk') },
-    ...(settings.data?.defaultStages ?? []).map((name) => ({ value: `stage:${name}`, label: name })),
-  ];
+  const active = [filterParam !== 'all' || stageName, status !== 'active', sort !== 'updated'].filter(Boolean).length;
   const showAll = () => setParams({ status: 'all' }, { replace: true });
 
   let body = null;
@@ -76,44 +68,61 @@ export function ProjectsScreen() {
     body = <EmptyState title={t('projects.loadFailed')} body={errorMessage(list.error, t)} action={<Button onClick={() => void list.refetch()}>{t('common.retry')}</Button>} />;
   } else if (list.data && list.data.length === 0) {
     body = <EmptyState title={t('projects.emptyTitle')} body={t('projects.empty')} action={<Button onClick={showAll}>{t('projects.showAll')}</Button>} />;
-  } else if (list.data && view === 'grid') {
+  } else if (list.data) {
     body = (
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 min-[90rem]:grid-cols-4">
-        {list.data.map((summary) => <li key={summary.project.id}><ProjectCard summary={summary} /></li>)}
+      <ul aria-label={t('screens.projects')} className="panel hairline overflow-hidden">
+        {list.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} />)}
       </ul>
     );
-  } else if (list.data) {
-    body = <ul className="flex flex-col gap-2">{list.data.map((summary) => <ProjectRow key={summary.project.id} summary={summary} />)}</ul>;
   }
-
   return (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <ScreenTitle title={t('screens.projects')} />
-        <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
-          <Plus size={18} aria-hidden />
-          {t('projects.new')}
-        </Button>
-      </div>
-      <div className="flex flex-col gap-3 pb-5">
-        <ChipGroup label={t('projects.filters')} value={filter} options={chips} onChange={setFilter} />
+      <ScreenTitle
+        title={t('screens.projects')}
+        action={(
+          <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
+            <Plus size={18} aria-hidden />
+            {t('projects.new')}
+          </Button>
+        )}
+      />
+      <div className="flex flex-wrap items-center gap-3 pb-4">
+        <FilterButton label={t('filter.label')} count={active}>
+          <fieldset className="flex flex-col">
+            <legend className={LEGEND}>{t('projects.show')}</legend>
+            {FILTERS.map((value) => (
+              <label key={value} className="flex min-h-11 items-center gap-3 text-body text-ink">
+                <input type="radio" name="projects-show" checked={!stageName && filterParam === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
+                {t(`projects.filter.${value}`)}
+              </label>
+            ))}
+          </fieldset>
+          <label className={LEGEND}>
+            {t('projects.stage')}
+            <select value={stageName ?? ''} onChange={(event) => setFilter(event.target.value ? `stage:${event.target.value}` : 'all')} className={SELECT}>
+              <option value="">{t('projects.anyStage')}</option>
+              {(settings.data?.defaultStages ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          <label className={LEGEND}>
+            {t('projects.statusFilter')}
+            <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>
+              {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
+            </select>
+          </label>
+          <label className={LEGEND}>
+            {t('projects.sort')}
+            <select value={sort} onChange={(event) => setSort(event.target.value as (typeof SORTS)[number])} className={SELECT}>
+              {SORTS.map((value) => <option key={value} value={value}>{t(`projects.sorts.${value}`)}</option>)}
+            </select>
+          </label>
+        </FilterButton>
         {health && (
-          <p className="flex items-center gap-2 text-subheadline">
+          <p className="flex items-center gap-2 text-subheadline text-ink">
             <span className="rounded-full bg-fill px-3 py-1.5">{t('projects.healthFilter', { health: t(`health.${health}`) })}</span>
             <Button variant="plain" onClick={() => update((next) => next.delete('health'))}>{t('projects.clearHealth')}</Button>
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <select aria-label={t('projects.statusFilter')} value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>
-            {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
-          </select>
-          <select aria-label={t('projects.sort')} value={sort} onChange={(event) => setSort(event.target.value as (typeof SORTS)[number])} className={SELECT}>
-            {SORTS.map((value) => <option key={value} value={value}>{t(`projects.sorts.${value}`)}</option>)}
-          </select>
-          <div className="ms-auto">
-            <SegmentedControl label={t('projects.view')} value={view} onChange={setView} options={VIEWS.map((value) => ({ value, label: t(`projects.views.${value}`) }))} />
-          </div>
-        </div>
       </div>
       {body}
       <NewProjectSheet open={creating} onOpenChange={setCreating} />

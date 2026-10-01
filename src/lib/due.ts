@@ -13,6 +13,11 @@ export function dueWord(dueDate: string | null, today: string, status: TaskStatu
   if (!dueDate || status === 'done') return null;
   const days = diffDays(today, dueDate);
   if (status === 'in_review') return { key: 'dueOn', n: days, tone: 'quiet' };
+  return wordForDays(days);
+}
+
+/** The same words from a count of days left; negative means past due. */
+export function wordForDays(days: number): DueWord {
   if (days < 0) return { key: 'pastDue', n: -days, tone: 'attn' };
   if (days === 0) return { key: 'dueToday', n: 0, tone: 'quiet' };
   if (days <= 6) return { key: 'dueIn', n: days, tone: 'quiet' };
