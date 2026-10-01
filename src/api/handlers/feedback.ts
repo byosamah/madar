@@ -10,6 +10,9 @@ import { assertCan } from './shared';
 
 const MAX_SHOT_BYTES = 10 * 1024 * 1024;
 
+/** A screen inside Madar: a path from the root, never another site or a script link (security review, 2026-10-01). */
+export const isAppPath = (page: string): boolean => page.startsWith('/') && !page.startsWith('//') && !page.includes('\\');
+
 /** One report as the Admin reads it: the sender and how many screenshots it carries. */
 export const FeedbackRow = z.object({ item: Feedback, sender: UserCard, screenshots: z.number().int().min(0) });
 
@@ -24,7 +27,7 @@ const feedbackSend = defineCall({
   input: z.object({
     kind: FeedbackKind,
     message: z.string().trim().min(1, 'Write what you need or what went wrong.').max(2000),
-    page: z.string().max(300).default(''),
+    page: z.string().max(300).default('').refine((page) => page === '' || isAppPath(page), 'Send the Madar screen you were on.'),
     screenshots: z.array(z.instanceof(Blob)).max(3, 'Add up to three screenshots.').default([]),
   }).refine((value) => value.screenshots.every((shot) => shot.type.startsWith('image/')), { path: ['screenshots'], message: 'A screenshot must be a picture.' })
     .refine((value) => value.screenshots.every((shot) => shot.size <= MAX_SHOT_BYTES), { path: ['screenshots'], message: 'Each screenshot must be 10 MB or smaller.' }),

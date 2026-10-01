@@ -6,6 +6,7 @@ import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { isAppPath } from '../../../api/handlers/feedback';
 import { StatusSign } from '../../../components/StatusSign';
 
 /** One screenshot. A press shows it large, a second press makes it small again. */
@@ -67,7 +68,10 @@ export function FeedbackSection() {
                     {done && <StatusSign state="completed">{t('feedback.done')}</StatusSign>}
                   </p>
                   <p dir="auto" className={`whitespace-pre-wrap text-body ${done ? 'text-ink-2' : 'text-ink'}`}>{item.message}</p>
-                  {item.page && <Link to={item.page} className="text-footnote font-semibold text-link"><bdi dir="ltr">{item.page}</bdi></Link>}
+                  {/* The server accepts only Madar screens, but stored data is checked again: anything else shows as plain text. */}
+                  {item.page && (isAppPath(item.page)
+                    ? <Link to={item.page} className="text-footnote font-semibold text-link"><bdi dir="ltr">{item.page}</bdi></Link>
+                    : <bdi dir="ltr" className="block text-footnote text-ink-2">{item.page}</bdi>)}
                 </div>
                 <Button disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: item.id, status: done ? 'new' : 'done' })}>
                   {done ? t('feedback.reopen') : t('feedback.markDone')}

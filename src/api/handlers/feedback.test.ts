@@ -21,6 +21,15 @@ describe('feature requests and bug reports (owner, 2026-10-01)', () => {
     expect(done).toMatchObject({ status: 'done', doneBy: 'usr_001' });
   });
 
+  it('accepts only an in-app screen path as the page (security review)', async () => {
+    const t = testApi(feedbackCalls);
+    t.as('usr_003');
+    for (const page of ['javascript:alert(1)', '//evil.example', 'https://evil.example']) {
+      await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page, screenshots: [] })).rejects.toMatchObject({ code: 'invalid_input' });
+    }
+    expect((await t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/projects?status=active', screenshots: [] })).page).toBe('/projects?status=active');
+  });
+
   it('refuses an empty message, a file that is not a picture, and more than three screenshots', async () => {
     const t = testApi(feedbackCalls);
     t.as('usr_003');

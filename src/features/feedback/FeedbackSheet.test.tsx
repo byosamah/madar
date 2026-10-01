@@ -39,6 +39,17 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
     expect(await within(section).findByRole('button', { name: 'Open again' })).toBeInTheDocument();
   });
 
+  it('never links a stored page that is not an in-app path (security review)', async () => {
+    await renderApp('/admin', (state) => {
+      state.feedback = {
+        fbk_001: { id: 'fbk_001', kind: 'bug', message: 'Odd page', page: 'javascript:alert(1)', screenshots: [], status: 'new', createdBy: 'usr_003', createdAt: '2026-10-01T09:00:00.000Z', doneBy: null, doneAt: null },
+      };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    expect(await within(section).findByText('javascript:alert(1)')).toBeInTheDocument();
+    expect(within(section).queryByRole('link', { name: /javascript/ })).toBeNull();
+  });
+
   it('hides the reports from everyone but the Admin', async () => {
     await renderApp('/admin', as('usr_010'));
     await screen.findByRole('heading', { level: 1 });
