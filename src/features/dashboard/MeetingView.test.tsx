@@ -37,7 +37,7 @@ describe('the meeting view', () => {
 
   it('shows the filters in force', async () => {
     await renderApp('/dashboard/meeting?status=on_hold');
-    expect(await screen.findByText(/Filters: Status: On hold/)).toBeInTheDocument();
+    expect(await screen.findByText(/Filters: Status: Paused/)).toBeInTheDocument();
   });
 
   it('returns to the Dashboard with the filters kept when Escape is pressed', async () => {

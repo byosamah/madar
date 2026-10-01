@@ -42,7 +42,7 @@ describe('the display kit', () => {
     expect(screen.getByText('At risk')).toBeInTheDocument();
     expect(screen.getByText('Set by Faisal Al-Harbi')).toBeInTheDocument();
     rerender(<HealthPill health={null} status="on_hold" setBy={null} />);
-    expect(screen.getByText('On hold')).toBeInTheDocument();
+    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 
   it('names the current stage on the rail', () => {

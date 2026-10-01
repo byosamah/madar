@@ -52,7 +52,7 @@ describe('the Projects screen', () => {
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'on_hold');
     expect(await screen.findByRole('link', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
     expect(rows()).toHaveLength(1);
-    expect(within(rows()[0]).getByText('On hold')).toBeInTheDocument();
+    expect(within(rows()[0]).getByText('Paused')).toBeInTheDocument();
   });
 
   it('shows a member only their projects under My projects', async () => {
