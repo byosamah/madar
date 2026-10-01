@@ -165,7 +165,7 @@ Day groups in panels. Rows: an unread dot in the link color, the actor's small a
 
 ## 4. Motion
 
-All motion uses `transform` and `opacity` only. Springs use the existing tokens (`spring.expand`, `spring.snap`). Under "Reduce motion" every moment becomes a 150 to 200 ms fade, or no motion.
+All motion uses `transform` and `opacity` only. Springs use the existing tokens in `src/design/motion.ts` (`spring.standard`, `spring.expand`, `spring.flick`). Under "Reduce motion" every moment becomes a 150 to 200 ms fade, or no motion.
 
 | # | Moment | What happens | Timing |
 |---|---|---|---|
