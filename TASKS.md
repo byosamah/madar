@@ -6,7 +6,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 
 - [x] 1. Tokens and project colors
 - [x] 2. Gentle due words
-- [ ] 3. Calm shared parts
+- [x] 3. Calm shared parts
 - [ ] 4. The tab pill, the person menu and the routes
 - [ ] 5. The Projects list
 - [ ] 6. Home

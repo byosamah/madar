@@ -745,5 +745,9 @@
     "in_one": "Tomorrow",
     "in_other": "In {{count}} days",
     "on": "Due {{date}}"
+  },
+  "filter": {
+    "label": "Filter",
+    "withCount": "{{label}}, {{n}} active"
   }
 }

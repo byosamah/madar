@@ -7,7 +7,8 @@ import { spring } from '../design/motion';
 export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElement; label: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus();
+    // Focus moves into the panel, to its first control or to the panel itself, so Escape always reaches it.
+    (ref.current?.querySelector<HTMLElement>('input, textarea, select, button') ?? ref.current)?.focus();
   }, []);
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
@@ -27,6 +28,7 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
       ref={ref}
       role="dialog"
       aria-label={label}
+      tabIndex={-1}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
         event.stopPropagation();

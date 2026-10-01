@@ -225,6 +225,15 @@
   --radius-control: var(--r-control);
   --shadow-card: var(--sh-card);
   --shadow-float: var(--sh-float);
+  /* The calm type scale (redesign spec 2.2): page title 30/700, section title 18/700. */
+  --text-page-title: calc(30px * var(--boost));
+  --text-page-title--line-height: 1.12;
+  --text-page-title--letter-spacing: -0.025em;
+  --text-page-title--font-weight: 700;
+  --text-section: calc(18px * var(--boost));
+  --text-section--line-height: 1.3;
+  --text-section--letter-spacing: -0.015em;
+  --text-section--font-weight: 700;
   --text-large-title: calc(var(--size-large-title) * var(--boost));
   --text-large-title--line-height: 1.1;
   --text-large-title--letter-spacing: -0.02em;

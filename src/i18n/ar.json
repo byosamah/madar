@@ -801,5 +801,9 @@
     "in_many": "بعد {{count}} يومًا",
     "in_other": "بعد {{count}} يوم",
     "on": "مستحقة {{date}}"
+  },
+  "filter": {
+    "label": "تصفية",
+    "withCount": "{{label}}، {{n}} مفعّلة"
   }
 }
