@@ -2,6 +2,7 @@ import { createHashRouter } from 'react-router';
 import { AppShell } from './AppShell';
 import { HomeOrRedirect } from '../features/home/HomeOrRedirect';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
+import { MeetingView } from '../features/dashboard/MeetingView';
 import { InboxScreen } from '../features/inbox/InboxScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
@@ -14,6 +15,8 @@ import { WorkScreen } from '../features/work/WorkScreen';
 /** Hash links, so the build runs on any static host, the review link included. */
 export function createAppRouter() {
   return createHashRouter([
+    // The meeting view fills the whole screen, so it sits outside the shell with its tabs.
+    { path: '/dashboard/meeting', element: <MeetingView /> },
     {
       path: '/',
       element: <AppShell />,

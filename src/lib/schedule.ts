@@ -72,6 +72,31 @@ export function scheduleWindow(today: string, zoom: Zoom): { span: Span; ticks: 
   return { span, ticks };
 }
 
+export type MeetingZoom = 'quarter' | 'half' | 'year';
+export const MEETING_ZOOMS: MeetingZoom[] = ['quarter', 'half', 'year'];
+
+/** Months before the current month, and months in all, for each meeting zoom. */
+const MEETING_MONTHS: Record<MeetingZoom, { before: number; count: number }> = {
+  quarter: { before: 1, count: 3 },
+  half: { before: 1, count: 6 },
+  year: { before: 2, count: 12 },
+};
+
+/** The first day of the month that is n months after (or before, when n is negative) the month of the day. */
+export function addMonths(day: string, n: number): string {
+  const [year, month] = day.split('-').map(Number);
+  const index = year * 12 + (month - 1) + n;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}-01`;
+}
+
+/** The meeting-room window: whole months around today, moved by a number of months. Every month start is a tick. */
+export function meetingWindow(today: string, zoom: MeetingZoom, shift = 0): { span: Span; ticks: string[] } {
+  const { before, count } = MEETING_MONTHS[zoom];
+  const start = addMonths(today, shift - before);
+  const end = addDays(addMonths(start, count), -1);
+  return { span: { start, end }, ticks: monthStarts({ start, end }) };
+}
+
 /** The part of a bar inside the window, or null when the bar is outside it. */
 export function clipSpan(bar: Span, window: Span): Span | null {
   if (bar.end < window.start || bar.start > window.end) return null;

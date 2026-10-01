@@ -634,6 +634,34 @@
       "today": "Today"
     },
     "sections": "Dashboard sections",
+    "meetingButton": "Meeting view",
+    "meeting": {
+      "title": "Meeting view",
+      "timeline": "Project timeline",
+      "controls": "Meeting view controls",
+      "zoom": "Zoom",
+      "zooms": {
+        "quarter": "Quarter",
+        "half": "Half year",
+        "year": "Year"
+      },
+      "earlier": "One month earlier",
+      "later": "One month later",
+      "today": "Today",
+      "exit": "Exit",
+      "filters": "Filters: {{list}}",
+      "noFilters": "No filters",
+      "leader": "Leader: {{name}}",
+      "client": "Client: {{name}}",
+      "status": "Status: {{name}}",
+      "deadline": "Deadline: {{name}}, {{date}}",
+      "stage": "{{stage}}, {{state}}",
+      "stageStates": {
+        "done": "done",
+        "current": "current",
+        "next": "next"
+      }
+    },
     "views": {
       "projects": "Projects",
       "people": "People",
