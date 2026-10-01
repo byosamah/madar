@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
+import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
@@ -173,11 +175,11 @@ export function MeetingView() {
             options={MEETING_ZOOMS.map((value) => ({ value, label: t(`dashboard.meeting.zooms.${value}`) }))}
           />
           <Button aria-label={t('dashboard.meeting.earlier')} title={t('dashboard.meeting.earlier')} className="!px-3" onClick={() => setShift((n) => n - 1)}>
-            <ChevronLeft aria-hidden className="size-5 rtl:-scale-x-100" />
+            <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
           </Button>
           <Button onClick={() => setShift(0)}>{t('dashboard.meeting.today')}</Button>
           <Button aria-label={t('dashboard.meeting.later')} title={t('dashboard.meeting.later')} className="!px-3" onClick={() => setShift((n) => n + 1)}>
-            <ChevronRight aria-hidden className="size-5 rtl:-scale-x-100" />
+            <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
           </Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>

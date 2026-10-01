@@ -1,4 +1,5 @@
-import { Plus } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../../components/icons/animated/plus';
 import { AnimatePresence } from 'motion/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +22,7 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
         if (title.trim()) create.mutate({ projectId, stageId: stage.id, title: title.trim() });
       }}
     >
-      <Plus size={18} className="shrink-0 text-label-3" aria-hidden />
+      <AnimatedIcon icon={PlusIcon} size={18} className="shrink-0 text-label-3" aria-hidden />
       <input
         aria-label={t('tasks.addTaskIn', { stage: stage.name })}
         placeholder={t('tasks.addTask')}

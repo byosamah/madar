@@ -1,5 +1,6 @@
 import { AnimatePresence, LayoutGroup } from 'motion/react';
-import { Plus } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../components/icons/animated/plus';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
@@ -86,7 +87,7 @@ export function ProjectsScreen() {
         title={t('screens.projects')}
         action={(
           <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
-            <Plus size={18} aria-hidden />
+            <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('projects.new')}
           </Button>
         )}

@@ -2,7 +2,9 @@ import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { Flag, GripVertical } from 'lucide-react';
+import { Flag } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
 import { useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskStatus } from '../../../api/contract/entities';
@@ -78,7 +80,7 @@ function BoardCard({ row, dragging, onOpen, onMove }: { row: TaskRow; dragging: 
             aria-label={t('tasks.drag', { title: row.task.title })}
             className="grid size-11 cursor-grab place-items-center rounded-full text-label-3 hover:bg-fill"
           >
-            <GripVertical size={16} aria-hidden />
+            <AnimatedIcon icon={GripVerticalIcon} size={16} aria-hidden />
           </button>
           <Menu
             label={t('tasks.moveTo', { title: row.task.title })}

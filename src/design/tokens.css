@@ -248,6 +248,14 @@
 }
 
 @layer base {
+  /* The wrapper of an animated icon sits in the flow like the static lucide icon did. */
+  [data-animated-icon] {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  [data-animated-icon] svg {
+    display: block;
+  }
   html {
     background: linear-gradient(180deg, var(--c-page-top), var(--c-page-bottom)) fixed, var(--c-page-bottom);
     color: var(--c-ink);

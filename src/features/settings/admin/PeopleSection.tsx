@@ -1,4 +1,5 @@
-import { Plus } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../../components/icons/animated/plus';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
@@ -24,7 +25,7 @@ export function PeopleSection() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-people" className="text-headline">{t('admin.people')}</h2>
         <Button onClick={() => setAdding(true)}>
-          <Plus size={16} aria-hidden />
+          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
           {t('admin.addPerson')}
         </Button>
       </div>

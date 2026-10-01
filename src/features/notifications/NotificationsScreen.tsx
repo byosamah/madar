@@ -1,4 +1,5 @@
-import { Bell } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { BellIcon } from '../../components/icons/animated/bell';
 import { motion } from 'motion/react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,7 +45,7 @@ function InboxItem({ view }: { view: NoticeView }) {
       <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />
       {actor
         ? <Avatar user={actor} size={36} />
-        : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><Bell size={16} aria-hidden /></span>}
+        : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={BellIcon} size={16} aria-hidden /></span>}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={`text-subheadline ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>
           {!n.read && <span className="sr-only">{t('inbox.unread')}: </span>}

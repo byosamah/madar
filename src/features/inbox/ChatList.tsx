@@ -1,4 +1,6 @@
-import { ListChecks, Search } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { SearchIcon } from '../../components/icons/animated/search';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -62,7 +64,7 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
     <>
       <div className="relative p-3">
         <label htmlFor="chat-search" className="sr-only">{t('chat.search')}</label>
-        <Search size={16} aria-hidden className="pointer-events-none absolute start-6 top-1/2 -translate-y-1/2 text-ink-2" />
+        <AnimatedIcon icon={SearchIcon} size={16} aria-hidden className="pointer-events-none absolute start-6 top-1/2 -translate-y-1/2 text-ink-2" />
         <input
           id="chat-search"
           type="search"

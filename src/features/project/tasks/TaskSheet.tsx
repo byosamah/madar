@@ -1,4 +1,7 @@
-import { Circle, CircleCheck, Crosshair, Flag, X } from 'lucide-react';
+import { Circle, Crosshair, Flag } from 'lucide-react';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
+import { XIcon } from '../../../components/icons/animated/x';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -55,7 +58,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
       <ul>
         {!edit && items.map((item) => (
           <li key={item.id} className="flex min-h-11 items-center gap-3">
-            {item.done ? <CircleCheck size={20} className="shrink-0 text-link" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
+            {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <Circle size={20} className="shrink-0 text-label-3" aria-hidden />}
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
             {item.done && <span className="sr-only">{t('common.done')}</span>}
           </li>
@@ -72,7 +75,7 @@ function Checklist({ task, edit, onChange }: { task: Task; edit: boolean; onChan
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
             {(
               <IconButton label={t('taskSheet.removeItem', { text: item.text })} onClick={() => change(items.filter((i) => i.id !== item.id))}>
-                <X size={16} aria-hidden />
+                <AnimatedIcon icon={XIcon} size={16} aria-hidden />
               </IconButton>
             )}
           </li>

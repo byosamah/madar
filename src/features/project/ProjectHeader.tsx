@@ -1,4 +1,5 @@
-import { ChevronLeft } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -35,7 +36,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
   return (
     <header className="flex flex-col gap-3">
       <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
-        <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
+        <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
         {t('project.back')}
       </Link>
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">

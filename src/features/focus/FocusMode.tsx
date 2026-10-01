@@ -1,4 +1,7 @@
-import { Check, Circle, CircleCheck } from 'lucide-react';
+import { Circle } from 'lucide-react';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { CheckIcon } from '../../components/icons/animated/check';
+import { CircleCheckIcon } from '../../components/icons/animated/circle-check';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -63,7 +66,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
           <AnimatePresence>
             {finished && (
               <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring.flick} className="me-3 inline-grid size-9 place-items-center rounded-full bg-done align-middle text-panel">
-                <Check size={20} aria-hidden />
+                <AnimatedIcon icon={CheckIcon} size={20} aria-hidden />
               </motion.span>
             )}
           </AnimatePresence>
@@ -79,7 +82,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
               <li key={item.id} className="flex min-h-12 items-center gap-3 px-2">
                 {edit ? (
                   <input type="checkbox" aria-label={item.text} checked={item.done} onChange={(event) => tick(item.id, event.target.checked)} className="size-5 shrink-0 accent-[var(--sig-from)]" />
-                ) : item.done ? <CircleCheck size={20} className="shrink-0 text-link" aria-label={t('common.done')} /> : <Circle size={20} className="shrink-0 text-ink-2" aria-hidden />}
+                ) : item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-label={t('common.done')} /> : <Circle size={20} className="shrink-0 text-ink-2" aria-hidden />}
                 <span dir="auto" className={`min-w-0 flex-1 text-body ${item.done ? 'text-ink-2 line-through' : 'text-ink'}`}>{item.text}</span>
               </li>
             ))}
