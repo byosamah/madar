@@ -1,11 +1,14 @@
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
-import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
+import { ChevronLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
+import { projectsListLink } from './lastList';
 import { FocusMode } from '../features/focus/FocusMode';
 import { NAV, isNavActive } from './nav';
 import { PersonMenu } from './PersonMenu';
 import { StorageBanner } from './StorageBanner';
-import { TabPill } from './TabPill';
+import { BellButton, SearchButton, TabPill } from './TabPill';
 
 /** The calm shell (redesign spec 2.5): a floating pill of four tabs and the person's picture. No sidebar and no toolbar. */
 // Screens already shown in this visit. A screen's panels rise in only the first time (redesign spec 4).
@@ -50,6 +53,7 @@ function ScreenEntrance() {
 const screenKey = (pathname: string): string => (pathname.startsWith('/inbox/') ? '/inbox' : pathname);
 
 export function AppShell() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -73,7 +77,16 @@ export function AppShell() {
         <PersonMenu id="wide" />
       </div>
       <main className="app-page relative mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
-        <div className="absolute end-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 sm:hidden">
+        {/* On a phone the tab bar keeps only the tabs; Search, the bell and the picture sit at the top. */}
+        <div className="-me-1.5 flex items-center justify-end gap-0.5 pb-1 sm:hidden">
+          {PROJECT_PAGE.test(pathname) && (
+            <Link to={projectsListLink()} className="pressable -ms-2 me-auto inline-flex min-h-11 items-center gap-0.5 rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
+              <ChevronLeft size={20} className="rtl:-scale-x-100" aria-hidden />
+              {t('project.back')}
+            </Link>
+          )}
+          <SearchButton />
+          <BellButton />
           <PersonMenu id="phone" />
         </div>
         <ScreenEntrance key={screenKey(pathname)} />

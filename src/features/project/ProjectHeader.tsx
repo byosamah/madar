@@ -35,7 +35,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
   const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
   return (
     <header className="flex flex-col gap-3">
-      <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
+      <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link max-sm:hidden">
         <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
         {t('project.back')}
       </Link>

@@ -12,18 +12,14 @@ import { useCompactBars } from './useCompactBars';
 export function TabPill() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
   const unreadChats = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const compact = useCompactBars();
-  const SearchTab = SEARCH_ITEM.animated!;
-  const BellTab = NOTIFICATIONS_ITEM.animated!;
-  const onBell = pathname === NOTIFICATIONS_ITEM.to;
   return (
     <nav
       aria-label={t('nav.main')}
       data-pill
       data-compact={compact || undefined}
-      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100vw-24px)] items-center gap-0.5 rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
+      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
       {NAV.map((item) => {
         const active = isNavActive(item.to, pathname);
@@ -34,32 +30,55 @@ export function TabPill() {
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-11 min-w-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold max-sm:min-w-10 sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
             {Moving ? <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden /> : <Icon size={20} className="sm:hidden" aria-hidden />}
             <span className="whitespace-nowrap">{t(item.key)}</span>
-            {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:end-1" />}
+            {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
           </Link>
         );
       })}
-      <Link
-        to={SEARCH_ITEM.to}
-        aria-label={t(SEARCH_ITEM.key)}
-        aria-current={pathname === SEARCH_ITEM.to ? 'page' : undefined}
-        className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${pathname === SEARCH_ITEM.to ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
-      >
-        <AnimatedIcon icon={SearchTab} size={20} playWhen={pathname === SEARCH_ITEM.to} aria-hidden />
-      </Link>
-      <Link
-        to={NOTIFICATIONS_ITEM.to}
-        aria-label={t(NOTIFICATIONS_ITEM.key)}
-        aria-current={onBell ? 'page' : undefined}
-        className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${onBell ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
-      >
-        <AnimatedIcon icon={BellTab} size={20} playWhen={onBell} aria-hidden />
-        {noticeBadge > 0 && <Badge count={noticeBadge} label={t('nav.inboxBadge', { count: noticeBadge })} className="absolute -top-0.5 end-0" />}
-      </Link>
+      <SearchButton className="max-sm:hidden" />
+      <BellButton className="max-sm:hidden" />
     </nav>
+  );
+}
+
+/** Search, round. In the tab pill from 640 px; on a phone it sits at the top beside the person's picture. */
+export function SearchButton({ className = '' }: { className?: string }) {
+  const { t } = useTranslation();
+  const SearchTab = SEARCH_ITEM.animated!;
+  const { pathname } = useLocation();
+  const on = pathname === SEARCH_ITEM.to;
+  return (
+    <Link
+      to={SEARCH_ITEM.to}
+      aria-label={t(SEARCH_ITEM.key)}
+      aria-current={on ? 'page' : undefined}
+      className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
+    >
+      <AnimatedIcon icon={SearchTab} size={20} playWhen={on} aria-hidden />
+    </Link>
+  );
+}
+
+/** The notifications bell with its red count. In the tab pill from 640 px; on a phone it sits at the top. */
+export function BellButton({ className = '' }: { className?: string }) {
+  const { t } = useTranslation();
+  const BellTab = NOTIFICATIONS_ITEM.animated!;
+  const { pathname } = useLocation();
+  const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
+  const on = pathname === NOTIFICATIONS_ITEM.to;
+  return (
+    <Link
+      to={NOTIFICATIONS_ITEM.to}
+      aria-label={t(NOTIFICATIONS_ITEM.key)}
+      aria-current={on ? 'page' : undefined}
+      className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
+    >
+      <AnimatedIcon icon={BellTab} size={20} playWhen={on} aria-hidden />
+      {noticeBadge > 0 && <Badge count={noticeBadge} label={t('nav.inboxBadge', { count: noticeBadge })} className="absolute -top-1 -end-1" />}
+    </Link>
   );
 }

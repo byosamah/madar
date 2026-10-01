@@ -78,7 +78,14 @@ export function InboxScreen() {
         <section className={`panel hairline flex min-w-0 flex-1 flex-col overflow-hidden ${open ? '' : 'max-sm:hidden'}`}>
           {conversationId
             ? <ConversationPane id={conversationId} />
-            : <div className="p-4"><EmptyState title={t('chat.selectTitle')} body={t('chat.selectBody')} /></div>}
+            : (
+              <div className="grid flex-1 place-items-center p-8 text-center">
+                <div className="flex max-w-xs flex-col items-center gap-1.5">
+                  <p className="text-headline text-ink">{t('chat.selectTitle')}</p>
+                  <p className="text-subheadline text-ink-2">{t('chat.selectBody')}</p>
+                </div>
+              </div>
+            )}
         </section>
       </div>
       <NewMessage open={picking} onOpenChange={setPicking} />
