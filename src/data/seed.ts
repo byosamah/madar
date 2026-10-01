@@ -8,6 +8,7 @@ import { writeEvent, type EventContext } from '../api/events';
 import { notify, reviewersOf } from '../api/notify';
 import { addDays, dayOfWeek, diffDays, maxDay, minDay, weekStartOf } from '../lib/dates';
 import { mentionMarkup } from '../lib/text';
+import { isWorkingDay } from '../lib/workdays';
 import { pickMark } from '../lib/projectMark';
 import { drawingPdf, renderSvg } from './assets';
 
@@ -95,6 +96,24 @@ const CURRENT_STATUSES: Record<Shape, Task['status'][]> = {
 };
 
 // Due dates of the open current-stage tasks, in days from today, in the order they appear above.
+/**
+ * When an open task starts. Most start a few days before they are due. One in three is dynamic: its start is found by
+ * counting working days back from the due date, so the sample due dates (and their words) stay as they are.
+ * A task that is due on a weekend stays static. A done task has no start, like a task saved before start dates existed.
+ */
+function timingFor(n: number, due: string, today: string): Pick<Task, 'startDate' | 'schedule' | 'durationDays'> {
+  const length = 3 + ((n * 2) % 6);
+  if (n % 3 === 1 && isWorkingDay(due)) {
+    let start = due;
+    for (let left = length - 1; left > 0; ) {
+      start = addDays(start, -1);
+      if (isWorkingDay(start)) left -= 1;
+    }
+    return { startDate: start, schedule: 'dynamic', durationDays: length };
+  }
+  return { startDate: minDay(addDays(due, -length - 2), addDays(today, 3)), schedule: 'static', durationDays: null };
+}
+
 const OPEN_DUE: Record<Shape, number[]> = {
   late: [-5, 3, 7, -2],
   risk_overdue: [-4, 9, 2],
@@ -173,7 +192,7 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     const completedAt = taskStatus === 'done' ? at(doneDay, 14) : null;
     const task: Task = {
       id, projectId, stageId: stageIds[stageIndex], title: title ?? TITLES[stageIndex][(n + index) % TITLES[stageIndex].length],
-      description: '', ownerId: owner.id, status: taskStatus, dueDate: due, flagged: n === 3 && index % 2 === 0, needsReview: n % 3 !== 2,
+      description: '', ownerId: owner.id, status: taskStatus, dueDate: due, ...(taskStatus !== 'done' && due ? timingFor(n, due, today) : {}), flagged: n === 3 && index % 2 === 0, needsReview: n % 3 !== 2,
       checklist: n === 1
         ? [{ id: 'c1', text: 'Check the dimensions', done: taskStatus === 'done' }, { id: 'c2', text: 'Coordinate with structure', done: false }]
         : [],

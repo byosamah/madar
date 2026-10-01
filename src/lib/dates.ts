@@ -80,11 +80,13 @@ export function localeFor(lang: Lang): string {
   return LOCALES[lang];
 }
 
-export function formatDay(day: string, lang: Lang, style: 'short' | 'long' | 'weekday' = 'short'): string {
+export function formatDay(day: string, lang: Lang, style: 'short' | 'long' | 'weekday' | 'withWeekday' = 'short'): string {
   const options: Intl.DateTimeFormatOptions =
     style === 'short'
       ? { day: 'numeric', month: 'short', timeZone: 'UTC' }
-      : style === 'weekday'
+      : style === 'withWeekday'
+        ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
+        : style === 'weekday'
         ? { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }
         : { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' };
   return new Intl.DateTimeFormat(LOCALES[lang], options).format(new Date(toMs(day)));

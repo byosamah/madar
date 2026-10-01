@@ -14,7 +14,7 @@ import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
-import { DateDraftField, SelectField, TextArea, TextField } from '../../../components/Fields';
+import { SelectField, TextArea, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
@@ -25,11 +25,12 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
+import { durationText, TaskTiming } from './TaskTiming';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 
-type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
+type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
 
 /** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -225,15 +226,25 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                   {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
-              {edit
-                ? <DateDraftField id="task-due" label={t('taskSheet.dueDate')} value={task.dueDate ?? ''} onCommit={(dueDate) => patch({ dueDate })} />
-                : <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>}
               {edit ? (
                 <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
             </div>
+            {edit ? (
+              <TaskTiming
+                idPrefix="task"
+                value={{ startDate: task.startDate ?? null, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null, dueDate: task.dueDate }}
+                onPatch={patch}
+              />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Fact label={t('taskSheet.startDate')}>{task.startDate ? formatDay(task.startDate, lang, 'long') : t('overview.none')}</Fact>
+                <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>
+                {task.schedule === 'dynamic' && task.durationDays && <Fact label={t('taskSheet.duration')}>{durationText(task.durationDays, t)}</Fact>}
+              </div>
+            )}
             {edit
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}

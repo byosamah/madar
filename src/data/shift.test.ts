@@ -4,6 +4,7 @@ import { buildSeed } from './seed';
 import { healthCounts } from '../test/seed-helpers';
 import { Stamp } from '../api/contract/entities';
 import { addDays } from '../lib/dates';
+import { dueFromDuration, isWorkingDay } from '../lib/workdays';
 import { NOW, TODAY } from '../test/factories';
 import { runScheduledTriggers } from '../api/notify';
 
@@ -45,5 +46,24 @@ describe('shiftState', () => {
     task.title = '2026-09-30';
     const moved = shiftState(structuredClone(state), 10);
     expect(moved.tasks[task.id].title).toBe('2026-09-30');
+  });
+});
+
+describe('shiftState with task start dates', () => {
+  it('moves the start date and keeps every dynamic task consistent with its working days', async () => {
+    const state = await buildSeed(TODAY, async () => undefined);
+    const dynamic = Object.values(state.tasks).filter((t) => t.schedule === 'dynamic');
+    expect(dynamic.length).toBeGreaterThan(0);
+    for (const days of [1, 2, 3, 10]) {
+      const moved = shiftState(structuredClone(state), days);
+      for (const task of dynamic) {
+        const next = moved.tasks[task.id];
+        // The due date stays put, unless it lands on a weekend: then it is counted again from the start.
+        if (isWorkingDay(addDays(task.dueDate!, days))) expect(next.dueDate).toBe(addDays(task.dueDate!, days));
+        expect(dueFromDuration(next.startDate!, next.durationDays!)).toBe(next.dueDate);
+      }
+    }
+    const stat = Object.values(state.tasks).find((t) => t.schedule === 'static' && t.startDate)!;
+    expect(shiftState(structuredClone(state), 7).tasks[stat.id].startDate).toBe(addDays(stat.startDate!, 7));
   });
 });

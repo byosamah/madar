@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ChecklistItem, Day, ProjectId, StageId, TaskId, TaskStatus, UserId, type Task } from '../contract/entities';
+import { ChecklistItem, Day, DurationDays, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, UserId, type Task } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { invalid } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
@@ -10,10 +10,36 @@ import { can, projectRoleOf } from '../permissions';
 import { nextId } from '../store';
 import { taskDetailOf, taskRowOf } from '../views';
 import { stampDay } from '../../lib/dates';
+import { dueFromDuration } from '../../lib/workdays';
 import { assertCan, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
 
 const Title = z.string().trim().min(1).max(200);
 const Moved = z.object({ result: TaskStatus, task: TaskDetail });
+
+type When = Pick<Task, 'startDate' | 'schedule' | 'durationDays' | 'dueDate'>;
+type WhenInput = { startDate?: string | null; schedule?: Task['schedule']; durationDays?: number | null; dueDate?: string | null };
+
+/**
+ * The start, mode, duration and due date a task ends with, from what it has now and what the caller sends.
+ * A static task keeps the two dates people set. A dynamic task gets its due date from the start and the working days.
+ * A task saved before start dates reads as no start, static, no duration.
+ */
+function resolveWhen(current: When, input: WhenInput): When {
+  const schedule = input.schedule ?? current.schedule ?? 'static';
+  const startDate = input.startDate !== undefined ? input.startDate : current.startDate ?? null;
+  if (schedule === 'static') {
+    const dueDate = input.dueDate !== undefined ? input.dueDate : current.dueDate;
+    if (startDate && dueDate && dueDate < startDate) {
+      throw invalid(input.dueDate !== undefined ? 'dueDate' : 'startDate', 'The due date cannot be before the start date.', 'due_before_start');
+    }
+    return { startDate, schedule, durationDays: null, dueDate };
+  }
+  const durationDays = input.durationDays !== undefined ? input.durationDays : current.durationDays ?? null;
+  if (input.dueDate !== undefined) throw invalid('dueDate', 'A dynamic task gets its due date from the start and the duration.', 'dynamic_due_date');
+  if (!startDate) throw invalid('startDate', 'A dynamic task needs a start date.', 'dynamic_needs_start');
+  if (!durationDays) throw invalid('durationDays', 'A dynamic task needs a duration in working days.', 'dynamic_needs_duration');
+  return { startDate, schedule, durationDays, dueDate: dueFromDuration(startDate, durationDays) };
+}
 
 const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.authority);
 const onProject = (ctx: Ctx, projectId: string, userId: string) => projectRoleOf(ctx.state, projectId, userId) !== 'other';
@@ -107,7 +133,10 @@ export const tasksCreate = defineCall({
     title: Title,
     stageId: StageId.optional(),
     ownerId: UserId.optional(),
-    dueDate: Day.nullable().default(null),
+    dueDate: Day.nullable().optional(),
+    startDate: Day.nullable().optional(),
+    schedule: TaskSchedule.optional(),
+    durationDays: DurationDays.nullable().optional(),
     description: z.string().max(5000).default(''),
     flagged: z.boolean().default(false),
     needsReview: z.boolean().optional(),
@@ -123,10 +152,11 @@ export const tasksCreate = defineCall({
     if (!onProject(ctx, project.id, ownerId)) throw invalid('ownerId', 'The owner must be on the project team.');
     const stageId = input.stageId ?? project.currentStageId;
     requireStage(ctx, project.id, stageId);
+    const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
     const id = nextId(ctx.state, 'tsk');
     const task: Task = {
       id, projectId: project.id, stageId, title: input.title, description: input.description, ownerId, status: 'todo',
-      dueDate: input.dueDate, flagged: input.flagged, needsReview: input.needsReview ?? true, checklist: [],
+      ...when, flagged: input.flagged, needsReview: input.needsReview ?? true, checklist: [],
       createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
     };
     ctx.state.tasks[id] = task;
@@ -144,6 +174,9 @@ export const tasksUpdate = defineCall({
       title: Title.optional(),
       description: z.string().max(5000).optional(),
       dueDate: Day.nullable().optional(),
+      startDate: Day.nullable().optional(),
+      schedule: TaskSchedule.optional(),
+      durationDays: DurationDays.nullable().optional(),
       stageId: StageId.optional(),
       ownerId: UserId.optional(),
       flagged: z.boolean().optional(),
@@ -160,7 +193,15 @@ export const tasksUpdate = defineCall({
     if (patch.ownerId && !onProject(ctx, task.projectId, patch.ownerId)) throw invalid('ownerId', 'The owner must be on the project team.');
     if (patch.stageId) requireStage(ctx, task.projectId, patch.stageId);
     const reassigned = patch.ownerId !== undefined && patch.ownerId !== task.ownerId;
-    applyPatch(ctx, task, patch, { projectId: task.projectId, verb: reassigned ? 'task.reassigned' : 'task.updated', targetType: 'task', targetId: task.id });
+    const { startDate, schedule, durationDays, dueDate, ...rest } = patch;
+    // Only the fields that change are written, so an old task is not marked changed for a field it never had.
+    const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
+    const changes: Partial<Task> = { ...rest };
+    if (when.dueDate !== task.dueDate) changes.dueDate = when.dueDate;
+    if (when.startDate !== (task.startDate ?? null)) changes.startDate = when.startDate;
+    if (when.schedule !== (task.schedule ?? 'static')) changes.schedule = when.schedule;
+    if (when.durationDays !== (task.durationDays ?? null)) changes.durationDays = when.durationDays;
+    applyPatch(ctx, task, changes, { projectId: task.projectId, verb: reassigned ? 'task.reassigned' : 'task.updated', targetType: 'task', targetId: task.id });
     if (reassigned) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [task.ownerId], trigger: 'task_assigned', targetType: 'task', targetId: task.id });
     touch(ctx, task.projectId);
     return detail(ctx, task);

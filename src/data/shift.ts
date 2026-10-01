@@ -1,6 +1,7 @@
 import type { Event, Notification } from '../api/contract/entities';
 import type { State } from '../api/store';
 import { addDays, diffDays, nowStamp, weekStartOf } from '../lib/dates';
+import { dueFromDuration } from '../lib/workdays';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_IN_TEXT = /\d{4}-\d{2}-\d{2}/g;
@@ -29,6 +30,23 @@ function shiftFields<T>(value: T, days: number): T {
 }
 
 /**
+ * A dynamic task counts working days, and a shift can move the weekend under it. The due date stays where it is
+ * (so the sample keeps its due words) and the start moves to the nearest day that gives the same due date.
+ * When the due date falls on a weekend no start fits, so the due date is counted again from the start.
+ */
+function settleDynamicTasks(state: State): void {
+  for (const task of Object.values(state.tasks)) {
+    if (task.schedule !== 'dynamic' || !task.startDate || !task.durationDays || !task.dueDate) continue;
+    if (dueFromDuration(task.startDate, task.durationDays) === task.dueDate) continue;
+    const fit = [1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6]
+      .map((step) => addDays(task.startDate as string, step))
+      .find((start) => dueFromDuration(start, task.durationDays as number) === task.dueDate);
+    if (fit) task.startDate = fit;
+    else task.dueDate = dueFromDuration(task.startDate, task.durationDays);
+  }
+}
+
+/**
  * Moves every date in the state by a number of days, so saved sample data stays relative to today.
  */
 export function shiftState(state: State, days: number): State {
@@ -37,6 +55,7 @@ export function shiftState(state: State, days: number): State {
   const next = { ...shiftFields(rest, days), events: {}, notifications: {} } as State;
 
 
+  settleDynamicTasks(next);
   for (const event of Object.values(events)) {
     next.events[event.id] = shiftFields(event, days) as Event;
   }

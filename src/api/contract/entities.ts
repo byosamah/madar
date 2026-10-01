@@ -191,6 +191,11 @@ export const ChecklistItem = z.object({
 });
 export type ChecklistItem = z.infer<typeof ChecklistItem>;
 
+/** Static: a person sets the start and the due date. Dynamic: a person sets the start and a number of working days, and the server sets the due date. */
+export const TaskSchedule = z.enum(['static', 'dynamic']);
+export type TaskSchedule = z.infer<typeof TaskSchedule>;
+export const DurationDays = z.number().int().min(1).max(365);
+
 export const Task = z.object({
   id: TaskId,
   projectId: ProjectId,
@@ -200,6 +205,10 @@ export const Task = z.object({
   ownerId: UserId,
   status: TaskStatus,
   dueDate: Day.nullable(),
+  // Optional, so an office saved before start dates still loads: missing means no start, static, no duration.
+  startDate: Day.nullable().optional(),
+  schedule: TaskSchedule.optional(),
+  durationDays: DurationDays.nullable().optional(),
   flagged: z.boolean(),
   needsReview: z.boolean(),
   checklist: z.array(ChecklistItem).max(100),
