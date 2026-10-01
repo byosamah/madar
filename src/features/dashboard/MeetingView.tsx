@@ -14,7 +14,7 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
-import { clipSpan, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
+import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { oneOf } from '../../lib/params';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import type { DashboardData } from './Tiles';
@@ -36,8 +36,16 @@ function StateOfRow({ health }: { health: Row['health'] }) {
   return null;
 }
 
-/** One deadline diamond. The name shows on hover and on focus, and it is the label for screen readers. */
-function DeadlineMark({ name, label, at }: { name: string; label: string; at: number }) {
+type Mark = { id: string; name: string; when: string; label: string; at: number };
+
+// Two diamonds closer than this share one diamond, so every diamond keeps a 24 px space to press (WCAG 2.2).
+const MARK_GAP_PX = 26;
+
+/** One deadline diamond, or one diamond with a count for deadlines that sit close together. The names show on hover and on focus. */
+function DeadlineMark({ group }: { group: Mark[] }) {
+  const { t } = useTranslation();
+  const at = group[0].at;
+  const label = group.length === 1 ? group[0].label : `${t('dashboard.meeting.deadlineCount', { count: group.length })}: ${group.map((mark) => mark.label).join('; ')}`;
   return (
     <button
       type="button"
@@ -48,13 +56,45 @@ function DeadlineMark({ name, label, at }: { name: string; label: string; at: nu
       className="group absolute bottom-px z-10 grid size-6 place-items-center rounded-sm outline-offset-2"
     >
       <span aria-hidden className="size-3 rotate-45 rounded-sm bg-attn" />
+      {group.length > 1 && (
+        <span aria-hidden className="tabular absolute -end-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold leading-none text-bg">
+          {group.length}
+        </span>
+      )}
       <span
         aria-hidden
-        className={`pointer-events-none absolute bottom-full mb-2 hidden w-max max-w-72 rounded-xl bg-ink px-3 py-1.5 text-[16px] font-medium text-bg group-hover:block group-focus-visible:block ${at > 70 ? 'end-0' : 'start-0'}`}
+        className={`pointer-events-none absolute bottom-full mb-2 hidden w-max max-w-72 rounded-xl bg-ink px-3 py-1.5 text-start text-[16px] font-medium text-bg group-hover:block group-focus-visible:block ${at > 70 ? 'end-0' : 'start-0'}`}
       >
-        {name}
+        {group.map((mark) => (
+          <span key={mark.id} className="block">
+            {mark.name}{group.length > 1 && <span className="tabular opacity-70"> · {mark.when}</span>}
+          </span>
+        ))}
       </span>
     </button>
+  );
+}
+
+/** The deadline diamonds of one row. The row measures its own width, so close deadlines share a diamond at every screen size. */
+function DeadlineMarks({ marks }: { marks: Mark[] }) {
+  const ruler = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const node = ruler.current;
+    if (!node) return;
+    const measure = () => setWidth(node.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const gap = width > 0 ? (MARK_GAP_PX / width) * 100 : 0;
+  return (
+    <>
+      <span ref={ruler} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0" />
+      {groupClose(marks, gap).map((group) => <DeadlineMark key={group[0].id} group={group} />)}
+    </>
   );
 }
 
@@ -102,9 +142,12 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
           </span>
         );
       })}
-      {row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => (
-        <DeadlineMark key={d.id} name={d.name} at={offsetPct(span, d.date)} label={t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) })} />
-      ))}
+      <DeadlineMarks
+        marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
+          id: d.id, name: d.name, when: formatDay(d.date, lang), at: offsetPct(span, d.date),
+          label: t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) }),
+        }))}
+      />
     </>
   );
 }

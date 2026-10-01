@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, chartRange, clipSpan, dayDelta, meetingWindow, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct } from './schedule';
+import { addMonths, chartRange, clipSpan, dayDelta, meetingWindow, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct, groupClose } from './schedule';
 
 describe('the chart range', () => {
   it('runs from the first month start to the last month end', () => {
@@ -76,5 +76,26 @@ describe('meeting windows', () => {
     expect(meetingWindow('2026-01-10', 'quarter', -1).span).toEqual({ start: '2025-11-01', end: '2026-01-31' });
     expect(addMonths('2026-12-20', 1)).toBe('2027-01-01');
     expect(addMonths('2026-01-20', -2)).toBe('2025-11-01');
+  });
+});
+
+describe('groupClose', () => {
+  const at = (...values: number[]) => values.map((value, i) => ({ id: `d${i}`, at: value }));
+  const ids = (groups: { id: string }[][]) => groups.map((group) => group.map((item) => item.id));
+
+  it('keeps marks apart when they are at least the gap apart', () => {
+    expect(ids(groupClose(at(10, 20, 30), 5))).toEqual([['d0'], ['d1'], ['d2']]);
+  });
+
+  it('groups marks closer than the gap, in date order, starting from the earliest', () => {
+    expect(ids(groupClose(at(31, 10, 12, 30, 50), 5))).toEqual([['d1', 'd2'], ['d3', 'd0'], ['d4']]);
+  });
+
+  it('starts a new group once a mark is a full gap from the first mark of the group', () => {
+    expect(ids(groupClose(at(10, 13, 16, 19), 5))).toEqual([['d0', 'd1'], ['d2', 'd3']]);
+  });
+
+  it('groups nothing when the gap is zero', () => {
+    expect(ids(groupClose(at(10, 10), 0))).toEqual([['d0'], ['d1']]);
   });
 });

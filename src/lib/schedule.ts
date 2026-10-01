@@ -102,3 +102,17 @@ export function clipSpan(bar: Span, window: Span): Span | null {
   if (bar.end < window.start || bar.start > window.end) return null;
   return { start: bar.start < window.start ? window.start : bar.start, end: bar.end > window.end ? window.end : bar.end };
 }
+
+/**
+ * Marks closer than `gap` (a percent of the track) share one group, so no two pressable marks overlap (WCAG 2.2
+ * target size). A group starts at its earliest mark and takes every mark less than one gap after it.
+ */
+export function groupClose<T extends { at: number }>(items: T[], gap: number): T[][] {
+  const groups: T[][] = [];
+  for (const item of [...items].sort((a, b) => a.at - b.at)) {
+    const last = groups[groups.length - 1];
+    if (last && item.at < last[0].at + gap) last.push(item);
+    else groups.push([item]);
+  }
+  return groups;
+}

@@ -705,6 +705,9 @@
       "client": "Client: {{name}}",
       "status": "Status: {{name}}",
       "deadline": "Deadline: {{name}}, {{date}}",
+      "deadlineCount": "{{count}} deadlines",
+      "deadlineCount_one": "One deadline",
+      "deadlineCount_other": "{{count}} deadlines",
       "stage": "{{stage}}, {{state}}",
       "stageStates": {
         "done": "done",

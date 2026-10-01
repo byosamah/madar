@@ -773,6 +773,12 @@
       "client": "العميل: {{name}}",
       "status": "الحالة: {{name}}",
       "deadline": "موعد: {{name}}، {{date}}",
+      "deadlineCount": "{{count}} موعد",
+      "deadlineCount_one": "موعد واحد",
+      "deadlineCount_two": "موعدان",
+      "deadlineCount_few": "{{count}} مواعيد",
+      "deadlineCount_many": "{{count}} موعدًا",
+      "deadlineCount_other": "{{count}} موعد",
       "stage": "{{stage}}، {{state}}",
       "stageStates": {
         "done": "منجزة",
