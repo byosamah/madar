@@ -93,8 +93,26 @@
     "reasons": {
       "last_admin": "The office needs at least one Admin.",
       "email_taken": "This email is already in use.",
-      "agent_admin": "An agent cannot be an Admin. It has the rights of the person it acts for."
+      "agent_admin": "An agent cannot be an Admin. It has the rights of the person it acts for.",
+      "duplicate_name": "A template with this name exists. Use another name.",
+      "duplicate_stage": "A stage name is in the list twice.",
+      "stage_has_tasks": "A stage with tasks cannot be removed. Move its tasks first."
     }
+  },
+  "stageTemplates": {
+    "title": "Stage templates",
+    "empty": "No templates are saved yet.",
+    "savedBy": "Saved by {{name}}",
+    "actions": "Actions for template {{name}}",
+    "delete": "Delete",
+    "deleted": "Template deleted.",
+    "startFrom": "Start from",
+    "current": "Current stages",
+    "officeDefault": "Office default stages",
+    "saveAs": "Save as template",
+    "name": "Template name",
+    "saveTemplate": "Save template",
+    "saved": "Template saved."
   },
   "common": {
     "retry": "Retry",

@@ -53,6 +53,18 @@ describe('the Admin page', () => {
     expect(store.state.users.usr_001.systemRole).toBe('admin');
   });
 
+  it('lists the stage templates and lets the Admin delete one, with Undo', async () => {
+    const { store } = await renderApp('/admin');
+    const section = await region('Stage templates');
+    expect(await within(section).findByText('Interior fit-out')).toBeInTheDocument();
+    expect(within(section).getByText('Brief · Concept · Presentation')).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'Actions for template Competition entry' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(Object.values(store.state.stageTemplates ?? {}).map((tpl) => tpl.name)).toEqual(['Interior fit-out']));
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.keys(store.state.stageTemplates ?? {})).toHaveLength(2));
+  });
+
   it('saves the office settings', async () => {
     const { store } = await renderApp('/admin');
     const office = await region('Office settings');

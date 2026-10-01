@@ -417,6 +417,13 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   };
   state.session.currentUserId = humans[0].id;
 
+  const templateAuthor = humans[0];
+  [['Interior fit-out', ['Concept', 'Design Development', 'Construction Documents', 'Permits', 'Supervision']],
+    ['Competition entry', ['Brief', 'Concept', 'Presentation']]].forEach(([name, stages]) => {
+    const id = nextId(state, 'stt');
+    state.stageTemplates![id] = { id, name: name as string, stages: stages as string[], createdBy: templateAuthor.id, createdAt: at(addDays(today, -30), 0) };
+  });
+
   const clientIds = CLIENTS.map(([name, contactName], i) => {
     const id = nextId(state, 'cli');
     state.clients[id] = {

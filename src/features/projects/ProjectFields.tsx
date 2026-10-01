@@ -10,6 +10,7 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { IconButton } from '../../components/IconButton';
+import { StageTemplatePicker } from './StageTemplatePicker';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormValues } from './projectForm';
 
 const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'targetEndDate', 'stages'];
@@ -206,6 +207,7 @@ export function ProjectFields({ form, mode }: { form: ProjectForm; mode: 'create
           error={error('targetEndDate')}
         />
       </div>
+      <StageTemplatePicker stages={values.stages} onChange={(stages) => set('stages', stages)} mode={mode} />
       <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />
       {mode === 'create' && <TeamPicker people={people} value={values.teamIds} onChange={(ids) => set('teamIds', ids)} />}
       <TextField
