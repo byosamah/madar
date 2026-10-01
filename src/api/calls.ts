@@ -8,7 +8,6 @@ import { notificationCalls } from './handlers/notifications';
 import { peopleCalls } from './handlers/people';
 import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
-import { timeCalls } from './handlers/time';
 import { systemCalls } from './handlers/system';
 
 /** Every action in Madar. Screens and, later, AI agents use exactly these calls. */
@@ -20,7 +19,6 @@ export const calls = {
   ...contentCalls,
   ...fileCalls,
   ...historyCalls,
-  ...timeCalls,
   ...notificationCalls,
   ...insightCalls,
 };

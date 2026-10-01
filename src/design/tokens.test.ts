@@ -98,3 +98,9 @@ describe('the glow drift', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n  \.glow::before,\n  \.glow::after \{\n    animation: none;/);
   });
 });
+
+describe('floating layers', () => {
+  it('keep a solid panel background, so menus and popups never show the page through them', () => {
+    expect(css).toMatch(/\.float \{\n\s+background: var\(--c-panel\);/);
+  });
+});

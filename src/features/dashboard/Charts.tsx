@@ -133,27 +133,3 @@ export function Throughput({ view }: { view: DashboardData }) {
   );
 }
 
-export function HoursPerProject({ view }: { view: DashboardData }) {
-  const { t } = useTranslation();
-  const lang = useLang();
-  const rows = view.charts.hoursPerProject;
-  const max = Math.max(0, ...rows.map((row) => row.hours));
-  return (
-    <Card title={t('dashboard.charts.hoursPerProject')}>
-      {rows.length === 0 ? <NoData /> : (
-        <ul>
-          {rows.map((row) => (
-            <BarRow
-              key={row.projectId}
-              to={`/projects/${row.projectId}?tab=team`}
-              label={`${row.code} · ${row.name}`}
-              value={row.hours}
-              max={max}
-              detail={t('dashboard.hoursValue', { n: formatNumber(row.hours, lang, 1) })}
-            />
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}

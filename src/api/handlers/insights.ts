@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, ProjectId, ProjectStatus, Stage, StageId, TaskId, UserId, type Project, type TimeEntry,
+  ClientId, Day, Deadline, FileId, ProjectId, ProjectStatus, Stage, StageId, TaskId, UserId, type Project,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
@@ -12,8 +12,6 @@ import { normalizeForSearch } from '../../lib/text';
 
 const Count = z.number().int().min(0);
 const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string() });
-const ProjectHours = z.object({ projectId: ProjectId, code: z.string(), name: z.string(), hours: z.number() });
-type Period = 'month' | 'quarter' | 'year';
 
 export const DashboardView = z.object({
   tiles: z.object({
@@ -21,14 +19,12 @@ export const DashboardView = z.object({
     atRiskOrLate: Count,
     overdueTasks: Count,
     deadlinesNext14: Count,
-    officeHours: z.object({ hours: z.number(), target: z.number(), percent: z.number() }),
     areaInDesign: z.number(),
   }),
   charts: z.object({
     projectsPerStage: z.array(z.object({ stage: z.string(), count: Count })),
     healthMix: z.object({ on_track: Count, at_risk: Count, late: Count }),
     throughput: z.array(z.object({ weekStart: Day, created: Count, done: Count })).length(12),
-    hoursPerProject: z.array(ProjectHours),
   }),
   workload: z.object({
     weeks: z.array(Day).length(4),
@@ -36,31 +32,13 @@ export const DashboardView = z.object({
     rows: z.array(z.object({ user: UserCard, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
   }),
   schedule: z.array(z.object({ project: Ref, currentStageId: StageId, stages: z.array(Stage), deadlines: z.array(Deadline) })),
-  hoursThisWeek: z.object({
-    perProject: z.array(ProjectHours),
-    perPerson: z.array(z.object({ user: UserCard, hours: z.number(), target: z.number() })).nullable(),
-  }),
 });
 export type DashboardView = z.infer<typeof DashboardView>;
 
-export function periodStart(today: string, period: Period): string {
-  const [year, month] = today.split('-').map(Number);
-  if (period === 'year') return `${year}-01-01`;
-  const first = period === 'quarter' ? Math.floor((month - 1) / 3) * 3 + 1 : month;
-  return `${year}-${String(first).padStart(2, '0')}-01`;
-}
 
-function hoursByProject(state: State, entries: TimeEntry[]): z.infer<typeof ProjectHours>[] {
-  const totals = new Map<string, number>();
-  for (const entry of entries) totals.set(entry.projectId, (totals.get(entry.projectId) ?? 0) + entry.hours);
-  return [...totals.entries()]
-    .map(([projectId, hours]) => ({ projectId, code: state.projects[projectId]?.code ?? '', name: state.projects[projectId]?.name ?? '', hours }))
-    .sort((a, b) => b.hours - a.hours || a.code.localeCompare(b.code));
-}
 
 export const dashboardGet = defineCall({
   input: z.object({
-    period: z.enum(['month', 'quarter', 'year']).default('month'),
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
@@ -81,9 +59,6 @@ export const dashboardGet = defineCall({
 
     const weekStart = weekStartOf(today);
     const humans = Object.values(state.users).filter((u) => u.kind === 'human' && u.active).sort((a, b) => a.name.localeCompare(b.name));
-    const weekEntries = Object.values(state.time).filter((e) => e.date >= weekStart && e.date <= today && inScope.has(e.projectId));
-    const weekHours = weekEntries.reduce((sum, e) => sum + e.hours, 0);
-    const weekTarget = humans.reduce((sum, u) => sum + u.weeklyHourTarget, 0);
     const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name });
 
     const order = state.settings.defaultStages;
@@ -110,14 +85,12 @@ export const dashboardGet = defineCall({
       return { user: userCard(user), counts, over: counts.map((count) => count > limit) };
     });
 
-    const periodFrom = periodStart(today, input.period);
     return {
       tiles: {
         activeProjects: active.length,
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        officeHours: { hours: weekHours, target: weekTarget, percent: weekTarget > 0 ? Math.round((weekHours / weekTarget) * 100) : 0 },
         areaInDesign: active.filter((p) => state.stages[p.currentStageId]?.name !== 'Supervision').reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
       },
       charts: {
@@ -126,18 +99,11 @@ export const dashboardGet = defineCall({
           .sort((a, b) => rank(a.stage) - rank(b.stage) || a.stage.localeCompare(b.stage)),
         healthMix,
         throughput,
-        hoursPerProject: hoursByProject(state, Object.values(state.time).filter((e) => e.date >= periodFrom && e.date <= today && inScope.has(e.projectId))),
       },
       workload: { weeks, limit, rows: workloadRows },
       schedule: [...active]
         .sort((a, b) => (a.targetEndDate ?? '9999-12-31').localeCompare(b.targetEndDate ?? '9999-12-31') || a.code.localeCompare(b.code))
         .map((p) => ({ project: refOf(p), currentStageId: p.currentStageId, stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id) })),
-      hoursThisWeek: {
-        perProject: hoursByProject(state, weekEntries),
-        perPerson: actor.systemRole === 'admin'
-          ? humans.map((u) => ({ user: userCard(u), hours: weekEntries.filter((e) => e.userId === u.id).reduce((sum, e) => sum + e.hours, 0), target: u.weeklyHourTarget }))
-          : null,
-      },
     };
   },
 });

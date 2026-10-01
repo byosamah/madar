@@ -29,22 +29,11 @@ describe('the Dashboard charts', () => {
     await waitFor(() => expect(window.location.hash).toContain('doneFrom='));
   });
 
-  it('links a project in Hours per project to its Team tab', async () => {
-    await renderApp('/dashboard?view=people');
-    const [first] = within(await chart('Hours per project')).getAllByRole('link');
-    await userEvent.click(first);
-    await waitFor(() => expect(window.location.hash).toContain('tab=team'));
-  });
-
   it('says so in every chart and the schedule when the filters leave nothing to draw', async () => {
     const first = await renderApp('/dashboard?client=cli_999');
     await chart('Projects per stage');
     expect(screen.getAllByText('No data for these filters.')).toHaveLength(3);
     first.unmount();
-    const people = await renderApp('/dashboard?client=cli_999&view=people');
-    await chart('Hours per project');
-    expect(screen.getAllByText('No data for these filters.')).toHaveLength(1);
-    people.unmount();
     await renderApp('/dashboard?client=cli_999&view=schedule');
     expect(await within(await screen.findByRole('region', { name: 'Office schedule' })).findByText('No data for these filters.')).toBeInTheDocument();
   });

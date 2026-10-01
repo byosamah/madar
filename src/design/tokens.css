@@ -318,6 +318,12 @@
     background: radial-gradient(30% 26% at 50% 70%, var(--glow-c) 0%, transparent 100%);
     animation: glow-drift-2 8s ease-in-out infinite;
   }
+  /* Floating layers (sheets, popovers, menus, toasts, the mention list): a solid panel with a deeper shadow. No glass (redesign spec 2.1). */
+  .float {
+    background: var(--c-panel);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 18px 48px rgba(0, 0, 0, 0.14);
+    border: 1px solid var(--panel-edge);
+  }
   .hairline > * + * {
     border-top: 1px solid var(--c-hairline);
   }

@@ -10,27 +10,18 @@ const as = (userId: string) => (state: State) => {
 const TEAM = '/projects/prj_001?tab=team';
 
 describe('the Team tab', () => {
-  it('shows the leader, the members, their open tasks and, for the leader, their hours', async () => {
+  it('shows the leader, the members, and their open tasks', async () => {
     await renderApp(TEAM, as('usr_002'));
     const leader = await screen.findByRole('region', { name: 'Leader' });
     expect(within(leader).getByText('Faisal Al-Harbi')).toBeInTheDocument();
     const members = screen.getByRole('region', { name: 'Members' });
     const sara = within(members).getByText('Sara Al-Qahtani').closest('li') as HTMLElement;
     expect(within(sara).getByText('Open tasks: 2')).toBeInTheDocument();
-    expect(within(sara).getByText('33.5 h this month')).toBeInTheDocument();
   });
 
-  it('shows a member only their own hours', async () => {
-    await renderApp(TEAM, as('usr_005'));
-    const members = await screen.findByRole('region', { name: 'Members' });
-    expect(within(members).getAllByText(/h this month/)).toHaveLength(1);
-    expect(within(members).getByText('33.5 h this month')).toBeInTheDocument();
-  });
-
-  it('shows a person outside the project no hours and no actions', async () => {
+  it('shows a person outside the project no actions', async () => {
     await renderApp(TEAM, as('usr_003'));
     await screen.findByRole('region', { name: 'Members' });
-    expect(screen.queryByText(/h this month/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Actions for/ })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Add member' })).toBeNull();
   });

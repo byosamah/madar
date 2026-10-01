@@ -51,7 +51,6 @@ describe('Home', () => {
     await renderApp('/', (state) => {
       as('usr_005')(state);
       for (const task of Object.values(state.tasks)) task.status = 'done';
-      state.users.usr_005.weeklyHourTarget = 0;
     });
     const card = await next();
     expect(within(card).getByText('You are all caught up.')).toBeInTheDocument();

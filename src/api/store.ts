@@ -1,11 +1,14 @@
 import type {
   Client, Comment, Deadline, Event, FileRec, Notification, Project, ProjectMember, Settings, Stage, Task,
-  TimeEntry, TimeRow, Update, User, WeekUnlock,
+  Update, User,
 } from './contract/entities';
 import type { Persister } from './persist';
 
-/** Version 2 added the grammatical gender of people (src/data/migrate.ts brings version 1 up to date). */
-export const STATE_VERSION = 2;
+/**
+ * Version 2 added the grammatical gender of people. Version 3 removed the hours system (owner, 2026-10-01).
+ * src/data/migrate.ts brings older offices up to date.
+ */
+export const STATE_VERSION = 3;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',
@@ -25,12 +28,9 @@ export type State = {
   updates: Record<string, Update>;
   comments: Record<string, Comment>;
   files: Record<string, FileRec>;
-  time: Record<string, TimeEntry>;
-  timeRows: Record<string, TimeRow>;
   notifications: Record<string, Notification>;
   events: Record<string, Event>;
   settings: Settings;
-  weekUnlocks: WeekUnlock[];
   counters: Record<string, number>;
 };
 
@@ -49,12 +49,9 @@ export function emptyState(today: string): State {
     updates: {},
     comments: {},
     files: {},
-    time: {},
-    timeRows: {},
     notifications: {},
     events: {},
     settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10 },
-    weekUnlocks: [],
     counters: {},
   };
 }

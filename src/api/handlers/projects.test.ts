@@ -149,13 +149,13 @@ describe('members', () => {
 });
 
 describe('stages', () => {
-  it('refuses to remove a stage with tasks or hours, and names it', async () => {
+  it('refuses to remove a stage with tasks, and names it', async () => {
     const t = testApi(projectCalls);
     t.store.state.tasks.tsk_001 = makeTask({ stageId: 'stg_001' });
     t.as('usr_002');
     const call = t.api.call('stages.replace', { projectId: 'prj_001', stages: [{ id: 'stg_002', name: 'Schematic Design' }] });
     await expect(call).rejects.toMatchObject({ code: 'invalid_input' });
-    await expect(call).rejects.toThrow('Move the tasks and hours out of "Concept" first.');
+    await expect(call).rejects.toThrow('Move the tasks out of "Concept" first.');
     expect(t.store.state.stages.stg_001).toBeDefined();
   });
 
@@ -208,23 +208,6 @@ describe('plan 2 additions', () => {
     await t.api.call('projects.setHealthOverride', { id: 'prj_001', value: 'at_risk', reason: 'Client delay' });
     const [summary] = await t.api.call('projects.list', {});
     expect(summary.healthSetBy?.name).toBe('Faisal Leader');
-  });
-
-  it("shows this month's hours only to people who may see them", async () => {
-    const t = testApi(projectCalls);
-    const entry = { projectId: 'prj_001', stageId: 'stg_002', taskId: null };
-    t.store.state.time.tim_001 = { ...entry, id: 'tim_001', userId: 'usr_003', date: '2026-09-14', hours: 6 };
-    t.store.state.time.tim_002 = { ...entry, id: 'tim_002', userId: 'usr_003', date: '2026-08-31', hours: 5 };
-    t.store.state.time.tim_003 = { ...entry, id: 'tim_003', userId: 'usr_002', date: '2026-09-15', hours: 4 };
-    const hours = async (viewer: string) => {
-      t.as(viewer);
-      const detail = await t.api.call('projects.get', { id: 'prj_001' });
-      return Object.fromEntries(detail.members.map((m) => [m.user.id, m.hoursThisMonth]));
-    };
-    expect(await hours('usr_002')).toEqual({ usr_002: 4, usr_003: 6 });
-    expect(await hours('usr_003')).toEqual({ usr_002: null, usr_003: 6 });
-    expect(await hours('usr_004')).toEqual({ usr_002: null, usr_003: null });
-    expect(await hours('usr_001')).toEqual({ usr_002: 4, usr_003: 6 });
   });
 
   it('gives the latest letter of the cover, so a new version shows', async () => {

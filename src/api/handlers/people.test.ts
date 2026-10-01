@@ -39,7 +39,7 @@ describe('people calls', () => {
   it('lets only the Admin add people', async () => {
     const t = testApi(peopleCalls);
     const created = await t.api.call('users.create', { name: 'New Person', email: 'new@madar.test', discipline: 'MEP' });
-    expect(created).toMatchObject({ id: 'usr_006', systemRole: 'member', kind: 'human', weeklyHourTarget: 40, active: true });
+    expect(created).toMatchObject({ id: 'usr_006', systemRole: 'member', kind: 'human', active: true });
     t.as('usr_003');
     await expect(t.api.call('users.create', { name: 'X', email: 'x@madar.test', discipline: 'MEP' })).rejects.toMatchObject({ code: 'forbidden' });
   });
@@ -123,7 +123,7 @@ describe('review fixes', () => {
 describe('Admins are people', () => {
   it('refuses the Admin role for an agent', async () => {
     const t = testApi(peopleCalls);
-    await expect(t.api.call('users.create', { name: 'Admin bot', email: 'bot@madar.test', kind: 'agent', ownerId: 'usr_001', systemRole: 'admin', discipline: 'Bot', weeklyHourTarget: 0 }))
+    await expect(t.api.call('users.create', { name: 'Admin bot', email: 'bot@madar.test', kind: 'agent', ownerId: 'usr_001', systemRole: 'admin', discipline: 'Bot' }))
       .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'agent_admin' } });
     await expect(t.api.call('users.update', { id: 'usr_005', patch: { systemRole: 'admin' } }))
       .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'agent_admin' } });

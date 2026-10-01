@@ -62,13 +62,6 @@ describe('the Inbox', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull());
   });
 
-  it('opens the timesheet from a week reminder', async () => {
-    await renderApp('/inbox', withNotices('usr_005', [notice('ntf_905', 'week_under_target', 'week', '2026-09-20', TODAY_8, null)]));
-    expect(await screen.findByText(/week of 20 September 2026 are under target/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('link', { name: /are under target/ }));
-    await waitFor(() => expect(window.location.hash).toContain('week=2026-09-20'));
-  });
-
   it('says when there is nothing', async () => {
     await renderApp('/inbox', withNotices('usr_005', []));
     expect(await screen.findByText('No notifications')).toBeInTheDocument();

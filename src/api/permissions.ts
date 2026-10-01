@@ -6,7 +6,6 @@ export type Action =
   | 'project.delete' | 'project.healthOverride'
   | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.updateAny' | 'task.review' | 'task.delete'
   | 'content.post' | 'content.editOwn'
-  | 'time.logOnProject' | 'time.viewPerson'
   | 'event.undoAgent' | 'admin.manage';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
@@ -52,14 +51,11 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
       return admin;
     case 'task.createForSelf':
     case 'content.post':
-    case 'time.logOnProject':
       return onProject;
     case 'task.updateOwn':
       return leads || (onProject && resource.ownerId === actor.id);
     case 'content.editOwn':
       return onProject && resource.authorId === actor.id;
-    case 'time.viewPerson':
-      return resource.targetUserId === actor.id || admin || role === 'leader';
     default:
       return false;
   }

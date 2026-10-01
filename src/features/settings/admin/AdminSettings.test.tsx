@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -13,7 +13,7 @@ const openMenu = async (name: string) => {
 describe('Admin settings', () => {
   it('shows the Admin sections only to the Admin', async () => {
     const first = await renderApp('/settings');
-    for (const name of ['People', 'Office settings', 'Unlock a week']) expect(await region(name)).toBeInTheDocument();
+    for (const name of ['People', 'Office settings']) expect(await region(name)).toBeInTheDocument();
     first.unmount();
     await renderApp('/settings', (state: State) => {
       state.session.currentUserId = 'usr_005';
@@ -31,17 +31,6 @@ describe('Admin settings', () => {
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(Object.values(store.state.users).some((u) => u.name === 'Nora Salem' && u.discipline === 'Landscape')).toBe(true));
-  });
-
-  it("edits a person's weekly target", async () => {
-    const { store } = await renderApp('/settings');
-    await userEvent.click(within(await openMenu('Sara Al-Qahtani')).getByRole('menuitem', { name: 'Edit' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
-    const target = within(sheet).getByLabelText('Weekly target (h)');
-    await userEvent.clear(target);
-    await userEvent.type(target, '36');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(store.state.users.usr_005.weeklyHourTarget).toBe(36));
   });
 
   it('deactivates a person, then brings them back with Undo', async () => {
@@ -74,17 +63,6 @@ describe('Admin settings', () => {
     await waitFor(() => expect(store.state.settings.workloadLimit).toBe(12));
   });
 
-  it('unlocks a week for a person', async () => {
-    const { store } = await renderApp('/settings');
-    const unlock = await region('Unlock a week');
-    await within(unlock).findByRole('option', { name: 'Sara Al-Qahtani' });
-    await userEvent.selectOptions(within(unlock).getByLabelText('Person'), 'Sara Al-Qahtani');
-    fireEvent.change(within(unlock).getByLabelText('Any day in the week'), { target: { value: '2026-09-02' } });
-    await userEvent.click(within(unlock).getByRole('button', { name: 'Unlock week' }));
-    await waitFor(() => expect(store.state.weekUnlocks).toContainEqual({ userId: 'usr_005', weekStart: '2026-08-30' }));
-    expect(await screen.findByText(/is open for Sara Al-Qahtani/)).toBeInTheDocument();
-  });
-
   it('keeps what the Admin typed in the office form when other data changes', async () => {
     const { store, api } = await renderApp('/settings');
     const office = await region('Office settings');
@@ -107,16 +85,6 @@ describe('Admin settings', () => {
     await userEvent.type(email, 'faisal.al.harbi@madar.test');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     expect(await within(sheet).findByText('This email is already in use.')).toBeInTheDocument();
-  });
-
-  it('says the weekly target range under the field instead of a silent Save', async () => {
-    await renderApp('/settings');
-    await userEvent.click(within(await openMenu('Sara Al-Qahtani')).getByRole('menuitem', { name: 'Edit' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
-    const target = within(sheet).getByLabelText('Weekly target (h)');
-    await userEvent.clear(target);
-    await userEvent.type(target, '81');
-    expect(within(sheet).getByText('Use a number from 0 to 80.')).toBeInTheDocument();
   });
 
   it('offers no Admin role for an agent', async () => {

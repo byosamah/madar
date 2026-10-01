@@ -66,19 +66,5 @@ export function runScheduledTriggers(state: State, at: Date): number {
       }).length;
     }
   }
-  if (clock.weekday === 4 && clock.hour >= 15) {
-    const weekStart = weekStartOf(today);
-    for (const user of Object.values(state.users)) {
-      if (user.kind !== 'human' || !user.active) continue;
-      const total = Object.values(state.time)
-        .filter((entry) => entry.userId === user.id && entry.date >= weekStart && entry.date <= today)
-        .reduce((sum, entry) => sum + entry.hours, 0);
-      if (total < user.weeklyHourTarget) {
-        count += notify(state, null, stamp, {
-          userIds: [user.id], trigger: 'week_under_target', targetType: 'week', targetId: weekStart, dedupeKey: `week_under_target:${weekStart}`,
-        }).length;
-      }
-    }
-  }
   return count;
 }

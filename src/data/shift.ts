@@ -30,40 +30,20 @@ function shiftFields<T>(value: T, days: number): T {
 
 /**
  * Moves every date in the state by a number of days, so saved sample data stays relative to today.
- * Hours move by whole weeks, so each entry keeps its weekday, and hours that would land after today go.
  */
 export function shiftState(state: State, days: number): State {
   if (days === 0) return state;
-  const today = addDays(state.seededOn, days);
-  const weeks = diffDays(weekStartOf(state.seededOn), weekStartOf(today));
-  const { time, timeRows, weekUnlocks, events, notifications, ...rest } = state;
-  const next = { ...shiftFields(rest, days), time: {}, timeRows: {}, events: {}, notifications: {} } as State;
+  const { events, notifications, ...rest } = state;
+  const next = { ...shiftFields(rest, days), events: {}, notifications: {} } as State;
 
-  for (const entry of Object.values(time)) {
-    const date = addDays(entry.date, weeks);
-    if (date <= today) next.time[entry.id] = { ...entry, date };
-  }
-  for (const row of Object.values(timeRows)) {
-    const weekStart = weekStartOf(addDays(row.weekStart, weeks));
-    const key = `${row.userId}|${weekStart}|${row.projectId}|${row.stageId}|${row.taskId ?? '-'}`;
-    next.timeRows[key] = { ...row, key, weekStart };
-  }
-  next.weekUnlocks = weekUnlocks.map((unlock) => ({ ...unlock, weekStart: weekStartOf(addDays(unlock.weekStart, weeks)) }));
 
   for (const event of Object.values(events)) {
-    const moved: Event = shiftFields(event, days);
-    if (event.targetType === 'time') {
-      moved.before = shiftFields(event.before, weeks);
-      moved.after = shiftFields(event.after, weeks);
-    }
-    next.events[event.id] = moved;
+    next.events[event.id] = shiftFields(event, days) as Event;
   }
   for (const notification of Object.values(notifications)) {
     const moved: Notification = shiftFields(notification, days);
-    const delta = notification.targetType === 'week' ? weeks : days;
-    if (notification.targetType === 'week') moved.targetId = addDays(notification.targetId, weeks);
     // The dedupe key holds the date it was sent for, so the reminder does not come back after the shift.
-    if (notification.dedupeKey) moved.dedupeKey = notification.dedupeKey.replace(DAY_IN_TEXT, (day) => addDays(day, delta));
+    if (notification.dedupeKey) moved.dedupeKey = notification.dedupeKey.replace(DAY_IN_TEXT, (day) => addDays(day, days));
     next.notifications[notification.id] = moved;
   }
   return next;

@@ -7,7 +7,7 @@ import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { diffDays, formatDay, todayISO, weekStartOf } from '../../lib/dates';
+import { formatDay, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
@@ -27,7 +27,6 @@ export function HomeScreen() {
   const session = useCall('session.get', {});
   const mine = useCall('tasks.list', { filter: 'mine' });
   const review = useCall('tasks.list', { filter: 'review_for_me' });
-  const week = useCall('time.week', { weekStart: weekStartOf(today) });
   // The Admin sees every active project; anyone else sees the projects they lead or work on.
   const admin = session.data?.user.systemRole === 'admin';
   const projects = useCall('projects.list', { filter: admin ? 'all' : 'mine', sort: 'deadline' }, );
@@ -56,16 +55,12 @@ export function HomeScreen() {
       window.clearTimeout(timer);
     };
   }, [queryClient]);
-  const failed = [session, mine, review, week].find((query) => query.error);
+  const failed = [session, mine, review].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   const user = session.data?.user;
-  if (!user || !mine.data || !review.data || !week.data) return null;
+  if (!user || !mine.data || !review.data) return null;
 
-  // The office week runs Sunday to Thursday (spec 7.1).
-  const dayIndex = diffDays(week.data.weekStart, today);
-  const workday = dayIndex >= 0 && dayIndex <= 4;
-  const loggedToday = week.data.dayTotals[dayIndex] ?? 0;
-  const next = nextForYou({ review: review.data, mine: mine.data, today, hoursUnderTarget: week.data.weekTotal < week.data.target, workday });
+  const next = nextForYou({ review: review.data, mine: mine.data, today });
   const ring = dayRing(mine.data, today);
   const todayRows = dueByToday(mine.data, today);
   const things = todayRows.length + review.data.length;
@@ -85,7 +80,7 @@ export function HomeScreen() {
           </span>
         </ScreenTitle>
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} logHours={workday && loggedToday === 0 && week.data.target > 0} onOpen={(row) => open(row.project.id, row.task.id)} />
+        <TodayPanel rows={todayRows} onOpen={(row) => open(row.project.id, row.task.id)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">

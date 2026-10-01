@@ -11,7 +11,7 @@ export const STAMP = '2026-09-30T09:00:00.000+03:00';
 export function makeUser(id: string, overrides: Partial<User> = {}): User {
   return {
     id, name: id, email: `${id}@madar.test`, avatarUrl: null, kind: 'human', systemRole: 'member',
-    discipline: 'Architect', weeklyHourTarget: 40, active: true, ownerId: null, preferences: defaultPreferences(), ...overrides,
+    discipline: 'Architect', active: true, ownerId: null, preferences: defaultPreferences(), ...overrides,
   };
 }
 
@@ -44,7 +44,7 @@ export function makeWorld(): State {
     makeUser('usr_002', { name: 'Faisal Leader' }),
     makeUser('usr_003', { name: 'Sara Team' }),
     makeUser('usr_004', { name: 'Omar Other' }),
-    makeUser('usr_005', { name: 'Madar Assistant', kind: 'agent', discipline: 'Agent', weeklyHourTarget: 0, ownerId: 'usr_003' }),
+    makeUser('usr_005', { name: 'Madar Assistant', kind: 'agent', discipline: 'Agent', ownerId: 'usr_003' }),
   ];
   for (const user of users) state.users[user.id] = user;
   state.projects.prj_001 = makeProject();

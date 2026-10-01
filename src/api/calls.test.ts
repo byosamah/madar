@@ -17,14 +17,13 @@ const SPEC_CALLS = [
   'updates.list', 'updates.create', 'updates.update', 'updates.delete',
   'comments.list', 'comments.create', 'comments.update', 'comments.delete', 'reactions.toggle',
   'files.list', 'files.get', 'files.upload', 'files.delete',
-  'time.week', 'time.set', 'time.copyLastWeek', 'time.unlockWeek',
   'notifications.list', 'notifications.markRead', 'notifications.markAllRead', 'notifications.updateSettings',
   'events.list', 'events.undo',
   'dashboard.get', 'search.query',
   'settings.get', 'settings.update', 'me.updatePreferences',
 ];
 // Plan clarification 3.
-const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'time.addRow', 'time.removeRow', 'events.undoStory', 'deadlines.list'];
+const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras', () => {
@@ -33,7 +32,7 @@ describe('the call map', () => {
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
-      const read = /\.(list|get|week|count|query)$/.test(name);
+      const read = /\.(list|get|count|query)$/.test(name);
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });

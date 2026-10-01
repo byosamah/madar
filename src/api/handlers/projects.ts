@@ -268,8 +268,6 @@ export const projectsDelete = defineCall({
     drop(state.tasks);
     drop(state.updates);
     drop(state.files);
-    drop(state.time);
-    drop(state.timeRows);
     drop(state.members);
     for (const [key, comment] of Object.entries(state.comments)) {
       const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
@@ -356,15 +354,14 @@ export const stagesReplace = defineCall({
     }
     const removed = existing.filter((stage) => !keep.has(stage.id));
     for (const stage of removed) {
-      const used = Object.values(state.tasks).some((t) => t.stageId === stage.id) || Object.values(state.time).some((e) => e.stageId === stage.id);
-      if (used) throw invalid('stages', `Move the tasks and hours out of "${stage.name}" first.`);
+      const used = Object.values(state.tasks).some((t) => t.stageId === stage.id);
+      if (used) throw invalid('stages', `Move the tasks out of "${stage.name}" first.`);
     }
     const before = existing.map((stage) => ({ ...stage }));
     for (const stage of removed) {
       delete state.stages[stage.id];
       for (const d of Object.values(state.deadlines)) if (d.stageId === stage.id) d.stageId = null;
       for (const f of Object.values(state.files)) if (f.stageId === stage.id) f.stageId = null;
-      for (const [key, row] of Object.entries(state.timeRows)) if (row.stageId === stage.id) delete state.timeRows[key];
     }
     input.stages.forEach((stage, order) => {
       const id = stage.id ?? nextId(state, 'stg');

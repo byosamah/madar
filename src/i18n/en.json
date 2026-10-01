@@ -5,21 +5,20 @@
   "nav": {
     "main": "Main navigation",
     "projects": "Projects",
-    "myWork": "My Work",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "search": "Search",
     "settings": "Settings",
     "inboxBadge": "{{count}} items need action",
     "home": "Home",
-    "myHours": "My hours",
     "lightMode": "Light mode",
-    "darkMode": "Dark mode"
+    "darkMode": "Dark mode",
+    "tasks": "Tasks"
   },
   "screens": {
     "projects": "Projects",
     "project": "Project",
-    "myWork": "My Work",
+    "myWork": "Tasks",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "search": "Search",
@@ -72,8 +71,7 @@
       "task_approved": "My task is approved",
       "task_sent_back": "My task is sent back",
       "stage_changed": "The stage changes on my project",
-      "added_to_project": "I am added to a project",
-      "week_under_target": "My week is under target"
+      "added_to_project": "I am added to a project"
     },
     "prototype": "Prototype",
     "simulateErrors": "Simulate errors",
@@ -365,9 +363,6 @@
     "removeItem": "Remove {{text}}",
     "files": "Files",
     "noFiles": "No files on this task.",
-    "hours": "Hours logged",
-    "hoursValue": "{{n}} h",
-    "logTime": "Log time",
     "history": "History",
     "noHistory": "No changes yet.",
     "approve": "Approve",
@@ -456,7 +451,6 @@
     "discipline": "Discipline of {{name}}",
     "disciplineSaved": "Discipline saved.",
     "openTasks": "Open tasks: {{n}}",
-    "hoursMonth": "{{n}} h this month",
     "add": "Add member",
     "person": "Person",
     "newDiscipline": "Discipline",
@@ -468,11 +462,6 @@
     "noOne": "Everyone is already on the team."
   },
   "work": {
-    "tabs": "My Work sections",
-    "tab": {
-      "tasks": "Tasks",
-      "hours": "Hours"
-    },
     "group": {
       "review": "Waiting for my review",
       "overdue": "Past due",
@@ -484,34 +473,6 @@
     "emptyTitle": "All clear",
     "empty": "You have no open tasks."
   },
-  "hours": {
-    "weekRange": "{{start}} to {{end}}",
-    "previous": "Previous week",
-    "next": "Next week",
-    "thisWeek": "This week",
-    "logged": "{{logged}} of {{target}} h",
-    "copyLast": "Copy last week",
-    "copied": "Last week's rows are added.",
-    "addRow": "Add row",
-    "addTitle": "Add a row",
-    "project": "Project",
-    "stage": "Stage",
-    "task": "Task",
-    "noTask": "No task",
-    "rowAdded": "Row added.",
-    "row": "Row",
-    "removeRow": "Remove {{row}}",
-    "cell": "Hours for {{row}} on {{day}}",
-    "total": "Total",
-    "dayTotal": "Day total",
-    "showWeekend": "Show Friday and Saturday",
-    "hideWeekend": "Hide Friday and Saturday",
-    "locked": "This week is locked. Ask the Admin to unlock it.",
-    "invalid": "Use steps of 0.5, from 0 to 24.",
-    "emptyTitle": "No hours this week",
-    "empty": "Add a row, or copy last week's rows.",
-    "dayOver": "A day cannot have more than 24 hours."
-  },
   "inbox": {
     "markAllRead": "Mark all read",
     "allRead": "All caught up.",
@@ -522,7 +483,6 @@
     "unread": "Unread",
     "open": "Open",
     "approve": "Approve",
-    "openTimesheet": "Open timesheet",
     "someone": "Someone",
     "trigger": {
       "task_assigned": "{{actor}} gave you “{{target}}”",
@@ -533,8 +493,7 @@
       "task_approved": "{{actor}} approved “{{target}}”",
       "task_sent_back": "{{actor}} sent back “{{target}}”",
       "stage_changed": "{{actor}} changed the stage of {{target}}",
-      "added_to_project": "{{actor}} added you to {{target}}",
-      "week_under_target": "Your hours for the week of {{target}} are under target"
+      "added_to_project": "{{actor}} added you to {{target}}"
     }
   },
   "comments": {
@@ -575,9 +534,8 @@
     "command": {
       "newTask": "New task",
       "newProject": "New project",
-      "logTime": "Log time",
       "dashboard": "Go to Dashboard",
-      "myWork": "Go to My Work"
+      "myWork": "Go to my tasks"
     }
   },
   "newTask": {
@@ -598,12 +556,6 @@
     "none": "No active projects."
   },
   "dashboard": {
-    "period": "Period",
-    "periods": {
-      "month": "This month",
-      "quarter": "This quarter",
-      "year": "This year"
-    },
     "statusLabel": "Status",
     "leader": "Leader",
     "anyLeader": "Any leader",
@@ -614,17 +566,13 @@
       "atRiskOrLate": "At risk or late",
       "overdueTasks": "Past-due tasks",
       "deadlines": "Deadlines, next 14 days",
-      "officeHours": "Office hours this week",
       "area": "Area in design"
     },
-    "hoursOf": "{{hours}} of {{target}} h",
-    "percent": "{{n}}%",
     "areaValue": "{{n}} m²",
     "charts": {
       "perStage": "Projects per stage",
       "health": "Health mix",
-      "throughput": "Tasks done and created per week",
-      "hoursPerProject": "Hours per project"
+      "throughput": "Tasks done and created per week"
     },
     "created": "Created",
     "done": "Done",
@@ -643,10 +591,6 @@
       "quarter": "Quarter",
       "year": "Year"
     },
-    "hoursSheet": "Hours this week",
-    "perProject": "Per project",
-    "perPerson": "Per person",
-    "hoursValue": "{{n}} h",
     "legend": {
       "done": "Done stages",
       "current": "Current stage",
@@ -692,7 +636,6 @@
     },
     "owner": "Acts for",
     "discipline": "Discipline",
-    "target": "Weekly target (h)",
     "deactivate": "Deactivate",
     "deactivated": "{{name}} deactivated.",
     "added": "{{name}} added.",
@@ -710,15 +653,10 @@
     "limitHint": "Open tasks per person in one week before the cell turns red.",
     "saveOffice": "Save office settings",
     "officeSaved": "Office settings saved.",
-    "unlock": "Unlock a week",
-    "unlockHint": "A week locks 14 days after it ends. Unlock it so the person can fix their hours.",
     "person": "Person",
     "week": "Any day in the week",
-    "unlockButton": "Unlock week",
-    "unlocked": "The week of {{week}} is open for {{name}}.",
     "errors": {
       "email": "Use a valid email address.",
-      "target": "Use a number from 0 to 80.",
       "limit": "Use a whole number from 1 to 100.",
       "prefix": "Use one to four capital letters.",
       "stages": "Give every stage a name.",
@@ -760,12 +698,10 @@
       "title": "Next for you",
       "review": "Review",
       "open": "Open task",
-      "logHours": "Log hours",
       "reviewLine": "Approve “{{title}}”",
       "pastDue": "Finish “{{title}}”",
       "dueToday": "Finish “{{title}}”",
       "continue": "Continue “{{title}}”",
-      "hours": "Log today's hours",
       "clear": "You are all caught up.",
       "doneLeft": "Done. {{n}} more today.",
       "doneLeft_one": "Done. 1 more today.",
@@ -773,7 +709,6 @@
     },
     "today": "Today",
     "todayClear": "Nothing is due today.",
-    "logToday": "Log hours for today",
     "allTasks": "See all my tasks",
     "projects": "Your projects",
     "projectCount": "{{n}} active",

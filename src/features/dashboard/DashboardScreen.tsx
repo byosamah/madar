@@ -10,12 +10,11 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { oneOf } from '../../lib/params';
-import { HealthMix, HoursPerProject, PerStage, Throughput } from './Charts';
+import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { OfficeSchedule } from './OfficeSchedule';
 import { Workload } from './Workload';
 
-const PERIODS = ['month', 'quarter', 'year'] as const;
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const VIEWS = ['projects', 'people', 'schedule'] as const;
 const USER_ID = /^usr_\d{3,}$/;
@@ -31,13 +30,11 @@ export function DashboardScreen() {
   const { t } = useTranslation();
   const lang = useLang();
   const [params, setParams] = useSearchParams();
-  const period = oneOf(params.get('period'), PERIODS, 'month');
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const section = oneOf(params.get('view'), VIEWS, 'projects');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
   const dashboard = useCall('dashboard.get', {
-    period,
     status,
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
@@ -50,7 +47,7 @@ export function DashboardScreen() {
     else next.set(key, value);
     return next;
   }, { replace: true });
-  const active = [period !== 'month', status !== 'active', leader !== '', client !== ''].filter(Boolean).length;
+  const active = [status !== 'active', leader !== '', client !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
   return (
@@ -58,11 +55,6 @@ export function DashboardScreen() {
       <ScreenTitle title={t('screens.dashboard')} />
       <div>
         <FilterButton label={t('filter.label')} count={active}>
-          <label className={LABEL}>{t('dashboard.period')}
-            <select value={period} onChange={(event) => set('period', event.target.value, 'month')} className={SELECT}>
-              {PERIODS.map((value) => <option key={value} value={value}>{t(`dashboard.periods.${value}`)}</option>)}
-            </select>
-          </label>
           <label className={LABEL}>{t('dashboard.statusLabel')}
             <select value={status} onChange={(event) => set('status', event.target.value, 'active')} className={SELECT}>
               {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
@@ -101,7 +93,6 @@ export function DashboardScreen() {
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: `/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}` },
-                    { key: 'overdue', label: t('dashboard.tiles.overdueTasks'), value: formatNumber(view.tiles.overdueTasks, lang), to: '/tasks?filter=overdue' },
                     { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: '/projects?status=active' },
                   ]} />
                 </div>
@@ -111,10 +102,7 @@ export function DashboardScreen() {
               </div>
             )}
             {section === 'people' && (
-              <div className="flex flex-col gap-4">
-                <Workload view={view} />
-                <HoursPerProject view={view} />
-              </div>
+              <Workload view={view} />
             )}
             {section === 'schedule' && <OfficeSchedule view={view} />}
           </TabPanel>

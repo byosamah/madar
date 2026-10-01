@@ -4,13 +4,12 @@ import { historyCalls } from './history';
 import { peopleCalls } from './people';
 import { projectCalls } from './projects';
 import { taskCalls } from './tasks';
-import { timeCalls } from './time';
-import { makeTask, NOW, STAMP, TODAY, testApi } from '../../test/factories';
+import { makeTask, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 import { memberKey } from '../store';
 
 beforeEach(() => setNow(NOW));
-const calls = { ...taskCalls, ...historyCalls, ...projectCalls, ...peopleCalls, ...timeCalls };
+const calls = { ...taskCalls, ...historyCalls, ...projectCalls, ...peopleCalls };
 
 describe('events', () => {
   it('undoes my own change', async () => {
@@ -84,43 +83,6 @@ describe('undo keeps the rules of the original action', () => {
     await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
     await expect(t.api.call('events.undo', { eventId: deleted.event.id })).rejects.toMatchObject({ code: 'conflict' });
     expect(t.store.state.tasks.tsk_001).toBeUndefined();
-  });
-
-  it('refuses to undo cleared hours when the day would pass 24 hours', async () => {
-    const t = testApi(calls);
-    t.as('usr_003');
-    await t.api.call('time.set', { projectId: 'prj_001', stageId: 'stg_002', date: TODAY, hours: 10 });
-    await t.api.call('time.set', { projectId: 'prj_001', stageId: 'stg_002', date: TODAY, hours: 0 });
-    const [cleared] = await t.api.call('events.list', { targetType: 'time' });
-    expect(cleared.event.verb).toBe('time.cleared');
-    await t.api.call('time.set', { projectId: 'prj_001', stageId: 'stg_001', date: TODAY, hours: 20 });
-    await expect(t.api.call('events.undo', { eventId: cleared.event.id })).rejects.toMatchObject({ code: 'conflict' });
-    expect(Object.values(t.store.state.time).reduce((sum, e) => sum + e.hours, 0)).toBe(20);
-  });
-
-  it('refuses to undo hours in a week that is now locked', async () => {
-    const t = testApi(calls);
-    t.as('usr_003');
-    await t.api.call('time.set', { projectId: 'prj_001', stageId: 'stg_002', date: TODAY, hours: 6 });
-    const [logged] = await t.api.call('events.list', { targetType: 'time' });
-    setNow(new Date('2026-10-18T06:00:00Z'));
-    await expect(t.api.call('events.undo', { eventId: logged.event.id })).rejects.toMatchObject({ code: 'forbidden' });
-    expect(Object.keys(t.store.state.time)).toHaveLength(1);
-  });
-});
-
-describe('the history hides hours from people who cannot see them', () => {
-  it('shows hours to the person and the leader, not to others', async () => {
-    const t = testApi(calls);
-    t.as('usr_003');
-    await t.api.call('time.set', { projectId: 'prj_001', stageId: 'stg_002', date: TODAY, hours: 6 });
-    const timeEvents = async (userId: string) => {
-      t.as(userId);
-      return (await t.api.call('events.list', { projectId: 'prj_001' })).filter((view) => view.event.targetType === 'time');
-    };
-    expect(await timeEvents('usr_003')).toHaveLength(1);
-    expect(await timeEvents('usr_002')).toHaveLength(1);
-    expect(await timeEvents('usr_004')).toHaveLength(0);
   });
 });
 

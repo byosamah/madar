@@ -40,7 +40,7 @@ export function PeopleSection() {
                 {!user.active && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('admin.inactive')}</span>}
               </p>
               <p className="truncate text-footnote text-label-2">
-                <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi> · {t('dashboard.hoursValue', { n: user.weeklyHourTarget })}
+                <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi>
               </p>
             </div>
             <Menu

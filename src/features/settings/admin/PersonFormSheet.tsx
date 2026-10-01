@@ -9,10 +9,10 @@ import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 
 type Form = {
-  name: string; email: string; systemRole: 'admin' | 'member'; kind: 'human' | 'agent'; ownerId: string; discipline: string; target: string;
+  name: string; email: string; systemRole: 'admin' | 'member'; kind: 'human' | 'agent'; ownerId: string; discipline: string;
   gender: 'male' | 'female';
 };
-const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', target: '40', gender: 'male' };
+const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male' };
 
 /** Add a person or an agent, or edit a person (spec 9). The kind is set once, when the person is added (plan clarification 6). */
 export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean; onOpenChange: (open: boolean) => void; person: User | null }) {
@@ -31,15 +31,13 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     create.reset();
     update.reset();
     setForm(person
-      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, target: String(person.weeklyHourTarget), gender: person.gender ?? 'male' }
+      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, gender: person.gender ?? 'male' }
       : EMPTY);
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, person]);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((current) => ({ ...current, [key]: value }));
-  const target = Number(form.target);
-  const targetOk = form.target.trim() !== '' && Number.isFinite(target) && target >= 0 && target <= 80;
-  const valid = form.name.trim() && form.email.trim() && form.discipline.trim() && targetOk && (form.kind === 'human' || form.ownerId);
+  const valid = form.name.trim() && form.email.trim() && form.discipline.trim() && (form.kind === 'human' || form.ownerId);
   // The API's refusal names its field; the message shows under that field (spec 11.6).
   const error = person ? update.error : create.error;
   const errorFor = (field: string, fallback: string) => fieldError(error, field, t, fallback);
@@ -48,7 +46,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const submit = () => {
     const common = {
       name: form.name.trim(), email: form.email.trim(), systemRole: isAgent ? 'member' as const : form.systemRole,
-      discipline: form.discipline.trim(), weeklyHourTarget: target, ...(isAgent ? {} : { gender: form.gender }),
+      discipline: form.discipline.trim(), ...(isAgent ? {} : { gender: form.gender }),
     };
     if (person) update.mutate({ id: person.id, patch: common });
     else create.mutate({ ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined });
@@ -90,14 +88,6 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
           </SelectField>
         )}
         <TextField id="person-discipline" label={t('admin.discipline')} value={form.discipline} dir="auto" error={errorFor('discipline', t('admin.errors.discipline'))} onChange={(event) => set('discipline', event.target.value)} />
-        <TextField
-          id="person-target"
-          label={t('admin.target')}
-          inputMode="numeric"
-          value={form.target}
-          error={form.target.trim() !== '' && !targetOk ? t('admin.errors.target') : errorFor('weeklyHourTarget', t('admin.errors.target'))}
-          onChange={(event) => set('target', event.target.value)}
-        />
       </div>
     </Sheet>
   );

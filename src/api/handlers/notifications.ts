@@ -10,7 +10,7 @@ import { cardOf } from '../views';
 
 /** The Inbox badge counts only unread items of these kinds (spec 3.2). */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
-  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'week_under_target',
+  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back',
 ]);
 
 export const NotificationView = z.object({
@@ -78,9 +78,6 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     tile = project ? { id: project.id, name: project.name } : null;
     gone = !project;
     if (project) link = `/projects/${project.id}`;
-  } else {
-    target = n.targetId;
-    link = `/work?tab=hours&week=${n.targetId}`;
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,

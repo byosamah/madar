@@ -91,7 +91,6 @@ export function SearchScreen() {
   const commands = [
     { id: 'new-task', label: t('search.command.newTask'), run: () => setSheet('task') },
     { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project') },
-    { id: 'log-time', label: t('search.command.logTime'), run: () => navigate('/work?tab=hours') },
     { id: 'dashboard', label: t('search.command.dashboard'), run: () => navigate('/dashboard') },
     { id: 'my-work', label: t('search.command.myWork'), run: () => navigate('/work') },
   ].filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));

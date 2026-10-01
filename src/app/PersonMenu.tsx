@@ -1,4 +1,4 @@
-import { Clock, Languages, Moon, Settings, Sun } from 'lucide-react';
+import { Languages, Moon, Settings, Sun } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -9,7 +9,7 @@ import { PreviewAs } from './PreviewAs';
 import { useSwitchLanguage } from './languageTurn';
 import { useAction, useCall } from './runtime';
 
-/** The person's picture opens their name, Preview as (prototype), the language, light or dark mode, My hours and Settings (redesign spec 2.5). */
+/** The person's picture opens their name, Preview as (prototype), the language, light or dark mode and Settings (redesign spec 2.5). */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
   const user = useCall('session.get', {}).data?.user;
@@ -51,10 +51,6 @@ export function PersonMenu({ id }: { id: string }) {
               <ThemeIcon size={18} className="text-ink-2" aria-hidden />
               {t(dark ? 'nav.lightMode' : 'nav.darkMode')}
             </button>
-            <Link to="/work?tab=hours" onClick={close} className={row}>
-              <Clock size={18} className="text-ink-2" aria-hidden />
-              {t('nav.myHours')}
-            </Link>
             <Link to="/settings" onClick={close} className={row}>
               <Settings size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}

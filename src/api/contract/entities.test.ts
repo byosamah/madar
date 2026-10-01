@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Comment, Project, Stamp, TRIGGERS, TimeEntry, User, defaultPreferences, emptyReactions } from './entities';
+import { Comment, Project, Stamp, TRIGGERS, User, defaultPreferences, emptyReactions } from './entities';
 
 const user = {
   id: 'usr_001', name: 'Hala Nasser', email: 'hala@madar.test', avatarUrl: null, kind: 'human',
-  systemRole: 'admin', discipline: 'Architect', weeklyHourTarget: 40, active: true, ownerId: null, preferences: defaultPreferences(),
+  systemRole: 'admin', discipline: 'Architect', active: true, ownerId: null, preferences: defaultPreferences(),
 };
 
 const project = {
@@ -27,13 +27,6 @@ describe('entity schemas', () => {
   it('accepts office stamps in ISO form only', () => {
     expect(Stamp.safeParse('2026-09-30T08:00:00.000+03:00').success).toBe(true);
     expect(Stamp.safeParse('2026-09-30 08:00').success).toBe(false);
-  });
-
-  it('takes hours in half-hour steps', () => {
-    const entry = { id: 'tim_001', userId: 'usr_001', projectId: 'prj_001', stageId: 'stg_001', taskId: null, date: '2026-09-30' };
-    expect(TimeEntry.safeParse({ ...entry, hours: 7.5 }).success).toBe(true);
-    expect(TimeEntry.safeParse({ ...entry, hours: 0.3 }).success).toBe(false);
-    expect(TimeEntry.safeParse({ ...entry, hours: 0 }).success).toBe(false);
   });
 
   it('turns on every notification trigger by default', () => {

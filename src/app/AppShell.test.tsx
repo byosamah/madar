@@ -28,12 +28,11 @@ describe('app shell', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/projects?filter=at_risk'));
   });
 
-  it('opens the person menu with Preview as, language, My hours and Settings', async () => {
+  it('opens the person menu with Preview as, language and Settings', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
     const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
     expect(within(menu).getByRole('combobox', { name: /Preview as/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('link', { name: 'My hours' })).toHaveAttribute('href', '#/work?tab=hours');
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 

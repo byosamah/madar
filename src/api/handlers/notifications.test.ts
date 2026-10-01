@@ -45,13 +45,6 @@ describe('notification calls', () => {
     const s = t.store.state;
     expect(notify(s, s.users.usr_002, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'task', targetId: 'tsk_001' })).toHaveLength(0);
   });
-
-  it('links a week reminder to the timesheet', async () => {
-    const t = withNotices();
-    notify(t.store.state, null, STAMP, { userIds: ['usr_003'], trigger: 'week_under_target', targetType: 'week', targetId: '2026-09-27' });
-    const [latest] = await t.api.call('notifications.list', { unreadOnly: true, limit: 1 });
-    expect(latest.link).toBe('/work?tab=hours&week=2026-09-27');
-  });
 });
 
 describe('notice links and approval', () => {

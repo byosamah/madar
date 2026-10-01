@@ -234,13 +234,6 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
           ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p>
           : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
       </section>
-      <section className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-headline">{t('taskSheet.hours')}</h3>
-          <p className="tabular text-subheadline text-label-2">{t('taskSheet.hoursValue', { n: formatNumber(data.hours, lang, 1) })}</p>
-        </div>
-        {detail.viewerCan.logTime && <Button onClick={() => navigate(`/work?tab=hours&project=${task.projectId}&stage=${task.stageId}&task=${task.id}`)}>{t('taskSheet.logTime')}</Button>}
-      </section>
       <CommentThread targetType="task" targetId={task.id} people={people} canPost={detail.viewerCan.post} />
       <History data={data} canUndoAgent={canUndoAgent} />
       {viewerCan.delete && (

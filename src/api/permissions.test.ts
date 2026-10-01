@@ -16,7 +16,6 @@ const actors: [string, User, ProjectRole][] = [
 
 const none = () => ({});
 const own = (u: User) => ({ ownerId: u.id, authorId: u.id });
-const someoneElse = () => ({ targetUserId: 'usr_099' });
 
 // Expected results for admin, leader, team, other. Copied from spec section 2.3.
 const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<string, string>][] = [
@@ -35,8 +34,6 @@ const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<
   ['task.delete', [true, true, false, false], none],
   ['content.post', [true, true, true, false], none],
   ['content.editOwn', [true, true, true, false], own],
-  ['time.logOnProject', [true, true, true, false], none],
-  ['time.viewPerson', [true, true, false, false], someoneElse],
   ['event.undoAgent', [true, true, false, false], none],
   ['admin.manage', [true, false, false, false], none],
 ];
@@ -58,10 +55,6 @@ describe('permission details', () => {
 
   it('stops a team member from editing a comment they did not write', () => {
     expect(can(team, 'content.editOwn', { projectRole: 'team', authorId: 'usr_002' })).toBe(false);
-  });
-
-  it('lets everyone see their own hours', () => {
-    expect(can(other, 'time.viewPerson', { targetUserId: other.id })).toBe(true);
   });
 
   it('lets an inactive person only view', () => {

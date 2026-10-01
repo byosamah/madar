@@ -5,21 +5,20 @@
   "nav": {
     "main": "التنقل الرئيسي",
     "projects": "المشاريع",
-    "myWork": "عملي",
     "dashboard": "لوحة المعلومات",
     "inbox": "الوارد",
     "search": "البحث",
     "settings": "الإعدادات",
     "inboxBadge": "عناصر تحتاج إلى إجراء: {{count}}",
     "home": "الرئيسية",
-    "myHours": "ساعاتي",
     "lightMode": "الوضع الفاتح",
-    "darkMode": "الوضع الداكن"
+    "darkMode": "الوضع الداكن",
+    "tasks": "المهام"
   },
   "screens": {
     "projects": "المشاريع",
     "project": "المشروع",
-    "myWork": "عملي",
+    "myWork": "المهام",
     "dashboard": "لوحة المعلومات",
     "inbox": "الوارد",
     "search": "البحث",
@@ -72,8 +71,7 @@
       "task_approved": "اعتماد مهمتي",
       "task_sent_back": "إعادة مهمتي للتعديل",
       "stage_changed": "تغيّر مرحلة مشروعي",
-      "added_to_project": "إضافتي إلى مشروع",
-      "week_under_target": "ساعات أسبوعي أقل من الهدف"
+      "added_to_project": "إضافتي إلى مشروع"
     },
     "prototype": "النموذج الأولي",
     "simulateErrors": "محاكاة الأخطاء",
@@ -400,9 +398,6 @@
     "removeItem": "حذف {{text}}",
     "files": "الملفات",
     "noFiles": "لا توجد ملفات لهذه المهمة.",
-    "hours": "الساعات المسجلة",
-    "hoursValue": "{{n}} س",
-    "logTime": "تسجيل الساعات",
     "history": "السجل",
     "noHistory": "لا توجد تغييرات بعد.",
     "approve": "اعتماد",
@@ -499,7 +494,6 @@
     "discipline": "تخصص {{name}}",
     "disciplineSaved": "تم حفظ التخصص.",
     "openTasks": "المهام المفتوحة: {{n}}",
-    "hoursMonth": "{{n}} س هذا الشهر",
     "add": "إضافة عضو",
     "person": "الشخص",
     "newDiscipline": "التخصص",
@@ -511,11 +505,6 @@
     "noOne": "كل الأشخاص في الفريق بالفعل."
   },
   "work": {
-    "tabs": "أقسام عملي",
-    "tab": {
-      "tasks": "المهام",
-      "hours": "الساعات"
-    },
     "group": {
       "review": "بانتظار مراجعتي",
       "overdue": "متأخرة",
@@ -527,34 +516,6 @@
     "emptyTitle": "لا شيء بانتظارك",
     "empty": "لا توجد لديك مهام مفتوحة."
   },
-  "hours": {
-    "weekRange": "من {{start}} إلى {{end}}",
-    "previous": "الأسبوع السابق",
-    "next": "الأسبوع التالي",
-    "thisWeek": "هذا الأسبوع",
-    "logged": "{{logged}} من {{target}} س",
-    "copyLast": "نسخ الأسبوع الماضي",
-    "copied": "أُضيفت صفوف الأسبوع الماضي.",
-    "addRow": "إضافة صف",
-    "addTitle": "إضافة صف",
-    "project": "المشروع",
-    "stage": "المرحلة",
-    "task": "المهمة",
-    "noTask": "بلا مهمة",
-    "rowAdded": "أُضيف الصف.",
-    "row": "الصف",
-    "removeRow": "حذف {{row}}",
-    "cell": "ساعات {{row}} يوم {{day}}",
-    "total": "المجموع",
-    "dayTotal": "مجموع اليوم",
-    "showWeekend": "إظهار الجمعة والسبت",
-    "hideWeekend": "إخفاء الجمعة والسبت",
-    "locked": "هذا الأسبوع مقفل. اطلب من مدير النظام فتحه.",
-    "invalid": "أدخل قيمة من 0 إلى 24، بزيادات 0.5.",
-    "emptyTitle": "لا توجد ساعات هذا الأسبوع",
-    "empty": "أضف صفًا، أو انسخ صفوف الأسبوع الماضي.",
-    "dayOver": "لا يمكن أن يزيد اليوم على 24 ساعة."
-  },
   "inbox": {
     "markAllRead": "تعليم الكل كمقروء",
     "allRead": "لا يوجد جديد.",
@@ -565,7 +526,6 @@
     "unread": "غير مقروء",
     "open": "فتح",
     "approve": "اعتماد",
-    "openTimesheet": "فتح سجل الساعات",
     "someone": "شخص ما",
     "trigger": {
       "task_assigned": "{{actor}} أسند إليك «{{target}}»",
@@ -577,7 +537,6 @@
       "task_sent_back": "{{actor}} أعاد «{{target}}» للتعديل",
       "stage_changed": "{{actor}} غيّر مرحلة {{target}}",
       "added_to_project": "{{actor}} أضافك إلى {{target}}",
-      "week_under_target": "ساعاتك لأسبوع {{target}} أقل من المستهدف",
       "task_assigned_female": "{{actor}} أسندت إليك «{{target}}»",
       "mention_female": "{{actor}} أشارت إليك في {{target}}",
       "review_requested_female": "{{actor}} أرسلت «{{target}}» للمراجعة",
@@ -625,9 +584,8 @@
     "command": {
       "newTask": "مهمة جديدة",
       "newProject": "مشروع جديد",
-      "logTime": "تسجيل الساعات",
       "dashboard": "الانتقال إلى لوحة المعلومات",
-      "myWork": "الانتقال إلى عملي"
+      "myWork": "الانتقال إلى مهامي"
     }
   },
   "newTask": {
@@ -648,12 +606,6 @@
     "none": "لا توجد مشاريع نشطة."
   },
   "dashboard": {
-    "period": "الفترة",
-    "periods": {
-      "month": "هذا الشهر",
-      "quarter": "هذا الربع",
-      "year": "هذه السنة"
-    },
     "statusLabel": "الحالة",
     "leader": "القائد",
     "anyLeader": "أي قائد",
@@ -664,17 +616,13 @@
       "atRiskOrLate": "معرّضة للتأخر أو متأخرة",
       "overdueTasks": "المهام المتأخرة",
       "deadlines": "المواعيد خلال 14 يومًا",
-      "officeHours": "ساعات المكتب هذا الأسبوع",
       "area": "المساحة قيد التصميم"
     },
-    "hoursOf": "{{hours}} من {{target}} س",
-    "percent": "{{n}}٪",
     "areaValue": "{{n}} م²",
     "charts": {
       "perStage": "المشاريع حسب المرحلة",
       "health": "المشاريع حسب الوضع",
-      "throughput": "المهام المنجزة والمنشأة أسبوعيًا",
-      "hoursPerProject": "الساعات حسب المشروع"
+      "throughput": "المهام المنجزة والمنشأة أسبوعيًا"
     },
     "created": "منشأة",
     "done": "منجزة",
@@ -693,10 +641,6 @@
       "quarter": "ربع سنة",
       "year": "سنة"
     },
-    "hoursSheet": "ساعات هذا الأسبوع",
-    "perProject": "حسب المشروع",
-    "perPerson": "حسب الشخص",
-    "hoursValue": "{{n}} س",
     "legend": {
       "done": "مراحل منجزة",
       "current": "المرحلة الحالية",
@@ -742,7 +686,6 @@
     },
     "owner": "يعمل نيابة عن",
     "discipline": "التخصص",
-    "target": "الساعات المستهدفة أسبوعيًا",
     "deactivate": "إيقاف الحساب",
     "deactivated": "أُوقف حساب {{name}}.",
     "added": "تمت إضافة {{name}}.",
@@ -760,15 +703,10 @@
     "limitHint": "عدد المهام المفتوحة للشخص في الأسبوع قبل أن تصبح الخانة حمراء.",
     "saveOffice": "حفظ إعدادات المكتب",
     "officeSaved": "حُفظت إعدادات المكتب.",
-    "unlock": "فتح أسبوع",
-    "unlockHint": "يُقفل الأسبوع بعد 14 يومًا من نهايته. افتحه ليصحح الشخص ساعاته.",
     "person": "الشخص",
     "week": "أي يوم في الأسبوع",
-    "unlockButton": "فتح الأسبوع",
-    "unlocked": "أسبوع {{week}} مفتوح الآن لـ {{name}}.",
     "errors": {
       "email": "أدخل بريدًا إلكترونيًا صحيحًا.",
-      "target": "أدخل رقمًا من 0 إلى 80.",
       "limit": "أدخل عددًا صحيحًا من 1 إلى 100.",
       "prefix": "استخدم من حرف إلى أربعة أحرف لاتينية كبيرة.",
       "stages": "أدخل اسمًا لكل مرحلة.",
@@ -819,12 +757,10 @@
       "title": "التالي لك",
       "review": "مراجعة",
       "open": "فتح المهمة",
-      "logHours": "تسجيل الساعات",
       "reviewLine": "اعتماد «{{title}}»",
       "pastDue": "إنهاء «{{title}}»",
       "dueToday": "إنهاء «{{title}}»",
       "continue": "متابعة «{{title}}»",
-      "hours": "سجّل ساعات اليوم",
       "clear": "لا شيء بانتظارك.",
       "doneLeft": "تم. بقي {{n}} اليوم.",
       "doneLeft_one": "تم. بقيت مهمة واحدة اليوم.",
@@ -835,7 +771,6 @@
     },
     "today": "اليوم",
     "todayClear": "لا شيء مستحق اليوم.",
-    "logToday": "سجّل ساعات اليوم",
     "allTasks": "كل مهامي",
     "projects": "مشاريعك",
     "projectCount": "{{n}} نشطة",

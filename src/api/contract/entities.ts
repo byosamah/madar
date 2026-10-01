@@ -12,7 +12,6 @@ export const TaskId = id('tsk');
 export const UpdateId = id('upd');
 export const CommentId = id('cmt');
 export const FileId = id('fil');
-export const TimeId = id('tim');
 export const NotificationId = id('ntf');
 export const EventId = id('evt');
 
@@ -34,7 +33,7 @@ export type Glass = z.infer<typeof Glass>;
 
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
-  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'week_under_target',
+  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
@@ -44,10 +43,10 @@ export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
-  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'time', 'client', 'user', 'settings',
+  'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
-export const NotificationTarget = z.enum(['project', 'task', 'update', 'week']);
+export const NotificationTarget = z.enum(['project', 'task', 'update']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
 export const Preferences = z.object({
@@ -74,7 +73,6 @@ export const User = z.object({
   kind: z.enum(['human', 'agent']),
   systemRole: z.enum(['admin', 'member']),
   discipline: z.string().trim().min(1).max(40),
-  weeklyHourTarget: z.number().min(0).max(80),
   active: z.boolean(),
   // For an agent: the person it acts for (spec 17). For a person: null.
   ownerId: UserId.nullable(),
@@ -223,27 +221,6 @@ export const FileRec = z.object({
 });
 export type FileRec = z.infer<typeof FileRec>;
 
-export const TimeEntry = z.object({
-  id: TimeId,
-  userId: UserId,
-  projectId: ProjectId,
-  stageId: StageId,
-  taskId: TaskId.nullable(),
-  date: Day,
-  hours: z.number().min(0.5).max(24).multipleOf(0.5),
-});
-export type TimeEntry = z.infer<typeof TimeEntry>;
-
-export const TimeRow = z.object({
-  key: z.string().min(1),
-  userId: UserId,
-  weekStart: Day,
-  projectId: ProjectId,
-  stageId: StageId,
-  taskId: TaskId.nullable(),
-});
-export type TimeRow = z.infer<typeof TimeRow>;
-
 export const Notification = z.object({
   id: NotificationId,
   userId: UserId,
@@ -282,5 +259,3 @@ export const Settings = z.object({
 });
 export type Settings = z.infer<typeof Settings>;
 
-export const WeekUnlock = z.object({ userId: UserId, weekStart: Day });
-export type WeekUnlock = z.infer<typeof WeekUnlock>;

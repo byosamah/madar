@@ -13,7 +13,7 @@ const row = (id: string, patch: Partial<TaskRow['task']>, overdue = false): Task
 });
 
 describe('Next for you', () => {
-  const base = { review: [], mine: [], today: TODAY, hoursUnderTarget: false, workday: true };
+  const base = { review: [], mine: [], today: TODAY };
   const late1 = row('tsk_001', { dueDate: '2026-09-25', status: 'todo' }, true);
   const late2 = row('tsk_002', { dueDate: '2026-09-20', status: 'in_progress' }, true);
   const today = row('tsk_003', { dueDate: TODAY, status: 'todo' });
@@ -30,9 +30,7 @@ describe('Next for you', () => {
     expect(nextForYou({ ...base, mine: [doing] })).toMatchObject({ kind: 'continue', row: doing });
   });
 
-  it('then the hours on a workday, and otherwise says all is done', () => {
-    expect(nextForYou({ ...base, hoursUnderTarget: true })).toEqual({ kind: 'hours' });
-    expect(nextForYou({ ...base, hoursUnderTarget: true, workday: false })).toEqual({ kind: 'clear' });
+  it('says all is done when nothing is left', () => {
     expect(nextForYou(base)).toEqual({ kind: 'clear' });
   });
 

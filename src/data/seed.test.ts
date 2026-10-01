@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeed } from './seed';
 import * as E from '../api/contract/entities';
-import { addDays, dayOfWeek, weekStartOf } from '../lib/dates';
 import { TODAY } from '../test/factories';
 import { healthCounts } from '../test/seed-helpers';
 
@@ -56,7 +55,6 @@ describe('sample data', () => {
     check(E.Update, state.updates);
     check(E.Comment, state.comments);
     check(E.FileRec, state.files);
-    check(E.TimeEntry, state.time);
     check(E.Notification, state.notifications);
     check(E.Event, state.events);
     E.Settings.parse(state.settings);
@@ -88,29 +86,6 @@ describe('sample data', () => {
       const summaries = Object.values(state.updates).filter((u) => u.projectId === project.id && u.authorId === 'usr_009');
       expect(summaries.length).toBe(4);
     }
-  });
-
-  it('logs hours on Sunday to Thursday only, 24 hours a day at most', async () => {
-    const { state } = await seed();
-    const perDay = new Map<string, number>();
-    for (const entry of Object.values(state.time)) {
-      expect(dayOfWeek(entry.date)).toBeLessThanOrEqual(4);
-      expect(entry.date <= TODAY).toBe(true);
-      const key = `${entry.userId}:${entry.date}`;
-      perDay.set(key, (perDay.get(key) ?? 0) + entry.hours);
-    }
-    expect(Math.max(...perDay.values())).toBeLessThanOrEqual(24);
-  });
-
-  it('leaves two people under target last week', async () => {
-    const { state } = await seed();
-    const lastWeek = addDays(weekStartOf(TODAY), -7);
-    const totals = new Map<string, number>();
-    for (const entry of Object.values(state.time)) {
-      if (entry.date >= lastWeek && entry.date <= addDays(lastWeek, 6)) totals.set(entry.userId, (totals.get(entry.userId) ?? 0) + entry.hours);
-    }
-    const under = [...totals.entries()].filter(([, hours]) => hours < 40).map(([userId]) => state.users[userId].name).sort();
-    expect(under).toEqual(['Lina Mansour', 'Sara Al-Qahtani']);
   });
 });
 

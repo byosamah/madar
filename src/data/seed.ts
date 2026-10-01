@@ -304,27 +304,6 @@ function addAgentSummaries(state: State, today: string, agentId: string): void {
   }
 }
 
-function addTimeEntries(state: State, today: string, humans: User[]): void {
-  const firstWeek = addDays(weekStartOf(today), -49);
-  const lastWeek = addDays(weekStartOf(today), -7);
-  humans.forEach((user, u) => {
-    const projects = Object.values(state.projects).filter((p) => p.status === 'active' && state.members[memberKey(p.id, user.id)]);
-    if (projects.length === 0) return;
-    for (let day = firstWeek; day <= today; day = addDays(day, 1)) {
-      if (dayOfWeek(day) > 4) continue;
-      // Sara and Lina stay under target last week, so the Thursday reminder has something to show.
-      const total = weekStartOf(day) === lastWeek && (u === 4 || u === 6) ? 6 : 8;
-      const split = projects.length > 1 ? [total - 3.5, 3.5] : [total];
-      const d = diffDays(firstWeek, day);
-      split.forEach((hours, i) => {
-        const project = projects[(d + u + i) % projects.length];
-        const id = nextId(state, 'tim');
-        state.time[id] = { id, userId: user.id, projectId: project.id, stageId: project.currentStageId, taskId: null, date: day, hours };
-      });
-    }
-  });
-}
-
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */
 export async function buildSeed(today: string, putBlob: PutBlob): Promise<State> {
   const state = emptyState(today);
@@ -339,7 +318,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     const id = nextId(state, 'usr');
     const user: User = {
       id, name: person.name, email: sampleEmail(person.name), avatarUrl: null, kind: 'human',
-      systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, weeklyHourTarget: 40, active: true, ownerId: null,
+      systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, active: true, ownerId: null,
       preferences: defaultPreferences(), gender: person.gender,
     };
     state.users[id] = user;
@@ -348,7 +327,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const agentId = nextId(state, 'usr');
   state.users[agentId] = {
     id: agentId, name: 'Madar Assistant', email: 'assistant@madar.test', avatarUrl: null, kind: 'agent', systemRole: 'member',
-    discipline: 'Agent', weeklyHourTarget: 0, active: true, ownerId: humans[0].id, preferences: defaultPreferences(),
+    discipline: 'Agent', active: true, ownerId: humans[0].id, preferences: defaultPreferences(),
   };
   state.session.currentUserId = humans[0].id;
 
@@ -364,7 +343,6 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const seed: SeedCtx = { state, today, humans, clientIds, saveBlob };
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
   addAgentSummaries(state, today, agentId);
-  addTimeEntries(state, today, humans);
 
   const weekAgo = at(addDays(today, -7), 0);
   for (const n of Object.values(state.notifications)) if (n.createdAt < weekAgo) n.read = true;

@@ -41,7 +41,6 @@ function MemberRow({ member, detail }: { member: Member; detail: ProjectDetail }
         <p className="truncate font-semibold"><bdi>{user.name}</bdi></p>
         <p className="flex flex-wrap gap-x-3 text-footnote text-label-2">
           <span>{t('team.openTasks', { n: member.openTasks })}</span>
-          {member.hoursThisMonth !== null && <span className="tabular">{t('team.hoursMonth', { n: formatNumber(member.hoursThisMonth, lang, 1) })}</span>}
         </p>
       </div>
       {edit ? (

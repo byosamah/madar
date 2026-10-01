@@ -59,24 +59,6 @@ describe('runScheduledTriggers', () => {
     expect(byTrigger('overdue').map((n) => n.targetId)).toEqual(['tsk_002']);
   });
 
-  it('reminds people under target on Thursday afternoon, once a week', () => {
-    state.tasks = {};
-    runScheduledTriggers(state, new Date('2026-10-01T12:30:00Z'));
-    expect(byTrigger('week_under_target').map((n) => n.userId).sort()).toEqual(['usr_001', 'usr_002', 'usr_003', 'usr_004']);
-    runScheduledTriggers(state, new Date('2026-10-01T13:30:00Z'));
-    expect(byTrigger('week_under_target')).toHaveLength(4);
-  });
-
-  it('does not remind a person at their target', () => {
-    state.tasks = {};
-    ['2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01'].forEach((date, i) => {
-      const id = `tim_00${i + 1}`;
-      state.time[id] = { id, userId: 'usr_003', projectId: 'prj_001', stageId: 'stg_002', taskId: null, date, hours: 8 };
-    });
-    runScheduledTriggers(state, new Date('2026-10-01T12:30:00Z'));
-    expect(byTrigger('week_under_target').map((n) => n.userId)).not.toContain('usr_003');
-  });
-
   it('uses the office day near midnight', () => {
     state.tasks = {};
     runScheduledTriggers(state, new Date('2026-09-30T23:30:00Z'));

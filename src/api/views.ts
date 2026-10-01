@@ -126,7 +126,6 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     createTaskForSelf: can(viewer, 'task.createForSelf', r),
     post: can(viewer, 'content.post', r),
     review: can(viewer, 'task.review', r),
-    logTime: can(viewer, 'time.logOnProject', r),
   };
 }
 
@@ -163,14 +162,6 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   };
 }
 
-/** Hours on the project this month, or null when the viewer may not see that person's hours (spec 5.8). */
-function monthHours(state: State, projectId: string, today: string, viewer: User, projectRole: ProjectRole, userId: string): number | null {
-  if (!can(viewer, 'time.viewPerson', { targetUserId: userId, projectRole })) return null;
-  const monthStart = `${today.slice(0, 7)}-01`;
-  return Object.values(state.time)
-    .filter((e) => e.projectId === projectId && e.userId === userId && e.date >= monthStart && e.date <= today)
-    .reduce((sum, e) => sum + e.hours, 0);
-}
 
 export function detailOf(state: State, project: Project, today: string, viewer: User): ProjectDetail {
   const summary = summaryOf(state, project, today, viewer);
@@ -180,7 +171,6 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
     .filter((m) => m.projectId === project.id)
     .map((m) => ({
       user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId),
-      hoursThisMonth: monthHours(state, project.id, today, viewer, summary.viewerRole, m.userId),
     }))
     .sort((a, b) => Number(b.isLeader) - Number(a.isLeader) || a.user.name.localeCompare(b.user.name));
   return { ...summary, members, deadlines: deadlinesOf(state, project.id) };
@@ -213,7 +203,6 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
     .map((e) => eventViewOf(state, e));
   return {
     ...taskRowOf(state, task, today, viewer),
-    hours: Object.values(state.time).filter((e) => e.taskId === task.id).reduce((sum, e) => sum + e.hours, 0),
     viewerCan: {
       edit: can(viewer, 'task.updateOwn', r),
       editAll: can(viewer, 'task.updateAny', r),

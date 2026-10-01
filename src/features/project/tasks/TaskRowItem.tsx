@@ -43,7 +43,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: rtl ? -32 : 32 }}
       transition={{ ...spring.standard, duration: 0.46 }}
-      className="flex min-h-14 items-center gap-2 px-2"
+      className="flex min-h-14 items-center gap-2 rounded-xl px-2 transition-colors hover:bg-fill/50"
     >
       <button
         type="button"

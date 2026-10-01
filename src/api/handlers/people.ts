@@ -14,7 +14,6 @@ import { assertCan, byName, requireUser } from './shared';
 const Empty = z.object({});
 const Name = z.string().trim().min(1).max(80);
 const Discipline = z.string().trim().min(1).max(40);
-const Hours = z.number().min(0).max(80);
 const SystemRole = z.enum(['admin', 'member']);
 const Kind = z.enum(['human', 'agent']);
 const ClientName = z.string().trim().min(1).max(120);
@@ -113,7 +112,6 @@ export const usersCreate = defineCall({
     systemRole: SystemRole.default('member'),
     kind: Kind.default('human'),
     discipline: Discipline,
-    weeklyHourTarget: Hours.default(40),
     ownerId: UserId.optional(),
     gender: Gender.optional(),
   }),
@@ -133,7 +131,7 @@ export const usersCreate = defineCall({
     const id = nextId(ctx.state, 'usr');
     const user: User = {
       id, name: input.name, email: input.email, systemRole: input.systemRole, kind: input.kind, discipline: input.discipline,
-      weeklyHourTarget: input.weeklyHourTarget, ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(), gender: input.gender,
+      ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(), gender: input.gender,
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
@@ -149,7 +147,6 @@ export const usersUpdate = defineCall({
       email: z.email().optional(),
       systemRole: SystemRole.optional(),
       discipline: Discipline.optional(),
-      weeklyHourTarget: Hours.optional(),
       avatarUrl: z.string().max(2000).nullable().optional(),
       gender: Gender.optional(),
     }).strict(), // A person never becomes an agent, or back: that would break the owner rule of spec 17.

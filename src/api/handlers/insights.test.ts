@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { insightCalls, periodStart } from './insights';
+import { insightCalls } from './insights';
 import type { State } from '../store';
 import { makeTask, makeWorld, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -15,12 +15,6 @@ function world(): State {
   });
   state.deadlines.ddl_001 = { id: 'ddl_001', projectId: 'prj_001', stageId: null, name: 'Client presentation', date: '2026-10-12' };
   state.deadlines.ddl_002 = { id: 'ddl_002', projectId: 'prj_001', stageId: null, name: 'Permit', date: '2026-11-30' };
-  const entry = (id: string, userId: string, date: string, hours: number) => {
-    state.time[id] = { id, userId, projectId: 'prj_001', stageId: 'stg_002', taskId: null, date, hours };
-  };
-  entry('tim_001', 'usr_003', '2026-09-28', 8);
-  entry('tim_002', 'usr_002', '2026-09-29', 6);
-  entry('tim_003', 'usr_003', '2026-08-15', 5);
   return state;
 }
 
@@ -29,7 +23,7 @@ describe('dashboard.get', () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.tiles).toEqual({
       activeProjects: 1, atRiskOrLate: 1, overdueTasks: 1, deadlinesNext14: 1,
-      officeHours: { hours: 14, target: 160, percent: 9 }, areaInDesign: 1000,
+      areaInDesign: 1000,
     });
     expect(d.charts.healthMix).toEqual({ on_track: 0, at_risk: 1, late: 0 });
     expect(d.charts.projectsPerStage).toEqual([{ stage: 'Schematic Design', count: 1 }]);
@@ -43,14 +37,6 @@ describe('dashboard.get', () => {
     expect(d.charts.throughput[11]).toEqual({ weekStart: '2026-09-27', created: 1, done: 1 });
   });
 
-  it('applies the period to hours per project only', async () => {
-    const t = testApi(insightCalls, world());
-    expect((await t.api.call('dashboard.get', { period: 'month' })).charts.hoursPerProject[0].hours).toBe(14);
-    expect((await t.api.call('dashboard.get', { period: 'quarter' })).charts.hoursPerProject[0].hours).toBe(19);
-    expect(periodStart('2026-09-30', 'quarter')).toBe('2026-07-01');
-    expect(periodStart('2026-09-30', 'year')).toBe('2026-01-01');
-  });
-
   it('flags overloaded people in the workload grid', async () => {
     const state = world();
     state.settings.workloadLimit = 1;
@@ -60,14 +46,6 @@ describe('dashboard.get', () => {
     const sara = d.workload.rows.find((row) => row.user.id === 'usr_003');
     expect(sara?.counts).toEqual([3, 0, 0, 0]);
     expect(sara?.over).toEqual([true, false, false, false]);
-  });
-
-  it('shows hours per person to the Admin only', async () => {
-    const t = testApi(insightCalls, world());
-    const perPerson = (await t.api.call('dashboard.get', {})).hoursThisWeek.perPerson;
-    expect(perPerson?.find((p) => p.user.id === 'usr_003')?.hours).toBe(8);
-    t.as('usr_002');
-    expect((await t.api.call('dashboard.get', {})).hoursThisWeek.perPerson).toBeNull();
   });
 });
 

@@ -37,7 +37,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   const sentence = t(`inbox.trigger.${n.trigger}`, {
     actor: actor?.name ?? t('inbox.someone'),
     context: actorContext(actor),
-    target: n.trigger === 'week_under_target' ? formatDay(target, lang, 'long') : target,
+    target,
   });
   const body = (
     <>
@@ -72,7 +72,7 @@ function InboxItem({ view }: { view: NoticeView }) {
           swiped.current = false;
         }, 0);
       }}
-      className="flex items-center gap-2 bg-panel pe-3"
+      className="flex items-center gap-2 bg-panel pe-3 transition-colors hover:bg-fill/50"
     >
       {/* The whole row opens the item and marks it read (redesign spec 3.7). Approve stays its own button beside it. */}
       {gone ? <div className="flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4">{body}</div> : (
@@ -85,7 +85,7 @@ function InboxItem({ view }: { view: NoticeView }) {
             }
             read();
           }}
-          className="pressable flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4 hover:bg-fill/50"
+          className="pressable flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4"
         >
           {body}
         </Link>

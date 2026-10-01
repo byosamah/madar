@@ -45,7 +45,7 @@ export type DeadlineRow = z.infer<typeof DeadlineRow>;
 
 export const ViewerCan = z.object({
   edit: z.boolean(), changeLeader: z.boolean(), archive: z.boolean(), delete: z.boolean(), healthOverride: z.boolean(),
-  createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(), logTime: z.boolean(),
+  createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(),
 });
 
 export const ProjectSummary = z.object({
@@ -70,7 +70,6 @@ export type ProjectSummary = z.infer<typeof ProjectSummary>;
 export const ProjectDetail = ProjectSummary.extend({
   members: z.array(z.object({
     user: UserCard, discipline: z.string(), isLeader: z.boolean(), openTasks: z.number().int().min(0),
-    hoursThisMonth: z.number().min(0).nullable(),
   })),
   deadlines: z.array(Deadline),
 });
@@ -92,7 +91,6 @@ export const TaskRow = z.object({
 export type TaskRow = z.infer<typeof TaskRow>;
 
 export const TaskDetail = TaskRow.extend({
-  hours: z.number().min(0),
   viewerCan: z.object({ edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean() }),
   history: z.array(EventView),
 });

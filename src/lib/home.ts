@@ -3,7 +3,6 @@ import { nowStamp, stampDay } from './dates';
 
 export type NextItem =
   | { kind: 'review' | 'pastDue' | 'dueToday' | 'continue'; row: TaskRow }
-  | { kind: 'hours' }
   | { kind: 'clear' };
 
 /** Open means the person can still act on it: not done, and not waiting for a leader's review. */
@@ -11,7 +10,7 @@ const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status ===
 const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
 
 /** The one thing for Home's card (redesign spec 3.2). The first match wins. */
-export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: string; hoursUnderTarget: boolean; workday: boolean }): NextItem {
+export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: string }): NextItem {
   const { review, mine, today } = input;
   if (review.length > 0) return { kind: 'review', row: review[0] };
   const pastDue = mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate < today).sort(byDue);
@@ -20,7 +19,6 @@ export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: s
   if (dueToday) return { kind: 'dueToday', row: dueToday };
   const doing = mine.filter((row) => row.task.status === 'in_progress').sort(byDue);
   if (doing.length > 0) return { kind: 'continue', row: doing[0] };
-  if (input.hoursUnderTarget && input.workday) return { kind: 'hours' };
   return { kind: 'clear' };
 }
 
