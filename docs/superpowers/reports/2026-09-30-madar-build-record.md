@@ -233,9 +233,11 @@ Review fixes: 6. Rulings: 15. Deferred minors: 4.
 
 The owner asked for the redesign on 2026-10-01. The work is on the branch `redesign-a-calm`. It ran in two build steps, A and B, each with its own plan.
 
-Unit tests: 618 pass at the time of writing.
+Unit tests: 621 pass.
 
-Browser sweep: pending
+Browser sweep: 74 of 74 checks pass, in two full runs in a row (English and Arabic, light and dark, 390, 820 and 1440 px, high contrast and reduce motion).
+
+Independent review: no critical findings. The review found 4 important and 9 minor problems. All 13 are fixed, each with a test. The browser sweep found 2 more (a menu off the screen at 390 px, and the page behind a phone sheet failing a contrast check). Both are fixed.
 
 ### Why
 
