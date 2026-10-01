@@ -8,6 +8,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { diffDays, formatDay, todayISO, weekStartOf } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
+import { useFocusLink } from '../focus/focusLink';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
@@ -19,6 +20,7 @@ export function HomeScreen() {
   const { t } = useTranslation();
   const lang = useLang();
   const [params, setParams] = useSearchParams();
+  const focus = useFocusLink();
   const today = todayISO();
   const session = useCall('session.get', {});
   const mine = useCall('tasks.list', { filter: 'mine' });
@@ -28,7 +30,12 @@ export function HomeScreen() {
   const admin = session.data?.user.systemRole === 'admin';
   const projects = useCall('projects.list', { filter: admin ? 'all' : 'mine', sort: 'deadline' }, );
   const open = useCallback((projectId: string, taskId: string) => setParams({ project: projectId, task: taskId }), [setParams]);
-  const close = useCallback(() => setParams({}), [setParams]);
+  const close = useCallback(() => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.delete('task');
+    next.delete('project');
+    return next;
+  }), [setParams]);
   const failed = [mine, review, week].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   const user = session.data?.user;
@@ -57,7 +64,7 @@ export function HomeScreen() {
             <DayRing done={ring.done} total={ring.total} />
           </span>
         </ScreenTitle>
-        <NextCard item={next} onOpen={open} />
+        <NextCard item={next} onOpen={open} onFocus={focus.open} />
         <TodayPanel rows={todayRows} logHours={workday && loggedToday === 0 && week.data.target > 0} onOpen={(row) => open(row.project.id, row.task.id)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 lg:pt-[4.25rem]">

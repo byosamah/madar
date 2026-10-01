@@ -10,7 +10,7 @@ import { useIsPhone } from '../app/useIsPhone';
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet({
-  open, onOpenChange, title, description, blocking = true, wide = false, footer, children,
+  open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -19,6 +19,8 @@ export function Sheet({
   blocking?: boolean;
   wide?: boolean;
   footer?: ReactNode;
+  /** One quiet action next to the title, for example Focus on the task panel. */
+  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -42,6 +44,7 @@ export function Sheet({
               <Drawer.Title className="text-section text-ink [text-wrap:balance]">{title}</Drawer.Title>
               {description && <Drawer.Description className="text-footnote text-label-2">{description}</Drawer.Description>}
             </div>
+            {headerAction}
             <button
               type="button"
               onClick={() => onOpenChange(false)}

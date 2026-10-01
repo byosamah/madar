@@ -1,0 +1,31 @@
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router';
+
+// The link values that held the task panel before Focus mode, so "Exit focus" brings the panel back.
+let returnTo: string | null = null;
+
+/** Focus mode lives in the link (?focus=<task id>), over any screen (redesign spec 5.1). */
+export function useFocusLink() {
+  const [params, setParams] = useSearchParams();
+  const taskId = params.get('focus');
+  const open = useCallback((id: string) => setParams((current) => {
+    returnTo = current.toString();
+    const next = new URLSearchParams(current);
+    next.delete('task');
+    next.delete('project');
+    next.set('focus', id);
+    return next;
+  }), [setParams]);
+  /** Exit returns to the task panel; after Done there is no panel to return to. */
+  const close = useCallback((done = false) => setParams((current) => {
+    const back = new URLSearchParams(returnTo ?? current.toString());
+    returnTo = null;
+    back.delete('focus');
+    if (done) {
+      back.delete('task');
+      back.delete('project');
+    }
+    return back;
+  }), [setParams]);
+  return { taskId, open, close };
+}

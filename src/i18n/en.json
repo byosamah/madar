@@ -774,5 +774,16 @@
     "projectCount": "{{n}} active",
     "noProjects": "You are not on a project yet.",
     "allProjects": "All projects"
+  },
+  "focus": {
+    "open": "Focus",
+    "label": "Focus",
+    "exit": "Exit focus",
+    "done": "Done",
+    "timer": "Focus timer",
+    "start": "Start",
+    "pause": "Pause",
+    "reset": "Reset",
+    "break": "Time for a short break."
   }
 }

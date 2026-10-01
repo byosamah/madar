@@ -1,0 +1,120 @@
+import { Check, Circle, CircleCheck } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import type { TaskDetail } from '../../api/contract/views';
+import { useUndoable } from '../../app/actions';
+import { usePanelOpen } from '../../app/panelOpen';
+import { useAction, useCall } from '../../app/runtime';
+import { Button } from '../../components/Button';
+import { ProjectTile } from '../../components/ProjectTile';
+import { RichText } from '../../components/RichText';
+import { spring } from '../../design/motion';
+import { FocusTimer } from './FocusTimer';
+import { useFocusLink } from './focusLink';
+
+function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean) => void }) {
+  const { t } = useTranslation();
+  const { task, project } = data;
+  const [finished, setFinished] = useState(false);
+  const [items, setItems] = useState(task.checklist);
+  const update = useAction('tasks.update');
+  const complete = useUndoable('tasks.complete', {
+    message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
+    onSuccess: () => {
+      setFinished(true);
+      window.setTimeout(() => onExit(true), 600);
+    },
+  });
+  const canDone = data.canMove && task.status !== 'done' && task.status !== 'in_review';
+  const edit = data.viewerCan.edit;
+  useEffect(() => setItems(task.checklist), [task.checklist]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onExit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onExit]);
+  const tick = (id: string, done: boolean) => {
+    const next = items.map((item) => (item.id === id ? { ...item, done } : item));
+    setItems(next);
+    update.mutate({ id: task.id, patch: { checklist: next } });
+  };
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))] sm:pt-16">
+      <div className="flex items-center gap-3">
+        <span className="flex min-w-0 items-center gap-3">
+          <ProjectTile id={project.id} name={project.name} size={32} />
+          <bdi className="truncate text-subheadline font-semibold text-ink-2">{project.name}</bdi>
+        </span>
+      </div>
+      <div className="flex flex-col gap-4">
+        <p className="text-footnote font-semibold uppercase tracking-[0.06em] text-[var(--sig-from)] dark:text-[#A5ABFF]">{t('focus.label')}</p>
+        <h1 dir="auto" className={`text-page-title [text-wrap:balance] transition-colors duration-300 ${finished ? 'text-ink-2' : 'text-ink'}`}>
+          <AnimatePresence>
+            {finished && (
+              <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring.flick} className="me-3 inline-grid size-9 place-items-center rounded-full bg-done align-middle text-panel">
+                <Check size={20} aria-hidden />
+              </motion.span>
+            )}
+          </AnimatePresence>
+          {task.title}
+        </h1>
+        {task.description && <div dir="auto" className="text-body text-ink-2"><RichText body={task.description} /></div>}
+      </div>
+      {items.length > 0 && (
+        <section aria-labelledby="focus-checklist" className="panel flex flex-col px-3 py-2">
+          <h2 id="focus-checklist" className="px-2 pb-1 pt-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{t('taskSheet.checklist')}</h2>
+          <ul className="hairline">
+            {items.map((item) => (
+              <li key={item.id} className="flex min-h-12 items-center gap-3 px-2">
+                {edit ? (
+                  <input type="checkbox" aria-label={item.text} checked={item.done} onChange={(event) => tick(item.id, event.target.checked)} className="size-5 shrink-0 accent-[var(--sig-from)]" />
+                ) : item.done ? <CircleCheck size={20} className="shrink-0 text-link" aria-label={t('common.done')} /> : <Circle size={20} className="shrink-0 text-ink-2" aria-hidden />}
+                <span dir="auto" className={`min-w-0 flex-1 text-body ${item.done ? 'text-ink-2 line-through' : 'text-ink'}`}>{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <FocusTimer />
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {canDone && <Button variant="primary" className="min-w-36" disabled={complete.isPending || finished} onClick={() => complete.mutate({ id: task.id })}>{t('focus.done')}</Button>}
+        <Button variant="plain" onClick={() => onExit()}>{t('focus.exit')}</Button>
+      </div>
+    </div>
+  );
+}
+
+/** Focus mode (redesign spec 5.1): one task on a calm full page. The page behind steps back while it is open. */
+export function FocusMode() {
+  const { t } = useTranslation();
+  const { taskId, close } = useFocusLink();
+  const task = useCall('tasks.get', { id: taskId ?? '' }, { enabled: taskId !== null });
+  usePanelOpen(taskId !== null);
+  useEffect(() => {
+    if (taskId && task.error) close();
+  }, [taskId, task.error, close]);
+  return createPortal(
+    <AnimatePresence>
+      {taskId && task.data && (
+        <motion.div
+          key="focus"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('focus.label')}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+          className="fixed inset-0 z-[70] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))]"
+        >
+          <FocusPage data={task.data} onExit={close} />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}

@@ -37,9 +37,9 @@ export function useRuntime(): Runtime {
   return runtime;
 }
 
-export function useCall<N extends CallName>(name: N, input: CallInput<N>) {
+export function useCall<N extends CallName>(name: N, input: CallInput<N>, options: { enabled?: boolean } = {}) {
   const { api } = useRuntime();
-  return useQuery<CallOutput<N>>({ queryKey: ['api', name, input], queryFn: () => api.call(name, input) });
+  return useQuery<CallOutput<N>>({ queryKey: ['api', name, input], queryFn: () => api.call(name, input), enabled: options.enabled ?? true });
 }
 
 export function useAction<N extends CallName>(name: N, options: { onSuccess?: (output: CallOutput<N>) => void } = {}) {

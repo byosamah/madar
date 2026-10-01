@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, Flag, X } from 'lucide-react';
+import { Circle, CircleCheck, Crosshair, Flag, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -20,6 +20,7 @@ import { Switch } from '../../../components/Switch';
 import { BOARD_COLUMNS } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
+import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'stageId' | 'ownerId' | 'flagged' | 'needsReview' | 'checklist'>>;
@@ -251,7 +252,9 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
 
 /** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). */
 export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail: ProjectDetail; onClose: () => void }) {
+  const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
+  const focus = useFocusLink();
   useEffect(() => {
     if (task.error) onClose();
   }, [task.error, onClose]);
@@ -263,6 +266,12 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
       }}
       title={task.data?.task.title ?? ''}
       blocking={false}
+      headerAction={(
+        <button type="button" onClick={() => focus.open(taskId)} className="pressable inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">
+          <Crosshair size={16} aria-hidden />
+          {t('focus.open')}
+        </button>
+      )}
     >
       {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} />}
     </Sheet>

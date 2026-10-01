@@ -21,7 +21,7 @@ describe('Home', () => {
     await renderApp('/', as('usr_005'));
     const card = await next();
     expect(within(card).getByText('Finish “Facade details”')).toBeInTheDocument();
-    expect(within(card).getAllByRole('button')).toHaveLength(1);
+    expect(within(card).getAllByRole('button').map((button) => button.textContent)).toEqual(['Open task', 'Focus']);
     await userEvent.click(within(card).getByRole('button', { name: 'Open task' }));
     expect(await screen.findByRole('dialog', { name: 'Facade details' })).toBeInTheDocument();
   });

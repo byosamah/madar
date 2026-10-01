@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, ScrollRestoration, useNavigate } from 'react-router';
+import { FocusMode } from '../features/focus/FocusMode';
 import { PersonMenu } from './PersonMenu';
 import { StorageBanner } from './StorageBanner';
 import { TabPill } from './TabPill';
@@ -23,6 +24,7 @@ export function AppShell() {
     <div className="min-h-dvh text-ink">
       <StorageBanner />
       <TabPill />
+      <FocusMode />
       <div className="fixed end-4 top-4 z-30 hidden sm:block">
         <PersonMenu id="wide" />
       </div>

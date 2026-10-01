@@ -1,11 +1,11 @@
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Crosshair } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { Button } from '../../components/Button';
 import type { NextItem } from '../../lib/home';
 
 /** "Next for you": one thing to do, on the glow (redesign spec 3.2). */
-export function NextCard({ item, onOpen }: { item: NextItem; onOpen: (projectId: string, taskId: string) => void }) {
+export function NextCard({ item, onOpen, onFocus }: { item: NextItem; onOpen: (projectId: string, taskId: string) => void; onFocus: (taskId: string) => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   let line = t('home.next.clear');
@@ -26,10 +26,18 @@ export function NextCard({ item, onOpen }: { item: NextItem; onOpen: (projectId:
       <p dir="auto" className="text-[calc(19px*var(--boost))] font-semibold leading-snug tracking-[-0.01em] text-ink [text-wrap:balance]">{line}</p>
       {context && <p dir="auto" className="text-subheadline text-ink-2">{context}</p>}
       {action && (
-        <Button variant="primary" className="mt-3 self-start" onClick={action.run}>
-          {action.label}
-          <ArrowRight size={16} className="rtl:-scale-x-100" aria-hidden />
-        </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant="primary" onClick={action.run}>
+            {action.label}
+            <ArrowRight size={16} className="rtl:-scale-x-100" aria-hidden />
+          </Button>
+          {(item.kind === 'pastDue' || item.kind === 'dueToday' || item.kind === 'continue') && (
+            <Button variant="plain" className="px-3" onClick={() => onFocus(item.row.task.id)}>
+              <Crosshair size={16} aria-hidden />
+              {t('focus.open')}
+            </Button>
+          )}
+        </div>
       )}
     </section>
   );
