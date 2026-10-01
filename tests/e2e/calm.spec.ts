@@ -70,6 +70,19 @@ test('Arabic turns the page right to left, the pill stays, and English turns it 
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
 });
 
+test('the person menu switches between dark and light mode', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/#/');
+  await expect(homeRows(page).first()).toBeVisible();
+  await page.getByRole('button', { name: USER }).click();
+  await page.getByRole('dialog', { name: USER }).getByRole('button', { name: 'Dark mode' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: USER }).click();
+  await page.getByRole('dialog', { name: USER }).getByRole('button', { name: 'Light mode' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
 test('with reduced motion, a filter choice still changes the Projects rows', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 900 });

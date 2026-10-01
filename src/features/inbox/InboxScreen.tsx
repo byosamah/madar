@@ -119,10 +119,10 @@ export function InboxScreen() {
   const unread = items.some((view) => !view.notification.read);
   return (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <ScreenTitle title={t('screens.inbox')} />
-        {unread && <Button variant="plain" className="shrink-0 px-3" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button>}
-      </div>
+      <ScreenTitle
+        title={t('screens.inbox')}
+        action={unread ? <Button variant="plain" className="shrink-0 px-3" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button> : undefined}
+      />
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}
       <div className="flex flex-col gap-5">
