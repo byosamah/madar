@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Stage } from '../../../api/contract/entities';
+import type { Deadline, Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
@@ -11,6 +11,7 @@ import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
 import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
@@ -223,6 +224,49 @@ function StageDates({ detail }: TabProps) {
   );
 }
 
+/** One deadline in a sheet: its name, date and stage (audit 2026-10-03, PRJ-13). Save changes it with Undo. */
+function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; deadline: Deadline; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(deadline.name);
+  const [date, setDate] = useState(deadline.date);
+  const [stageId, setStageId] = useState(deadline.stageId ?? '');
+  const save = useUndoable('deadlines.update', { message: () => t('schedule.deadlineSaved'), onSuccess: onClose });
+  const ready = Boolean(name.trim() && date);
+  const submit = () => {
+    if (ready) save.mutate({ id: deadline.id, patch: { name: name.trim(), date, stageId: stageId || null } });
+  };
+  return (
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={t('schedule.editDeadlineTitle')}
+      footer={(
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!ready || save.isPending} onClick={submit}>{t('common.save')}</Button>
+        </>
+      )}
+    >
+      <form
+        className="flex flex-col gap-4 pt-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <TextField id="deadline-edit-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
+        <TextField id="deadline-edit-date" type="date" label={t('schedule.deadlineDate')} value={date} onChange={(event) => setDate(event.target.value)} />
+        <SelectField id="deadline-edit-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
+          <option value="">{t('files.noStage')}</option>
+          {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+        </SelectField>
+      </form>
+    </Sheet>
+  );
+}
+
 function Deadlines({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -238,6 +282,7 @@ function Deadlines({ detail }: TabProps) {
     },
   });
   const remove = useUndoable('deadlines.delete', { message: () => t('schedule.deadlineDeleted') });
+  const [editing, setEditing] = useState<Deadline | null>(null);
   const today = todayISO();
   return (
     <section aria-labelledby="schedule-deadlines" className="panel p-5">
@@ -247,7 +292,17 @@ function Deadlines({ detail }: TabProps) {
           {detail.deadlines.map((deadline) => (
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
               <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-attn" />
-              <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>
+              {/* The name opens the deadline to change it, for the people who may (audit 2026-10-03, PRJ-13). */}
+              {detail.viewerCan.edit ? (
+                <button
+                  type="button"
+                  aria-label={t('schedule.editDeadline', { name: deadline.name })}
+                  onClick={() => setEditing(deadline)}
+                  className="pressable -mx-1 flex min-h-11 min-w-0 flex-1 items-center rounded-lg px-1 text-start text-subheadline hover:bg-fill"
+                >
+                  <bdi className="truncate">{deadline.name}</bdi>
+                </button>
+              ) : <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>}
               <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
               {detail.viewerCan.edit && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
@@ -275,6 +330,7 @@ function Deadlines({ detail }: TabProps) {
           <Button type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
         </form>
       )}
+      {editing && <DeadlineSheet key={editing.id} detail={detail} deadline={editing} onClose={() => setEditing(null)} />}
     </section>
   );
 }

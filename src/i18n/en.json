@@ -366,6 +366,7 @@
       "files": "Files"
     },
     "emptyFeed": "No updates yet.",
+    "showOlder": "Show older",
     "emptyDecisions": "No decisions yet. A decision added in a meeting shows here.",
     "facts": "Key facts",
     "deadlines": "Next deadlines",
@@ -608,6 +609,9 @@
     "deleteDeadline": "Delete {{name}}",
     "deadlineAdded": "Deadline added.",
     "deadlineDeleted": "Deadline deleted.",
+    "editDeadline": "Change {{name}}",
+    "editDeadlineTitle": "Change deadline",
+    "deadlineSaved": "Deadline saved.",
     "noDeadlines": "No deadlines yet.",
     "overlapLegend": "Hatched: two stages run at the same time."
   },

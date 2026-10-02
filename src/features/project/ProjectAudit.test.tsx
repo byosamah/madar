@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { ApiError } from '../../api/errors';
 import type { State } from '../../api/store';
 import { initI18n } from '../../i18n';
+import { buildSeed } from '../../data/seed';
+import { TODAY } from '../../test/factories';
 import { renderApp } from '../../test/render';
 import { personOption } from './tasks/TaskHelpers';
 
@@ -510,5 +512,82 @@ describe('filters stay in the link (audit 2026-10-03, PRJ-22)', () => {
     await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
     expect(within(screen.getByRole('group', { name: 'Type' })).getByRole('radio', { name: 'Meeting' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Open only' })).toBeChecked();
+  });
+});
+
+describe('older posts in the Activity tab (audit 2026-10-03, PRJ-5)', () => {
+  it('shows older items with one press', async () => {
+    const { api } = await renderApp('/projects/prj_001?tab=activity', as('usr_002'));
+    await screen.findByText(/I uploaded revision B/);
+    for (let i = 0; i < 55; i += 1) await api.call('updates.create', { projectId: 'prj_001', body: `Note ${i}` });
+    await waitFor(() => expect(screen.queryByText(/I uploaded revision B/)).toBeNull());
+    await userEvent.click(screen.getByRole('button', { name: 'Show older' }));
+    expect(await screen.findByText(/I uploaded revision B/)).toBeInTheDocument();
+  });
+
+  it('loads older items until a linked post shows', async () => {
+    const seed = await buildSeed(TODAY, async () => undefined);
+    const oldId = Object.values(seed.updates).find((update) => update.projectId === 'prj_001' && update.body.includes('I uploaded revision B'))!.id;
+    await renderApp(`/projects/prj_001?tab=activity&update=${oldId}`, (state) => {
+      state.session.currentUserId = 'usr_002';
+      for (let i = 0; i < 120; i += 1) {
+        const id = `upd_${900 + i}`;
+        state.updates[id] = { id, projectId: 'prj_001', authorId: 'usr_002', body: `Note ${i}`, fileIds: [], createdAt: `2026-09-30T08:${String(i % 60).padStart(2, '0')}:00.000+03:00`, editedAt: null };
+      }
+    });
+    expect(await screen.findByText(/I uploaded revision B/, {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+});
+
+describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
+  it('changes the name and the date of a deadline', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=schedule', as('usr_002'));
+    const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
+    await userEvent.click(within(deadlines).getByRole('button', { name: 'Change Balady submission' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Change deadline' });
+    await userEvent.clear(within(sheet).getByLabelText('Deadline name'));
+    await userEvent.type(within(sheet).getByLabelText('Deadline name'), 'Balady permit submission');
+    fireEvent.change(within(sheet).getByLabelText('Date'), { target: { value: '2026-12-20' } });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(Object.values(store.state.deadlines).find((d) => d.name === 'Balady permit submission')?.date).toBe('2026-12-20'));
+    expect(await screen.findByText('Deadline saved.')).toBeInTheDocument();
+  });
+
+  it('gives a person who cannot edit no Change button', async () => {
+    await renderApp('/projects/prj_001?tab=schedule', as('usr_005'));
+    const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
+    expect(within(deadlines).queryByRole('button', { name: /^Change / })).toBeNull();
+  });
+});
+
+describe('Make leader asks first (audit 2026-10-03, PRJ-21)', () => {
+  it('opens the leader sheet with the person picked, and changes nothing before Save', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=team', as('usr_001'));
+    const members = await screen.findByRole('region', { name: 'Members' });
+    const sara = within(members).getByText('Sara Al-Qahtani').closest('li') as HTMLElement;
+    await userEvent.click(within(sara).getByRole('button', { name: 'Actions for Sara Al-Qahtani' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Make leader' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Change leader' });
+    expect(within(sheet).getByRole('combobox')).toHaveValue('usr_005');
+    expect(store.state.projects.prj_001.leaderId).toBe('usr_002');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(store.state.projects.prj_001.leaderId).toBe('usr_005'));
+  });
+});
+
+describe('the Tracker type picker works with arrow keys (audit 2026-10-03, PRJ-25)', () => {
+  it('has one Tab stop and moves the choice with the arrow keys', async () => {
+    await renderApp('/projects/prj_001?tab=tracker', as('usr_002'));
+    const group = await screen.findByRole('radiogroup', { name: 'Type' });
+    const radios = within(group).getAllByRole('radio');
+    expect(radios.filter((radio) => radio.tabIndex === 0)).toHaveLength(1);
+    const checked = radios.findIndex((radio) => radio.getAttribute('aria-checked') === 'true');
+    radios[checked].focus();
+    await userEvent.keyboard('{ArrowRight}');
+    const next = within(group).getAllByRole('radio')[(checked + 1) % radios.length];
+    expect(next).toHaveAttribute('aria-checked', 'true');
+    expect(next).toHaveFocus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(within(group).getAllByRole('radio')[checked]).toHaveAttribute('aria-checked', 'true');
   });
 });

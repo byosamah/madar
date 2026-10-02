@@ -395,6 +395,7 @@
       "files": "الملفات"
     },
     "emptyFeed": "لا توجد تحديثات بعد.",
+    "showOlder": "عرض الأقدم",
     "emptyDecisions": "لا توجد قرارات بعد. يظهر هنا كل قرار يُضاف في اجتماع.",
     "facts": "معلومات أساسية",
     "deadlines": "المواعيد القادمة",
@@ -683,6 +684,9 @@
     "deleteDeadline": "حذف {{name}}",
     "deadlineAdded": "تمت إضافة الموعد.",
     "deadlineDeleted": "تم حذف الموعد.",
+    "editDeadline": "تغيير {{name}}",
+    "editDeadlineTitle": "تغيير الموعد",
+    "deadlineSaved": "تم حفظ الموعد.",
     "noDeadlines": "لا توجد مواعيد بعد.",
     "overlapLegend": "المخطط بخطوط مائلة: مرحلتان تسيران في الوقت نفسه."
   },

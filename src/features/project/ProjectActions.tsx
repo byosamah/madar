@@ -17,15 +17,18 @@ import { EditProjectSheet } from '../projects/EditProjectSheet';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
 
-/** No Undo toast here: the old leader loses the right to undo it (plan clarification 6). */
-function LeaderSheet({ detail, open, onOpenChange }: SheetProps) {
+/**
+ * No Undo toast here: the old leader loses the right to undo it (plan clarification 6).
+ * "pick" starts the sheet on one person, for "Make leader" in the Team tab: a pick, then Save (audit 2026-10-03, PRJ-21).
+ */
+export function LeaderSheet({ detail, open, onOpenChange, pick }: SheetProps & { pick?: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   const users = useCall('users.list', {});
   const [leaderId, setLeaderId] = useState(detail.project.leaderId ?? '');
   useEffect(() => {
-    if (open) setLeaderId(detail.project.leaderId ?? '');
-  }, [open, detail.project.leaderId]);
+    if (open) setLeaderId(pick ?? detail.project.leaderId ?? '');
+  }, [open, pick, detail.project.leaderId]);
   const change = useAction('projects.setLeader', {
     onSuccess: () => {
       toast.show({ message: t('project.leaderChanged') });
