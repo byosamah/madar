@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { FeedItem, EventLineView } from '../../../api/contract/views';
@@ -13,6 +13,8 @@ import { toTsv } from '../../../lib/trackerExport';
 import { FEED_EVENT_VERBS, feedText } from '../../projects/feed';
 
 type Line = { id: string; who: string; what: string; time: string };
+/** The summary that went to the chats: its content, and the number of chats that took it. */
+export type SharedSummary = { content: string; count: number };
 type Group = { projectId: string; name: string; lines: Line[] };
 
 type Fields = Record<string, unknown>;
@@ -82,8 +84,11 @@ function reasonsOf(views: readonly EventLineView[]): Map<string, string> {
 /**
  * The summary of the meeting: every change since the meeting started, for each project in agenda order.
  * A project with no change does not show. The summary can be copied as a table, or posted to the chat of each project.
+ * The meeting keeps what went to the chats, so the same summary goes there once, also after Back and Summary again.
  */
-export function MeetingSummary({ agendaIds, names, startedAt, onBack }: { agendaIds: string[]; names: ReadonlyMap<string, string>; startedAt: string; onBack: () => void }) {
+export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, onBack }: {
+  agendaIds: string[]; names: ReadonlyMap<string, string>; startedAt: string; shared: SharedSummary | null; onShared: (shared: SharedSummary) => void; onBack: () => void;
+}) {
   const { t } = useTranslation();
   const lang = useLang();
   const toast = useToast();
@@ -123,12 +128,25 @@ export function MeetingSummary({ agendaIds, names, startedAt, onBack }: { agenda
     }
   };
 
+  const chatOf = (projectId: string) => chats.data?.find((row) => row.kind === 'project' && row.project?.id === projectId);
+  // Share shows only when a project in the summary has a chat the viewer can see.
+  const canShare = groups.some((group) => chatOf(group.projectId) !== undefined);
+  // The lines of the summary, by their changes. A new change makes new content, which can go to the chats again.
+  const content = groups.map((group) => `${group.projectId}:${group.lines.map((line) => line.id).join(',')}`).join(' ');
+  const isShared = shared !== null && shared.content === content;
+  const [sharing, setSharing] = useState(false);
+  const running = useRef(false);
+
   // One message for each project with changes. A project whose chat the viewer cannot open or post in is skipped.
+  // A second press while it runs, or after it went, does not post again.
   const share = async () => {
+    if (running.current || isShared) return;
+    running.current = true;
+    setSharing(true);
     const date = formatDay(todayISO(), lang, 'withWeekday');
     let sent = 0;
     for (const group of groups) {
-      const chat = chats.data?.find((row) => row.kind === 'project' && row.project?.id === group.projectId);
+      const chat = chatOf(group.projectId);
       if (!chat) continue;
       const body = [t('dashboard.meeting.summary.shareTitle', { date }), ...group.lines.map((line) => `${line.who} ${line.what}`)].join('\n');
       try {
@@ -138,6 +156,9 @@ export function MeetingSummary({ agendaIds, names, startedAt, onBack }: { agenda
         // The chat refused the message, so this project is skipped like a project with no chat.
       }
     }
+    running.current = false;
+    setSharing(false);
+    if (sent > 0) onShared({ content, count: sent });
     toast.show({ message: sent === 0 ? t('dashboard.meeting.summary.sharedNone') : counted(t, 'dashboard.meeting.summary.shared', sent) });
   };
 
@@ -149,7 +170,11 @@ export function MeetingSummary({ agendaIds, names, startedAt, onBack }: { agenda
         {groups.length > 0 && (
           <>
             <Button onClick={() => void copy()}>{t('dashboard.meeting.summary.copy')}</Button>
-            <Button variant="primary" onClick={() => void share()}>{t('dashboard.meeting.summary.share')}</Button>
+            {canShare && (
+              <Button variant="primary" disabled={sharing || isShared} onClick={() => void share()}>
+                {isShared ? counted(t, 'dashboard.meeting.summary.sharedButton', shared.count) : t('dashboard.meeting.summary.share')}
+              </Button>
+            )}
           </>
         )}
       </div>

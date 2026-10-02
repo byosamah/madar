@@ -24,7 +24,7 @@ import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import { AgendaBar } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
-import { MeetingSummary } from './meeting/MeetingSummary';
+import { MeetingSummary, type SharedSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
 import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
@@ -279,6 +279,7 @@ export function MeetingView() {
   const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
   // The summary takes the place of the screen. Back shows the same mode and the same project again.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [shared, setShared] = useState<SharedSummary | null>(null);
   // The clock of a project runs only while its screen shows, so not on the timeline and not behind the summary.
   const session = useMeetingSession(agendaIds, mode === 'projects' && !summaryOpen);
   const [agendaOpen, setAgendaOpen] = useState(false);
@@ -466,7 +467,7 @@ export function MeetingView() {
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
       {summaryOpen && (
-        <MeetingSummary agendaIds={agendaIds} names={names} startedAt={session.startedAt} onBack={() => setSummaryOpen(false)} />
+        <MeetingSummary agendaIds={agendaIds} names={names} startedAt={session.startedAt} shared={shared} onShared={setShared} onBack={() => setSummaryOpen(false)} />
       )}
       {!summaryOpen && mode === 'projects' && shown && (
         <MeetingProject

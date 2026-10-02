@@ -19,8 +19,8 @@ afterEach(() => {
 });
 
 /** Approves the task that waits for review, then opens the summary. */
-async function approveThenSummary() {
-  const rendered = await renderApp(MEETING, waitsForReview);
+async function approveThenSummary(prepare: (state: State) => void = waitsForReview) {
+  const rendered = await renderApp(MEETING, prepare);
   const attention = within(await screen.findByRole('region', { name: 'Needs attention' }));
   await userEvent.click(attention.getByRole('button', { name: /^Handover checklist.*Waiting for review/ }));
   const sheet = await screen.findByRole('dialog', { name: 'Handover checklist' });
@@ -130,6 +130,39 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
       'made Khalid Al-Mutairi the lead of “Progress photos”',
       'changed the flag of “Progress photos”',
     ]);
+  });
+
+  it('posts once for two presses, and stays shared until the summary changes', async () => {
+    const { store } = await approveThenSummary();
+    const chat = Object.values(store.state.conversations).find((item) => item.kind === 'project' && item.projectId === 'prj_011')!;
+    const messages = () => Object.values(store.state.messages).filter((message) => message.conversationId === chat.id);
+    const before = messages().length;
+    const share = await screen.findByRole('button', { name: 'Share to the project chats' });
+    await userEvent.click(share);
+    await userEvent.click(share);
+    const done = await screen.findByRole('button', { name: 'Shared to 1 chat' });
+    expect(done).toBeDisabled();
+    expect(messages()).toHaveLength(before + 1);
+    // Back and Summary again show the same summary, so it stays shared.
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    expect(await screen.findByRole('button', { name: 'Shared to 1 chat' })).toBeDisabled();
+    // A new decision changes the summary, so it can go to the chats again.
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Write a decision' }), 'Order the stone tiles{Enter}');
+    await waitFor(() => expect(Object.values(store.state.updates).some((update) => update.body === 'Order the stone tiles')).toBe(true));
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    expect(await screen.findByRole('button', { name: 'Share to the project chats' })).toBeEnabled();
+  });
+
+  it('offers Share only when a project in the summary has a chat the viewer can see', async () => {
+    await approveThenSummary((state) => {
+      waitsForReview(state);
+      for (const [id, chat] of Object.entries(state.conversations)) if (chat.projectId === 'prj_011') delete state.conversations[id];
+      for (const [id, message] of Object.entries(state.messages)) if (!state.conversations[message.conversationId]) delete state.messages[id];
+    });
+    expect(await screen.findByRole('button', { name: 'Copy as a table' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share to the project chats' })).toBeNull();
   });
 
   it('says so when nothing changed, and goes back to the same project', async () => {
