@@ -896,6 +896,8 @@
     "meetingButton": "عرض الاجتماع",
     "meeting": {
       "title": "عرض الاجتماع",
+      "clientItems": "بنود العميل",
+      "replyLine": "الرد: {{name}} · {{date}}",
       "timeline": "الجدول الزمني للمشاريع",
       "controls": "أدوات عرض الاجتماع",
       "zoom": "التكبير",

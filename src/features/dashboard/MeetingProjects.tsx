@@ -13,6 +13,7 @@ import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
 import { compareTasks } from '../../lib/stageFlow';
+import { ClientItemsPanel } from './meeting/ClientItemsPanel';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -109,11 +110,14 @@ export function MeetingProject({ row, tasks, index, total, onOpenTask }: { row: 
         <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
           {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
         </Column>
-        <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
-          {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
-          {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
-          {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
-        </Column>
+        <div className="flex min-w-0 flex-col gap-5">
+          <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
+            {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
+            {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
+            {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
+          </Column>
+          <ClientItemsPanel projectId={row.project.id} />
+        </div>
         <div className="flex min-h-0 min-w-0 flex-col gap-5">
           <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
             <h3 className={HEADING}>{t('overview.comingUp')}</h3>

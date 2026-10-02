@@ -813,6 +813,8 @@
     "meetingButton": "Meeting view",
     "meeting": {
       "title": "Meeting view",
+      "clientItems": "Client items",
+      "replyLine": "Reply: {{name}} · {{date}}",
       "timeline": "Project timeline",
       "controls": "Meeting view controls",
       "zoom": "Zoom",
