@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
 const months = (root: HTMLElement) => within(root).queryAllByText(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/).map((node) => node.textContent);
+const days = (root: HTMLElement) => within(root).queryAllByText(/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) \d{1,2}$/).map((node) => node.textContent);
+const sundays = (root: HTMLElement) => within(root).queryAllByText(/^\d{1,2} [A-Z][a-z]{2,3}$/).map((node) => node.textContent);
 
 describe('the Meeting view button', () => {
   it('shows on the Dashboard and opens the meeting view with the filters in the link', async () => {
@@ -78,6 +80,40 @@ describe('the meeting view', () => {
     expect(months(main)[0]).not.toBe(first);
     await userEvent.keyboard('{ArrowRight}');
     expect(months(main)[0]).toBe(first);
+  });
+
+  // Today in the tests is Wed 30 Sep 2026, so the week runs from Sun 27 Sep to Sat 3 Oct.
+  it('shows one week with a label for each day, and moves one week at a time (owner, 2026-10-02)', async () => {
+    await renderApp('/dashboard/meeting');
+    const list = await screen.findByRole('list', { name: 'Project timeline' });
+    const main = list.closest('main') as HTMLElement;
+    await userEvent.click(screen.getByRole('radio', { name: 'Week' }));
+    expect(screen.getByRole('radio', { name: 'Week' })).toHaveAttribute('aria-checked', 'true');
+    // Short day labels never run into each other. The week itself shows once, in words, above the project names.
+    expect(days(main)).toEqual(['Sun 27', 'Mon 28', 'Tue 29', 'Wed 30', 'Thu 1', 'Fri 2', 'Sat 3']);
+    expect(within(main).getByText('27 Sept to 3 Oct 2026')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'One month later' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'One week later' }));
+    expect(within(main).getByText('4 Oct to 10 Oct 2026')).toBeInTheDocument();
+    expect(days(main)[0]).toBe('Sun 4');
+    await userEvent.click(screen.getByRole('button', { name: 'Today' }));
+    expect(days(main)[0]).toBe('Sun 27');
+    await userEvent.click(screen.getByRole('button', { name: 'One week earlier' }));
+    expect(days(main)[0]).toBe('Sun 20');
+    await userEvent.keyboard('{ArrowRight}');
+    expect(days(main)[0]).toBe('Sun 27');
+  });
+
+  it('shows one month with a label for each Sunday, and moves one month at a time', async () => {
+    await renderApp('/dashboard/meeting');
+    const list = await screen.findByRole('list', { name: 'Project timeline' });
+    const main = list.closest('main') as HTMLElement;
+    await userEvent.click(screen.getByRole('radio', { name: 'Month' }));
+    expect(sundays(main)).toEqual(['6 Sept', '13 Sept', '20 Sept', '27 Sept']);
+    expect(within(main).getByText('September 2026')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'One month later' }));
+    expect(sundays(main)).toEqual(['4 Oct', '11 Oct', '18 Oct', '25 Oct']);
+    expect(within(main).getByText('October 2026')).toBeInTheDocument();
   });
 });
 

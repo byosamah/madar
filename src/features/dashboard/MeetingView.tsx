@@ -15,9 +15,9 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { ProjectSign } from '../../components/ProjectSign';
 import { StatusSign } from '../../components/StatusSign';
-import { formatDay, formatMonth, todayISO } from '../../lib/dates';
+import { formatDay, formatMonth, formatMonthYear, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
-import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
+import { clipSpan, groupClose, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
@@ -179,7 +179,7 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
       })}
       <DeadlineMarks
         marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
-          id: d.id, name: d.name, when: formatDay(d.date, lang), at: offsetPct(span, d.date),
+          id: d.id, name: d.name, when: formatDay(d.date, lang), at: midPct(span, d.date),
           label: t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) }),
         }))}
       />
@@ -396,7 +396,7 @@ export function MeetingView() {
       if (summaryRef.current || target?.closest('[role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
-      // On the project screens the arrows move along the agenda; on the timeline they move one month.
+      // On the project screens the arrows move along the agenda; on the timeline they move one step (a week or a month).
       if (modeRef.current === 'projects') sessionRef.current.goTo(sessionRef.current.current + (toEnd ? 1 : -1));
       else setShift((n) => n + (toEnd ? 1 : -1));
     };
@@ -407,8 +407,23 @@ export function MeetingView() {
 
   const today = todayISO();
   const { span, ticks } = meetingWindow(today, zoom, shift);
+  // The arrows say how far they move: one week in the week zoom, one month in the others.
+  const step = meetingStep(zoom);
+  // Week: "Wed 30". Month: "4 Oct". Short labels never run into each other, also in Arabic on the big screen.
+  // The longer zooms show a month, and the first label and January carry the year.
+  const tickLabel = (tick: string, first: boolean) => {
+    if (zoom === 'week') return formatDay(tick, lang, 'weekdayDay');
+    if (zoom === 'month') return formatDay(tick, lang);
+    return `${formatMonth(tick, lang)}${first || tick.endsWith('-01-01') ? ` ${tick.slice(0, 4)}` : ''}`;
+  };
+  // The week and the month show their name once, in words, above the project names: "27 Sept to 3 Oct 2026", "October 2026".
+  const windowName =
+    zoom === 'week' ? t('dashboard.meeting.weekRange', { from: formatDay(span.start, lang), to: formatDay(span.end, lang, 'shortYear') })
+    : zoom === 'month' ? formatMonthYear(span.start, lang)
+    : null;
   const todayIn = today >= span.start && today <= span.end;
-  const todayAt = { insetInlineStart: `${offsetPct(span, today)}%` };
+  // Today and the deadlines sit in the middle of their day, so in the week zoom they sit inside their day column.
+  const todayAt = { insetInlineStart: `${midPct(span, today)}%` };
   const view = dashboard.data;
 
   const filters = [
@@ -466,11 +481,11 @@ export function MeetingView() {
             onChange={(next) => { setZoom(next); setShift(0); }}
             options={MEETING_ZOOMS.map((value) => ({ value, label: t(`dashboard.meeting.zooms.${value}`) }))}
           />
-          <Button aria-label={t('dashboard.meeting.earlier')} title={t('dashboard.meeting.earlier')} className="!px-3" onClick={() => setShift((n) => n - 1)}>
+          <Button aria-label={t(`dashboard.meeting.earlier.${step}`)} title={t(`dashboard.meeting.earlier.${step}`)} className="!px-3" onClick={() => setShift((n) => n - 1)}>
             <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
           </Button>
           <Button onClick={() => setShift(0)}>{t('dashboard.meeting.today')}</Button>
-          <Button aria-label={t('dashboard.meeting.later')} title={t('dashboard.meeting.later')} className="!px-3" onClick={() => setShift((n) => n + 1)}>
+          <Button aria-label={t(`dashboard.meeting.later.${step}`)} title={t(`dashboard.meeting.later.${step}`)} className="!px-3" onClick={() => setShift((n) => n + 1)}>
             <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
           </Button>
           </>
@@ -498,11 +513,18 @@ export function MeetingView() {
       {!summaryOpen && mode === 'timeline' && view && view.schedule.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-card panel">
           <div className={`sticky top-0 z-20 border-b border-separator bg-[var(--c-panel)] px-5 ${COLUMNS}`}>
-            <div />
-            <div aria-hidden className="relative h-11">
+            <div className="flex min-w-0 items-center">
+              {windowName && <span className="truncate text-[18px] font-semibold text-ink">{windowName}</span>}
+            </div>
+            <div aria-hidden className="relative h-12">
+              {/* In the week zoom each label fills its day column and stands in the middle of it, above the Today tag. */}
               {ticks.map((tick) => (
-                <span key={tick} style={{ insetInlineStart: `${offsetPct(span, tick)}%` }} className="absolute inset-y-2 whitespace-nowrap border-s border-separator ps-2 text-[16px] font-medium text-ink-2">
-                  {formatMonth(tick, lang)}{tick.endsWith('-01-01') || tick === ticks[0] ? ` ${tick.slice(0, 4)}` : ''}
+                <span
+                  key={tick}
+                  style={{ insetInlineStart: `${offsetPct(span, tick)}%`, ...(zoom === 'week' ? { width: `${widthPct(span, tick, tick)}%` } : {}) }}
+                  className={`absolute inset-y-2 whitespace-nowrap border-s border-separator text-[16px] font-medium leading-5 text-ink-2 ${zoom === 'week' ? 'text-center' : 'ps-2'}`}
+                >
+                  {tickLabel(tick, tick === ticks[0])}
                 </span>
               ))}
               {todayIn && (
