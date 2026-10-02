@@ -329,16 +329,22 @@ export function MeetingView() {
       const target = event.target as HTMLElement | null;
       // A dialog owns the keys while it is open. Escape then closes the dialog only.
       if (document.querySelector('[role="dialog"]')) return;
+      // A key with a modifier belongs to the browser. A key in a field belongs to the field, so Escape there keeps the typed text.
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (target instanceof Element && (target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') || (target as HTMLElement).isContentEditable)) return;
+      // A held key repeats. One press is one step, so a held N does not run through the whole agenda.
+      if (event.repeat) return;
       if (event.key === 'Escape') {
         event.preventDefault();
-        exit();
+        // Escape on the summary goes back to the same screen. The next Escape leaves the meeting.
+        if (summaryRef.current) setSummaryOpen(false);
+        else exit();
         return;
       }
       // The letter keys go by the physical key, so an Arabic keyboard works too.
       const letter = ['KeyN', 'KeyB', 'KeyA', 'KeyT'].includes(event.code);
       if (letter) {
-        if (summaryRef.current || modeRef.current !== 'projects' || event.altKey || event.ctrlKey || event.metaKey) return;
-        if (target instanceof Element && (target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') || (target as HTMLElement).isContentEditable)) return;
+        if (summaryRef.current || modeRef.current !== 'projects') return;
         const run = sessionRef.current;
         event.preventDefault();
         if (event.code === 'KeyN') run.goTo(run.current + 1);
@@ -348,7 +354,7 @@ export function MeetingView() {
         return;
       }
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (summaryRef.current || event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
+      if (summaryRef.current || target?.closest('[role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
       // On the project screens the arrows move along the agenda; on the timeline they move one month.

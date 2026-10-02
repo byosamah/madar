@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -74,6 +74,39 @@ describe('meeting keys (owner, 2026-10-02)', () => {
     await screen.findByRole('dialog', { name: 'Progress photos' });
     await userEvent.keyboard('n');
     expect(screen.getByRole('button', { name: /^Agenda/, hidden: true })).toHaveTextContent('1 of 9');
+  });
+
+  it('keeps the meeting and the typed text when Escape is pressed in a field', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Write a decision' }), 'Use the stone tiles');
+    await userEvent.keyboard('{Escape}');
+    expect(window.location.hash).toContain('/dashboard/meeting');
+    expect(screen.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Use the stone tiles');
+  });
+
+  it('closes the summary with Escape first, and leaves the meeting with the next Escape', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await screen.findByRole('region', { name: 'Meeting summary' });
+    await userEvent.keyboard('{Escape}');
+    expect(window.location.hash).toContain('/dashboard/meeting');
+    expect(screen.queryByRole('region', { name: 'Meeting summary' })).toBeNull();
+    expect(position()).toContain('1 of 9');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(window.location.hash).not.toContain('/dashboard/meeting'));
+  });
+
+  it('moves one step for a held key, not one step for each repeat', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    await userEvent.keyboard('{n>4/}');
+    expect(position()).toContain('2 of 9');
+    await userEvent.keyboard('{ArrowRight>4/}');
+    expect(position()).toContain('3 of 9');
+    await userEvent.keyboard('{t>3/}');
+    expect(screen.getByRole('button', { name: 'Resume timer' })).toBeInTheDocument();
   });
 
   it('does nothing with N and B on the timeline', async () => {
