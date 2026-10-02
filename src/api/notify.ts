@@ -35,10 +35,10 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
   return created;
 }
 
-/** The leader reviews. A project with no leader goes to every active Admin. */
+/** The leader reviews. A project with no active leader goes to every active Admin (audit 2026-10-03, API-7). */
 export function reviewersOf(state: State, projectId: string): string[] {
   const project = state.projects[projectId];
-  if (project?.leaderId) return [project.leaderId];
+  if (project?.leaderId && state.users[project.leaderId]?.active) return [project.leaderId];
   return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
 }
 

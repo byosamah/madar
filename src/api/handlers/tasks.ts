@@ -16,7 +16,7 @@ import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
-import { assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
+import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
 import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
@@ -212,6 +212,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   requireStage(ctx, project.id, stageId);
   const watch = watchStage(ctx, project.id);
   const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
+  assertActive(ctx, ownerId, 'ownerId');
+  for (const helperId of input.helperIds ?? []) assertActive(ctx, helperId, 'helperIds');
   ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
   const helperIds = checkHelpers(ctx, project.id, ownerId, input.helperIds ?? []);
   const id = nextId(ctx.state, 'tsk');
@@ -346,6 +348,9 @@ export const tasksUpdate = defineCall({
     const leadId = patch.ownerId ?? task.ownerId;
     if (patch.ownerId) ensureOnTeam(ctx, task.projectId, patch.ownerId, 'ownerId');
     const reassigned = patch.ownerId !== undefined && patch.ownerId !== task.ownerId;
+    // Only a person newly named must be active. A helper who left keeps their place on the task.
+    if (reassigned) assertActive(ctx, leadId, 'ownerId');
+    for (const helperId of patch.helperIds ?? []) if (!helpersOf(task).includes(helperId)) assertActive(ctx, helperId, 'helperIds');
     // A person who becomes the lead stops being a helper, so the lead is never in the list.
     const helperIds = patch.helperIds !== undefined
       ? checkHelpers(ctx, task.projectId, leadId, patch.helperIds)

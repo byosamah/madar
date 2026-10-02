@@ -76,6 +76,11 @@ export function addMember(ctx: Ctx, projectId: string, userId: string, disciplin
   notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
 }
 
+/** A person who left the office gets no new work: no task to lead, help on or reply to (audit 2026-10-03, API-7). */
+export function assertActive(ctx: Ctx, userId: string, field: string): void {
+  if (!requireUser(ctx, userId).active) throw invalid(field, 'This person is no longer active. Pick someone else.', 'person_inactive');
+}
+
 /**
  * A person who leads a task or helps with it must be on the project team. The leader and the Admin may name someone outside it:
  * Madar adds that person to the team, with their discipline, and tells them. Anyone else gets the refusal.

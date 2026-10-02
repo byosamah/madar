@@ -113,6 +113,7 @@
       "member_has_open_tasks": "This person still has open tasks here. Give their open tasks to someone else first.",
       "pause_needs_reason": "Use Pause project and write why the project pauses.",
       "cover_not_image": "The cover must be a picture.",
+      "person_inactive": "This person is no longer active. Pick someone else.",
       "duplicate_team": "A team with this name exists. Use another name.",
       "side_for_type": "This type of entry cannot have this side.",
       "reply_needs_waiting_us": "Only an entry that needs a reply gets a reply task.",

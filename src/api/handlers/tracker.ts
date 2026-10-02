@@ -6,13 +6,15 @@ import {
 import { TrackerExportRow, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
+import { stageTag, watchStage } from '../flow';
 import { notify } from '../notify';
 import { projectRoleOf } from '../permissions';
 import { nextId, trackerOf } from '../store';
 import { attachmentsOf, mayDeleteTracker, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
-import { assertCan, requireProject, requireUser, roleIn, touch } from './shared';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, touch } from './shared';
+import { changeStatus } from './tasks';
 
 const Title = z.string().trim().min(1).max(200);
 const Note = z.string().trim().max(2000);
@@ -41,9 +43,9 @@ function assertSide(type: TrackerEntry['type'], direction: TrackerEntry['directi
   if (!sidesOf(type).includes(direction)) throw invalid('direction', `A ${type} entry cannot have the side "${direction}".`, 'side_for_type');
 }
 
-/** The person who replies must be on the project team, as for any task. */
+/** The person who replies must be on the project team, as for any task, and still active. */
 function assertReplier(ctx: Ctx, projectId: string, userId: string): void {
-  requireUser(ctx, userId);
+  assertActive(ctx, userId, 'userId');
   if (projectRoleOf(ctx.state, projectId, userId) === 'other') throw invalid('userId', 'The person who replies must be on the project team.', 'reply_not_on_team');
 }
 
@@ -70,14 +72,28 @@ function closeEntry(ctx: Ctx, entry: TrackerEntry): void {
 }
 
 /**
+ * The reply task and the loop never disagree: when the loop ends, the open reply task finishes too. It finishes by the task rules,
+ * so what it needs must be done, and the stage tag follows (audit 2026-10-03, API-9).
+ */
+function finishReplyTask(ctx: Ctx, entry: TrackerEntry): void {
+  const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
+  if (!task || task.status === 'done') return;
+  const watch = watchStage(ctx, task.projectId);
+  changeStatus(ctx, task, 'done');
+  watch.finish({ ask: false });
+}
+
+/**
  * Opens the task "Reply: <title>" for a person, in the current stage of the project, and links it both ways.
  * It needs no review: the reply is the person's own work, and the Tracker logs it when the task is done.
+ * The stage is the tag, computed from the tasks, never a saved stage that is behind (audit 2026-10-03, API-9).
  */
 function openReplyTask(ctx: Ctx, entry: TrackerEntry, reply: ReplyBy): void {
   const project = requireProject(ctx, entry.projectId);
+  const watch = watchStage(ctx, project.id);
   const id = nextId(ctx.state, 'tsk');
   const task: Task = {
-    id, projectId: project.id, stageId: project.currentStageId, title: `Reply: ${entry.title}`.slice(0, 200), description: '', ownerId: reply.userId,
+    id, projectId: project.id, stageId: stageTag(ctx.state, project.id)?.id ?? project.currentStageId, title: `Reply: ${entry.title}`.slice(0, 200), description: '', ownerId: reply.userId,
     status: 'todo', dueDate: reply.dueDate, startDate: null, schedule: 'static', durationDays: null, flagged: false, needsReview: false, checklist: [],
     createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null, trackerEntryId: entry.id,
   };
@@ -85,6 +101,8 @@ function openReplyTask(ctx: Ctx, entry: TrackerEntry, reply: ReplyBy): void {
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
   notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [reply.userId], trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
   applyPatch(ctx, entry, { replyTaskId: id }, { projectId: entry.projectId, verb: 'tracker.reply_assigned', targetType: 'tracker', targetId: entry.id });
+  // A task in the tag stage never moves the tag back. The saved stage catches up when it is behind.
+  watch.finish({ ask: false });
   touch(ctx, project.id);
 }
 
@@ -166,11 +184,8 @@ const trackerClose = defineCall({
     if (entry.waiting === null) throw invalid('id', 'This entry is not waiting for anything.', 'not_open');
     if (entry.closedAt !== null) throw invalid('id', 'This entry is already closed.', 'already_closed');
     closeEntry(ctx, entry);
-    // The reply task and the loop never disagree. The entry is closed first, so finishing the task logs no second reply.
-    const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
-    if (task && task.status !== 'done') {
-      applyPatch(ctx, task, { status: 'done', completedAt: ctx.stamp }, { projectId: task.projectId, verb: 'task.status_changed', targetType: 'task', targetId: task.id });
-    }
+    // The entry is closed first, so finishing the task logs no second reply.
+    finishReplyTask(ctx, entry);
     touch(ctx, entry.projectId);
     return trackerRowOf(ctx.state, entry, ctx.authority);
   },
@@ -198,7 +213,10 @@ const trackerUpdate = defineCall({
     assertSide(type ?? entry.type, direction ?? entry.direction);
     // A new waiting value starts a new loop, so it is open again. Taking the value away ends the loop.
     const loop = waiting !== undefined && waiting !== entry.waiting ? { waiting, closedAt: null, closedBy: null } : {};
+    const replyEnds = entry.waiting === 'us' && waiting !== undefined && waiting !== 'us';
     applyPatch(ctx, entry, { type, direction, title, note, date, fileIds, peopleIds, ...loop }, { projectId: entry.projectId, verb: 'tracker.edited', targetType: 'tracker', targetId: entry.id });
+    // The entry no longer waits for our reply, so its reply task leaves the person's list (audit 2026-10-03, API-9).
+    if (replyEnds) finishReplyTask(ctx, entry);
     touch(ctx, entry.projectId);
     return trackerRowOf(ctx.state, entry, ctx.authority);
   },
