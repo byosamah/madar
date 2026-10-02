@@ -91,6 +91,17 @@ describe('the notifications screen', () => {
     expect(within(item).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
+  it('marks a notice of a deleted item read once the list shows it (audit 2026-10-03, SHL-12)', async () => {
+    const { store } = await renderApp('/notifications', (state) => {
+      withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8), notice('ntf_902', 'overdue', 'task', 'tsk_010', TODAY_7, null)])(state);
+      delete state.tasks.tsk_012;
+    });
+    expect(await screen.findByText('This item does not exist anymore.')).toBeInTheDocument();
+    await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
+    // A notice whose item is still here keeps its dot until the person opens it.
+    expect(store.state.notifications.ntf_902.read).toBe(false);
+  });
+
   it('shows Retry when the Inbox cannot load', async () => {
     const { api } = await renderApp('/notifications', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]), { failFirst: 'notifications.list' });
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));

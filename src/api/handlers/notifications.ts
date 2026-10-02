@@ -100,7 +100,9 @@ const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => 
 
 function counts(ctx: Ctx): { unread: number; badge: number } {
   const unread = mine(ctx).filter((n) => !n.read);
-  return { unread: unread.length, badge: unread.filter((n) => ACTION_TRIGGERS.has(n.trigger)).length };
+  // A notice of a deleted item has nothing to open and nothing to do, so the badge leaves it out (audit 2026-10-03, SHL-12).
+  const badge = unread.filter((n) => ACTION_TRIGGERS.has(n.trigger) && !viewOf(ctx.state, n, ctx.authority).gone);
+  return { unread: unread.length, badge: badge.length };
 }
 
 export const notificationsList = defineCall({
@@ -108,10 +110,14 @@ export const notificationsList = defineCall({
   output: z.array(NotificationView),
   readOnly: true,
   run(input, ctx) {
-    return mine(ctx)
+    const sorted = mine(ctx)
       .filter((n) => !input.unreadOnly || !n.read)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-      .slice(0, input.limit)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+    // Every unread notice shows, so the bell never counts one that the list hides. The newest read ones fill the rest
+    // of the limit, and the list keeps its order by time (audit 2026-10-03, SHL-13).
+    let room = Math.max(0, input.limit - sorted.filter((n) => !n.read).length);
+    return sorted
+      .filter((n) => !n.read || room-- > 0)
       .map((n) => viewOf(ctx.state, n, ctx.authority));
   },
 });

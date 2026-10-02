@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { BellIcon } from '../../components/icons/animated/bell';
 import { motion } from 'motion/react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
@@ -121,6 +121,13 @@ export function NotificationsScreen() {
   const dayLabel = (day: string) => (day === today ? t('inbox.today') : day === addDays(today, -1) ? t('inbox.yesterday') : formatDay(day, lang, 'long'));
   const items = list.data ?? [];
   const unread = items.some((view) => !view.notification.read);
+  // A notice of a deleted item has nothing to open, so it turns read once the list shows it (audit 2026-10-03, SHL-12).
+  const markGone = useAction('notifications.markRead');
+  const goneUnread = items.filter((view) => view.gone && !view.notification.read).map((view) => view.notification.id).join(',');
+  useEffect(() => {
+    if (goneUnread) markGone.mutate({ ids: goneUnread.split(',').slice(0, 200) });
+    // The mutation object changes on every render. Only a new set of gone notices matters here.
+  }, [goneUnread]);
   return (
     <>
       <ScreenTitle
