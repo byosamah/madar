@@ -1259,6 +1259,7 @@
     "label": "Reason",
     "hint": "Madar posts your reason in the task's Conversation.",
     "confirm": "Save dates",
+    "meetingReason": "Decided in the meeting on {{date}}",
     "change": "{{field}}: from {{from}} to {{to}}",
     "none": "no date",
     "madar": "Madar",

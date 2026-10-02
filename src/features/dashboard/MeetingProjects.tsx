@@ -27,21 +27,25 @@ export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
   return { doing, ...needsAttention(mine, today) };
 }
 
-function TaskItem({ row, label }: { row: TaskRow; label?: string }) {
+function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen: (row: TaskRow) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   const when = word && row.task.dueDate ? dueText(word, t, lang, row.task.dueDate) : null;
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <Avatar user={row.owner} size={36} />
-      <span className="min-w-0 flex-1">
-        <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
-        <span className="block truncate text-[15px] text-ink-2">
-          <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+    <li>
+      {/* The whole item is one button: a press opens the task panel over the meeting. */}
+      <button type="button" onClick={() => onOpen(row)} className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start">
+        {/* The owner name is in the text below, so the picture stays out of the button name and the name starts with the title. */}
+        <span aria-hidden className="shrink-0"><Avatar user={row.owner} size={36} /></span>
+        <span className="min-w-0 flex-1">
+          <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
+          <span className="block truncate text-[15px] text-ink-2">
+            <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+          </span>
         </span>
-      </span>
-      {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+        {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+      </button>
     </li>
   );
 }
@@ -62,7 +66,7 @@ function Column({ title, empty, children, count }: { title: string; empty: strin
  * One project per screen, for a meeting (owner, 2026-10-01): where it stands, the work in progress now with its people,
  * what needs a decision, and what comes next. The arrow keys move between projects.
  */
-export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: TaskRow[]; index: number; total: number }) {
+export function MeetingProject({ row, tasks, index, total, onOpenTask }: { row: Row; tasks: TaskRow[]; index: number; total: number; onOpenTask: (taskId: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const today = todayISO();
@@ -73,6 +77,7 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
   const posts = useCall('updates.list', { projectId: row.project.id, filter: 'posts' });
   const latest = posts.data?.find((item) => item.kind === 'update');
   const attentionCount = work.pastDue.length + work.review.length + work.flagged.length;
+  const open = (item: TaskRow) => onOpenTask(item.task.id);
   const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
   return (
     <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
@@ -102,12 +107,12 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
       </header>
       <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
         <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
-          {work.doing.map((item) => <TaskItem key={item.task.id} row={item} />)}
+          {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
         </Column>
         <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
-          {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} />)}
-          {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} />)}
-          {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} />)}
+          {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
+          {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
+          {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
         </Column>
         <div className="flex min-h-0 min-w-0 flex-col gap-5">
           <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
+import { MeetingProvider } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -22,6 +23,7 @@ import { oneOf } from '../../lib/params';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
+import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
@@ -278,10 +280,27 @@ export function MeetingView() {
   modeRef.current = mode;
   const countRef = useRef(0);
   countRef.current = dashboard.data?.schedule.length ?? 0;
+  // The meeting opened now. Task 3 replaces this source with the meeting session.
+  const [startedAt] = useState(() => new Date().toISOString());
+  const meeting = useMemo(() => ({ startedAt }), [startedAt]);
+  // The open task lives in the link, so a reload keeps it. A press replaces the entry, it does not add one.
+  const taskId = params.get('task');
+  const openTask = (id: string) => setParams((current) => {
+    const value = new URLSearchParams(current);
+    value.set('task', id);
+    return value;
+  }, { replace: true });
+  const closeTask = () => setParams((current) => {
+    const value = new URLSearchParams(current);
+    value.delete('task');
+    return value;
+  }, { replace: true });
   const exit = () => navigate({ pathname: '/dashboard', search: params.toString() });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      // A dialog owns the keys while it is open. Escape then closes the dialog only.
+      if (document.querySelector('[role="dialog"]')) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         exit();
@@ -313,7 +332,10 @@ export function MeetingView() {
     client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);
 
+  // The task panel belongs to the project on the screen. A finished task leaves the open-task list, so the panel does not look the task up there.
+  const shown = view && view.schedule.length > 0 ? view.schedule[Math.min(slide, view.schedule.length - 1)] : null;
   return (
+    <MeetingProvider value={meeting}>
     <main aria-label={t('dashboard.meeting.title')} className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10">
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 pb-4">
         <div className="min-w-0">
@@ -373,6 +395,7 @@ export function MeetingView() {
           tasks={tasks.data ?? []}
           index={Math.min(slide, view.schedule.length - 1)}
           total={view.schedule.length}
+          onOpenTask={openTask}
         />
       )}
       {mode === 'timeline' && view && view.schedule.length > 0 && (
@@ -439,6 +462,8 @@ export function MeetingView() {
           </ul>
         </div>
       )}
+      {mode === 'projects' && taskId && shown && <ProjectTaskSheet key={taskId} projectId={shown.project.id} taskId={taskId} onClose={closeTask} />}
     </main>
+    </MeetingProvider>
   );
 }
