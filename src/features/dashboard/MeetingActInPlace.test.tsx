@@ -26,8 +26,9 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
     await renderApp(MEETING, shoreWalkFirst);
     const article = await screen.findByRole('article');
     expect(screen.getByRole('button', { name: /^Agenda 1 of 9/, hidden: true })).toBeInTheDocument();
-    const progress = within(within(article).getByRole('region', { name: 'In progress now' }));
-    await userEvent.click(progress.getByRole('button', { name: /^Progress photos/ }));
+    // Progress photos is late, so it shows once, under Needs attention (the ADHD pass).
+    const attention = within(within(article).getByRole('region', { name: 'Needs attention' }));
+    await userEvent.click(attention.getByRole('button', { name: /^Progress photos/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Progress photos' });
     expect(window.location.hash).toContain('/dashboard/meeting');
     expect(window.location.hash).toContain('task=tsk_130');
@@ -68,7 +69,7 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
     expect(window.location.hash).not.toContain('task=');
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    await userEvent.click(within(await screen.findByRole('region', { name: 'In progress now' })).getByRole('button', { name: /^Progress photos/ }));
+    await userEvent.click(within(await screen.findByRole('region', { name: 'Needs attention' })).getByRole('button', { name: /^Progress photos/ }));
     await screen.findByRole('dialog', { name: 'Progress photos' });
     await userEvent.click(screen.getByRole('radio', { name: 'Timeline', hidden: true }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());

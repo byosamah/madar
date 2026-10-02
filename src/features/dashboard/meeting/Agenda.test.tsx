@@ -69,13 +69,13 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await userEvent.click(within(choices).getByRole('radio', { name: '10 minutes' }));
     await closeAgenda(sheet);
     expect(timer()).toHaveTextContent('8:59 left');
-    await userEvent.click(screen.getByRole('button', { name: 'Next project' }));
+    await userEvent.keyboard('{ArrowRight}');
     await screen.findByRole('article', { name: 'Corniche Office Tower' });
     expect(timer()).toHaveTextContent('10:00 left');
     pass(665);
     expect(timer()).toHaveTextContent('1:05 over');
     expect(timer()).toHaveClass('text-attn');
-    await userEvent.click(screen.getByRole('button', { name: 'Previous project' }));
+    await userEvent.keyboard('{ArrowLeft}');
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(timer()).toHaveTextContent('8:59 left');
   });
@@ -260,7 +260,7 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Done' }));
     await screen.findByRole('article', { name: 'Corniche Office Tower' });
     setNow(NEXT_MORNING);
-    await userEvent.click(screen.getByRole('button', { name: 'Next project' }));
+    await userEvent.keyboard('{ArrowRight}');
     await waitFor(() => expect(saved('madar.meeting.2026-10-01')).not.toBeNull());
     expect(saved('madar.meeting.2026-10-01')?.discussed).toEqual([]);
     const sheet = await openAgenda();

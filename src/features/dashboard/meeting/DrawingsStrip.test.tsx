@@ -62,15 +62,16 @@ describe('drawings in the meeting (owner, 2026-10-02)', () => {
     expect(screen.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
   });
 
-  it('scrolls with the people and the panels, so nothing is pinned under the panels', async () => {
+  it('scrolls with the panels, so nothing is pinned under the panels', async () => {
     await renderApp(MEETING, withDrawings);
     const article = within(await screen.findByRole('article'));
     const scrollAreaOf = (node: HTMLElement) => node.closest('.overflow-y-auto');
     const drawings = scrollAreaOf(await article.findByRole('region', { name: 'Drawings' }));
     expect(drawings).not.toBeNull();
-    for (const name of ['People', 'In progress now', 'Latest update']) expect(scrollAreaOf(article.getByRole('region', { name }))).toBe(drawings);
-    // The project header stays in place above the scroll area.
+    for (const name of ['Needs attention', 'Decisions', 'Latest update']) expect(scrollAreaOf(article.getByRole('region', { name }))).toBe(drawings);
+    // The project header, with its people, stays in place above the scroll area.
     expect(scrollAreaOf(article.getByRole('heading', { level: 2 }))).toBeNull();
+    expect(scrollAreaOf(article.getByRole('region', { name: 'People' }))).toBeNull();
   });
 
   it('shows no Drawings region when the project has no image or PDF file', async () => {

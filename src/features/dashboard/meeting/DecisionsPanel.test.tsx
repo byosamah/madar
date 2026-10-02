@@ -56,7 +56,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     const project = shoreWalk(store.state);
     const person = store.state.users[project.leaderId!];
     const decisions = await panel();
-    await userEvent.click(decisions.getByRole('button', { name: 'Action' }));
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
     await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Revise sections');
     await userEvent.selectOptions(decisions.getByRole('combobox', { name: 'Who' }), person.id);
     const by = decisions.getByLabelText('Due date');
@@ -95,7 +95,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     });
     const decisions = await panel();
     expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toBeInTheDocument();
-    expect(decisions.queryByRole('button', { name: 'Action' })).toBeNull();
+    expect(decisions.queryByRole('radio', { name: 'Action' })).toBeNull();
   });
 
   it('does not render for a viewer who may do neither, when the list is empty', async () => {
