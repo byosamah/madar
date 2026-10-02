@@ -22,7 +22,7 @@ import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
-import { AgendaBar } from './meeting/AgendaBar';
+import { AgendaBar, AgendaButton } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
 import { MeetingSummary, type SharedSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
@@ -284,10 +284,10 @@ export function MeetingView() {
   const session = useMeetingSession(agendaIds, mode === 'projects' && !summaryOpen);
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [bigScreen, setBigScreen] = useState(readBigScreen);
-  const toggleBigScreen = () => setBigScreen((on) => {
-    try { window.localStorage.setItem(BIG_SCREEN_KEY, on ? '0' : '1'); } catch { /* blocked storage: the choice lasts until the page closes */ }
-    return !on;
-  });
+  const changeBigScreen = (on: boolean) => {
+    try { window.localStorage.setItem(BIG_SCREEN_KEY, on ? '1' : '0'); } catch { /* blocked storage: the choice lasts until the page closes */ }
+    setBigScreen(on);
+  };
   useWakeLock();
   // Big screen zooms the whole page, so the panels over the meeting grow too: they live outside <main>.
   // Zoom also scales the screen-height units, so the page divides its height by the zoom and still fits the screen.
@@ -381,12 +381,14 @@ export function MeetingView() {
       // The letter keys go by the physical key, so an Arabic keyboard works too.
       const letter = ['KeyN', 'KeyB', 'KeyA', 'KeyT'].includes(event.code);
       if (letter) {
-        if (summaryRef.current || modeRef.current !== 'projects') return;
+        if (summaryRef.current) return;
         const run = sessionRef.current;
+        // The agenda opens in both modes. The other letters work on the project screens only.
+        if (event.code === 'KeyA') { event.preventDefault(); setAgendaOpen(true); return; }
+        if (modeRef.current !== 'projects') return;
         event.preventDefault();
         if (event.code === 'KeyN') run.goTo(run.current + 1);
         else if (event.code === 'KeyB') run.goTo(run.current - 1);
-        else if (event.code === 'KeyA') setAgendaOpen(true);
         else run.togglePause();
         return;
       }
@@ -441,10 +443,13 @@ export function MeetingView() {
             onChange={(next) => setMode(next)}
             options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
           />
+          {session.order.length > 0 && (
+            <AgendaButton session={session} showPosition={!summaryOpen && mode === 'projects'} onOpenAgenda={() => setAgendaOpen(true)} />
+          )}
           {/* The summary takes the place of the screen, so the controls of the screen below it hide too. */}
           {!summaryOpen && mode === 'projects' && shown && (
             <>
-              <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} onOpenSummary={() => setSummaryOpen(true)} />
+              <AgendaBar session={session} onOpenSummary={() => setSummaryOpen(true)} />
               <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
                 <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
@@ -470,9 +475,6 @@ export function MeetingView() {
           </Button>
           </>
           )}
-          {/* The on state looks like the other pressed buttons (a reaction you gave): a stronger fill and an accent ring. */}
-          <Button aria-pressed={bigScreen} className={bigScreen ? '!bg-fill-strong ring-1 ring-inset ring-accent' : ''} onClick={toggleBigScreen}>{t('dashboard.meeting.bigScreen')}</Button>
-          <Button onClick={() => setSummaryOpen(true)}>{t('dashboard.meeting.summaryButton')}</Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
       </header>
@@ -489,8 +491,6 @@ export function MeetingView() {
           key={shown.project.id}
           row={shown}
           tasks={tasks.data ?? []}
-          index={session.current}
-          total={session.order.length}
           discussed={session.discussed.has(shown.project.id)}
           onOpenTask={openTask}
         />
@@ -560,7 +560,17 @@ export function MeetingView() {
         </div>
       )}
       {mode === 'projects' && taskId && <MeetingTaskSheet key={taskId} taskId={taskId} onClose={closeTask} />}
-      {mode === 'projects' && agendaOpen && <AgendaSheet rows={rowOf} session={session} onClose={() => setAgendaOpen(false)} />}
+      {agendaOpen && (
+        <AgendaSheet
+          rows={rowOf}
+          session={session}
+          bigScreen={bigScreen}
+          onBigScreen={changeBigScreen}
+          onPick={(id) => { setSummaryOpen(false); setMode('projects', id); }}
+          onSummary={() => setSummaryOpen(true)}
+          onClose={() => setAgendaOpen(false)}
+        />
+      )}
     </main>
     </MeetingProvider>
   );

@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { setNow } from '../../../lib/dates';
 import { renderApp } from '../../../test/render';
+import { openSummary } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 const KEY = 'madar.meeting.2026-09-30';
@@ -100,11 +101,13 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     await ticking();
     pass(20);
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     await screen.findByRole('region', { name: 'Meeting summary' });
     await flush();
     expect(screen.queryByRole('timer')).toBeNull();
-    for (const name of [/^Agenda/, 'Done', 'Skip', 'Pause timer', 'Previous project', 'Next project']) expect(screen.queryByRole('button', { name })).toBeNull();
+    for (const name of ['Done', 'Skip', 'Pause timer', 'Previous project', 'Next project']) expect(screen.queryByRole('button', { name })).toBeNull();
+    // The summary keeps the Agenda button (without the position) and Exit.
+    expect(screen.getByRole('button', { name: 'Agenda' })).toBeInTheDocument();
     pass(60);
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
@@ -115,7 +118,7 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
   it('hides the timeline controls while the summary shows', async () => {
     await renderApp('/dashboard/meeting');
     await screen.findByRole('list', { name: 'Project timeline' });
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     await screen.findByRole('region', { name: 'Meeting summary' });
     for (const name of ['One month earlier', 'One month later', 'Today']) expect(screen.queryByRole('button', { name })).toBeNull();
     expect(screen.queryByRole('radiogroup', { name: 'Zoom' })).toBeNull();

@@ -85,11 +85,11 @@ describe('the meeting view project screens', () => {
   it('shows each project with its work in progress, then moves with the arrow keys', async () => {
     await renderApp('/dashboard/meeting?mode=projects');
     const first = await screen.findByRole('article');
-    expect(within(first).getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
     expect(within(first).getByRole('region', { name: 'In progress now' })).toBeInTheDocument();
     expect(within(first).getByRole('region', { name: 'Needs attention' })).toBeInTheDocument();
     await userEvent.keyboard('{ArrowRight}');
-    expect(await screen.findByText(/Project 2 of 9/)).toBeInTheDocument();
+    expect(await screen.getByRole('button', { name: /^Agenda 2 of 9/ })).toBeInTheDocument();
   });
 
   it('lists the work counts on the timeline and opens a project screen with "Open project"', async () => {

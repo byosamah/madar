@@ -59,7 +59,7 @@ describe('drawings in the meeting (owner, 2026-10-02)', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getByRole('article')).toBeInTheDocument();
-    expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
   });
 
   it('scrolls with the people and the panels, so nothing is pinned under the panels', async () => {

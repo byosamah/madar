@@ -961,7 +961,6 @@
       },
       "previous": "المشروع السابق",
       "next": "المشروع التالي",
-      "projectOf": "المشروع {{n}} من {{total}}",
       "inProgress": "قيد التنفيذ الآن",
       "nothingInProgress": "لا شيء قيد التنفيذ.",
       "chains": "ما ينتظر",
@@ -989,6 +988,7 @@
       "timeOver": "تجاوز الوقت {{time}}",
       "pauseTimer": "إيقاف المؤقت",
       "resumeTimer": "استئناف المؤقت",
+      "timerPaused": "متوقف · {{time}}",
       "done": "تم",
       "skip": "تخطي",
       "timeEach": "الوقت لكل مشروع",
@@ -998,7 +998,7 @@
       "minutes_few": "{{count}} دقائق",
       "minutes_many": "{{count}} دقيقة",
       "minutes_other": "{{count}} دقيقة",
-      "summaryButton": "الملخص",
+      "seeSummary": "عرض ملخص الاجتماع",
       "openSummary": "فتح الملخص",
       "summary": {
         "title": "ملخص الاجتماع",
@@ -1049,6 +1049,7 @@
         }
       },
       "bigScreen": "شاشة كبيرة",
+      "bigScreenHint": "نص أكبر لشاشة قاعة الاجتماعات",
       "keys": {
         "label": "المفاتيح:",
         "next": "التالي",

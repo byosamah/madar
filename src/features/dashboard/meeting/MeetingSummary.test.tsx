@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { openSummary } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -28,7 +29,7 @@ async function approveThenSummary(prepare: (state: State) => void = waitsForRevi
   await waitFor(() => expect(Object.values(rendered.store.state.events).some((event) => event.verb === 'task.approved')).toBe(true));
   await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Handover checklist' })).toBeNull());
-  await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+  await openSummary();
   return rendered;
 }
 
@@ -93,7 +94,7 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     await waitFor(() => expect(store.state.tasks.tsk_130.dueDate).toBe('2026-10-26'));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     const summary = await screen.findByRole('region', { name: 'Meeting summary' });
     const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
     // The reason is a message in the task Conversation. It joins the line of its move, so it is not a second line.
@@ -117,7 +118,7 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     // A change and its Undo in the same meeting cancel out, so neither shows.
     await api.call('tasks.update', { id: 'tsk_131', patch: { flagged: true } }, { correlationId: 'cor_meeting_undo' });
     await api.call('events.undoStory', { correlationId: 'cor_meeting_undo' });
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     const summary = await screen.findByRole('region', { name: 'Meeting summary' });
     const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
     const whats = project.getAllByRole('listitem').map((item) => item.querySelector('.text-ink-2:not(bdi)')?.textContent);
@@ -145,13 +146,13 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     expect(messages()).toHaveLength(before + 1);
     // Back and Summary again show the same summary, so it stays shared.
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     expect(await screen.findByRole('button', { name: 'Shared to 1 chat' })).toBeDisabled();
     // A new decision changes the summary, so it can go to the chats again.
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Write a decision' }), 'Order the stone tiles{Enter}');
     await waitFor(() => expect(Object.values(store.state.updates).some((update) => update.body === 'Order the stone tiles')).toBe(true));
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     expect(await screen.findByRole('button', { name: 'Share to the project chats' })).toBeEnabled();
   });
 
@@ -168,13 +169,13 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
   it('says so when nothing changed, and goes back to the same project', async () => {
     await renderApp(MEETING, waitsForReview);
     await screen.findByRole('article');
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     expect(await screen.findByText('No changes in this meeting yet.')).toBeInTheDocument();
     // The meeting started at the pinned time of the tests, 09:00 office time.
     expect(screen.getByText('Changes since 09:00')).toBeInTheDocument();
     expect(screen.queryByRole('article')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(await screen.findByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(await screen.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
     expect(screen.queryByText('No changes in this meeting yet.')).toBeNull();
   });
 });

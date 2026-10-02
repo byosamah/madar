@@ -4,6 +4,7 @@ import { Button } from '../../../components/Button';
 import { ProjectTile } from '../../../components/ProjectTile';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
+import { Switch } from '../../../components/Switch';
 import { counted } from '../../../lib/grammar';
 import type { DashboardData } from '../Tiles';
 import { MEETING_MINUTES, type MeetingMinutes, type MeetingSession } from './session';
@@ -16,10 +17,19 @@ const KEYS = [['N', 'next'], ['B', 'back'], ['A', 'agenda'], ['T', 'timer'], ['E
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
 /**
- * The agenda of the meeting: the projects in order with their state, a press to go to one, the time for each project,
- * and "Start a new meeting". A new meeting clears the marks and the timers, so the first press only asks.
+ * The agenda of the meeting: the projects in order with their state, a press to go to one, the summary, the time for each project,
+ * the Big screen switch, and "Start a new meeting". A new meeting clears the marks and the timers, so the first press only asks.
  */
-export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<string, Row>; session: MeetingSession; onClose: () => void }) {
+export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onSummary, onClose }: {
+  rows: ReadonlyMap<string, Row>;
+  session: MeetingSession;
+  bigScreen: boolean;
+  onBigScreen: (on: boolean) => void;
+  /** A press on a project: the meeting shows that project on the project screens. */
+  onPick: (id: string) => void;
+  onSummary: () => void;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const [asking, setAsking] = useState(false);
   return (
@@ -54,7 +64,7 @@ export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<stri
                 <button
                   type="button"
                   aria-current={now ? 'step' : undefined}
-                  onClick={() => { session.goTo(index); onClose(); }}
+                  onClick={() => { onPick(id); onClose(); }}
                   className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start"
                 >
                   <span className="tabular w-6 shrink-0 text-[15px] text-ink-2">{index + 1}</span>
@@ -66,15 +76,7 @@ export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<stri
             );
           })}
         </ol>
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-2">
-          <span>{t('dashboard.meeting.keys.label')}</span>
-          {KEYS.map(([key, word]) => (
-            <span key={key} className="inline-flex items-center gap-1.5">
-              <kbd dir="ltr" className="rounded-md bg-fill px-1.5 py-0.5 font-sans text-[14px] font-semibold text-ink">{key}</kbd>
-              <span>{t(`dashboard.meeting.keys.${word}`)}</span>
-            </span>
-          ))}
-        </p>
+        <Button className="self-start" onClick={() => { onClose(); onSummary(); }}>{t('dashboard.meeting.seeSummary')}</Button>
         <div className="flex flex-col gap-2">
           <h3 className={HEADING}>{t('dashboard.meeting.timeEach')}</h3>
           <SegmentedControl
@@ -84,6 +86,16 @@ export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<stri
             options={MEETING_MINUTES.map((minutes) => ({ value: String(minutes), label: counted(t, 'dashboard.meeting.minutes', minutes) }))}
           />
         </div>
+        <Switch id="meeting-big-screen" label={t('dashboard.meeting.bigScreen')} description={t('dashboard.meeting.bigScreenHint')} checked={bigScreen} onChange={onBigScreen} />
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-2">
+          <span>{t('dashboard.meeting.keys.label')}</span>
+          {KEYS.map(([key, word]) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <kbd dir="ltr" className="rounded-md bg-fill px-1.5 py-0.5 font-sans text-[14px] font-semibold text-ink">{key}</kbd>
+              <span>{t(`dashboard.meeting.keys.${word}`)}</span>
+            </span>
+          ))}
+        </p>
       </div>
     </Sheet>
   );
