@@ -3,6 +3,7 @@ import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { openSummary, pressBigScreen } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 const BIG = 'madar.meeting.bigScreen';
@@ -88,7 +89,7 @@ describe('meeting keys (owner, 2026-10-02)', () => {
   it('closes the summary with Escape first, and leaves the meeting with the next Escape', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article');
-    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await openSummary();
     await screen.findByRole('region', { name: 'Meeting summary' });
     await userEvent.keyboard('{Escape}');
     expect(window.location.hash).toContain('/dashboard/meeting');
@@ -130,18 +131,17 @@ describe('meeting keys (owner, 2026-10-02)', () => {
 });
 
 describe('big screen (owner, 2026-10-02)', () => {
-  it('toggles aria-pressed and stays on after the view renders again', async () => {
+  it('toggles the switch in the Agenda sheet and stays on after the view renders again', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article');
-    const button = screen.getByRole('button', { name: 'Big screen' });
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-    await userEvent.click(button);
-    expect(screen.getByRole('button', { name: 'Big screen' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await pressBigScreen()).toBe(true);
     expect(window.localStorage.getItem(BIG)).toBe('1');
     cleanup();
     await renderApp(MEETING);
     await screen.findByRole('article');
-    expect(screen.getByRole('button', { name: 'Big screen' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: /^Agenda/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Agenda' });
+    expect(within(sheet).getByRole('switch', { name: 'Big screen' })).toHaveAttribute('aria-checked', 'true');
   });
 });
 
@@ -150,29 +150,21 @@ describe('big screen for the whole page (final review, 2026-10-02)', () => {
     await renderApp(MEETING);
     await screen.findByRole('article');
     const root = document.documentElement;
-    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    await pressBigScreen();
     expect(root.style.zoom).toBe('1.25');
     // The zoom sits on the page, not on the meeting box as well, so it does not count twice.
     expect(screen.getByRole('main').style.zoom).toBe('');
     // Zoom also scales the screen height, so the page and the meeting box divide their height by the zoom.
     expect(document.body.style.minHeight).not.toBe('');
     expect(screen.getByRole('main').style.height).not.toBe('');
-    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    await pressBigScreen();
     expect(root.style.zoom).toBe('');
     expect(document.body.style.minHeight).toBe('');
-    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    await pressBigScreen();
     expect(root.style.zoom).toBe('1.25');
     await userEvent.click(screen.getByRole('button', { name: 'Exit' }));
     await waitFor(() => expect(root.style.zoom).toBe(''));
     expect(document.body.style.minHeight).toBe('');
-  });
-
-  it('shows the on state like the other pressed buttons', async () => {
-    await renderApp(MEETING);
-    await screen.findByRole('article');
-    expect(screen.getByRole('button', { name: 'Big screen' })).not.toHaveClass('ring-accent');
-    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
-    expect(screen.getByRole('button', { name: 'Big screen' })).toHaveClass('ring-1', 'ring-inset', 'ring-accent');
   });
 });
 

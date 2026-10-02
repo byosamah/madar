@@ -869,7 +869,6 @@
       },
       "previous": "Previous project",
       "next": "Next project",
-      "projectOf": "Project {{n}} of {{total}}",
       "inProgress": "In progress now",
       "nothingInProgress": "Nothing is in progress.",
       "chains": "What waits",
@@ -897,11 +896,12 @@
       "timeOver": "{{time}} over",
       "pauseTimer": "Pause timer",
       "resumeTimer": "Resume timer",
+      "timerPaused": "Paused · {{time}}",
       "done": "Done",
       "skip": "Skip",
       "timeEach": "Time for each project",
       "minutes": "{{n}} minutes",
-      "summaryButton": "Summary",
+      "seeSummary": "See the meeting summary",
       "openSummary": "Open the summary",
       "summary": {
         "title": "Meeting summary",
@@ -938,6 +938,7 @@
         }
       },
       "bigScreen": "Big screen",
+      "bigScreenHint": "Larger text for the meeting-room screen",
       "keys": {
         "label": "Keys:",
         "next": "next",

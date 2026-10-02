@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+import { openSummary } from './meeting/steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -24,7 +25,7 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
   it('opens the task panel over the meeting with a press, and closes it back to the same project', async () => {
     await renderApp(MEETING, shoreWalkFirst);
     const article = await screen.findByRole('article');
-    expect(within(article).getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/, hidden: true })).toBeInTheDocument();
     const progress = within(within(article).getByRole('region', { name: 'In progress now' }));
     await userEvent.click(progress.getByRole('button', { name: /^Progress photos/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Progress photos' });
@@ -35,19 +36,19 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
     expect(window.location.hash).not.toContain('task=');
-    expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/, hidden: true })).toBeInTheDocument();
   });
 
   it('closes only the panel with Escape, and leaves the project alone with the arrow keys', async () => {
     await renderApp(`${MEETING}&task=tsk_130`, shoreWalkFirst);
     await screen.findByRole('dialog', { name: 'Progress photos' });
     await userEvent.keyboard('{ArrowRight}');
-    expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/, hidden: true })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
     expect(window.location.hash).toContain('/dashboard/meeting');
     expect(screen.getByRole('heading', { level: 1, name: 'Madar' })).toBeInTheDocument();
-    expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 1 of 9/, hidden: true })).toBeInTheDocument();
   });
 
   it('closes the task panel when Done moves the meeting to the next project', async () => {
@@ -57,13 +58,13 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
     await userEvent.click(controls.getByRole('button', { name: 'Done', hidden: true }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
     expect(window.location.hash).not.toContain('task=');
-    expect(screen.getByText(/Project 2 of 9/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Agenda 2 of 9/ })).toBeInTheDocument();
   });
 
   it('closes the task panel when the summary opens, and when the mode changes', async () => {
     await renderApp(`${MEETING}&task=tsk_130`, shoreWalkFirst);
     await screen.findByRole('dialog', { name: 'Progress photos' });
-    await userEvent.click(screen.getByRole('button', { name: 'Summary', hidden: true }));
+    await openSummary();
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
     expect(window.location.hash).not.toContain('task=');
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
