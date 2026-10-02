@@ -16,6 +16,7 @@ import { compareTasks } from '../../lib/stageFlow';
 import { ClientItemsPanel } from './meeting/ClientItemsPanel';
 import { DecisionsPanel } from './meeting/DecisionsPanel';
 import { DrawingsStrip } from './meeting/DrawingsStrip';
+import { PeopleStrip } from './meeting/PeopleStrip';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -111,6 +112,7 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
           )}
         </div>
       </header>
+      <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
       <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
         <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
           {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}

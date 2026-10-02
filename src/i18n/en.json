@@ -817,6 +817,13 @@
     "meeting": {
       "title": "Meeting view",
       "clientItems": "Client items",
+      "people": "People",
+      "personOpen": "{{n}} open",
+      "personOpen_one": "1 open",
+      "personOpen_other": "{{count}} open",
+      "personLate": "{{n}} late",
+      "personLate_one": "1 late",
+      "personLate_other": "{{count}} late",
       "drawings": "Drawings",
       "decisions": "Decisions",
       "entryKind": "What to add",
