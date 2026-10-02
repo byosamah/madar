@@ -550,7 +550,7 @@ In the real build, each call becomes `POST /api/<name>` on a Python server (Fast
 | Session | `session.get`, `session.previewAs` (prototype only) |
 | Users | `users.list`, `users.get`, `users.create`, `users.update`, `users.deactivate` |
 | Clients | `clients.list`, `clients.create`, `clients.update` |
-| Projects | `projects.list`, `projects.get`, `projects.create`, `projects.update`, `projects.setStage`, `projects.setLeader`, `projects.setStatus`, `projects.setHealthOverride`, `projects.clearHealthOverride`, `projects.delete` |
+| Projects | `projects.list`, `projects.get`, `projects.create`, `projects.update`, `projects.setLeader`, `projects.setStatus`, `projects.setHealthOverride`, `projects.clearHealthOverride`, `projects.delete` |
 | Members | `members.add`, `members.remove`, `members.update` |
 | Stages | `stages.replace`, `stages.setDates` |
 | Deadlines | `deadlines.create`, `deadlines.update`, `deadlines.delete` |
