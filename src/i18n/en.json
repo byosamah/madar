@@ -1015,6 +1015,8 @@
     "discipline": "Discipline",
     "deactivate": "Deactivate",
     "deactivated": "{{name}} deactivated.",
+    "reactivate": "Reactivate",
+    "reactivated": "{{name}} reactivated.",
     "added": "{{name}} added.",
     "saved": "Saved.",
     "inactive": "Inactive",

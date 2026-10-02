@@ -42,8 +42,8 @@ const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'p
 const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
 // Office teams (colleague comment 15). Adding a whole team to a project is a member call.
 const TEAM_CALLS = ['teams.list', 'teams.create', 'teams.update', 'teams.delete', 'members.addTeam'];
-// Fixes from the audit of 2026-10-03: the Undo of "Mark all read" (SHL-16).
-const AUDIT_CALLS = ['notifications.markUnread'];
+// Fixes from the audit of 2026-10-03: the Undo of "Mark all read" (SHL-16), and a way back for a deactivated person (SHL-7).
+const AUDIT_CALLS = ['notifications.markUnread', 'users.reactivate'];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 
 describe('the call map', () => {

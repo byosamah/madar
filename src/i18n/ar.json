@@ -1127,6 +1127,8 @@
     "discipline": "التخصص",
     "deactivate": "إيقاف الحساب",
     "deactivated": "أُوقف حساب {{name}}.",
+    "reactivate": "إعادة تفعيل الحساب",
+    "reactivated": "أُعيد تفعيل حساب {{name}}.",
     "added": "تمت إضافة {{name}}.",
     "saved": "تم الحفظ.",
     "inactive": "غير نشط",

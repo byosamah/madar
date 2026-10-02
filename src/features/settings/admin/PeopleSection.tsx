@@ -20,7 +20,10 @@ export function PeopleSection() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: user.name }) });
+  // A person deactivated by mistake can come back with their account and history (audit 2026-10-03, SHL-7).
+  const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: user.name }) });
   const me = session.data?.authority.id;
+  const byId = new Map((users.data ?? []).map((user) => [user.id, user]));
   // Management cannot change an Admin, so an Admin's row has no actions for it.
   const viewerIsAdmin = session.data?.authority.systemRole === 'admin';
   return (
@@ -56,6 +59,8 @@ export function PeopleSection() {
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.mutate({ id: user.id }), hidden: !user.active || user.id === me, destructive: true },
+                // An agent comes back only while its person is active, as the API asks.
+                { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !byId.get(user.ownerId ?? '')?.active) },
               ]}
             />}
           </li>

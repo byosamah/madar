@@ -41,6 +41,19 @@ describe('the Admin page', () => {
     await waitFor(() => expect(store.state.users.usr_004.active).toBe(true));
   });
 
+  it('turns a deactivated person on again, with Undo (audit 2026-10-03, SHL-7)', async () => {
+    const { store } = await renderApp('/admin', (state) => {
+      state.users.usr_004.active = false;
+    });
+    const menu = await openMenu('Omar Haddad');
+    expect(within(menu).queryByRole('menuitem', { name: 'Deactivate' })).toBeNull();
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Reactivate' }));
+    await waitFor(() => expect(store.state.users.usr_004.active).toBe(true));
+    expect(await screen.findByText('Omar Haddad reactivated.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
+  });
+
   it('offers no Deactivate on my own row, and refuses to drop the last Admin', async () => {
     const { store } = await renderApp('/admin');
     const menu = await openMenu('Hala Nasser');
