@@ -196,10 +196,10 @@ describe('the bell and the Inbox badge', () => {
   it('opens the notifications from the bell in the pill', async () => {
     await renderApp('/dashboard');
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
-    await userEvent.click(within(nav).getByRole('link', { name: 'Notifications' }));
+    await userEvent.click(within(nav).getByRole('link', { name: /^Notifications/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/notifications');
-    expect(within(nav).getByRole('link', { name: 'Notifications' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /^Notifications/ })).toHaveAttribute('aria-current', 'page');
   });
 
   it('counts unread chat messages on the Inbox tab', async () => {
