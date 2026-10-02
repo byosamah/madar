@@ -7,6 +7,7 @@ import { initI18n } from '../i18n';
 import { TextField } from './Fields';
 import { ContextMenu, Menu, useContextMenu } from './Menu';
 import { Popover } from './Popover';
+import { SegmentedControl } from './SegmentedControl';
 import { Sheet } from './Sheet';
 import { TabPanel, Tabs } from './Tabs';
 
@@ -131,6 +132,37 @@ describe('overlays', () => {
     );
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Task' })).getByText('Save'));
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
+  });
+
+  it('moves the choice of a segmented control with the arrow keys, with one Tab stop (audit 2026-10-03, SHL-18)', async () => {
+    function Demo() {
+      const [value, setValue] = useState<'a' | 'b' | 'c'>('a');
+      return (
+        <>
+          <SegmentedControl label="Theme" value={value} onChange={setValue} options={[{ value: 'a', label: 'System' }, { value: 'b', label: 'Light' }, { value: 'c', label: 'Dark' }]} />
+          <button type="button">After</button>
+        </>
+      );
+    }
+    render(<Demo />);
+    const radio = (name: string) => screen.getByRole('radio', { name });
+    expect(radio('System')).toHaveAttribute('tabindex', '0');
+    expect(radio('Light')).toHaveAttribute('tabindex', '-1');
+    radio('System').focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(radio('Light')).toBeChecked();
+    expect(radio('Light')).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(radio('Dark')).toBeChecked();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(radio('System')).toBeChecked();
+    await userEvent.tab();
+    expect(screen.getByText('After')).toHaveFocus();
+    // In Arabic the left arrow moves forward, the same as the tabs.
+    document.documentElement.dir = 'rtl';
+    radio('System').focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(radio('Light')).toBeChecked();
   });
 
   it('draws a menu at the page level, so no clipping box cuts it off', async () => {
