@@ -226,6 +226,8 @@ function settle(ctx: Ctx, events: Event[], correlationId: string): void {
     .filter((e) => e.correlationId === correlationId && DERIVED.has(e.verb) && !e.undoneBy)
     .sort((a, b) => b.seq - a.seq);
   for (const move of moves) {
+    // Only a stage move made for this person comes back this way. Any other move keeps its own rules.
+    if (move.actingForId !== ctx.authority.id) continue;
     const from = fieldsOf(move.before).currentStageId;
     if (typeof from !== 'string' || stageTag(ctx.state, move.targetId)?.id !== from) continue;
     try {
@@ -266,8 +268,10 @@ export const eventsUndoStory = defineCall({
       .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb))
       .sort((a, b) => b.seq - a.seq);
     if (story.length === 0) throw notFound('Story', input.correlationId);
-    // A reopened task or a moved date rides on the change that caused it (audit 2026-10-03, API-1).
-    const caused = story.some((event) => !FOLLOW_ON.has(event.verb));
+    // A reopened task or a moved date rides on the change that caused it (audit 2026-10-03, API-1). The relief applies only
+    // when the whole story is the person's own, and the cause still passes its full check (a refusal rolls the call back).
+    const mine = story.every((event) => event.actingForId === ctx.authority.id);
+    const caused = mine && story.some((event) => !FOLLOW_ON.has(event.verb));
     const undone = story.map((event) => undoOne(ctx, event, false, caused && FOLLOW_ON.has(event.verb)));
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
