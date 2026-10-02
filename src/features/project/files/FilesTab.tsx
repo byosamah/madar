@@ -15,24 +15,10 @@ import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
-import { Sheet } from '../../../components/Sheet';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
+import { PreviewSheet } from './PreviewSheet';
 import { ShareFileSheet } from './ShareFileSheet';
-
-function PreviewSheet({ view, onClose }: { view: FileView; onClose: () => void }) {
-  const { t } = useTranslation();
-  const url = useFileUrl(view.file.id, view.latest.letter);
-  const type = view.latest.mimeType;
-  let body = <p className="text-subheadline text-label-2">{t('files.noPreview')}</p>;
-  if (url && type.startsWith('image/')) body = <img src={url} alt={view.file.name} className="w-full rounded-2xl bg-white" />;
-  else if (url && type === 'application/pdf') body = <iframe src={url} title={view.file.name} className="h-[70dvh] w-full rounded-2xl bg-white" />;
-  return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={view.file.name} wide>
-      {body}
-    </Sheet>
-  );
-}
 
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
@@ -202,7 +188,7 @@ export function FilesTab({ detail }: TabProps) {
           </section>
         );
       })}
-      {preview && <PreviewSheet view={preview} onClose={() => setPreview(null)} />}
+      {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
       {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} onClose={() => setSharing(null)} />}
     </div>
   );

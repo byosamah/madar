@@ -702,6 +702,8 @@
     "kb": "{{n}} ك.ب",
     "mb": "{{n}} م.ب",
     "noPreview": "لا توجد معاينة لهذا النوع من الملفات.",
+    "previousDrawing": "المخطط السابق",
+    "nextDrawing": "المخطط التالي",
     "share": "مشاركة في محادثة",
     "shareTitle": "مشاركة {{name}}",
     "shareWhere": "المشاركة مع",
@@ -898,6 +900,7 @@
     "meeting": {
       "title": "عرض الاجتماع",
       "clientItems": "بنود العميل",
+      "drawings": "المخططات",
       "decisions": "القرارات",
       "entryKind": "ما الذي تضيفه",
       "kindDecision": "قرار",

@@ -15,6 +15,7 @@ import { needsAttention } from '../../lib/overview';
 import { compareTasks } from '../../lib/stageFlow';
 import { ClientItemsPanel } from './meeting/ClientItemsPanel';
 import { DecisionsPanel } from './meeting/DecisionsPanel';
+import { DrawingsStrip } from './meeting/DrawingsStrip';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -156,6 +157,7 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
           </section>
         </div>
       </div>
+      <DrawingsStrip projectId={row.project.id} />
     </article>
   );
 }
