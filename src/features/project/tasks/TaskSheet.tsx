@@ -25,6 +25,8 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
+import { useStageBack } from './StageBack';
+import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { personOption, TaskHelpers } from './TaskHelpers';
 import { durationText, TaskTiming } from './TaskTiming';
 import { NewVersion, TaskVersions } from './TaskVersions';
@@ -32,7 +34,7 @@ import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 
-type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'flagged' | 'needsReview' | 'checklist'>>;
+type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
 /** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -150,9 +152,12 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const session = useCall('session.get', {});
   const files = useCall('files.list', { projectId: detail.project.id, taskId: data.task.id });
   const { task, viewerCan } = data;
-  const update = useAction('tasks.update');
+  // Reopening a task, or moving it into an earlier stage, can move the project back. The server then asks why (owner, 2026-10-02).
+  const back = useStageBack();
+  const update = useAction('tasks.update', { onRefused: (error, input) => back.refused(error, input, (next) => update.mutate(next)) });
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
+    onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
   const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const sendBack = useAction('tasks.sendBack', {
@@ -248,6 +253,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
             />
+            <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
@@ -262,6 +268,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 {task.schedule === 'dynamic' && task.durationDays && <Fact label={t('taskSheet.duration')}>{durationText(task.durationDays, t)}</Fact>}
               </div>
             )}
+            <DateNotes data={data} />
             {edit
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
@@ -309,6 +316,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
           </div>
         </TabPanel>
       )}
+      {back.sheet}
     </div>
   );
 }

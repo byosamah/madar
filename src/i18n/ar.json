@@ -114,7 +114,12 @@
       "recipient_not_on_project": "هذا الشخص ليس ضمن فريق مشروع هذا الملف. لا يستطيع فتحه.",
       "client_name_missing": "اكتب اسم العميل بالإنجليزية أو بالعربية.",
       "stage_back_reason": "اكتب سبب رجوع المشروع.",
-      "duplicate_team": "يوجد فريق بهذا الاسم. استخدم اسمًا آخر."
+      "duplicate_team": "يوجد فريق بهذا الاسم. استخدم اسمًا آخر.",
+      "prerequisite_open": "أنهِ {{names}} أولًا.",
+      "stage_prerequisite_open": "المرحلة {{names}} فيها مهام مفتوحة.",
+      "dependency_cycle": "ستنتظر هذه العناصر بعضها بعضًا. اختر عنصرًا آخر.",
+      "duplicate_prerequisite": "العنصر نفسه في القائمة مرتين.",
+      "prerequisite_not_in_project": "يجب أن يكون في المشروع نفسه."
     }
   },
   "taskTemplates": {
@@ -336,8 +341,6 @@
     "stageDates": "من {{start}} إلى {{end}}",
     "noDates": "بلا تواريخ",
     "stageTasks": "المهام المنجزة: {{done}} من {{total}}",
-    "makeCurrent": "جعلها المرحلة الحالية",
-    "stageChanged": "تم تغيير المرحلة الحالية.",
     "current": "المرحلة الحالية",
     "comingSoon": "يتوفر هذا القسم لاحقًا في خطوة البناء هذه.",
     "about": "عن المشروع",
@@ -354,15 +357,20 @@
     "pausedBy": "أوقف {{name}} المشروع مؤقتًا في {{date}}.",
     "pausedBy_female": "أوقفت {{name}} المشروع مؤقتًا في {{date}}.",
     "restarts": "يُستأنف في {{date}}.",
-    "moveBack": "الرجوع إلى {{stage}}",
-    "moveBackWhy": "لماذا يرجع المشروع إلى مرحلة سابقة؟",
-    "moveBackLog": "سجّله في المتابعة كتحديث من بلدي",
     "pauseWhy": "لماذا؟",
     "pauseKinds": {
       "internal": "من جهتنا",
       "client": "بانتظار العميل"
     },
-    "pauseClientHint": "يُضاف إلى متابعة العميل سطر ينتظر ردّه. يغلقه استئناف المشروع."
+    "pauseClientHint": "يُضاف إلى متابعة العميل سطر ينتظر ردّه. يغلقه استئناف المشروع.",
+    "stageNeeds": "تحتاج أولًا",
+    "stageNeedsHint": "لا يمكن إنهاء أي مهمة في هذه المرحلة ما دامت إحدى هذه المراحل فيها مهام مفتوحة.",
+    "stageNoNeeds": "لا توجد مرحلة أخرى للاختيار.",
+    "stageWaiting": "تنتظر {{names}}",
+    "stageOverlap": "تسير في الوقت نفسه مع {{names}}",
+    "stageOrderSaved": "تم حفظ ترتيب المراحل.",
+    "stageAuto": "المرحلة الحالية تتبع المهام. هي أبكر مرحلة فيها مهمة مفتوحة.",
+    "stageList": "تفاصيل المرحلة"
   },
   "overview": {
     "composer": "انشر تحديثًا",
@@ -457,7 +465,11 @@
       "in_review_female": "أرسلت «{{label}}» للمراجعة",
       "done_female": "أنجزت «{{label}}»",
       "approved_female": "اعتمدت «{{label}}»",
-      "sent_back_female": "أعادت «{{label}}» للتعديل"
+      "sent_back_female": "أعادت «{{label}}» للتعديل",
+      "reopened": "فتح «{{label}}» من جديد",
+      "reopened_female": "فتحت «{{label}}» من جديد",
+      "dates_shifted": "نقل تواريخ «{{label}}»",
+      "dates_shifted_female": "نقلت تواريخ «{{label}}»"
     },
     "file": {
       "added": "أضاف الملف «{{label}}»",
@@ -515,7 +527,10 @@
       "cancelled": "أُلغي نقل {{title}}."
     },
     "allDone": "أُنجزت كل مهام هذه المرحلة.",
-    "openConversation": "المحادثة حول «{{title}}»"
+    "openConversation": "المحادثة حول «{{title}}»",
+    "waitingFor": "تنتظر {{names}}",
+    "completeBlocked": "لا يمكن إنهاء {{title}} الآن. تنتظر {{names}}.",
+    "waitingToast": "ليس بعد. هذه المهمة تنتظر {{names}}."
   },
   "taskSheet": {
     "title": "العنوان",
@@ -583,7 +598,18 @@
     "startVersion": "ابدأ الإصدار {{n}}",
     "versionStarted": "بدأ الإصدار {{n}}.",
     "saveTemplate": "حفظ كقالب",
-    "templateSaved": "حُفظت المهمة كقالب لمرحلة {{stage}}."
+    "templateSaved": "حُفظت المهمة كقالب لمرحلة {{stage}}.",
+    "needsFirst": "تحتاج أولًا",
+    "needsFirstHint": "لا يمكن إنهاء هذه المهمة قبل إنهاء هذه المهام.",
+    "noNeeds": "لا شيء يلزم إنهاؤه أولًا.",
+    "addNeed": "أضف مهمة تحتاجها أولًا",
+    "pickNeed": "اختر مهمة",
+    "removeNeed": "إزالة {{title}} من القائمة",
+    "unlocks": "تفتح",
+    "unlocksHint": "هذه المهام تنتظر هذه المهمة.",
+    "noUnlocks": "لا مهمة تنتظر هذه المهمة.",
+    "dateChanges": "تغييرات التواريخ",
+    "dateMoved": "تم النقل من {{from}} إلى {{to}}: تأخر إنجاز {{task}} بمقدار {{lateness}}"
   },
   "taskHistory": {
     "created": "أنشأ المهمة",
@@ -610,7 +636,9 @@
       "needsReview": "إعداد المراجعة",
       "checklist": "قائمة التحقق",
       "status": "الحالة",
-      "completedAt": "الحالة"
+      "completedAt": "الحالة",
+      "prerequisiteIds": "المهام التي تحتاجها أولًا",
+      "dateNotes": "ملاحظات التواريخ"
     },
     "status_female": "نقلتها إلى «{{status}}»",
     "created_female": "أنشأت المهمة",
@@ -619,7 +647,11 @@
     "approved_female": "اعتمدتها",
     "sent_back_female": "أعادتها للتعديل",
     "deleted_female": "حذفت المهمة",
-    "undo_female": "تراجعت عن تغيير"
+    "undo_female": "تراجعت عن تغيير",
+    "reopened": "فتحها من جديد لأن مهمة تحتاجها فُتحت من جديد",
+    "reopened_female": "فتحتها من جديد لأن مهمة تحتاجها فُتحت من جديد",
+    "dates_shifted": "نقل التواريخ لأن مهمة تحتاجها انتهت متأخرة",
+    "dates_shifted_female": "نقلت التواريخ لأن مهمة تحتاجها انتهت متأخرة"
   },
   "schedule": {
     "chart": "الخط الزمني للمراحل",
@@ -640,7 +672,8 @@
     "deleteDeadline": "حذف {{name}}",
     "deadlineAdded": "تمت إضافة الموعد.",
     "deadlineDeleted": "تم حذف الموعد.",
-    "noDeadlines": "لا توجد مواعيد بعد."
+    "noDeadlines": "لا توجد مواعيد بعد.",
+    "overlapLegend": "المخطط بخطوط مائلة: مرحلتان تسيران في الوقت نفسه."
   },
   "files": {
     "upload": "رفع ملفات",
@@ -851,7 +884,8 @@
       "current": "المرحلة الحالية",
       "next": "المراحل التالية",
       "deadline": "موعد",
-      "today": "اليوم"
+      "today": "اليوم",
+      "overlap": "مرحلتان في الوقت نفسه"
     },
     "sections": "أقسام لوحة المعلومات",
     "meetingButton": "عرض الاجتماع",
@@ -900,7 +934,12 @@
       "countInProgress": "قيد التنفيذ: {{n}}",
       "countPastDue": "متأخرة: {{n}}",
       "countReview": "بانتظار المراجعة: {{n}}",
-      "team": "فريق المكتب: {{name}}"
+      "team": "فريق المكتب: {{name}}",
+      "openProject": "فتح المشروع",
+      "openProjectOf": "فتح {{name}}",
+      "stagesOf": "مراحل {{name}}",
+      "overlap": "{{a}} و{{b}} تسيران في الوقت نفسه",
+      "expandHint": "اضغط لإظهار كل مرحلة في سطر خاص بها."
     },
     "views": {
       "projects": "المشاريع",
@@ -913,7 +952,8 @@
       "title": "مشاريع راكدة",
       "internal": "أوقفها المكتب",
       "client": "بانتظار العميل"
-    }
+    },
+    "expandHint": "اضغط لإظهار كل مرحلة في سطر خاص بها."
   },
   "taskList": {
     "title": "قائمة المهام",
@@ -1264,5 +1304,10 @@
     "actions": "إجراءات {{name}}",
     "edit": "تعديل",
     "delete": "حذف الفريق"
+  },
+  "stageBack": {
+    "title": "هذا يرجع المشروع إلى {{stage}}. لماذا؟",
+    "label": "السبب",
+    "confirm": "الرجوع"
   }
 }

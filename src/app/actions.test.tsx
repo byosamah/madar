@@ -11,7 +11,7 @@ import { useFileUrl } from './files';
 
 function Tick() {
   const complete = useUndoable('tasks.complete', { message: () => 'Task done.' });
-  return <button type="button" onClick={() => complete.mutate({ id: 'tsk_009' })}>Tick</button>;
+  return <button type="button" onClick={() => complete.mutate({ id: 'tsk_013' })}>Tick</button>;
 }
 const asFaisal = (state: { session: { currentUserId: string } }) => {
   state.session.currentUserId = 'usr_002';
@@ -22,19 +22,19 @@ describe('undo toasts', () => {
     const { store } = await renderWithRuntime(<Tick />, asFaisal);
     await userEvent.click(screen.getByText('Tick'));
     expect(await screen.findByText('Task done.')).toBeInTheDocument();
-    expect(store.state.tasks.tsk_009.status).toBe('done');
+    expect(store.state.tasks.tsk_013.status).toBe('done');
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(store.state.tasks.tsk_009.status).toBe('todo'));
+    await waitFor(() => expect(store.state.tasks.tsk_013.status).toBe('todo'));
   });
 
   it('says so when the item changed after the action, and changes nothing', async () => {
     const { store, api } = await renderWithRuntime(<Tick />, asFaisal);
     await userEvent.click(screen.getByText('Tick'));
     await screen.findByText('Task done.');
-    await api.call('tasks.move', { id: 'tsk_009', status: 'in_progress' });
+    await api.call('tasks.move', { id: 'tsk_013', status: 'in_progress' });
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(await screen.findByText('This item changed after that edit. Undo is not available.')).toBeInTheDocument();
-    expect(store.state.tasks.tsk_009.status).toBe('in_progress');
+    expect(store.state.tasks.tsk_013.status).toBe('in_progress');
   });
 
   it('offers Retry when a call fails', async () => {
@@ -44,7 +44,7 @@ describe('undo toasts', () => {
     expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Task done.')).toBeInTheDocument();
-    expect(store.state.tasks.tsk_009.status).toBe('done');
+    expect(store.state.tasks.tsk_013.status).toBe('done');
   });
 });
 
@@ -88,7 +88,7 @@ describe('file URLs', () => {
 describe('actions that change nothing', () => {
   function Stay() {
     const move = useUndoable('tasks.move', { message: () => 'Moved.' });
-    return <button type="button" onClick={() => move.mutate({ id: 'tsk_009', status: 'todo' })}>Stay</button>;
+    return <button type="button" onClick={() => move.mutate({ id: 'tsk_013', status: 'todo' })}>Stay</button>;
   }
 
   it('shows no toast and no Undo', async () => {
@@ -115,6 +115,6 @@ describe('a change whose follow-up check fails', () => {
     await userEvent.click(screen.getByText('Tick'));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     expect(screen.queryByText('Something went wrong. Try again.')).toBeNull();
-    await waitFor(() => expect(store.state.tasks.tsk_009.status).toBe('todo'));
+    await waitFor(() => expect(store.state.tasks.tsk_013.status).toBe('todo'));
   });
 });

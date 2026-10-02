@@ -11,9 +11,10 @@ import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
-import { diffDays, formatDay, formatMonth, todayISO } from '../../../lib/dates';
+import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
 import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
+import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DeleteIcon } from '../../../components/icons/animated/delete';
@@ -115,8 +116,10 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const width = () => scale.current?.getBoundingClientRect().width ?? 0;
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
+  const overlaps = stageOverlaps(detail.stages);
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
+      {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
       <div className="grid min-w-[40rem] grid-cols-[10rem_minmax(0,1fr)] gap-x-3">
         <div />
         <div ref={scale} className="relative h-7">
@@ -148,6 +151,14 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
                 ) : <span className="flex h-11 items-center text-footnote text-ink-2">{t('project.noDates')}</span>}
+                {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
+                  <span
+                    key={overlap.stageIds.join('-')}
+                    aria-hidden
+                    style={{ insetInlineStart: `${offsetPct(range, overlap.start)}%`, width: `${widthPct(range, overlap.start, overlap.end)}%` }}
+                    className="overlap-hatch absolute top-2 h-7 rounded-full opacity-60"
+                  />
+                ))}
               </div>
             </Fragment>
           );
@@ -175,13 +186,22 @@ function StageDates({ detail }: TabProps) {
   const lang = useLang();
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
   const edit = detail.viewerCan.edit;
+  const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
+  const overlaps = stageOverlaps(detail.stages);
   return (
     <section aria-labelledby="schedule-stages" className="panel p-5">
       <h2 id="schedule-stages" className="text-headline text-ink">{t('schedule.stages')}</h2>
       <ul className="mt-2 flex flex-col gap-3">
         {detail.stages.map((stage) => (
           <li key={stage.id} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <span dir="auto" className="min-w-0 flex-1 text-subheadline font-medium">{stage.name}</span>
+            <span className="min-w-0 flex-1">
+              <span dir="auto" className="block text-subheadline font-medium">{stage.name}</span>
+              {overlappingWith(stage.id, overlaps).length > 0 && (
+                <span dir="auto" className="block text-footnote text-ink-2">
+                  {t('project.stageOverlap', { names: list.format(overlappingWith(stage.id, overlaps).map((id) => detail.stages.find((other) => other.id === id)?.name ?? '')) })}
+                </span>
+              )}
+            </span>
             {edit ? (
               <>
                 <DateDraftField id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}

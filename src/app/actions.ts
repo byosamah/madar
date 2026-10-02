@@ -14,7 +14,12 @@ export function newStoryId(): string {
 /** Runs a change and offers Undo for 5 seconds (spec 5.5 and 11.5). A failed call offers Retry (spec 11.6). */
 export function useUndoable<N extends CallName>(
   name: N,
-  options: { message: (output: CallOutput<N>) => string; onSuccess?: (output: CallOutput<N>) => void },
+  options: {
+    message: (output: CallOutput<N>) => string;
+    onSuccess?: (output: CallOutput<N>) => void;
+    /** A screen that answers a refusal itself (it asks a question, then calls again) returns true, and no error toast shows. */
+    onRefused?: (error: unknown, input: CallInput<N>) => boolean;
+  },
 ) {
   const { api } = useRuntime();
   const toast = useToast();
@@ -46,11 +51,14 @@ export function useUndoable<N extends CallName>(
         },
       });
     },
-    onError: (error, input) => toast.show({
-      tone: 'error',
-      message: errorMessage(error, t),
-      action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
-    }),
+    onError: (error, input) => {
+      if (latest.current.onRefused?.(error, input)) return;
+      toast.show({
+        tone: 'error',
+        message: errorMessage(error, t),
+        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
+      });
+    },
   });
   retry.current = mutation.mutate;
   return mutation;

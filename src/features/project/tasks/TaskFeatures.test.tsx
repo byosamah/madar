@@ -39,7 +39,12 @@ describe('"From a template" on the Tasks tab', () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
     await userEvent.click(await screen.findByRole('button', { name: 'From a template in Design Development' }));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Material board' }));
+    // Design Development is before the stage the project is in (Construction Documents), so the new task moves the project back and the server asks why.
+    const ask = await screen.findByRole('dialog', { name: 'This moves the project back to Design Development. Why?' });
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The client wants a material board');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Move back' }));
     await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Material board' && task.ownerId === 'usr_005')).toBe(true));
+    expect(store.state.projects.prj_001.stageBack).toMatchObject({ reason: 'The client wants a material board' });
   });
 });
 

@@ -50,11 +50,15 @@ export function openPrerequisites<T extends TaskShape>(task: TaskShape, tasks: T
   return tasks.filter((other) => ids.has(other.id) && other.status !== 'done');
 }
 
-/** The prerequisite stages of the task's stage that still have an open task. */
-export function openPrerequisiteStages<S extends StageShape>(task: TaskShape, stages: S[], tasks: Pick<TaskShape, 'stageId' | 'status'>[]): S[] {
-  const own = stages.find((stage) => stage.id === task.stageId);
-  const ids = new Set(own?.prerequisiteIds ?? []);
+/** The stages that a stage needs first and that still have an open task. */
+export function openStagesNeededBy<S extends StageShape>(stageId: string, stages: S[], tasks: Pick<TaskShape, 'stageId' | 'status'>[]): S[] {
+  const ids = new Set(stages.find((stage) => stage.id === stageId)?.prerequisiteIds ?? []);
   return stagesChrono(stages).filter((stage) => ids.has(stage.id) && tasks.some((other) => other.stageId === stage.id && other.status !== 'done'));
+}
+
+/** The prerequisite stages of the task's stage that still have an open task. */
+export function openPrerequisiteStages<S extends StageShape>(task: Pick<TaskShape, 'stageId'>, stages: S[], tasks: Pick<TaskShape, 'stageId' | 'status'>[]): S[] {
+  return openStagesNeededBy(task.stageId, stages, tasks);
 }
 
 /** The working days after the due day, up to and including the day it was finished. Zero when it was finished on time. */

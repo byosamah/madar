@@ -43,7 +43,7 @@ export function countComments(state: State, targetType: 'task' | 'update', targe
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
 export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'task.created', 'task.status_changed',
-  'task.approved', 'task.sent_back', 'task.version_opened', 'file.added', 'file.version_added', 'member.added',
+  'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
 ]);
 
 function lastLetter(value: unknown): string {

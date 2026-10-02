@@ -3,6 +3,8 @@ import { buildSeed } from './seed';
 import * as E from '../api/contract/entities';
 import { TODAY } from '../test/factories';
 import { healthCounts } from '../test/seed-helpers';
+import { stageTag } from '../api/flow';
+import { stageOverlaps } from '../lib/stageFlow';
 
 async function seed(today = TODAY) {
   const blobs = new Map<string, Blob>();
@@ -109,4 +111,45 @@ it('has a client record on four projects, with one question waiting on us and on
   expect(entries.filter((e) => e.closedAt !== null).every((e) => e.closedBy !== null)).toBe(true);
   for (const entry of entries) for (const id of entry.fileIds) expect(state.files[id].projectId).toBe(entry.projectId);
   expect(entries.some((e) => e.auto === 'upload') && entries.some((e) => e.auto === 'delivered')).toBe(true);
+});
+
+describe('the sample dependencies, overlap and stage tag (owner, 2026-10-02)', () => {
+  type Built = Awaited<ReturnType<typeof seed>>['state'];
+  const byTitle = (state: Built, code: string, title: string) => {
+    const project = Object.values(state.projects).find((p) => p.code === code)!;
+    return Object.values(state.tasks).find((t) => t.projectId === project.id && t.title === title)!;
+  };
+
+  it('keeps the stage tag of every project the same as the stage the sample plans', async () => {
+    const { state } = await seed();
+    for (const project of Object.values(state.projects)) expect(stageTag(state, project.id)?.id).toBe(project.currentStageId);
+  });
+
+  it('has a chain in Construction Documents, ending in a dynamic task that needs a task already past due', async () => {
+    const { state } = await seed();
+    const ceiling = byTitle(state, 'KH-26-001', 'Reflected ceiling plans');
+    const stairs = byTitle(state, 'KH-26-001', 'Stair details');
+    const check = byTitle(state, 'KH-26-001', 'Structural drawings check');
+    const specs = byTitle(state, 'KH-26-001', 'Specifications draft');
+    expect(stairs.prerequisiteIds).toEqual([ceiling.id]);
+    expect(check.prerequisiteIds).toEqual([stairs.id]);
+    expect(specs.prerequisiteIds).toEqual([stairs.id]);
+    expect(specs.schedule).toBe('dynamic');
+    // "Stair details" keeps its due word: five days past due on the sample day.
+    expect(stairs.dueDate).toBe('2026-09-25');
+    expect(stairs.status).toBe('in_progress');
+    // A task that is done, or in review, never waits for an open one.
+    for (const task of Object.values(state.tasks)) {
+      if (task.status === 'done' || task.status === 'in_review') expect((task.prerequisiteIds ?? []).every((id) => state.tasks[id].status === 'done')).toBe(true);
+    }
+  });
+
+  it('has Permits needing Construction Documents, and one pair of stages that overlap', async () => {
+    const { state } = await seed();
+    const needing = Object.values(state.stages).filter((s) => s.name === 'Permits' && (s.prerequisiteIds ?? []).length > 0);
+    expect(needing).toHaveLength(2);
+    for (const stage of needing) expect(state.stages[(stage.prerequisiteIds as string[])[0]].name).toBe('Construction Documents');
+    const overlapping = Object.values(state.projects).filter((p) => stageOverlaps(Object.values(state.stages).filter((s) => s.projectId === p.id)).length > 0);
+    expect(overlapping.map((p) => p.code)).toEqual(['KH-26-003']);
+  });
 });

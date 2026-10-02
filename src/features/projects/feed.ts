@@ -3,7 +3,7 @@ import type { FeedItem } from '../../api/contract/views';
 import { actorContext } from '../../lib/grammar';
 import { plainText } from '../../lib/text';
 
-const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'task.sent_back', 'task.version_opened', 'file.added', 'member.added']);
+const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'member.added']);
 
 /** One line for a feed item, without the author's name: the text of a post, or a sentence for an event (spec 5.2). */
 export function feedText(item: FeedItem, t: TFunction): string {

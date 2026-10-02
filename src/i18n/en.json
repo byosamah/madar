@@ -109,7 +109,12 @@
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back.",
-      "duplicate_team": "A team with this name exists. Use another name."
+      "duplicate_team": "A team with this name exists. Use another name.",
+      "prerequisite_open": "Finish {{names}} first.",
+      "stage_prerequisite_open": "The stage {{names}} still has open tasks.",
+      "dependency_cycle": "These would wait for each other. Pick another one.",
+      "duplicate_prerequisite": "The same one is in the list twice.",
+      "prerequisite_not_in_project": "It must be in the same project."
     }
   },
   "taskTemplates": {
@@ -308,8 +313,6 @@
     "stageDates": "{{start}} to {{end}}",
     "noDates": "No dates",
     "stageTasks": "Tasks done: {{done}} of {{total}}",
-    "makeCurrent": "Make current stage",
-    "stageChanged": "Current stage changed.",
     "current": "Current stage",
     "comingSoon": "This tab arrives later in this build step.",
     "about": "About",
@@ -325,15 +328,20 @@
     "pausedTitle": "Paused",
     "pausedBy": "{{name}} paused this project on {{date}}.",
     "restarts": "Restarts {{date}}.",
-    "moveBack": "Move back to {{stage}}",
-    "moveBackWhy": "Why does the project move back?",
-    "moveBackLog": "Log it in the Tracker as a Balady update",
     "pauseWhy": "Why?",
     "pauseKinds": {
       "internal": "Our side",
       "client": "Awaiting client"
     },
-    "pauseClientHint": "The Tracker gets a line that waits for the client. Resume closes it."
+    "pauseClientHint": "The Tracker gets a line that waits for the client. Resume closes it.",
+    "stageNeeds": "Needs first",
+    "stageNeedsHint": "No task in this stage can be finished while one of these stages has open tasks.",
+    "stageNoNeeds": "No other stage to pick.",
+    "stageWaiting": "Waiting for {{names}}",
+    "stageOverlap": "Runs at the same time as {{names}}",
+    "stageOrderSaved": "Stage order saved.",
+    "stageAuto": "The current stage follows the tasks. It is the earliest stage with an open task.",
+    "stageList": "Stage details"
   },
   "overview": {
     "composer": "Post an update",
@@ -404,7 +412,9 @@
       "done": "completed “{{label}}”",
       "approved": "approved “{{label}}”",
       "sent_back": "sent back “{{label}}”",
-      "version_opened": "started a new version of “{{label}}”"
+      "version_opened": "started a new version of “{{label}}”",
+      "reopened": "opened “{{label}}” again",
+      "dates_shifted": "moved the dates of “{{label}}”"
     },
     "file": {
       "added": "added the file “{{label}}”",
@@ -458,7 +468,10 @@
       "cancelled": "The move of {{title}} is cancelled."
     },
     "allDone": "All tasks in this stage are done.",
-    "openConversation": "Conversation about “{{title}}”"
+    "openConversation": "Conversation about “{{title}}”",
+    "waitingFor": "Waiting for {{names}}",
+    "completeBlocked": "{{title}} cannot be finished yet. Waiting for {{names}}.",
+    "waitingToast": "Not yet. This task is waiting for {{names}}."
   },
   "taskSheet": {
     "title": "Title",
@@ -523,7 +536,18 @@
     "startVersion": "Start version {{n}}",
     "versionStarted": "Version {{n}} started.",
     "saveTemplate": "Save as template",
-    "templateSaved": "Saved as a template for {{stage}}."
+    "templateSaved": "Saved as a template for {{stage}}.",
+    "needsFirst": "Needs first",
+    "needsFirstHint": "This task cannot be finished until these tasks are done.",
+    "noNeeds": "Nothing needs to be done first.",
+    "addNeed": "Add a task it needs first",
+    "pickNeed": "Pick a task",
+    "removeNeed": "Remove {{title}} from the list",
+    "unlocks": "Unlocks",
+    "unlocksHint": "These tasks wait for this one.",
+    "noUnlocks": "No task waits for this one.",
+    "dateChanges": "Date changes",
+    "dateMoved": "Moved from {{from}} to {{to}}: {{task}} finished {{lateness}} late"
   },
   "taskHistory": {
     "created": "created the task",
@@ -549,8 +573,12 @@
       "needsReview": "the review setting",
       "checklist": "the checklist",
       "status": "the status",
-      "completedAt": "the status"
-    }
+      "completedAt": "the status",
+      "prerequisiteIds": "the tasks it needs first",
+      "dateNotes": "the date notes"
+    },
+    "reopened": "opened it again because a task it needs opened again",
+    "dates_shifted": "moved the dates because a task it needs finished late"
   },
   "schedule": {
     "chart": "Stage timeline",
@@ -571,7 +599,8 @@
     "deleteDeadline": "Delete {{name}}",
     "deadlineAdded": "Deadline added.",
     "deadlineDeleted": "Deadline deleted.",
-    "noDeadlines": "No deadlines yet."
+    "noDeadlines": "No deadlines yet.",
+    "overlapLegend": "Hatched: two stages run at the same time."
   },
   "files": {
     "upload": "Upload files",
@@ -772,7 +801,8 @@
       "current": "Current stage",
       "next": "Next stages",
       "deadline": "Deadline",
-      "today": "Today"
+      "today": "Today",
+      "overlap": "Two stages at the same time"
     },
     "sections": "Dashboard sections",
     "meetingButton": "Meeting view",
@@ -818,7 +848,12 @@
       "countInProgress": "{{n}} in progress",
       "countPastDue": "{{n}} past due",
       "countReview": "{{n}} waiting for review",
-      "team": "Team: {{name}}"
+      "team": "Team: {{name}}",
+      "openProject": "Open project",
+      "openProjectOf": "Open {{name}}",
+      "stagesOf": "Stages of {{name}}",
+      "overlap": "{{a}} and {{b}} run at the same time",
+      "expandHint": "Press to show each stage on its own line."
     },
     "views": {
       "projects": "Projects",
@@ -831,7 +866,8 @@
       "title": "Stale projects",
       "internal": "Paused by the office",
       "client": "Waiting for the client"
-    }
+    },
+    "expandHint": "Press to show each stage on its own line."
   },
   "taskList": {
     "title": "Task list",
@@ -1157,5 +1193,10 @@
     "actions": "Actions for {{name}}",
     "edit": "Edit",
     "delete": "Delete team"
+  },
+  "stageBack": {
+    "title": "This moves the project back to {{stage}}. Why?",
+    "label": "Reason",
+    "confirm": "Move back"
   }
 }

@@ -5,6 +5,7 @@ import { useToast } from '../../../app/toasts';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { Menu } from '../../../components/Menu';
+import { useStageBack } from './StageBack';
 
 /**
  * "From a template" beside a stage's quick add (colleague comments 8 and 12). It lists only the templates saved for this stage's name,
@@ -15,13 +16,20 @@ export function TemplateMenu({ stage }: { stage: Stage }) {
   const templates = useCall('taskTemplates.list', { stageName: stage.name });
   const toast = useToast();
   // No Undo here, as in the quick add: undoing a new task is the leader's right (the task.delete rule).
-  const create = useAction('tasks.createFromTemplate', { onSuccess: (output) => toast.show({ message: t('tasks.addedFromTemplate', { title: output.task.title }) }) });
+  const back = useStageBack();
+  const create = useAction('tasks.createFromTemplate', {
+    onSuccess: (output) => toast.show({ message: t('tasks.addedFromTemplate', { title: output.task.title }) }),
+    onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
+  });
   const label = t('tasks.fromTemplate', { stage: stage.name });
   return (
-    <Menu
-      label={label}
-      icon={<AnimatedIcon icon={FileTextIcon} size={18} aria-hidden />}
-      items={(templates.data ?? []).map((template) => ({ label: template.name, onSelect: () => create.mutate({ templateId: template.id, stageId: stage.id }) }))}
-    />
+    <>
+      <Menu
+        label={label}
+        icon={<AnimatedIcon icon={FileTextIcon} size={18} aria-hidden />}
+        items={(templates.data ?? []).map((template) => ({ label: template.name, onSelect: () => create.mutate({ templateId: template.id, stageId: stage.id }) }))}
+      />
+      {back.sheet}
+    </>
   );
 }

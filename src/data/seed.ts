@@ -452,7 +452,8 @@ function addSampleLinks(state: State) {
 
 /**
  * What waits for what, so the sample office shows the rules (owner, 2026-10-02). In Corniche Office Tower, "Stair details" is
- * already five days past due and two tasks wait for it: one static, one dynamic. Permits needs Construction Documents in three projects.
+ * already five days past due and two tasks wait for it: one static, one dynamic. Permits needs Construction Documents in two projects:
+ * in Nakhla Mall Extension its tasks wait, in Al Waha Clinic Fit-out the stage before is finished.
  */
 function addSampleFlow(state: State): void {
   const find = (code: string, title: string, stageName: string): Task | undefined => {
@@ -469,7 +470,7 @@ function addSampleFlow(state: State): void {
     const first = find('KH-26-001', needs, 'Construction Documents');
     if (task && first) task.prerequisiteIds = [first.id];
   }
-  for (const code of ['KH-26-001', 'KH-26-004', 'KH-26-006']) {
+  for (const code of ['KH-26-004', 'KH-26-006']) {
     const project = Object.values(state.projects).find((p) => p.code === code);
     const stages = Object.values(state.stages).filter((s) => s.projectId === project?.id);
     const permits = stages.find((s) => s.name === 'Permits');

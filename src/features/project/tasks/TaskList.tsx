@@ -7,6 +7,7 @@ import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
 import { useAction } from '../../../app/runtime';
 import { EmptyState } from '../../../components/EmptyState';
+import { useStageBack } from './StageBack';
 import { TaskRowItem } from './TaskRowItem';
 import { TemplateMenu } from './TemplateMenu';
 
@@ -14,8 +15,13 @@ import { TemplateMenu } from './TemplateMenu';
 function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
-  const create = useAction('tasks.create', { onSuccess: () => setTitle('') });
+  const back = useStageBack();
+  const create = useAction('tasks.create', {
+    onSuccess: () => setTitle(''),
+    onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
+  });
   return (
+    <>
     <form
       className="flex items-center gap-3 px-4"
       onSubmit={(event) => {
@@ -35,6 +41,8 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
       />
       <TemplateMenu stage={stage} />
     </form>
+    {back.sheet}
+    </>
   );
 }
 

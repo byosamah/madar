@@ -7,7 +7,9 @@ export function errorMessage(error: unknown, t: TFunction): string {
     const reason = error.details.reason;
     if (reason === 'week_locked') return t('errors.week_locked');
     // A refusal with a reason gets its own sentence, so a person learns the rule, not only that something failed.
-    if (typeof reason === 'string' && i18n.exists(`errors.reasons.${reason}`)) return t(`errors.reasons.${reason}`);
+    // A refusal may name what is in the way (the tasks or stages that are still open), so the sentence can say it.
+    const names = typeof error.details.names === 'string' ? error.details.names : '';
+    if (typeof reason === 'string' && i18n.exists(`errors.reasons.${reason}`)) return t(`errors.reasons.${reason}`, { names });
     return t(`errors.${error.code}`);
   }
   return t('errors.failed');
@@ -25,5 +27,6 @@ export function fieldError(error: unknown, field: string, t: TFunction, fallback
   const hit = fields.some((path) => path === field || path.startsWith(`${field}.`) || path.endsWith(`.${field}`) || path.includes(`.${field}.`));
   if (!hit) return undefined;
   const reason = error.details.reason;
-  return typeof reason === 'string' && i18n.exists(`errors.reasons.${reason}`) ? t(`errors.reasons.${reason}`) : fallback;
+  const names = typeof error.details.names === 'string' ? error.details.names : '';
+  return typeof reason === 'string' && i18n.exists(`errors.reasons.${reason}`) ? t(`errors.reasons.${reason}`, { names }) : fallback;
 }
