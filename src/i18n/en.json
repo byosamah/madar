@@ -317,6 +317,8 @@
     "statusChanged": "Status changed.",
     "stageDates": "{{start}} to {{end}}",
     "noDates": "No dates",
+    "stageStarts": "Starts {{date}}",
+    "stageEnds": "Ends {{date}}",
     "stageTasks": "Tasks done: {{done}} of {{total}}",
     "current": "Current stage",
     "comingSoon": "This tab arrives later in this build step.",
@@ -333,6 +335,7 @@
     "pausedTitle": "Paused",
     "pausedBy": "{{name}} paused this project on {{date}}.",
     "restarts": "Restarts {{date}}.",
+    "restartWas": "Planned restart was {{date}}.",
     "pauseWhy": "Why?",
     "pauseKinds": {
       "internal": "Our side",

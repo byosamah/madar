@@ -15,6 +15,7 @@ import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../
 import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DeleteIcon } from '../../../components/icons/animated/delete';
@@ -150,7 +151,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
-                ) : <span className="flex h-11 items-center text-footnote text-ink-2">{t('project.noDates')}</span>}
+                ) : <span className="tabular flex h-11 items-center text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>}
                 {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
                   <span
                     key={overlap.stageIds.join('-')}
@@ -213,11 +214,7 @@ function StageDates({ detail }: TabProps) {
                   onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
               </>
             ) : (
-              <span className="tabular text-footnote text-ink-2">
-                {stage.startDate && stage.endDate
-                  ? t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })
-                  : t('project.noDates')}
-              </span>
+              <span className="tabular text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>
             )}
           </li>
         ))}

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
+import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
+import { personOption } from './tasks/TaskHelpers';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -181,5 +183,100 @@ describe('a failed save rolls back (audit 2026-10-03, PRJ-7)', () => {
     fireEvent.blur(field());
     await waitFor(() => expect(fail.state.hit).toBe(true));
     await waitFor(() => expect(field()).toHaveValue(stage.startDate));
+  });
+});
+
+describe('Arabic verbs agree with a woman (audit 2026-10-03, PRJ-11)', () => {
+  it('says حدّدته when a woman set the health by hand', async () => {
+    await renderApp('/projects/prj_001', (state) => {
+      state.session.currentUserId = 'usr_002';
+      state.users.usr_002.preferences.language = 'ar';
+      state.projects.prj_001.healthOverride = { value: 'at_risk', reason: 'Client delay', setBy: 'usr_001', setAt: '2026-09-29T09:00:00.000+03:00' };
+    });
+    try {
+      expect(await screen.findByText('حدّدته Hala Nasser:')).toBeInTheDocument();
+    } finally {
+      initI18n('en');
+    }
+  });
+
+  it('says تنضم for a woman outside the team', () => {
+    const i18n = initI18n('ar');
+    try {
+      expect(personOption({ id: 'usr_003', name: 'Reem', gender: 'female' }, false, i18n.t)).toBe('Reem (تنضم إلى الفريق)');
+      expect(personOption({ id: 'usr_004', name: 'Omar', gender: 'male' }, false, i18n.t)).toBe('Omar (ينضم إلى الفريق)');
+    } finally {
+      initI18n('en');
+    }
+  });
+});
+
+describe('the payment amount (audit 2026-10-03, PRJ-12)', () => {
+  it('reads Arabic-Indic digits', async () => {
+    const { store } = await renderApp('/projects/prj_001', as('usr_011'));
+    const region = await screen.findByRole('region', { name: 'Payments' });
+    await userEvent.click(within(region).getByRole('button', { name: 'Add payment' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add payment' });
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Tender stage fee');
+    await userEvent.type(within(sheet).getByLabelText('Amount (SAR)'), '١٥٬٠٠٠٫٥');
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-11-15' } });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(Object.values(store.state.payments ?? {}).find((p) => p.name === 'Tender stage fee')?.amount).toBe(15000.5));
+  });
+});
+
+describe('the paused banner (audit 2026-10-03, PRJ-14 and PRJ-20)', () => {
+  const paused = (resumeOn: string) => (state: State) => {
+    state.session.currentUserId = 'usr_002';
+    Object.assign(state.projects.prj_001, {
+      status: 'on_hold',
+      pause: { reason: 'The office reviews the budget.', resumeOn, by: 'usr_002', at: '2026-09-20T09:00:00.000+03:00', kind: 'internal' },
+    });
+  };
+
+  it('says the planned restart passed, in the Attention color', async () => {
+    await renderApp('/projects/prj_001', paused('2026-09-28'));
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    const late = within(banner).getByText('Planned restart was 28 September 2026.');
+    expect(late).toHaveClass('text-attn');
+    expect(within(banner).queryByText(/^Restarts/)).toBeNull();
+  });
+
+  it('still says "Restarts" before the date', async () => {
+    await renderApp('/projects/prj_001', paused('2026-10-05'));
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    expect(within(banner).getByText(/Restarts 5 October 2026\./)).toBeInTheDocument();
+  });
+
+  it('offers Resume once: on the banner, not in the menu', async () => {
+    await renderApp('/projects/prj_001', paused('2026-10-05'));
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    expect(within(banner).getByRole('button', { name: 'Resume project' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Resume project' })).toBeNull();
+  });
+});
+
+describe('a stage with one date (audit 2026-10-03, PRJ-23)', () => {
+  const oneDate = (state: State) => {
+    state.session.currentUserId = 'usr_005';
+    const stages = Object.values(state.stages).filter((stage) => stage.projectId === 'prj_001').sort((a, b) => a.order - b.order);
+    Object.assign(stages[stages.length - 1], { startDate: '2027-03-01', endDate: null });
+    Object.assign(stages[stages.length - 2], { startDate: null, endDate: '2027-02-15' });
+  };
+
+  it('shows the one date on the Schedule, not "No dates"', async () => {
+    await renderApp('/projects/prj_001?tab=schedule', oneDate);
+    expect(await screen.findByText('Starts 1 Mar')).toBeInTheDocument();
+    expect(screen.getByText('Ends 15 Feb')).toBeInTheDocument();
+  });
+
+  it('shows the one date in the stage list of the header', async () => {
+    const { store } = await renderApp('/projects/prj_001', oneDate);
+    const last = Object.values(store.state.stages).filter((stage) => stage.projectId === 'prj_001').sort((a, b) => b.order - a.order)[0];
+    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
+    const popover = screen.getByRole('dialog', { name: 'Stages' });
+    await userEvent.click(within(popover).getByRole('button', { name: new RegExp(last.name) }));
+    expect(within(popover).getByText('Starts 1 Mar')).toBeInTheDocument();
   });
 });

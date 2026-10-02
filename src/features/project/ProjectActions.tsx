@@ -143,7 +143,8 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
     { label: t('project.edit'), onSelect: () => setSheet('edit'), hidden: !viewerCan.edit },
     { label: t('project.changeLeader'), onSelect: () => setSheet('leader'), hidden: !viewerCan.changeLeader },
     { label: t('project.pause'), onSelect: () => setSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
-    { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' },
+    // The paused banner has the Resume button, so the menu offers it only when no banner shows (audit 2026-10-03, PRJ-20).
+    { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' || Boolean(project.pause) },
     statusItem('active'),
     statusItem('completed'),
     statusItem('archived'),

@@ -14,7 +14,7 @@ import { ProjectSign } from '../../../components/ProjectSign';
 import { signOfProject, StatusSign } from '../../../components/StatusSign';
 import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
-import { counted } from '../../../lib/grammar';
+import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
@@ -93,7 +93,7 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
       </dl>
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
-          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
+          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name, context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
         </p>
       )}
     </section>

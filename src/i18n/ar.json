@@ -345,6 +345,8 @@
     "statusChanged": "تم تغيير الحالة.",
     "stageDates": "من {{start}} إلى {{end}}",
     "noDates": "بلا تواريخ",
+    "stageStarts": "تبدأ في {{date}}",
+    "stageEnds": "تنتهي في {{date}}",
     "stageTasks": "المهام المنجزة: {{done}} من {{total}}",
     "current": "المرحلة الحالية",
     "comingSoon": "يتوفر هذا القسم لاحقًا في خطوة البناء هذه.",
@@ -362,6 +364,7 @@
     "pausedBy": "أوقف {{name}} المشروع مؤقتًا في {{date}}.",
     "pausedBy_female": "أوقفت {{name}} المشروع مؤقتًا في {{date}}.",
     "restarts": "يُستأنف في {{date}}.",
+    "restartWas": "كان الاستئناف مقررًا في {{date}}.",
     "pauseWhy": "لماذا؟",
     "pauseKinds": {
       "internal": "من جهتنا",
@@ -417,6 +420,7 @@
     "stageLeft_many": "بقي {{count}} يومًا",
     "stageLeft_other": "بقي {{count}} يوم",
     "healthNote": "حدّده {{name}}:",
+    "healthNote_female": "حدّدته {{name}}:",
     "attention": "يحتاج انتباهًا",
     "allClear": "لا شيء يحتاج انتباهًا.",
     "groups": {
@@ -594,6 +598,7 @@
     "helpersHint": "يضع المساعدون علامة على بنود قائمة التحقق ويعلّقون. المسؤول الرئيسي وحده ينهي المهمة. ينضم إلى الفريق كل شخص من خارجه.",
     "removeHelper": "إزالة المساعد {{name}}",
     "joinsTeam": "{{name}} (ينضم إلى الفريق)",
+    "joinsTeam_female": "{{name}} (تنضم إلى الفريق)",
     "versions": "الإصدارات",
     "versionOpen": "الإصدار {{n}} مفتوح منذ {{date}}",
     "versionDone": "الإصدار {{n}} انتهى في {{date}}",
