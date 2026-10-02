@@ -29,10 +29,16 @@ function InboxItem({ view }: { view: NoticeView }) {
   const phone = useIsPhone();
   const { notification: n, actor, target, project, link, canApprove, gone } = view;
   const markRead = useAction('notifications.markRead');
-  const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const read = () => {
     if (!n.read) markRead.mutate({ ids: [n.id] });
   };
+  // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
+  const approve = useAction('tasks.approve', {
+    onSuccess: () => {
+      read();
+      toast.show({ message: t('taskSheet.approved') });
+    },
+  });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
   const sentence = t(`inbox.trigger.${n.trigger}`, {
@@ -95,10 +101,7 @@ function InboxItem({ view }: { view: NoticeView }) {
         <Button
           className="shrink-0"
           disabled={approve.isPending}
-          onClick={() => {
-            approve.mutate({ id: n.targetId });
-            read();
-          }}
+          onClick={() => approve.mutate({ id: n.targetId })}
         >
           {t('inbox.approve')}
         </Button>

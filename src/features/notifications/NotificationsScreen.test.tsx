@@ -62,6 +62,20 @@ describe('the notifications screen', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull());
   });
 
+  it('keeps the notice unread when the approval fails (audit 2026-10-03, SHL-11)', async () => {
+    const { store } = await renderApp(
+      '/notifications',
+      withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]),
+      { failFirst: 'tasks.approve' },
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(store.state.notifications.ntf_904.read).toBe(false);
+    expect(store.state.tasks.tsk_010.status).toBe('in_review');
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(true));
+  });
+
   it('says when there is nothing', async () => {
     await renderApp('/notifications', withNotices('usr_005', []));
     expect(await screen.findByText('No notifications')).toBeInTheDocument();
