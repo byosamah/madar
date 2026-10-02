@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
+import { useIsPhone } from '../../app/useIsPhone';
 import { MeetingProvider } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
@@ -199,7 +200,10 @@ export function MeetingView() {
   const lang = useLang();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const mode = oneOf(params.get('mode'), MODES, 'timeline');
+  // A phone has no room for the timeline bars, so the meeting opens on the project screens there.
+  // A mode in the link still wins (browser audit 2026-10-03, BRW-18).
+  const firstMode = useIsPhone() ? 'projects' : 'timeline';
+  const mode = oneOf(params.get('mode'), MODES, firstMode);
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
@@ -263,7 +267,7 @@ export function MeetingView() {
     if (projectId !== undefined) session.goTo(session.order.indexOf(projectId));
     setParams((current) => {
       const value = new URLSearchParams(current);
-      if (next === 'timeline') value.delete('mode');
+      if (next === firstMode) value.delete('mode');
       else value.set('mode', next);
       return value;
     }, { replace: true });
@@ -308,12 +312,18 @@ export function MeetingView() {
     if (moved && taskId) closeTask();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a move of the screen closes the panel
   }, [mode, session.currentId, summaryOpen]);
-  const exit = () => navigate({ pathname: '/dashboard', search: params.toString() });
+  // The Dashboard takes the filters back, not the meeting mode or the open task (browser audit 2026-10-03, BRW-1).
+  const exit = () => {
+    const search = new URLSearchParams(params);
+    search.delete('mode');
+    search.delete('task');
+    navigate({ pathname: '/dashboard', search: search.toString() });
+  };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      // A dialog owns the keys while it is open. Escape then closes the dialog only.
-      if (document.querySelector('[role="dialog"]')) return;
+      // A dialog or a menu owns the keys while it is open. Escape then closes it only.
+      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
       // A key with a modifier belongs to the browser. A key in a field belongs to the field, so Escape there keeps the typed text.
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       if (target instanceof Element && (target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') || (target as HTMLElement).isContentEditable)) return;
@@ -348,8 +358,10 @@ export function MeetingView() {
       if (modeRef.current === 'projects') sessionRef.current.goTo(sessionRef.current.current + (toEnd ? 1 : -1));
       else setShift((n) => n + (toEnd ? 1 : -1));
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // The meeting hears a key first, on the way down. A sheet closes itself on Escape, and a browser can draw that before a later
+    // listener runs, so a listener on the way up found no dialog and left the whole meeting (browser audit 2026-10-03, BRW-1).
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- exit reads the current link each time the link changes
   }, [rtl, params.toString()]);
 

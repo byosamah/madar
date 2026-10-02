@@ -844,6 +844,8 @@
       "actionWho": "Who",
       "actionBy": "Due date",
       "actionLine": "Action: {{title}} · {{name}} · {{date}}",
+      "decisionAdded": "Decision added.",
+      "actionAdded": "Task added for {{name}}.",
       "replyLine": "Reply: {{name}} · {{date}}",
       "timeline": "Project timeline",
       "controls": "Meeting view controls",
@@ -905,7 +907,8 @@
       "agendaOrder": "Agenda order",
       "agendaStates": {
         "now": "Now",
-        "next": "Next"
+        "next": "Next",
+        "skipped": "Skipped"
       },
       "discussed": "Discussed",
       "allDiscussed": "All projects discussed",

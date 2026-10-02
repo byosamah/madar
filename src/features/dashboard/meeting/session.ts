@@ -24,13 +24,15 @@ const Saved = z.object({
    * lines never go to a chat twice (audit 2026-10-03, DSH-4). A session saved before this field gets an empty record.
    */
   shared: z.record(z.string(), z.string()).default({}),
+  /** The projects that Skip moved to the end. The agenda says "Skipped" until they are discussed (browser audit 2026-10-03, BRW-19). */
+  skipped: z.array(z.string()).default([]),
 });
 type Saved = z.infer<typeof Saved>;
 
 const keyFor = (day: string) => `madar.meeting.${day}`;
 
 function fresh(order: string[], minutes: MeetingMinutes = 5): Saved {
-  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null, shared: {} };
+  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null, shared: {}, skipped: [] };
 }
 
 function load(key: string): Saved {
@@ -132,6 +134,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ids holds the content of projectIds
   }, [session.order, ids]);
   const discussed = useMemo(() => new Set(session.discussed), [session.discussed]);
+  const skipped = useMemo(() => new Set(session.skipped), [session.skipped]);
   const at = session.currentId === null ? -1 : order.indexOf(session.currentId);
   const current = Math.max(0, at);
   const currentId = order[current] ?? null;
@@ -194,7 +197,11 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     if (!currentId) return;
     const moved = [...order.filter((id) => id !== currentId), currentId];
     const next = nextOpen(moved, current, new Set([...discussed, currentId])) ?? currentId;
-    commit((s) => show({ ...s, order: [...s.order.filter((id) => id !== currentId), currentId] }, next, Date.now()));
+    commit((s) => show({
+      ...s,
+      order: [...s.order.filter((id) => id !== currentId), currentId],
+      skipped: s.skipped.includes(currentId) ? s.skipped : [...s.skipped, currentId],
+    }, next, Date.now()));
   };
 
   /**
@@ -227,6 +234,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     /** The project that Done shows next: the first one after the current one that is not discussed. */
     nextId,
     discussed: discussed as ReadonlySet<string>,
+    skipped: skipped as ReadonlySet<string>,
     shared: session.shared as Readonly<Record<string, string>>,
     markShared,
     allDiscussed,

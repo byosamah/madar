@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { flushSync } from 'react-dom';
 import { renderApp } from '../../test/render';
 
 const months = (root: HTMLElement) => within(root).queryAllByText(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/).map((node) => node.textContent);
@@ -177,5 +178,48 @@ describe('the meeting view timeline, stage by stage (owner, 2026-10-02)', () => 
     const lines = within(row).getByRole('group', { name: 'Stages of Eastern Shore Primary School' });
     expect(row.querySelectorAll('.overlap-hatch')).toHaveLength(2);
     expect(within(lines).getByText('Design Development')).toBeInTheDocument();
+  });
+});
+
+describe('Escape and the phone width in the meeting (browser audit 2026-10-03)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('closes only the Agenda sheet or a person sheet with Escape, and leaves the meeting without its mode (BRW-1)', async () => {
+    // A browser lets React draw between two key listeners, so the sheet that closed itself is gone before a later listener runs.
+    // The test does the same: this listener on the way up comes after the sheet's own one, and makes React draw at once.
+    const draw = () => flushSync(() => undefined);
+    document.addEventListener('keydown', draw);
+    await renderApp('/dashboard/meeting?mode=projects&status=all');
+    await screen.findByRole('article');
+    await userEvent.click(screen.getByRole('button', { name: /^Agenda/ }));
+    await screen.findByRole('dialog', { name: 'Agenda' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Agenda' })).toBeNull());
+    expect(screen.getByRole('article')).toBeInTheDocument();
+    expect(window.location.hash).toContain('/dashboard/meeting');
+    await userEvent.click(within(screen.getByRole('region', { name: 'People' })).getAllByRole('button')[0]);
+    await screen.findByRole('dialog');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('article')).toBeInTheDocument();
+    // With no sheet open, Escape leaves the meeting. The Dashboard link keeps the filters, not the meeting mode.
+    await userEvent.keyboard('{Escape}');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
+    expect(window.location.hash).toContain('status=all');
+    expect(window.location.hash).not.toContain('mode=');
+    document.removeEventListener('keydown', draw);
+  });
+
+  it('opens on the project screens at phone width, and Timeline is still a choice there (BRW-18)', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(max-width: 639px)', media: query, onchange: null,
+      addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+    }) as MediaQueryList);
+    await renderApp('/dashboard/meeting');
+    expect(await screen.findByRole('article')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Project timeline' })).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Timeline' }));
+    expect(await screen.findByRole('list', { name: 'Project timeline' })).toBeInTheDocument();
+    expect(window.location.hash).toContain('mode=timeline');
   });
 });

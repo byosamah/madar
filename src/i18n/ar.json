@@ -933,6 +933,8 @@
       "actionWho": "من",
       "actionBy": "تاريخ الاستحقاق",
       "actionLine": "إجراء: {{title}} · {{name}} · {{date}}",
+      "decisionAdded": "تمت إضافة القرار.",
+      "actionAdded": "أُسندت مهمة جديدة إلى {{name}}.",
       "replyLine": "الرد: {{name}} · {{date}}",
       "timeline": "الجدول الزمني للمشاريع",
       "controls": "أدوات عرض الاجتماع",
@@ -997,7 +999,8 @@
       "agendaOrder": "ترتيب جدول الأعمال",
       "agendaStates": {
         "now": "الآن",
-        "next": "التالي"
+        "next": "التالي",
+        "skipped": "تم تخطيه"
       },
       "discussed": "نوقش",
       "allDiscussed": "نوقشت كل المشاريع",

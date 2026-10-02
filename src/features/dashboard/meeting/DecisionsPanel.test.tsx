@@ -109,6 +109,32 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
   });
 
+  it('confirms a decision with an Undo toast, and Undo takes it back (browser audit 2026-10-03, BRW-14)', async () => {
+    const { store } = await renderApp(MEETING, shoreWalkFirst);
+    const decisions = await panel();
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Keep the lobby double height.{Enter}');
+    await decisions.findByText('Keep the lobby double height.');
+    const toast = (await screen.findByText('Decision added.')).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.updates).some((update) => update.body === 'Keep the lobby double height.')).toBe(false));
+    await waitFor(() => expect(decisions.queryByText('Keep the lobby double height.')).toBeNull());
+  });
+
+  it('says for whom an action made a task, and Undo takes the task back (browser audit 2026-10-03, BRW-14)', async () => {
+    const { store } = await renderApp(MEETING, shoreWalkFirst);
+    const person = store.state.users[shoreWalk(store.state).leaderId!];
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Revise sections');
+    await userEvent.selectOptions(decisions.getByRole('combobox', { name: 'Who' }), person.id);
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await decisions.findByText(/^Action: Revise sections/);
+    const toast = (await screen.findByText(`Task added for ${person.name}.`)).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Revise sections')).toBe(false));
+    await waitFor(() => expect(decisions.queryByText(/^Action: Revise sections/)).toBeNull());
+  });
+
   it('lists the decisions and actions of this meeting only, the newest last', async () => {
     await renderApp(MEETING, (state) => {
       shoreWalkFirst(state);
