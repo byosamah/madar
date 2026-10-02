@@ -90,6 +90,33 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(timer()).toHaveTextContent('4:30 left');
   });
 
+  it('stops the clock and hides the agenda controls while the summary shows', async () => {
+    fakeClock();
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await ticking();
+    pass(20);
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await screen.findByRole('region', { name: 'Meeting summary' });
+    await flush();
+    expect(screen.queryByRole('timer')).toBeNull();
+    for (const name of [/^Agenda/, 'Done', 'Skip', 'Pause timer', 'Previous project', 'Next project']) expect(screen.queryByRole('button', { name })).toBeNull();
+    pass(60);
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await flush();
+    expect(timer()).toHaveTextContent('4:40 left');
+  });
+
+  it('hides the timeline controls while the summary shows', async () => {
+    await renderApp('/dashboard/meeting');
+    await screen.findByRole('list', { name: 'Project timeline' });
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    await screen.findByRole('region', { name: 'Meeting summary' });
+    for (const name of ['One month earlier', 'One month later', 'Today']) expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Zoom' })).toBeNull();
+  });
+
   it('marks a project discussed with Done and moves on, and Skip puts a project last', async () => {
     await renderApp(MEETING);
     const first = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

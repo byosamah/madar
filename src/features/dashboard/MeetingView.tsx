@@ -277,7 +277,10 @@ export function MeetingView() {
   const agendaIds = useMemo(() => agendaOrder(schedule ?? []).map((row) => row.project.id), [schedule]);
   const rowOf = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row])), [schedule]);
   const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
-  const session = useMeetingSession(agendaIds, mode === 'projects');
+  // The summary takes the place of the screen. Back shows the same mode and the same project again.
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  // The clock of a project runs only while its screen shows, so not on the timeline and not behind the summary.
+  const session = useMeetingSession(agendaIds, mode === 'projects' && !summaryOpen);
   const [agendaOpen, setAgendaOpen] = useState(false);
   const [bigScreen, setBigScreen] = useState(readBigScreen);
   const toggleBigScreen = () => setBigScreen((on) => {
@@ -285,8 +288,6 @@ export function MeetingView() {
     return !on;
   });
   useWakeLock();
-  // The summary takes the place of the screen. Back shows the same mode and the same project again.
-  const [summaryOpen, setSummaryOpen] = useState(false);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
@@ -425,7 +426,8 @@ export function MeetingView() {
             onChange={(next) => setMode(next)}
             options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
           />
-          {mode === 'projects' && shown && (
+          {/* The summary takes the place of the screen, so the controls of the screen below it hide too. */}
+          {!summaryOpen && mode === 'projects' && shown && (
             <>
               <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} onOpenSummary={() => setSummaryOpen(true)} />
               <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
@@ -436,7 +438,7 @@ export function MeetingView() {
               </Button>
             </>
           )}
-          {mode === 'timeline' && (
+          {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl
             label={t('dashboard.meeting.zoom')}
