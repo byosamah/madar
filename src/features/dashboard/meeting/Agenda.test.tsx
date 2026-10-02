@@ -110,6 +110,16 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(within(back).getByText('Discussed')).toBeInTheDocument();
   });
 
+  it('goes round to the first open project when Skip is pressed on the last project', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    const sheet = await openAgenda();
+    await userEvent.click(agendaItems(sheet)[8]);
+    await screen.findByRole('article', { name: 'Tamr Boutique Hotel' });
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' })).toBeInTheDocument();
+  });
+
   it('says "All projects discussed" when every project is done, and starts a new meeting', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

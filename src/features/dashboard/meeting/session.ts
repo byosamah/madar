@@ -152,11 +152,14 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     });
   };
 
-  /** Moves the current project to the end of the order and shows the next project that is not discussed. */
+  /**
+   * Moves the current project to the end of the order and shows the next project that is not discussed.
+   * The skipped project is not a candidate, so the search goes round to the start. It stays on the screen only when it is the last open one.
+   */
   const skip = () => {
     if (!currentId) return;
     const moved = [...order.filter((id) => id !== currentId), currentId];
-    const next = nextOpen(moved, current, discussed) ?? currentId;
+    const next = nextOpen(moved, current, new Set([...discussed, currentId])) ?? currentId;
     commit((s) => show({ ...s, order: [...s.order.filter((id) => id !== currentId), currentId] }, next, Date.now()));
   };
 
