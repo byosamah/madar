@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
@@ -47,7 +47,8 @@ describe('the Task list', () => {
     const { api } = await renderApp('/tasks?createdFrom=2026-09-20&createdTo=2026-09-26');
     const week = (await api.call('dashboard.get', {})).charts.throughput.find((w) => w.weekStart === '2026-09-20');
     expect(week?.created).toBeGreaterThan(0);
-    await waitFor(() => expect(screen.getAllByRole('checkbox', { name: /^Complete / }).length).toBe(week?.created));
+    // Count the rows, not the ticks: a done task shows a plain mark, not a tick (audit 2026-10-03, BRW-13).
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem').length).toBe(week?.created));
   });
 
   // Every list says what to do next, and a failed list shows only the error (audit PER-18).
