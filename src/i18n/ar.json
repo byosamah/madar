@@ -771,6 +771,7 @@
     "yesterday": "أمس",
     "unread": "غير مقروء",
     "approve": "اعتماد",
+    "approveTask": "اعتماد «{{target}}»",
     "someone": "شخص ما",
     "mentionDirect": "{{actor}} أشار إليك في رسالة مباشرة",
     "mentionDirect_female": "{{actor}} أشارت إليك في رسالة مباشرة",

@@ -693,6 +693,7 @@
     "yesterday": "Yesterday",
     "unread": "Unread",
     "approve": "Approve",
+    "approveTask": "Approve “{{target}}”",
     "someone": "Someone",
     "mentionDirect": "{{actor}} mentioned you in a direct message",
     "trigger": {

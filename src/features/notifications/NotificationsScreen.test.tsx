@@ -70,9 +70,9 @@ describe('the notifications screen', () => {
 
   it('lets the leader approve from the Inbox while the task waits', async () => {
     const { store } = await renderApp('/notifications', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
-    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve “Toilet details”' }));
     await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve “Toilet details”' })).toBeNull());
   });
 
   it('keeps the notice unread when the approval fails (audit 2026-10-03, SHL-11)', async () => {
@@ -81,11 +81,11 @@ describe('the notifications screen', () => {
       withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]),
       { failFirst: 'tasks.approve' },
     );
-    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve “Toilet details”' }));
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(store.state.notifications.ntf_904.read).toBe(false);
     expect(store.state.tasks.tsk_010.status).toBe('in_review');
-    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Approve “Toilet details”' }));
     await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(true));
   });
 
@@ -95,6 +95,17 @@ describe('the notifications screen', () => {
       withNotices('usr_001', [notice('ntf_901', 'mention', 'chat', room.id, TODAY_8, 'usr_002')])(state);
     });
     expect(await screen.findByText('Faisal Al-Harbi mentioned you in a direct message')).toBeInTheDocument();
+  });
+
+  it('offers Undo after Approve, and names the task in each Approve button (audit 2026-10-03, BRW-5)', async () => {
+    const { store } = await renderApp('/notifications', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
+    const approve = await screen.findByRole('button', { name: 'Approve “Toilet details”' });
+    expect(approve).toHaveTextContent(/^Approve$/);
+    await userEvent.click(approve);
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
+    expect(await screen.findByText('Task approved.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_review'));
   });
 
   it('says when there is nothing', async () => {
@@ -109,7 +120,7 @@ describe('the notifications screen', () => {
     expect(await screen.findByText('This item does not exist anymore.')).toBeInTheDocument();
     const item = itemWith(/sent “Toilet details” to review/);
     expect(within(item).queryByRole('link')).toBeNull();
-    expect(within(item).queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(within(item).queryByRole('button', { name: 'Approve “Toilet details”' })).toBeNull();
   });
 
   it('marks a notice of a deleted item read once the list shows it (audit 2026-10-03, SHL-12)', async () => {

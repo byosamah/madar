@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
+import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -25,7 +26,6 @@ type NoticeView = CallOutput<'notifications.list'>[number];
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const toast = useToast();
   const phone = useIsPhone();
   const { notification: n, actor, target, project, link, canApprove, gone } = view;
   const markRead = useAction('notifications.markRead');
@@ -33,12 +33,8 @@ function InboxItem({ view }: { view: NoticeView }) {
     if (!n.read) markRead.mutate({ ids: [n.id] });
   };
   // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
-  const approve = useAction('tasks.approve', {
-    onSuccess: () => {
-      read();
-      toast.show({ message: t('taskSheet.approved') });
-    },
-  });
+  // Approve is a change like any other, so its toast offers Undo (audit 2026-10-03, BRW-5).
+  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: read });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
   // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
@@ -104,6 +100,8 @@ function InboxItem({ view }: { view: NoticeView }) {
           className="shrink-0"
           disabled={approve.isPending}
           onClick={() => approve.mutate({ id: n.targetId })}
+          // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
+          aria-label={t('inbox.approveTask', { target })}
         >
           {t('inbox.approve')}
         </Button>
