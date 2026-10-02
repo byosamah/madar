@@ -62,7 +62,7 @@ describe('the shift plan', () => {
   it('moves a dynamic dependent by the working days the task is late', () => {
     // Due Fri 25 Sep, finished Wed 30 Sep: 4 working days late.
     const plan = shiftPlan({ dueDate: '2026-09-25' }, [dep('a')], '2026-09-30');
-    expect(plan).toEqual([{ id: 'a', lateDays: 4, from: { startDate: '2026-10-04', dueDate: '2026-10-08' }, to: { startDate: '2026-10-08', dueDate: '2026-10-13' } }]);
+    expect(plan).toEqual([{ id: 'a', lateDays: 4, taskLateDays: 4, from: { startDate: '2026-10-04', dueDate: '2026-10-08' }, to: { startDate: '2026-10-08', dueDate: '2026-10-13' } }]);
   });
   it('does not move a static, done, or undated dependent', () => {
     const list = [dep('s', { schedule: 'static' }), dep('u', { schedule: undefined }), dep('d', { status: 'done' }), dep('n', { startDate: null }), dep('z', { durationDays: null }), dep('ok')];

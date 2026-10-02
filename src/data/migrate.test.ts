@@ -30,7 +30,7 @@ describe('migrateState', () => {
     world.counters.evt = 1;
     world.version = 5;
     const done = migrateState(world)!;
-    expect(done.version).toBe(6);
+    expect(done.version).toBe(STATE_VERSION);
     expect(Object.values(done.tracker!).map((e) => [e.id, e.direction])).toEqual([
       ['trk_001', 'both'], ['trk_002', 'third_party'], ['trk_003', 'out'], ['trk_004', 'in'],
     ]);
@@ -75,7 +75,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(6);
+    expect(STATE_VERSION).toBe(7);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);
@@ -87,5 +87,16 @@ describe('migrateState', () => {
     expect(Object.keys(migrated.users)).toEqual(['usr_001', 'usr_002', 'usr_003', 'usr_004', 'usr_005']);
     expect(migrated.tasks.tsk_001.title).toBe('Ground floor plan');
     expect(Object.keys(migrated.projects)).toEqual(['prj_001']);
+  });
+
+  it('takes a version 6 office to version 7: every person gets the restart-day notice, turned on (audit 2026-10-03, API-18)', () => {
+    const world = makeWorld();
+    for (const user of Object.values(world.users)) delete (user.preferences.notifications as Record<string, boolean>).resume_due;
+    world.users.usr_003.preferences.notifications.mention = false;
+    world.version = 6;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(7);
+    expect(Object.values(done.users).every((user) => user.preferences.notifications.resume_due === true)).toBe(true);
+    expect(done.users.usr_003.preferences.notifications.mention).toBe(false);
   });
 });

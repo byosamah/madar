@@ -31,8 +31,9 @@ describe('tracker.log with replyBy', () => {
   it('opens the task "Reply: <title>" for that person, in the current stage, due that day, linked both ways', async () => {
     const t = world();
     const { entry, task } = await withReply(t);
+    // The project has no task, so its stage tag is the first stage, Concept (audit 2026-10-03, API-9).
     expect(task).toMatchObject({
-      title: 'Reply: Can the lobby move?', ownerId: 'usr_003', stageId: 'stg_002', dueDate: '2026-10-04', status: 'todo', projectId: 'prj_001',
+      title: 'Reply: Can the lobby move?', ownerId: 'usr_003', stageId: 'stg_001', dueDate: '2026-10-04', status: 'todo', projectId: 'prj_001',
       trackerEntryId: entry.id, needsReview: false,
     });
     expect(entry.replyTaskId).toBe(task.id);
@@ -169,9 +170,9 @@ describe('finishing the reply task', () => {
   it('logs nothing when the loop was already closed or ended, and for a task with no entry', async () => {
     const t = world();
     const { entry, task } = await withReply(t);
+    // The loop ends, so the reply task finishes with it and logs no reply (audit 2026-10-03, API-9).
     await t.api.call('tracker.update', { id: entry.id, waiting: null });
-    t.as('usr_003');
-    await t.api.call('tasks.complete', { id: task.id });
+    expect(t.store.state.tasks[task.id].status).toBe('done');
     expect(Object.values(t.store.state.tracker!)).toHaveLength(1);
     t.as('usr_002');
     const plain = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Plain task', ownerId: 'usr_003' });

@@ -77,6 +77,7 @@
       "task_approved": "My task is approved",
       "task_sent_back": "My task is sent back",
       "stage_changed": "The stage changes on my project",
+      "resume_due": "A paused project reaches its restart date",
       "added_to_project": "I am added to a project"
     },
     "prototype": "Prototype",
@@ -109,6 +110,11 @@
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back.",
+      "review_send_back": "This task is in review. Use Send back and write a note for the owner.",
+      "member_has_open_tasks": "This person still has open tasks here. Give their open tasks to someone else first.",
+      "pause_needs_reason": "Use Pause project and write why the project pauses.",
+      "cover_not_image": "The cover must be a picture.",
+      "person_inactive": "This person is no longer active. Pick someone else.",
       "duplicate_team": "A team with this name exists. Use another name.",
       "side_for_type": "This type of entry cannot have this side.",
       "reply_needs_waiting_us": "Only an entry that needs a reply gets a reply task.",
@@ -707,6 +713,7 @@
       "task_approved": "{{actor}} approved “{{target}}”",
       "task_sent_back": "{{actor}} sent back “{{target}}”",
       "stage_changed": "{{actor}} changed the stage of {{target}}",
+      "resume_due": "{{target}} reached its planned restart date",
       "added_to_project": "{{actor}} added you to {{target}}"
     }
   },

@@ -7,7 +7,7 @@ import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
-import { helpersOf } from '../lib/taskPeople';
+import { helpersOf, involves } from '../lib/taskPeople';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
 import { staleDaysOf } from './pause';
 
@@ -106,7 +106,7 @@ function canEditContent(state: State, projectId: string, authorId: string, viewe
 export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
   return {
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
-    fileIds: update.fileIds, editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
+    fileIds: update.fileIds, attachments: attachmentsOf(state, update.fileIds), editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
     canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
     ...(update.decision ? { decision: true as const } : {}),
   };
@@ -199,8 +199,9 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
 
 export function detailOf(state: State, project: Project, today: string, viewer: User): ProjectDetail {
   const summary = summaryOf(state, project, today, viewer);
+  // A person leads a task or helps on it. Both count, as in members.remove and the Overview (audit 2026-10-03, PRJ-3).
   const openBy = (userId: string) =>
-    Object.values(state.tasks).filter((t) => t.projectId === project.id && t.ownerId === userId && t.status !== 'done').length;
+    Object.values(state.tasks).filter((t) => t.projectId === project.id && involves(t, userId) && t.status !== 'done').length;
   const members = Object.values(state.members)
     .filter((m) => m.projectId === project.id)
     .map((m) => ({
@@ -284,9 +285,16 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
   };
 }
 
-export function fileViewOf(state: State, file: FileRec): FileView {
+/** The person who uploaded the file (or the person their agent acted for) while still on the project, the leader or the Admin. */
+export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
+  const projectRole = projectRoleOf(state, file.projectId, viewer.id);
+  return can(viewer, 'task.delete', { projectRole })
+    || can(viewer, 'content.editOwn', { projectRole, authorId: principalOf(state, file.versions[0].uploadedBy) });
+}
+
+export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {
   const latest = file.versions[file.versions.length - 1];
-  return { file, latest, uploader: cardOf(state, latest.uploadedBy) };
+  return { file, latest, uploader: cardOf(state, latest.uploadedBy), canDelete: mayDeleteFile(state, viewer, file) };
 }
 
 /** True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. */

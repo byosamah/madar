@@ -18,6 +18,8 @@ export interface CallDef<I extends z.ZodType, O extends z.ZodType, P = undefined
   prototypeOnly?: boolean;
   prepare?(input: z.output<I>, ctx: PrepareCtx): Promise<P>;
   run(input: z.output<I>, ctx: Ctx, prepared: P): z.input<O>;
+  /** Work outside the state after the change is made, for example removing stored file data. It may wait. A failure here does not fail the call. */
+  after?(output: z.output<O>, ctx: PrepareCtx, prepared: P): Promise<void>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

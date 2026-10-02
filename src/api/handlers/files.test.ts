@@ -40,10 +40,11 @@ describe('files', () => {
 
   it('lets only the leader set the cover', async () => {
     const t = testApi(fileCalls);
+    const svg = () => new Blob(['x'], { type: 'image/svg+xml' });
     t.as('usr_003');
-    await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'cover.svg', blob: pdf('x'), asCover: true })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'cover.svg', blob: svg(), asCover: true })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_002');
-    const view = await t.api.call('files.upload', { projectId: 'prj_001', name: 'cover.svg', blob: pdf('x'), asCover: true });
+    const view = await t.api.call('files.upload', { projectId: 'prj_001', name: 'cover.svg', blob: svg(), asCover: true });
     expect(t.store.state.projects.prj_001.coverFileId).toBe(view.file.id);
   });
 

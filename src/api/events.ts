@@ -15,6 +15,12 @@ export const DERIVED = new Set(['project.stage_changed']);
 
 export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'undo', ...DERIVED]);
 
+/**
+ * Changes that Madar makes to other tasks because of a person's change: a done task that opens again, and a date that moves.
+ * In a story, the person may take them back with the change that caused them (audit 2026-10-03, API-1).
+ */
+export const FOLLOW_ON = new Set(['task.reopened', 'task.dates_shifted']);
+
 export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown }): Event {
   const id = nextId(ec.state, 'evt');
   const event: Event = {
@@ -70,7 +76,8 @@ function assertReferencesExist(state: State, targetType: EventTarget, values: Re
     if (!key || typeof value !== 'string') continue;
     if (!(state[key] as Record<string, unknown>)[value]) throw conflict('Something this change needs is gone. Undo is not available.');
   }
-  if (targetType === 'comment') {
+  // Only a whole comment names its target. A change of some fields (an edit, a reaction) keeps the target it has (audit 2026-10-03, API-19).
+  if (targetType === 'comment' && 'targetId' in values) {
     const target = values.targetType === 'task' ? state.tasks[String(values.targetId)] : state.updates[String(values.targetId)];
     if (!target) throw conflict('Something this change needs is gone. Undo is not available.');
   }
@@ -96,12 +103,14 @@ function isUsedElsewhere(state: State, collectionKey: keyof State, targetId: str
   return false;
 }
 
-export function undoEvent(ec: EventContext, eventId: string): Event {
+/** "derived" lets the history calls take back a stage move together with the story that caused it. */
+export function undoEvent(ec: EventContext, eventId: string, options: { derived?: boolean } = {}): Event {
   const event = ec.state.events[eventId];
   if (!event) throw notFound('Event', eventId);
   if (event.undoneBy) throw new ApiError('conflict', 'This change is already undone.');
   const key = COLLECTION[event.targetType];
-  if (!key || NOT_UNDOABLE.has(event.verb)) throw new ApiError('conflict', 'This change cannot be undone.');
+  const allowed = options.derived === true && DERIVED.has(event.verb);
+  if (!key || (NOT_UNDOABLE.has(event.verb) && !allowed)) throw new ApiError('conflict', 'This change cannot be undone.');
   const collection = ec.state[key] as unknown as Record<string, Record<string, unknown>>;
   const current = collection[event.targetId];
   const later = Object.values(ec.state.events).filter(
