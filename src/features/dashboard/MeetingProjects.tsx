@@ -87,7 +87,7 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
   const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
   return (
     <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
-      <header className="panel flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
+      <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">
         <ProjectTile id={row.project.id} mark={row.project.mark} size={64} />
         <div className="min-w-0 flex-1 basis-80">
           <div className="flex flex-wrap items-center gap-x-3">
@@ -114,58 +114,62 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
           )}
         </div>
       </header>
-      <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
-      <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
-        <div className="flex min-w-0 flex-col gap-5">
-          <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
-            {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
-          </Column>
-          <ChainsPanel tasks={tasks.filter((item) => item.project.id === row.project.id)} />
+      {/* One scroll area below the project header: the people, the three columns, and the drawings as the last full-width row.
+          Nothing is pinned under the columns, so they keep their full height on every screen and in Big screen. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+        <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
+        <div className="grid shrink-0 content-start items-start gap-5 lg:grid-cols-3">
+          <div className="flex min-w-0 flex-col gap-5">
+            <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
+              {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
+            </Column>
+            <ChainsPanel tasks={tasks.filter((item) => item.project.id === row.project.id)} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+            <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
+              {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
+              {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
+              {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
+            </Column>
+            <ClientItemsPanel projectId={row.project.id} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+            <DecisionsPanel projectId={row.project.id} />
+            <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
+              <h3 className={HEADING}>{t('overview.comingUp')}</h3>
+              {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (
+                <ul className="flex flex-col gap-2 pt-1">
+                  {next.map((deadline) => {
+                    const word = wordForDays(diffDays(today, deadline.date));
+                    return (
+                      <li key={deadline.id} className="flex items-baseline justify-between gap-3">
+                        <bdi className="min-w-0 truncate text-[17px] text-ink">{deadline.name}</bdi>
+                        <span className="tabular shrink-0 text-[15px] text-ink-2">{word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+            <section aria-label={t('overview.latest')} className="panel flex flex-col gap-2 p-5">
+              <h3 className={HEADING}>{t('overview.latest')}</h3>
+              {posts.data && !latest && <p className="text-[17px] text-ink-2">{t('overview.noPosts')}</p>}
+              {latest && latest.kind === 'update' && (
+                <div className="flex flex-col gap-2">
+                  <span className="flex items-center gap-2 text-[15px] text-ink-2">
+                    <Avatar user={latest.author} size={24} />
+                    <bdi className="font-semibold text-ink">{latest.author.name}</bdi>
+                    <Age stamp={latest.at} />
+                  </span>
+                  <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>
+                </div>
+              )}
+            </section>
+            <MeetingPayments projectId={row.project.id} />
+          </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-5">
-          <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
-            {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
-            {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
-            {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
-          </Column>
-          <ClientItemsPanel projectId={row.project.id} />
-        </div>
-        <div className="flex min-h-0 min-w-0 flex-col gap-5">
-          <DecisionsPanel projectId={row.project.id} />
-          <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
-            <h3 className={HEADING}>{t('overview.comingUp')}</h3>
-            {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (
-              <ul className="flex flex-col gap-2 pt-1">
-                {next.map((deadline) => {
-                  const word = wordForDays(diffDays(today, deadline.date));
-                  return (
-                    <li key={deadline.id} className="flex items-baseline justify-between gap-3">
-                      <bdi className="min-w-0 truncate text-[17px] text-ink">{deadline.name}</bdi>
-                      <span className="tabular shrink-0 text-[15px] text-ink-2">{word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-          <section aria-label={t('overview.latest')} className="panel flex min-h-0 flex-col gap-2 p-5">
-            <h3 className={HEADING}>{t('overview.latest')}</h3>
-            {posts.data && !latest && <p className="text-[17px] text-ink-2">{t('overview.noPosts')}</p>}
-            {latest && latest.kind === 'update' && (
-              <div className="flex min-h-0 flex-col gap-2">
-                <span className="flex items-center gap-2 text-[15px] text-ink-2">
-                  <Avatar user={latest.author} size={24} />
-                  <bdi className="font-semibold text-ink">{latest.author.name}</bdi>
-                  <Age stamp={latest.at} />
-                </span>
-                <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>
-              </div>
-            )}
-          </section>
-          <MeetingPayments projectId={row.project.id} />
-        </div>
+        <DrawingsStrip projectId={row.project.id} />
       </div>
-      <DrawingsStrip projectId={row.project.id} />
     </article>
   );
 }
