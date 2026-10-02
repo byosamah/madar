@@ -270,6 +270,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
         <TabPanel value="details" idPrefix="task-section">
           <div className="flex flex-col gap-5">
             {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
+            {viewerCan.review && (
+              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
+                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
+                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+              </section>
+            )}
             {edit ? (
               <TextField
                 id="task-title"
@@ -283,7 +291,8 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               />
             ) : <Fact label={t('taskSheet.title')}><bdi>{task.title}</bdi></Fact>}
             <div className="grid gap-4 sm:grid-cols-2">
-              {data.canMove ? (
+              {/* The reviewer finishes or returns a task in review with Approve or Send back only, so the Status menu hides (audit 2026-10-03, PRJ-2). */}
+              {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
                   {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
                 </SelectField>
@@ -329,13 +338,6 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
             {viewerCan.editAll && (
               <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
-            )}
-            {viewerCan.review && (
-              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
-                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
-              </section>
             )}
             {edit ? (
               <TextArea

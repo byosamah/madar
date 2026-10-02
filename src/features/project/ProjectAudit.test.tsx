@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ApiError } from '../../api/errors';
 import type { State } from '../../api/store';
 import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
@@ -387,5 +388,69 @@ describe('files in the task panel (audit 2026-10-03, PRJ-24)', () => {
     spy.mockRestore();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Open Stair sketch.png' }));
     expect(await screen.findByRole('dialog', { name: 'Stair sketch.png' })).toBeInTheDocument();
+  });
+});
+
+describe('a task in review for the person who reviews it (audit 2026-10-03, PRJ-8 and PRJ-2)', () => {
+  it('puts Approve and Send back first, and has no Status menu', async () => {
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_010', as('usr_002'));
+    const sheet = await screen.findByRole('dialog', { name: /./ });
+    const review = await within(sheet).findByRole('region', { name: 'Review' });
+    const title = within(sheet).getByLabelText('Title');
+    expect(review.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(sheet).queryByRole('combobox', { name: 'Status' })).toBeNull();
+    expect(within(sheet).getByText('In review')).toBeInTheDocument();
+  });
+
+  it('keeps the Status menu on a task that is not in review', async () => {
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(within(sheet).getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+  });
+});
+
+describe('empty task links hide behind one press (audit 2026-10-03, PRJ-8)', () => {
+  let loneId = '';
+  const lone = (state: State) => {
+    state.session.currentUserId = 'usr_002';
+    const tasks = Object.values(state.tasks).filter((task) => task.projectId === 'prj_001' && task.status !== 'done');
+    const needed = new Set(tasks.flatMap((task) => task.prerequisiteIds ?? []));
+    const pick = tasks.find((task) => !needed.has(task.id))!;
+    pick.prerequisiteIds = [];
+    loneId = pick.id;
+  };
+
+  it('shows one "Add a task it needs first" press, and the picker after it', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=tasks', lone);
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(`^${store.state.tasks[loneId].title}`) }));
+    const sheet = await screen.findByRole('dialog', { name: store.state.tasks[loneId].title });
+    expect(within(sheet).queryByRole('region', { name: 'Needs first' })).toBeNull();
+    expect(within(sheet).queryByRole('region', { name: 'Unlocks' })).toBeNull();
+    expect(within(sheet).queryByText('No task waits for this one.')).toBeNull();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task it needs first' }));
+    expect(within(sheet).getByRole('region', { name: 'Needs first' })).toBeInTheDocument();
+    expect(within(sheet).getByLabelText('Add a task it needs first')).toHaveFocus();
+  });
+});
+
+describe('a refused move on the board (audit 2026-10-03, PRJ-2)', () => {
+  it('leaves the card in its column and says why', async () => {
+    window.localStorage.setItem('madar.tasks.view', 'board');
+    try {
+      const { api, store } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+      const original = api.call.bind(api);
+      api.call = ((name: string, input: unknown, meta?: unknown) => (name === 'tasks.move'
+        ? Promise.reject(new ApiError('forbidden', 'Refused.'))
+        : (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta))) as typeof api.call;
+      const title = store.state.tasks.tsk_010.title;
+      const column = await screen.findByRole('region', { name: /^In review/ });
+      await userEvent.click(within(column).getByRole('button', { name: `Move ${title}` }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Done' }));
+      expect(await screen.findByText('You cannot do this on this project.')).toBeInTheDocument();
+      expect(within(screen.getByRole('region', { name: /^In review/ })).getByText(title)).toBeInTheDocument();
+      expect(store.state.tasks.tsk_010.status).toBe('in_review');
+    } finally {
+      window.localStorage.removeItem('madar.tasks.view');
+    }
   });
 });

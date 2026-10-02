@@ -550,13 +550,11 @@
     "templateSaved": "Saved as a template for {{stage}}.",
     "needsFirst": "Needs first",
     "needsFirstHint": "This task cannot be finished until these tasks are done.",
-    "noNeeds": "Nothing needs to be done first.",
     "addNeed": "Add a task it needs first",
     "pickNeed": "Pick a task",
     "removeNeed": "Remove {{title}} from the list",
     "unlocks": "Unlocks",
     "unlocksHint": "These tasks wait for this one.",
-    "noUnlocks": "No task waits for this one.",
     "dateChanges": "Date changes",
     "dateMoved": "Moved from {{from}} to {{to}}: {{task}} finished {{lateness}} late"
   },
