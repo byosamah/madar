@@ -29,6 +29,16 @@ describe('settings screen', () => {
     expect(await screen.findByText('Profile saved.')).toBeInTheDocument();
   });
 
+  it('shows a refused profile field under the field (audit 2026-10-03, SHL-22)', async () => {
+    await renderApp('/settings');
+    const name = await screen.findByLabelText('Name');
+    await userEvent.clear(name);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('Enter a name.');
+    expect(screen.getByLabelText('Discipline')).not.toHaveAttribute('aria-invalid');
+  });
+
   it('previews the app as another person', async () => {
     const { store } = await renderApp('/settings');
     const selects = await screen.findAllByRole('combobox', { name: /Preview as/ });
