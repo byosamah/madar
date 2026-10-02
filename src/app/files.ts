@@ -30,6 +30,16 @@ export function useFileUrl(fileId: string | null, letter?: string): string | nul
   return url;
 }
 
+/** Saves text to the computer as a file. The review link frame blocks this too. */
+export function downloadText(name: string, text: string, mime: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Saves a stored file to the computer. The review link frame blocks this (plan clarification 9). */
 export async function downloadFile(api: MadarApi, fileId: string, letter?: string): Promise<void> {
   const { blob, file } = await api.call('files.get', { id: fileId, letter });

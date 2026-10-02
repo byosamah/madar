@@ -35,7 +35,7 @@ const CHAT_CALLS = ['chats.list', 'chats.messages', 'chats.send', 'chats.markRea
 // Share an existing file into a chat or a task conversation (owner request, 2026-10-01).
 const SHARE_CALLS = ['files.share'];
 // The client tracker (owner request, 2026-10-01). A file marked as delivered logs a tracker entry.
-const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.update', 'tracker.delete', 'files.markDelivered'];
+const TRACKER_CALLS = ['tracker.list', 'tracker.log', 'tracker.close', 'tracker.update', 'tracker.delete', 'tracker.assignReply', 'tracker.export', 'files.markDelivered'];
 // Payment milestones (colleague comment 6, owner, 2026-10-01).
 const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'];
 // Feature requests and bug reports from the person menu (owner, 2026-10-01).
@@ -51,7 +51,7 @@ describe('the call map', () => {
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
-      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'feedback.screenshot';
+      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });

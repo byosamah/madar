@@ -251,6 +251,12 @@ export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry
     || principalOf(state, entry.createdBy) === viewer.id;
 }
 
+/** The reply task of an entry. A task that was deleted counts as no task. */
+export function replyTaskOf(state: State, entry: TrackerEntry): TrackerRow['replyTask'] {
+  const task = entry.replyTaskId ? state.tasks[entry.replyTaskId] : undefined;
+  return task ? { id: task.id, status: task.status, dueDate: task.dueDate, owner: cardOf(state, task.ownerId) } : null;
+}
+
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {
   const mayPost = can(viewer, 'content.post', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
   return {
@@ -259,6 +265,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     closedBy: entry.closedBy ? cardOf(state, entry.closedBy) : null,
     people: entry.peopleIds.map((id) => cardOf(state, id)),
     files: attachmentsOf(state, entry.fileIds),
+    replyTask: replyTaskOf(state, entry),
     canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
     canEdit: mayPost,
     canDelete: mayDeleteTracker(state, viewer, entry),

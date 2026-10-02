@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { dueFromDuration, firstWorkingDay, isWorkingDay } from './workdays';
+import { addWorkingDays, dueFromDuration, firstWorkingDay, isWorkingDay } from './workdays';
 
 describe('working days', () => {
+  it('adds working days and skips the weekend', () => {
+    expect(addWorkingDays('2026-09-30', 2)).toBe('2026-10-04'); // Wednesday to Sunday
+    expect(addWorkingDays('2026-10-01', 2)).toBe('2026-10-05'); // Thursday to Monday
+    expect(addWorkingDays('2026-10-02', 2)).toBe('2026-10-05'); // Friday: Sunday, then Monday
+    expect(addWorkingDays('2026-10-04', 0)).toBe('2026-10-04');
+  });
+
   it('knows the office week, Sunday to Thursday', () => {
     expect(['2026-10-04', '2026-10-08'].map(isWorkingDay)).toEqual([true, true]);
     expect(['2026-10-09', '2026-10-10'].map(isWorkingDay)).toEqual([false, false]);

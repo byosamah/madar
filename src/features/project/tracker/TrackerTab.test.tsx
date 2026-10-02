@@ -64,16 +64,16 @@ describe('the Tracker tab', () => {
 
   it('logs the type, the direction, the date and the open loop that were set', async () => {
     const { store } = await renderApp(TRACKER, as('usr_002'));
-    await userEvent.click(await screen.findByRole('radio', { name: 'Meeting' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'File' }));
     await userEvent.click(screen.getByRole('radio', { name: 'To the client' }));
     await userEvent.click(screen.getByRole('switch', { name: 'Waiting for the client' }));
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-09-29' } });
-    await userEvent.type(screen.getByRole('textbox', { name: 'Log an exchange' }), 'Presented the options{Enter}');
-    await waitFor(() => expect(entriesOf(store.state, 'Presented the options')).toHaveLength(1));
-    expect(entriesOf(store.state, 'Presented the options')[0]).toMatchObject({ type: 'meeting', direction: 'out', date: '2026-09-29', waiting: 'client' });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Log an exchange' }), 'Sent the options{Enter}');
+    await waitFor(() => expect(entriesOf(store.state, 'Sent the options')).toHaveLength(1));
+    expect(entriesOf(store.state, 'Sent the options')[0]).toMatchObject({ type: 'file', direction: 'out', date: '2026-09-29', waiting: 'client' });
     // The new loop shows in the Open section at once.
     const client = await screen.findByRole('group', { name: 'Waiting for the client' });
-    expect(await within(client).findByText('Presented the options')).toBeInTheDocument();
+    expect(await within(client).findByText('Sent the options')).toBeInTheDocument();
   });
 
   it('reads "Needs a reply" when the direction is from the client', async () => {
@@ -119,8 +119,9 @@ describe('the Tracker tab', () => {
     await waitFor(() => expect(titles()).toHaveLength(2));
     expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
     await userEvent.click(within(screen.getByRole('group', { name: 'Direction' })).getByRole('radio', { name: 'To the client' }));
-    await waitFor(() => expect(titles()).toHaveLength(1));
-    expect(titles()[0]).toContain('Submitted the building permit request');
+    await waitFor(() => expect(screen.getByText('Nothing matches this filter.')).toBeInTheDocument());
+    await userEvent.click(within(screen.getByRole('group', { name: 'Direction' })).getByRole('radio', { name: 'Third party' }));
+    await waitFor(() => expect(titles()).toHaveLength(2));
     await userEvent.click(within(screen.getByRole('group', { name: 'Direction' })).getByRole('radio', { name: 'All' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Open only' }));
     await waitFor(() => expect(screen.getByText('Nothing matches this filter.')).toBeInTheDocument());
@@ -211,7 +212,7 @@ describe('the Tracker tab', () => {
   it('gives every direction arrow the class that flips it on a right-to-left page', async () => {
     await renderApp(TRACKER, as('usr_002'));
     const history = await historyReady();
-    const marks = history.querySelectorAll('[data-direction]');
+    const marks = history.querySelectorAll('[data-direction="in"], [data-direction="out"]');
     expect(marks.length).toBeGreaterThan(0);
     for (const mark of marks) expect(mark.querySelector('[class*="rtl:-scale-x-100"]')).not.toBeNull();
   });

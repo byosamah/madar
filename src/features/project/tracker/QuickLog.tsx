@@ -1,21 +1,27 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
+import type { UserCard } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
 import { errorMessage } from '../../../app/errors';
+import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Switch } from '../../../components/Switch';
 import { todayISO } from '../../../lib/dates';
+import { sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
+import { addWorkingDays } from '../../../lib/workdays';
 import { AttachButton, PickedFiles, useAttachments } from '../../files/Attachments';
+import { ReplyFields } from './ReplyFields';
 import { TypeIcon } from './marks';
 
 /**
  * One line to log an exchange with the client. Only the text is needed: the type, the direction and the date have
- * sensible defaults, so Enter saves. The type and the direction stay as set for the next entry.
+ * sensible defaults, so Enter saves. The type and the side stay as set for the next entry. The side follows the type: only a message,
+ * a file or an "Other" entry asks for it. An entry that needs a reply also asks who replies and by which day.
  */
-export function QuickLog({ projectId }: { projectId: string }) {
+export function QuickLog({ projectId, members }: { projectId: string; members: UserCard[] }) {
   const { t } = useTranslation();
   const toast = useToast();
   const attachments = useAttachments();
@@ -25,17 +31,26 @@ export function QuickLog({ projectId }: { projectId: string }) {
   const [direction, setDirection] = useState<TrackerDirection>('in');
   const [date, setDate] = useState(todayISO());
   const [wait, setWait] = useState(false);
+  const me = useCall('session.get', {}).data?.user.id;
+  const [replier, setReplier] = useState('');
+  const [replyDate, setReplyDate] = useState('');
   const [uploading, setUploading] = useState(false);
   const log = useUndoable('tracker.log', {
     message: () => t('tracker.logged'),
     onSuccess: () => {
       setText('');
       setWait(false);
+      setReplier('');
+      setReplyDate('');
       setDate(todayISO());
       attachments.clear();
       field.current?.focus();
     },
   });
+
+  const sides = sidesOf(type);
+  const needsReply = wait && waitingFor(direction) === 'us';
+  const who = replier || (members.some((member) => member.id === me) ? me : members[0]?.id) || '';
 
   const submit = async () => {
     const title = text.trim();
@@ -52,7 +67,9 @@ export function QuickLog({ projectId }: { projectId: string }) {
         setUploading(false);
       }
     }
-    log.mutate({ projectId, type, direction, title, date: date || todayISO(), waiting: wait ? (direction === 'in' ? 'us' : 'client') : null, fileIds });
+    const waiting = wait ? waitingFor(direction) : null;
+    const replyBy = waiting === 'us' && who ? { userId: who, dueDate: replyDate || addWorkingDays(todayISO(), 2) } : undefined;
+    log.mutate({ projectId, type, direction, title, date: date || todayISO(), waiting, fileIds, replyBy });
   };
 
   return (
@@ -78,14 +95,18 @@ export function QuickLog({ projectId }: { projectId: string }) {
         />
         <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>
       </div>
-      <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-4 gap-2">
+      <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-5 gap-1.5">
         {TRACKER_TYPES.map((value) => (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={value === type}
-            onClick={() => setType(value)}
+            onClick={() => {
+              setType(value);
+              setDirection(sideForType(value, direction));
+              setWait(false);
+            }}
             className={`pressable flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-footnote font-semibold ${value === type ? 'border-ink bg-panel text-ink' : 'border-transparent bg-fill text-ink-2 hover:text-ink'}`}
           >
             <TypeIcon type={value} size={20} animated />
@@ -94,19 +115,24 @@ export function QuickLog({ projectId }: { projectId: string }) {
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <SegmentedControl
-          label={t('tracker.directionLabel')}
-          value={direction}
-          options={[{ value: 'in', label: t('tracker.direction.in') }, { value: 'out', label: t('tracker.direction.out') }]}
-          onChange={(value) => {
-            setDirection(value);
-            setWait(false);
-          }}
-        />
+        {sides.length > 1 && (
+          <SegmentedControl
+            label={t('tracker.directionLabel')}
+            value={direction}
+            options={sides.map((value) => ({ value, label: t(`tracker.direction.${value}`) }))}
+            onChange={(value) => {
+              setDirection(value);
+              setWait(false);
+            }}
+          />
+        )}
         <input type="date" aria-label={t('tracker.date')} value={date} onChange={(event) => setDate(event.target.value)} className="field min-h-11 !w-auto" />
         <AttachButton onPick={attachments.add} disabled={attachments.full} />
-        <Switch id="tracker-wait" label={t(direction === 'in' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
+        <Switch id="tracker-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
       </div>
+      {needsReply && members.length > 0 && (
+        <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || addWorkingDays(todayISO(), 2)} onUser={setReplier} onDueDate={setReplyDate} />
+      )}
       <PickedFiles files={attachments.files} onRemove={attachments.remove} />
     </form>
   );

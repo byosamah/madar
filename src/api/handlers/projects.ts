@@ -207,7 +207,7 @@ export const projectsSetStage = defineCall({
     applyPatch(ctx, project, { currentStageId: input.stageId, healthOverride: null, stageBack }, {
       projectId: project.id, verb: 'project.stage_changed', targetType: 'project', targetId: project.id,
     });
-    if (back && input.logInTracker) addTrackerEntry(ctx, { projectId: project.id, type: 'balady', direction: 'in', title: reason });
+    if (back && input.logInTracker) addTrackerEntry(ctx, { projectId: project.id, type: 'balady', direction: 'third_party', title: reason });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, project.id), trigger: 'stage_changed', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);

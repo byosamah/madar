@@ -4,7 +4,7 @@ import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../..
 import type { ProjectDetail, TrackerRow, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
-import { useAction } from '../../../app/runtime';
+import { useAction, useCall } from '../../../app/runtime';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -13,10 +13,12 @@ import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
 import { StatusSign } from '../../../components/StatusSign';
 import { Switch } from '../../../components/Switch';
-import { formatDay, stampDay } from '../../../lib/dates';
+import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
-import { isOpen } from '../../../lib/tracker';
+import { AUTO_KEY, isOpen, sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
+import { addWorkingDays } from '../../../lib/workdays';
 import { FileChips } from '../../files/Attachments';
+import { ReplyFields } from './ReplyFields';
 import { DirectionMark, TypeIcon } from './marks';
 
 function Person({ user }: { user: UserCard }) {
@@ -54,7 +56,7 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
     if (!title.trim() || save.isPending) return;
     // The loop stays as it is when neither the switch nor the direction changed. Otherwise it follows the direction.
     const untouched = wait === (entry.waiting !== null) && direction === entry.direction;
-    const waiting = untouched ? entry.waiting : wait ? (direction === 'in' ? 'us' : 'client') : null;
+    const waiting = untouched ? entry.waiting : wait ? waitingFor(direction) : null;
     save.mutate({ id: entry.id, title, note, date: date || entry.date, type, direction, peopleIds, waiting });
   };
   return (
@@ -72,17 +74,22 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
           label={t('tracker.typeLabel')}
           value={type}
           options={TRACKER_TYPES.map((value) => ({ value, label: t(`tracker.type.${value}`) }))}
-          onChange={setType}
+          onChange={(value) => {
+            setType(value);
+            setDirection(sideForType(value, direction));
+          }}
         />
-        <SegmentedControl
-          label={t('tracker.directionLabel')}
-          value={direction}
-          options={[{ value: 'in', label: t('tracker.direction.in') }, { value: 'out', label: t('tracker.direction.out') }]}
-          onChange={setDirection}
-        />
+        {sidesOf(type).length > 1 && (
+          <SegmentedControl
+            label={t('tracker.directionLabel')}
+            value={direction}
+            options={sidesOf(type).map((value) => ({ value, label: t(`tracker.direction.${value}`) }))}
+            onChange={setDirection}
+          />
+        )}
       </div>
       <TextField id="tracker-edit-date" type="date" label={t('tracker.date')} value={date} onChange={(event) => setDate(event.target.value)} />
-      <Switch id="tracker-edit-wait" label={t(direction === 'in' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
+      <Switch id="tracker-edit-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
       <fieldset className="flex flex-col">
         <legend className="field-label pb-1">{t('tracker.peopleField')}</legend>
         {options.map((user) => (
@@ -102,6 +109,27 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
         <Button variant="primary" type="submit" disabled={!title.trim() || save.isPending}>{t('common.save')}</Button>
       </div>
     </form>
+  );
+}
+
+/** "Assign a reply" for an open entry that waits for our reply and has no reply task: who answers, and by which day. */
+function AssignReply({ row, members }: { row: TrackerRow; members: UserCard[] }) {
+  const { t } = useTranslation();
+  const me = useCall('session.get', {}).data?.user.id;
+  const [asking, setAsking] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [dueDate, setDueDate] = useState(() => addWorkingDays(todayISO(), 2));
+  const assign = useUndoable('tracker.assignReply', { message: () => t('tracker.replyAssigned'), onSuccess: () => setAsking(false) });
+  const who = userId || (members.some((member) => member.id === me) ? me : members[0]?.id) || '';
+  if (!asking) return <p className="pt-3"><Button onClick={() => setAsking(true)}>{t('tracker.assignReply')}</Button></p>;
+  return (
+    <div className="flex flex-col gap-3 pt-3">
+      <ReplyFields id="tracker-assign" members={members} userId={who} dueDate={dueDate} onUser={setUserId} onDueDate={setDueDate} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button onClick={() => setAsking(false)}>{t('common.cancel')}</Button>
+        <Button variant="primary" disabled={!who || !dueDate || assign.isPending} onClick={() => assign.mutate({ id: row.entry.id, userId: who, dueDate })}>{t('tracker.assign')}</Button>
+      </div>
+    </div>
   );
 }
 
@@ -128,10 +156,20 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
         <div className="flex flex-col">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline text-ink-2">
             <span className="inline-flex items-center gap-1.5"><TypeIcon type={entry.type} size={16} />{t(`tracker.type.${entry.type}`)}</span>
-            <span className="inline-flex items-center gap-1.5"><DirectionMark direction={entry.direction} />{t(`tracker.direction.${entry.direction}`)}</span>
+            {entry.direction !== 'none' && <span className="inline-flex items-center gap-1.5"><DirectionMark direction={entry.direction} />{t(`tracker.direction.${entry.direction}`)}</span>}
             <span className="tabular">{formatDay(entry.date, lang, 'long')}</span>
           </p>
           {open && <p className="pt-3"><StatusSign state="active">{t(entry.waiting === 'us' ? 'tracker.waitingUs' : 'tracker.waitingClient')}</StatusSign></p>}
+          {row.replyTask && (
+            <Block title={t('tracker.replyTask')}>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline">
+                <Person user={row.replyTask.owner} />
+                {row.replyTask.dueDate && <span className="tabular text-ink-2">{t('tracker.replyDue', { date: formatDay(row.replyTask.dueDate, lang) })}</span>}
+                {row.replyTask.status === 'done' && <StatusSign state="completed">{t('tracker.replyDone')}</StatusSign>}
+              </p>
+            </Block>
+          )}
+          {open && entry.waiting === 'us' && row.canEdit && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={detail.members.map((member) => member.user)} />}
           {!open && entry.waiting !== null && row.closedBy && entry.closedAt && (
             <p className="flex flex-wrap items-center gap-2 pt-3">
               <StatusSign state="completed">{action}</StatusSign>
@@ -148,7 +186,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
               {t('tracker.loggedBy', { name: row.createdBy.name, date: formatDay(stampDay(entry.createdAt), lang), context: actorContext(row.createdBy) })}
               {row.createdBy.kind === 'agent' && <> <AgentLabel /></>}
             </p>
-            {entry.auto && <p>{t(entry.auto === 'upload' ? 'tracker.autoUpload' : entry.auto === 'version' ? 'tracker.autoVersion' : 'tracker.autoDelivered')}</p>}
+            {entry.auto && AUTO_KEY[entry.auto] && <p>{t(AUTO_KEY[entry.auto] as string)}</p>}
           </div>
         </div>
       )}

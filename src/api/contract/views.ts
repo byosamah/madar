@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
   Message, Payment, Project, Team,
-  ProjectId, Stage, StageId, Stamp, Task, TrackerEntry, UpdateId, UserId,
+  ProjectId, Stage, StageId, Stamp, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -172,11 +172,35 @@ export const TrackerRow = z.object({
   closedBy: UserCard.nullable(),
   people: z.array(UserCard),
   files: z.array(Attachment),
+  /** The reply task of the entry, or null when it has none (or the task was deleted). */
+  replyTask: z.object({ id: TaskId, status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
   canClose: z.boolean(),
   canEdit: z.boolean(),
   canDelete: z.boolean(),
 });
 export type TrackerRow = z.infer<typeof TrackerRow>;
+
+/** The kinds of line in the Tracker export. "closed" reads "Answered" or "Received" by the "waiting" value of the entry. */
+export const TRACKER_EXPORT_EVENTS = ['logged', 'edited', 'closed', 'reopened', 'deleted', 'reply_task', 'reply_logged'] as const;
+
+/** One line of the Tracker export: one event on one entry, with the exact office time. The screen builds the CSV and its headers. */
+export const TrackerExportRow = z.object({
+  date: Day,
+  /** HH:MM:SS in office time (Asia/Riyadh). */
+  time: z.string(),
+  event: z.enum(TRACKER_EXPORT_EVENTS),
+  waiting: TrackerWaiting.nullable(),
+  /** The person. For an agent it is the person the agent acts for, and "byAgent" is true. */
+  by: z.string(),
+  byAgent: z.boolean(),
+  type: TrackerType,
+  direction: TrackerDirection,
+  title: z.string(),
+  note: z.string(),
+  files: z.array(z.string()),
+  auto: TrackerEntry.shape.auto,
+});
+export type TrackerExportRow = z.infer<typeof TrackerExportRow>;
 
 /** One payment milestone as a screen reads it. "dueInDays" is negative after the due date. */
 export const PaymentRow = z.object({

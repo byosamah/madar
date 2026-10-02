@@ -99,10 +99,10 @@ describe('tracker.list', () => {
     const t = world();
     await t.api.call('tracker.log', { projectId: 'prj_002', type: 'message', direction: 'in', title: 'Other project' });
     t.as('usr_002');
-    await t.api.call('tracker.log', { ...BASE, title: 'Old meeting', type: 'meeting', date: '2026-09-01' });
+    await t.api.call('tracker.log', { ...BASE, title: 'Old meeting', type: 'meeting', direction: 'both', date: '2026-09-01' });
     await t.api.call('tracker.log', { ...BASE, title: 'Question', waiting: 'us', date: '2026-09-25' });
     await t.api.call('tracker.log', { ...BASE, title: 'Asked for survey', direction: 'out', waiting: 'client', date: '2026-09-26' });
-    await t.api.call('tracker.log', { ...BASE, title: 'Permit news', type: 'balady', date: '2026-09-28' });
+    await t.api.call('tracker.log', { ...BASE, title: 'Permit news', type: 'balady', direction: 'third_party', date: '2026-09-28' });
     await t.api.call('tracker.log', { ...BASE, title: 'Same day, later', date: '2026-09-28' });
     return t;
   }
@@ -177,8 +177,8 @@ describe('tracker.update', () => {
     const t = world();
     t.as('usr_003');
     const { entry } = await t.api.call('tracker.log', { ...BASE, note: 'Old note' });
-    const row = await t.api.call('tracker.update', { id: entry.id, title: 'New title', date: '2026-09-29', type: 'meeting', peopleIds: ['usr_002'] });
-    expect(row.entry).toMatchObject({ title: 'New title', date: '2026-09-29', type: 'meeting', note: 'Old note', direction: 'in', peopleIds: ['usr_002'] });
+    const row = await t.api.call('tracker.update', { id: entry.id, title: 'New title', date: '2026-09-29', type: 'meeting', direction: 'both', peopleIds: ['usr_002'] });
+    expect(row.entry).toMatchObject({ title: 'New title', date: '2026-09-29', type: 'meeting', note: 'Old note', direction: 'both', peopleIds: ['usr_002'] });
   });
 
   it('opens a loop again when the waiting value changes, and ends it when the value goes', async () => {

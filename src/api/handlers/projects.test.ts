@@ -378,7 +378,7 @@ describe('moving a project back a stage (colleague comment 12, 2026-10-01)', () 
     expect(back.project.stageBack).toMatchObject({ fromStageId: 'stg_002', toStageId: 'stg_001', reason: 'Balady asked for changes to the drawings', by: 'usr_002' });
     const logged = Object.values(t.store.state.tracker ?? {});
     expect(logged).toHaveLength(1);
-    expect(logged[0]).toMatchObject({ type: 'balady', direction: 'in', title: 'Balady asked for changes to the drawings' });
+    expect(logged[0]).toMatchObject({ type: 'balady', direction: 'third_party', title: 'Balady asked for changes to the drawings' });
     const forward = await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_002' });
     expect(forward.project.stageBack ?? null).toBeNull();
   });

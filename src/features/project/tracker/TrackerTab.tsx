@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
+import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import { useCall } from '../../../app/runtime';
+import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { FilterButton } from '../../../components/FilterButton';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { DownloadIcon } from '../../../components/icons/animated/download';
 import type { TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
+import { ExportSheet } from './ExportSheet';
 import { History } from './History';
 import { OpenLoops } from './OpenLoops';
 import { QuickLog } from './QuickLog';
@@ -28,6 +32,7 @@ export function TrackerTab({ detail }: TabProps) {
   const projectId = detail.project.id;
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const history = useCall('tracker.list', {
     projectId,
@@ -40,9 +45,9 @@ export function TrackerTab({ detail }: TabProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />
-      {detail.viewerCan.post ? <QuickLog projectId={projectId} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
+      {detail.viewerCan.post ? <QuickLog projectId={projectId} members={detail.members.map((member) => member.user)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
       <section aria-label={t('tracker.history')} className="flex flex-col gap-3">
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <FilterButton label={t('filter.label')} count={active}>
             <div className="flex flex-col gap-3">
               <fieldset className="flex flex-col">
@@ -55,7 +60,7 @@ export function TrackerTab({ detail }: TabProps) {
               <fieldset className="flex flex-col">
                 <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('tracker.directionLabel')}</legend>
                 <Choice name="tracker-direction" value="all" checked={filter.direction === 'all'} label={t('tracker.filterAll')} onChange={() => setFilter({ ...filter, direction: 'all' })} />
-                {(['in', 'out'] as const).map((value) => (
+                {Sides.options.map((value) => (
                   <Choice key={value} name="tracker-direction" value={value} checked={filter.direction === value} label={t(`tracker.direction.${value}`)} onChange={() => setFilter({ ...filter, direction: value })} />
                 ))}
               </fieldset>
@@ -65,6 +70,10 @@ export function TrackerTab({ detail }: TabProps) {
               </label>
             </div>
           </FilterButton>
+          <Button onClick={() => setExporting(true)}>
+            <AnimatedIcon icon={DownloadIcon} size={16} aria-hidden />
+            {t('tracker.export.button')}
+          </Button>
         </div>
         {history.data && history.data.length === 0
           ? active > 0
@@ -72,6 +81,15 @@ export function TrackerTab({ detail }: TabProps) {
             : <EmptyState title={t('tracker.emptyTitle')} body={t('tracker.empty')} />
           : <History rows={history.data ?? []} onOpen={setOpenId} />}
       </section>
+      {exporting && (
+        <ExportSheet
+          projectId={projectId}
+          code={detail.project.code}
+          type={filter.type === 'all' ? undefined : filter.type}
+          side={filter.direction === 'all' ? undefined : filter.direction}
+          onClose={() => setExporting(false)}
+        />
+      )}
       {shown && <EntrySheet key={shown.entry.id} row={shown} detail={detail} onClose={() => setOpenId(null)} />}
     </div>
   );
