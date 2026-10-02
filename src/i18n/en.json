@@ -837,6 +837,8 @@
       "actionWho": "Who",
       "actionBy": "Due date",
       "actionLine": "Action: {{title}} · {{name}} · {{date}}",
+      "decisionAdded": "Decision added.",
+      "actionAdded": "Task added for {{name}}.",
       "replyLine": "Reply: {{name}} · {{date}}",
       "timeline": "Project timeline",
       "controls": "Meeting view controls",

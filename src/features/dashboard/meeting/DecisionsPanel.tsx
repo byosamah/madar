@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../../app/lang';
 import { useMeeting } from '../../../app/meeting';
-import { useAction, useCall } from '../../../app/runtime';
+import { useUndoable } from '../../../app/actions';
+import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
@@ -32,7 +33,8 @@ function useDraft<T extends string>(key: string, initial: () => T): [T, (value: 
 function DecisionForm({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const [text, setText] = useDraft<string>(`decision:${projectId}`, () => '');
-  const post = useAction('updates.create', { onSuccess: () => setText('') });
+  // The app's Undo toast confirms the decision and gives a way back (browser audit 2026-10-03, BRW-14).
+  const post = useUndoable('updates.create', { message: () => t('dashboard.meeting.decisionAdded'), onSuccess: () => setText('') });
   return (
     <form
       className="flex items-end gap-3"
@@ -53,7 +55,8 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
   const [title, setTitle] = useDraft<string>(`action:${projectId}`, () => '');
   const [userId, setUserId] = useDraft<string>(`actionWho:${projectId}`, () => '');
   const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
-  const create = useAction('tasks.create', { onSuccess: () => setTitle('') });
+  // An action makes a real task for a person, so the toast says for whom, and Undo takes it back (browser audit 2026-10-03, BRW-14).
+  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner.name }), onSuccess: () => setTitle('') });
   const who = userId || defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
   return (
