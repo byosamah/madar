@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
+import { useMeeting } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Age } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
@@ -69,7 +70,8 @@ function Column({ title, empty = '', children, count }: { title: string; empty?:
     <section aria-label={title} className="panel flex min-w-0 flex-col p-5">
       <h3 className={`${HEADING} flex items-center gap-2`}>
         {title}
-        <span className="tabular rounded-full bg-fill px-2 text-[13px] text-ink-2">{count}</span>
+        {/* A count of zero is not said. The calm state word below says it (audit 2026-10-03, DSH-9). */}
+        {count > 0 && <span className="tabular rounded-full bg-fill px-2 text-[13px] text-ink-2">{count}</span>}
       </h3>
       {count === 0 ? <p className="pt-3 text-[17px] text-ink-2">{empty}</p> : <ul className="hairline pt-1">{children}</ul>}
     </section>
@@ -90,7 +92,9 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   const stage = row.stages[stageIndex];
   const next = row.deadlines.filter((deadline) => deadline.date >= today).slice(0, 4);
   const posts = useCall('updates.list', { projectId: row.project.id, filter: 'posts' });
-  const latest = posts.data?.find((item) => item.kind === 'update');
+  // A decision of this meeting shows in the Decisions panel, so it is not the latest update too (audit 2026-10-03, DSH-8).
+  const startedAt = useMeeting()?.startedAt ?? '';
+  const latest = posts.data?.find((item) => item.kind === 'update' && !(item.decision && item.at >= startedAt));
   const attentionCount = work.pastDue.length + work.review.length + work.flagged.length;
   const open = (item: TaskRow) => onOpenTask(item.task.id);
   const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
@@ -147,9 +151,10 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
           </div>
           <div className="flex min-w-0 flex-col gap-5">
             <DecisionsPanel projectId={row.project.id} />
-            <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
-              <h3 className={HEADING}>{t('overview.comingUp')}</h3>
-              {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (
+            {/* An empty display panel hides (owner, 2026-10-02; audit 2026-10-03, DSH-9). */}
+            {next.length > 0 && (
+              <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
+                <h3 className={HEADING}>{t('overview.comingUp')}</h3>
                 <ul className="flex flex-col gap-2 pt-1">
                   {next.map((deadline) => {
                     const word = wordForDays(diffDays(today, deadline.date));
@@ -161,12 +166,11 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
                     );
                   })}
                 </ul>
-              )}
-            </section>
-            <section aria-label={t('overview.latest')} className="panel flex flex-col gap-2 p-5">
-              <h3 className={HEADING}>{t('overview.latest')}</h3>
-              {posts.data && !latest && <p className="text-[17px] text-ink-2">{t('overview.noPosts')}</p>}
-              {latest && latest.kind === 'update' && (
+              </section>
+            )}
+            {latest && latest.kind === 'update' && (
+              <section aria-label={t('overview.latest')} className="panel flex flex-col gap-2 p-5">
+                <h3 className={HEADING}>{t('overview.latest')}</h3>
                 <div className="flex flex-col gap-2">
                   <span className="flex items-center gap-2 text-[15px] text-ink-2">
                     <Avatar user={latest.author} size={24} />
@@ -175,8 +179,8 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
                   </span>
                   <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>
                 </div>
-              )}
-            </section>
+              </section>
+            )}
             <MeetingPayments projectId={row.project.id} />
           </div>
         </div>

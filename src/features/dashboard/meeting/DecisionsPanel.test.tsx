@@ -28,6 +28,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(posted).toHaveLength(1);
     expect(posted[0].projectId).toBe(shoreWalk(store.state).id);
     window.location.hash = `#/projects/${shoreWalk(store.state).id}?tab=activity`;
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull());
     const post = (await screen.findByText('Keep the lobby double height.')).closest('li')!;
     expect(within(post).getByText('Decision')).toBeInTheDocument();
   });
