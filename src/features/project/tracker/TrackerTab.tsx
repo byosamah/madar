@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
@@ -8,7 +9,8 @@ import { FilterButton } from '../../../components/FilterButton';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DownloadIcon } from '../../../components/icons/animated/download';
-import type { TabProps } from '../tabs';
+import { oneOf } from '../../../lib/params';
+import { setFilterParam, type TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
 import { ExportSheet } from './ExportSheet';
 import { History } from './History';
@@ -16,7 +18,8 @@ import { OpenLoops } from './OpenLoops';
 import { QuickLog } from './QuickLog';
 
 type Filter = { type: TrackerType | 'all'; direction: TrackerDirection | 'all'; openOnly: boolean };
-const NO_FILTER: Filter = { type: 'all', direction: 'all', openOnly: false };
+const TYPES = ['all', ...TRACKER_TYPES] as const;
+const SIDES = ['all', ...Sides.options] as const;
 
 function Choice({ name, value, checked, label, onChange }: { name: string; value: string; checked: boolean; label: string; onChange: () => void }) {
   return (
@@ -31,8 +34,26 @@ function Choice({ name, value, checked, label, onChange }: { name: string; value
 export function TrackerTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const projectId = detail.project.id;
-  const [filter, setFilter] = useState<Filter>(NO_FILTER);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  // The filter lives in the link, so a reload, Back or a trip to another tab keeps it (audit 2026-10-03, PRJ-22).
+  const filter: Filter = {
+    type: oneOf(params.get('type'), TYPES, 'all'),
+    direction: oneOf(params.get('side'), SIDES, 'all'),
+    openOnly: params.get('open') === '1',
+  };
+  const setFilter = (next: Filter) => {
+    if (next.type !== filter.type) setFilterParam(setParams, 'type', next.type === 'all' ? null : next.type);
+    if (next.direction !== filter.direction) setFilterParam(setParams, 'side', next.direction === 'all' ? null : next.direction);
+    if (next.openOnly !== filter.openOnly) setFilterParam(setParams, 'open', next.openOnly ? '1' : null);
+  };
+  // The open entry lives in the link too, so the Overview can open one entry (audit 2026-10-03, PRJ-19). Close replaces the link.
+  const openId = params.get('entry');
+  const setOpenId = (id: string | null) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    if (id) next.set('entry', id);
+    else next.delete('entry');
+    return next;
+  }, { replace: !id });
   const [exporting, setExporting] = useState(false);
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const history = useCall('tracker.list', {

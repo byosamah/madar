@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { useCall } from '../../../app/runtime';
 import { FilterButton } from '../../../components/FilterButton';
 import { EmptyState } from '../../../components/EmptyState';
 import { LoadFailed } from '../../../components/LoadFailed';
-import type { TabProps } from '../tabs';
+import { oneOf } from '../../../lib/params';
+import { setFilterParam, type TabProps } from '../tabs';
 import { Composer } from './Composer';
 import { FeedEntry } from './FeedEntry';
 
@@ -15,8 +15,10 @@ const FILTERS = ['all', 'posts', 'decisions', 'tasks', 'files'] as const;
 /** The project's log: posts and system events with a filter, and the composer on top (spec 5.2). The Overview shows the state of the project instead (owner, 2026-10-01). */
 export function ActivityTab({ detail }: TabProps) {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  // The feed filter lives in the link, so a reload, Back or a trip to another tab keeps it (audit 2026-10-03, PRJ-22).
+  const filter = oneOf(params.get('feed'), FILTERS, 'all');
+  const setFilter = (value: (typeof FILTERS)[number]) => setFilterParam(setParams, 'feed', value === 'all' ? null : value);
   const openUpdate = params.get('update');
   const feed = useCall('updates.list', { projectId: detail.project.id, filter });
   const files = useCall('files.list', { projectId: detail.project.id });

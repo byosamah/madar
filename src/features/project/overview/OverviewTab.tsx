@@ -115,9 +115,11 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
     next.set('payment', id);
     return next;
   });
-  const toTracker = () => setParams((current) => {
+  // The row opens the entry itself on the Tracker tab, not only the tab (audit 2026-10-03, PRJ-19).
+  const toTracker = (entryId: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('tab', 'tracker');
+    next.set('entry', entryId);
     return next;
   });
   const parts = [
@@ -174,7 +176,7 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
             <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{waiting.length}</span>
           </h3>
           <ul className="flex flex-col">
-            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={toTracker} compact />)}
+            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={() => toTracker(row.entry.id)} compact />)}
           </ul>
         </div>
       )}

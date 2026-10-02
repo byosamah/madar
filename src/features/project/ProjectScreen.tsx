@@ -13,7 +13,7 @@ import type { ProjectSummary } from '../../api/contract/views';
 import { sharedSource } from '../../app/sharedLayout';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
-import { PROJECT_TABS, TAB_BODY, type ProjectTab } from './tabs';
+import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
@@ -57,7 +57,15 @@ export function ProjectScreen() {
       <Tabs
         label={t('project.tabs')}
         value={tab}
-        onChange={(next) => setParams({ tab: next })}
+        onChange={(next) => setParams((current) => {
+          // A trip to another tab keeps the filters of the tabs, and drops an open panel (audit 2026-10-03, PRJ-22).
+          const value = new URLSearchParams({ tab: next });
+          for (const key of FILTER_PARAMS) {
+            const kept = current.get(key);
+            if (kept) value.set(key, kept);
+          }
+          return value;
+        })}
         options={PROJECT_TABS.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
       />
       <TabPanel value={tab}>

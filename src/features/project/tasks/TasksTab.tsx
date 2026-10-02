@@ -1,11 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
 import { useCall } from '../../../app/runtime';
 import { FilterButton } from '../../../components/FilterButton';
+import { oneOf } from '../../../lib/params';
 import { LoadFailed } from '../../../components/LoadFailed';
-import type { TabProps } from '../tabs';
+import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
 import { TaskSheet } from './TaskSheet';
@@ -19,8 +20,11 @@ export function TasksTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const [view, setView] = usePersistentChoice('madar.tasks.view', VIEWS, 'list');
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
-  const [showDone, setShowDone] = useState(false);
+  // Show and "Show done tasks" live in the link, so a reload, Back or a trip to another tab keeps them (audit 2026-10-03, PRJ-22).
+  const filter = oneOf(params.get('show'), FILTERS, 'all');
+  const showDone = params.get('done') === '1';
+  const setFilter = (value: (typeof FILTERS)[number]) => setFilterParam(setParams, 'show', value === 'all' ? null : value);
+  const setShowDone = (on: boolean) => setFilterParam(setParams, 'done', on ? '1' : null);
   const tasks = useCall('tasks.list', { projectId: detail.project.id, filter, activeProjectsOnly: false });
   const rows = tasks.data ?? [];
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).

@@ -472,3 +472,43 @@ describe('the Overview while the tasks load (audit 2026-10-03, PRJ-18)', () => {
     expect(await screen.findByRole('region', { name: 'Who is doing what' }, { timeout: 3000 })).toBeInTheDocument();
   });
 });
+
+describe('a client item on the Overview opens that item (audit 2026-10-03, PRJ-19)', () => {
+  it('opens the Tracker entry itself, and the link names it', async () => {
+    const { api, router } = await renderApp('/projects/prj_001', as('usr_002'));
+    const row = await api.call('tracker.log', { projectId: 'prj_001', type: 'message', direction: 'out', title: 'We need the soil report.', date: '2026-09-30', waiting: 'client', fileIds: [] });
+    const attention = await screen.findByRole('region', { name: 'Needs attention' });
+    await userEvent.click(await within(attention).findByRole('button', { name: 'Open We need the soil report.' }));
+    expect(await screen.findByRole('dialog', { name: 'We need the soil report.' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Tracker', hidden: true })).toHaveAttribute('aria-selected', 'true');
+    expect(router.state.location.search).toContain(`entry=${row.entry.id}`);
+  });
+});
+
+describe('filters stay in the link (audit 2026-10-03, PRJ-22)', () => {
+  it('keeps the Tasks filter after a trip to another tab', async () => {
+    const { router } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Mine' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show done tasks' }));
+    expect(router.state.location.search).toContain('show=mine');
+    await userEvent.click(screen.getByRole('tab', { name: 'Overview' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Tasks' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+    expect(screen.getByRole('radio', { name: 'Mine' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Show done tasks' })).toBeChecked();
+  });
+
+  it('reads the Activity filter from the link', async () => {
+    await renderApp('/projects/prj_001?tab=activity&feed=posts', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+    expect(screen.getByRole('radio', { name: 'Posts' })).toBeChecked();
+  });
+
+  it('reads the Tracker filter from the link', async () => {
+    await renderApp('/projects/prj_001?tab=tracker&type=meeting&open=1', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+    expect(within(screen.getByRole('group', { name: 'Type' })).getByRole('radio', { name: 'Meeting' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Open only' })).toBeChecked();
+  });
+});
