@@ -286,10 +286,15 @@ export function OverviewTab({ detail }: TabProps) {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
-        <Standing detail={detail} rows={rows} />
-        <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+        {/* Until the tasks arrive, a quiet space stands in, never a false "Nothing needs attention" (audit 2026-10-03, PRJ-18). */}
+        {tasks.data ? (
+          <>
+            <Standing detail={detail} rows={rows} />
+            <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+          </>
+        ) : <div aria-busy="true" className="panel min-h-64" />}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
-        <People detail={detail} rows={rows} onOpen={open} />
+        {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
       </div>
       <aside className="flex min-w-0 flex-col gap-5">
         <ComingUp detail={detail} />

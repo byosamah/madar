@@ -92,9 +92,16 @@ describe('a tab whose list did not load says so and offers Retry (audit 2026-10-
   });
 
   it('the Payments panel', async () => {
-    await renderApp('/projects/prj_001', as('usr_011'), { failFirst: 'payments.list' });
+    const { api } = await renderApp('/projects/prj_001', as('usr_011'));
+    // Every payments call fails until Retry, because the Attention panel asks for the same list again when it draws.
+    let failing = true;
+    const original = api.call.bind(api);
+    api.call = ((name: string, input: unknown, meta?: unknown) => (name === 'payments.list' && failing
+      ? Promise.reject(new ApiError('failed', 'The call failed. Try again.'))
+      : (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta))) as typeof api.call;
     const region = await screen.findByRole('region', { name: 'Payments' });
     expect(await within(region).findByText('The data did not load.')).toBeInTheDocument();
+    failing = false;
     await userEvent.click(within(region).getByRole('button', { name: 'Retry' }));
     expect(await within(region).findByText('Concept stage fee')).toBeInTheDocument();
   });
@@ -452,5 +459,16 @@ describe('a refused move on the board (audit 2026-10-03, PRJ-2)', () => {
     } finally {
       window.localStorage.removeItem('madar.tasks.view');
     }
+  });
+});
+
+describe('the Overview while the tasks load (audit 2026-10-03, PRJ-18)', () => {
+  it('says nothing about the tasks until they arrive', async () => {
+    await renderApp('/projects/prj_001', as('usr_002'), { latencyMs: 150 });
+    await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' });
+    expect(screen.queryByText('Nothing needs attention.')).toBeNull();
+    expect(screen.queryByText('No open tasks')).toBeNull();
+    expect(screen.queryByText('0 of 0 done')).toBeNull();
+    expect(await screen.findByRole('region', { name: 'Who is doing what' }, { timeout: 3000 })).toBeInTheDocument();
   });
 });
