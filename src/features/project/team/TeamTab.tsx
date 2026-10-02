@@ -10,12 +10,13 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatNumber } from '../../../lib/dates';
+import { LeaderSheet } from '../ProjectActions';
 import type { TabProps } from '../tabs';
 import { AddTeam } from './AddTeam';
 
 type Member = ProjectDetail['members'][number];
 
-function MemberRow({ member, detail }: { member: Member; detail: ProjectDetail }) {
+function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: ProjectDetail; onMakeLeader: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const toast = useToast();
@@ -23,11 +24,11 @@ function MemberRow({ member, detail }: { member: Member; detail: ProjectDetail }
   const [discipline, setDiscipline] = useState(member.discipline);
   useEffect(() => setDiscipline(member.discipline), [member.discipline]);
   const save = useAction('members.update', { onSuccess: () => toast.show({ message: t('team.disciplineSaved') }) });
-  const lead = useAction('projects.setLeader', { onSuccess: () => toast.show({ message: t('project.leaderChanged') }) });
   const remove = useUndoable('members.remove', { message: () => t('team.removed', { name: user.name }) });
   const edit = detail.viewerCan.edit;
   const items: MenuItem[] = [
-    { label: t('team.makeLeader'), onSelect: () => lead.mutate({ id: detail.project.id, leaderId: user.id }), hidden: !detail.viewerCan.changeLeader || member.isLeader },
+    // "Make leader" hands the project over and has no Undo, so it opens the leader sheet: a pick, then Save (audit 2026-10-03, PRJ-21).
+    { label: t('team.makeLeader'), onSelect: onMakeLeader, hidden: !detail.viewerCan.changeLeader || member.isLeader },
     {
       label: t('team.remove'),
       onSelect: () => remove.mutate({ projectId: detail.project.id, userId: user.id }),
@@ -117,18 +118,27 @@ export function TeamTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const leader = detail.members.find((member) => member.isLeader);
   const members = detail.members.filter((member) => !member.isLeader);
+  const [newLeader, setNewLeader] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-5">
       <section aria-labelledby="team-leader" className="surface rounded-card p-2">
         <h2 id="team-leader" className="px-2 pt-1 text-headline">{t('team.leader')}</h2>
-        {leader ? <ul><MemberRow member={leader} detail={detail} /></ul> : <p className="px-2 pb-2 text-footnote text-label-2">{t('team.noLeader')}</p>}
+        {leader ? <ul><MemberRow member={leader} detail={detail} onMakeLeader={() => setNewLeader(leader.user.id)} /></ul> : <p className="px-2 pb-2 text-footnote text-label-2">{t('team.noLeader')}</p>}
       </section>
       <section aria-labelledby="team-members" className="surface rounded-card p-2">
         <h2 id="team-members" className="px-2 pt-1 text-headline">{t('team.members')}</h2>
-        <ul>{members.map((member) => <MemberRow key={member.user.id} member={member} detail={detail} />)}</ul>
+        <ul>{members.map((member) => <MemberRow key={member.user.id} member={member} detail={detail} onMakeLeader={() => setNewLeader(member.user.id)} />)}</ul>
       </section>
       {detail.viewerCan.edit && <AddMember detail={detail} />}
       {detail.viewerCan.edit && <AddTeam detail={detail} />}
+      <LeaderSheet
+        detail={detail}
+        open={newLeader !== null}
+        pick={newLeader ?? undefined}
+        onOpenChange={(open) => {
+          if (!open) setNewLeader(null);
+        }}
+      />
     </div>
   );
 }

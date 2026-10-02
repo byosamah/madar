@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Stage } from '../../../api/contract/entities';
+import type { Deadline, Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
@@ -11,10 +11,12 @@ import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
 import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DeleteIcon } from '../../../components/icons/animated/delete';
@@ -150,7 +152,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
-                ) : <span className="flex h-11 items-center text-footnote text-ink-2">{t('project.noDates')}</span>}
+                ) : <span className="tabular flex h-11 items-center text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>}
                 {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
                   <span
                     key={overlap.stageIds.join('-')}
@@ -185,6 +187,9 @@ function StageDates({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
+  // A failed or refused save puts the date fields back to the saved dates (audit 2026-10-03, PRJ-7).
+  const [failures, setFailures] = useState(0);
+  const rollback = { onError: () => setFailures((count) => count + 1) };
   const edit = detail.viewerCan.edit;
   const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
   const overlaps = stageOverlaps(detail.stages);
@@ -204,22 +209,61 @@ function StageDates({ detail }: TabProps) {
             </span>
             {edit ? (
               <>
-                <DateDraftField id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
-                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate })} />
-                <DateDraftField id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
-                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate })} />
+                <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
+                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate }, rollback)} />
+                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
+                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
               </>
             ) : (
-              <span className="tabular text-footnote text-ink-2">
-                {stage.startDate && stage.endDate
-                  ? t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })
-                  : t('project.noDates')}
-              </span>
+              <span className="tabular text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>
             )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** One deadline in a sheet: its name, date and stage (audit 2026-10-03, PRJ-13). Save changes it with Undo. */
+function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; deadline: Deadline; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(deadline.name);
+  const [date, setDate] = useState(deadline.date);
+  const [stageId, setStageId] = useState(deadline.stageId ?? '');
+  const save = useUndoable('deadlines.update', { message: () => t('schedule.deadlineSaved'), onSuccess: onClose });
+  const ready = Boolean(name.trim() && date);
+  const submit = () => {
+    if (ready) save.mutate({ id: deadline.id, patch: { name: name.trim(), date, stageId: stageId || null } });
+  };
+  return (
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={t('schedule.editDeadlineTitle')}
+      footer={(
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!ready || save.isPending} onClick={submit}>{t('common.save')}</Button>
+        </>
+      )}
+    >
+      <form
+        className="flex flex-col gap-4 pt-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <TextField id="deadline-edit-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
+        <TextField id="deadline-edit-date" type="date" label={t('schedule.deadlineDate')} value={date} onChange={(event) => setDate(event.target.value)} />
+        <SelectField id="deadline-edit-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
+          <option value="">{t('files.noStage')}</option>
+          {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+        </SelectField>
+      </form>
+    </Sheet>
   );
 }
 
@@ -238,6 +282,7 @@ function Deadlines({ detail }: TabProps) {
     },
   });
   const remove = useUndoable('deadlines.delete', { message: () => t('schedule.deadlineDeleted') });
+  const [editing, setEditing] = useState<Deadline | null>(null);
   const today = todayISO();
   return (
     <section aria-labelledby="schedule-deadlines" className="panel p-5">
@@ -247,7 +292,17 @@ function Deadlines({ detail }: TabProps) {
           {detail.deadlines.map((deadline) => (
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
               <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-attn" />
-              <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>
+              {/* The name opens the deadline to change it, for the people who may (audit 2026-10-03, PRJ-13). */}
+              {detail.viewerCan.edit ? (
+                <button
+                  type="button"
+                  aria-label={t('schedule.editDeadline', { name: deadline.name })}
+                  onClick={() => setEditing(deadline)}
+                  className="pressable -mx-1 flex min-h-11 min-w-0 flex-1 items-center rounded-lg px-1 text-start text-subheadline hover:bg-fill"
+                >
+                  <bdi className="truncate">{deadline.name}</bdi>
+                </button>
+              ) : <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>}
               <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
               {detail.viewerCan.edit && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
@@ -275,6 +330,7 @@ function Deadlines({ detail }: TabProps) {
           <Button type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
         </form>
       )}
+      {editing && <DeadlineSheet key={editing.id} detail={detail} deadline={editing} onClose={() => setEditing(null)} />}
     </section>
   );
 }

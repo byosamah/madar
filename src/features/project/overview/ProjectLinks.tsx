@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isNetworkPath, LinkKind, linkUrlOk, type ProjectLink } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
@@ -31,6 +31,17 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+/** The path as a read-only field, selected, for a person who copies it by hand. */
+function PathField({ path, onDone }: { path: string; onDone: () => void }) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  return <input ref={ref} readOnly dir="ltr" aria-label={t('links.pathLabel')} value={path} onBlur={onDone} className="field min-h-11 basis-full" />;
 }
 
 function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail; link: ProjectLink | null; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -100,13 +111,24 @@ export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
   const { project, viewerCan } = detail;
   const [editing, setEditing] = useState<ProjectLink | null>(null);
   const [open, setOpen] = useState(false);
+  const [byHand, setByHand] = useState<string | null>(null);
   const rows: ProjectLink[] = [
     ...(project.modelFolderPath ? [{ id: MODEL_FOLDER, kind: 'folder' as const, label: t('links.modelFolder'), url: project.modelFolderPath }] : []),
     ...(project.links ?? []),
   ];
   if (rows.length === 0 && !viewerCan.post) return null;
-  const copy = (url: string) => {
-    navigator.clipboard?.writeText(url).then(() => toast.show({ message: t('links.copied') }), () => undefined);
+  // A plain http:// office server has no clipboard, and a browser may refuse it. The person then gets the path selected,
+  // to copy it with the keyboard, and a toast says so (audit 2026-10-03, PRJ-15).
+  const copy = (link: ProjectLink) => {
+    const manual = () => {
+      setByHand(link.id);
+      toast.show({ tone: 'error', message: t('links.copyByHand') });
+    };
+    if (!navigator.clipboard) {
+      manual();
+      return;
+    }
+    navigator.clipboard.writeText(link.url).then(() => toast.show({ message: t('links.copied') }), manual);
   };
   const openSheet = (link: ProjectLink | null) => {
     setEditing(link);
@@ -129,14 +151,14 @@ export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
               </>
             );
             return (
-              <li key={link.id} className="flex min-h-11 items-center gap-1">
+              <li key={link.id} className="flex min-h-11 flex-wrap items-center gap-1">
                 {/* The server refuses other links, but stored data is checked again here: only a web link ever gets an href. */}
                 {!linkUrlOk('other', link.url) && !isNetworkPath(link.url) ? (
                   <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">{body}</span>
                 ) : isNetworkPath(link.url) ? (
                   <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">
                     {body}
-                    <button type="button" onClick={() => copy(link.url)} aria-label={t('links.copy', { name })} className="pressable grid size-9 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-fill hover:text-ink">
+                    <button type="button" onClick={() => copy(link)} aria-label={t('links.copy', { name })} className="pressable grid size-9 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-fill hover:text-ink">
                       <AnimatedIcon icon={CopyIcon} size={16} aria-hidden />
                     </button>
                   </span>
@@ -151,6 +173,7 @@ export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
                     <AnimatedIcon icon={SquarePenIcon} size={16} aria-hidden />
                   </button>
                 )}
+                {byHand === link.id && <PathField path={link.url} onDone={() => setByHand(null)} />}
               </li>
             );
           })}

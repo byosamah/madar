@@ -14,6 +14,7 @@ import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
@@ -35,7 +36,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
   const isCover = detail.project.coverFileId === file.id;
-  const canDelete = detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id;
+  // The API says who may delete the file; the old rule stays only for an answer without "canDelete" (audit 2026-10-03, PRJ-16).
+  const sent = (view as FileView & { canDelete?: boolean }).canDelete;
+  const canDelete = sent ?? (detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id);
   const size = latest.size < 1024 * 1024
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
@@ -192,6 +195,8 @@ export function FilesTab({ detail }: TabProps) {
           <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
         </div>
       )}
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {files.error && !files.data && <LoadFailed error={files.error} onRetry={() => void files.refetch()} />}
       {files.data && groups.length === 0 && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} />}
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;

@@ -7,6 +7,7 @@ import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
 import { PaymentSheet } from './PaymentSheet';
@@ -39,12 +40,13 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
   const list = useCall('payments.list', { projectId });
   const rows = list.data ?? [];
   const openId = params.get('payment');
+  // Close replaces the link, so Back does not open the closed sheet again (audit 2026-10-03, PRJ-9).
   const setOpen = (id: string | null) => setParams((current) => {
     const next = new URLSearchParams(current);
     if (id) next.set('payment', id);
     else next.delete('payment');
     return next;
-  });
+  }, { replace: !id });
   const total = rows.reduce((sum, row) => sum + row.payment.amount, 0);
   const received = rows.filter((row) => row.status === 'received').reduce((sum, row) => sum + row.payment.amount, 0);
   const open = openId === 'new' ? null : rows.find((row) => row.payment.id === openId);
@@ -62,6 +64,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           {t('payments.add')}
         </Button>
       </div>
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && rows.length === 0 && <p className="text-subheadline text-ink-2">{t('payments.empty')}</p>}
       {rows.length > 0 && (
         <ul className="hairline -mx-2 flex flex-col">

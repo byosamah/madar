@@ -2,6 +2,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../components/icons/animated/check';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../api/contract/entities';
 import type { ProjectDetail } from '../../api/contract/views';
@@ -9,8 +10,16 @@ import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
 import { Popover } from '../../components/Popover';
-import { formatDay, localeFor } from '../../lib/dates';
+import { formatDay, localeFor, type Lang } from '../../lib/dates';
 import { openStagesNeededBy, overlappingWith, stageOverlaps } from '../../lib/stageFlow';
+
+/** The dates of a stage in words. A stage with one date says that date, not "No dates" (audit 2026-10-03, PRJ-23). */
+export function stageDatesText(stage: Stage, t: TFunction, lang: Lang): string {
+  if (stage.startDate && stage.endDate) return t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) });
+  if (stage.startDate) return t('project.stageStarts', { date: formatDay(stage.startDate, lang) });
+  if (stage.endDate) return t('project.stageEnds', { date: formatDay(stage.endDate, lang) });
+  return t('project.noDates');
+}
 
 /**
  * One stage, read only except for its prerequisites: its dates, its tasks, the stages it needs first and the stages that run at
@@ -29,9 +38,7 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
   const waiting = tasks.data ? openStagesNeededBy(stage.id, detail.stages, tasks.data.map((row) => row.task)) : [];
   const alongside = overlappingWith(stage.id, stageOverlaps(detail.stages));
   const others = detail.stages.filter((other) => other.id !== stage.id);
-  const dates = stage.startDate && stage.endDate
-    ? t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })
-    : t('project.noDates');
+  const dates = stageDatesText(stage, t, lang);
   return (
     <div aria-label={t('project.stageList')} role="group" className="flex flex-col gap-1 rounded-2xl bg-fill p-3">
       <p className="tabular text-subheadline text-ink">{dates}</p>

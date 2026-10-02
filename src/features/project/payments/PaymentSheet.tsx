@@ -9,13 +9,16 @@ import { Button } from '../../../components/Button';
 import { TextArea, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { todayISO } from '../../../lib/dates';
+import { areaValue } from '../../projects/projectForm';
 
 type Problems = { name?: string; amount?: string; dueDate?: string; receivedOn?: string };
 
-/** "120,000" and "120000.50" both read as a number. An empty or broken text reads as NaN. */
+/**
+ * "120,000" and "120000.50" both read as a number. An empty or broken text reads as NaN.
+ * An Arabic phone keyboard types Arabic-Indic digits and marks, so those count too (audit 2026-10-03, PRJ-12).
+ */
 function parseAmount(text: string): number {
-  const clean = text.replace(/[,\s]/g, '');
-  return clean === '' ? Number.NaN : Number(clean);
+  return areaValue(text.replace(/\s/g, '')) ?? Number.NaN;
 }
 
 /**

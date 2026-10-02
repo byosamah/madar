@@ -14,7 +14,7 @@ import { ProjectSign } from '../../../components/ProjectSign';
 import { signOfProject, StatusSign } from '../../../components/StatusSign';
 import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
-import { counted } from '../../../lib/grammar';
+import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
@@ -93,7 +93,7 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
       </dl>
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
-          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
+          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name, context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
         </p>
       )}
     </section>
@@ -115,9 +115,11 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
     next.set('payment', id);
     return next;
   });
-  const toTracker = () => setParams((current) => {
+  // The row opens the entry itself on the Tracker tab, not only the tab (audit 2026-10-03, PRJ-19).
+  const toTracker = (entryId: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('tab', 'tracker');
+    next.set('entry', entryId);
     return next;
   });
   const parts = [
@@ -174,7 +176,7 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
             <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{waiting.length}</span>
           </h3>
           <ul className="flex flex-col">
-            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={toTracker} compact />)}
+            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={() => toTracker(row.entry.id)} compact />)}
           </ul>
         </div>
       )}
@@ -273,21 +275,28 @@ export function OverviewTab({ detail }: TabProps) {
     next.set('task', taskId);
     return next;
   }), [setParams]);
+  // Close forgets the Conversation choice too, and replaces the link so Back does not open the panel again (audit 2026-10-03, PRJ-9, PRJ-10).
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
+    next.delete('thread');
     return next;
-  }), [setParams]);
-  if (tasks.error) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
+  }, { replace: true }), [setParams]);
+  if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
-        <Standing detail={detail} rows={rows} />
-        <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+        {/* Until the tasks arrive, a quiet space stands in, never a false "Nothing needs attention" (audit 2026-10-03, PRJ-18). */}
+        {tasks.data ? (
+          <>
+            <Standing detail={detail} rows={rows} />
+            <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+          </>
+        ) : <div aria-busy="true" className="panel min-h-64" />}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
-        <People detail={detail} rows={rows} onOpen={open} />
+        {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
       </div>
       <aside className="flex min-w-0 flex-col gap-5">
         <ComingUp detail={detail} />

@@ -77,6 +77,8 @@ describe('the signs of a paused project', () => {
     await renderApp('/projects/prj_012');
     const banner = await screen.findByRole('region', { name: 'Paused' });
     expect(banner).toHaveTextContent('Stale · paused 45 days');
+    // The Standing panel draws once the tasks arrive (audit 2026-10-03, PRJ-18).
+    await screen.findByRole('region', { name: 'Where the project stands' });
     const stale = document.querySelectorAll('[data-sign="stale"]');
     // The header and the Overview's Standing panel each show it.
     expect(stale.length).toBeGreaterThanOrEqual(2);
@@ -87,6 +89,7 @@ describe('the signs of a paused project', () => {
     await renderApp('/projects/prj_009');
     const banner = await screen.findByRole('region', { name: 'Awaiting client' });
     expect(banner).toHaveTextContent('Waiting for the client to approve the revised fit-out brief.');
+    await screen.findByRole('region', { name: 'Where the project stands' });
     expect(document.querySelectorAll('[data-sign="awaiting_client"]').length).toBeGreaterThanOrEqual(2);
     expect(document.querySelector('[data-sign="stale"]')).toBeNull();
   });

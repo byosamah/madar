@@ -5,10 +5,13 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
-import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
+import type { FileView, ProjectDetail, TaskDetail } from '../../../api/contract/views';
+import { ApiError } from '../../../api/errors';
 import { useUndoable } from '../../../app/actions';
+import { errorMessage } from '../../../app/errors';
+import { downloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
-import { useAction, useCall } from '../../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
@@ -16,6 +19,7 @@ import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { SelectField, TextArea, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
@@ -23,6 +27,7 @@ import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
+import { PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
 import { useDateReason } from './DateReason';
@@ -34,6 +39,7 @@ import { NewVersion, TaskVersions } from './TaskVersions';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
+import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
@@ -115,6 +121,42 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
   );
 }
 
+/** The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24). */
+function TaskFiles({ views }: { views: FileView[] }) {
+  const { t } = useTranslation();
+  const { api } = useRuntime();
+  const toast = useToast();
+  const [preview, setPreview] = useState<FileView | null>(null);
+  const open = (view: FileView) => {
+    const type = view.latest.mimeType;
+    if (type.startsWith('image/') || type === 'application/pdf') setPreview(view);
+    else downloadFile(api, view.file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+  };
+  return (
+    <section className="flex flex-col gap-1">
+      <h3 className="text-headline">{t('taskSheet.files')}</h3>
+      {views.length === 0 ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p> : (
+        <ul className="flex flex-wrap gap-2">
+          {views.map((view) => (
+            <li key={view.file.id}>
+              <button
+                type="button"
+                aria-label={t('taskSheet.openFile', { name: view.file.name })}
+                onClick={() => open(view)}
+                className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
+              >
+                <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
+                <bdi className="truncate">{view.file.name}</bdi>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
+    </section>
+  );
+}
+
 function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -158,8 +200,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
   const dates = useDateReason(() => setTimingKey((key) => key + 1));
+  // A failed or refused save puts the dates and the checklist back to the saved values; the toast still says why (audit 2026-10-03, PRJ-7).
+  const [failures, setFailures] = useState(0);
   const update = useAction('tasks.update', {
-    onRefused: (error, input) => dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next)),
+    onRefused: (error, input) => {
+      if (dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next))) return true;
+      setFailures((count) => count + 1);
+      return false;
+    },
   });
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
@@ -222,6 +270,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
         <TabPanel value="details" idPrefix="task-section">
           <div className="flex flex-col gap-5">
             {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
+            {viewerCan.review && (
+              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
+                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
+                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+              </section>
+            )}
             {edit ? (
               <TextField
                 id="task-title"
@@ -235,7 +291,8 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               />
             ) : <Fact label={t('taskSheet.title')}><bdi>{task.title}</bdi></Fact>}
             <div className="grid gap-4 sm:grid-cols-2">
-              {data.canMove ? (
+              {/* The reviewer finishes or returns a task in review with Approve or Send back only, so the Status menu hides (audit 2026-10-03, PRJ-2). */}
+              {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
                   {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
                 </SelectField>
@@ -263,7 +320,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
-                key={timingKey}
+                key={`${timingKey}-${failures}`}
                 idPrefix="task"
                 value={{ startDate: task.startDate ?? null, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null, dueDate: task.dueDate }}
                 onPatch={patch}
@@ -282,13 +339,6 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             {viewerCan.editAll && (
               <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
             )}
-            {viewerCan.review && (
-              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
-                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
-              </section>
-            )}
             {edit ? (
               <TextArea
                 id="task-description"
@@ -301,14 +351,9 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
+            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
             <TaskVersions task={task} />
-            <section className="flex flex-col gap-1">
-              <h3 className="text-headline">{t('taskSheet.files')}</h3>
-              {(files.data ?? []).length === 0
-                ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p>
-                : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
-            </section>
+            <TaskFiles views={files.data ?? []} />
             <History data={data} canUndoAgent={canUndoAgent} />
             {(viewerCan.saveTemplate || viewerCan.delete) && (
               <div className="flex flex-wrap gap-3">
@@ -334,9 +379,11 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
   const focus = useFocusLink();
+  // Only a task that is gone closes the panel. A failed refresh keeps it open with the text a person typed (audit 2026-10-03, PRJ-1).
+  const gone = task.error instanceof ApiError && task.error.code === 'not_found';
   useEffect(() => {
-    if (task.error) onClose();
-  }, [task.error, onClose]);
+    if (gone) onClose();
+  }, [gone, onClose]);
   return (
     <Sheet
       open
@@ -353,6 +400,7 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
       )}
     >
       {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} />}
+      {!task.data && task.error && !gone && <LoadFailed error={task.error} onRetry={() => void task.refetch()} />}
     </Sheet>
   );
 }
