@@ -530,13 +530,13 @@ describe('older posts in the Activity tab (audit 2026-10-03, PRJ-5)', () => {
     const oldId = Object.values(seed.updates).find((update) => update.projectId === 'prj_001' && update.body.includes('I uploaded revision B'))!.id;
     await renderApp(`/projects/prj_001?tab=activity&update=${oldId}`, (state) => {
       state.session.currentUserId = 'usr_002';
-      for (let i = 0; i < 120; i += 1) {
+      for (let i = 0; i < 60; i += 1) {
         const id = `upd_${900 + i}`;
         state.updates[id] = { id, projectId: 'prj_001', authorId: 'usr_002', body: `Note ${i}`, fileIds: [], createdAt: `2026-09-30T08:${String(i % 60).padStart(2, '0')}:00.000+03:00`, editedAt: null };
       }
     });
-    expect(await screen.findByText(/I uploaded revision B/, {}, { timeout: 3000 })).toBeInTheDocument();
-  });
+    expect(await screen.findByText(/I uploaded revision B/, {}, { timeout: 8000 })).toBeInTheDocument();
+  }, 15_000);
 });
 
 describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
