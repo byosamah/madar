@@ -44,7 +44,8 @@ describe('search', () => {
     await userEvent.type(await box(), 'ground floor plan.pdf');
     const files = await screen.findByRole('group', { name: 'Files' });
     await userEvent.click(within(files).getAllByRole('option', { name: /Ground floor plan\.pdf/ })[0]);
-    expect(await screen.findByRole('dialog', { name: /Ground floor plan\.pdf/ })).toBeInTheDocument();
+    // The project, its file list and the preview load one after the other, so this step may take longer than one second.
+    expect(await screen.findByRole('dialog', { name: /Ground floor plan\.pdf/ }, { timeout: 4000 })).toBeInTheDocument();
   });
 
   it('runs a command', async () => {
