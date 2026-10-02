@@ -166,7 +166,9 @@ export const reactionsToggle = defineCall({
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
     const list = comment.reactions[input.emoji];
-    comment.reactions[input.emoji] = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
+    const next = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
+    // One event for each change, with the agent and the person it acts for (spec 17.2, audit 2026-10-03, API-19).
+    applyPatch(ctx, comment, { reactions: { ...comment.reactions, [input.emoji]: next } }, { projectId, verb: 'comment.reacted', targetType: 'comment', targetId: comment.id });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

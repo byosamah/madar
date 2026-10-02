@@ -117,6 +117,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     }
     case 'update':
     case 'comment': {
+      // A person who may react may take back their own reaction (audit 2026-10-03, API-19).
+      if (event.verb === 'comment.reacted') return need('content.post');
       const current = event.targetType === 'update' ? ctx.state.updates[event.targetId] : ctx.state.comments[event.targetId];
       const authorId = String(current?.authorId ?? record.authorId);
       return need('content.editOwn', { authorId: principalOf(ctx.state, authorId) });

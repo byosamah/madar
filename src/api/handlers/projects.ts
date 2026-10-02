@@ -181,7 +181,7 @@ export const projectsUpdate = defineCall({
     if (patch.coverFileId) {
       const file = ctx.state.files[patch.coverFileId];
       if (!file || file.projectId !== project.id) throw invalid('coverFileId', 'This file is not in the project.');
-      if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.');
+      if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.', 'cover_not_image');
     }
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);

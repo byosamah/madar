@@ -76,7 +76,8 @@ function assertReferencesExist(state: State, targetType: EventTarget, values: Re
     if (!key || typeof value !== 'string') continue;
     if (!(state[key] as Record<string, unknown>)[value]) throw conflict('Something this change needs is gone. Undo is not available.');
   }
-  if (targetType === 'comment') {
+  // Only a whole comment names its target. A change of some fields (an edit, a reaction) keeps the target it has (audit 2026-10-03, API-19).
+  if (targetType === 'comment' && 'targetId' in values) {
     const target = values.targetType === 'task' ? state.tasks[String(values.targetId)] : state.updates[String(values.targetId)];
     if (!target) throw conflict('Something this change needs is gone. Undo is not available.');
   }
