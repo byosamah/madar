@@ -31,6 +31,14 @@ describe('Home', () => {
     expect(within(list).getByText('Tamr Staff Housing')).toBeInTheDocument();
   });
 
+  // With no task of mine due, the header names what waits: reviews, not "things today" (audit BRW-16).
+  it('says how many reviews wait when nothing of mine is due today', async () => {
+    await renderApp('/', as('usr_002'));
+    await screen.findByRole('heading', { level: 1 });
+    expect(await screen.findByText(/reviews? waiting for you/)).toBeInTheDocument();
+    expect(screen.queryByText(/things? today/)).toBeNull();
+  });
+
   it('offers the oldest past-due task as the one next thing', async () => {
     await renderApp('/', as('usr_005'));
     const card = await next();

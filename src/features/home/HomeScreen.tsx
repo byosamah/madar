@@ -66,7 +66,6 @@ export function HomeScreen() {
   const next = nextForYou({ review: review.data, mine: mine.data, today });
   const ring = dayRing(mine.data, today);
   const todayRows = dueByToday(mine.data, today);
-  const things = todayRows.length + review.data.length;
   const firstName = user.name.split(' ')[0];
   const taskId = params.get('task');
   const projectId = params.get('project');
@@ -77,8 +76,9 @@ export function HomeScreen() {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span>
               {formatDay(today, lang, 'weekday')}
-              {/* One count for today (audit PER-12): the ring when it shows, else the number of things (reviews only). */}
-              {things > 0 && ring.total === 0 && <> · {counted(t, 'home.things', things)}</>}
+              {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
+                  waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
+              {ring.total === 0 && review.data.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.data.length)}</>}
             </span>
             <DayRing done={ring.done} total={ring.total} />
           </span>

@@ -1071,9 +1071,9 @@
     },
     "ringLabel": "{{done}} of {{total}} done today",
     "ringText": "{{done}} of {{total}}",
-    "things": "{{n}} things today",
-    "things_one": "1 thing today",
-    "things_other": "{{count}} things today",
+    "reviewsWaiting": "{{n}} reviews waiting for you",
+    "reviewsWaiting_one": "1 review waiting for you",
+    "reviewsWaiting_other": "{{count}} reviews waiting for you",
     "next": {
       "title": "Next for you",
       "review": "Review",
