@@ -37,9 +37,11 @@ function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
             <span className="shrink-0 text-footnote text-ink-2"><Age stamp={row.lastAt} /></span>
           </span>
           <span className="flex items-center justify-between gap-2">
-            <span dir="auto" className={`min-w-0 truncate text-footnote ${row.unread > 0 ? 'text-ink' : 'text-ink-2'}`}>
-              {showBy && <span>{by}: </span>}
-              {row.preview}
+            {/* The preview keeps its own direction and its own cut-off, so an English line in an Arabic list keeps its full stop
+                at the end and loses its end, not its start, when it is long (audit 2026-10-03, BRW-17). */}
+            <span dir="auto" className={`flex min-w-0 gap-1 text-footnote ${row.unread > 0 ? 'text-ink' : 'text-ink-2'}`}>
+              {showBy && <span className="shrink-0">{by}:</span>}
+              <bdi className="min-w-0 truncate">{row.preview}</bdi>
             </span>
             {row.unread > 0 && (
               <span className="signature tabular inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-semibold">

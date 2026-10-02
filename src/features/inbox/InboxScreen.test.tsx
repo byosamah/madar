@@ -161,6 +161,19 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(Object.values(store.state.chatReads).some((r) => r.conversationId === taskId && r.userId === 'usr_001')).toBe(true);
   });
 
+  it('keeps an English preview whole in an Arabic chat list (BRW-17)', async () => {
+    await renderApp('/inbox', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+      const room = Object.values(state.conversations).find((c) => c.projectId === 'prj_001')!;
+      state.messages.msg_999 = {
+        id: 'msg_999', conversationId: room.id, authorId: 'usr_001', actingForId: 'usr_001', body: 'Client moved the site visit.',
+        mentions: [], fileIds: [], createdAt: '2026-09-30T08:30:00.000+03:00', editedAt: null,
+      };
+    });
+    const preview = await screen.findByText('Client moved the site visit.');
+    expect(preview.tagName).toBe('BDI');
+  });
+
   it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {
     await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));
