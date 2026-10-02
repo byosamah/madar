@@ -44,13 +44,13 @@ export function ProjectsScreen() {
     change(next);
     return next;
   }, { replace: true });
+  // Show and Stage are two separate choices (spec 3.3), so one never clears the other (audit PER-5).
   const setFilter = (value: string) => update((next) => {
-    next.delete('stage');
     next.delete('filter');
     next.delete('health');
-    if (value.startsWith('stage:')) next.set('stage', value.slice('stage:'.length));
-    else if (value !== 'all') next.set('filter', value);
+    if (value !== 'all') next.set('filter', value);
   });
+  const setStage = (name: string) => update((next) => (name ? next.set('stage', name) : next.delete('stage')));
   const setStatus = (value: (typeof STATUSES)[number]) => update((next) => {
     if (value === 'active') next.delete('status');
     else next.set('status', value);
@@ -62,12 +62,12 @@ export function ProjectsScreen() {
   const list = useCall('projects.list', {
     status,
     sort,
-    filter: stageName ? 'all' : filterParam,
+    filter: filterParam,
     stageName,
     health,
     teamId,
   });
-  const active = [filterParam !== 'all' || stageName, status !== 'active', sort !== 'updated', teamId].filter(Boolean).length;
+  const active = [filterParam !== 'all', stageName, status !== 'active', sort !== 'updated', teamId].filter(Boolean).length;
   const showAll = () => setParams({ status: 'all' }, { replace: true });
 
   let body = null;
@@ -103,14 +103,14 @@ export function ProjectsScreen() {
             <legend className={LEGEND}>{t('projects.show')}</legend>
             {FILTERS.map((value) => (
               <label key={value} className="flex min-h-11 items-center gap-3 text-body text-ink">
-                <input type="radio" name="projects-show" checked={!stageName && filterParam === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
+                <input type="radio" name="projects-show" checked={filterParam === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
                 {t(`projects.filter.${value}`)}
               </label>
             ))}
           </fieldset>
           <label className={LEGEND}>
             {t('projects.stage')}
-            <select value={stageName ?? ''} onChange={(event) => setFilter(event.target.value ? `stage:${event.target.value}` : 'all')} className={SELECT}>
+            <select value={stageName ?? ''} onChange={(event) => setStage(event.target.value)} className={SELECT}>
               <option value="">{t('projects.anyStage')}</option>
               {(settings.data?.defaultStages ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
             </select>

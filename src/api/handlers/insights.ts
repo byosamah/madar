@@ -1,3 +1,4 @@
+import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
@@ -110,8 +111,9 @@ export const dashboardGet = defineCall({
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
     const workloadRows = humans.map((user) => {
+      // A person's tasks are the ones they lead or help on: the same rule as the Task list this number opens (audit PER-4).
       const counts = weeks.map((ws) => tasks.filter((t) =>
-        t.ownerId === user.id && t.status !== 'done' && t.dueDate !== null && t.dueDate >= ws && t.dueDate <= addDays(ws, 6) && activeIds.has(t.projectId)).length);
+        involves(t, user.id) && t.status !== 'done' && t.dueDate !== null && t.dueDate >= ws && t.dueDate <= addDays(ws, 6) && activeIds.has(t.projectId)).length);
       return { user: userCard(user), counts, over: counts.map((count) => count > limit) };
     });
 
@@ -161,7 +163,9 @@ export const searchQuery = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state } = ctx;
-    const query = normalizeForSearch(input.text);
+    // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
+    const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
+    if (!query) return { projects: [], tasks: [], people: [], files: [] };
     const hit = (...parts: (string | undefined)[]) => normalizeForSearch(parts.filter(Boolean).join(' ')).includes(query);
     const codeOf = (projectId: string) => state.projects[projectId]?.code ?? '';
     return {

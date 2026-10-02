@@ -746,6 +746,7 @@
     "people": "People",
     "files": "Files",
     "empty": "No results for “{{text}}”.",
+    "emptyHint": "Try a project name, a code such as KH-26-001, a task, a person or a file name.",
     "command": {
       "newTask": "New task",
       "newProject": "New project",
@@ -823,9 +824,9 @@
       "personOpen": "{{n}} open",
       "personOpen_one": "1 open",
       "personOpen_other": "{{count}} open",
-      "personLate": "{{n}} late",
-      "personLate_one": "1 late",
-      "personLate_other": "{{count}} late",
+      "personLate": "{{n}} past due",
+      "personLate_one": "1 past due",
+      "personLate_other": "{{count}} past due",
       "drawings": "Drawings",
       "decisions": "Decisions",
       "entryKind": "What to add",
@@ -986,7 +987,9 @@
     "dateRange": "{{from}} to {{to}}",
     "empty": "No tasks match this list.",
     "emptyDeadlines": "No deadlines in this period.",
-    "count": "Items: {{n}}"
+    "count": "Items: {{n}}",
+    "emptyTitle": "Nothing here",
+    "backToDashboard": "Back to Dashboard"
   },
   "admin": {
     "people": "People",
@@ -1089,6 +1092,8 @@
     "allTasks": "See all my tasks",
     "projects": "Your projects",
     "projectCount": "{{n}} active",
+    "projectCount_one": "1 active",
+    "projectCount_other": "{{count}} active",
     "noProjects": "You are not on a project yet.",
     "allProjects": "All projects"
   },

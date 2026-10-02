@@ -26,6 +26,27 @@ describe('search', () => {
     expect(within(screen.getByRole('group', { name: 'Files' })).getAllByRole('option', { name: /Ground floor plan\.pdf/ }).length).toBeGreaterThan(0);
   });
 
+  // The search lives in the link, so Back from a result shows the same search again (audit PER-14).
+  it('keeps the search text in the link and brings it back after Back', async () => {
+    const { router } = await renderApp('/search');
+    await userEvent.type(await box(), 'corniche');
+    await waitFor(() => expect(window.location.hash).toContain('q=corniche'));
+    await userEvent.click(await screen.findByRole('option', { name: /Corniche Office Tower/ }));
+    await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' });
+    await router.navigate(-1);
+    expect(await box()).toHaveValue('corniche');
+    expect(await screen.findByRole('option', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+  });
+
+  // A file found by Search opens that file, not only its tab (audit PER-15).
+  it('opens the preview of a file it found', async () => {
+    await renderApp('/search');
+    await userEvent.type(await box(), 'ground floor plan.pdf');
+    const files = await screen.findByRole('group', { name: 'Files' });
+    await userEvent.click(within(files).getAllByRole('option', { name: /Ground floor plan\.pdf/ })[0]);
+    expect(await screen.findByRole('dialog', { name: /Ground floor plan\.pdf/ })).toBeInTheDocument();
+  });
+
   it('runs a command', async () => {
     await renderApp('/search');
     await userEvent.type(await box(), 'dash');

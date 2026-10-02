@@ -61,6 +61,17 @@ export function withMentionMarkup(text: string, people: { id: string; name: stri
   return out;
 }
 
+/**
+ * The body of an edited post or comment. The editor shows each mention as "@Name"; on save it becomes a link again for the
+ * current people and for every person the old body already mentioned, so a mention of someone who left the team or changed
+ * their name survives an edit (audit PER-19).
+ */
+export function editedBody(draft: string, people: { id: string; name: string }[], before: string): string {
+  const known = [...before.matchAll(MENTION)].map((match) => ({ id: match[2], name: match[1] }));
+  const all = [...people, ...known.filter((old) => !people.some((person) => person.id === old.id && person.name === old.name))];
+  return withMentionMarkup(draft, all);
+}
+
 /** The mention that the caret is in: an "@" at the start of a word, then up to 30 characters on the same line. */
 export function activeMention(text: string, caret: number): { start: number; query: string } | null {
   const before = text.slice(0, caret);

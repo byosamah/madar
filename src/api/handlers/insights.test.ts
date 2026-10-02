@@ -77,6 +77,16 @@ describe('dashboard.get', () => {
     expect(sara?.counts).toEqual([3, 0, 0, 0]);
     expect(sara?.over).toEqual([true, false, false, false]);
   });
+
+  // The workload number opens the Task list of that person, which lists the tasks they lead and the ones they help on.
+  // The number counts the same tasks, so the two always agree (audit PER-4).
+  it('counts a task a person helps on in their workload, like the list it opens', async () => {
+    const state = world();
+    state.tasks.tsk_004 = makeTask({ id: 'tsk_004', ownerId: 'usr_003', helperIds: ['usr_002'], dueDate: '2026-10-02' });
+    const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    const helper = d.workload.rows.find((row) => row.user.id === 'usr_002');
+    expect(helper?.counts[0]).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('search.query', () => {
@@ -87,5 +97,12 @@ describe('search.query', () => {
     expect((await api.call('search.query', { text: 'TEST tower' })).projects.map((p) => p.code)).toEqual(['KH-26-001']);
     expect((await api.call('search.query', { text: 'ground floor' })).tasks).toHaveLength(3);
     expect((await api.call('search.query', { text: 'احمد' })).people.map((p) => p.id)).toEqual(['usr_004']);
+  });
+
+  // Posts and comments write a project link as "#KH-26-001", so people paste that form (audit PER-3).
+  it('finds a project code written with a leading #, and treats a lone # as no search', async () => {
+    const { api } = testApi(insightCalls, world());
+    expect((await api.call('search.query', { text: '#KH-26-001' })).projects.map((p) => p.code)).toEqual(['KH-26-001']);
+    expect(await api.call('search.query', { text: '#' })).toEqual({ projects: [], tasks: [], people: [], files: [] });
   });
 });

@@ -28,14 +28,14 @@ const noOpenTasks = (state: State) => {
 };
 
 describe('the people of a project in the meeting (owner, 2026-10-02)', () => {
-  it('shows each lead with open and late counts, the busiest first', async () => {
+  it('shows each lead with open and past-due counts, the busiest first', async () => {
     const { store } = await renderApp(MEETING, withTeam);
     const people = within(await screen.findByRole('region', { name: 'People' }));
     const busy = store.state.users.usr_003.name;
     const other = store.state.users.usr_001.name;
     const buttons = people.getAllByRole('button');
     expect(buttons).toHaveLength(2);
-    expect(buttons[0]).toHaveAccessibleName(`${busy} 2 open · 1 late`);
+    expect(buttons[0]).toHaveAccessibleName(`${busy} 2 open · 1 past due`);
     expect(buttons[1]).toHaveAccessibleName(`${other} 1 open`);
   });
 

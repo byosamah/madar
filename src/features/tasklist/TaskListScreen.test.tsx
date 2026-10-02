@@ -49,4 +49,15 @@ describe('the Task list', () => {
     expect(week?.created).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getAllByRole('checkbox', { name: /^Complete / }).length).toBe(week?.created));
   });
+
+  // Every list says what to do next, and a failed list shows only the error (audit PER-18).
+  it('offers the way back when the list is empty, and shows no empty panel under an error', async () => {
+    const first = await renderApp('/tasks?owner=usr_005&from=2030-01-05&to=2030-01-11');
+    expect(await screen.findByText('No tasks match this list.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to Dashboard' })).toHaveAttribute('href', '#/dashboard');
+    first.unmount();
+    await renderApp('/tasks?filter=overdue', undefined, { failFirst: 'tasks.list' });
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.queryByRole('list')).toBeNull();
+  });
 });

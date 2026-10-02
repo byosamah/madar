@@ -21,6 +21,12 @@ function Subtitle({ text }: { text: string }) {
   return text ? <p className="-mt-3 pb-4 text-subheadline text-label-2">{text}</p> : null;
 }
 
+/** The way back from a list the Dashboard opened. */
+function BackToDashboard() {
+  const { t } = useTranslation();
+  return <Link to="/dashboard" className="flex min-h-11 items-center text-subheadline font-semibold text-link">{t('taskList.backToDashboard')}</Link>;
+}
+
 function DeadlineList({ from, to }: { from?: string; to?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -31,7 +37,9 @@ function DeadlineList({ from, to }: { from?: string; to?: string }) {
       <ScreenTitle title={t('taskList.deadlinesTitle')} />
       <Subtitle text={from && to ? t('taskList.dateRange', { from: formatDay(from, lang), to: formatDay(to, lang) }) : ''} />
       {deadlines.error && <LoadFailed error={deadlines.error} onRetry={() => void deadlines.refetch()} />}
-      {deadlines.data && rows.length === 0 ? <EmptyState title={t('taskList.deadlinesTitle')} body={t('taskList.emptyDeadlines')} /> : (
+      {/* The list draws only with data, so a failed or loading list shows no empty panel; an empty list says where to go (audit PER-18). */}
+      {deadlines.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.emptyDeadlines')} action={<BackToDashboard />} />}
+      {rows.length > 0 && (
         <ul className="surface flex flex-col rounded-card p-2">
           {rows.map((row) => (
             <li key={row.deadline.id}>
@@ -97,7 +105,8 @@ function TaskResults() {
       <ScreenTitle title={title} />
       <Subtitle text={subtitle} />
       {tasks.error && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
-      {tasks.data && rows.length === 0 ? <EmptyState title={title} body={t('taskList.empty')} /> : (
+      {tasks.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.empty')} action={<BackToDashboard />} />}
+      {rows.length > 0 && (
         <ul className="surface overflow-hidden rounded-card py-1">
           <AnimatePresence initial={false}>
             {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => open(row, thread)} showProject />)}

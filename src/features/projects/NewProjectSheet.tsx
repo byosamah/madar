@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { MAX_FILE_BYTES } from '../../api/contract/entities';
@@ -7,7 +7,7 @@ import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { Sheet } from '../../components/Sheet';
-import { emptyProjectForm } from './projectForm';
+import { emptyProjectForm, areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
 
 function focusFirstError(): void {
@@ -26,13 +26,21 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const [cover, setCover] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // A sheet closed by accident (Escape, a tap outside, a swipe) keeps what the person typed, for as long as this screen lives.
+  // Only Cancel and a created project start the next form empty (audit PER-8: nothing loses work by accident).
+  const fresh = useRef(true);
   useEffect(() => {
-    if (!open) return;
+    if (!open || !fresh.current) return;
+    fresh.current = false;
     form.reset(emptyProjectForm(settings.data?.defaultStages ?? []));
     setCover(null);
-    // The form starts empty each time the sheet opens. A settings change while it is open must not erase what the person typed.
+    // A settings change while it is open must not erase what the person typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  const cancel = () => {
+    fresh.current = true;
+    onOpenChange(false);
+  };
 
   useEffect(() => {
     // The default stages can arrive after the sheet opens. They fill the stage list only while it is still empty.
@@ -66,7 +74,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         clientId: v.clientId || null,
         leader: v.leader,
         location: v.location.trim(),
-        areaM2: v.area.trim() ? Number(v.area) : null,
+        areaM2: areaValue(v.area),
         contractStartDate: v.contractStartDate || null,
         startDate: v.startDate || null,
         targetEndDate: v.targetEndDate || null,
@@ -76,6 +84,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         description: v.description.trim(),
       });
       toast.show({ message: t('projectForm.created', { code: detail.project.code }) });
+      fresh.current = true;
       onOpenChange(false);
       navigate(`/projects/${detail.project.id}`);
       // The project exists now. The cover goes up on its own, so a failed upload never makes a second project.
@@ -96,7 +105,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       wide
       footer={(
         <>
-          <Button onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button onClick={cancel}>{t('common.cancel')}</Button>
           <Button variant="primary" type="submit" form="new-project" disabled={saving}>{t('projectForm.create')}</Button>
         </>
       )}

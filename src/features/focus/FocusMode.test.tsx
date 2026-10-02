@@ -43,6 +43,37 @@ describe('Focus mode', () => {
     expect(within(focus).getByRole('button', { name: 'Exit focus' })).toBeInTheDocument();
   });
 
+  // A helper may tick the checklist, as in the task panel (spec 5.1, audit PER-6), and is told who finishes the task (PER-9).
+  it('lets a helper tick the checklist and says who leads the task', async () => {
+    await renderApp('/projects/prj_001?tab=tasks&focus=tsk_012', (state) => {
+      state.session.currentUserId = 'usr_006';
+      state.tasks.tsk_012.helperIds = ['usr_006'];
+      state.tasks.tsk_012.checklist = [{ id: 'chk_900', text: 'Check the stair widths', done: false }];
+    });
+    const focus = await screen.findByRole('dialog', { name: 'Focus' });
+    expect(within(focus).getByRole('checkbox', { name: 'Check the stair widths' })).toBeEnabled();
+    expect(within(focus).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(focus).getByText('Lead: Sara Al-Qahtani')).toBeInTheDocument();
+  });
+
+  // A task that waits shows the word and no Done; a task in review says so (audit PER-9: clear state words).
+  it('shows Waiting for and no Done on a task that waits, and In review on a task in review', async () => {
+    const first = await renderApp('/projects/prj_001?tab=tasks&focus=tsk_012', (state) => {
+      state.session.currentUserId = 'usr_005';
+      state.tasks.tsk_012.prerequisiteIds = ['tsk_013'];
+      state.tasks.tsk_013.status = 'todo';
+    });
+    const focus = await screen.findByRole('dialog', { name: 'Focus' });
+    expect(within(focus).getByText(/^Waiting for /)).toBeInTheDocument();
+    expect(within(focus).queryByRole('button', { name: 'Done' })).toBeNull();
+    first.unmount();
+    await renderApp('/projects/prj_001?tab=tasks&focus=tsk_012', (state) => {
+      state.session.currentUserId = 'usr_005';
+      state.tasks.tsk_012.status = 'in_review';
+    });
+    expect(within(await screen.findByRole('dialog', { name: 'Focus' })).getByText('In review')).toBeInTheDocument();
+  });
+
   it('runs a quiet 25-minute timer', async () => {
     await renderApp('/projects/prj_001?tab=tasks&focus=tsk_012', as('usr_005'));
     const timer = await screen.findByRole('region', { name: 'Focus timer' });

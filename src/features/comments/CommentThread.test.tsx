@@ -20,6 +20,18 @@ describe('comments', () => {
     expect(await within(sheet).findByText('@Khalid Al-Mutairi')).toBeInTheDocument();
   });
 
+  // A half-written comment survives a closed panel, for example Focus mode or another task row (audit PER-11).
+  it('keeps a half-written comment when the panel closes and opens again', async () => {
+    const { router } = await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Half a thought');
+    await router.navigate('/projects/prj_001?tab=tasks');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await router.navigate(TASK('tsk_007'));
+    const again = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await within(again).findByRole('textbox', { name: 'Add a comment' })).toHaveValue('Half a thought');
+  });
+
   it('attaches a file to a task comment and shows it as a chip', async () => {
     const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });

@@ -48,12 +48,27 @@ describe('the Projects screen', () => {
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Stage' }), 'Permits');
     await waitFor(() => expect(screen.queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
     expect(screen.getByRole('link', { name: /Al Waha Clinic Fit-out/ })).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole('radio', { name: 'All' }));
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Stage' }), 'Any stage');
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'on_hold');
     expect(await screen.findByRole('link', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
     expect(rows()).toHaveLength(2);
     // The two paused samples: Gulf Crest waits for the client, Tamr Staff Housing has been paused long enough to be stale.
     expect(within(rows()[0]).getByText(/Awaiting client|Stale/)).toBeInTheDocument();
+  });
+
+  // Show and Stage are two separate choices (spec 3.3): a stage keeps "My projects" (audit PER-5).
+  it('keeps My projects when a stage is picked, and keeps the stage when Show changes', async () => {
+    await renderApp('/projects?filter=mine', (state) => { state.session.currentUserId = 'usr_002'; });
+    await ready();
+    const dialog = await openFilter();
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Stage' }), 'Schematic Design');
+    await waitFor(() => expect(window.location.hash).toContain('stage=Schematic'));
+    expect(window.location.hash).toContain('filter=mine');
+    expect(within(dialog).getByRole('radio', { name: 'My projects' })).toBeChecked();
+    expect(screen.queryByRole('link', { name: /Eastern Shore Primary School/ })).toBeNull();
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'All' }));
+    expect(window.location.hash).toContain('stage=Schematic');
+    expect(await screen.findByRole('link', { name: /Eastern Shore Primary School/ })).toBeInTheDocument();
   });
 
   it('shows a member only their projects under My projects', async () => {

@@ -420,7 +420,7 @@
     "attention": "يحتاج انتباهًا",
     "allClear": "لا شيء يحتاج انتباهًا.",
     "groups": {
-      "pastDue": "متأخرة",
+      "pastDue": "تجاوزت موعدها",
       "review": "بانتظار المراجعة",
       "flagged": "مُعلَّمة",
       "payment": "بانتظار الدفع"
@@ -506,7 +506,7 @@
     "filter": {
       "all": "الكل",
       "mine": "مهامي",
-      "overdue": "متأخرة",
+      "overdue": "تجاوزت موعدها",
       "flagged": "مميّزة"
     },
     "showDone": "إظهار المهام المنجزة",
@@ -521,7 +521,7 @@
     "empty": "لا توجد مهام هنا بعد.",
     "emptyFiltered": "لا توجد مهام تطابق هذه التصفية.",
     "flagged": "مميّزة",
-    "overdue": "متأخرة",
+    "overdue": "تجاوزت موعدها",
     "comments": "التعليقات: {{n}}",
     "files": "الملفات: {{n}}",
     "column": "{{status}}: {{n}}",
@@ -754,7 +754,7 @@
   "work": {
     "group": {
       "review": "بانتظار مراجعتي",
-      "overdue": "متأخرة",
+      "overdue": "تجاوزت موعدها",
       "today": "اليوم",
       "week": "هذا الأسبوع",
       "later": "لاحقًا",
@@ -778,7 +778,7 @@
       "task_assigned": "{{actor}} أسند إليك «{{target}}»",
       "mention": "{{actor}} أشار إليك في {{target}}",
       "due_tomorrow": "«{{target}}» مستحقة غدًا",
-      "overdue": "«{{target}}» متأخرة",
+      "overdue": "«{{target}}» تجاوزت موعدها",
       "review_requested": "{{actor}} أرسل «{{target}}» للمراجعة",
       "task_approved": "{{actor}} اعتمد «{{target}}»",
       "task_sent_back": "{{actor}} أعاد «{{target}}» للتعديل",
@@ -829,6 +829,7 @@
     "people": "الأشخاص",
     "files": "الملفات",
     "empty": "لا توجد نتائج لـ «{{text}}».",
+    "emptyHint": "جرّب اسم مشروع، أو رمزًا مثل KH-26-001، أو مهمة، أو شخصًا، أو اسم ملف.",
     "command": {
       "newTask": "مهمة جديدة",
       "newProject": "مشروع جديد",
@@ -862,7 +863,7 @@
     "tiles": {
       "activeProjects": "المشاريع النشطة",
       "atRiskOrLate": "معرّضة للتأخر أو متأخرة",
-      "overdueTasks": "المهام المتأخرة",
+      "overdueTasks": "مهام تجاوزت موعدها",
       "deadlines": "المواعيد خلال 14 يومًا",
       "area": "المساحة قيد التصميم"
     },
@@ -909,12 +910,12 @@
       "personOpen_few": "{{count}} مفتوحة",
       "personOpen_many": "{{count}} مفتوحة",
       "personOpen_other": "{{count}} مفتوحة",
-      "personLate": "{{n}} متأخرة",
-      "personLate_one": "واحدة متأخرة",
-      "personLate_two": "اثنتان متأخرتان",
-      "personLate_few": "{{count}} متأخرة",
-      "personLate_many": "{{count}} متأخرة",
-      "personLate_other": "{{count}} متأخرة",
+      "personLate": "{{n}} تجاوزت موعدها",
+      "personLate_one": "واحدة تجاوزت موعدها",
+      "personLate_two": "اثنتان تجاوزت موعدها",
+      "personLate_few": "{{count}} تجاوزت موعدها",
+      "personLate_many": "{{count}} تجاوزت موعدها",
+      "personLate_other": "{{count}} تجاوزت موعدها",
       "drawings": "المخططات",
       "decisions": "القرارات",
       "entryKind": "ما الذي تضيفه",
@@ -975,7 +976,7 @@
       "waitsFor": "{{task}} بانتظار {{needed}}",
       "ifFinishesToday": "عند انتهاء {{late}} اليوم، ينتقل موعد {{dependent}} بمقدار {{lateness}} إلى {{date}}.",
       "countInProgress": "قيد التنفيذ: {{n}}",
-      "countPastDue": "متأخرة: {{n}}",
+      "countPastDue": "تجاوزت موعدها: {{n}}",
       "countReview": "بانتظار المراجعة: {{n}}",
       "countFlagged": "مُعلَّمة: {{n}}",
       "team": "فريق المكتب: {{name}}",
@@ -1088,7 +1089,7 @@
   "taskList": {
     "title": "قائمة المهام",
     "deadlinesTitle": "المواعيد",
-    "overdue": "المهام المتأخرة",
+    "overdue": "مهام تجاوزت موعدها",
     "flagged": "المهام المميّزة",
     "forPerson": "مهام {{name}}",
     "dueRange": "مستحقة من {{from}} إلى {{to}}",
@@ -1097,7 +1098,9 @@
     "dateRange": "من {{from}} إلى {{to}}",
     "empty": "لا توجد مهام تطابق هذه القائمة.",
     "emptyDeadlines": "لا توجد مواعيد في هذه الفترة.",
-    "count": "العناصر: {{n}}"
+    "count": "العناصر: {{n}}",
+    "emptyTitle": "لا شيء هنا",
+    "backToDashboard": "العودة إلى لوحة المعلومات"
   },
   "admin": {
     "people": "الأشخاص",
@@ -1158,12 +1161,12 @@
     "staleAfterHint": "يصبح المشروع المتوقف راكدًا بعد هذا العدد من الأيام. استخدم من 7 إلى 365."
   },
   "due": {
-    "pastDue": "متأخرة {{n}} يوم",
-    "pastDue_one": "متأخرة يومًا واحدًا",
-    "pastDue_two": "متأخرة يومين",
-    "pastDue_few": "متأخرة {{count}} أيام",
-    "pastDue_many": "متأخرة {{count}} يومًا",
-    "pastDue_other": "متأخرة {{count}} يوم",
+    "pastDue": "تجاوزت موعدها بـ{{n}} يوم",
+    "pastDue_one": "تجاوزت موعدها بيوم واحد",
+    "pastDue_two": "تجاوزت موعدها بيومين",
+    "pastDue_few": "تجاوزت موعدها بـ{{count}} أيام",
+    "pastDue_many": "تجاوزت موعدها بـ{{count}} يومًا",
+    "pastDue_other": "تجاوزت موعدها بـ{{count}} يوم",
     "today": "مستحقة اليوم",
     "in": "بعد {{n}} يوم",
     "in_one": "غدًا",
@@ -1212,6 +1215,12 @@
     "allTasks": "كل مهامي",
     "projects": "مشاريعك",
     "projectCount": "{{n}} نشطة",
+    "projectCount_zero": "لا مشاريع نشطة",
+    "projectCount_one": "مشروع واحد نشط",
+    "projectCount_two": "مشروعان نشطان",
+    "projectCount_few": "{{count}} مشاريع نشطة",
+    "projectCount_many": "{{count}} مشروعًا نشطًا",
+    "projectCount_other": "{{count}} مشروع نشط",
     "noProjects": "لست في أي مشروع بعد.",
     "allProjects": "كل المشاريع"
   },

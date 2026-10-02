@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyProjectForm, validateProjectForm } from './projectForm';
+import { areaValue, emptyProjectForm, validateProjectForm } from './projectForm';
 
 describe('the project form checks', () => {
   const valid = { ...emptyProjectForm(['Concept', 'Permits']), name: 'Harbour Gate Offices' };
@@ -15,5 +15,13 @@ describe('the project form checks', () => {
     expect(validateProjectForm({ ...valid, startDate: '2026-10-01', targetEndDate: '2026-10-01' }).targetEndDate).toBe('projectForm.errors.endAfterStart');
     expect(validateProjectForm({ ...valid, stages: [] }).stages).toBe('projectForm.errors.stageRequired');
     expect(validateProjectForm({ ...valid, stages: [{ name: ' ' }] }).stages).toBe('projectForm.errors.stageName');
+  });
+
+  // An Arabic phone keyboard types Arabic-Indic digits and the Arabic decimal mark (audit PER-16).
+  it('reads an area typed with Arabic-Indic or Persian digits', () => {
+    expect(validateProjectForm({ ...valid, area: '١٢٠٠' })).toEqual({});
+    expect(areaValue('١٢٠٠٫٥')).toBe(1200.5);
+    expect(areaValue('۱٬۸۰۰')).toBe(1800);
+    expect(areaValue('  ')).toBeNull();
   });
 });

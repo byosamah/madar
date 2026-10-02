@@ -27,9 +27,11 @@ export function HomeScreen() {
   const session = useCall('session.get', {});
   const mine = useCall('tasks.list', { filter: 'mine' });
   const review = useCall('tasks.list', { filter: 'review_for_me' });
-  // The Admin sees every active project; anyone else sees the projects they lead or work on.
+  // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
+  // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
   const admin = session.data?.user.systemRole === 'admin';
-  const projects = useCall('projects.list', { filter: admin ? 'all' : 'mine', sort: 'deadline' }, );
+  const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
+  const projects = { ...listed, data: listed.data?.filter((summary) => summary.project.status === 'active' || summary.project.status === 'on_hold') };
   const open = useCallback((projectId: string, taskId: string, thread = false) => setParams({ project: projectId, task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
@@ -75,7 +77,8 @@ export function HomeScreen() {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span>
               {formatDay(today, lang, 'weekday')}
-              {things > 0 && <> · {counted(t, 'home.things', things)}</>}
+              {/* One count for today (audit PER-12): the ring when it shows, else the number of things (reviews only). */}
+              {things > 0 && ring.total === 0 && <> · {counted(t, 'home.things', things)}</>}
             </span>
             <DayRing done={ring.done} total={ring.total} />
           </span>

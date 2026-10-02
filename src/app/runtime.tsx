@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import type { Store } from '../api/store';
@@ -37,9 +37,15 @@ export function useRuntime(): Runtime {
   return runtime;
 }
 
-export function useCall<N extends CallName>(name: N, input: CallInput<N>, options: { enabled?: boolean } = {}) {
+/** keepPrevious: while a new input loads, the screen keeps showing the last answer, so a list never blanks out between key presses. */
+export function useCall<N extends CallName>(name: N, input: CallInput<N>, options: { enabled?: boolean; keepPrevious?: boolean } = {}) {
   const { api } = useRuntime();
-  return useQuery<CallOutput<N>>({ queryKey: ['api', name, input], queryFn: () => api.call(name, input), enabled: options.enabled ?? true });
+  return useQuery<CallOutput<N>>({
+    queryKey: ['api', name, input],
+    queryFn: () => api.call(name, input),
+    enabled: options.enabled ?? true,
+    placeholderData: options.keepPrevious ? keepPreviousData : undefined,
+  });
 }
 
 export function useAction<N extends CallName>(

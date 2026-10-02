@@ -1,7 +1,8 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { UploadIcon } from '../../../components/icons/animated/upload';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { MAX_FILE_BYTES } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
@@ -98,6 +99,19 @@ export function FilesTab({ detail }: TabProps) {
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
   const canUpload = detail.viewerCan.post;
+  // A link with "file" (from Search) opens that file's preview once. The link part goes, so Back does not open it again.
+  const [params, setParams] = useSearchParams();
+  const linked = params.get('file');
+  useEffect(() => {
+    if (!linked || !files.data) return;
+    const view = files.data.find((item) => item.file.id === linked);
+    if (view) setPreview(view);
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('file');
+      return next;
+    }, { replace: true });
+  }, [linked, files.data, setParams]);
 
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
   const uploadQueue = async (queue: File[], meta: { correlationId: string }): Promise<void> => {

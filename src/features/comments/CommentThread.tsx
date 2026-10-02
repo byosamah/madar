@@ -14,7 +14,7 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
-import { plainText, withMentionMarkup } from '../../lib/text';
+import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
@@ -66,7 +66,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
             className="mt-1 flex flex-col gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              const body = withMentionMarkup(draft.trim(), people);
+              const body = editedBody(draft.trim(), people, comment.body);
               if (body) update.mutate({ id: comment.id, body });
             }}
           >
@@ -118,6 +118,22 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   );
 }
 
+/**
+ * Half-written comments, by task or post, for this browser tab (session storage, so a reload keeps them too). A panel that
+ * closes (Focus mode, another task row, the Back button) unmounts its thread; its draft waits here until the person comes
+ * back or sends it (audit PER-11). Blocked storage means the draft lasts only while the panel is open.
+ */
+const DRAFT = 'madar.draft.';
+const readDraft = (key: string) => {
+  try { return window.sessionStorage.getItem(DRAFT + key) ?? ''; } catch { return ''; }
+};
+const writeDraft = (key: string, text: string) => {
+  try {
+    if (text) window.sessionStorage.setItem(DRAFT + key, text);
+    else window.sessionStorage.removeItem(DRAFT + key);
+  } catch { /* blocked storage */ }
+};
+
 /** Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author. */
 export function CommentThread({
   targetType, targetId, projectId, stageId = null, people, canPost,
@@ -127,7 +143,12 @@ export function CommentThread({
   const attachments = useAttachments();
   const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
-  const [body, setBody] = useState('');
+  const draftKey = `${targetType}:${targetId}`;
+  const [body, setBodyState] = useState(() => readDraft(draftKey));
+  const setBody = (next: string) => {
+    writeDraft(draftKey, next);
+    setBodyState(next);
+  };
   const create = useAction('comments.create', {
     onSuccess: () => {
       setBody('');

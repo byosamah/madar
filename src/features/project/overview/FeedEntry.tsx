@@ -11,7 +11,7 @@ import { Button } from '../../../components/Button';
 import { MentionField } from '../../../components/MentionField';
 import { Menu } from '../../../components/Menu';
 import { RichText } from '../../../components/RichText';
-import { plainText, withMentionMarkup } from '../../../lib/text';
+import { editedBody, plainText } from '../../../lib/text';
 import { CommentThread } from '../../comments/CommentThread';
 import { feedText } from '../../projects/feed';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
@@ -74,7 +74,7 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            const body = withMentionMarkup(draft.trim(), people);
+            const body = editedBody(draft.trim(), people, item.body);
             if (body) save.mutate({ id: item.id, body });
           }}
         >

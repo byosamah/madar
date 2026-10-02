@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useLang } from '../../app/lang';
+import { isWaiting, waitingNames } from '../project/tasks/waiting';
 import type { TaskDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { usePanelOpen } from '../../app/panelOpen';
@@ -32,8 +34,18 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
       exitTimer.current = window.setTimeout(() => onExit(true), 600);
     },
   });
-  const canDone = data.canMove && task.status !== 'done' && task.status !== 'in_review';
-  const edit = data.viewerCan.edit;
+  const lang = useLang();
+  // A task that waits for another task or a stage cannot be finished yet, so Done hides and a word says why (audit PER-9).
+  const waiting = isWaiting(data);
+  const canDone = data.canMove && !waiting && task.status !== 'done' && task.status !== 'in_review';
+  // A helper may tick the checklist, as in the task panel (spec 5.1, audit PER-6).
+  const edit = data.viewerCan.edit || data.viewerCan.contribute;
+  // One clear state word when there is no Done: done, in review, waiting, or who finishes it (a helper sees the lead).
+  const state = task.status === 'done' ? t('taskStatus.done')
+    : task.status === 'in_review' ? t('taskStatus.in_review')
+    : waiting ? t('tasks.waitingFor', { names: waitingNames(data, lang) })
+    : !data.canMove ? `${t('taskSheet.owner')}: ${data.owner.name}`
+    : null;
   useEffect(() => setItems(task.checklist), [task.checklist]);
   // Focus moves into the page at once; a late exit after Done never fires once the page is gone.
   useEffect(() => {
@@ -72,6 +84,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
           </AnimatePresence>
           {task.title}
         </h1>
+        {state && <p className="text-subheadline font-semibold text-ink-2"><bdi>{state}</bdi></p>}
         {task.description && <div dir="auto" className="text-body text-ink-2"><RichText body={task.description} /></div>}
       </div>
       {items.length > 0 && (

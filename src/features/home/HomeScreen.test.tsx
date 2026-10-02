@@ -17,6 +17,20 @@ describe('Home', () => {
     expect(screen.getByRole('progressbar', { name: '1 of 2 done today' })).toBeInTheDocument();
   });
 
+  // One count for today (audit PER-12): with the ring on screen, a second number that counts other things only confused.
+  it('shows one count for today: the ring when it shows, else the number of things', async () => {
+    await renderApp('/', as('usr_005'));
+    await screen.findByRole('progressbar', { name: '1 of 2 done today' });
+    expect(screen.queryByText(/things? today/)).toBeNull();
+  });
+
+  // A paused or stale project of mine still needs me, so Home keeps it in "Your projects" with its state word (audit PER-13).
+  it('keeps a paused project of mine in Your projects', async () => {
+    await renderApp('/', as('usr_003'));
+    const list = await screen.findByRole('list', { name: 'Your projects' });
+    expect(within(list).getByText('Tamr Staff Housing')).toBeInTheDocument();
+  });
+
   it('offers the oldest past-due task as the one next thing', async () => {
     await renderApp('/', as('usr_005'));
     const card = await next();
