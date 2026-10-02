@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -135,5 +135,51 @@ describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10)', () => {
     await userEvent.click((await within(screen.getByRole('region', { name: 'Who is doing what' })).findAllByRole('button'))[1]);
     const second = await screen.findByRole('dialog');
     expect(within(second).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('a failed save rolls back (audit 2026-10-03, PRJ-7)', () => {
+  it('unticks a checklist box whose save failed', async () => {
+    let taskId = '';
+    const fail = trap('tasks.update');
+    const { store } = await renderApp('/projects/prj_001?tab=tasks', (state) => {
+      state.session.currentUserId = 'usr_002';
+      taskId = Object.values(state.tasks).find((task) => task.projectId === 'prj_001' && task.status !== 'done' && task.checklist.some((item) => !item.done))!.id;
+    }, { failFirst: fail.match });
+    const task = store.state.tasks[taskId];
+    const item = task.checklist.find((entry) => !entry.done)!;
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(`^${task.title}`) }));
+    const sheet = await screen.findByRole('dialog', { name: task.title });
+    fail.state.armed = true;
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: item.text }));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await waitFor(() => expect(within(sheet).getByRole('checkbox', { name: item.text })).not.toBeChecked());
+  });
+
+  it('puts back a task date whose save failed', async () => {
+    const fail = trap('tasks.update');
+    const { store } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_013', (state) => {
+      state.session.currentUserId = 'usr_002';
+      Object.assign(state.tasks.tsk_013, { startDate: null, dueDate: null, schedule: 'static', durationDays: null });
+    }, { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: store.state.tasks.tsk_013.title });
+    fail.state.armed = true;
+    fireEvent.change(within(sheet).getByLabelText('Start date'), { target: { value: '2026-01-05' } });
+    fireEvent.blur(within(sheet).getByLabelText('Start date'));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await waitFor(() => expect(within(sheet).getByLabelText('Start date')).toHaveValue(''));
+  });
+
+  it('puts back a stage date whose save failed', async () => {
+    const fail = trap('stages.setDates');
+    const { store } = await renderApp('/projects/prj_001?tab=schedule', as('usr_002'), { failFirst: fail.match });
+    const stage = Object.values(store.state.stages).find((item) => item.projectId === 'prj_001' && item.startDate)!;
+    const field = () => document.getElementById(`start-${stage.id}`) as HTMLInputElement;
+    await waitFor(() => expect(field()).not.toBeNull());
+    fail.state.armed = true;
+    fireEvent.change(field(), { target: { value: '2025-01-05' } });
+    fireEvent.blur(field());
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await waitFor(() => expect(field()).toHaveValue(stage.startDate));
   });
 });

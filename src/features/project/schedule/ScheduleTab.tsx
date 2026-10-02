@@ -185,6 +185,9 @@ function StageDates({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
+  // A failed or refused save puts the date fields back to the saved dates (audit 2026-10-03, PRJ-7).
+  const [failures, setFailures] = useState(0);
+  const rollback = { onError: () => setFailures((count) => count + 1) };
   const edit = detail.viewerCan.edit;
   const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
   const overlaps = stageOverlaps(detail.stages);
@@ -204,10 +207,10 @@ function StageDates({ detail }: TabProps) {
             </span>
             {edit ? (
               <>
-                <DateDraftField id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
-                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate })} />
-                <DateDraftField id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
-                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate })} />
+                <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
+                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate }, rollback)} />
+                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
+                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
               </>
             ) : (
               <span className="tabular text-footnote text-ink-2">

@@ -160,8 +160,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
   const dates = useDateReason(() => setTimingKey((key) => key + 1));
+  // A failed or refused save puts the dates and the checklist back to the saved values; the toast still says why (audit 2026-10-03, PRJ-7).
+  const [failures, setFailures] = useState(0);
   const update = useAction('tasks.update', {
-    onRefused: (error, input) => dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next)),
+    onRefused: (error, input) => {
+      if (dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next))) return true;
+      setFailures((count) => count + 1);
+      return false;
+    },
   });
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
@@ -265,7 +271,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
-                key={timingKey}
+                key={`${timingKey}-${failures}`}
                 idPrefix="task"
                 value={{ startDate: task.startDate ?? null, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null, dueDate: task.dueDate }}
                 onPatch={patch}
@@ -303,7 +309,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
+            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
             <TaskVersions task={task} />
             <section className="flex flex-col gap-1">
               <h3 className="text-headline">{t('taskSheet.files')}</h3>
