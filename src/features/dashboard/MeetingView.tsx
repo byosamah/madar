@@ -487,7 +487,7 @@ export function MeetingView() {
           )}
           {/* The summary takes the place of the screen, so the controls of the screen below it hide too.
               Done and Skip are the only ways forward on screen. The arrow keys, N and B, and the Agenda still move anywhere. */}
-          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} onOpenSummary={() => setSummaryOpen(true)} />}
+          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} name={shown.project.name} onOpenSummary={() => setSummaryOpen(true)} />}
           {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl

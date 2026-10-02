@@ -902,6 +902,7 @@
       },
       "discussed": "Discussed",
       "allDiscussed": "All projects discussed",
+      "discussedToast": "{{name}} marked as discussed.",
       "timeLeft": "{{time}} left",
       "timeOver": "{{time}} over",
       "pauseTimer": "Pause timer",

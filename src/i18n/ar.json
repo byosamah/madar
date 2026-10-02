@@ -994,6 +994,7 @@
       },
       "discussed": "نوقش",
       "allDiscussed": "نوقشت كل المشاريع",
+      "discussedToast": "نوقش {{name}}.",
       "timeLeft": "بقي {{time}}",
       "timeOver": "تجاوز الوقت {{time}}",
       "pauseTimer": "إيقاف المؤقت",

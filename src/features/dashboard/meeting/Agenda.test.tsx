@@ -152,6 +152,31 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(within(back).getByText('Discussed')).toBeInTheDocument();
   });
 
+  it('offers Undo after Done: it takes the mark back and shows the project again (audit 2026-10-03, DSH-10)', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const toast = (await screen.findByText('Al Waha Clinic Fit-out marked as discussed.')).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    const back = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(back).queryByText('Discussed')).toBeNull();
+    const sheet = await openAgenda();
+    expect(agendaItems(sheet)[0]).not.toHaveTextContent('Discussed');
+    await closeAgenda(sheet);
+    // Done on a project that was already discussed: Undo goes back to it and keeps the mark it had before.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const again = (await screen.findAllByText('Al Waha Clinic Fit-out marked as discussed.')).at(-1)!.closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(again).getByRole('button', { name: 'Undo' }));
+    const kept = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(kept).getByText('Discussed')).toBeInTheDocument();
+  });
+
   it('goes round to the first open project when Skip is pressed on the last project', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

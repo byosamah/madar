@@ -192,6 +192,12 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     commit((s) => show({ ...s, order: [...s.order.filter((id) => id !== currentId), currentId] }, next, Date.now()));
   };
 
+  /**
+   * Takes a Done back: the project shows again, and loses the mark when Done added it (audit 2026-10-03, DSH-10).
+   * It reads the latest session, so an Undo pressed some seconds later still works.
+   */
+  const undoDone = (id: string, wasDiscussed: boolean) => commit((s) => show(wasDiscussed ? s : { ...s, discussed: s.discussed.filter((item) => item !== id) }, id, Date.now()));
+
   const togglePause = () => commit((s) => (s.paused ? { ...s, paused: false } : { ...stop(s, Date.now()), paused: true }));
   const setMinutes = (minutes: MeetingMinutes) => commit((s) => ({ ...s, minutes }));
 
@@ -213,6 +219,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     setMinutes,
     goTo,
     done,
+    undoDone,
     skip,
     elapsedFor,
     paused: session.paused,
