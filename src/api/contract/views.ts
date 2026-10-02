@@ -93,6 +93,10 @@ export type ProjectDetail = z.infer<typeof ProjectDetail>;
 export const EventView = z.object({ event: Event, actor: UserCard });
 export type EventView = z.infer<typeof EventView>;
 
+/** An event with the words the Activity feed uses for it: the name of the thing it changed, and the detail of the change. */
+export const EventLineView = EventView.extend({ label: z.string(), detail: z.record(z.string(), z.string()) });
+export type EventLineView = z.infer<typeof EventLineView>;
+
 export const TaskRow = z.object({
   task: Task,
   owner: UserCard,

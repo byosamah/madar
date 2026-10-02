@@ -28,8 +28,8 @@ function Timer({ id, minutes, running, elapsedFor }: { id: string; minutes: numb
   );
 }
 
-/** The agenda part of the meeting top bar: the Agenda button with the position, the timer, and Done and Skip. */
-export function AgendaBar({ session, onOpenAgenda }: { session: MeetingSession; onOpenAgenda: () => void }) {
+/** The agenda part of the meeting top bar: the Agenda button with the position, the timer, and Done and Skip. When every project is discussed, it offers the summary. */
+export function AgendaBar({ session, onOpenAgenda, onOpenSummary }: { session: MeetingSession; onOpenAgenda: () => void; onOpenSummary: () => void }) {
   const { t } = useTranslation();
   const { order, current, currentId } = session;
   return (
@@ -39,7 +39,10 @@ export function AgendaBar({ session, onOpenAgenda }: { session: MeetingSession; 
         <span className="tabular font-medium text-ink-2">{t('dashboard.meeting.agendaAt', { n: current + 1, total: order.length })}</span>
       </Button>
       {session.allDiscussed ? (
-        <p role="status" className="px-2 text-[17px] font-semibold text-ink">{t('dashboard.meeting.allDiscussed')}</p>
+        <>
+          <p role="status" className="px-2 text-[17px] font-semibold text-ink">{t('dashboard.meeting.allDiscussed')}</p>
+          <Button variant="plain" onClick={onOpenSummary}>{t('dashboard.meeting.openSummary')}</Button>
+        </>
       ) : currentId && (
         <>
           <Timer id={currentId} minutes={session.minutes} running={session.running} elapsedFor={session.elapsedFor} />

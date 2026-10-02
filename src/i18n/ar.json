@@ -979,6 +979,33 @@
       "minutes_few": "{{count}} دقائق",
       "minutes_many": "{{count}} دقيقة",
       "minutes_other": "{{count}} دقيقة",
+      "summaryButton": "الملخص",
+      "openSummary": "فتح الملخص",
+      "summary": {
+        "title": "ملخص الاجتماع",
+        "back": "رجوع",
+        "none": "لا توجد تغييرات في هذا الاجتماع بعد.",
+        "copy": "نسخ كجدول",
+        "share": "مشاركة في محادثات المشاريع",
+        "copied": "تم نسخ الجدول.",
+        "copyFailed": "لم يسمح المتصفح بالنسخ.",
+        "shareTitle": "ملخص الاجتماع، {{date}}",
+        "shared": "وصل الملخص إلى {{n}} محادثة.",
+        "shared_one": "وصل الملخص إلى محادثة واحدة.",
+        "shared_two": "وصل الملخص إلى محادثتين.",
+        "shared_few": "وصل الملخص إلى {{count}} محادثات.",
+        "shared_many": "وصل الملخص إلى {{count}} محادثة.",
+        "shared_other": "وصل الملخص إلى {{count}} محادثة.",
+        "sharedNone": "لم تقبل أي محادثة الملخص.",
+        "decision": "كتب القرار «{{text}}»",
+        "decision_female": "كتبت القرار «{{text}}»",
+        "columns": {
+          "project": "المشروع",
+          "who": "من",
+          "what": "ماذا",
+          "time": "الوقت"
+        }
+      },
       "restart": "بدء اجتماع جديد"
     },
     "views": {

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
-import { EventView } from '../contract/views';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
+import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertMayFinish, reopenDependents, resyncStage } from '../flow';
 import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
-import { eventViewOf, mayDeleteTracker } from '../views';
+import { eventLabel, eventViewOf, mayDeleteTracker } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { assertCan, roleIn, touch } from './shared';
 
@@ -19,9 +19,11 @@ export const eventsList = defineCall({
     targetType: EventTarget.optional(),
     targetId: z.string().optional(),
     correlationId: z.string().min(1).max(80).optional(),
+    /** Only the events at or after this office-time stamp. */
+    since: Stamp.optional(),
     limit: z.number().int().min(1).max(500).default(50),
   }),
-  output: z.array(EventView),
+  output: z.array(EventLineView),
   readOnly: true,
   run(input, ctx) {
     // A payment event holds an amount, so only the people who may handle payments ever read one.
@@ -31,10 +33,11 @@ export const eventsList = defineCall({
         && (!input.projectId || e.projectId === input.projectId)
         && (!input.targetType || e.targetType === input.targetType)
         && (!input.targetId || e.targetId === input.targetId)
-        && (!input.correlationId || e.correlationId === input.correlationId))
+        && (!input.correlationId || e.correlationId === input.correlationId)
+        && (!input.since || e.createdAt >= input.since))
       .sort((a, b) => b.seq - a.seq)
       .slice(0, input.limit)
-      .map((e) => eventViewOf(ctx.state, e));
+      .map((e) => ({ ...eventViewOf(ctx.state, e), ...eventLabel(ctx.state, e) }));
   },
 });
 

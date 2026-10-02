@@ -888,6 +888,29 @@
       "skip": "Skip",
       "timeEach": "Time for each project",
       "minutes": "{{n}} minutes",
+      "summaryButton": "Summary",
+      "openSummary": "Open the summary",
+      "summary": {
+        "title": "Meeting summary",
+        "back": "Back",
+        "none": "No changes in this meeting yet.",
+        "copy": "Copy as a table",
+        "share": "Share to the project chats",
+        "copied": "Table copied.",
+        "copyFailed": "The browser did not allow copying.",
+        "shareTitle": "Meeting summary, {{date}}",
+        "shared": "The summary went to {{n}} chats.",
+        "shared_one": "The summary went to 1 chat.",
+        "shared_other": "The summary went to {{count}} chats.",
+        "sharedNone": "No chat took the summary.",
+        "decision": "wrote the decision “{{text}}”",
+        "columns": {
+          "project": "Project",
+          "who": "Who",
+          "what": "What",
+          "time": "Time"
+        }
+      },
       "restart": "Start a new meeting"
     },
     "views": {

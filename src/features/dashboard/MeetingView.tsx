@@ -24,6 +24,7 @@ import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import { AgendaBar } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
+import { MeetingSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
@@ -258,8 +259,11 @@ export function MeetingView() {
   const schedule = dashboard.data?.schedule;
   const agendaIds = useMemo(() => agendaOrder(schedule ?? []).map((row) => row.project.id), [schedule]);
   const rowOf = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row])), [schedule]);
+  const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
   const session = useMeetingSession(agendaIds, mode === 'projects');
   const [agendaOpen, setAgendaOpen] = useState(false);
+  // The summary takes the place of the screen. Back shows the same mode and the same project again.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
@@ -288,6 +292,8 @@ export function MeetingView() {
   const rtl = lang === 'ar';
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const summaryRef = useRef(summaryOpen);
+  summaryRef.current = summaryOpen;
   const sessionRef = useRef(session);
   sessionRef.current = session;
   // The meeting started when the session of the day started, so a reload keeps the same start.
@@ -316,7 +322,7 @@ export function MeetingView() {
         return;
       }
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
+      if (summaryRef.current || event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
       // On the project screens the arrows move along the agenda; on the timeline they move one month.
@@ -364,7 +370,7 @@ export function MeetingView() {
           />
           {mode === 'projects' && shown && (
             <>
-              <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} />
+              <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} onOpenSummary={() => setSummaryOpen(true)} />
               <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
                 <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
@@ -390,6 +396,7 @@ export function MeetingView() {
           </Button>
           </>
           )}
+          <Button onClick={() => setSummaryOpen(true)}>{t('dashboard.meeting.summaryButton')}</Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
       </header>
@@ -398,7 +405,10 @@ export function MeetingView() {
         <EmptyState title={t('dashboard.meeting.title')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
-      {mode === 'projects' && shown && (
+      {summaryOpen && (
+        <MeetingSummary agendaIds={agendaIds} names={names} startedAt={session.startedAt} onBack={() => setSummaryOpen(false)} />
+      )}
+      {!summaryOpen && mode === 'projects' && shown && (
         <MeetingProject
           key={shown.project.id}
           row={shown}
@@ -409,7 +419,7 @@ export function MeetingView() {
           onOpenTask={openTask}
         />
       )}
-      {mode === 'timeline' && view && view.schedule.length > 0 && (
+      {!summaryOpen && mode === 'timeline' && view && view.schedule.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-card panel">
           <div className={`sticky top-0 z-20 border-b border-separator bg-[var(--c-panel)] px-5 ${COLUMNS}`}>
             <div />
