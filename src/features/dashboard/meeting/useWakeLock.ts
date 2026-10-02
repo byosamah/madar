@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-type Sentinel = { release: () => Promise<void> };
+type Sentinel = { release: () => Promise<void>; addEventListener?: (type: 'release', listener: () => void) => void };
 
 /**
  * Keeps the screen awake while the page is open and visible. The browser drops the lock when the page hides,
@@ -12,22 +12,29 @@ export function useWakeLock() {
     if (!api) return;
     let lock: Sentinel | null = null;
     let closed = false;
+    // True from the request until it answers, so two calls never ask at once.
+    let pending = false;
     const acquire = async () => {
-      if (closed || lock || document.visibilityState === 'hidden') return;
+      if (closed || lock || pending || document.visibilityState === 'hidden') return;
+      pending = true;
       try {
         const next = await api.request('screen');
-        if (closed) void next.release().catch(() => undefined);
-        else lock = next;
+        if (closed) {
+          void next.release().catch(() => undefined);
+        } else {
+          lock = next;
+          // The browser releases a screen lock by itself when the page hides.
+          next.addEventListener?.('release', () => { if (lock === next) lock = null; });
+        }
       } catch {
         // The browser or the battery setting said no. The meeting goes on without the lock.
+      } finally {
+        pending = false;
       }
     };
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        // The browser released the old lock when the page hid.
-        lock = null;
-        void acquire();
-      }
+      // A held lock stays. A lock the browser released has cleared itself, so this asks again.
+      if (document.visibilityState === 'visible') void acquire();
     };
     void acquire();
     document.addEventListener('visibilitychange', onVisible);

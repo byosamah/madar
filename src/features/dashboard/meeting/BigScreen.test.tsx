@@ -126,6 +126,39 @@ describe('screen that stays awake (owner, 2026-10-02)', () => {
     expect(release).toHaveBeenCalled();
   });
 
+  it('never holds two locks, and asks again after the browser released the lock', async () => {
+    const made: { release: ReturnType<typeof vi.fn>; fire: () => void; live: boolean }[] = [];
+    const request = vi.fn().mockImplementation(async () => {
+      let onRelease: () => void = () => undefined;
+      const lock = {
+        live: true,
+        fire: () => { lock.live = false; onRelease(); },
+        release: vi.fn().mockImplementation(async () => { lock.live = false; }),
+        addEventListener: (_: string, fn: () => void) => { onRelease = fn; },
+      };
+      made.push(lock);
+      return lock;
+    });
+    setWakeLock({ request });
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    await flush();
+    expect(request).toHaveBeenCalledTimes(1);
+    // Visible again with no hide between: the lock stays, no second request.
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); document.dispatchEvent(new Event('visibilitychange')); });
+    await flush();
+    expect(request).toHaveBeenCalledTimes(1);
+    // The browser releases the lock when the page hides. The next show asks again, once.
+    act(() => { made[0].fire(); });
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); document.dispatchEvent(new Event('visibilitychange')); });
+    await flush();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(made.filter((lock) => lock.live)).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    await flush();
+    expect(made.filter((lock) => lock.live)).toHaveLength(0);
+  });
+
   it('renders with no error when the browser has no wake lock or refuses it', async () => {
     await renderApp(MEETING);
     expect(await screen.findByRole('article')).toBeInTheDocument();
