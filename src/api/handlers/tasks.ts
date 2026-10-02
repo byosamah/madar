@@ -86,18 +86,31 @@ function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
 }
 
 /**
+ * The day the owner finished: the day the task last went to review, or today. Time in review is not the owner's lateness
+ * (audit 2026-10-03, API-4).
+ */
+function finishedOn(ctx: Ctx, task: Task): string {
+  if (task.status !== 'in_review') return ctx.today;
+  const sent = Object.values(ctx.state.events)
+    .filter((e) => e.targetType === 'task' && e.targetId === task.id && e.verb !== 'undo' && !e.undoneBy && (e.after as { status?: string } | null)?.status === 'in_review')
+    .sort((a, b) => b.seq - a.seq)[0];
+  return sent ? stampDay(sent.createdAt) : ctx.today;
+}
+
+/**
  * One way to change a status. A task is finished (done, or sent to review) only when what it needs is done. A task that was done and
  * opens again opens the done tasks that need it. A task that becomes done late moves the dynamic tasks that need it.
  */
-function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.status_changed'): void {
+export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.status_changed'): void {
   if (task.status === status) return;
   if (status === 'done' || status === 'in_review') assertMayFinish(ctx.state, task);
   const wasDone = task.status === 'done';
+  const finishDay = status === 'done' ? finishedOn(ctx, task) : ctx.today;
   applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
     projectId: task.projectId, verb, targetType: 'task', targetId: task.id,
   });
   if (wasDone && status !== 'done') reopenDependents(ctx, task);
-  if (status === 'done') shiftDependents(ctx, task);
+  if (status === 'done') shiftDependents(ctx, task, finishDay);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
@@ -190,7 +203,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   // A task always belongs to a person. An agent adds tasks for the person it acts for.
   const ownerId = input.ownerId ?? ctx.authority.id;
   assertCan(ctx, ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
-  if ((input.needsReview !== undefined && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
+  // Only "no review" needs the leader's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
+  if ((input.needsReview === false && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
   // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
   // member cannot skip review through a leader's template (security review, 2026-10-01).
   const needsReview = input.fromTemplate && !can(ctx.authority, 'task.updateAny', { projectRole: role }) ? true : input.needsReview ?? true;
@@ -404,6 +418,19 @@ export const tasksNewVersion = defineCall({
   },
 });
 
+/**
+ * A reviewer's Done on a task in review is an approval, by the Approve button, the status menu, the board or the tick: the same
+ * event and the same notice to the owner (audit 2026-10-03, PRJ-2).
+ */
+function approve(ctx: Ctx, task: Task): void {
+  const watch = watchStage(ctx, task.projectId);
+  changeStatus(ctx, task, 'done', 'task.approved');
+  watch.finish({ ask: false });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+}
+
+const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
+
 export const tasksComplete = defineCall({
   input: z.object({ id: TaskId }),
   output: Moved,
@@ -412,6 +439,10 @@ export const tasksComplete = defineCall({
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
+    if (result === 'done' && reviews(ctx, task)) {
+      approve(ctx, task);
+      return { result, task: detail(ctx, task) };
+    }
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
     watch.finish({ ask: false });
@@ -426,6 +457,15 @@ export const tasksMove = defineCall({
     const task = requireTask(ctx, input.id);
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
+    if (result === 'done' && reviews(ctx, task)) {
+      approve(ctx, task);
+      return { result, task: detail(ctx, task) };
+    }
+    // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
+    // their own task back (audit 2026-10-03, PRJ-2).
+    if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
+      throw invalid('status', 'Use Send back and write a note for the owner.', 'review_send_back');
+    }
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
     // Opening a done task again (and the done tasks that need it) can move the project back, and that needs a reason.
@@ -441,10 +481,7 @@ export const tasksApprove = defineCall({
     const task = requireTask(ctx, input.id);
     assertCan(ctx, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
-    const watch = watchStage(ctx, task.projectId);
-    changeStatus(ctx, task, 'done', 'task.approved');
-    watch.finish({ ask: false });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+    approve(ctx, task);
     return detail(ctx, task);
   },
 });

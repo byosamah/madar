@@ -110,14 +110,15 @@ const workingDays = (n: number): string => `${n} working ${n === 1 ? 'day' : 'da
 /**
  * A task is done after its due day. Every dynamic task that needs it, and is not done, moves later by the working days it was late.
  * A static task never moves. Each move is written in the task and logged in the Tracker, in the same story as the finish.
+ * "finishDay" is the day the owner finished, which is earlier than today for a task that waited in review.
  */
-export function shiftDependents(ctx: Ctx, task: Task): Task[] {
+export function shiftDependents(ctx: Ctx, task: Task, finishDay = ctx.today): Task[] {
   const dependents = dependentsOf(ctx.state, task);
   const byId = new Map(dependents.map((dependent) => [dependent.id, dependent]));
   const moved: Task[] = [];
-  for (const move of shiftPlan(task, dependents, ctx.today)) {
+  for (const move of shiftPlan(task, dependents, finishDay)) {
     const dependent = byId.get(move.id)!;
-    const late = move.lateDays;
+    const late = move.taskLateDays;
     const { startDate, dueDate } = move.to;
     const reason = `${task.title} finished ${workingDays(late)} late`;
     const note: DateNote = {
@@ -132,7 +133,7 @@ export function shiftDependents(ctx: Ctx, task: Task): Task[] {
     });
     addTrackerEntry(ctx, {
       projectId: dependent.projectId, type: 'other', direction: 'none', auto: 'shift',
-      title: `${dependent.title.slice(0, 160)} moved ${workingDays(late)}`,
+      title: `${dependent.title.slice(0, 160)} moved ${workingDays(move.lateDays)}`,
       note: `It needs "${task.title.slice(0, 160)}", which finished ${workingDays(late)} late. Due date moved from ${when(from)} to ${when(dueDate)}.`,
     });
     moved.push(dependent);
@@ -171,7 +172,8 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       if (JSON.stringify(stageBack) !== JSON.stringify(project.stageBack ?? null)) changes.stageBack = stageBack;
       if (moved) changes.healthOverride = null;
       applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });
-      if (moved) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
+      // Only a move forward tells the team. A move back follows a person's own change, which says why (audit 2026-10-03, API-15).
+      if (moved && !back) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
     },
   };
 }
