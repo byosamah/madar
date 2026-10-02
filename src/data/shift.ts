@@ -1,6 +1,6 @@
 import type { Event, Notification } from '../api/contract/entities';
 import type { State } from '../api/store';
-import { addDays, diffDays, nowStamp, weekStartOf } from '../lib/dates';
+import { addDays, diffDays, nowStamp, todayISO, weekStartOf } from '../lib/dates';
 import { dueFromDuration } from '../lib/workdays';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,6 +49,38 @@ function settleDynamicTasks(state: State): void {
     if (fit) task.startDate = fit;
     else task.dueDate = dueFromDuration(task.startDate, task.durationDays);
   }
+}
+
+/** Gives every stamp field to "fn", in the same fields the shift moves. */
+function mapStamps<T>(value: T, fn: (stamp: string) => string): T {
+  if (Array.isArray(value)) return value.map((item) => mapStamps(item, fn)) as T;
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    key,
+    STAMP_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item) ? fn(item) : mapStamps(item, fn),
+  ])) as T;
+}
+
+/**
+ * Nothing in the office happened later than "at" (audit 2026-10-03, BRW-4). The sample office is written at fixed hours of today,
+ * and the daily shift moves yesterday's afternoon to today's. Every stamp later than "at" moves to just before it, in the same order,
+ * one minute apart when there is room, after the latest earlier stamp of the same day. A stamp in the past stays as it is.
+ */
+export function settleFuture(state: State, at: Date): State {
+  const limit = at.getTime();
+  const future = new Set<string>();
+  let floor = Date.parse(`${todayISO(at)}T00:00:00.000+03:00`);
+  mapStamps(state, (stamp) => {
+    const time = Date.parse(stamp);
+    if (time > limit) future.add(stamp);
+    else if (time > floor) floor = time;
+    return stamp;
+  });
+  if (future.size === 0) return state;
+  const order = [...future].sort((a, b) => Date.parse(a) - Date.parse(b));
+  const step = Math.floor(Math.min(60_000, (limit - floor) / (order.length + 1)));
+  const moved = new Map(order.map((stamp, i) => [stamp, nowStamp(new Date(limit - (order.length - i) * step))]));
+  return mapStamps(state, (stamp) => moved.get(stamp) ?? stamp);
 }
 
 /**
