@@ -19,13 +19,18 @@ const Saved = z.object({
   paused: z.boolean(),
   /** When the clock of the current project started (epoch milliseconds). Null while the clock stands. */
   runningSince: z.number().nullable(),
+  /**
+   * The summary lines that went to the chat of each project, by their change ids. A reload or a return keeps them, so the same
+   * lines never go to a chat twice (audit 2026-10-03, DSH-4). A session saved before this field gets an empty record.
+   */
+  shared: z.record(z.string(), z.string()).default({}),
 });
 type Saved = z.infer<typeof Saved>;
 
 const keyFor = (day: string) => `madar.meeting.${day}`;
 
 function fresh(order: string[], minutes: MeetingMinutes = 5): Saved {
-  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null };
+  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null, shared: {} };
 }
 
 function load(key: string): Saved {
@@ -198,6 +203,9 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
    */
   const undoDone = (id: string, wasDiscussed: boolean) => commit((s) => show(wasDiscussed ? s : { ...s, discussed: s.discussed.filter((item) => item !== id) }, id, Date.now()));
 
+  /** Keeps the summary lines that went to the chats, by project. */
+  const markShared = (sent: Record<string, string>) => commit((s) => ({ ...s, shared: { ...s.shared, ...sent } }));
+
   const togglePause = () => commit((s) => (s.paused ? { ...s, paused: false } : { ...stop(s, Date.now()), paused: true }));
   const setMinutes = (minutes: MeetingMinutes) => commit((s) => ({ ...s, minutes }));
 
@@ -208,12 +216,19 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     startedAt: session.startedAt,
     /** The projects shown now, in the order of this meeting. */
     order,
+    /**
+     * Every project of this meeting since it started, in its order, also the ones that a filter or a new status hides now.
+     * The summary covers them all, so a project that the meeting closes stays in the minutes (audit 2026-10-03, DSH-1).
+     */
+    meetingIds: session.order as readonly string[],
     /** The position of the project on the screen in `order`. */
     current,
     currentId,
     /** The project that Done shows next: the first one after the current one that is not discussed. */
     nextId,
     discussed: discussed as ReadonlySet<string>,
+    shared: session.shared as Readonly<Record<string, string>>,
+    markShared,
     allDiscussed,
     minutes: session.minutes,
     setMinutes,

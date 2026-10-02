@@ -1028,6 +1028,7 @@
         "shared_many": "وصل الملخص إلى {{count}} محادثة.",
         "shared_other": "وصل الملخص إلى {{count}} محادثة.",
         "sharedNone": "لم تقبل أي محادثة الملخص.",
+        "notShared": "لم يصل الملخص إلى: {{list}}.",
         "sharedButton": "تمت المشاركة في {{n}} محادثة",
         "sharedButton_one": "تمت المشاركة في محادثة واحدة",
         "sharedButton_two": "تمت المشاركة في محادثتين",
