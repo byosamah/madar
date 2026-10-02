@@ -92,12 +92,54 @@ describe('the meeting view project screens', () => {
     expect(await screen.findByText(/Project 2 of 9/)).toBeInTheDocument();
   });
 
-  it('lists the work counts on the timeline and opens a project screen from its name', async () => {
+  it('lists the work counts on the timeline and opens a project screen with "Open project"', async () => {
     await renderApp('/dashboard/meeting');
     const timeline = await screen.findByRole('list', { name: /timeline/i });
     await waitFor(() => expect(within(timeline).getAllByText(/in progress/).length).toBeGreaterThan(0));
     await userEvent.click(within(timeline).getAllByRole('button', { name: /Corniche Office Tower/ })[0]);
+    await userEvent.click(await within(timeline).findByRole('button', { name: 'Open Corniche Office Tower' }));
     expect(await screen.findByRole('article', { name: 'Corniche Office Tower' })).toBeInTheDocument();
     expect(window.location.hash).toContain('mode=projects');
+  });
+});
+
+describe('the meeting view timeline, stage by stage (owner, 2026-10-02)', () => {
+  it('shows a project on one line, opens it to one line for each stage with a press, and folds it with the next', async () => {
+    await renderApp('/dashboard/meeting');
+    const timeline = await screen.findByRole('list', { name: 'Project timeline' });
+    const toggle = within(timeline).getByRole('button', { name: /Corniche Office Tower/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(timeline).queryByRole('group', { name: 'Stages of Corniche Office Tower' })).toBeNull();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const lines = within(timeline).getByRole('group', { name: 'Stages of Corniche Office Tower' });
+    expect(toggle).toHaveAttribute('aria-controls', lines.id);
+    for (const stage of ['Concept', 'Construction Documents', 'Supervision']) expect(within(lines).getByText(stage)).toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(timeline).queryByRole('group', { name: 'Stages of Corniche Office Tower' })).toBeNull();
+  });
+
+  it('opens with the keyboard', async () => {
+    await renderApp('/dashboard/meeting');
+    const timeline = await screen.findByRole('list', { name: 'Project timeline' });
+    const toggle = within(timeline).getByRole('button', { name: /Corniche Office Tower/ });
+    toggle.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows two stages that run at the same time, on the one line and on their own lines', async () => {
+    await renderApp('/dashboard/meeting?status=all');
+    const timeline = await screen.findByRole('list', { name: 'Project timeline' });
+    const school = (await within(timeline).findAllByRole('button', { name: /Eastern Shore Primary School/ }))[0];
+    const row = school.closest('li') as HTMLElement;
+    expect(within(row).getAllByRole('img', { name: 'Schematic Design and Design Development run at the same time' }).length).toBeGreaterThan(0);
+    await userEvent.click(school);
+    const lines = within(row).getByRole('group', { name: 'Stages of Eastern Shore Primary School' });
+    expect(row.querySelectorAll('.overlap-hatch').length).toBeGreaterThan(2);
+    expect(within(lines).getByText('Design Development')).toBeInTheDocument();
   });
 });

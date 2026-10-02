@@ -12,6 +12,7 @@ import { signOfProject, StatusSign } from '../../components/StatusSign';
 import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
+import { compareTasks } from '../../lib/stageFlow';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -22,7 +23,7 @@ const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-
 export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
   const mine = rows.filter((row) => row.project.id === projectId);
   const doing = mine.filter((row) => row.task.status === 'in_progress')
-    .sort((a, b) => (a.task.dueDate ?? '9999').localeCompare(b.task.dueDate ?? '9999'));
+    .sort((a, b) => compareTasks(a.task, b.task));
   return { doing, ...needsAttention(mine, today) };
 }
 

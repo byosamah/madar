@@ -1,5 +1,6 @@
 import type { HealthValue, Project, Stage, Task } from './contract/entities';
 import { diffDays } from '../lib/dates';
+import { stageTagOf } from '../lib/stageFlow';
 
 export type HealthResult = {
   value: HealthValue;
@@ -15,8 +16,9 @@ export function isOverdue(task: Task, today: string): boolean {
 }
 
 function computeRaw(project: Project, stages: Stage[], tasks: Task[], today: string): HealthValue {
-  const current = stages.find((stage) => stage.id === project.currentStageId) ?? null;
   const projectTasks = tasks.filter((task) => task.projectId === project.id);
+  // The stage the project is in follows the tasks (owner, 2026-10-02), so it is computed and never read from the saved value.
+  const current = stages.length > 0 ? stageTagOf(stages, projectTasks) : null;
   if (current?.endDate && today > current.endDate) return 'late';
   if (projectTasks.some((task) => isOverdue(task, today))) return 'at_risk';
   if (current?.endDate && diffDays(today, current.endDate) <= 7) {

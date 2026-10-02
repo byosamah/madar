@@ -18,6 +18,23 @@ describe('the Schedule tab', () => {
     expect(within(screen.getByRole('region', { name: 'Deadlines' })).getByText('Balady submission')).toBeInTheDocument();
   });
 
+  it('shows two stages that run at the same time: hatched on the chart and in words in the list', async () => {
+    await renderApp('/projects/prj_003?tab=schedule');
+    const chart = await screen.findByRole('region', { name: 'Stage timeline' });
+    expect(within(chart).getByText('Hatched: two stages run at the same time.')).toBeInTheDocument();
+    expect(chart.querySelectorAll('.overlap-hatch')).toHaveLength(2);
+    const list = screen.getByRole('region', { name: 'Stages' });
+    expect(within(list).getByText('Runs at the same time as Design Development')).toBeInTheDocument();
+    expect(within(list).getByText('Runs at the same time as Schematic Design')).toBeInTheDocument();
+  });
+
+  it('shows no overlap note for stages that follow each other', async () => {
+    await renderApp(SCHEDULE);
+    const chart = await screen.findByRole('region', { name: 'Stage timeline' });
+    expect(chart.querySelectorAll('.overlap-hatch')).toHaveLength(0);
+    expect(within(chart).queryByText(/Hatched/)).toBeNull();
+  });
+
   it('moves a stage end by one day with the arrow key, then undoes it', async () => {
     const { store } = await renderApp(SCHEDULE, as('usr_002'));
     const end = await screen.findByRole('slider', { name: 'End of Permits' });

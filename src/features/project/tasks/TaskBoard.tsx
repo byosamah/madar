@@ -17,6 +17,8 @@ import { BOARD_COLUMNS, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
+import { useStageBack } from './StageBack';
+import { isWaiting, waitingNames } from './waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
@@ -46,6 +48,7 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
         {starts && <span className="tabular">{startsText(row.task.startDate as string, t, lang)}</span>}
         {!starts && word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
         {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
+        {isWaiting(row) && row.task.status !== 'done' && <span dir="auto" className="min-w-0 truncate">{t('tasks.waitingFor', { names: waitingNames(row, lang) })}</span>}
         <span className="ms-auto">{row.helpers.length > 0
           ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={18} leaderSize={24} />
           : <Avatar user={row.owner} size={22} />}</span>
@@ -106,8 +109,10 @@ export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: 
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
+  const back = useStageBack();
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
+    onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -164,6 +169,7 @@ export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: 
       <DragOverlay dropAnimation={{ duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
         {lifted ? <CardFace row={lifted} lifted /> : null}
       </DragOverlay>
+      {back.sheet}
     </DndContext>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { SelectField, TextField } from '../../components/Fields';
 import { TaskTiming, type Timing } from '../project/tasks/TaskTiming';
 import { Sheet } from '../../components/Sheet';
+import { useStageBack } from '../project/tasks/StageBack';
 
 const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: null, dueDate: null };
 
@@ -23,7 +24,9 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const [timing, setTiming] = useState<Timing>(NO_TIMING);
   const dynamic = timing.schedule === 'dynamic';
   const summary = options.find((option) => option.project.id === projectId);
+  const back = useStageBack();
   const create = useAction('tasks.create', {
+    onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
     onSuccess: (detail) => {
       onOpenChange(false);
       toast.show({
@@ -42,6 +45,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   }, [open]);
 
   return (
+    <>
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
@@ -81,5 +85,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
         </div>
       )}
     </Sheet>
+    {back.sheet}
+    </>
   );
 }

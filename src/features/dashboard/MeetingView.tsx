@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
+import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -16,6 +17,7 @@ import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { projectHue } from '../../lib/projectColor';
 import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
+import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import type { DashboardData } from './Tiles';
@@ -118,6 +120,7 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
   const lang = useLang();
   const hue = projectHue(row.project.id);
   const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
+  const nameOf = (id: string) => row.stages.find((stage) => stage.id === id)?.name ?? '';
   return (
     <>
       {row.stages.map((stage, i) => {
@@ -146,12 +149,75 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
           </span>
         );
       })}
+      {/* Two stages at the same time share a hatched strip, with a word for a screen reader. */}
+      {stageOverlaps(row.stages).map((overlap) => {
+        const part = clipSpan(overlap, span);
+        if (!part) return null;
+        return (
+          <span
+            key={overlap.stageIds.join('-')}
+            role="img"
+            aria-label={t('dashboard.meeting.overlap', { a: nameOf(overlap.stageIds[0]), b: nameOf(overlap.stageIds[1]) })}
+            style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%` }}
+            className="overlap-hatch absolute top-2 h-9 rounded-full opacity-60"
+          />
+        );
+      })}
       <DeadlineMarks
         marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
           id: d.id, name: d.name, when: formatDay(d.date, lang), at: offsetPct(span, d.date),
           label: t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) }),
         }))}
       />
+    </>
+  );
+}
+
+/** One line for each stage of an opened project, in time order, so stages that run at the same time show side by side. */
+function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: string; end: string }; todayAt: { insetInlineStart: string }; todayIn: boolean }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const hue = projectHue(row.project.id);
+  const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
+  const overlaps = stageOverlaps(row.stages);
+  return (
+    <>
+      {row.stages.map((stage, i) => {
+        const part = stage.startDate && stage.endDate ? clipSpan({ start: stage.startDate, end: stage.endDate }, span) : null;
+        const kind = i < current ? 'done' : i === current ? 'current' : 'next';
+        const tone = kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? '' : 'ring-2 ring-inset ring-chart-muted';
+        return (
+          <div key={stage.id} className={`${COLUMNS} items-center`}>
+            <div className="min-w-0 ps-[3.75rem] text-[17px] text-ink-2">
+              <bdi className="block truncate">{stage.name}</bdi>
+              {stage.startDate && stage.endDate && <span className="sr-only">{t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })}</span>}
+            </div>
+            <div className="relative h-12">
+              {todayIn && <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 bg-ink/70" />}
+              {part && (
+                <span
+                  role="img"
+                  aria-label={t('dashboard.meeting.stage', { stage: stage.name, state: t(`dashboard.meeting.stageStates.${kind}`) })}
+                  style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%`, ...(kind === 'current' ? { background: `var(--p-${hue}-fg)` } : {}) }}
+                  className={`absolute top-3 h-6 rounded-full ${tone}`}
+                />
+              )}
+              {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => {
+                const shared = clipSpan(overlap, span);
+                if (!shared) return null;
+                return (
+                  <span
+                    key={overlap.stageIds.join('-')}
+                    aria-hidden
+                    style={{ insetInlineStart: `${offsetPct(span, shared.start)}%`, width: `${widthPct(span, shared.start, shared.end)}%` }}
+                    className="overlap-hatch absolute top-3 h-6 rounded-full opacity-60"
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -184,6 +250,13 @@ export function MeetingView() {
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
   const [slide, setSlide] = useState(0);
+  // A project shows its stages on one line. A press opens it to one line for each stage.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (id: string) => setOpened((current) => {
+    const next = new Set(current);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
   const setMode = (next: (typeof MODES)[number], at?: number) => {
     if (at !== undefined) setSlide(at);
     setParams((current) => {
@@ -320,24 +393,49 @@ export function MeetingView() {
             </div>
           </div>
           <ul aria-label={t('dashboard.meeting.timeline')} className="px-5">
-            {view.schedule.map((row, index) => (
-              <li key={row.project.id} className={`${COLUMNS} items-center border-b border-separator last:border-b-0`}>
-                <button type="button" onClick={() => setMode('projects', index)} className="pressable flex min-w-0 items-center gap-3 rounded-2xl py-3 text-start">
-                  <ProjectTile id={row.project.id} mark={row.project.mark} size={48} />
-                  <span className="min-w-0">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
-                      <StateOfRow health={row.health} pause={row.pause} />
-                    </span>
-                    {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
-                  </span>
-                </button>
-                <div className="relative h-[4.5rem]">
-                  {todayIn && <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 bg-ink/70" />}
-                  <Bars row={row} span={span} drawing={drawing} index={index} />
-                </div>
-              </li>
-            ))}
+            {view.schedule.map((row, index) => {
+              const isOpen = opened.has(row.project.id);
+              return (
+                <li key={row.project.id} className="border-b border-separator last:border-b-0">
+                  <div className={`${COLUMNS} items-center`}>
+                    <div className="min-w-0 py-3">
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={`stages-${row.project.id}`}
+                        onClick={() => toggle(row.project.id)}
+                        className="pressable flex w-full min-w-0 items-center gap-3 rounded-2xl text-start"
+                      >
+                        <ProjectTile id={row.project.id} mark={row.project.mark} size={48} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
+                            <StateOfRow health={row.health} pause={row.pause} />
+                          </span>
+                          {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
+                          <span className="sr-only">{t('dashboard.meeting.expandHint')}</span>
+                        </span>
+                        <AnimatedIcon icon={ChevronDownIcon} size={20} aria-hidden className={`size-5 shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isOpen && (
+                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', index)}>
+                          {t('dashboard.meeting.openProject')}
+                        </Button>
+                      )}
+                    </div>
+                    <div className="relative h-[4.5rem]">
+                      {todayIn && <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 bg-ink/70" />}
+                      <Bars row={row} span={span} drawing={drawing} index={index} />
+                    </div>
+                  </div>
+                  {isOpen && (
+                    <div id={`stages-${row.project.id}`} role="group" aria-label={t('dashboard.meeting.stagesOf', { name: row.project.name })} className="pb-3">
+                      <StageLines row={row} span={span} todayAt={todayAt} todayIn={todayIn} />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

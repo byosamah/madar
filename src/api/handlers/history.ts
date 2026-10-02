@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, type ChecklistItem, type Event, type FileRec, type TrackerEntry } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
 import { EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { NOT_UNDOABLE, undoEvent } from '../events';
+import { DERIVED, NOT_UNDOABLE, undoEvent } from '../events';
+import { assertMayFinish, reopenDependents, resyncStage } from '../flow';
 import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
 import { eventViewOf, mayDeleteTracker } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
@@ -181,13 +182,30 @@ export function mayUndoAgentChange(ctx: Ctx, event: Event): boolean {
   }
 }
 
-/** Undoes one event for the current person, under the rules of the original action. */
-function undoOne(ctx: Ctx, event: Event): EventView {
+/**
+ * Undoes one event for the current person, under the rules of the original action.
+ * A task that was done and opens again opens the done tasks that need it, on this path too.
+ * "guard" is true for a single Undo: it may not finish a task whose prerequisite is open. A story brings every task back together, so it skips the guard.
+ */
+function undoOne(ctx: Ctx, event: Event, guard: boolean): EventView {
   assertUndoRight(ctx, event);
   assertMayUndo(ctx, event);
+  const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
+  const was = task?.status;
+  if (guard && task && event.before !== null && event.after !== null) {
+    const back = fieldsOf(event.before).status;
+    if (back === 'done' || back === 'in_review') assertMayFinish(ctx.state, { ...task, status: String(back) as Task['status'] });
+  }
   const undo = undoEvent(ctx, event.id);
+  const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
+  if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
   return eventViewOf(ctx.state, undo);
+}
+
+/** The stage tag follows the tasks, so after an Undo it moves with them. An Undo never asks why the project moves back. */
+function settle(ctx: Ctx, events: Event[]): void {
+  for (const projectId of new Set(events.map((event) => event.projectId))) if (projectId) resyncStage(ctx, projectId);
 }
 
 export const eventsUndo = defineCall({
@@ -196,7 +214,9 @@ export const eventsUndo = defineCall({
   run(input, ctx) {
     const event = ctx.state.events[input.eventId];
     if (!event) throw notFound('Event', input.eventId);
-    return undoOne(ctx, event);
+    const view = undoOne(ctx, event, true);
+    settle(ctx, [event]);
+    return view;
   },
 });
 
@@ -206,10 +226,12 @@ export const eventsUndoStory = defineCall({
   output: z.object({ undone: z.array(EventView) }),
   run(input, ctx) {
     const story = Object.values(ctx.state.events)
-      .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo')
+      .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb))
       .sort((a, b) => b.seq - a.seq);
     if (story.length === 0) throw notFound('Story', input.correlationId);
-    return { undone: story.map((event) => undoOne(ctx, event)) };
+    const undone = story.map((event) => undoOne(ctx, event, false));
+    settle(ctx, story);
+    return { undone };
   },
 });
 

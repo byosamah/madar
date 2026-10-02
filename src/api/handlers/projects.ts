@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
+import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
+import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
 import { projectTouchesTeam } from '../pause';
 import { projectRoleOf } from '../permissions';
@@ -183,32 +184,6 @@ export const projectsUpdate = defineCall({
       if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.');
     }
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
-    touch(ctx, project.id);
-    return detail(ctx, project);
-  },
-});
-
-/**
- * Makes a stage current. Going back to an earlier stage needs a reason, which the Overview shows until the project moves
- * forward again; the leader may also log it in the Tracker as a Balady update (colleague comment 12, 2026-10-01).
- */
-export const projectsSetStage = defineCall({
-  input: z.object({ id: ProjectId, stageId: StageId, reason: z.string().trim().max(280).optional(), logInTracker: z.boolean().optional() }),
-  output: ProjectDetail,
-  run(input, ctx) {
-    const project = requireEditable(ctx, input.id);
-    const to = requireStage(ctx, project.id, input.stageId);
-    if (project.currentStageId === input.stageId) return detail(ctx, project);
-    const from = ctx.state.stages[project.currentStageId];
-    const back = from !== undefined && to.order < from.order;
-    const reason = input.reason?.trim() ?? '';
-    if (back && !reason) throw invalid('reason', 'Write why the project moves back.', 'stage_back_reason');
-    const stageBack = back ? { fromStageId: from.id, toStageId: to.id, reason, by: ctx.actor.id, at: ctx.stamp } : null;
-    applyPatch(ctx, project, { currentStageId: input.stageId, healthOverride: null, stageBack }, {
-      projectId: project.id, verb: 'project.stage_changed', targetType: 'project', targetId: project.id,
-    });
-    if (back && input.logInTracker) addTrackerEntry(ctx, { projectId: project.id, type: 'balady', direction: 'third_party', title: reason });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, project.id), trigger: 'stage_changed', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -512,6 +487,7 @@ export const stagesReplace = defineCall({
       if (used) throw invalid('stages', `Move the tasks out of "${stage.name}" first.`, 'stage_has_tasks');
     }
     const before = existing.map((stage) => ({ ...stage }));
+    const watch = watchStage(ctx, project.id);
     for (const stage of removed) {
       delete state.stages[stage.id];
       for (const d of Object.values(state.deadlines)) if (d.stageId === stage.id) d.stageId = null;
@@ -519,13 +495,16 @@ export const stagesReplace = defineCall({
     }
     input.stages.forEach((stage, order) => {
       const id = stage.id ?? nextId(state, 'stg');
-      state.stages[id] = { id, projectId: project.id, name: stage.name, order, startDate: stage.startDate, endDate: stage.endDate };
+      // A kept stage keeps the stages it needs, minus any stage that is gone.
+      const needs = (state.stages[id]?.prerequisiteIds ?? []).filter((other) => keep.has(other));
+      state.stages[id] = { id, projectId: project.id, name: stage.name, order, startDate: stage.startDate, endDate: stage.endDate, ...(needs.length > 0 ? { prerequisiteIds: needs } : {}) };
     });
-    if (!state.stages[project.currentStageId]) project.currentStageId = stagesOf(state, project.id)[0].id;
     writeEvent(ctx, {
       projectId: project.id, verb: 'project.stages_changed', targetType: 'project', targetId: project.id,
       before: { stages: before }, after: { stages: stagesOf(state, project.id) },
     });
+    // The tag follows the stages and the tasks, so a new first stage or a new date order can change it.
+    watch.finish({ ask: false });
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -539,8 +518,28 @@ export const stagesSetDates = defineCall({
     if (!stage) throw notFound('Stage', input.stageId);
     const project = requireEditable(ctx, stage.projectId);
     if (input.startDate && input.endDate && input.endDate < input.startDate) throw invalid('endDate', 'The stage cannot end before it starts.');
+    const watch = watchStage(ctx, project.id);
     applyPatch(ctx, stage, { startDate: input.startDate, endDate: input.endDate }, {
       projectId: project.id, verb: 'stage.dates_changed', targetType: 'stage', targetId: stage.id,
+    });
+    // The dates set the order of the stages, so they can change the tag. A date change never asks for a reason.
+    watch.finish({ ask: false });
+    touch(ctx, project.id);
+    return detail(ctx, project);
+  },
+});
+
+/** The stages a stage needs first. No task of the stage can be finished while one of them has an open task. The leader and the Admin set them. */
+export const stagesSetPrerequisites = defineCall({
+  input: z.object({ stageId: StageId, prerequisiteIds: z.array(StageId).max(MAX_PREREQUISITES) }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const stage = ctx.state.stages[input.stageId];
+    if (!stage) throw notFound('Stage', input.stageId);
+    const project = requireEditable(ctx, stage.projectId);
+    assertStagePrerequisites(ctx.state, stage, input.prerequisiteIds);
+    applyPatch(ctx, stage, { prerequisiteIds: input.prerequisiteIds }, {
+      projectId: project.id, verb: 'stage.prerequisites_changed', targetType: 'stage', targetId: stage.id,
     });
     touch(ctx, project.id);
     return detail(ctx, project);
@@ -622,7 +621,6 @@ export const projectCalls = {
   'projects.get': projectsGet,
   'projects.create': projectsCreate,
   'projects.update': projectsUpdate,
-  'projects.setStage': projectsSetStage,
   'projects.setLeader': projectsSetLeader,
   'projects.setStatus': projectsSetStatus,
   'projects.pause': projectsPause,
@@ -639,6 +637,7 @@ export const projectCalls = {
   'members.update': membersUpdate,
   'stages.replace': stagesReplace,
   'stages.setDates': stagesSetDates,
+  'stages.setPrerequisites': stagesSetPrerequisites,
   'deadlines.create': deadlinesCreate,
   'deadlines.update': deadlinesUpdate,
   'deadlines.delete': deadlinesDelete,

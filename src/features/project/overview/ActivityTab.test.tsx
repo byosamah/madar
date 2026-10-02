@@ -21,11 +21,11 @@ describe('the Activity tab', () => {
   it('filters the feed to posts', async () => {
     const { api } = await renderApp(PROJECT);
     await screen.findByText(/I uploaded revision B/);
-    await api.call('tasks.complete', { id: 'tsk_009' });
-    expect(await screen.findByText('completed “Specifications draft”')).toBeInTheDocument();
+    await api.call('tasks.complete', { id: 'tsk_013' });
+    expect(await screen.findByText('completed “Coordination meeting notes”')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Posts' }));
-    await waitFor(() => expect(screen.queryByText('completed “Specifications draft”')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('completed “Coordination meeting notes”')).toBeNull());
     expect(screen.getByText(/I uploaded revision B/)).toBeInTheDocument();
   });
 

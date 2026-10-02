@@ -7,7 +7,8 @@ import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, projectTouchesTeam, staleDaysOf } from '../pause';
 import { teamsOf, type State } from '../store';
-import { deadlinesOf, stagesOf, userCard } from '../views';
+import { stageTag } from '../flow';
+import { deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
 import { markOf } from '../../lib/projectMark';
@@ -68,6 +69,8 @@ export const dashboardGet = defineCall({
     const activeIds = new Set(active.map((p) => p.id));
     const tasks = Object.values(state.tasks);
     const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: tasks.filter((t) => t.projectId === p.id) }, today));
+    // The stage of a project follows its tasks (owner, 2026-10-02), so it is computed here and never read from the saved value.
+    const tagOf = (p: Project) => stageTag(state, p.id);
     const healthOf = new Map(active.flatMap((p, i) => (healths[i] ? [[p.id, healths[i].value] as const] : [])));
     const healthMix = { on_track: 0, at_risk: 0, late: 0 };
     for (const health of healths) if (health) healthMix[health.value] += 1;
@@ -80,7 +83,7 @@ export const dashboardGet = defineCall({
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
     const perStage = new Map<string, number>();
     for (const p of active) {
-      const name = state.stages[p.currentStageId]?.name ?? '';
+      const name = tagOf(p)?.name ?? '';
       perStage.set(name, (perStage.get(name) ?? 0) + 1);
     }
 
@@ -106,7 +109,7 @@ export const dashboardGet = defineCall({
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        areaInDesign: active.filter((p) => state.stages[p.currentStageId]?.name !== 'Supervision').reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        areaInDesign: active.filter((p) => tagOf(p)?.name !== 'Supervision').reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
       },
       charts: {
         projectsPerStage: [...perStage.entries()]
@@ -125,7 +128,7 @@ export const dashboardGet = defineCall({
       schedule: [...active, ...projects.filter((p) => p.status === 'on_hold')]
         .sort((a, b) => (a.targetEndDate ?? '9999-12-31').localeCompare(b.targetEndDate ?? '9999-12-31') || a.code.localeCompare(b.code))
         .map((p) => ({
-          project: refOf(p), currentStageId: p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesOf(state, p.id), deadlines: deadlinesOf(state, p.id),
+          project: refOf(p), currentStageId: tagOf(p)?.id ?? p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesInTime(state, p.id), deadlines: deadlinesOf(state, p.id),
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
         })),
     };

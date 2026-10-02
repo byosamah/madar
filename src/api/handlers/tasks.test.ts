@@ -21,7 +21,7 @@ describe('tasks.create', () => {
     const t = testApi(taskCalls);
     t.as('usr_003');
     const detail = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Roof plan' });
-    expect(detail.task).toMatchObject({ ownerId: 'usr_003', stageId: 'stg_002', status: 'todo', needsReview: true });
+    expect(detail.task).toMatchObject({ ownerId: 'usr_003', stageId: 'stg_001', status: 'todo', needsReview: true });
     expect(notices(t.store, 'task_assigned', 'usr_003')).toHaveLength(0);
   });
 

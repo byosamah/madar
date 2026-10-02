@@ -60,13 +60,15 @@ type Plan = {
   area: number; location: string; cover: boolean; hue: number;
   /** For a paused project: when the leader paused it (days ago), why, and who it waits for (colleague comment 16). */
   pause?: { daysAgo: number; kind: 'internal' | 'client'; reason: string };
+  /** The stage after the current one starts this many days before the current one ends, so the two run at the same time. */
+  overlap?: number;
 };
 
 // "leader" and "team" are indexes into PEOPLE. "stage" is an index into the default stage list.
 const PLANS: Plan[] = [
   { code: 'KH-26-001', name: 'Corniche Office Tower', client: 0, shape: 'late', stage: 3, leader: 1, team: [4, 5, 7], area: 24500, location: 'Al Khobar, Corniche', cover: true, hue: 210 },
   { code: 'KH-26-002', name: 'Dune Line Townhouses', client: 1, shape: 'risk_overdue', stage: 2, leader: 2, team: [4, 6], area: 9800, location: 'Al Khobar, Al Rakah', cover: true, hue: 28 },
-  { code: 'KH-26-003', name: 'Eastern Shore Primary School', client: 2, shape: 'on_track', stage: 1, leader: 3, team: [5, 7], area: 6200, location: 'Dhahran, Al Doha', cover: true, hue: 150 },
+  { code: 'KH-26-003', name: 'Eastern Shore Primary School', client: 2, shape: 'on_track', stage: 1, leader: 3, team: [5, 7], area: 6200, location: 'Dhahran, Al Doha', cover: true, hue: 150, overlap: 15 },
   { code: 'KH-26-004', name: 'Nakhla Mall Extension', client: 3, shape: 'risk_stage', stage: 3, leader: 1, team: [4, 5, 6, 7], area: 31000, location: 'Dammam, King Fahd Road', cover: true, hue: 265 },
   { code: 'KH-26-005', name: 'Tamr Boutique Hotel', client: 4, shape: 'on_track', stage: 0, leader: 2, team: [6], area: 7400, location: 'Al Khobar, Al Olaya', cover: false, hue: 12 },
   { code: 'KH-26-006', name: 'Al Waha Clinic Fit-out', client: 5, shape: 'late', stage: 4, leader: 0, team: [5, 6], area: 1800, location: 'Al Khobar, Al Aqrabiyah', cover: true, hue: 190 },
@@ -245,6 +247,9 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     for (let n = 0; n < 2; n += 1) addTask(plan.stage + 1, n, 'todo', addDays(today, -3 + n), addDays(nextStart, 10 + n * 10));
   }
   addTask(plan.stage, 6, closing ? 'done' : 'todo', minDay(addDays(curStart, 3), today), closing ? addDays(curStart, 10) : addDays(today, 14), 'Coordination meeting notes');
+
+  // Two stages that run at the same time. It is set after the tasks, so no task date changes.
+  if (plan.overlap && plan.stage < stageIds.length - 1) state.stages[stageIds[plan.stage + 1]].startDate = addDays(curEnd, 1 - plan.overlap);
 
   const deadlines: [string, string][] = closing
     ? [['Handover', curEnd]]
@@ -442,6 +447,35 @@ function addSampleLinks(state: State) {
     const project = state.projects[projectId];
     if (!project) continue;
     project.links = rows.map(([kind, label, url]) => ({ id: nextId(state, 'lnk'), kind, label, url }));
+  }
+}
+
+/**
+ * What waits for what, so the sample office shows the rules (owner, 2026-10-02). In Corniche Office Tower, "Stair details" is
+ * already five days past due and two tasks wait for it: one static, one dynamic. Permits needs Construction Documents in two projects:
+ * in Nakhla Mall Extension its tasks wait, in Al Waha Clinic Fit-out the stage before is finished.
+ */
+function addSampleFlow(state: State): void {
+  const find = (code: string, title: string, stageName: string): Task | undefined => {
+    const project = Object.values(state.projects).find((p) => p.code === code);
+    const stage = Object.values(state.stages).find((s) => s.projectId === project?.id && s.name === stageName);
+    return Object.values(state.tasks).find((t) => t.stageId === stage?.id && t.title === title);
+  };
+  const chain: [string, string][] = [
+    ['Reflected ceiling plans', 'Door and window schedule'], ['Stair details', 'Reflected ceiling plans'],
+    ['Structural drawings check', 'Stair details'], ['Specifications draft', 'Stair details'],
+  ];
+  for (const [title, needs] of chain) {
+    const task = find('KH-26-001', title, 'Construction Documents');
+    const first = find('KH-26-001', needs, 'Construction Documents');
+    if (task && first) task.prerequisiteIds = [first.id];
+  }
+  for (const code of ['KH-26-004', 'KH-26-006']) {
+    const project = Object.values(state.projects).find((p) => p.code === code);
+    const stages = Object.values(state.stages).filter((s) => s.projectId === project?.id);
+    const permits = stages.find((s) => s.name === 'Permits');
+    const documents = stages.find((s) => s.name === 'Construction Documents');
+    if (permits && documents) permits.prerequisiteIds = [documents.id];
   }
 }
 
@@ -653,6 +687,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   addAgentSummaries(state, today, agentId);
   addChatTalk(state, today, humans);
   addSampleLinks(state);
+  addSampleFlow(state);
   addTracker(state, today, humans);
   addPayments(state, today, accountant);
 

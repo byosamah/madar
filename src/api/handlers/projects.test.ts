@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nextProjectCode, projectCalls } from './projects';
+import { taskCalls } from './tasks';
 import type { Store } from '../store';
 import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -89,12 +90,17 @@ describe('projects.list and the card', () => {
   });
 
   it('shows the two latest feed items', async () => {
-    const t = testApi(projectCalls);
+    const t = testApi({ ...projectCalls, ...taskCalls });
     t.as('usr_002');
     await t.api.call('members.add', { projectId: 'prj_001', userId: 'usr_004' });
-    await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_001', reason: 'The client changed the brief' });
+    // The stage tag follows the tasks, so a task in the stage after the first one moves the tag and puts a line in the feed.
+    t.store.state.tasks.tsk_001 = makeTask({ stageId: 'stg_001', status: 'done' });
+    t.store.state.counters.tsk = 1;
+    t.store.state.projects.prj_001.currentStageId = 'stg_001';
+    await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_002', title: 'Roof plan' });
     const summary = (await t.api.call('projects.list', {}))[0];
-    expect(summary.latest.map((item) => (item.kind === 'event' ? item.verb : item.kind))).toEqual(['project.stage_changed', 'member.added']);
+    expect(summary.latest.map((item) => (item.kind === 'event' ? item.verb : item.kind))).toContain('project.stage_changed');
+    expect(summary.latest).toHaveLength(2);
   });
 });
 
@@ -109,13 +115,16 @@ describe('project changes', () => {
     await expect(t.api.call('projects.update', { id: 'prj_001', patch: { targetEndDate: '2026-07-01' } })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
-  it('moves the stage, clears the override and tells the team', async () => {
-    const t = testApi(projectCalls);
+  it('moves the stage with the tasks, clears the override and tells the team', async () => {
+    const t = testApi({ ...projectCalls, ...taskCalls });
     t.as('usr_002');
     await t.api.call('projects.setHealthOverride', { id: 'prj_001', value: 'at_risk', reason: 'Client delay' });
     expect((await t.api.call('projects.get', { id: 'prj_001' })).health?.overridden).toBe(true);
-    const detail = await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_001', reason: 'The client changed the brief' });
-    expect(detail.currentStage.id).toBe('stg_001');
+    // The first task is in Schematic Design, so the tag moves there from Concept.
+    const task = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_002', title: 'Roof plan' });
+    const detail = await t.api.call('projects.get', { id: 'prj_001' });
+    expect(task.task.stageId).toBe('stg_002');
+    expect(detail.currentStage.id).toBe('stg_002');
     expect(detail.health?.overridden).toBe(false);
     expect(notices(t.store, 'stage_changed', 'usr_003')).toHaveLength(1);
     expect(notices(t.store, 'stage_changed', 'usr_002')).toHaveLength(0);
@@ -194,7 +203,7 @@ describe('stages', () => {
       code: 'invalid_input',
     });
     const detail = await t.api.call('stages.setDates', { stageId: 'stg_002', startDate: '2026-09-01', endDate: '2026-10-20' });
-    expect(detail.currentStage.endDate).toBe('2026-10-20');
+    expect(detail.stages.find((stage) => stage.id === 'stg_002')?.endDate).toBe('2026-10-20');
   });
 });
 
@@ -365,28 +374,5 @@ describe('the contract start date', () => {
     expect(detail.project.contractStartDate).toBeUndefined();
     const updated = await t.api.call('projects.update', { id: 'prj_001', patch: { contractStartDate: '2026-08-20' } });
     expect(updated.project.contractStartDate).toBe('2026-08-20');
-  });
-});
-
-describe('moving a project back a stage (colleague comment 12, 2026-10-01)', () => {
-  it('asks why, remembers it, and can log it in the Tracker; moving forward needs no reason and clears it', async () => {
-    const t = testApi(projectCalls);
-    t.as('usr_002');
-    await expect(t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_001' })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['reason'] } });
-    const back = await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_001', reason: 'Balady asked for changes to the drawings', logInTracker: true });
-    expect(back.project.currentStageId).toBe('stg_001');
-    expect(back.project.stageBack).toMatchObject({ fromStageId: 'stg_002', toStageId: 'stg_001', reason: 'Balady asked for changes to the drawings', by: 'usr_002' });
-    const logged = Object.values(t.store.state.tracker ?? {});
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toMatchObject({ type: 'balady', direction: 'third_party', title: 'Balady asked for changes to the drawings' });
-    const forward = await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_002' });
-    expect(forward.project.stageBack ?? null).toBeNull();
-  });
-
-  it('does not touch the Tracker unless asked', async () => {
-    const t = testApi(projectCalls);
-    t.as('usr_002');
-    await t.api.call('projects.setStage', { id: 'prj_001', stageId: 'stg_001', reason: 'The client changed the brief' });
-    expect(Object.values(t.store.state.tracker ?? {})).toHaveLength(0);
   });
 });

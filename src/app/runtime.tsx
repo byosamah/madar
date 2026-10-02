@@ -42,20 +42,28 @@ export function useCall<N extends CallName>(name: N, input: CallInput<N>, option
   return useQuery<CallOutput<N>>({ queryKey: ['api', name, input], queryFn: () => api.call(name, input), enabled: options.enabled ?? true });
 }
 
-export function useAction<N extends CallName>(name: N, options: { onSuccess?: (output: CallOutput<N>) => void } = {}) {
+export function useAction<N extends CallName>(
+  name: N,
+  options: { onSuccess?: (output: CallOutput<N>) => void; onRefused?: (error: unknown, input: CallInput<N>) => boolean } = {},
+) {
   const { api } = useRuntime();
   const toast = useToast();
   const { t } = useTranslation();
+  const latest = useRef(options);
+  latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
   const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
     mutationFn: (input) => api.call(name, input),
     onSuccess: (output) => options.onSuccess?.(output),
-    onError: (error, input) => toast.show({
-      tone: 'error',
-      message: errorMessage(error, t),
-      action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
-    }),
+    onError: (error, input) => {
+      if (latest.current.onRefused?.(error, input)) return;
+      toast.show({
+        tone: 'error',
+        message: errorMessage(error, t),
+        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
+      });
+    },
   });
   retry.current = mutation.mutate;
   return mutation;

@@ -51,29 +51,40 @@ describe('the Project screen header', () => {
     expect(await screen.findByText('Set by Faisal Al-Harbi')).toBeInTheDocument();
   });
 
-  it('makes another stage current from the stage list', async () => {
+  it('shows the stages with their dates, tasks and prerequisites, and has no way to pick the current stage', async () => {
     await renderApp(PROJECT, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
+    const popover = screen.getByRole('dialog', { name: 'Stages' });
+    expect(within(popover).getByText(/earliest stage with an open task/)).toBeInTheDocument();
+    await userEvent.click(within(popover).getByRole('button', { name: /Permits/ }));
+    expect(await within(popover).findByText('Tasks done: 0 of 2')).toBeInTheDocument();
+    expect(within(popover).queryByRole('button', { name: 'Make current stage' })).toBeNull();
+    expect(within(popover).queryByRole('button', { name: /^Move back/ })).toBeNull();
+    // The leader sets what the stage needs first. Construction Documents still has open tasks, so Permits waits for it.
+    await userEvent.click(within(popover).getByRole('checkbox', { name: 'Construction Documents' }));
+    expect(await within(popover).findByText('Waiting for Construction Documents')).toBeInTheDocument();
+  });
+
+  it('shows the prerequisites of a stage as text to a person who cannot change them', async () => {
+    await renderApp(PROJECT, as('usr_004'));
     await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
     const popover = screen.getByRole('dialog', { name: 'Stages' });
     await userEvent.click(within(popover).getByRole('button', { name: /Permits/ }));
-    expect(await within(popover).findByText('Tasks done: 0 of 2')).toBeInTheDocument();
-    await userEvent.click(within(popover).getByRole('button', { name: 'Make current stage' }));
-    const header = (await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).closest('header') as HTMLElement;
-    expect(await within(header).findByRole('progressbar', { name: 'Stage 5 of 7' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Permits/ })).toBeInTheDocument();
+    expect(within(popover).queryByRole('checkbox')).toBeNull();
   });
 
-  it('moves back to an earlier stage only with a reason, and the Overview says why (colleague comment 12)', async () => {
-    await renderApp(PROJECT, as('usr_002'));
-    await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
-    const popover = screen.getByRole('dialog', { name: 'Stages' });
-    await userEvent.click(within(popover).getByRole('button', { name: /Design Development/ }));
-    const move = await within(popover).findByRole('button', { name: 'Move back to Design Development' });
-    expect(move).toBeDisabled();
-    await userEvent.type(within(popover).getByLabelText('Why does the project move back?'), 'Balady asked for changes to the drawings');
-    await userEvent.click(within(popover).getByRole('checkbox', { name: 'Log it in the Tracker as a Balady update' }));
-    await userEvent.click(move);
-    const standing = await screen.findByRole('region', { name: 'Where the project stands' });
+  it('asks why when a change moves the project back, and the Overview says why (colleague comment 12)', async () => {
+    const { store } = await renderApp(`${PROJECT}?task=tsk_003`, as('usr_002'));
+    const panel = await screen.findByRole('dialog', { name: 'Ground floor plan' });
+    // "Ground floor plan" is done and sits in Design Development, before the stage the project is in. Opening it again moves the project back.
+    await userEvent.selectOptions(await within(panel).findByLabelText('Status'), 'To do');
+    const ask = await screen.findByRole('dialog', { name: 'This moves the project back to Design Development. Why?' });
+    const send = within(ask).getByRole('button', { name: 'Move back' });
+    expect(send).toBeDisabled();
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'Balady asked for changes to the drawings');
+    await userEvent.click(send);
+    await waitFor(() => expect(store.state.tasks.tsk_003.status).toBe('todo'));
+    const standing = await screen.findByRole('region', { name: 'Where the project stands', hidden: true });
     expect(await within(standing).findByText(/Moved back from Construction Documents/)).toHaveTextContent('Balady asked for changes to the drawings');
   });
 

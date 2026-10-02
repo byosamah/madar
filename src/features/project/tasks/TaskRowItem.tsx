@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
+import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
@@ -15,6 +16,8 @@ import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
+import { isWaiting, waitingNames } from './waiting';
+import { PauseIcon } from '../../../components/icons/animated/pause';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
@@ -27,6 +30,7 @@ import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const toast = useToast();
   const [ticking, setTicking] = useState(false);
   const complete = useUndoable('tasks.complete', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
@@ -35,8 +39,15 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
   const done = task.status === 'done';
   const inReview = task.status === 'in_review';
   const canTick = row.canMove && !done && !inReview;
+  // A task that waits for another task or stage cannot be finished. The tick stays focusable and says why, in its name and in a toast.
+  const waiting = !done && isWaiting(row);
+  const names = waiting ? waitingNames(row, lang) : '';
   const tick = () => {
     if (!canTick || ticking) return;
+    if (waiting) {
+      toast.show({ message: t('tasks.waitingToast', { names }) });
+      return;
+    }
     setTicking(true);
     window.setTimeout(() => complete.mutate({ id: task.id }, { onSettled: () => setTicking(false) }), 500);
   };
@@ -58,10 +69,11 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         type="button"
         role="checkbox"
         aria-checked={done || ticking}
-        aria-label={t('tasks.complete', { title: task.title })}
+        aria-label={waiting ? t('tasks.completeBlocked', { title: task.title, names }) : t('tasks.complete', { title: task.title })}
+        aria-disabled={waiting && canTick ? true : undefined}
         disabled={!canTick}
         onClick={tick}
-        className="pressable grid size-11 shrink-0 place-items-center rounded-full disabled:opacity-60"
+        className={`pressable grid size-11 shrink-0 place-items-center rounded-full disabled:opacity-60 ${waiting ? 'opacity-60' : ''}`}
       >
         <motion.span
           animate={ticking ? { scale: [1, 0.82, 1] } : { scale: 1 }}
@@ -86,6 +98,12 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
+          {waiting && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <AnimatedIcon icon={PauseIcon} size={12} className="shrink-0" aria-hidden />
+              <span dir="auto" className="truncate">{t('tasks.waitingFor', { names })}</span>
+            </span>
+          )}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={12} aria-hidden />{t('tasks.flagged')}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={AttachFileIcon} size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
           {showProject && <bdi className="truncate">{row.project.name}</bdi>}

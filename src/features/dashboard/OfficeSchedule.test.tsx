@@ -9,8 +9,24 @@ describe('the office schedule', () => {
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     const links = within(schedule).getAllByRole('link');
     expect(links).toHaveLength(9);
-    await userEvent.click(within(schedule).getByRole('link', { name: /Corniche Office Tower/ }));
+    await userEvent.click(within(schedule).getByRole('link', { name: /Open Corniche Office Tower/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeInTheDocument();
+  });
+
+  it('shows a project on one line and opens it to one line for each stage, with an overlap hatched', async () => {
+    await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    const school = within(schedule).getByRole('button', { name: /Eastern Shore Primary School/ });
+    expect(school).toHaveAttribute('aria-expanded', 'false');
+    expect(within(schedule).queryByText('Design Development')).toBeNull();
+    const hatched = schedule.querySelectorAll('.overlap-hatch').length;
+    await userEvent.click(school);
+    expect(school).toHaveAttribute('aria-expanded', 'true');
+    expect(within(schedule).getByText('Design Development')).toBeInTheDocument();
+    expect(schedule.querySelectorAll('.overlap-hatch').length).toBeGreaterThan(hatched);
+    await userEvent.click(school);
+    expect(school).toHaveAttribute('aria-expanded', 'false');
+    expect(within(schedule).queryByText('Design Development')).toBeNull();
   });
 
   it('keeps the zoom for the next visit', async () => {
@@ -26,6 +42,6 @@ describe('the office schedule', () => {
   it('names every color and mark in a legend', async () => {
     await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
-    for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
+    for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today', 'Two stages at the same time']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
   });
 });

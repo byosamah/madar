@@ -1,9 +1,11 @@
 import type { TaskRow } from '../api/contract/views';
 import { diffDays } from './dates';
+import { compareTasks } from './stageFlow';
 import { involves } from './taskPeople';
 
 const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status === 'in_progress';
-const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
+/** Time order (owner, 2026-10-02): start date, then due date, then the title. */
+const byDue = (a: TaskRow, b: TaskRow) => compareTasks(a.task, b.task);
 
 /**
  * What each person works on now (owner's request, 2026-10-01): the task in progress with the nearest date,

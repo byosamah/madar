@@ -13,6 +13,8 @@ export function historyText(event: Event, t: TFunction, lang: Lang, gender?: 'fe
     case 'task.version_opened': return t('taskHistory.version_opened', { n: (event.after as { version?: number } | null)?.version ?? 2, context });
     case 'task.approved': return t('taskHistory.approved', { context });
     case 'task.sent_back': return t('taskHistory.sent_back', { context });
+    case 'task.reopened': return t('taskHistory.reopened', { context });
+    case 'task.dates_shifted': return t('taskHistory.dates_shifted', { context });
     case 'undo': return t('taskHistory.undo', { context });
     case 'task.status_changed': {
       const status = (event.after as { status?: string } | null)?.status ?? 'todo';
