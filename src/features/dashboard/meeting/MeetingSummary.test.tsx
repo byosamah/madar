@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -77,6 +77,59 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     expect(first).toBe('Meeting summary, Wed 30 Sept');
     expect(second).toBe(`${store.state.users.usr_001.name} approved “Handover checklist”`);
     expect(await screen.findByText('The summary went to 1 chat.')).toBeInTheDocument();
+  });
+
+  it('shows a moved date with the old date, the new date and the meeting reason', async () => {
+    const { store } = await renderApp(`${MEETING}&task=tsk_130`, (state) => {
+      waitsForReview(state);
+      Object.assign(state.tasks.tsk_130, { startDate: '2026-10-04', schedule: 'static', durationDays: null, dueDate: '2026-10-20' });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Progress photos' });
+    const due = within(sheet).getByLabelText('Due date');
+    fireEvent.change(due, { target: { value: '2026-10-26' } });
+    fireEvent.blur(due);
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.click(within(ask).getByRole('button', { name: 'Decided in the meeting on Wed 30 Sept' }));
+    await waitFor(() => expect(store.state.tasks.tsk_130.dueDate).toBe('2026-10-26'));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    const summary = await screen.findByRole('region', { name: 'Meeting summary' });
+    const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+    // The reason is a message in the task Conversation. It joins the line of its move, so it is not a second line.
+    expect(project.getAllByRole('listitem')).toHaveLength(1);
+    expect(project.getByText('moved the dates of “Progress photos”: the due date from Tue 20 Oct to Mon 26 Oct. Reason: Decided in the meeting on Wed 30 Sept')).toBeInTheDocument();
+  });
+
+  it('lists a new lead, a closed client item, a reply person and any other change, and never a payment', async () => {
+    const { api } = await renderApp(MEETING, (state) => {
+      waitsForReview(state);
+      state.tasks.tsk_130.flagged = false;
+    });
+    await screen.findByRole('article');
+    const asked = await api.call('tracker.log', { projectId: 'prj_011', type: 'message', direction: 'in', title: 'Kiosk lighting question', waiting: 'us' });
+    const sent = await api.call('tracker.log', { projectId: 'prj_011', type: 'message', direction: 'out', title: 'Signage drawings', waiting: 'client' });
+    await api.call('tracker.assignReply', { id: asked.entry.id, userId: 'usr_008', dueDate: '2026-10-05' });
+    await api.call('tracker.close', { id: sent.entry.id });
+    await api.call('tasks.update', { id: 'tsk_130', patch: { ownerId: 'usr_008' } });
+    await api.call('tasks.update', { id: 'tsk_130', patch: { flagged: true } });
+    await api.call('payments.create', { projectId: 'prj_011', name: 'Second payment', amount: 5000, dueDate: '2026-10-15' });
+    // A change and its Undo in the same meeting cancel out, so neither shows.
+    await api.call('tasks.update', { id: 'tsk_131', patch: { flagged: true } }, { correlationId: 'cor_meeting_undo' });
+    await api.call('events.undoStory', { correlationId: 'cor_meeting_undo' });
+    await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
+    const summary = await screen.findByRole('region', { name: 'Meeting summary' });
+    const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+    const whats = project.getAllByRole('listitem').map((item) => item.querySelector('.text-ink-2:not(bdi)')?.textContent);
+    expect(whats).toEqual([
+      'made a change to “Kiosk lighting question”',
+      'made a change to “Signage drawings”',
+      'added the task “Reply: Kiosk lighting question”',
+      'asked Khalid Al-Mutairi to reply to “Kiosk lighting question”',
+      'marked “Signage drawings” as received',
+      'made Khalid Al-Mutairi the lead of “Progress photos”',
+      'changed the flag of “Progress photos”',
+    ]);
   });
 
   it('says so when nothing changed, and goes back to the same project', async () => {
