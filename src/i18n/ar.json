@@ -992,7 +992,8 @@
       "agendaOrder": "ترتيب جدول الأعمال",
       "agendaStates": {
         "now": "الآن",
-        "next": "التالي"
+        "next": "التالي",
+        "skipped": "تم تخطيه"
       },
       "discussed": "نوقش",
       "allDiscussed": "نوقشت كل المشاريع",

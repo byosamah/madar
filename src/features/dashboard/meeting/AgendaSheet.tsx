@@ -58,6 +58,8 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
             const now = index === session.current;
             const discussed = session.discussed.has(id);
             const states = [
+              // A skipped project still needs time, so it says so until it is discussed (browser audit 2026-10-03, BRW-19).
+              session.skipped.has(id) && !discussed ? t('dashboard.meeting.agendaStates.skipped') : null,
               now ? t('dashboard.meeting.agendaStates.now') : null,
               id === session.nextId ? t('dashboard.meeting.agendaStates.next') : null,
             ].filter((state): state is string => state !== null);

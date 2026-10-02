@@ -177,6 +177,23 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(within(kept).getByText('Discussed')).toBeInTheDocument();
   });
 
+  it('says Skipped next to a skipped project until it is discussed (browser audit 2026-10-03, BRW-19)', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    let sheet = await openAgenda();
+    expect(agendaItems(sheet)[8]).toHaveTextContent(/Al Waha Clinic Fit-out.*Skipped/);
+    expect(agendaItems(sheet).filter((item) => /Skipped/.test(item.textContent ?? ''))).toHaveLength(1);
+    await userEvent.click(agendaItems(sheet)[8]);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Al Waha Clinic Fit-out' })).toBeNull());
+    sheet = await openAgenda();
+    expect(agendaItems(sheet)[8]).toHaveTextContent(/Al Waha Clinic Fit-out.*Discussed/);
+    expect(agendaItems(sheet)[8]).not.toHaveTextContent('Skipped');
+  });
+
   it('goes round to the first open project when Skip is pressed on the last project', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

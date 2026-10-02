@@ -900,7 +900,8 @@
       "agendaOrder": "Agenda order",
       "agendaStates": {
         "now": "Now",
-        "next": "Next"
+        "next": "Next",
+        "skipped": "Skipped"
       },
       "discussed": "Discussed",
       "allDiscussed": "All projects discussed",
