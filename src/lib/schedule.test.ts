@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, chartRange, clipSpan, dayDelta, meetingWindow, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct, groupClose } from './schedule';
+import { addMonths, chartRange, clipSpan, dayDelta, meetingStep, meetingWindow, midPct, monthStarts, moveEdge, offsetPct, scheduleWindow, spanDays, widthPct, groupClose } from './schedule';
 
 describe('the chart range', () => {
   it('runs from the first month start to the last month end', () => {
@@ -76,6 +76,45 @@ describe('meeting windows', () => {
     expect(meetingWindow('2026-01-10', 'quarter', -1).span).toEqual({ start: '2025-11-01', end: '2026-01-31' });
     expect(addMonths('2026-12-20', 1)).toBe('2027-01-01');
     expect(addMonths('2026-01-20', -2)).toBe('2025-11-01');
+  });
+
+  it('shows the week of today, Sunday to Saturday, with a tick for each day (owner, 2026-10-02)', () => {
+    expect(meetingWindow('2026-10-01', 'week')).toEqual({
+      span: { start: '2026-09-27', end: '2026-10-03' },
+      ticks: ['2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'],
+    });
+    expect(meetingWindow('2026-10-04', 'week').span).toEqual({ start: '2026-10-04', end: '2026-10-10' });
+  });
+
+  it('moves the week by whole weeks, across a month and a year edge', () => {
+    expect(meetingWindow('2026-10-01', 'week', 1).span).toEqual({ start: '2026-10-04', end: '2026-10-10' });
+    expect(meetingWindow('2026-12-30', 'week', 1).span).toEqual({ start: '2027-01-03', end: '2027-01-09' });
+    expect(meetingWindow('2026-10-01', 'week', -1).span).toEqual({ start: '2026-09-20', end: '2026-09-26' });
+  });
+
+  it('shows the month of today with a tick for each Sunday, and moves by whole months', () => {
+    expect(meetingWindow('2026-10-15', 'month')).toEqual({
+      span: { start: '2026-10-01', end: '2026-10-31' },
+      ticks: ['2026-10-04', '2026-10-11', '2026-10-18', '2026-10-25'],
+    });
+    // November 2026 starts on a Sunday, so its first day is a tick too.
+    expect(meetingWindow('2026-10-15', 'month', 1)).toEqual({
+      span: { start: '2026-11-01', end: '2026-11-30' },
+      ticks: ['2026-11-01', '2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29'],
+    });
+    expect(meetingWindow('2026-01-10', 'month', -1).span).toEqual({ start: '2025-12-01', end: '2025-12-31' });
+    expect(meetingWindow('2028-02-10', 'month').span).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+  });
+
+  it('puts a one-day mark in the middle of its day', () => {
+    const week = { start: '2026-09-27', end: '2026-10-03' };
+    expect(midPct(week, '2026-09-27')).toBeCloseTo(100 / 14);
+    expect(midPct(week, '2026-10-03')).toBeCloseTo(100 - 100 / 14);
+  });
+
+  it('steps one week in the week zoom and one month in the others', () => {
+    expect(meetingStep('week')).toBe('week');
+    for (const zoom of ['month', 'quarter', 'half', 'year'] as const) expect(meetingStep(zoom)).toBe('month');
   });
 });
 

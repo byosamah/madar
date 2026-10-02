@@ -80,10 +80,14 @@ export function localeFor(lang: Lang): string {
   return LOCALES[lang];
 }
 
-export function formatDay(day: string, lang: Lang, style: 'short' | 'long' | 'weekday' | 'withWeekday' = 'short'): string {
+export function formatDay(day: string, lang: Lang, style: 'short' | 'shortYear' | 'long' | 'weekday' | 'withWeekday' | 'weekdayDay' = 'short'): string {
   const options: Intl.DateTimeFormatOptions =
     style === 'short'
       ? { day: 'numeric', month: 'short', timeZone: 'UTC' }
+      : style === 'shortYear'
+      ? { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
+      : style === 'weekdayDay'
+      ? { weekday: 'short', day: 'numeric', timeZone: 'UTC' }
       : style === 'withWeekday'
         ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
         : style === 'weekday'
@@ -95,6 +99,11 @@ export function formatDay(day: string, lang: Lang, style: 'short' | 'long' | 'we
 /** The short month name, for the month scale of a schedule. */
 export function formatMonth(day: string, lang: Lang): string {
   return new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
+}
+
+/** The month and the year, "October 2026", for the name of a month on a schedule. */
+export function formatMonthYear(day: string, lang: Lang): string {
+  return new Intl.DateTimeFormat(LOCALES[lang], { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(toMs(day)));
 }
 
 /** The short weekday name, for the timesheet columns. */

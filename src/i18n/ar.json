@@ -928,12 +928,21 @@
       "controls": "أدوات عرض الاجتماع",
       "zoom": "التكبير",
       "zooms": {
+        "week": "أسبوع",
+        "month": "شهر",
         "quarter": "ربع سنة",
         "half": "نصف سنة",
         "year": "سنة"
       },
-      "earlier": "شهر أبكر",
-      "later": "شهر أحدث",
+      "earlier": {
+        "week": "أسبوع أبكر",
+        "month": "شهر أبكر"
+      },
+      "later": {
+        "week": "أسبوع أحدث",
+        "month": "شهر أحدث"
+      },
+      "weekRange": "من {{from}} إلى {{to}}",
       "today": "اليوم",
       "exit": "خروج",
       "filters": "التصفية: {{list}}",

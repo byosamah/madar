@@ -24,6 +24,11 @@ export function offsetPct(span: Span, day: string): number {
   return (diffDays(span.start, day) / spanDays(span)) * 100;
 }
 
+/** The middle of a day on the chart, as a percent from the start side. A one-day mark (today, a deadline) sits there. */
+export function midPct(span: Span, day: string): number {
+  return ((diffDays(span.start, day) + 0.5) / spanDays(span)) * 100;
+}
+
 /** The width of a bar from its first day to its last day, as a percent. */
 export function widthPct(span: Span, start: string, end: string): number {
   return ((diffDays(start, end) + 1) / spanDays(span)) * 100;
@@ -72,11 +77,18 @@ export function scheduleWindow(today: string, zoom: Zoom): { span: Span; ticks: 
   return { span, ticks };
 }
 
-export type MeetingZoom = 'quarter' | 'half' | 'year';
-export const MEETING_ZOOMS: MeetingZoom[] = ['quarter', 'half', 'year'];
+// Week and Month serve the weekly and the monthly meeting (owner, 2026-10-02).
+export type MeetingZoom = 'week' | 'month' | 'quarter' | 'half' | 'year';
+export const MEETING_ZOOMS: MeetingZoom[] = ['week', 'month', 'quarter', 'half', 'year'];
 
-/** Months before the current month, and months in all, for each meeting zoom. */
-const MEETING_MONTHS: Record<MeetingZoom, { before: number; count: number }> = {
+/** One press of an arrow moves the week zoom by one week, and every other zoom by one month. */
+export function meetingStep(zoom: MeetingZoom): 'week' | 'month' {
+  return zoom === 'week' ? 'week' : 'month';
+}
+
+/** Months before the current month, and months in all, for each meeting zoom that shows whole months. */
+const MEETING_MONTHS: Record<Exclude<MeetingZoom, 'week'>, { before: number; count: number }> = {
+  month: { before: 0, count: 1 },
   quarter: { before: 1, count: 3 },
   half: { before: 1, count: 6 },
   year: { before: 2, count: 12 },
@@ -89,11 +101,25 @@ export function addMonths(day: string, n: number): string {
   return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}-01`;
 }
 
-/** The meeting-room window: whole months around today, moved by a number of months. Every month start is a tick. */
+/**
+ * The meeting-room window, moved by a number of steps (see meetingStep).
+ * Week: Sunday to Saturday, a tick for each day. Month: the whole month, a tick for each Sunday.
+ * The longer zooms: whole months around today, a tick for each month start.
+ */
 export function meetingWindow(today: string, zoom: MeetingZoom, shift = 0): { span: Span; ticks: string[] } {
+  if (zoom === 'week') {
+    const start = addDays(weekStartOf(today), shift * 7);
+    return { span: { start, end: addDays(start, 6) }, ticks: Array.from({ length: 7 }, (_, i) => addDays(start, i)) };
+  }
   const { before, count } = MEETING_MONTHS[zoom];
   const start = addMonths(today, shift - before);
   const end = addDays(addMonths(start, count), -1);
+  if (zoom === 'month') {
+    const ticks: string[] = [];
+    const first = weekStartOf(start) === start ? start : addDays(weekStartOf(start), 7);
+    for (let day = first; day <= end; day = addDays(day, 7)) ticks.push(day);
+    return { span: { start, end }, ticks };
+  }
   return { span: { start, end }, ticks: monthStarts({ start, end }) };
 }
 

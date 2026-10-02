@@ -839,12 +839,21 @@
       "controls": "Meeting view controls",
       "zoom": "Zoom",
       "zooms": {
+        "week": "Week",
+        "month": "Month",
         "quarter": "Quarter",
         "half": "Half year",
         "year": "Year"
       },
-      "earlier": "One month earlier",
-      "later": "One month later",
+      "earlier": {
+        "week": "One week earlier",
+        "month": "One month earlier"
+      },
+      "later": {
+        "week": "One week later",
+        "month": "One month later"
+      },
+      "weekRange": "{{from}} to {{to}}",
       "today": "Today",
       "exit": "Exit",
       "filters": "Filters: {{list}}",
