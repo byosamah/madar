@@ -30,7 +30,8 @@ import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 
-const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
+// The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
+const STATUSES = ['active', 'on_hold', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
