@@ -455,32 +455,33 @@ type TrackerPlan = {
 // The client record of three projects. "by" and "people" are indexes into PEOPLE. A question nobody answered is open on two of them.
 const TRACKER: Record<string, TrackerPlan[]> = {
   'KH-26-001': [
-    { daysAgo: 26, type: 'meeting', direction: 'in', title: 'Kick-off meeting at the client office', note: 'We agreed the scope and the dates of the reviews.', by: 1, people: [1, 4] },
-    { daysAgo: 12, type: 'balady', direction: 'out', title: 'Submitted the building permit request on the Balady portal', note: 'Request number 4471.', by: 4 },
+    { daysAgo: 26, type: 'meeting', direction: 'both', title: 'Kick-off meeting at the client office', note: 'We agreed the scope and the dates of the reviews.', by: 1, people: [1, 4] },
+    { daysAgo: 12, type: 'balady', direction: 'third_party', title: 'Submitted the building permit request on the Balady portal', note: 'Request number 4471.', by: 4 },
     { daysAgo: 9, type: 'message', direction: 'out', title: 'Asked the client to choose a facade option', waiting: 'client', closedDaysAgo: 4, by: 1 },
     { daysAgo: 7, type: 'file', direction: 'in', title: 'Site plan.pdf', note: 'Version A', file: 'Site plan.pdf', auto: 'upload', by: 5 },
     { daysAgo: 6, type: 'message', direction: 'out', title: 'Asked the client for the signed fee agreement', waiting: 'client', by: 1 },
     { daysAgo: 5, type: 'message', direction: 'in', title: 'The client asked to move the lobby entrance', note: 'Nawaf phoned the office. He wants the entrance on the Corniche side.', waiting: 'us', by: 4, people: [1] },
     { daysAgo: 3, type: 'file', direction: 'out', title: 'Ground floor plan.pdf', note: 'Version B', file: 'Ground floor plan.pdf', auto: 'delivered', by: 4 },
-    { daysAgo: 2, type: 'balady', direction: 'in', title: 'Balady portal: the request moved to Review', by: 5 },
+    { daysAgo: 2, type: 'balady', direction: 'third_party', title: 'Balady portal: the request moved to Review', by: 5 },
   ],
   'KH-25-014': [
     { pause: true, daysAgo: 12, type: 'message', direction: 'out', title: 'Waiting for the client to approve the revised fit-out brief.', waiting: 'client', by: 1 },
   ],
   'KH-26-002': [
-    { daysAgo: 21, type: 'meeting', direction: 'in', title: 'Design review meeting with Maha Al-Dosari', note: 'She accepted the townhouse layout. She will send the colour choices.', by: 2, people: [2, 4] },
+    { daysAgo: 21, type: 'meeting', direction: 'both', title: 'Design review meeting with Maha Al-Dosari', note: 'She accepted the townhouse layout. She will send the colour choices.', by: 2, people: [2, 4] },
     { daysAgo: 14, type: 'message', direction: 'in', title: 'The client sent the colour choices by email', by: 6 },
     { daysAgo: 10, type: 'message', direction: 'out', title: 'Sent the updated floor plan options', by: 4 },
     { daysAgo: 7, type: 'file', direction: 'in', title: 'Site plan.pdf', note: 'Version A', file: 'Site plan.pdf', auto: 'upload', by: 4 },
     { daysAgo: 2, type: 'message', direction: 'in', title: 'The client asked if the roof terrace can be bigger', waiting: 'us', by: 2 },
+    { daysAgo: 4, type: 'other', direction: 'none', title: 'The neighbour phoned about the shared wall', note: 'It does not change our work. We keep it on record.', by: 4 },
   ],
   'KH-26-006': [
-    { daysAgo: 30, type: 'meeting', direction: 'in', title: 'Site visit with Rana Al-Subaie', note: 'We measured the clinic floor and checked the old drawings.', by: 0, people: [0, 5, 6] },
-    { daysAgo: 16, type: 'balady', direction: 'out', title: 'Submitted the fit-out permit request', by: 5 },
-    { daysAgo: 9, type: 'balady', direction: 'in', title: 'Balady asked for the Civil Defense drawings', waiting: 'us', closedDaysAgo: 5, by: 5 },
-    { daysAgo: 5, type: 'balady', direction: 'out', title: 'Sent the Civil Defense drawings to Balady', by: 5 },
+    { daysAgo: 30, type: 'meeting', direction: 'both', title: 'Site visit with Rana Al-Subaie', note: 'We measured the clinic floor and checked the old drawings.', by: 0, people: [0, 5, 6] },
+    { daysAgo: 16, type: 'balady', direction: 'third_party', title: 'Submitted the fit-out permit request', by: 5 },
+    { daysAgo: 9, type: 'balady', direction: 'third_party', title: 'Balady asked for the Civil Defense drawings', waiting: 'us', closedDaysAgo: 5, by: 5 },
+    { daysAgo: 5, type: 'balady', direction: 'third_party', title: 'Sent the Civil Defense drawings to Balady', by: 5 },
     { daysAgo: 4, type: 'message', direction: 'out', title: 'Asked the client for the signed electrical load sheet', waiting: 'client', by: 0 },
-    { daysAgo: 3, type: 'balady', direction: 'in', title: 'Balady portal: the permit status is now Under review', by: 6 },
+    { daysAgo: 3, type: 'balady', direction: 'third_party', title: 'Balady portal: the permit status is now Under review', by: 6 },
   ],
 };
 
@@ -501,7 +502,21 @@ function addTracker(state: State, today: string, humans: User[]): void {
         auto: plan.auto ?? null, createdBy: humans[plan.by].id, createdAt: at(day, 10, plan.daysAgo),
       };
       if (plan.pause && project.pause) project.pause.trackerId = id;
+      recordTrackerHistory(state, state.tracker[id]);
     }
+  }
+}
+
+/**
+ * Writes the events of an entry that was made without a call: the log, and the close when it has one. The Tracker export reads
+ * the event log, so an entry with no event would not show there. The migration uses it too, for an office saved before the export.
+ */
+export function recordTrackerHistory(state: State, entry: TrackerEntry): void {
+  const ec = (userId: string, stamp: string): EventContext => ({ state, actor: state.users[userId], stamp, correlationId: `seed_${entry.id}` });
+  const meta = { projectId: entry.projectId, targetType: 'tracker' as const, targetId: entry.id };
+  writeEvent(ec(entry.createdBy, entry.createdAt), { ...meta, verb: 'tracker.logged', before: null, after: { ...entry, closedAt: null, closedBy: null } });
+  if (entry.closedAt && entry.closedBy) {
+    writeEvent(ec(entry.closedBy, entry.closedAt), { ...meta, verb: 'tracker.closed', before: { closedAt: null, closedBy: null }, after: { closedAt: entry.closedAt, closedBy: entry.closedBy } });
   }
 }
 

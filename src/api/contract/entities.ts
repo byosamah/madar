@@ -261,6 +261,8 @@ export const Task = z.object({
   createdBy: UserId,
   createdAt: Stamp,
   completedAt: Stamp.nullable(),
+  /** The Tracker entry this task answers (a reply task). Null after that entry is deleted. */
+  trackerEntryId: TrackerId.nullable().optional(),
 });
 export type Task = z.infer<typeof Task>;
 
@@ -347,11 +349,11 @@ export type Message = z.infer<typeof Message>;
 export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
 
-export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady'] as const;
+export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady', 'other'] as const;
 export const TrackerType = z.enum(TRACKER_TYPES);
 export type TrackerType = z.infer<typeof TrackerType>;
 /** "in" is from the client to the office. "out" is from the office to the client. */
-export const TrackerDirection = z.enum(['in', 'out']);
+export const TrackerDirection = z.enum(['in', 'out', 'both', 'third_party', 'none']);
 export type TrackerDirection = z.infer<typeof TrackerDirection>;
 /** Who an open loop waits for: "us" (the office owes a reply) or "client" (the office waits for the client). */
 export const TrackerWaiting = z.enum(['us', 'client']);
@@ -374,9 +376,11 @@ export const TrackerEntry = z.object({
   closedBy: UserId.nullable(),
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
   peopleIds: z.array(UserId).max(20),
-  auto: z.enum(['upload', 'delivered', 'version']).nullable(),
+  auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
+  /** The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads. */
+  replyTaskId: TaskId.optional(),
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
 

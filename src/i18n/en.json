@@ -109,7 +109,12 @@
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back.",
-      "duplicate_team": "A team with this name exists. Use another name."
+      "duplicate_team": "A team with this name exists. Use another name.",
+      "side_for_type": "This type of entry cannot have this side.",
+      "reply_needs_waiting_us": "Only an entry that needs a reply gets a reply task.",
+      "reply_not_on_team": "The person who replies must be on the project team.",
+      "reply_not_open": "Only an open entry that waits for our reply gets a reply task.",
+      "reply_exists": "This entry already has a reply task."
     }
   },
   "taskTemplates": {
@@ -1049,12 +1054,16 @@
       "meeting": "Meeting",
       "message": "Message",
       "file": "File",
-      "balady": "Balady"
+      "balady": "Balady",
+      "other": "Other"
     },
     "directionLabel": "Direction",
     "direction": {
       "in": "From the client",
-      "out": "To the client"
+      "out": "To the client",
+      "both": "Both sides",
+      "third_party": "Third party",
+      "none": "None"
     },
     "date": "Date",
     "needsReply": "Needs a reply",
@@ -1082,7 +1091,53 @@
     "titleField": "What happened",
     "noteField": "Note (optional)",
     "peopleField": "People (optional)",
-    "openEntry": "Open {{title}}"
+    "openEntry": "Open {{title}}",
+    "replyWho": "Who replies?",
+    "replyBy": "Reply by",
+    "assignReply": "Assign a reply",
+    "assign": "Assign",
+    "replyAssigned": "Reply task opened.",
+    "replyTask": "Reply task",
+    "replyDue": "Due {{date}}",
+    "replyDone": "Done",
+    "autoReply": "Added automatically when the reply task was finished.",
+    "export": {
+      "button": "Export",
+      "title": "Export the log",
+      "intro": "One line for every change on the Tracker, with the exact time.",
+      "filtered": "Only the lines that match the filter.",
+      "empty": "Nothing to export yet.",
+      "preview": "Preview",
+      "count": "{{n}} events",
+      "count_one": "1 event",
+      "count_other": "{{count}} events",
+      "download": "Download {{format}}",
+      "copy": "Copy as a table",
+      "downloadNote": "Download works when Madar runs on its own. The review link blocks downloads. Use Copy as a table there.",
+      "copied": "Copied. Paste it into {{apps}}.",
+      "copyFailed": "The browser did not allow copying. Use Download instead.",
+      "agentFor": "Agent for {{name}}",
+      "event": {
+        "logged": "Entry logged",
+        "edited": "Edited",
+        "reopened": "Reopened",
+        "deleted": "Deleted",
+        "reply_task": "Reply task opened",
+        "reply_logged": "Reply logged"
+      },
+      "col": {
+        "date": "Date",
+        "time": "Time",
+        "event": "Event",
+        "by": "Logged by",
+        "type": "Type",
+        "side": "Side",
+        "title": "Title",
+        "note": "Note",
+        "files": "Files",
+        "auto": "Automatic"
+      }
+    }
   },
   "payments": {
     "title": "Payments",

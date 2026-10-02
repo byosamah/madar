@@ -11,6 +11,17 @@ export function firstWorkingDay(day: string): string {
   return weekday <= 4 ? day : addDays(day, 7 - weekday);
 }
 
+/** The day that is a number of working days after a day. Friday and Saturday do not count. */
+export function addWorkingDays(day: string, days: number): string {
+  let result = day;
+  let left = days;
+  while (left > 0) {
+    result = addDays(result, 1);
+    if (isWorkingDay(result)) left -= 1;
+  }
+  return result;
+}
+
 /**
  * The due day of a task that starts on "start" and lasts a number of working days.
  * The first working day on or after the start is day 1, so 1 day ends on the day it starts.

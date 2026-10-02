@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { migrateState } from './migrate';
+import type { TrackerEntry } from '../api/contract/entities';
 import { STATE_VERSION, type State } from '../api/store';
 import { makeTask, makeWorld, STAMP } from '../test/factories';
 import { FORMS } from '../lib/projectMark';
@@ -13,6 +14,32 @@ const event = (id: string, seq: number, targetType: string, targetId: string) =>
 });
 
 describe('migrateState', () => {
+  it('takes a version 5 office to version 6: a meeting has both sides, a Balady update comes from a third party, and every entry has its events', () => {
+    const world = makeWorld();
+    const entry = (id: string, type: TrackerEntry['type'], direction: TrackerEntry['direction'], extra: Partial<TrackerEntry> = {}): TrackerEntry => ({
+      id, projectId: 'prj_001', type, direction, title: `Entry ${id}`, note: '', date: '2026-09-20', waiting: null, closedAt: null, closedBy: null,
+      fileIds: [], peopleIds: [], auto: null, createdBy: 'usr_003', createdAt: '2026-09-20T10:00:00.000+03:00', ...extra,
+    });
+    world.tracker = {
+      trk_001: entry('trk_001', 'meeting', 'in'),
+      trk_002: entry('trk_002', 'balady', 'out', { waiting: 'us', closedAt: '2026-09-22T11:00:00.000+03:00', closedBy: 'usr_002' }),
+      trk_003: entry('trk_003', 'message', 'out'),
+      trk_004: entry('trk_004', 'file', 'in'),
+    };
+    world.events.evt_001 = { ...event('evt_001', 1, 'tracker', 'trk_004'), verb: 'tracker.logged' } as unknown as State['events'][string];
+    world.counters.evt = 1;
+    world.version = 5;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(6);
+    expect(Object.values(done.tracker!).map((e) => [e.id, e.direction])).toEqual([
+      ['trk_001', 'both'], ['trk_002', 'third_party'], ['trk_003', 'out'], ['trk_004', 'in'],
+    ]);
+    const verbs = Object.values(done.events).filter((e) => e.targetType === 'tracker').map((e) => `${e.targetId} ${e.verb}`).sort();
+    expect(verbs).toEqual(['trk_001 tracker.logged', 'trk_002 tracker.closed', 'trk_002 tracker.logged', 'trk_003 tracker.logged', 'trk_004 tracker.logged']);
+    const closed = Object.values(done.events).find((e) => e.verb === 'tracker.closed')!;
+    expect(closed).toMatchObject({ actorId: 'usr_002', createdAt: '2026-09-22T11:00:00.000+03:00' });
+  });
+
   it('takes a version 4 office to version 5 and gives every project its own picture', () => {
     const world = makeWorld();
     world.projects.prj_002 = { ...world.projects.prj_001, id: 'prj_002', code: 'KH-26-002', name: 'Second' };
@@ -48,7 +75,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(5);
+    expect(STATE_VERSION).toBe(6);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);

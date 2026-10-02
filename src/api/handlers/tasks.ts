@@ -15,7 +15,7 @@ import { stampDay } from '../../lib/dates';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
 import { assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
-import { addTrackerEntry } from './tracker';
+import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
 const HelperIds = z.array(UserId).max(MAX_HELPERS);
@@ -83,6 +83,7 @@ function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.sta
   applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
     projectId: task.projectId, verb, targetType: 'task', targetId: task.id,
   });
+  if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id });
   }

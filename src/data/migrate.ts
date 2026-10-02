@@ -1,7 +1,7 @@
 import { addProjectConversation } from '../api/chatState';
 import { STATE_VERSION, type State } from '../api/store';
 import { pickMark } from '../lib/projectMark';
-import { SAMPLE_GENDERS } from './seed';
+import { recordTrackerHistory, SAMPLE_GENDERS } from './seed';
 
 /** Brings an office saved by an older prototype up to date and keeps the work in it. Null means: build a fresh office. */
 export function migrateState(state: State): State | null {
@@ -51,6 +51,17 @@ export function migrateState(state: State): State | null {
       done.push({ id: project.id, mark: project.mark });
     }
     state.version = 5;
+  }
+  if (state.version === 5) {
+    // Version 6: the side follows the type. A meeting has both sides, a Balady update comes from a third party (owner, 2026-10-02).
+    // An entry with no event in the log gets one, so the Tracker export lists it.
+    const logged = new Set(Object.values(state.events).filter((e) => e.verb === 'tracker.logged').map((e) => e.targetId));
+    for (const entry of Object.values(state.tracker ?? {})) {
+      if (entry.type === 'meeting') entry.direction = 'both';
+      if (entry.type === 'balady') entry.direction = 'third_party';
+      if (!logged.has(entry.id) && state.users[entry.createdBy]) recordTrackerHistory(state, entry);
+    }
+    state.version = 6;
   }
   return state.version === STATE_VERSION ? state : null;
 }
