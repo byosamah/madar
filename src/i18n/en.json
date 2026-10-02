@@ -700,6 +700,7 @@
     "open": "Open",
     "approve": "Approve",
     "someone": "Someone",
+    "mentionDirect": "{{actor}} mentioned you in a direct message",
     "trigger": {
       "task_assigned": "{{actor}} gave you “{{target}}”",
       "mention": "{{actor}} mentioned you in {{target}}",

@@ -41,7 +41,9 @@ function InboxItem({ view }: { view: NoticeView }) {
   });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
-  const sentence = t(`inbox.trigger.${n.trigger}`, {
+  // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
+  const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project;
+  const sentence = t(direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
     actor: actor?.name ?? t('inbox.someone'),
     context: actorContext(actor),
     target,

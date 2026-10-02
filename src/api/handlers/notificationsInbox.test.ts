@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { chatCalls } from './chats';
 import { notificationCalls } from './notifications';
 import { notify } from '../notify';
 import { makeTask, NOW, testApi } from '../../test/factories';
@@ -36,5 +37,16 @@ describe('the bell and the notifications list (audit 2026-10-03)', () => {
     expect(list.map((v) => v.notification.id)).toContain(old.id);
     // The old unread one keeps its place by time, after the newer read ones.
     expect(list.at(-1)?.notification.id).toBe(old.id);
+  });
+
+  it('gives a mention in a direct chat no target name, so the sentence does not name the sender twice (SHL-14)', async () => {
+    const t = testApi({ ...notificationCalls, ...chatCalls });
+    t.as('usr_002');
+    const { id } = await t.api.call('chats.openDirect', { userId: 'usr_003' });
+    await t.api.call('chats.send', { conversationId: id, body: 'Can you check this, @[Sara Team](usr_003)?' });
+    t.as('usr_003');
+    const [view] = await t.api.call('notifications.list', {});
+    expect(view).toMatchObject({ target: '', project: null, link: `/inbox/${id}` });
+    expect(view.notification).toMatchObject({ trigger: 'mention', targetType: 'chat' });
   });
 });

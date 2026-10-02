@@ -76,6 +76,14 @@ describe('the notifications screen', () => {
     await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(true));
   });
 
+  it('says "a direct message" for a mention in a direct chat (audit 2026-10-03, SHL-14)', async () => {
+    await renderApp('/notifications', (state) => {
+      const room = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'))!;
+      withNotices('usr_001', [notice('ntf_901', 'mention', 'chat', room.id, TODAY_8, 'usr_002')])(state);
+    });
+    expect(await screen.findByText('Faisal Al-Harbi mentioned you in a direct message')).toBeInTheDocument();
+  });
+
   it('says when there is nothing', async () => {
     await renderApp('/notifications', withNotices('usr_005', []));
     expect(await screen.findByText('No notifications')).toBeInTheDocument();

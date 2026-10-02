@@ -75,8 +75,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   } else if (n.targetType === 'chat') {
     const conversation = state.conversations[n.targetId];
     const project = conversation?.projectId ? state.projects[conversation.projectId] : undefined;
-    const otherId = conversation?.memberIds.find((id) => id !== viewer.id);
-    target = project?.name ?? (otherId ? (state.users[otherId]?.name ?? '') : '');
+    // A direct chat has no name of its own, and its other member is the sender, so the target stays empty and the
+    // screen says "a direct message" (audit 2026-10-03, SHL-14).
+    target = project?.name ?? '';
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !conversation || !canSeeConversation(state, conversation, viewer);

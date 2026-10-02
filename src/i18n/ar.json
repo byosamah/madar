@@ -776,6 +776,8 @@
     "open": "فتح",
     "approve": "اعتماد",
     "someone": "شخص ما",
+    "mentionDirect": "{{actor}} أشار إليك في رسالة مباشرة",
+    "mentionDirect_female": "{{actor}} أشارت إليك في رسالة مباشرة",
     "trigger": {
       "task_assigned": "{{actor}} أسند إليك «{{target}}»",
       "mention": "{{actor}} أشار إليك في {{target}}",
