@@ -255,6 +255,17 @@ describe('the Admin page for Management and Accounting', () => {
     await waitFor(() => expect(store.state.users.usr_004.systemRole).toBe('accounting'));
   });
 
+  it('hides from Management the person actions only an Admin may take (audit 2026-10-03, SHL-9)', async () => {
+    const { store } = await renderApp('/admin', as('usr_010'));
+    const agent = Object.values(store.state.users).find((u) => u.kind === 'agent' && u.ownerId === 'usr_001')!;
+    const people = await region('People');
+    await within(people).findByText(agent.name);
+    expect(within(people).queryByRole('button', { name: `Actions for ${agent.name}` })).toBeNull();
+    await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add person' });
+    expect(within(sheet).queryByLabelText('Kind')).toBeNull();
+  });
+
   it('tells Accounting and a member the page is not theirs', async () => {
     for (const user of ['usr_011', 'usr_005']) {
       const view = await renderApp('/admin', as(user));
