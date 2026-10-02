@@ -11,6 +11,7 @@ import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { Sheet } from '../../components/Sheet';
 import { Switch } from '../../components/Switch';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -31,7 +32,14 @@ export function SettingsScreen() {
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const trigger = useAction('notifications.updateSettings');
   const simulate = useAction('session.setSimulateErrors');
-  const reset = useAction('session.resetSampleData', { onSuccess: () => toast.show({ message: t('settings.resetDone') }) });
+  // Reset wipes the whole office in this browser and has no Undo, so it asks first, like Delete project (audit 2026-10-03, SHL-8).
+  const [askReset, setAskReset] = useState(false);
+  const reset = useAction('session.resetSampleData', {
+    onSuccess: () => {
+      setAskReset(false);
+      toast.show({ message: t('settings.resetDone') });
+    },
+  });
   const user = session.data?.user;
   const [name, setName] = useState('');
   const [discipline, setDiscipline] = useState('');
@@ -125,8 +133,22 @@ export function SettingsScreen() {
           onChange={(on) => simulate.mutate({ on })}
         />
         <div>
-          <Button onClick={() => reset.mutate({})}>{t('settings.reset')}</Button>
+          <Button onClick={() => setAskReset(true)}>{t('settings.reset')}</Button>
         </div>
+        <Sheet
+          open={askReset}
+          onOpenChange={setAskReset}
+          title={t('settings.resetTitle')}
+          description={t('settings.resetBody')}
+          footer={(
+            <>
+              <Button onClick={() => setAskReset(false)}>{t('common.cancel')}</Button>
+              <Button variant="destructive" disabled={reset.isPending} onClick={() => reset.mutate({})}>{t('settings.reset')}</Button>
+            </>
+          )}
+        >
+          {null}
+        </Sheet>
       </Section>
     </div>
   );

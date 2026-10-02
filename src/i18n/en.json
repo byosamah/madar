@@ -83,6 +83,8 @@
     "simulateErrors": "Simulate errors",
     "simulateErrorsHint": "1 in 5 actions fail, so you can see the error states.",
     "reset": "Reset sample data",
+    "resetTitle": "Reset the sample data?",
+    "resetBody": "This deletes every project, task, message and file that you added in this browser. Then the sample office comes back. You cannot undo it.",
     "resetDone": "The sample data is back to its start state."
   },
   "errors": {
