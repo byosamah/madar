@@ -46,7 +46,7 @@ function AssignSheet({ row, members, onClose }: { row: TrackerRow; members: User
 function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onAssign: (id: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const close = useUndoable('tracker.close', { message: () => t('tracker.closedToast') });
+  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const { entry, replyTask } = row;
   const action = t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
   // A reply task that is done does not hold the item any more, so the item offers a new one (as the Tracker tab does).

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DateMove } from '../../../api/contract/entities';
 import { ApiError } from '../../../api/errors';
@@ -9,7 +9,7 @@ import { TextArea } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { formatDay, todayISO } from '../../../lib/dates';
 
-type Pending = { move: Pick<DateMove, 'from' | 'to'>; send: (reason: string) => void };
+type Pending = { move: Pick<DateMove, 'from' | 'to'>; reason: string; send: (reason: string) => void };
 
 /** True when the server refused a change because it moves the dates of a task and wants to know why. */
 export function isDateReasonRefusal(error: unknown): error is ApiError {
@@ -35,16 +35,26 @@ export function DateMoveLines({ move, className = '' }: { move: Pick<DateMove, '
  * The owner's rule (2026-10-02): a person who moves the dates of a task writes why. The server refuses the change without a reason.
  * This hook catches that refusal, shows what moves and asks why in a small sheet, then sends the same call again with the reason.
  * Cancel keeps the old dates, so the screen calls onCancel to put its fields back. Pass `refused` as the "onRefused" of the action.
+ * When the call with the reason fails, `retry` opens the sheet again with the typed reason, so a second Save sends it (audit 2026-10-03, BRW-6).
  */
 export function useDateReason(onCancel?: () => void): {
   refused: <I extends object>(error: unknown, input: I, resend: (next: I & { dateReason: string }) => void) => boolean;
+  retry: <I extends object>(input: I, resend: (next: I & { dateReason: string }) => void) => boolean;
   sheet: ReactNode;
 } {
   const [pending, setPending] = useState<Pending | null>(null);
+  const lastMove = useRef<Pick<DateMove, 'from' | 'to'> | null>(null);
   const refused = <I extends object>(error: unknown, input: I, resend: (next: I & { dateReason: string }) => void): boolean => {
     if (!isDateReasonRefusal(error)) return false;
     const move = { from: error.details.from, to: error.details.to } as Pick<DateMove, 'from' | 'to'>;
-    setPending({ move, send: (dateReason) => resend({ ...input, dateReason }) });
+    lastMove.current = move;
+    setPending({ move, reason: '', send: (dateReason) => resend({ ...input, dateReason }) });
+    return true;
+  };
+  const retry = <I extends object>(input: I, resend: (next: I & { dateReason: string }) => void): boolean => {
+    const reason = (input as { dateReason?: unknown }).dateReason;
+    if (typeof reason !== 'string' || !lastMove.current) return false;
+    setPending({ move: lastMove.current, reason, send: (dateReason) => resend({ ...input, dateReason }) });
     return true;
   };
   const close = () => {
@@ -54,6 +64,7 @@ export function useDateReason(onCancel?: () => void): {
   const sheet = pending ? (
     <DateReasonSheet
       move={pending.move}
+      initial={pending.reason}
       onClose={close}
       onSend={(reason) => {
         pending.send(reason);
@@ -61,14 +72,14 @@ export function useDateReason(onCancel?: () => void): {
       }}
     />
   ) : null;
-  return { refused, sheet };
+  return { refused, retry, sheet };
 }
 
-function DateReasonSheet({ move, onSend, onClose }: { move: Pick<DateMove, 'from' | 'to'>; onSend: (reason: string) => void; onClose: () => void }) {
+function DateReasonSheet({ move, initial, onSend, onClose }: { move: Pick<DateMove, 'from' | 'to'>; initial: string; onSend: (reason: string) => void; onClose: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const meeting = useMeeting();
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(initial);
   return (
     <Sheet
       open

@@ -205,6 +205,11 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const update = useAction('tasks.update', {
     onRefused: (error, input) => {
       if (dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next))) return true;
+      // A failed save with a date reason opens the reason sheet again with the typed reason; the toast still says why (audit 2026-10-03, BRW-6).
+      if (dates.retry(input, (next) => update.mutate(next))) return false;
+      // The title goes back to the saved one. A description keeps the typed text, marked "Not saved", so no work is lost (audit 2026-10-03, BRW-6).
+      if (input.patch.title !== undefined) setTitle(task.title);
+      if (input.patch.description !== undefined) setUnsaved(true);
       setFailures((count) => count + 1);
       return false;
     },
@@ -213,7 +218,8 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
-  const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
+  // Approve offers Undo, as Send to review does: a mis-press is one tap to put back (audit 2026-10-03, BRW-5).
+  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved') });
   const sendBack = useAction('tasks.sendBack', {
     onSuccess: () => {
       setNote('');
@@ -225,10 +231,12 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const everyone = useCall('users.list', {});
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
+  const [unsaved, setUnsaved] = useState(false);
   const [note, setNote] = useState('');
   useEffect(() => {
     setTitle(task.title);
     setDescription(task.description);
+    setUnsaved(false);
   }, [task.title, task.description]);
 
   const patch = (changes: Patch) => update.mutate({ id: task.id, patch: changes });
@@ -345,6 +353,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 label={t('taskSheet.description')}
                 value={description}
                 dir="auto"
+                error={unsaved && description !== task.description ? t('taskSheet.notSaved') : undefined}
                 onChange={(event) => setDescription(event.target.value)}
                 onBlur={() => {
                   if (description !== task.description) patch({ description });

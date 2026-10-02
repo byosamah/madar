@@ -44,7 +44,9 @@ describe('the Tasks tab list', () => {
 
   it("does not let a member tick another person's task", async () => {
     await renderApp(TASKS, as('usr_005'));
-    expect(await screen.findByRole('checkbox', { name: 'Complete Balady submission set' })).toBeDisabled();
+    // A plain mark, not a disabled tick (spec 2.3; audit 2026-10-03, BRW-13).
+    await screen.findByText('Balady submission set');
+    expect(screen.queryByRole('checkbox', { name: 'Complete Balady submission set' })).toBeNull();
   });
 
   it('adds a task to a stage from its quick add row', async () => {

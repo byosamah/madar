@@ -138,7 +138,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
   const { t } = useTranslation();
   const lang = useLang();
   const [editing, setEditing] = useState(false);
-  const close = useUndoable('tracker.close', { message: () => t('tracker.closedToast') });
+  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const remove = useUndoable('tracker.delete', { message: () => t('tracker.deleted'), onSuccess: onClose });
   const { entry } = row;
   const open = isOpen(entry);

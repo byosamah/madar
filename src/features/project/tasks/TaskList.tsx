@@ -26,7 +26,7 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
       className="flex items-center gap-3 px-4"
       onSubmit={(event) => {
         event.preventDefault();
-        if (title.trim()) create.mutate({ projectId, stageId: stage.id, title: title.trim() });
+        if (title.trim() && !create.isPending) create.mutate({ projectId, stageId: stage.id, title: title.trim() });
       }}
     >
       <AnimatedIcon icon={PlusIcon} size={18} className="shrink-0 text-label-3" aria-hidden />
@@ -35,7 +35,9 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
         placeholder={t('tasks.addTask')}
         value={title}
         dir="auto"
-        disabled={create.isPending}
+        // Read only, not disabled, while it saves: a disabled field loses the focus, and the next title would go nowhere (audit 2026-10-03, BRW-11).
+        readOnly={create.isPending}
+        aria-busy={create.isPending || undefined}
         onChange={(event) => setTitle(event.target.value)}
         className="min-h-11 min-w-0 flex-1 bg-transparent text-body text-label placeholder:text-label-2"
       />

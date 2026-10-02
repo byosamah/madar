@@ -1,4 +1,4 @@
-import { useEffect, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 
 type FieldProps = { id: string; label: string; error?: string; hint?: string; className?: string };
 
@@ -54,10 +54,16 @@ export function DateDraftField({ id, label, error, hint, className, value, onCom
   value: string; onCommit: (value: string | null) => void; disabled?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  // The draft sent last. Enter and the blur after it send the same draft once, so a reason sheet does not open twice (audit 2026-10-03, BRW-3).
+  const sent = useRef<string | null>(null);
+  useEffect(() => {
+    setDraft(value);
+    sent.current = null;
+  }, [value]);
   const commit = () => {
-    if (draft === value) return;
+    if (draft === value || draft === sent.current) return;
     if (draft === '') {
+      sent.current = draft;
       onCommit(null);
       return;
     }
@@ -65,6 +71,7 @@ export function DateDraftField({ id, label, error, hint, className, value, onCom
       setDraft(value);
       return;
     }
+    sent.current = draft;
     onCommit(draft);
   };
   return (
