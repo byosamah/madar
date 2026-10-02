@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
   Message, Payment, Project, Team,
-  ProjectId, Stage, StageId, Stamp, Task, TrackerEntry, UpdateId, UserId,
+  ProjectId, Stage, StageId, Stamp, Task, TaskId, TaskStatus, TrackerEntry, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -104,10 +104,23 @@ export const TaskRow = z.object({
   fileCount: z.number().int().min(0),
   overdue: z.boolean(),
   canMove: z.boolean(),
+  /** What an open task waits for: the tasks it needs and the stages its stage needs, while they are not done. Empty for a done task. */
+  waitingFor: z.object({
+    tasks: z.array(z.object({ id: TaskId, title: z.string() })),
+    stages: z.array(z.object({ id: StageId, name: z.string() })),
+  }),
 });
 export type TaskRow = z.infer<typeof TaskRow>;
 
+/** A task named inside another task's panel. */
+export const TaskLink = z.object({ id: TaskId, title: z.string(), status: TaskStatus });
+export type TaskLink = z.infer<typeof TaskLink>;
+
 export const TaskDetail = TaskRow.extend({
+  /** "Needs first": the tasks that must be done before this one, with their state. */
+  needsFirst: z.array(TaskLink),
+  /** "Unlocks": the tasks that need this one first. Read only. */
+  unlocks: z.array(TaskLink),
   viewerCan: z.object({
     edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean(),
     /** Ticks checklist items: the lead, a helper, the leader and the Admin. */

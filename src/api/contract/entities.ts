@@ -193,6 +193,9 @@ export const ProjectMember = z.object({
 });
 export type ProjectMember = z.infer<typeof ProjectMember>;
 
+/** The most prerequisites one task or one stage has. */
+export const MAX_PREREQUISITES = 20;
+
 export const Stage = z.object({
   id: StageId,
   projectId: ProjectId,
@@ -200,6 +203,8 @@ export const Stage = z.object({
   order: z.number().int().min(0),
   startDate: Day.nullable(),
   endDate: Day.nullable(),
+  /** Stages of the same project that need to be finished first. Optional, so older offices still load. */
+  prerequisiteIds: z.array(StageId).max(MAX_PREREQUISITES).optional(),
 });
 export type Stage = z.infer<typeof Stage>;
 
@@ -237,6 +242,20 @@ export type TaskVersion = z.infer<typeof TaskVersion>;
 /** The most helpers one task has. */
 export const MAX_HELPERS = 10;
 
+/**
+ * One automatic move of a task's dates, kept in the task (owner, 2026-10-02). "byTaskId" and "lateDays" let a screen write the
+ * sentence in its own language; "reason" is the same sentence in English, for an agent and for a task that lost its prerequisite.
+ */
+export const DateNote = z.object({
+  from: z.object({ startDate: Day.nullable(), dueDate: Day.nullable() }),
+  to: z.object({ startDate: Day.nullable(), dueDate: Day.nullable() }),
+  reason: z.string().max(400),
+  at: Stamp,
+  byTaskId: TaskId.optional(),
+  lateDays: z.number().int().min(1).optional(),
+});
+export type DateNote = z.infer<typeof DateNote>;
+
 export const Task = z.object({
   id: TaskId,
   projectId: ProjectId,
@@ -258,6 +277,10 @@ export const Task = z.object({
   versions: z.array(TaskVersion).max(50).optional(),
   /** Optional, so an office saved before helpers still loads. The lead is ownerId and is never in this list. */
   helperIds: z.array(UserId).max(MAX_HELPERS).optional(),
+  /** Tasks of the same project that must be done first. Optional, so older offices still load. */
+  prerequisiteIds: z.array(TaskId).max(MAX_PREREQUISITES).optional(),
+  /** The automatic date moves of a dynamic task, oldest first (the last 20). */
+  dateNotes: z.array(DateNote).max(20).optional(),
   createdBy: UserId,
   createdAt: Stamp,
   completedAt: Stamp.nullable(),
@@ -347,11 +370,11 @@ export type Message = z.infer<typeof Message>;
 export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
 
-export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady'] as const;
+export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady', 'other'] as const;
 export const TrackerType = z.enum(TRACKER_TYPES);
 export type TrackerType = z.infer<typeof TrackerType>;
 /** "in" is from the client to the office. "out" is from the office to the client. */
-export const TrackerDirection = z.enum(['in', 'out']);
+export const TrackerDirection = z.enum(['in', 'out', 'both', 'third_party', 'none']);
 export type TrackerDirection = z.infer<typeof TrackerDirection>;
 /** Who an open loop waits for: "us" (the office owes a reply) or "client" (the office waits for the client). */
 export const TrackerWaiting = z.enum(['us', 'client']);
@@ -374,7 +397,7 @@ export const TrackerEntry = z.object({
   closedBy: UserId.nullable(),
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
   peopleIds: z.array(UserId).max(20),
-  auto: z.enum(['upload', 'delivered', 'version']).nullable(),
+  auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
 });

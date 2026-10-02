@@ -6,6 +6,7 @@ import { groupMyTasks, workGroupOf } from './myWork';
 const TODAY = '2026-09-30'; // a Wednesday; the office week ends on Saturday 3 Oct
 const row = (id: string, dueDate: string | null, overdue = false): TaskRow => ({
   task: makeTask({ id, dueDate }),
+  waitingFor: { tasks: [], stages: [] },
   owner: { id: 'usr_003', name: 'Sara Team', avatarUrl: null, kind: 'human', discipline: 'Architect' },
   helpers: [],
   project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower', mark: 0 },

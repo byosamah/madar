@@ -4,13 +4,14 @@ import { counted } from '../../../lib/grammar';
 import { AnimatedIcon, type AnimatedIconComponent } from '../../../components/icons/AnimatedIcon';
 import { ArrowDownLeftIcon } from '../../../components/icons/animated/arrow-down-left';
 import { ArrowUpRightIcon } from '../../../components/icons/animated/arrow-up-right';
+import { ClipboardCheckIcon } from '../../../components/icons/animated/clipboard-check';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
 import { StampIcon } from '../../../components/icons/animated/stamp';
 import { UsersIcon } from '../../../components/icons/animated/users';
 
 // Every icon moves (owner rule, 2026-10-01). Balady is the permit stamp.
-const ICON: Record<TrackerType, AnimatedIconComponent> = { meeting: UsersIcon, message: MessageCircleIcon, file: FileTextIcon, balady: StampIcon };
+const ICON: Record<TrackerType, AnimatedIconComponent> = { meeting: UsersIcon, message: MessageCircleIcon, file: FileTextIcon, balady: StampIcon, other: ClipboardCheckIcon };
 
 /** The icon of an entry type. It plays when its button or row is hovered or focused. */
 export function TypeIcon({ type, size = 18 }: { type: TrackerType; size?: number; animated?: boolean }) {

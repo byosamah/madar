@@ -8,6 +8,7 @@ import type { State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
 import { helpersOf } from '../lib/taskPeople';
+import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
 import { staleDaysOf } from './pause';
 
 export function userCard(user: User): UserCard {
@@ -19,8 +20,14 @@ export function cardOf(state: State, userId: string): UserCard {
   return user ? userCard(user) : { id: userId, name: '?', avatarUrl: null, kind: 'human', discipline: '' };
 }
 
+/** The stages in the order the office gave them. */
 export function stagesOf(state: State, projectId: string): Stage[] {
   return Object.values(state.stages).filter((s) => s.projectId === projectId).sort((a, b) => a.order - b.order);
+}
+
+/** The stages in time order, which is how every screen lists them (owner, 2026-10-02). */
+export function stagesInTime(state: State, projectId: string): Stage[] {
+  return stagesChrono(stagesOf(state, projectId));
 }
 
 export function deadlinesOf(state: State, projectId: string): Deadline[] {
@@ -135,7 +142,7 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
 
 /** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
 export function summaryOf(state: State, project: Project, today: string, viewer: User): ProjectSummary {
-  const stages = stagesOf(state, project.id);
+  const stages = stagesInTime(state, project.id);
   const tasks = Object.values(state.tasks).filter((t) => t.projectId === project.id);
   const deadlines = deadlinesOf(state, project.id);
   const next = deadlines.find((d) => d.date >= today) ?? [...deadlines].reverse().find((d) => d.date < today) ?? null;
@@ -153,7 +160,8 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     staleDays: staleDaysOf(state, project, today),
     coverLetter: cover ? cover.versions[cover.versions.length - 1].letter : null,
     stages,
-    currentStage: state.stages[project.currentStageId] ?? stages[0],
+    // The tag follows the tasks, so it is computed here and never read from the saved value.
+    currentStage: stages.length > 0 ? stageTagOf(stages, tasks) : state.stages[project.currentStageId],
     latest,
     nextDeadline: next ? { id: next.id, name: next.name, date: next.date, daysLeft: diffDays(today, next.date) } : null,
     leader: project.leaderId ? cardOf(state, project.leaderId) : null,
@@ -186,6 +194,17 @@ export function eventViewOf(state: State, event: Event): EventView {
   return { event, actor: cardOf(state, event.actorId) };
 }
 
+/** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. */
+function waitingOf(state: State, task: Task): TaskRow['waitingFor'] {
+  const stage = state.stages[task.stageId];
+  if (task.status === 'done' || ((task.prerequisiteIds ?? []).length === 0 && (stage?.prerequisiteIds ?? []).length === 0)) return { tasks: [], stages: [] };
+  const tasks = Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
+  return {
+    tasks: openPrerequisites(task, tasks).map((t) => ({ id: t.id, title: t.title })),
+    stages: openPrerequisiteStages(task, stagesOf(state, task.projectId), tasks).map((s) => ({ id: s.id, name: s.name })),
+  };
+}
+
 export function taskRowOf(state: State, task: Task, today: string, viewer: User): TaskRow {
   const project = state.projects[task.projectId];
   const stage = state.stages[task.stageId];
@@ -199,6 +218,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     fileCount: Object.values(state.files).filter((f) => f.taskId === task.id).length,
     overdue: isOverdue(task, today),
     canMove: can(viewer, 'task.updateOwn', { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId }),
+    waitingFor: waitingOf(state, task),
   };
 }
 
@@ -208,8 +228,13 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
     .filter((e) => e.targetType === 'task' && e.targetId === task.id)
     .sort((a, b) => b.seq - a.seq)
     .map((e) => eventViewOf(state, e));
+  const link = (t: Task) => ({ id: t.id, title: t.title, status: t.status });
+  const inProject = Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
+  const ids = new Set(task.prerequisiteIds ?? []);
   return {
     ...taskRowOf(state, task, today, viewer),
+    needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stagesOf(state, task.projectId)).map(link),
+    unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stagesOf(state, task.projectId)).map(link),
     viewerCan: {
       edit: can(viewer, 'task.updateOwn', r),
       editAll: can(viewer, 'task.updateAny', r),

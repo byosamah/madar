@@ -6,6 +6,7 @@ import { currentWork, needsAttention, stageStanding } from './overview';
 const TODAY = '2026-09-30';
 const row = (id: string, patch: Partial<TaskRow['task']>): TaskRow => ({
   task: makeTask({ id, ownerId: 'usr_003', ...patch }),
+  waitingFor: { tasks: [], stages: [] },
   owner: { id: patch.ownerId ?? 'usr_003', name: 'Sara Team', avatarUrl: null, kind: 'human', discipline: 'Architect' },
   helpers: [],
   project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower', mark: 0 },

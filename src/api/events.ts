@@ -10,7 +10,10 @@ const COLLECTION: Record<EventTarget, keyof State | null> = {
   comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker', payment: 'payments', feedback: 'feedback', team: 'teams',
 };
 
-export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'undo']);
+/** Changes that follow from other changes. The project's stage tag follows its tasks, so it has no Undo of its own: it moves again with them. */
+export const DERIVED = new Set(['project.stage_changed']);
+
+export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'undo', ...DERIVED]);
 
 export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown }): Event {
   const id = nextId(ec.state, 'evt');
