@@ -900,7 +900,7 @@
     "meeting": {
       "title": "عرض الاجتماع",
       "clientItems": "بنود العميل",
-      "people": "الفريق",
+      "people": "الأشخاص",
       "personOpen": "{{n}} مفتوحة",
       "personOpen_one": "واحدة مفتوحة",
       "personOpen_two": "اثنتان مفتوحتان",
@@ -966,7 +966,7 @@
       "nothingInProgress": "لا شيء قيد التنفيذ.",
       "chains": "ما ينتظر",
       "waitsFor": "{{task}} بانتظار {{needed}}",
-      "ifFinishesToday": "عند انتهاء {{late}} اليوم، ينتقل موعد {{dependent}} {{lateness}}، إلى {{date}}.",
+      "ifFinishesToday": "عند انتهاء {{late}} اليوم، ينتقل موعد {{dependent}} بمقدار {{lateness}} إلى {{date}}.",
       "countInProgress": "قيد التنفيذ: {{n}}",
       "countPastDue": "متأخرة: {{n}}",
       "countReview": "بانتظار المراجعة: {{n}}",
