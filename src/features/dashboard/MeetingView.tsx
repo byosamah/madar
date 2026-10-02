@@ -356,7 +356,8 @@ export function MeetingView() {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   // The meeting started when the session of the day started, so a reload keeps the same start.
-  const meeting = useMemo(() => ({ startedAt: session.startedAt }), [session.startedAt]);
+  const drafts = useRef(new Map<string, string>()).current;
+  const meeting = useMemo(() => ({ startedAt: session.startedAt, drafts }), [session.startedAt, drafts]);
   // The open task lives in the link, so a reload keeps it. A press replaces the entry, it does not add one.
   const taskId = params.get('task');
   const openTask = (id: string) => setParams((current) => {

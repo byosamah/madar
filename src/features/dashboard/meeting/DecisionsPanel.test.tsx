@@ -86,6 +86,28 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(await decisions.findByText(/^Action: Call the client back/)).toBeInTheDocument();
   });
 
+  it('keeps a typed decision and a typed action over a move to another project and back (audit 2026-10-03, DSH-3)', async () => {
+    await renderApp(MEETING, shoreWalkFirst);
+    let decisions = await panel();
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Half typed action');
+    // The other kind keeps its text too.
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    // Done shows the next project. B comes back to this one, with the kind and both texts as they were.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Shore Walk Retail Kiosks' })).toBeNull());
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    decisions = await panel();
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
+  });
+
   it('lists the decisions and actions of this meeting only, the newest last', async () => {
     await renderApp(MEETING, (state) => {
       shoreWalkFirst(state);
