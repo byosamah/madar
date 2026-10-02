@@ -5,6 +5,7 @@ import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { FilterButton } from '../../../components/FilterButton';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DownloadIcon } from '../../../components/icons/animated/download';
 import type { TabProps } from '../tabs';
@@ -44,7 +45,8 @@ export function TrackerTab({ detail }: TabProps) {
   const shown = [...(history.data ?? []), ...(open.data ?? [])].find((row) => row.entry.id === openId);
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />}
       {detail.viewerCan.post ? <QuickLog projectId={projectId} members={detail.members.map((member) => member.user)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
       <section aria-label={t('tracker.history')} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +77,8 @@ export function TrackerTab({ detail }: TabProps) {
             {t('tracker.export.button')}
           </Button>
         </div>
-        {history.data && history.data.length === 0
+        {history.error && !history.data ? <LoadFailed error={history.error} onRetry={() => void history.refetch()} />
+          : history.data && history.data.length === 0
           ? active > 0
             ? <p className="text-subheadline text-ink-2">{t('tracker.emptyFilter')}</p>
             : <EmptyState title={t('tracker.emptyTitle')} body={t('tracker.empty')} />

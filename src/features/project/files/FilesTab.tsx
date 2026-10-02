@@ -14,6 +14,7 @@ import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
@@ -192,6 +193,8 @@ export function FilesTab({ detail }: TabProps) {
           <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
         </div>
       )}
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {files.error && !files.data && <LoadFailed error={files.error} onRetry={() => void files.refetch()} />}
       {files.data && groups.length === 0 && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} />}
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;

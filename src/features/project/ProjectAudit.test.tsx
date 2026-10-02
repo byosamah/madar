@@ -73,3 +73,26 @@ describe('a failed refresh keeps the screen (audit 2026-10-03, PRJ-1)', () => {
   });
 });
 
+
+describe('a tab whose list did not load says so and offers Retry (audit 2026-10-03, PRJ-4)', () => {
+  it.each([
+    ['Tasks', 'tasks', 'tasks.list'],
+    ['Activity', 'activity', 'updates.list'],
+    ['Tracker', 'tracker', 'tracker.list'],
+    ['Files', 'files', 'files.list'],
+  ])('the %s tab', async (_name, tab, call) => {
+    await renderApp(`/projects/prj_001?tab=${tab}`, as('usr_002'), { failFirst: call });
+    const panel = await screen.findByRole('tabpanel');
+    expect(await within(panel).findByText('The data did not load.')).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(within(panel).queryByText('The data did not load.')).toBeNull());
+  });
+
+  it('the Payments panel', async () => {
+    await renderApp('/projects/prj_001', as('usr_011'), { failFirst: 'payments.list' });
+    const region = await screen.findByRole('region', { name: 'Payments' });
+    expect(await within(region).findByText('The data did not load.')).toBeInTheDocument();
+    await userEvent.click(within(region).getByRole('button', { name: 'Retry' }));
+    expect(await within(region).findByText('Concept stage fee')).toBeInTheDocument();
+  });
+});

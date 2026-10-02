@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import { useCall } from '../../../app/runtime';
 import { FilterButton } from '../../../components/FilterButton';
 import { EmptyState } from '../../../components/EmptyState';
+import { LoadFailed } from '../../../components/LoadFailed';
 import type { TabProps } from '../tabs';
 import { Composer } from './Composer';
 import { FeedEntry } from './FeedEntry';
@@ -37,7 +38,9 @@ export function ActivityTab({ detail }: TabProps) {
             </fieldset>
           </FilterButton>
         </div>
-        {feed.data && feed.data.length === 0
+        {/* A feed that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+        {feed.error && !feed.data ? <LoadFailed error={feed.error} onRetry={() => void feed.refetch()} />
+          : feed.data && feed.data.length === 0
           ? <EmptyState title={t('overview.feed')} body={t(filter === 'decisions' ? 'overview.emptyDecisions' : 'overview.emptyFeed')} />
           : <ol className="flex flex-col gap-3">{(feed.data ?? []).map((item) => (
             <FeedEntry

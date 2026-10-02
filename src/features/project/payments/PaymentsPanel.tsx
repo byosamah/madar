@@ -7,6 +7,7 @@ import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
 import { PaymentSheet } from './PaymentSheet';
@@ -62,6 +63,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           {t('payments.add')}
         </Button>
       </div>
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && rows.length === 0 && <p className="text-subheadline text-ink-2">{t('payments.empty')}</p>}
       {rows.length > 0 && (
         <ul className="hairline -mx-2 flex flex-col">

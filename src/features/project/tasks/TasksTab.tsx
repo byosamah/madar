@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
 import { useCall } from '../../../app/runtime';
 import { FilterButton } from '../../../components/FilterButton';
+import { LoadFailed } from '../../../components/LoadFailed';
 import type { TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
@@ -68,6 +69,8 @@ export function TasksTab({ detail }: TabProps) {
           </fieldset>
         </FilterButton>
       </div>
+      {/* A list that did not load says so and offers Retry, never an empty tab (audit 2026-10-03, PRJ-4). */}
+      {tasks.error && !tasks.data && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
         : <TaskBoard rows={rows} onOpen={open} />)}
