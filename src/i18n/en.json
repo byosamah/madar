@@ -510,6 +510,7 @@
     "removeItem": "Remove {{text}}",
     "files": "Files",
     "noFiles": "No files on this task.",
+    "openFile": "Open {{name}}",
     "history": "History",
     "noHistory": "No changes yet.",
     "approve": "Approve",

@@ -20,7 +20,8 @@ export function ActivityTab({ detail }: TabProps) {
   const openUpdate = params.get('update');
   const feed = useCall('updates.list', { projectId: detail.project.id, filter });
   const files = useCall('files.list', { projectId: detail.project.id });
-  const fileNames = new Map((files.data ?? []).map((view) => [view.file.id, view.file.name]));
+  // Until the file list loads, a post shows no file chips rather than "File removed" (audit 2026-10-03, PRJ-6).
+  const fileNames = files.data ? new Map(files.data.map((view) => [view.file.id, view.file.name])) : undefined;
   return (
     <div className="mx-auto w-full max-w-3xl">
       <section aria-label={t('overview.feed')} className="flex min-w-0 flex-col gap-4">

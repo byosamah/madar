@@ -36,7 +36,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
   const isCover = detail.project.coverFileId === file.id;
-  const canDelete = detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id;
+  // The API says who may delete the file; the old rule stays only for an answer without "canDelete" (audit 2026-10-03, PRJ-16).
+  const sent = (view as FileView & { canDelete?: boolean }).canDelete;
+  const canDelete = sent ?? (detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id);
   const size = latest.size < 1024 * 1024
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });

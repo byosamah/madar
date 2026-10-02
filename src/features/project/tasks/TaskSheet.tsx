@@ -5,11 +5,13 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
-import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
+import type { FileView, ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { ApiError } from '../../../api/errors';
 import { useUndoable } from '../../../app/actions';
+import { errorMessage } from '../../../app/errors';
+import { downloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
-import { useAction, useCall } from '../../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
@@ -25,6 +27,7 @@ import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
+import { PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
 import { useDateReason } from './DateReason';
@@ -36,6 +39,7 @@ import { NewVersion, TaskVersions } from './TaskVersions';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
+import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
@@ -113,6 +117,42 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
           />
         </form>
       )}
+    </section>
+  );
+}
+
+/** The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24). */
+function TaskFiles({ views }: { views: FileView[] }) {
+  const { t } = useTranslation();
+  const { api } = useRuntime();
+  const toast = useToast();
+  const [preview, setPreview] = useState<FileView | null>(null);
+  const open = (view: FileView) => {
+    const type = view.latest.mimeType;
+    if (type.startsWith('image/') || type === 'application/pdf') setPreview(view);
+    else downloadFile(api, view.file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+  };
+  return (
+    <section className="flex flex-col gap-1">
+      <h3 className="text-headline">{t('taskSheet.files')}</h3>
+      {views.length === 0 ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p> : (
+        <ul className="flex flex-wrap gap-2">
+          {views.map((view) => (
+            <li key={view.file.id}>
+              <button
+                type="button"
+                aria-label={t('taskSheet.openFile', { name: view.file.name })}
+                onClick={() => open(view)}
+                className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
+              >
+                <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
+                <bdi className="truncate">{view.file.name}</bdi>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
     </section>
   );
 }
@@ -311,12 +351,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
             <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
             <TaskVersions task={task} />
-            <section className="flex flex-col gap-1">
-              <h3 className="text-headline">{t('taskSheet.files')}</h3>
-              {(files.data ?? []).length === 0
-                ? <p className="text-footnote text-label-2">{t('taskSheet.noFiles')}</p>
-                : <ul>{(files.data ?? []).map((view) => <li key={view.file.id} className="text-subheadline"><bdi>{view.file.name}</bdi></li>)}</ul>}
-            </section>
+            <TaskFiles views={files.data ?? []} />
             <History data={data} canUndoAgent={canUndoAgent} />
             {(viewerCan.saveTemplate || viewerCan.delete) && (
               <div className="flex flex-wrap gap-3">

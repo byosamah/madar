@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FeedItem, UserCard } from '../../../api/contract/views';
+import type { Attachment, FeedItem, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useAction } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -13,14 +13,23 @@ import { Menu } from '../../../components/Menu';
 import { RichText } from '../../../components/RichText';
 import { editedBody, plainText } from '../../../lib/text';
 import { CommentThread } from '../../comments/CommentThread';
+import { FileChips } from '../../files/Attachments';
 import { feedText } from '../../projects/feed';
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 type PostItem = Extract<FeedItem, { kind: 'update' }>;
 
+/**
+ * The files of a post as chips that save the file; a deleted file says "File removed", never its id (audit 2026-10-03, PRJ-6).
+ * The API names them in "attachments". An answer without that list gets the names from the file list of the project.
+ */
+function postFiles(item: PostItem, fileNames: Map<string, string> | undefined): Attachment[] {
+  const sent = (item as PostItem & { attachments?: Attachment[] }).attachments;
+  if (sent) return sent;
+  return fileNames ? item.fileIds.map((id) => ({ id, name: fileNames.get(id) ?? null })) : [];
+}
+
 function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: PostItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+  item: PostItem; projectId: string; fileNames: Map<string, string> | undefined; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -90,16 +99,7 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           <RichText body={item.body} className="text-body" />
         </div>
       )}
-      {item.fileIds.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {item.fileIds.map((id) => (
-            <li key={id} className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote">
-              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
-              <bdi>{fileNames.get(id) ?? id}</bdi>
-            </li>
-          ))}
-        </ul>
-      )}
+      <FileChips files={postFiles(item, fileNames)} />
       <Button variant="plain" className="self-start px-0" aria-expanded={showComments} onClick={() => setShowComments((open) => !open)}>{commentLabel}</Button>
       {showComments && <CommentThread targetType="update" targetId={item.id} projectId={projectId} people={people} canPost={canPost} />}
     </li>
@@ -131,7 +131,7 @@ function EventLine({ item }: { item: EventItem }) {
 
 /** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
 export function FeedEntry({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: FeedItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+  item: FeedItem; projectId: string; fileNames: Map<string, string> | undefined; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   if (item.kind === 'update') return <PostCard item={item} projectId={projectId} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
   return <EventLine item={item} />;

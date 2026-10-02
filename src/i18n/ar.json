@@ -573,6 +573,7 @@
     "removeItem": "حذف {{text}}",
     "files": "الملفات",
     "noFiles": "لا توجد ملفات لهذه المهمة.",
+    "openFile": "فتح {{name}}",
     "history": "السجل",
     "noHistory": "لا توجد تغييرات بعد.",
     "approve": "اعتماد",

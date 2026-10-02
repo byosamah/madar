@@ -316,3 +316,76 @@ describe('Copy for an office folder (audit 2026-10-03, PRJ-15)', () => {
     }
   });
 });
+
+describe('files in a post (audit 2026-10-03, PRJ-6)', () => {
+  it('saves a post file from its chip, and says "File removed" after a delete, never the raw id', async () => {
+    const { api } = await renderApp('/projects/prj_001?tab=activity', as('usr_002'));
+    const view = await api.call('files.upload', { projectId: 'prj_001', name: 'Brief notes.txt', blob: new Blob(['hello'], { type: 'text/plain' }) });
+    await api.call('updates.create', { projectId: 'prj_001', body: 'See the brief.', fileIds: [view.file.id] });
+    const chip = await screen.findByRole('button', { name: 'Download Brief notes.txt' });
+    const spy = vi.spyOn(api, 'call');
+    await userEvent.click(chip);
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('files.get', { id: view.file.id, letter: undefined }));
+    spy.mockRestore();
+    await api.call('files.delete', { id: view.file.id });
+    const post = (await screen.findByText('See the brief.')).closest('li') as HTMLElement;
+    expect(await within(post).findByText('File removed')).toBeInTheDocument();
+    expect(within(post).queryByText(view.file.id)).toBeNull();
+  });
+
+  it('uses the attachments the API sends with a post', async () => {
+    const { api } = await renderApp('/projects/prj_001', as('usr_002'));
+    const view = await api.call('files.upload', { projectId: 'prj_001', name: 'Site photo.png', blob: new Blob(['x'], { type: 'image/png' }) });
+    await api.call('updates.create', { projectId: 'prj_001', body: 'A photo from site.', fileIds: [view.file.id] });
+    const original = api.call.bind(api);
+    api.call = (async (name: string, input: unknown, meta?: unknown) => {
+      const output = await (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+      if (name !== 'updates.list') return output;
+      return (output as { kind: string; fileIds?: string[] }[]).map((item) => (item.kind === 'update'
+        ? { ...item, attachments: (item.fileIds ?? []).map((id) => ({ id, name: 'Named by the API.png' })) }
+        : item));
+    }) as typeof api.call;
+    await userEvent.click(await screen.findByRole('tab', { name: 'Activity' }));
+    const post = (await screen.findByText('A photo from site.')).closest('li') as HTMLElement;
+    expect(await within(post).findByRole('button', { name: 'Download Named by the API.png' })).toBeInTheDocument();
+  });
+});
+
+describe('Delete in the file menu (audit 2026-10-03, PRJ-16)', () => {
+  it('follows canDelete from the API when it is there', async () => {
+    let fileId = '';
+    const { api, store } = await renderApp('/projects/prj_001', (state) => {
+      state.session.currentUserId = 'usr_005';
+      const file = Object.values(state.files).find((item) => item.projectId === 'prj_001')!;
+      file.versions[0].uploadedBy = 'usr_005';
+      fileId = file.id;
+      delete state.members['prj_001:usr_005'];
+    });
+    const original = api.call.bind(api);
+    api.call = (async (name: string, input: unknown, meta?: unknown) => {
+      const output = await (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+      return name === 'files.list' ? (output as object[]).map((view) => ({ ...view, canDelete: false })) : output;
+    }) as typeof api.call;
+    await userEvent.click(await screen.findByRole('tab', { name: 'Files' }));
+    const name = store.state.files[fileId].name;
+    await userEvent.click(await screen.findByRole('button', { name: `Actions for ${name}` }));
+    expect(screen.getByRole('menuitem', { name: 'Download' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+  });
+});
+
+describe('files in the task panel (audit 2026-10-03, PRJ-24)', () => {
+  it('opens a picture in the preview and saves any other file', async () => {
+    const { api } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+    await api.call('files.upload', { projectId: 'prj_001', taskId: 'tsk_007', name: 'Stair sketch.png', blob: new Blob(['x'], { type: 'image/png' }) });
+    const notes = await api.call('files.upload', { projectId: 'prj_001', taskId: 'tsk_007', name: 'Stair notes.txt', blob: new Blob(['x'], { type: 'text/plain' }) });
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const spy = vi.spyOn(api, 'call');
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Open Stair notes.txt' }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('files.get', { id: notes.file.id, letter: undefined }));
+    spy.mockRestore();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Open Stair sketch.png' }));
+    expect(await screen.findByRole('dialog', { name: 'Stair sketch.png' })).toBeInTheDocument();
+  });
+});
