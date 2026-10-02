@@ -16,6 +16,7 @@ import { compareTasks } from '../../lib/stageFlow';
 import { ClientItemsPanel } from './meeting/ClientItemsPanel';
 import { DecisionsPanel } from './meeting/DecisionsPanel';
 import { DrawingsStrip } from './meeting/DrawingsStrip';
+import { MeetingPayments } from './meeting/MeetingPayments';
 import { PeopleStrip } from './meeting/PeopleStrip';
 import type { DashboardData } from './Tiles';
 
@@ -157,6 +158,7 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
               </div>
             )}
           </section>
+          <MeetingPayments projectId={row.project.id} />
         </div>
       </div>
       <DrawingsStrip projectId={row.project.id} />
