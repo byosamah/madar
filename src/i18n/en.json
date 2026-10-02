@@ -1171,6 +1171,8 @@
     "saved": "Link saved.",
     "removed": "Link removed.",
     "copied": "Path copied.",
+    "copyByHand": "Copy did not work here. The path is selected: copy it with your keyboard.",
+    "pathLabel": "Path",
     "copy": "Copy {{name}}",
     "edit": "Change {{name}}",
     "badWeb": "Use a web link that starts with {{scheme}}.",

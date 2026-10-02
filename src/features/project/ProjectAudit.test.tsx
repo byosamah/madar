@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
@@ -278,5 +278,41 @@ describe('a stage with one date (audit 2026-10-03, PRJ-23)', () => {
     const popover = screen.getByRole('dialog', { name: 'Stages' });
     await userEvent.click(within(popover).getByRole('button', { name: new RegExp(last.name) }));
     expect(within(popover).getByText('Starts 1 Mar')).toBeInTheDocument();
+  });
+});
+
+describe('Copy for an office folder (audit 2026-10-03, PRJ-15)', () => {
+  it('says so and selects the path when the browser blocks the clipboard', async () => {
+    const saved = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
+    Object.defineProperty(window.navigator, 'clipboard', { value: undefined, configurable: true });
+    try {
+      const { store } = await renderApp('/projects/prj_001', as('usr_002'));
+      const about = await screen.findByRole('region', { name: 'About' });
+      fireEvent.click(within(about).getByRole('button', { name: /^Copy / }));
+      expect(await screen.findByText('Copy did not work here. The path is selected: copy it with your keyboard.')).toBeInTheDocument();
+      const field = within(about).getByRole('textbox', { name: /Path/ }) as HTMLInputElement;
+      expect(field.value).toBe(store.state.projects.prj_001.modelFolderPath);
+      expect(document.activeElement).toBe(field);
+      expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length]);
+    } finally {
+      if (saved) Object.defineProperty(window.navigator, 'clipboard', saved);
+      else Reflect.deleteProperty(window.navigator, 'clipboard');
+    }
+  });
+
+  it('says "Path copied." when the clipboard works', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    const saved = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
+    Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      await renderApp('/projects/prj_001', as('usr_002'));
+      const about = await screen.findByRole('region', { name: 'About' });
+      fireEvent.click(within(about).getByRole('button', { name: /^Copy / }));
+      expect(await screen.findByText('Path copied.')).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalled();
+    } finally {
+      if (saved) Object.defineProperty(window.navigator, 'clipboard', saved);
+      else Reflect.deleteProperty(window.navigator, 'clipboard');
+    }
   });
 });
