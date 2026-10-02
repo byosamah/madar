@@ -34,6 +34,13 @@
     "title": "This screen comes next",
     "body": "This screen arrives in build step {{step}}."
   },
+  "routeError": {
+    "missingTitle": "This page does not exist",
+    "missing": "The link is wrong or old.",
+    "failedTitle": "This page did not open",
+    "failed": "Something went wrong on this page. Go to Home and try again.",
+    "home": "Go to Home"
+  },
   "storage": {
     "notSaved": "Changes will not be saved in this window."
   },
