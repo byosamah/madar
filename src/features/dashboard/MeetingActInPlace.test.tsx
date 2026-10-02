@@ -6,18 +6,23 @@ import { renderApp } from '../../test/render';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
-// The first project screen is Shore Walk Retail Kiosks. Progress photos (tsk_130) is in progress there.
-// Handover checklist (tsk_131) waits for review, with a person other than the viewer as owner.
+// The agenda shows the late projects first. Shore Walk Retail Kiosks is late here, so it is the first project screen.
+// Progress photos (tsk_130) is in progress there. Handover checklist (tsk_131) waits for review, with a person other than the viewer as owner.
+const shoreWalkFirst = (state: State) => {
+  state.projects.prj_011.healthOverride = { value: 'late', reason: 'The client moved the opening.', setBy: 'usr_001', setAt: '2026-09-30T09:00:00.000+03:00' };
+};
 const waitsForReview = (state: State) => {
+  shoreWalkFirst(state);
   state.tasks.tsk_131.status = 'in_review';
 };
 const staticDates = (state: State) => {
+  shoreWalkFirst(state);
   Object.assign(state.tasks.tsk_130, { startDate: '2026-10-04', schedule: 'static', durationDays: null, dueDate: '2026-10-20' });
 };
 
 describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => {
   it('opens the task panel over the meeting with a press, and closes it back to the same project', async () => {
-    await renderApp(MEETING);
+    await renderApp(MEETING, shoreWalkFirst);
     const article = await screen.findByRole('article');
     expect(within(article).getByText(/Project 1 of 9/)).toBeInTheDocument();
     const progress = within(within(article).getByRole('region', { name: 'In progress now' }));
@@ -34,7 +39,7 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
   });
 
   it('closes only the panel with Escape, and leaves the project alone with the arrow keys', async () => {
-    await renderApp(`${MEETING}&task=tsk_130`);
+    await renderApp(`${MEETING}&task=tsk_130`, shoreWalkFirst);
     await screen.findByRole('dialog', { name: 'Progress photos' });
     await userEvent.keyboard('{ArrowRight}');
     expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();

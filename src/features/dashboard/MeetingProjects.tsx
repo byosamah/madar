@@ -65,9 +65,9 @@ function Column({ title, empty, children, count }: { title: string; empty: strin
 
 /**
  * One project per screen, for a meeting (owner, 2026-10-01): where it stands, the work in progress now with its people,
- * what needs a decision, and what comes next. The arrow keys move between projects.
+ * what needs a decision, and what comes next. The arrow keys move between projects in agenda order.
  */
-export function MeetingProject({ row, tasks, index, total, onOpenTask }: { row: Row; tasks: TaskRow[]; index: number; total: number; onOpenTask: (taskId: string) => void }) {
+export function MeetingProject({ row, tasks, index, total, discussed = false, onOpenTask }: { row: Row; tasks: TaskRow[]; index: number; total: number; discussed?: boolean; onOpenTask: (taskId: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const today = todayISO();
@@ -85,7 +85,10 @@ export function MeetingProject({ row, tasks, index, total, onOpenTask }: { row: 
       <header className="panel flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
         <ProjectTile id={row.project.id} mark={row.project.mark} size={64} />
         <div className="min-w-0 flex-1 basis-80">
-          <p className="text-[15px] font-medium text-ink-2">{t('dashboard.meeting.projectOf', { n: index + 1, total })}</p>
+          <div className="flex flex-wrap items-center gap-x-3">
+            <p className="text-[15px] font-medium text-ink-2">{t('dashboard.meeting.projectOf', { n: index + 1, total })}</p>
+            {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
+          </div>
           <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
         </div>
         <div className="flex min-w-72 flex-col gap-2">

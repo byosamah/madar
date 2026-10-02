@@ -946,7 +946,30 @@
       "openProjectOf": "فتح {{name}}",
       "stagesOf": "مراحل {{name}}",
       "overlap": "{{a}} و{{b}} تسيران في الوقت نفسه",
-      "expandHint": "اضغط لإظهار كل مرحلة في سطر خاص بها."
+      "expandHint": "اضغط لإظهار كل مرحلة في سطر خاص بها.",
+      "agenda": "جدول الأعمال",
+      "agendaAt": "{{n}} من {{total}}",
+      "agendaOrder": "ترتيب جدول الأعمال",
+      "agendaStates": {
+        "now": "الآن",
+        "next": "التالي"
+      },
+      "discussed": "نوقش",
+      "allDiscussed": "نوقشت كل المشاريع",
+      "timeLeft": "بقي {{time}}",
+      "timeOver": "تجاوز الوقت {{time}}",
+      "pauseTimer": "إيقاف المؤقت",
+      "resumeTimer": "استئناف المؤقت",
+      "done": "تم",
+      "skip": "تخطي",
+      "timeEach": "الوقت لكل مشروع",
+      "minutes": "{{n}} دقيقة",
+      "minutes_one": "دقيقة واحدة",
+      "minutes_two": "دقيقتان",
+      "minutes_few": "{{count}} دقائق",
+      "minutes_many": "{{count}} دقيقة",
+      "minutes_other": "{{count}} دقيقة",
+      "restart": "بدء اجتماع جديد"
     },
     "views": {
       "projects": "المشاريع",

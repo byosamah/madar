@@ -6,11 +6,12 @@ import {
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, projectTouchesTeam, staleDaysOf } from '../pause';
-import { teamsOf, type State } from '../store';
+import { teamsOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
+import { isOpen } from '../../lib/tracker';
 import { markOf } from '../../lib/projectMark';
 
 const Count = z.number().int().min(0);
@@ -38,6 +39,8 @@ export const DashboardView = z.object({
     project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline),
     /** Set for a paused project (it shows when the status filter asks for paused projects): its kind, and the days it waited once stale. */
     pause: z.object({ kind: PauseKind, staleDays: Count.nullable() }).nullable(),
+    /** The open client items of the project (Tracker loops): the ones that wait for our reply and the ones that wait for the client. */
+    openLoops: z.object({ us: Count, client: Count }),
   })),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
   attention: z.object({
@@ -95,6 +98,15 @@ export const dashboardGet = defineCall({
       return { weekStart: start, created: scopedTasks.filter((t) => inWeek(t.createdAt)).length, done: scopedTasks.filter((t) => inWeek(t.completedAt)).length };
     });
 
+    // The open client items of each project, for the meeting agenda.
+    const loops = new Map<string, { us: number; client: number }>();
+    for (const entry of Object.values(trackerOf(state))) {
+      if (!isOpen(entry) || entry.waiting === null) continue;
+      const count = loops.get(entry.projectId) ?? { us: 0, client: 0 };
+      count[entry.waiting] += 1;
+      loops.set(entry.projectId, count);
+    }
+
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
     const workloadRows = humans.map((user) => {
@@ -130,6 +142,7 @@ export const dashboardGet = defineCall({
         .map((p) => ({
           project: refOf(p), currentStageId: tagOf(p)?.id ?? p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesInTime(state, p.id), deadlines: deadlinesOf(state, p.id),
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
+          openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
         })),
     };
   },

@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
-/** What a screen knows while the team meets. `startedAt` is an ISO stamp. */
+/** What a screen knows while the team meets. `startedAt` is an ISO stamp in office time: when the meeting session of the day started. */
 export type MeetingState = { startedAt: string };
 
 const MeetingContext = createContext<MeetingState | null>(null);

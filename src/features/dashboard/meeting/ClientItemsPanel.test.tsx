@@ -6,12 +6,16 @@ import { renderApp } from '../../../test/render';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
-// The first project screen is Shore Walk Retail Kiosks. The sample day is Wednesday 30 September 2026.
+// The sample day is Wednesday 30 September 2026.
 const shoreWalk = (state: State) => Object.values(state.projects).find((project) => project.name === 'Shore Walk Retail Kiosks')!;
 
-/** Two items wait for our reply (5 and 2 days old, shown oldest first) and one waits for the client (3 days old). */
+/**
+ * Two items wait for our reply (5 and 2 days old, shown oldest first) and one waits for the client (3 days old).
+ * The agenda shows the late projects first, so Shore Walk Retail Kiosks is late here to be the first project screen.
+ */
 const withItems = (state: State) => {
   const project = shoreWalk(state);
+  project.healthOverride = { value: 'late', reason: 'The client moved the opening.', setBy: 'usr_001', setAt: '2026-09-30T09:00:00.000+03:00' };
   const base = { projectId: project.id, type: 'message' as const, note: '', closedAt: null, closedBy: null, fileIds: [], peopleIds: [], auto: null, createdBy: project.leaderId!, createdAt: '2026-09-25T10:00:00.000+03:00' };
   state.tracker = {
     ...state.tracker,

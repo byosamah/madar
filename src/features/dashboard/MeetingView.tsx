@@ -20,7 +20,11 @@ import { projectHue } from '../../lib/projectColor';
 import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
+import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
+import { AgendaBar } from './meeting/AgendaBar';
+import { AgendaSheet } from './meeting/AgendaSheet';
+import { useMeetingSession } from './meeting/session';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
@@ -249,9 +253,15 @@ export function MeetingView() {
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
+  // The project screens follow the meeting agenda (owner, 2026-10-02): the projects that need the team most come first.
+  // The timeline keeps its own order. The session keeps the agenda, the current project and the clocks for the day.
+  const schedule = dashboard.data?.schedule;
+  const agendaIds = useMemo(() => agendaOrder(schedule ?? []).map((row) => row.project.id), [schedule]);
+  const rowOf = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row])), [schedule]);
+  const session = useMeetingSession(agendaIds, mode === 'projects');
+  const [agendaOpen, setAgendaOpen] = useState(false);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
-  const [slide, setSlide] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) => setOpened((current) => {
@@ -259,8 +269,8 @@ export function MeetingView() {
     if (!next.delete(id)) next.add(id);
     return next;
   });
-  const setMode = (next: (typeof MODES)[number], at?: number) => {
-    if (at !== undefined) setSlide(at);
+  const setMode = (next: (typeof MODES)[number], projectId?: string) => {
+    if (projectId !== undefined) session.goTo(session.order.indexOf(projectId));
     setParams((current) => {
       const value = new URLSearchParams(current);
       if (next === 'timeline') value.delete('mode');
@@ -278,11 +288,10 @@ export function MeetingView() {
   const rtl = lang === 'ar';
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const countRef = useRef(0);
-  countRef.current = dashboard.data?.schedule.length ?? 0;
-  // The meeting opened now. Task 3 replaces this source with the meeting session.
-  const [startedAt] = useState(() => new Date().toISOString());
-  const meeting = useMemo(() => ({ startedAt }), [startedAt]);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  // The meeting started when the session of the day started, so a reload keeps the same start.
+  const meeting = useMemo(() => ({ startedAt: session.startedAt }), [session.startedAt]);
   // The open task lives in the link, so a reload keeps it. A press replaces the entry, it does not add one.
   const taskId = params.get('task');
   const openTask = (id: string) => setParams((current) => {
@@ -310,8 +319,8 @@ export function MeetingView() {
       if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
-      // On the project screens the arrows move between projects; on the timeline they move one month.
-      if (modeRef.current === 'projects') setSlide((n) => Math.min(Math.max(0, n + (toEnd ? 1 : -1)), countRef.current - 1));
+      // On the project screens the arrows move along the agenda; on the timeline they move one month.
+      if (modeRef.current === 'projects') sessionRef.current.goTo(sessionRef.current.current + (toEnd ? 1 : -1));
       else setShift((n) => n + (toEnd ? 1 : -1));
     };
     window.addEventListener('keydown', onKey);
@@ -333,7 +342,7 @@ export function MeetingView() {
   ].filter((text): text is string => text !== null);
 
   // The task panel belongs to the project on the screen. A finished task leaves the open-task list, so the panel does not look the task up there.
-  const shown = view && view.schedule.length > 0 ? view.schedule[Math.min(slide, view.schedule.length - 1)] : null;
+  const shown = session.currentId ? rowOf.get(session.currentId) ?? null : null;
   return (
     <MeetingProvider value={meeting}>
     <main aria-label={t('dashboard.meeting.title')} className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10">
@@ -353,12 +362,13 @@ export function MeetingView() {
             onChange={(next) => setMode(next)}
             options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
           />
-          {mode === 'projects' && view && view.schedule.length > 0 && (
+          {mode === 'projects' && shown && (
             <>
-              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={slide === 0} onClick={() => setSlide((n) => Math.max(0, n - 1))}>
+              <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} />
+              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
                 <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
-              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={slide >= view.schedule.length - 1} onClick={() => setSlide((n) => Math.min(view.schedule.length - 1, n + 1))}>
+              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={session.current >= session.order.length - 1} onClick={() => session.goTo(session.current + 1)}>
                 <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
             </>
@@ -388,13 +398,14 @@ export function MeetingView() {
         <EmptyState title={t('dashboard.meeting.title')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
-      {mode === 'projects' && view && view.schedule.length > 0 && (
+      {mode === 'projects' && shown && (
         <MeetingProject
-          key={view.schedule[Math.min(slide, view.schedule.length - 1)].project.id}
-          row={view.schedule[Math.min(slide, view.schedule.length - 1)]}
+          key={shown.project.id}
+          row={shown}
           tasks={tasks.data ?? []}
-          index={Math.min(slide, view.schedule.length - 1)}
-          total={view.schedule.length}
+          index={session.current}
+          total={session.order.length}
+          discussed={session.discussed.has(shown.project.id)}
           onOpenTask={openTask}
         />
       )}
@@ -441,7 +452,7 @@ export function MeetingView() {
                         <AnimatedIcon icon={ChevronDownIcon} size={20} aria-hidden className={`size-5 shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {isOpen && (
-                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', index)}>
+                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', row.project.id)}>
                           {t('dashboard.meeting.openProject')}
                         </Button>
                       )}
@@ -463,6 +474,7 @@ export function MeetingView() {
         </div>
       )}
       {mode === 'projects' && taskId && shown && <ProjectTaskSheet key={taskId} projectId={shown.project.id} taskId={taskId} onClose={closeTask} />}
+      {mode === 'projects' && agendaOpen && <AgendaSheet rows={rowOf} session={session} onClose={() => setAgendaOpen(false)} />}
     </main>
     </MeetingProvider>
   );

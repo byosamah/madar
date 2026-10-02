@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { insightCalls } from './insights';
 import type { State } from '../store';
-import { makeTask, makeWorld, NOW, testApi } from '../../test/factories';
+import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -45,6 +45,26 @@ describe('dashboard.get', () => {
     expect(d.charts.throughput).toHaveLength(12);
     expect(d.charts.throughput[10]).toEqual({ weekStart: '2026-09-20', created: 1, done: 0 });
     expect(d.charts.throughput[11]).toEqual({ weekStart: '2026-09-27', created: 1, done: 1 });
+  });
+
+  it('counts the open client items of each schedule row, for us and for the client', async () => {
+    const state = world();
+    const base = {
+      projectId: 'prj_001', type: 'message' as const, note: '', date: '2026-09-28', closedAt: null, closedBy: null, fileIds: [], peopleIds: [], auto: null, createdBy: 'usr_002', createdAt: STAMP,
+    };
+    state.tracker = {
+      trk_001: { ...base, id: 'trk_001', direction: 'out', title: 'We asked for the signed brief', waiting: 'client' },
+      trk_002: { ...base, id: 'trk_002', direction: 'in', title: 'Client asked about the lobby', waiting: 'us' },
+      trk_003: { ...base, id: 'trk_003', direction: 'in', title: 'Client asked for the lease plan', waiting: 'us' },
+      trk_004: { ...base, id: 'trk_004', direction: 'in', title: 'Closed question', waiting: 'us', closedAt: STAMP, closedBy: 'usr_002' },
+      trk_005: { ...base, id: 'trk_005', direction: 'out', title: 'Closed request', waiting: 'client', closedAt: STAMP, closedBy: 'usr_002' },
+      trk_006: { ...base, id: 'trk_006', direction: 'in', title: 'A note with no loop', waiting: null },
+    };
+    const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    expect(d.schedule[0].openLoops).toEqual({ us: 2, client: 1 });
+    const none = world();
+    delete none.tracker;
+    expect((await testApi(insightCalls, none).api.call('dashboard.get', {})).schedule[0].openLoops).toEqual({ us: 0, client: 0 });
   });
 
   it('flags overloaded people in the workload grid', async () => {

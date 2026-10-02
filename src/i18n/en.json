@@ -860,7 +860,25 @@
       "openProjectOf": "Open {{name}}",
       "stagesOf": "Stages of {{name}}",
       "overlap": "{{a}} and {{b}} run at the same time",
-      "expandHint": "Press to show each stage on its own line."
+      "expandHint": "Press to show each stage on its own line.",
+      "agenda": "Agenda",
+      "agendaAt": "{{n}} of {{total}}",
+      "agendaOrder": "Agenda order",
+      "agendaStates": {
+        "now": "Now",
+        "next": "Next"
+      },
+      "discussed": "Discussed",
+      "allDiscussed": "All projects discussed",
+      "timeLeft": "{{time}} left",
+      "timeOver": "{{time}} over",
+      "pauseTimer": "Pause timer",
+      "resumeTimer": "Resume timer",
+      "done": "Done",
+      "skip": "Skip",
+      "timeEach": "Time for each project",
+      "minutes": "{{n}} minutes",
+      "restart": "Start a new meeting"
     },
     "views": {
       "projects": "Projects",
