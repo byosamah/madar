@@ -127,6 +127,17 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
+  it('says why Send waits when a file has no words with it (SHL-21)', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Drawing.pdf', { type: 'application/pdf' }));
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAccessibleDescription('Write a few words with the file, then press Send.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'The new drawing.');
+    expect(screen.queryByText('Write a few words with the file, then press Send.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  });
+
   it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {
     await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));

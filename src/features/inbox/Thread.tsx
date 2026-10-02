@@ -144,6 +144,8 @@ export function Composer({
   useEffect(() => {
     field.current?.focus();
   }, [id]);
+  // A message needs words, so a picked file alone keeps Send off. The box says why (audit 2026-10-03, SHL-21).
+  const wordsNeeded = attachments.files.length > 0 && !text.trim();
   const submit = async () => {
     const body = withMentionMarkup(text.trim(), people);
     if (!body || pending || uploading) return;
@@ -197,8 +199,17 @@ export function Composer({
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>
-      <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || pending || uploading}>{t('chat.send')}</Button>
+      <Button
+        variant="primary"
+        type="submit"
+        className="shrink-0"
+        disabled={!text.trim() || pending || uploading}
+        aria-describedby={wordsNeeded ? `composer-${id}-words` : undefined}
+      >
+        {t('chat.send')}
+      </Button>
       </div>
+      {wordsNeeded && <p id={`composer-${id}-words`} className="text-footnote text-ink-2">{t('chat.wordsNeeded')}</p>}
     </form>
   );
 }
