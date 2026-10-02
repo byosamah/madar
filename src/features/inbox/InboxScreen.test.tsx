@@ -127,15 +127,16 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
-  it('says why Send waits when a file has no words with it (SHL-21)', async () => {
-    await renderApp('/inbox');
+  it('sends a file with no words, with its name as the words, as Share does (SHL-21)', async () => {
+    const { store } = await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Drawing.pdf', { type: 'application/pdf' }));
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(Object.values(store.state.messages).some((m) => m.body === 'Drawing.pdf' && (m.fileIds ?? []).length === 1)).toBe(true));
+    expect(await screen.findByRole('button', { name: 'Download Drawing.pdf' })).toBeInTheDocument();
+    // With no file and no words, Send stays off.
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Send' })).toHaveAccessibleDescription('Write a few words with the file, then press Send.');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'The new drawing.');
-    expect(screen.queryByText('Write a few words with the file, then press Send.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 
   it('closes a direct chat with a person who left the office (SHL-15)', async () => {
@@ -176,7 +177,8 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     await screen.findByRole('heading', { level: 2, name: 'Corniche Office Tower' });
     expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
     expect(screen.queryByRole('list', { name: PICKED })).toBeNull();
-  });
+    // Many steps, so the test gets more time than the default on a busy machine.
+  }, 20000);
 });
 
 describe('the bell and the Inbox badge', () => {

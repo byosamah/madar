@@ -1146,7 +1146,6 @@
     "composer": "Message",
     "placeholder": "Write a message. Type @ to mention someone.",
     "send": "Send",
-    "wordsNeeded": "Write a few words with the file, then press Send.",
     "actingFor": "for {{name}}",
     "unread": "Unread: {{count}}"
   },

@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { MAX_ATTACHMENTS } from '../../api/contract/entities';
+import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
@@ -144,10 +144,10 @@ export function Composer({
   useEffect(() => {
     field.current?.focus();
   }, [id]);
-  // A message needs words, so a picked file alone keeps Send off. The box says why (audit 2026-10-03, SHL-21).
-  const wordsNeeded = attachments.files.length > 0 && !text.trim();
+  // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
+  const files = upload ? attachments.files : [];
   const submit = async () => {
-    const body = withMentionMarkup(text.trim(), people);
+    const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
     if (!body || pending || uploading) return;
     let fileIds: string[] = [];
     if (upload && attachments.files.length > 0) {
@@ -199,17 +199,8 @@ export function Composer({
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>
-      <Button
-        variant="primary"
-        type="submit"
-        className="shrink-0"
-        disabled={!text.trim() || pending || uploading}
-        aria-describedby={wordsNeeded ? `composer-${id}-words` : undefined}
-      >
-        {t('chat.send')}
-      </Button>
+      <Button variant="primary" type="submit" className="shrink-0" disabled={(!text.trim() && files.length === 0) || pending || uploading}>{t('chat.send')}</Button>
       </div>
-      {wordsNeeded && <p id={`composer-${id}-words`} className="text-footnote text-ink-2">{t('chat.wordsNeeded')}</p>}
     </form>
   );
 }
