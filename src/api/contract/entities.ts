@@ -327,6 +327,19 @@ export function emptyReactions(): Record<Reaction, string[]> {
 /** The most files one comment or one chat message carries. */
 export const MAX_ATTACHMENTS = 10;
 
+/**
+ * The dates a task had before and after a move, on the Conversation message about it (owner, 2026-10-02).
+ * A person's move carries their reason in the message body. Madar's own move names the task it waited for and how late that was.
+ */
+export const DateMove = z.object({
+  from: z.object({ startDate: Day.nullable(), dueDate: Day.nullable() }),
+  to: z.object({ startDate: Day.nullable(), dueDate: Day.nullable() }),
+  byTaskId: TaskId.optional(),
+  byTaskTitle: z.string().max(200).optional(),
+  lateDays: z.number().int().min(1).optional(),
+});
+export type DateMove = z.infer<typeof DateMove>;
+
 export const Comment = z.object({
   id: CommentId,
   targetType: z.enum(['task', 'update']),
@@ -336,6 +349,8 @@ export const Comment = z.object({
   reactions: z.record(Reaction, z.array(UserId)),
   // Older saved comments have no list. A missing list means no files.
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS).optional(),
+  // Only on the message Madar posts when the dates of a task move. Other comments have none.
+  dates: DateMove.optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });

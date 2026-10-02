@@ -1253,5 +1253,15 @@
     "title": "This moves the project back to {{stage}}. Why?",
     "label": "Reason",
     "confirm": "Move back"
+  },
+  "dateReason": {
+    "title": "Why do the dates change?",
+    "label": "Reason",
+    "hint": "Madar posts your reason in the task's Conversation.",
+    "confirm": "Save dates",
+    "change": "{{field}}: from {{from}} to {{to}}",
+    "none": "no date",
+    "madar": "Madar",
+    "auto": "{{task}} finished {{lateness}} late."
   }
 }

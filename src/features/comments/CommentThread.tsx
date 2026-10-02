@@ -17,6 +17,10 @@ import { RichText } from '../../components/RichText';
 import { plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
+import { DateMoveLines } from '../project/tasks/DateReason';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { CalendarDaysIcon } from '../../components/icons/animated/calendar-days';
+import { counted } from '../../lib/grammar';
 
 function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
@@ -28,13 +32,30 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   const remove = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const react = useAction('reactions.toggle');
   const me = session.data?.user.id;
+  // A message about moved dates (owner, 2026-10-02). Madar writes its own when a task it waited for finished late.
+  const moved = comment.dates;
+  const byMadar = Boolean(moved?.byTaskId);
+  const actions = [
+    ...(byMadar ? [] : [{
+      label: t('comments.edit'),
+      onSelect: () => {
+        setDraft(plainText(comment.body));
+        setEditing(true);
+      },
+    }]),
+    ...(moved ? [] : [{ label: t('comments.delete'), onSelect: () => remove.mutate({ id: comment.id }), destructive: true }]),
+  ];
   return (
     <li className="flex gap-3">
-      <Avatar user={author} size={28} />
+      {byMadar ? (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-fill text-ink-2" aria-hidden>
+          <AnimatedIcon icon={CalendarDaysIcon} size={16} />
+        </span>
+      ) : <Avatar user={author} size={28} />}
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 text-footnote">
-          <bdi className="font-semibold">{author.name}</bdi>
-          {author.kind === 'agent' && <AgentLabel />}
+          <bdi className="font-semibold">{byMadar ? t('dateReason.madar') : author.name}</bdi>
+          {!byMadar && author.kind === 'agent' && <AgentLabel />}
           <span className="text-label-2">
             <Age stamp={comment.createdAt} />
             {comment.editedAt && ` · ${t('comments.edited')}`}
@@ -55,7 +76,14 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
               <Button variant="primary" type="submit" disabled={!draft.trim() || update.isPending}>{t('comments.save')}</Button>
             </div>
           </form>
-        ) : <RichText body={comment.body} className="text-subheadline" />}
+        ) : (
+          <>
+            {moved && <DateMoveLines move={moved} className="mt-0.5 text-footnote font-semibold text-ink-2" />}
+            {byMadar && moved?.byTaskTitle && moved.lateDays
+              ? <p dir="auto" className="text-subheadline">{t('dateReason.auto', { task: moved.byTaskTitle, lateness: counted(t, 'taskSheet.durationValue', moved.lateDays) })}</p>
+              : <RichText body={comment.body} className="text-subheadline" />}
+          </>
+        )}
         <FileChips files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {REACTIONS.map((emoji) => {
@@ -83,21 +111,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
               </button>
             );
           })}
-          {canEdit && !editing && (
-            <Menu
-              label={t('comments.actions')}
-              items={[
-                {
-                  label: t('comments.edit'),
-                  onSelect: () => {
-                    setDraft(plainText(comment.body));
-                    setEditing(true);
-                  },
-                },
-                { label: t('comments.delete'), onSelect: () => remove.mutate({ id: comment.id }), destructive: true },
-              ]}
-            />
-          )}
+          {canEdit && !editing && actions.length > 0 && <Menu label={t('comments.actions')} items={actions} />}
         </div>
       </div>
     </li>

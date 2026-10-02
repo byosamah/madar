@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { CommentId, FileId, MAX_ATTACHMENTS, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
 import { CommentView, FeedItem } from '../contract/views';
-import { invalid, notFound } from '../errors';
+import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { notify } from '../notify';
 import { principalOf } from '../permissions';
@@ -132,6 +132,8 @@ export const commentsUpdate = defineCall({
     const comment = requireComment(ctx, input.id);
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
+    // Madar wrote the words of its own date message, so nobody changes them. A person may fix the words of their own reason.
+    if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
@@ -146,6 +148,8 @@ export const commentsDelete = defineCall({
     const comment = requireComment(ctx, input.id);
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
+    // The record of why the dates of a task moved stays in the Conversation (owner, 2026-10-02).
+    if (comment.dates) throw forbidden('A message about a date change stays in the Conversation.', { commentId: comment.id });
     recordDelete(ctx, { projectId, verb: 'comment.deleted', targetType: 'comment', targetId: comment.id, entity: comment });
     delete ctx.state.comments[comment.id];
     return { deleted: true as const };

@@ -25,6 +25,7 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
+import { useDateReason } from './DateReason';
 import { useStageBack } from './StageBack';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { personOption, TaskHelpers } from './TaskHelpers';
@@ -154,7 +155,12 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const { task, viewerCan } = data;
   // Reopening a task, or moving it into an earlier stage, can move the project back. The server then asks why (owner, 2026-10-02).
   const back = useStageBack();
-  const update = useAction('tasks.update', { onRefused: (error, input) => back.refused(error, input, (next) => update.mutate(next)) });
+  // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
+  const [timingKey, setTimingKey] = useState(0);
+  const dates = useDateReason(() => setTimingKey((key) => key + 1));
+  const update = useAction('tasks.update', {
+    onRefused: (error, input) => dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next)),
+  });
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
@@ -257,6 +263,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
+                key={timingKey}
                 idPrefix="task"
                 value={{ startDate: task.startDate ?? null, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null, dueDate: task.dueDate }}
                 onPatch={patch}
@@ -317,6 +324,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
         </TabPanel>
       )}
       {back.sheet}
+      {dates.sheet}
     </div>
   );
 }

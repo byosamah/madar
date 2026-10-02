@@ -14,6 +14,13 @@ const dynamicTask = (state: State) => {
   Object.assign(state.tasks.tsk_007, { startDate: '2026-10-04', schedule: 'dynamic', durationDays: 5, dueDate: '2026-10-08' });
 };
 
+// A move of a date asks why (owner, 2026-10-02). These tests answer the question and go on.
+async function giveReason() {
+  const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+  await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The brief changed');
+  await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+}
+
 describe('the start date and the two ways to time a task', () => {
   it('shows a start date, the switch and the due date for a static task', async () => {
     await renderApp(TASK, staticTask);
@@ -39,6 +46,7 @@ describe('the start date and the two ways to time a task', () => {
     const { store } = await renderApp(TASK, staticTask);
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.click(within(sheet).getByRole('radio', { name: 'Dynamic: duration' }));
+    await giveReason();
     expect(await within(sheet).findByText('Due Thu 8 Oct, 5 working days')).toBeInTheDocument();
     expect(store.state.tasks.tsk_007).toMatchObject({ schedule: 'dynamic', durationDays: 5, dueDate: '2026-10-08' });
 
@@ -46,6 +54,7 @@ describe('the start date and the two ways to time a task', () => {
     await userEvent.clear(days);
     await userEvent.type(days, '1');
     await userEvent.tab();
+    await giveReason();
     expect(await within(sheet).findByText('Due Sun 4 Oct, 1 working day')).toBeInTheDocument();
   });
 
@@ -55,6 +64,7 @@ describe('the start date and the two ways to time a task', () => {
     const start = within(sheet).getByLabelText('Start date');
     fireEvent.change(start, { target: { value: '2026-10-07' } });
     fireEvent.blur(start);
+    await giveReason();
     expect(await within(sheet).findByText('Due Tue 13 Oct, 5 working days')).toBeInTheDocument();
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-13');
   });

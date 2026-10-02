@@ -92,6 +92,9 @@ describe('the task sheet', () => {
     fireEvent.change(due, { target: { value: '2026-10-05' } });
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-09-25');
     fireEvent.blur(due);
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The structure drawings came late');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
     await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-05'));
     expect(Object.values(store.state.events).filter((e) => e.targetId === 'tsk_007' && e.verb === 'task.updated')).toHaveLength(1);
   });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, UserId, type Task,
+  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, UserId, type DateMove, type Task,
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
@@ -24,6 +24,8 @@ const HelperIds = z.array(UserId).max(MAX_HELPERS);
 const Reason = z.string().trim().min(1).max(280);
 /** Why the project moves back a stage, when a change would do that. Optional: only that case needs it. */
 const StageBackReason = z.string().trim().max(280).optional();
+// Why the dates of a task moved (owner, 2026-10-02). It goes to the task's Conversation, so it is never empty.
+const DateReason = z.string().trim().min(1).max(280).optional();
 const PrerequisiteIds = z.array(TaskId).max(MAX_PREREQUISITES);
 const Moved = z.object({ result: TaskStatus, task: TaskDetail });
 
@@ -265,6 +267,20 @@ export const tasksCreateFromTemplate = defineCall({
   },
 });
 
+/**
+ * The move a change makes to the dates of a task, or null. A date that was empty and gets its first value is not a move:
+ * only a start or a due date that had a value and now has another one (or none) needs a reason.
+ */
+function dateMoveOf(task: Task, changes: Partial<Task>): DateMove | null {
+  const from = { startDate: task.startDate ?? null, dueDate: task.dueDate };
+  const to = {
+    startDate: 'startDate' in changes ? changes.startDate ?? null : from.startDate,
+    dueDate: 'dueDate' in changes ? changes.dueDate ?? null : from.dueDate,
+  };
+  const moved = (key: 'startDate' | 'dueDate') => from[key] !== null && to[key] !== from[key];
+  return moved('startDate') || moved('dueDate') ? { from, to } : null;
+}
+
 export const tasksUpdate = defineCall({
   input: z.object({
     id: TaskId,
@@ -284,6 +300,7 @@ export const tasksUpdate = defineCall({
       checklist: z.array(ChecklistItem).max(100).optional(),
     }),
     reason: StageBackReason,
+    dateReason: DateReason,
   }),
   output: TaskDetail,
   run(input, ctx) {
@@ -322,6 +339,11 @@ export const tasksUpdate = defineCall({
     const { startDate, schedule, durationDays, dueDate, helperIds: _helpers, ...rest } = patch;
     const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
     const changes: Partial<Task> = { ...rest, ...whenChanges(task, when) };
+    const move = dateMoveOf(task, changes);
+    if (move && !input.dateReason) {
+      // The refusal carries the move, so the screen can show what changes while it asks why.
+      throw new ApiError('invalid_input', 'Write why the dates change.', { fields: ['dateReason'], reason: 'date_reason_needed', from: move.from, to: move.to });
+    }
     const added = (helperIds ?? []).filter((id) => !helpersOf(task).includes(id));
     if (helperIds !== undefined) {
       // Written down first, so Undo has a value to bring back for a task that never had helpers.
@@ -331,6 +353,7 @@ export const tasksUpdate = defineCall({
     applyPatch(ctx, task, changes, { projectId: task.projectId, verb: reassigned ? 'task.reassigned' : 'task.updated', targetType: 'task', targetId: task.id });
     // Moving an open task into an earlier stage moves the project back, and that needs a reason.
     watch.finish({ reason: input.reason });
+    if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
     const told = [...(reassigned ? [task.ownerId] : []), ...added];
     if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id });
     touch(ctx, task.projectId);

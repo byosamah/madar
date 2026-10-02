@@ -1,5 +1,5 @@
 import type { Ctx } from '../registry';
-import { emptyReactions, type Comment, type Project, type Stage, type Task, type User } from '../contract/entities';
+import { emptyReactions, type Comment, type DateMove, type Project, type Stage, type Task, type User } from '../contract/entities';
 import { can, projectRoleOf, type Action, type ProjectRole, type Resource } from '../permissions';
 import { forbidden, invalid, notFound } from '../errors';
 import { recordCreate } from '../events';
@@ -53,10 +53,12 @@ export function activeMentions(state: State, body: string): string[] {
   return mentionedUserIds(body).filter((id) => state.users[id]?.active === true);
 }
 
-export function insertComment(ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string, body: string, fileIds: string[] = []): Comment {
+export function insertComment(
+  ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string, body: string, fileIds: string[] = [], dates?: DateMove,
+): Comment {
   const id = nextId(ctx.state, 'cmt');
   const comment: Comment = {
-    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, createdAt: ctx.stamp, editedAt: null,
+    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, ...(dates ? { dates } : {}), createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });

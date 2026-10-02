@@ -5,6 +5,7 @@ import { applyPatch } from './events';
 import { notify, projectPeople } from './notify';
 import type { State } from './store';
 import { stagesOf } from './views';
+import { insertComment } from './handlers/shared';
 import { addTrackerEntry } from './handlers/tracker';
 import { formatDay } from '../lib/dates';
 import { addWorkingDays, openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono, workingDaysLate } from '../lib/stageFlow';
@@ -127,6 +128,9 @@ export function shiftDependents(ctx: Ctx, task: Task): Task[] {
     const from = dependent.dueDate;
     applyPatch(ctx, dependent, { startDate, dueDate, dateNotes: [...(dependent.dateNotes ?? []), note].slice(-20) }, {
       projectId: dependent.projectId, verb: 'task.dates_shifted', targetType: 'task', targetId: dependent.id,
+    });
+    insertComment(ctx, 'task', dependent.id, dependent.projectId, reason, [], {
+      from: note.from, to: note.to, byTaskId: task.id, byTaskTitle: task.title.slice(0, 200), lateDays: late,
     });
     addTrackerEntry(ctx, {
       projectId: dependent.projectId, type: 'other', direction: 'none', auto: 'shift',

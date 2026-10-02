@@ -54,48 +54,48 @@ describe('tasks.create with a start date', () => {
 describe('tasks.update with a start date', () => {
   it('moves the due date with the start for a dynamic task', async () => {
     const t = world({ schedule: 'dynamic', startDate: '2026-10-04', durationDays: 5, dueDate: '2026-10-08' });
-    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-07' } });
+    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-07' }, dateReason: 'The brief changed' });
     expect(task).toMatchObject({ startDate: '2026-10-07', durationDays: 5, dueDate: '2026-10-13' });
   });
 
   it('works out the due date again when the duration changes', async () => {
     const t = world({ schedule: 'dynamic', startDate: '2026-10-04', durationDays: 5, dueDate: '2026-10-08' });
-    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { durationDays: 6 } });
+    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { durationDays: 6 }, dateReason: 'The brief changed' });
     expect(task.dueDate).toBe('2026-10-11');
   });
 
   it('refuses a due date for a dynamic task', async () => {
     const t = world({ schedule: 'dynamic', startDate: '2026-10-04', durationDays: 5, dueDate: '2026-10-08' });
-    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { dueDate: '2026-10-20' } })).rejects.toMatchObject(refusal('dueDate', 'dynamic_due_date'));
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { dueDate: '2026-10-20' }, dateReason: 'The brief changed' })).rejects.toMatchObject(refusal('dueDate', 'dynamic_due_date'));
     expect(t.store.state.tasks.tsk_001.dueDate).toBe('2026-10-08');
   });
 
   it('never moves the due date of a static task when the start moves', async () => {
     const t = world({ startDate: '2026-10-04', dueDate: '2026-10-15' });
-    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-06' } });
+    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-06' }, dateReason: 'The brief changed' });
     expect(task).toMatchObject({ startDate: '2026-10-06', dueDate: '2026-10-15' });
   });
 
   it('refuses a static start after the due date, and a static due date before the start', async () => {
     const t = world({ startDate: '2026-10-04', dueDate: '2026-10-15' });
-    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-20' } })).rejects.toMatchObject(refusal('startDate', 'due_before_start'));
-    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { dueDate: '2026-10-01' } })).rejects.toMatchObject(refusal('dueDate', 'due_before_start'));
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-20' }, dateReason: 'The brief changed' })).rejects.toMatchObject(refusal('startDate', 'due_before_start'));
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { dueDate: '2026-10-01' }, dateReason: 'The brief changed' })).rejects.toMatchObject(refusal('dueDate', 'due_before_start'));
     expect(t.store.state.tasks.tsk_001).toMatchObject({ startDate: '2026-10-04', dueDate: '2026-10-15' });
   });
 
   it('keeps the current due date when a dynamic task becomes static', async () => {
     const t = world({ schedule: 'dynamic', startDate: '2026-10-04', durationDays: 5, dueDate: '2026-10-08' });
-    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'static' } });
+    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'static' }, dateReason: 'The brief changed' });
     expect(task).toMatchObject({ schedule: 'static', durationDays: null, dueDate: '2026-10-08', startDate: '2026-10-04' });
-    const moved = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-06' } });
+    const moved = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-06' }, dateReason: 'The brief changed' });
     expect(moved.task.dueDate).toBe('2026-10-08');
   });
 
   it('needs a start and a duration when a static task becomes dynamic', async () => {
     const t = world({ dueDate: '2026-10-15' });
-    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', durationDays: 5 } })).rejects.toMatchObject(refusal('startDate', 'dynamic_needs_start'));
-    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', startDate: '2026-10-11' } })).rejects.toMatchObject(refusal('durationDays', 'dynamic_needs_duration'));
-    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', startDate: '2026-10-09', durationDays: 3 } });
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', durationDays: 5 }, dateReason: 'The brief changed' })).rejects.toMatchObject(refusal('startDate', 'dynamic_needs_start'));
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', startDate: '2026-10-11' }, dateReason: 'The brief changed' })).rejects.toMatchObject(refusal('durationDays', 'dynamic_needs_duration'));
+    const { task } = await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'dynamic', startDate: '2026-10-09', durationDays: 3 }, dateReason: 'The brief changed' });
     expect(task).toMatchObject({ schedule: 'dynamic', durationDays: 3, dueDate: '2026-10-13' });
   });
 
@@ -107,22 +107,22 @@ describe('tasks.update with a start date', () => {
     delete old.durationDays;
     const { task } = await t.api.call('tasks.get', { id: 'tsk_001' });
     expect(task.dueDate).toBe('2026-10-15');
-    const renamed = await t.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'New name' } });
+    const renamed = await t.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'New name' }, dateReason: 'The brief changed' });
     expect(renamed.task).toMatchObject({ title: 'New name', dueDate: '2026-10-15' });
     expect(renamed.task.startDate ?? null).toBeNull();
-    const dated = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-04' } });
+    const dated = await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-04' }, dateReason: 'The brief changed' });
     expect(dated.task).toMatchObject({ startDate: '2026-10-04', dueDate: '2026-10-15' });
   });
 
   it('brings back the start, the mode, the duration and the due date with Undo', async () => {
     const t = world({ schedule: 'dynamic', startDate: '2026-10-04', durationDays: 5, dueDate: '2026-10-08' });
-    await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'static', startDate: '2026-10-05' } });
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { schedule: 'static', startDate: '2026-10-05' }, dateReason: 'The brief changed' });
     expect(t.store.state.tasks.tsk_001).toMatchObject({ schedule: 'static', durationDays: null, startDate: '2026-10-05', dueDate: '2026-10-08' });
     const [latest] = await t.api.call('events.list', { targetType: 'task', targetId: 'tsk_001' });
     await t.api.call('events.undo', { eventId: latest.event.id });
     expect(t.store.state.tasks.tsk_001).toMatchObject({ schedule: 'dynamic', durationDays: 5, startDate: '2026-10-04', dueDate: '2026-10-08' });
 
-    await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-07' } });
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { startDate: '2026-10-07' }, dateReason: 'The brief changed' });
     expect(t.store.state.tasks.tsk_001.dueDate).toBe('2026-10-13');
     const [moved] = await t.api.call('events.list', { targetType: 'task', targetId: 'tsk_001' });
     await t.api.call('events.undo', { eventId: moved.event.id });
