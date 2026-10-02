@@ -96,3 +96,44 @@ describe('a tab whose list did not load says so and offers Retry (audit 2026-10-
     expect(await within(region).findByText('Concept stage fee')).toBeInTheDocument();
   });
 });
+
+describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10)', () => {
+  it('Back after Close does not open the task panel again', async () => {
+    const { router } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await router.navigate(-1);
+    await settle();
+    expect(router.state.location.search).not.toContain('task=');
+    expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull();
+  });
+
+  it('Back after Close does not open the payment sheet again', async () => {
+    const { router } = await renderApp('/projects/prj_001', as('usr_011'));
+    const region = await screen.findByRole('region', { name: 'Payments' });
+    await userEvent.click(await within(region).findByRole('button', { name: /Concept stage fee/ }));
+    const sheet = await screen.findByRole('dialog');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await router.navigate(-1);
+    await settle();
+    expect(router.state.location.search).not.toContain('payment=');
+  });
+
+  it('a task closed on the Overview forgets its Conversation, so the next task opens on Details', async () => {
+    const { router } = await renderApp('/projects/prj_001', as('usr_002'));
+    const people = await screen.findByRole('region', { name: 'Who is doing what' });
+    const lines = await within(people).findAllByRole('button');
+    await userEvent.click(lines[0]);
+    const first = await screen.findByRole('dialog');
+    await userEvent.click(within(first).getByRole('tab', { name: /Conversation/ }));
+    await userEvent.click(within(first).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(router.state.location.search).not.toContain('thread');
+    await userEvent.click((await within(screen.getByRole('region', { name: 'Who is doing what' })).findAllByRole('button'))[1]);
+    const second = await screen.findByRole('dialog');
+    expect(within(second).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true');
+  });
+});

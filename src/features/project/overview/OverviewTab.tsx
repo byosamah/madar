@@ -273,11 +273,13 @@ export function OverviewTab({ detail }: TabProps) {
     next.set('task', taskId);
     return next;
   }), [setParams]);
+  // Close forgets the Conversation choice too, and replaces the link so Back does not open the panel again (audit 2026-10-03, PRJ-9, PRJ-10).
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
+    next.delete('thread');
     return next;
-  }), [setParams]);
+  }, { replace: true }), [setParams]);
   if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');

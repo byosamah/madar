@@ -33,12 +33,13 @@ export function TasksTab({ detail }: TabProps) {
     else next.delete('thread');
     return next;
   });
+  // Close replaces the link, so Back does not open the closed panel again (audit 2026-10-03, PRJ-9).
   const closeTask = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
     next.delete('thread');
     return next;
-  }), [setParams]);
+  }, { replace: true }), [setParams]);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">

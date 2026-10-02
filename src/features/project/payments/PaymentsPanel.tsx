@@ -40,12 +40,13 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
   const list = useCall('payments.list', { projectId });
   const rows = list.data ?? [];
   const openId = params.get('payment');
+  // Close replaces the link, so Back does not open the closed sheet again (audit 2026-10-03, PRJ-9).
   const setOpen = (id: string | null) => setParams((current) => {
     const next = new URLSearchParams(current);
     if (id) next.set('payment', id);
     else next.delete('payment');
     return next;
-  });
+  }, { replace: !id });
   const total = rows.reduce((sum, row) => sum + row.payment.amount, 0);
   const received = rows.filter((row) => row.status === 'received').reduce((sum, row) => sum + row.payment.amount, 0);
   const open = openId === 'new' ? null : rows.find((row) => row.payment.id === openId);
