@@ -5,7 +5,7 @@ import { memoryPersister, openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
-import { shiftState } from '../data/shift';
+import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
 import type { Runtime } from './runtime';
 
@@ -28,6 +28,8 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
     state = shiftState(state, diffDays(state.seededOn, today));
     state.seededOn = today;
   }
+  // The sample office and the daily shift can put a stamp later than now. Nothing happened in the future (audit 2026-10-03, BRW-4).
+  state = settleFuture(state, now());
   const store = new Store(state, persister);
   store.run((s) => {
     runScheduledTriggers(s, now());
