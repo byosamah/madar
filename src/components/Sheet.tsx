@@ -1,18 +1,15 @@
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { XIcon } from './icons/animated/x';
-import type { ReactNode } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
 import { usePanelOpen } from '../app/panelOpen';
 import { useIsPhone } from '../app/useIsPhone';
+import { spring } from '../design/motion';
 
-/**
- * A sheet (spec 10.1 and 10.6): a bottom sheet on a phone that follows the finger, a side panel on the end side on desktop.
- * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
- */
-export function Sheet({
-  open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, children,
-}: {
+type SheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
@@ -23,13 +20,114 @@ export function Sheet({
   /** One quiet action next to the title, for example Focus on the task panel. */
   headerAction?: ReactNode;
   children: ReactNode;
-}) {
+};
+
+const TITLE = 'text-section text-ink [text-wrap:balance]';
+const DESCRIPTION = 'text-footnote text-label-2';
+
+/** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
+function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
   const { t } = useTranslation();
+  return (
+    <>
+      <div className="flex items-start gap-3 px-5 pb-2 pt-4">
+        <div className="min-w-0 flex-1">{heading}</div>
+        {headerAction}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          className="pressable grid size-11 shrink-0 place-items-center rounded-full bg-fill text-ink-2"
+        >
+          <AnimatedIcon icon={XIcon} size={18} aria-hidden />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
+      {footer && <div className="flex flex-wrap justify-end gap-2 px-5 pb-5 pt-3">{footer}</div>}
+    </>
+  );
+}
+
+/**
+ * The non-blocking panel on a computer (the task panel): no dim layer, no focus trap, and the page stays readable for screen
+ * readers, so a person can keep working on the page next to it (spec 5.4). Vaul always runs its dialog as modal, so this
+ * panel does not use it (audit 2026-10-03, SHL-2). Escape closes it; the focus goes back to where it was before it opened.
+ */
+function SidePanel({ open, onOpenChange, title, description, wide = false, footer, headerAction, children }: SheetProps) {
+  const id = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onOpenChange);
+  close.current = onOpenChange;
+  useEffect(() => {
+    if (!open) return undefined;
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // The focus moves into the panel, so Tab reaches its controls next. A control inside that took the focus keeps it.
+    if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      // Escape in a menu, a list or another dialog belongs to that layer.
+      const layer = event.target instanceof Element ? event.target.closest('[role="dialog"], [role="menu"], [role="listbox"]') : null;
+      if (layer && layer !== panel.current) return;
+      close.current(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      const active = document.activeElement;
+      const lost = !active || active === document.body || panel.current?.contains(active);
+      if (lost && before?.isConnected) before.focus();
+    };
+  }, [open]);
+  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const away = rtl ? '-110%' : '110%';
+  const width = wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]';
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={panel}
+          role="dialog"
+          aria-labelledby={`${id}-title`}
+          aria-describedby={description ? `${id}-description` : undefined}
+          tabIndex={-1}
+          initial={{ x: away }}
+          animate={{ x: 0 }}
+          exit={{ x: away }}
+          transition={spring.standard}
+          className={`float fixed inset-y-3 end-3 z-50 flex flex-col rounded-sheet outline-none ${width}`}
+        >
+          <Frame
+            heading={(
+              <>
+                <h2 id={`${id}-title`} className={TITLE}>{title}</h2>
+                {description && <p id={`${id}-description`} className={DESCRIPTION}>{description}</p>}
+              </>
+            )}
+            onClose={() => onOpenChange(false)}
+            headerAction={headerAction}
+            footer={footer}
+          >
+            {children}
+          </Frame>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+/**
+ * A sheet (spec 10.1 and 10.6): a bottom sheet on a phone that follows the finger, a side panel on the end side on desktop.
+ * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
+ */
+export function Sheet(props: SheetProps) {
+  const { open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, children } = props;
   const phone = useIsPhone();
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
   const direction = phone ? 'bottom' : rtl ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
   usePanelOpen(open && modal);
+  if (!modal) return <SidePanel {...props} />;
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
     : `inset-y-3 end-3 rounded-sheet ${wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]'}`;
@@ -38,25 +136,32 @@ export function Sheet({
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal={modal} handleOnly={!phone}>
       <Drawer.Portal>
         {modal && <Drawer.Overlay className="fixed inset-0 z-40 bg-[var(--c-scrim)]" />}
-        <Drawer.Content {...described} className={`float fixed z-50 flex flex-col outline-none ${shape}`}>
+        <Drawer.Content
+          {...described}
+          // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
+          onPointerDownOutside={(event) => {
+            if (event.target instanceof Element && event.target.closest('[data-toasts]')) event.preventDefault();
+          }}
+          // Escape in a "…" menu inside the sheet closes the menu only (audit 2026-10-03, SHL-1).
+          onEscapeKeyDown={(event) => {
+            if (event.target instanceof Element && event.target.closest('[role="menu"]')) event.preventDefault();
+          }}
+          className={`float fixed z-50 flex flex-col outline-none ${shape}`}
+        >
           {phone && <Drawer.Handle className="mt-2" />}
-          <div className="flex items-start gap-3 px-5 pb-2 pt-4">
-            <div className="min-w-0 flex-1">
-              <Drawer.Title className="text-section text-ink [text-wrap:balance]">{title}</Drawer.Title>
-              {description && <Drawer.Description className="text-footnote text-label-2">{description}</Drawer.Description>}
-            </div>
-            {headerAction}
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              aria-label={t('common.close')}
-              className="pressable grid size-11 shrink-0 place-items-center rounded-full bg-fill text-ink-2"
-            >
-              <AnimatedIcon icon={XIcon} size={18} aria-hidden />
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
-          {footer && <div className="flex flex-wrap justify-end gap-2 px-5 pb-5 pt-3">{footer}</div>}
+          <Frame
+            heading={(
+              <>
+                <Drawer.Title className={TITLE}>{title}</Drawer.Title>
+                {description && <Drawer.Description className={DESCRIPTION}>{description}</Drawer.Description>}
+              </>
+            )}
+            onClose={() => onOpenChange(false)}
+            headerAction={headerAction}
+            footer={footer}
+          >
+            {children}
+          </Frame>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

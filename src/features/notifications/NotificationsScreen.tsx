@@ -126,7 +126,7 @@ export function NotificationsScreen() {
       const ids = cleared.current;
       toast.show({
         message: t('inbox.allRead'),
-        action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }) } : undefined,
+        action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }), isUndo: true } : undefined,
       });
     },
   });

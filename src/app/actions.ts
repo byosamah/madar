@@ -43,6 +43,7 @@ export function useUndoable<N extends CallName>(
         message: latest.current.message(output),
         action: {
           label: t('common.undo'),
+          isUndo: true,
           run: () => {
             api.call('events.undoStory', { correlationId: storyId }).catch((error: unknown) => {
               toast.show({ tone: 'error', message: errorMessage(error, t) });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { inPanelUnits, menuPlace, popoverPlace, rootZoom, type Box } from './placement';
+import { inFrame, inPanelUnits, menuPlace, popoverPlace, rootZoom, type Box } from './placement';
 
 // A 1920 x 1080 screen with a 44 px button near the end of a task panel, as the browser measures it on the screen.
 const SCREEN = { width: 1920, height: 1080 };
@@ -56,4 +56,32 @@ describe('the place of a panel next to its control (final review, 2026-10-02)', 
       expect(onScreen(place.left + place.width / 2, zoom)).toBeCloseTo(middle.left + middle.width / 2);
     });
   }
+});
+
+describe('a menu inside a sheet that moves (audit 2026-10-03, SHL-1)', () => {
+  // A bottom sheet on a 390 x 844 phone: its top edge sits at 120 px and it fills the width (padding box 1..389).
+  const PHONE = { width: 390, height: 844 };
+  const SHEET = { top: 120, right: 389, bottom: 843, left: 1, width: 388, height: 723 };
+
+  it('keeps the menu next to its button when the sheet is the frame of its fixed place', () => {
+    const button: Box = { top: 500, right: 370, bottom: 544, left: 326, width: 44 };
+    const place = menuPlace(button, PHONE, { itemCount: 2, rtl: false });
+    const local = inFrame(place, SHEET, PHONE);
+    // The menu's top edge lands 4 px under the button, and its end edge lines up with the button, on the screen.
+    expect(SHEET.top + (local.top as number)).toBe(button.bottom + 4);
+    expect(SHEET.right - (local.right as number)).toBe(button.right);
+  });
+
+  it('opens above the button near the bottom, still next to it', () => {
+    const button: Box = { top: 780, right: 60, bottom: 824, left: 16, width: 44 };
+    const local = inFrame(menuPlace(button, PHONE, { itemCount: 3, rtl: true }), SHEET, PHONE);
+    expect(SHEET.bottom - (local.bottom as number)).toBe(button.top - 4);
+    expect(SHEET.left + (local.left as number)).toBe(button.left);
+  });
+
+  it('changes nothing when the window is the frame, or when nothing has a size', () => {
+    const place = menuPlace(BUTTON, SCREEN, { itemCount: 2, rtl: false });
+    expect(inFrame(place, { top: 0, right: SCREEN.width, bottom: SCREEN.height, left: 0, width: SCREEN.width, height: SCREEN.height }, SCREEN)).toEqual(place);
+    expect(inFrame(place, { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }, SCREEN)).toEqual(place);
+  });
 });
