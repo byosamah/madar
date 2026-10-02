@@ -35,6 +35,12 @@ function isMine(state: State, message: Message, viewerId: string): boolean {
   return message.actingForId === viewerId || principalOf(state, message.authorId) === viewerId;
 }
 
+/** True for a direct chat whose other person is no longer active: nobody reads new messages there (audit 2026-10-03, SHL-15). */
+function personLeft(state: State, conversation: Conversation, viewer: User): boolean {
+  if (conversation.kind !== 'direct') return false;
+  return conversation.memberIds.some((id) => id !== viewer.id && state.users[id]?.active === false);
+}
+
 function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow {
   const last = messagesOf(state, conversation.id).at(-1) ?? null;
   const project = conversation.projectId ? state.projects[conversation.projectId] : undefined;
@@ -52,6 +58,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     previewMine: last ? isMine(state, last, viewer.id) : false,
     lastAt: last?.createdAt ?? conversation.createdAt,
     unread: unreadIn(state, conversation.id, viewer.id),
+    personLeft: personLeft(state, conversation, viewer),
   };
 }
 
@@ -72,7 +79,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
     rows.push({
       kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
-      previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: 0,
+      previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: 0, personLeft: false,
     });
   }
   return rows;
@@ -161,7 +168,11 @@ export const chatsSend = defineCall({
   }),
   output: MessageView,
   run(input, ctx) {
-    return postMessage(ctx, requireConversation(ctx, input.conversationId), input.body, input.fileIds);
+    const conversation = requireConversation(ctx, input.conversationId);
+    if (personLeft(ctx.state, conversation, ctx.authority)) {
+      throw forbidden('This person left the office. The chat takes no new messages.', { conversationId: conversation.id, reason: 'person_left' });
+    }
+    return postMessage(ctx, conversation, input.body, input.fileIds);
   },
 });
 

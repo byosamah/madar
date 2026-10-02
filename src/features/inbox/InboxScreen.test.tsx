@@ -138,6 +138,17 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 
+  it('closes a direct chat with a person who left the office (SHL-15)', async () => {
+    await renderApp('/inbox', (state) => {
+      state.users.usr_002.active = false;
+    });
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' });
+    expect(await screen.findByText('Left the office')).toBeInTheDocument();
+    expect(screen.getByText('Faisal Al-Harbi left the office. This chat takes no new messages.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+  });
+
   it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {
     await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));

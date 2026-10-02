@@ -158,6 +158,8 @@ export const ChatRow = z.object({
   previewMine: z.boolean(),
   lastAt: Stamp,
   unread: z.number().int().min(0),
+  /** A direct chat whose other person left the office. It takes no new messages (audit 2026-10-03, SHL-15). */
+  personLeft: z.boolean(),
 });
 export type ChatRow = z.infer<typeof ChatRow>;
 

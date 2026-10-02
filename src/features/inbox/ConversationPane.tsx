@@ -11,6 +11,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
+import { actorContext } from '../../lib/grammar';
 
 type Thread = CallOutput<'chats.messages'>;
 
@@ -56,17 +57,22 @@ export function ChatPane({ id }: { id: string }) {
   const lead = chat.kind === 'project' && chat.project
     ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
     : chat.person ? <Avatar user={chat.person} size={40} /> : null;
+  // A direct chat with a person who left the office says so and takes no new messages (audit 2026-10-03, SHL-15).
+  const context = actorContext(chat.person);
+  const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.leftOffice', { context }) : t('chat.directChat');
   return (
     <>
-      <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={chat.kind === 'project' ? t('chat.projectChat') : t('chat.directChat')} />
+      <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={subtitle} />
       <MessageLog key={id} bubbles={bubblesOf(data)} resetKey={id} emptyText={t('chat.noMessages')} />
-      <Composer
-        id={id}
-        people={data.people}
-        pending={send.isPending}
-        upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
-        onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
-      />
+      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed', { name: chat.title, context })}</p> : (
+        <Composer
+          id={id}
+          people={data.people}
+          pending={send.isPending}
+          upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
+          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
+        />
+      )}
     </>
   );
 }
