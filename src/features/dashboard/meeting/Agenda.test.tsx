@@ -156,10 +156,27 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     const sheet = await openAgenda();
     expect(within(sheet).getByText('All projects discussed')).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Start a new meeting' }));
+    // One press only asks. The meeting is the same until the person confirms.
+    expect(within(sheet).getByText('Start a new meeting? This clears the discussed marks and the timers.')).toBeInTheDocument();
+    expect(within(sheet).getByText('All projects discussed')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Start a new meeting' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Agenda' })).toBeNull());
     const article = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(within(article).queryByText('Discussed')).toBeNull();
     expect(timer()).toHaveTextContent('5:00 left');
+  });
+
+  it('keeps the meeting when the person cancels a new meeting', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const sheet = await openAgenda();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Start a new meeting' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+    expect(within(sheet).queryByText('Start a new meeting? This clears the discussed marks and the timers.')).toBeNull();
+    expect(agendaItems(sheet)[0]).toHaveTextContent(/Al Waha Clinic Fit-out.*Discussed/);
+    expect(within(sheet).getByRole('button', { name: 'Start a new meeting' })).toBeInTheDocument();
   });
 
   it('keeps the meeting over a reload on the same day, and starts a new one on a new day', async () => {

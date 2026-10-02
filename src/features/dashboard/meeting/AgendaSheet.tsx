@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../components/Button';
 import { ProjectTile } from '../../../components/ProjectTile';
@@ -16,16 +17,24 @@ const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-
 
 /**
  * The agenda of the meeting: the projects in order with their state, a press to go to one, the time for each project,
- * and "Start a new meeting".
+ * and "Start a new meeting". A new meeting clears the marks and the timers, so the first press only asks.
  */
 export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<string, Row>; session: MeetingSession; onClose: () => void }) {
   const { t } = useTranslation();
+  const [asking, setAsking] = useState(false);
   return (
     <Sheet
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
       title={t('dashboard.meeting.agenda')}
-      footer={<Button onClick={() => { session.restart(); onClose(); }}>{t('dashboard.meeting.restart')}</Button>}
+      footer={asking ? (
+        <>
+          <p className="basis-full text-[17px] text-ink">{t('dashboard.meeting.restartAsk')}</p>
+          {/* The safe choice takes the focus, so a second Enter does not clear the meeting. */}
+          <Button autoFocus onClick={() => setAsking(false)}>{t('common.cancel')}</Button>
+          <Button variant="destructive" onClick={() => { session.restart(); onClose(); }}>{t('dashboard.meeting.restart')}</Button>
+        </>
+      ) : <Button onClick={() => setAsking(true)}>{t('dashboard.meeting.restart')}</Button>}
     >
       <div className="flex flex-col gap-5 pt-2">
         {session.allDiscussed && <p role="status" className="text-[17px] font-semibold text-ink">{t('dashboard.meeting.allDiscussed')}</p>}

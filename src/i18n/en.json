@@ -945,7 +945,8 @@
         "timer": "timer",
         "leave": "leave"
       },
-      "restart": "Start a new meeting"
+      "restart": "Start a new meeting",
+      "restartAsk": "Start a new meeting? This clears the discussed marks and the timers."
     },
     "views": {
       "projects": "Projects",
