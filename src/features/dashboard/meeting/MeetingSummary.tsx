@@ -166,7 +166,11 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
     <section aria-label={t('dashboard.meeting.summary.title')} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={onBack}>{t('dashboard.meeting.summary.back')}</Button>
-        <h2 className="me-auto text-[26px] font-bold text-ink">{t('dashboard.meeting.summary.title')}</h2>
+        <div className="me-auto">
+          <h2 className="text-[26px] font-bold text-ink">{t('dashboard.meeting.summary.title')}</h2>
+          {/* The start of the meeting in office time. A new day starts a new meeting, so the summary never reaches into yesterday. */}
+          <p className="tabular text-[17px] text-ink-2">{t('dashboard.meeting.summary.since', { time: startedAt.slice(11, 16) })}</p>
+        </div>
         {groups.length > 0 && (
           <>
             <Button onClick={() => void copy()}>{t('dashboard.meeting.summary.copy')}</Button>

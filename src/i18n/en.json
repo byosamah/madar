@@ -905,6 +905,7 @@
       "openSummary": "Open the summary",
       "summary": {
         "title": "Meeting summary",
+        "since": "Changes since {{time}}",
         "back": "Back",
         "none": "No changes in this meeting yet.",
         "copy": "Copy as a table",

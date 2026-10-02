@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { setNow } from '../../../lib/dates';
 import { renderApp } from '../../../test/render';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 const KEY = 'madar.meeting.2026-09-30';
+// 08:00 office time on the next day.
+const NEXT_MORNING = new Date('2026-10-01T05:00:00Z');
+const saved = (key: string) => JSON.parse(window.sessionStorage.getItem(key) ?? 'null') as { startedAt: string; discussed: string[] } | null;
 
 // The agenda of the sample office: the two late projects, the three at risk, then the rest in the timeline order.
 // Only the clock and the one-second tick are fake, so the time of a test moves only when the test moves it.
@@ -198,6 +202,33 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await renderApp(MEETING);
     const article = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(within(article).queryByText('Discussed')).toBeNull();
+  });
+
+  it('starts a new meeting when the page shows again on a new day', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    // The room screen stayed awake all night. In the morning the page shows again.
+    setNow(NEXT_MORNING);
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    const article = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(article).queryByText('Discussed')).toBeNull();
+    expect(saved('madar.meeting.2026-10-01')?.startedAt).toBe('2026-10-01T08:00:00.000+03:00');
+    expect(saved('madar.meeting.2026-10-01')?.discussed).toEqual([]);
+  });
+
+  it('starts a new meeting before it saves a change on a new day', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    setNow(NEXT_MORNING);
+    await userEvent.click(screen.getByRole('button', { name: 'Next project' }));
+    await waitFor(() => expect(saved('madar.meeting.2026-10-01')).not.toBeNull());
+    expect(saved('madar.meeting.2026-10-01')?.discussed).toEqual([]);
+    const sheet = await openAgenda();
+    expect(agendaItems(sheet)[0]).not.toHaveTextContent('Discussed');
   });
 
   it('runs the meeting when the browser blocks the session storage', async () => {

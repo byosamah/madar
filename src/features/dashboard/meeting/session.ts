@@ -80,16 +80,32 @@ function nextOpen(order: readonly string[], from: number, discussed: ReadonlySet
  * The clock of the current project runs only while `onScreen` is true and nobody paused it.
  */
 export function useMeetingSession(projectIds: readonly string[], onScreen = true) {
-  const [key] = useState(() => keyFor(todayISO()));
+  const [key, setKey] = useState(() => keyFor(todayISO()));
   const [session, setSession] = useState(() => load(key));
   const latest = useRef(session);
+  const day = useRef(key);
+  // Each save checks the day first. A room screen can stay awake overnight, so a change on a new day goes to the meeting of that day.
   const commit = useCallback((change: (s: Saved) => Saved) => {
-    const next = change(latest.current);
-    if (next === latest.current) return;
+    const today = keyFor(todayISO());
+    const newDay = today !== day.current;
+    const base = newDay ? load(today) : latest.current;
+    const next = change(base);
+    if (!newDay && next === base) return;
+    day.current = today;
     latest.current = next;
-    save(key, next);
+    save(today, next);
     setSession(next);
-  }, [key]);
+    if (newDay) setKey(today);
+  }, []);
+
+  // The page shows again, for example in the morning: a new day starts a new meeting at once.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') commit((s) => s);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [commit]);
 
   // The order of the meeting stays as it was when each project first showed, so a change in the data does not move a project.
   const ids = projectIds.join(' ');
@@ -117,8 +133,9 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
       const shownOrder = next.order.filter((id) => projectIds.includes(id));
       return show(next, nextOpen(shownOrder, 0, new Set(next.discussed)) ?? shownOrder[0], Date.now());
     });
+    // A new day gives a new key and an empty meeting, so the projects join it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ids holds the content of projectIds
-  }, [ids, commit]);
+  }, [ids, commit, key]);
 
   // The clock runs while the project is on the screen, the meeting is not paused, and a project is still open.
   const live = onScreen && !session.paused && at >= 0 && !allDiscussed;

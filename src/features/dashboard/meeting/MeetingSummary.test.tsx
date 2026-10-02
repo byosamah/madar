@@ -170,6 +170,8 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     await screen.findByRole('article');
     await userEvent.click(screen.getByRole('button', { name: 'Summary' }));
     expect(await screen.findByText('No changes in this meeting yet.')).toBeInTheDocument();
+    // The meeting started at the pinned time of the tests, 09:00 office time.
+    expect(screen.getByText('Changes since 09:00')).toBeInTheDocument();
     expect(screen.queryByRole('article')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByText(/Project 1 of 9/)).toBeInTheDocument();
