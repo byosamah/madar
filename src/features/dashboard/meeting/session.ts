@@ -77,7 +77,7 @@ function nextOpen(order: readonly string[], from: number, discussed: ReadonlySet
  * The meeting session (owner, 2026-10-02): the agenda order, the project on the screen, the projects discussed,
  * and a clock for each project. The browser keeps it for the day under `madar.meeting.<YYYY-MM-DD>`, so a reload
  * keeps the meeting and a new day starts a new one. `projectIds` is the agenda order of the projects shown now.
- * The clock of the current project runs only while `onScreen` is true and nobody paused it.
+ * The clock of the current project runs only while `onScreen` is true, the page shows, and nobody paused it.
  */
 export function useMeetingSession(projectIds: readonly string[], onScreen = true) {
   const [key, setKey] = useState(() => keyFor(todayISO()));
@@ -99,12 +99,23 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
   }, []);
 
   // The page shows again, for example in the morning: a new day starts a new meeting at once.
+  // A hidden page stops the clock: another tab, or a computer that sleeps (audit 2026-10-03, DSH-11).
+  const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden');
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') commit((s) => s);
+      const shows = document.visibilityState !== 'hidden';
+      setVisible(shows);
+      commit((s) => (shows ? s : stop(s, Date.now())));
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [commit]);
+
+  // A room screen with the wake lock stays visible all night, so no page event comes in the morning.
+  // The day check also runs each minute, so the new day's meeting starts before the first change of the day (audit 2026-10-03, DSH-2).
+  useEffect(() => {
+    const check = window.setInterval(() => commit((s) => s), 60_000);
+    return () => window.clearInterval(check);
   }, [commit]);
 
   // The order of the meeting stays as it was when each project first showed, so a change in the data does not move a project.
@@ -137,9 +148,9 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ids holds the content of projectIds
   }, [ids, commit, key]);
 
-  // The clock runs while the project is on the screen, the meeting is not paused, and a project is still open.
+  // The clock runs while the project is on the screen, the page shows, the meeting is not paused, and a project is still open.
   // A new day starts a new meeting with its clock stopped while the screen stays live, so the day key starts the clock again too.
-  const live = onScreen && !session.paused && at >= 0 && !allDiscussed;
+  const live = onScreen && visible && !session.paused && at >= 0 && !allDiscussed;
   useEffect(() => {
     if (!live) {
       commit((s) => stop(s, Date.now()));
