@@ -63,5 +63,10 @@ export function migrateState(state: State): State | null {
     }
     state.version = 6;
   }
+  if (state.version === 6) {
+    // Version 7: a paused project tells its leader on the restart day (audit 2026-10-03, API-18). Every person gets the notice, turned on.
+    for (const user of Object.values(state.users)) user.preferences.notifications.resume_due ??= true;
+    state.version = 7;
+  }
   return state.version === STATE_VERSION ? state : null;
 }

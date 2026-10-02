@@ -82,6 +82,7 @@
       "task_approved": "اعتماد مهمتي",
       "task_sent_back": "إعادة مهمتي للتعديل",
       "stage_changed": "تغيّر مرحلة مشروعي",
+      "resume_due": "حلول موعد استئناف مشروع متوقف",
       "added_to_project": "إضافتي إلى مشروع"
     },
     "prototype": "النموذج الأولي",
@@ -788,6 +789,7 @@
       "task_approved": "{{actor}} اعتمد «{{target}}»",
       "task_sent_back": "{{actor}} أعاد «{{target}}» للتعديل",
       "stage_changed": "{{actor}} غيّر مرحلة {{target}}",
+      "resume_due": "حلّ موعد استئناف {{target}} المخطط له",
       "added_to_project": "{{actor}} أضافك إلى {{target}}",
       "task_assigned_female": "{{actor}} أسندت إليك «{{target}}»",
       "mention_female": "{{actor}} أشارت إليك في {{target}}",

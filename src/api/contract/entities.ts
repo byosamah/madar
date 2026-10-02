@@ -38,9 +38,10 @@ export type Theme = z.infer<typeof Theme>;
 export const Glass = z.enum(['clear', 'frosted', 'solid']);
 export type Glass = z.infer<typeof Glass>;
 
+// "resume_due": a paused project reached its planned restart day (audit 2026-10-03, API-18).
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
-  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project',
+  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;

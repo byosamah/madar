@@ -10,9 +10,9 @@ import { can, projectRoleOf } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 
-/** The Inbox badge counts only unread items of these kinds (spec 3.2). */
+/** The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
-  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back',
+  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due',
 ]);
 
 export const NotificationView = z.object({
