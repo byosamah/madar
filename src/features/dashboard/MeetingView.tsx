@@ -236,6 +236,16 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
   );
 }
 
+/** The task panel over the meeting. It opens with the project of the task, so the team and the stages in it are the ones of that project. */
+function MeetingTaskSheet({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+  const task = useCall('tasks.get', { id: taskId });
+  useEffect(() => {
+    if (task.error) onClose();
+  }, [task.error, onClose]);
+  if (!task.data) return null;
+  return <ProjectTaskSheet projectId={task.data.project.id} taskId={taskId} onClose={onClose} />;
+}
+
 /**
  * The meeting-room screen: every project on one big timeline (owner request, 2026-10-01).
  * It keeps the Dashboard filters from the link. Time runs toward the end side, so Arabic reads right to left.
@@ -323,6 +333,17 @@ export function MeetingView() {
     value.delete('task');
     return value;
   }, { replace: true });
+  // The task panel belongs to the screen it opened on. Another project, another mode or the summary closes it,
+  // so Done, Skip and the arrows never leave a panel open over a project that is not on the screen.
+  // The first project shows when the data arrives. That is not a move, so a panel from the link stays open.
+  const place = useRef({ mode, currentId: session.currentId, summaryOpen });
+  useEffect(() => {
+    const before = place.current;
+    place.current = { mode, currentId: session.currentId, summaryOpen };
+    const moved = before.mode !== mode || before.summaryOpen !== summaryOpen || (before.currentId !== null && before.currentId !== session.currentId);
+    if (moved && taskId) closeTask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a move of the screen closes the panel
+  }, [mode, session.currentId, summaryOpen]);
   const exit = () => navigate({ pathname: '/dashboard', search: params.toString() });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -379,7 +400,6 @@ export function MeetingView() {
     client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);
 
-  // The task panel belongs to the project on the screen. A finished task leaves the open-task list, so the panel does not look the task up there.
   const shown = session.currentId ? rowOf.get(session.currentId) ?? null : null;
   return (
     <MeetingProvider value={meeting}>
@@ -521,7 +541,7 @@ export function MeetingView() {
           </ul>
         </div>
       )}
-      {mode === 'projects' && taskId && shown && <ProjectTaskSheet key={taskId} projectId={shown.project.id} taskId={taskId} onClose={closeTask} />}
+      {mode === 'projects' && taskId && <MeetingTaskSheet key={taskId} taskId={taskId} onClose={closeTask} />}
       {mode === 'projects' && agendaOpen && <AgendaSheet rows={rowOf} session={session} onClose={() => setAgendaOpen(false)} />}
     </main>
     </MeetingProvider>

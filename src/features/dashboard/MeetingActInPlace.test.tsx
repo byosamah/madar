@@ -50,6 +50,38 @@ describe('acting on a task in place, in the meeting (owner, 2026-10-02)', () => 
     expect(screen.getByText(/Project 1 of 9/)).toBeInTheDocument();
   });
 
+  it('closes the task panel when Done moves the meeting to the next project', async () => {
+    await renderApp(`${MEETING}&task=tsk_130`, shoreWalkFirst);
+    await screen.findByRole('dialog', { name: 'Progress photos' });
+    const controls = within(screen.getByRole('group', { name: 'Meeting view controls', hidden: true }));
+    await userEvent.click(controls.getByRole('button', { name: 'Done', hidden: true }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
+    expect(window.location.hash).not.toContain('task=');
+    expect(screen.getByText(/Project 2 of 9/)).toBeInTheDocument();
+  });
+
+  it('closes the task panel when the summary opens, and when the mode changes', async () => {
+    await renderApp(`${MEETING}&task=tsk_130`, shoreWalkFirst);
+    await screen.findByRole('dialog', { name: 'Progress photos' });
+    await userEvent.click(screen.getByRole('button', { name: 'Summary', hidden: true }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
+    expect(window.location.hash).not.toContain('task=');
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await userEvent.click(within(await screen.findByRole('region', { name: 'In progress now' })).getByRole('button', { name: /^Progress photos/ }));
+    await screen.findByRole('dialog', { name: 'Progress photos' });
+    await userEvent.click(screen.getByRole('radio', { name: 'Timeline', hidden: true }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress photos' })).toBeNull());
+    expect(window.location.hash).not.toContain('task=');
+  });
+
+  it('opens the task panel with the project of the task, not the project on the screen', async () => {
+    // With no change, Al Waha Clinic Fit-out is the first project on the screen. Progress photos belongs to Shore Walk Retail Kiosks.
+    const { store } = await renderApp(`${MEETING}&task=tsk_130`);
+    expect(await screen.findByRole('article', { hidden: true })).toHaveAccessibleName('Al Waha Clinic Fit-out');
+    const sheet = await screen.findByRole('dialog', { name: 'Progress photos' });
+    expect(await within(sheet).findByLabelText('Stage')).toHaveValue(store.state.tasks.tsk_130.stageId);
+  });
+
   it('updates the meeting screen at once when a task is approved in the panel', async () => {
     await renderApp(MEETING, waitsForReview);
     const attention = within(await screen.findByRole('region', { name: 'Needs attention' }));
