@@ -100,6 +100,16 @@ describe('the Admin page', () => {
     await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(true));
   });
 
+  it('uses the feminine Arabic verb for a template a woman saved (audit 2026-10-03, SHL-17)', async () => {
+    await renderApp('/admin', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+      state.users.usr_001.gender = 'female';
+    });
+    expect((await screen.findAllByText('حفظته Hala Nasser')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('حفظتها Hala Nasser').length).toBeGreaterThan(0);
+    expect(screen.queryByText('حفظه Hala Nasser')).toBeNull();
+  });
+
   it('saves the office settings', async () => {
     const { store } = await renderApp('/admin');
     const office = await region('Office settings');
