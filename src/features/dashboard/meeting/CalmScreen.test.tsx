@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
 
 // The ADHD pass over the whole meeting (owner, 2026-10-02): one place for each thing, the urgent things first,
@@ -40,6 +41,38 @@ describe('the project screen of the meeting', () => {
     await renderApp(PROJECTS);
     const article = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(within(article).getByRole('region', { name: 'People' }).closest('header')).not.toBeNull();
+  });
+
+  it('shows a new decision in the Decisions panel only, not again as the latest update (audit 2026-10-03, DSH-8)', async () => {
+    await renderApp(PROJECTS);
+    const article = within(await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' }));
+    const before = (await article.findByRole('region', { name: 'Latest update' })).textContent;
+    const decisions = within(article.getByRole('region', { name: 'Decisions' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Keep the lobby double height.{Enter}');
+    // The panel and Latest update read the same posts, so both have the new decision once the panel shows it.
+    await decisions.findByText('Keep the lobby double height.');
+    expect(article.getAllByText('Keep the lobby double height.')).toHaveLength(1);
+    expect(article.getByRole('region', { name: 'Latest update' }).textContent).toBe(before);
+  });
+
+  it('hides Coming up and Latest update when they have nothing, and says no zero count (audit 2026-10-03, DSH-9)', async () => {
+    const quiet = (state: State) => {
+      state.projects.prj_011.healthOverride = { value: 'late', reason: 'The client moved the opening.', setBy: 'usr_001', setAt: '2026-09-30T09:00:00.000+03:00' };
+      for (const [id, task] of Object.entries(state.tasks)) if (task.projectId === 'prj_011') delete state.tasks[id];
+      for (const [id, deadline] of Object.entries(state.deadlines)) if (deadline.projectId === 'prj_011') delete state.deadlines[id];
+      for (const [id, update] of Object.entries(state.updates)) if (update.projectId === 'prj_011') delete state.updates[id];
+    };
+    await renderApp(PROJECTS, quiet);
+    const article = within(await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' }));
+    await article.findByRole('region', { name: 'Decisions' });
+    const attention = within(article.getByRole('region', { name: 'Needs attention' }));
+    // A calm state word stays. The count of zero goes.
+    expect(attention.getByText('Nothing needs attention.')).toBeInTheDocument();
+    expect(attention.queryByText('0')).toBeNull();
+    expect(article.queryByRole('region', { name: 'Coming up' })).toBeNull();
+    expect(article.queryByText('No deadlines yet.')).toBeNull();
+    expect(article.queryByRole('region', { name: 'Latest update' })).toBeNull();
+    expect(article.queryByText('No updates yet.')).toBeNull();
   });
 
   it('offers Decision and Action as one choice, not as two filled buttons', async () => {

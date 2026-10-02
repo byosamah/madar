@@ -85,6 +85,9 @@ export const dashboardGet = defineCall({
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
+    // Supervision is the last stage of the office's default list, by its place and not by an English name, so a renamed
+    // or Arabic stage list still leaves the projects on site out of the area in design (audit 2026-10-03, DSH-16).
+    const supervision = order[order.length - 1];
     const perStage = new Map<string, number>();
     for (const p of active) {
       const name = tagOf(p)?.name ?? '';
@@ -123,7 +126,7 @@ export const dashboardGet = defineCall({
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        areaInDesign: active.filter((p) => tagOf(p)?.name !== 'Supervision').reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        areaInDesign: active.filter((p) => tagOf(p)?.name !== supervision).reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
       },
       charts: {
         projectsPerStage: [...perStage.entries()]

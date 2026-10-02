@@ -8,12 +8,37 @@ import { usePersistentChoice } from '../../app/choices';
 import { useLang } from '../../app/lang';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
-import { projectHue } from '../../lib/projectColor';
-import { clipSpan, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
+import { clipSpan, midPct, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
 import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
+import { currentTone, DeadlineMarks } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
+type Kind = 'done' | 'current' | 'next';
+
+const HEALTHS = ['on_track', 'at_risk', 'late'] as const;
+
+/**
+ * The colors of the meeting timeline (audit 2026-10-03, DSH-15): a done stage is a faint grey, the current stage says the state
+ * of the project, and a next stage is an outline.
+ */
+function toneOf(kind: Kind, row: Row): string {
+  return kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row) : 'ring-1 ring-inset ring-chart-muted';
+}
+
+/** One stage bar, with its name and its state for a screen reader, as on the meeting timeline (audit 2026-10-03, DSH-14). */
+function StageBar({ row, stage, kind, span, part }: { row: Row; stage: Row['stages'][number]; kind: Kind; span: Span; part: Span }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      title={stage.name}
+      role="img"
+      aria-label={t('dashboard.meeting.stage', { stage: stage.name, state: t(`dashboard.meeting.stageStates.${kind}`) })}
+      style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%` }}
+      className={`absolute top-3.5 h-4 rounded-full ${toneOf(kind, row)}`}
+    />
+  );
+}
 
 /** The shared days of two stages, hatched. It sits over the bars of both stages, and has a word for a screen reader on the row's name. */
 function OverlapMarks({ overlaps, span, only }: { overlaps: Overlap[]; span: Span; only?: string }) {
@@ -25,6 +50,7 @@ function OverlapMarks({ overlaps, span, only }: { overlaps: Overlap[]; span: Spa
         return (
           <span
             key={overlap.stageIds.join('-')}
+            aria-hidden
             style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%` }}
             className="overlap-hatch absolute top-3.5 h-4 rounded-full opacity-60"
           />
@@ -42,22 +68,16 @@ function StageLines({ row, span, todayAt, current, overlaps }: { row: Row; span:
     <>
       {row.stages.map((stage, i) => {
         const part = stage.startDate && stage.endDate ? clipSpan({ start: stage.startDate, end: stage.endDate }, span) : null;
-        const tone = i < current ? 'bg-ink-2/35' : i === current ? '' : 'ring-1 ring-inset ring-chart-muted';
+        const kind: Kind = i < current ? 'done' : i === current ? 'current' : 'next';
         return (
           <Fragment key={stage.id}>
             <div className="flex min-h-11 min-w-0 items-center ps-6 text-footnote text-ink-2">
               <bdi className="truncate">{stage.name}</bdi>
               {stage.startDate && stage.endDate && <span className="sr-only">{`, ${t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })}`}</span>}
             </div>
-            <div aria-hidden className="relative min-h-11">
-              <span style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />
-              {part && (
-                <span
-                  title={stage.name}
-                  style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%`, ...(i === current ? { background: `var(--p-${projectHue(row.project.id)}-fg)` } : {}) }}
-                  className={`absolute top-3.5 h-4 rounded-full ${tone}`}
-                />
-              )}
+            <div className="relative min-h-11">
+              <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />
+              {part && <StageBar row={row} stage={stage} kind={kind} span={span} part={part} />}
               <OverlapMarks overlaps={overlaps} span={span} only={stage.id} />
             </div>
           </Fragment>
@@ -92,9 +112,17 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
         // Every color and mark has a word (spec 10.3, WCAG 1.4.1). The stage and deadline names stay in each row's title.
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-footnote text-ink-2">
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full bg-ink-2/35" />{t('dashboard.legend.done')}</li>
-          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full bg-[var(--p-blue-fg)]" />{t('dashboard.legend.current')}</li>
+          {/* The current stage has the colors of the meeting: one for each state of the project, each with its word. */}
+          <li className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {t('dashboard.legend.current')}
+            {HEALTHS.map((health) => (
+              <span key={health} className="inline-flex items-center gap-1.5">
+                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone({ pause: null, health })}`} />{t(`health.${health}`)}
+              </span>
+            ))}
+          </li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full ring-1 ring-inset ring-chart-muted" />{t('dashboard.legend.next')}</li>
-          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rotate-45 rounded-sm bg-attn" />{t('dashboard.legend.deadline')}</li>
+          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rotate-45 rounded-sm bg-ink-2" />{t('dashboard.legend.deadline')}</li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-3.5 w-0.5 rounded-full bg-ink" />{t('dashboard.legend.today')}</li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="overlap-hatch h-2.5 w-5 rounded-full opacity-60" />{t('dashboard.legend.overlap')}</li>
         </ul>
@@ -126,6 +154,8 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       <span className="min-w-0 flex-1">
                         <span className="tabular block text-caption text-ink-2">{row.project.code}</span>
                         <bdi className="block truncate text-subheadline text-ink">{row.project.name}</bdi>
+                        {/* The color of the current stage says the state. A screen reader hears it as a word. */}
+                        {!row.pause && row.health !== 'on_track' && <span className="sr-only">{t(`health.${row.health}`)}</span>}
                         <span className="sr-only">{t('dashboard.expandHint')}</span>
                       </span>
                       <AnimatedIcon icon={ChevronDownIcon} size={16} aria-hidden className={`shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -134,31 +164,23 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       <AnimatedIcon icon={ExternalLinkIcon} size={16} aria-hidden />
                     </Link>
                   </div>
-                  <div aria-hidden className="relative min-h-11">
-                    <span style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />
+                  <div className="relative min-h-11">
+                    <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />
                     {row.stages.map((stage, i) => {
                       if (!stage.startDate || !stage.endDate) return null;
                       const part = clipSpan({ start: stage.startDate, end: stage.endDate }, span);
                       if (!part) return null;
-                      const tone = i < current ? 'bg-ink-2/35' : i === current ? '' : 'ring-1 ring-inset ring-chart-muted';
-                      return (
-                        <span
-                          key={stage.id}
-                          title={stage.name}
-                          style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%`, ...(i === current ? { background: `var(--p-${projectHue(row.project.id)}-fg)` } : {}) }}
-                          className={`absolute top-3.5 h-4 rounded-full ${tone}`}
-                        />
-                      );
+                      return <StageBar key={stage.id} row={row} stage={stage} kind={i < current ? 'done' : i === current ? 'current' : 'next'} span={span} part={part} />;
                     })}
                     <OverlapMarks overlaps={overlaps} span={span} />
-                    {row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => (
-                      <span
-                        key={d.id}
-                        title={d.name}
-                        style={{ insetInlineStart: `calc(${offsetPct(span, d.date)}% - 5px)` }}
-                        className="absolute top-4 size-2.5 rotate-45 rounded-sm bg-attn"
-                      />
-                    ))}
+                    {/* The deadlines of the meeting timeline: a button to reach with the keyboard, with the name and the date (audit 2026-10-03, DSH-14). */}
+                    <DeadlineMarks
+                      place="top-2.5"
+                      marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
+                        id: d.id, name: d.name, when: formatDay(d.date, lang), at: midPct(span, d.date),
+                        label: t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) }),
+                      }))}
+                    />
                   </div>
                   {isOpen && <StageLines row={row} span={span} todayAt={todayAt} current={current} overlaps={overlaps} />}
                 </Fragment>

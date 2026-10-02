@@ -12,12 +12,15 @@ import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { oneOf } from '../../lib/params';
 import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
+import { withTeam } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
 import { StaleProjects } from './StaleProjects';
 import { Workload } from './Workload';
 import { clientName } from '../../lib/clientName';
 
-const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
+// Completed and Archived are not choices: every number counts active projects only, so they changed nothing a person reads.
+// A link that still carries one of them reads as Active (audit 2026-10-03, DSH-13).
+const STATUSES = ['active', 'on_hold', 'all'] as const;
 const VIEWS = ['projects', 'people', 'schedule'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
@@ -39,11 +42,12 @@ export function DashboardScreen() {
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
   const team = params.get('team') ?? '';
+  const teamId = TEAM_ID.test(team) ? team : undefined;
   const dashboard = useCall('dashboard.get', {
     status,
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
-    teamId: TEAM_ID.test(team) ? team : undefined,
+    teamId,
   });
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
@@ -95,7 +99,7 @@ export function DashboardScreen() {
       )}
       {view && (
         <>
-          <Numbers view={view} />
+          <Numbers view={view} teamId={teamId} />
           <Tabs
             label={t('dashboard.sections')}
             idPrefix="dash-section"
@@ -111,11 +115,11 @@ export function DashboardScreen() {
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: `/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}` },
-                    { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: '/projects?status=active' },
+                    { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: withTeam('/projects?status=active', teamId) },
                   ]} />
                 </div>
-                <PerStage view={view} />
-                <HealthMix view={view} />
+                <PerStage view={view} teamId={teamId} />
+                <HealthMix view={view} teamId={teamId} />
                 <div className="lg:col-span-2"><Throughput view={view} /></div>
               </div>
             )}

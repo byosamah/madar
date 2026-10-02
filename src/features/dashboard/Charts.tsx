@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { useLang } from '../../app/lang';
 import { addDays, formatDay, formatNumber } from '../../lib/dates';
-import type { DashboardData } from './Tiles';
+import { withTeam, type DashboardData } from './Tiles';
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
@@ -36,7 +36,7 @@ function BarRow({ to, label, value, max, detail }: { to: string; label: string; 
   );
 }
 
-export function PerStage({ view }: { view: DashboardData }) {
+export function PerStage({ view, teamId }: { view: DashboardData; teamId?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
   const rows = view.charts.projectsPerStage;
@@ -44,7 +44,7 @@ export function PerStage({ view }: { view: DashboardData }) {
   return (
     <Card title={t('dashboard.charts.perStage')}>
       {rows.length === 0 ? <NoData /> : (
-        <ul>{rows.map((row) => <BarRow key={row.stage} to={`/projects?stage=${encodeURIComponent(row.stage)}`} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
+        <ul>{rows.map((row) => <BarRow key={row.stage} to={withTeam(`/projects?stage=${encodeURIComponent(row.stage)}`, teamId)} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
       )}
     </Card>
   );
@@ -56,7 +56,7 @@ const HEALTH = [
   { key: 'late', text: 'text-late', to: '/projects?health=late' },
 ] as const;
 
-export function HealthMix({ view }: { view: DashboardData }) {
+export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
   const mix = view.charts.healthMix;
@@ -67,7 +67,7 @@ export function HealthMix({ view }: { view: DashboardData }) {
         <ul className="grid grid-cols-3 gap-2">
           {HEALTH.map((item) => (
             <li key={item.key}>
-              <Link to={item.to} className="pressable flex min-h-20 flex-col justify-center gap-1 rounded-2xl bg-fill/60 px-4 hover:bg-fill">
+              <Link to={withTeam(item.to, teamId)} className="pressable flex min-h-20 flex-col justify-center gap-1 rounded-2xl bg-fill/60 px-4 hover:bg-fill">
                 <span className={`tabular text-title-2 font-bold ${item.text}`}>{formatNumber(mix[item.key], lang)}</span>
                 <span className="text-footnote font-medium text-ink-2">{t(`health.${item.key}`)}</span>
               </Link>

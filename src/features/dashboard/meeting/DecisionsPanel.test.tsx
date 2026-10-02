@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { openAgendaSheet } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -27,6 +28,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(posted).toHaveLength(1);
     expect(posted[0].projectId).toBe(shoreWalk(store.state).id);
     window.location.hash = `#/projects/${shoreWalk(store.state).id}?tab=activity`;
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull());
     const post = (await screen.findByText('Keep the lobby double height.')).closest('li')!;
     expect(within(post).getByText('Decision')).toBeInTheDocument();
   });
@@ -69,6 +71,42 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(task.stageId).toBe(project.currentStageId);
     expect(task.ownerId).toBe(person.id);
     expect(task.dueDate).toBe('2026-10-08');
+  });
+
+  it('lists an action of a paused project (audit 2026-10-03, DSH-5)', async () => {
+    const { store } = await renderApp(`${MEETING}&status=all`, shoreWalkFirst);
+    await panel();
+    const sheet = await openAgendaSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: /Gulf Crest HQ Interiors/ }));
+    await screen.findByRole('article', { name: 'Gulf Crest HQ Interiors' });
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Call the client back');
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).filter((task) => task.title === 'Call the client back')).toHaveLength(1));
+    expect(await decisions.findByText(/^Action: Call the client back/)).toBeInTheDocument();
+  });
+
+  it('keeps a typed decision and a typed action over a move to another project and back (audit 2026-10-03, DSH-3)', async () => {
+    await renderApp(MEETING, shoreWalkFirst);
+    let decisions = await panel();
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Half typed action');
+    // The other kind keeps its text too.
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    // Done shows the next project. B comes back to this one, with the kind and both texts as they were.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Shore Walk Retail Kiosks' })).toBeNull());
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    decisions = await panel();
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
   });
 
   it('lists the decisions and actions of this meeting only, the newest last', async () => {

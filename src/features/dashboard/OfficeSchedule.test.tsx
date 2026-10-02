@@ -44,4 +44,27 @@ describe('the office schedule', () => {
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today', 'Two stages at the same time']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
   });
+
+  it('names its deadlines as buttons and its stages with their state, for keyboard and screen reader use (audit 2026-10-03, DSH-14)', async () => {
+    await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    expect(within(schedule).getAllByRole('button', { name: /^Deadline: / }).length).toBeGreaterThan(0);
+    expect(within(schedule).getAllByRole('img', { name: /, current$/ }).length).toBeGreaterThan(0);
+    await userEvent.click(within(schedule).getByRole('button', { name: /Eastern Shore Primary School/ }));
+    expect(within(schedule).getAllByRole('img', { name: /^Design Development, (done|current|next)$/ }).length).toBeGreaterThan(0);
+  });
+
+  it('uses the meeting colors: quiet grey deadlines, and the current stage in the color of the project state (audit 2026-10-03, DSH-15)', async () => {
+    await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    const barsOf = (name: string) => within(within(schedule).getByRole('button', { name: new RegExp(name) }).parentElement!.nextElementSibling as HTMLElement);
+    const current = (name: string) => barsOf(name).getAllByRole('img', { name: /, current$/ })[0];
+    expect(current('Shore Walk Retail Kiosks')).toHaveClass('bg-ink-2');
+    expect(current('Al Waha Clinic Fit-out')).toHaveClass('bg-red-text');
+    expect(current('Al Waha Clinic Fit-out').getAttribute('style') ?? '').not.toMatch(/--p-/);
+    for (const diamond of within(schedule).getAllByRole('button', { name: /^Deadline: / })) expect(diamond.querySelector('.bg-attn')).toBeNull();
+    // The legend says each state color in words.
+    for (const word of ['On track', 'At risk', 'Late']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
+    expect(schedule.querySelector('.bg-attn')).toBeNull();
+  });
 });

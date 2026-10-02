@@ -19,13 +19,18 @@ const Saved = z.object({
   paused: z.boolean(),
   /** When the clock of the current project started (epoch milliseconds). Null while the clock stands. */
   runningSince: z.number().nullable(),
+  /**
+   * The summary lines that went to the chat of each project, by their change ids. A reload or a return keeps them, so the same
+   * lines never go to a chat twice (audit 2026-10-03, DSH-4). A session saved before this field gets an empty record.
+   */
+  shared: z.record(z.string(), z.string()).default({}),
 });
 type Saved = z.infer<typeof Saved>;
 
 const keyFor = (day: string) => `madar.meeting.${day}`;
 
 function fresh(order: string[], minutes: MeetingMinutes = 5): Saved {
-  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null };
+  return { startedAt: nowStamp(), order, currentId: order[0] ?? null, discussed: [], minutes, used: {}, paused: false, runningSince: null, shared: {} };
 }
 
 function load(key: string): Saved {
@@ -77,7 +82,7 @@ function nextOpen(order: readonly string[], from: number, discussed: ReadonlySet
  * The meeting session (owner, 2026-10-02): the agenda order, the project on the screen, the projects discussed,
  * and a clock for each project. The browser keeps it for the day under `madar.meeting.<YYYY-MM-DD>`, so a reload
  * keeps the meeting and a new day starts a new one. `projectIds` is the agenda order of the projects shown now.
- * The clock of the current project runs only while `onScreen` is true and nobody paused it.
+ * The clock of the current project runs only while `onScreen` is true, the page shows, and nobody paused it.
  */
 export function useMeetingSession(projectIds: readonly string[], onScreen = true) {
   const [key, setKey] = useState(() => keyFor(todayISO()));
@@ -99,12 +104,23 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
   }, []);
 
   // The page shows again, for example in the morning: a new day starts a new meeting at once.
+  // A hidden page stops the clock: another tab, or a computer that sleeps (audit 2026-10-03, DSH-11).
+  const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden');
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') commit((s) => s);
+      const shows = document.visibilityState !== 'hidden';
+      setVisible(shows);
+      commit((s) => (shows ? s : stop(s, Date.now())));
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [commit]);
+
+  // A room screen with the wake lock stays visible all night, so no page event comes in the morning.
+  // The day check also runs each minute, so the new day's meeting starts before the first change of the day (audit 2026-10-03, DSH-2).
+  useEffect(() => {
+    const check = window.setInterval(() => commit((s) => s), 60_000);
+    return () => window.clearInterval(check);
   }, [commit]);
 
   // The order of the meeting stays as it was when each project first showed, so a change in the data does not move a project.
@@ -137,9 +153,9 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ids holds the content of projectIds
   }, [ids, commit, key]);
 
-  // The clock runs while the project is on the screen, the meeting is not paused, and a project is still open.
+  // The clock runs while the project is on the screen, the page shows, the meeting is not paused, and a project is still open.
   // A new day starts a new meeting with its clock stopped while the screen stays live, so the day key starts the clock again too.
-  const live = onScreen && !session.paused && at >= 0 && !allDiscussed;
+  const live = onScreen && visible && !session.paused && at >= 0 && !allDiscussed;
   useEffect(() => {
     if (!live) {
       commit((s) => stop(s, Date.now()));
@@ -181,6 +197,15 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     commit((s) => show({ ...s, order: [...s.order.filter((id) => id !== currentId), currentId] }, next, Date.now()));
   };
 
+  /**
+   * Takes a Done back: the project shows again, and loses the mark when Done added it (audit 2026-10-03, DSH-10).
+   * It reads the latest session, so an Undo pressed some seconds later still works.
+   */
+  const undoDone = (id: string, wasDiscussed: boolean) => commit((s) => show(wasDiscussed ? s : { ...s, discussed: s.discussed.filter((item) => item !== id) }, id, Date.now()));
+
+  /** Keeps the summary lines that went to the chats, by project. */
+  const markShared = (sent: Record<string, string>) => commit((s) => ({ ...s, shared: { ...s.shared, ...sent } }));
+
   const togglePause = () => commit((s) => (s.paused ? { ...s, paused: false } : { ...stop(s, Date.now()), paused: true }));
   const setMinutes = (minutes: MeetingMinutes) => commit((s) => ({ ...s, minutes }));
 
@@ -191,17 +216,25 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     startedAt: session.startedAt,
     /** The projects shown now, in the order of this meeting. */
     order,
+    /**
+     * Every project of this meeting since it started, in its order, also the ones that a filter or a new status hides now.
+     * The summary covers them all, so a project that the meeting closes stays in the minutes (audit 2026-10-03, DSH-1).
+     */
+    meetingIds: session.order as readonly string[],
     /** The position of the project on the screen in `order`. */
     current,
     currentId,
     /** The project that Done shows next: the first one after the current one that is not discussed. */
     nextId,
     discussed: discussed as ReadonlySet<string>,
+    shared: session.shared as Readonly<Record<string, string>>,
+    markShared,
     allDiscussed,
     minutes: session.minutes,
     setMinutes,
     goTo,
     done,
+    undoDone,
     skip,
     elapsedFor,
     paused: session.paused,

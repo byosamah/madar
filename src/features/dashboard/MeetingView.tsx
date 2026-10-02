@@ -16,21 +16,23 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { ProjectSign } from '../../components/ProjectSign';
 import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, formatMonthYear, todayISO } from '../../lib/dates';
-import { clipSpan, groupClose, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
+import { clipSpan, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import { AgendaBar, AgendaButton } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
-import { MeetingSummary, type SharedSummary } from './meeting/MeetingSummary';
+import { MeetingSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
 import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
+import { currentTone, DeadlineMarks } from './scheduleMarks';
 
-const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
+// The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
+const STATUSES = ['active', 'on_hold', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
@@ -58,80 +60,6 @@ function StateOfRow({ health, pause }: { health: Row['health']; pause: Row['paus
   if (health === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
   if (health === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
-}
-
-/**
- * The color of the current stage says the state of the project, and nothing else (owner, 2026-10-02: the ADHD pass).
- * A quiet grey when on track or paused, an orange tint when at risk, solid red when late, so the problems are the loudest marks on the
- * screen. The project color stays on its tile.
- */
-function currentTone(row: Row): string {
-  if (row.pause || row.health === 'on_track') return 'bg-ink-2 text-bg';
-  // At risk is a soft orange tint with an orange edge, so it never looks like the solid red of late, in light or dark.
-  return row.health === 'late' ? 'bg-red-text text-bg' : 'bg-attn-bg text-attn ring-2 ring-inset ring-attn';
-}
-
-type Mark = { id: string; name: string; when: string; label: string; at: number };
-
-// Two diamonds closer than this share one diamond, so every diamond keeps a 24 px space to press (WCAG 2.2).
-const MARK_GAP_PX = 26;
-
-/** One deadline diamond, or one diamond with a count for deadlines that sit close together. The names show on hover and on focus. */
-function DeadlineMark({ group }: { group: Mark[] }) {
-  const { t } = useTranslation();
-  const at = group[0].at;
-  const label = group.length === 1 ? group[0].label : `${t('dashboard.meeting.deadlineCount', { count: group.length })}: ${group.map((mark) => mark.label).join('; ')}`;
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      style={{ insetInlineStart: `calc(${at}% - 12px)` }}
-      // 24 px to press (WCAG 2.2 target size); the drawn diamond stays 12 px.
-      className="group absolute bottom-px z-10 grid size-6 place-items-center rounded-sm outline-offset-2"
-    >
-      {/* A deadline is a date, not a warning, so the diamond is quiet. The Late sign beside the name carries the warning. */}
-      <span aria-hidden className="size-3 rotate-45 rounded-sm bg-ink-2" />
-      {group.length > 1 && (
-        <span aria-hidden className="tabular absolute -end-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold leading-none text-bg">
-          {group.length}
-        </span>
-      )}
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute bottom-full mb-2 hidden w-max max-w-72 rounded-xl bg-ink px-3 py-1.5 text-start text-[16px] font-medium text-bg group-hover:block group-focus-visible:block ${at > 70 ? 'end-0' : 'start-0'}`}
-      >
-        {group.map((mark) => (
-          <span key={mark.id} className="block">
-            {mark.name}{group.length > 1 && <span className="tabular opacity-70"> · {mark.when}</span>}
-          </span>
-        ))}
-      </span>
-    </button>
-  );
-}
-
-/** The deadline diamonds of one row. The row measures its own width, so close deadlines share a diamond at every screen size. */
-function DeadlineMarks({ marks }: { marks: Mark[] }) {
-  const ruler = useRef<HTMLSpanElement>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const node = ruler.current;
-    if (!node) return;
-    const measure = () => setWidth(node.getBoundingClientRect().width);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  const gap = width > 0 ? (MARK_GAP_PX / width) * 100 : 0;
-  return (
-    <>
-      <span ref={ruler} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0" />
-      {groupClose(marks, gap).map((group) => <DeadlineMark key={group[0].id} group={group} />)}
-    </>
-  );
 }
 
 /**
@@ -295,7 +223,6 @@ export function MeetingView() {
   const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
   // The summary takes the place of the screen. Back shows the same mode and the same project again.
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [shared, setShared] = useState<SharedSummary | null>(null);
   // The clock of a project runs only while its screen shows, so not on the timeline and not behind the summary.
   const session = useMeetingSession(agendaIds, mode === 'projects' && !summaryOpen);
   const [agendaOpen, setAgendaOpen] = useState(false);
@@ -356,7 +283,8 @@ export function MeetingView() {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   // The meeting started when the session of the day started, so a reload keeps the same start.
-  const meeting = useMemo(() => ({ startedAt: session.startedAt }), [session.startedAt]);
+  const drafts = useRef(new Map<string, string>()).current;
+  const meeting = useMemo(() => ({ startedAt: session.startedAt, drafts }), [session.startedAt, drafts]);
   // The open task lives in the link, so a reload keeps it. A press replaces the entry, it does not add one.
   const taskId = params.get('task');
   const openTask = (id: string) => setParams((current) => {
@@ -486,7 +414,7 @@ export function MeetingView() {
           )}
           {/* The summary takes the place of the screen, so the controls of the screen below it hide too.
               Done and Skip are the only ways forward on screen. The arrow keys, N and B, and the Agenda still move anywhere. */}
-          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} onOpenSummary={() => setSummaryOpen(true)} />}
+          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} name={shown.project.name} onOpenSummary={() => setSummaryOpen(true)} />}
           {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl
@@ -513,7 +441,7 @@ export function MeetingView() {
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
       {summaryOpen && (
-        <MeetingSummary agendaIds={agendaIds} names={names} startedAt={session.startedAt} shared={shared} onShared={setShared} onBack={() => setSummaryOpen(false)} />
+        <MeetingSummary agendaIds={session.meetingIds} names={names} startedAt={session.startedAt} shared={session.shared} onShared={session.markShared} onBack={() => setSummaryOpen(false)} />
       )}
       {!summaryOpen && mode === 'projects' && shown && (
         <MeetingProject

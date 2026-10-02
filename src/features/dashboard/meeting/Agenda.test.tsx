@@ -40,8 +40,16 @@ async function closeAgenda(sheet: HTMLElement) {
 
 const agendaItems = (sheet: HTMLElement) => within(within(sheet).getByRole('list', { name: 'Agenda order' })).getAllByRole('button');
 
+/** The page goes to another tab and back, as the browser says it with visibilitychange. */
+const pageHidden = (hidden: boolean) => act(() => {
+  Object.defineProperty(document, 'visibilityState', { value: hidden ? 'hidden' : 'visible', configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+});
+
 afterEach(() => {
   vi.useRealTimers();
+  // The own property hid the real one of the document. Without it the real one shows again.
+  delete (document as { visibilityState?: unknown }).visibilityState;
 });
 
 describe('the meeting agenda (owner, 2026-10-02)', () => {
@@ -142,6 +150,31 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await userEvent.click(items[0]);
     const back = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(within(back).getByText('Discussed')).toBeInTheDocument();
+  });
+
+  it('offers Undo after Done: it takes the mark back and shows the project again (audit 2026-10-03, DSH-10)', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const toast = (await screen.findByText('Al Waha Clinic Fit-out marked as discussed.')).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    const back = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(back).queryByText('Discussed')).toBeNull();
+    const sheet = await openAgenda();
+    expect(agendaItems(sheet)[0]).not.toHaveTextContent('Discussed');
+    await closeAgenda(sheet);
+    // Done on a project that was already discussed: Undo goes back to it and keeps the mark it had before.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const again = (await screen.findAllByText('Al Waha Clinic Fit-out marked as discussed.')).at(-1)!.closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(again).getByRole('button', { name: 'Undo' }));
+    const kept = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(kept).getByText('Discussed')).toBeInTheDocument();
   });
 
   it('goes round to the first open project when Skip is pressed on the last project', async () => {
@@ -265,6 +298,45 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(saved('madar.meeting.2026-10-01')?.discussed).toEqual([]);
     const sheet = await openAgenda();
     expect(agendaItems(sheet)[0]).not.toHaveTextContent('Discussed');
+  });
+
+  it('stops the clock while the page is hidden, and runs it again when the page shows (audit 2026-10-03, DSH-11)', async () => {
+    fakeClock();
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await ticking();
+    pass(20);
+    // The person shows an email in another tab, or closes the laptop for lunch.
+    pageHidden(true);
+    await flush();
+    pass(600);
+    pageHidden(false);
+    await ticking();
+    expect(timer()).toHaveTextContent('4:40 left');
+    pass(10);
+    expect(timer()).toHaveTextContent('4:30 left');
+  });
+
+  it('starts the meeting of the new day by itself on a screen that stays visible all night (audit 2026-10-03, DSH-2)', async () => {
+    fakeClock();
+    await renderApp(MEETING);
+    const decisions = () => within(screen.getByRole('region', { name: 'Decisions' }));
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.type(decisions().getByRole('textbox', { name: 'Write a decision' }), 'Yesterday decision{Enter}');
+    await decisions().findByText('Yesterday decision');
+    // No page event comes in the morning. The check of each minute finds the new day.
+    setNow(NEXT_MORNING);
+    pass(60);
+    await waitFor(() => expect(saved('madar.meeting.2026-10-01')).not.toBeNull());
+    await waitFor(() => expect(decisions().queryByText('Yesterday decision')).toBeNull());
+    await userEvent.type(decisions().getByRole('textbox', { name: 'Write a decision' }), 'Morning decision{Enter}');
+    await decisions().findByText('Morning decision');
+    // The first press of the morning keeps the meeting that already started, so the morning decision stays in it.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(await decisions().findByText('Morning decision')).toBeInTheDocument();
   });
 
   it('runs the meeting when the browser blocks the session storage', async () => {

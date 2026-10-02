@@ -179,3 +179,71 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     expect(screen.queryByText('No changes in this meeting yet.')).toBeNull();
   });
 });
+
+describe('the projects of the summary, and what went to the chats (audit 2026-10-03)', () => {
+  const idOf = (state: State, name: string) => Object.values(state.projects).find((project) => project.name === name)!.id;
+  const summariesIn = (state: State, projectId: string) => {
+    const chat = Object.values(state.conversations).find((item) => item.kind === 'project' && item.projectId === projectId)!;
+    return Object.values(state.messages).filter((message) => message.conversationId === chat.id && message.body.startsWith('Meeting summary'));
+  };
+
+  it('keeps a project that leaves the agenda in the meeting, with its decision (DSH-1)', async () => {
+    const { api } = await renderApp(MEETING, waitsForReview);
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Hand over the kiosks.', decision: true });
+    await api.call('projects.setStatus', { id: 'prj_011', status: 'completed' });
+    // The completed project leaves the agenda.
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Shore Walk Retail Kiosks' })).toBeNull());
+    await openSummary();
+    const summary = await screen.findByRole('region', { name: 'Meeting summary' });
+    const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+    expect(project.getByText('wrote the decision “Hand over the kiosks.”')).toBeInTheDocument();
+    expect(within(summary).queryByText('No changes in this meeting yet.')).toBeNull();
+  });
+
+  it('remembers what went to the chats after Exit and a return, so Share does not post it again (DSH-4)', async () => {
+    const { store } = await approveThenSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    await waitFor(() => expect(summariesIn(store.state, 'prj_011')).toHaveLength(1));
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    await screen.findByRole('heading', { level: 1, name: 'Dashboard' });
+    window.location.hash = `#${MEETING}`;
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await openSummary();
+    expect(await screen.findByRole('button', { name: 'Shared to 1 chat' })).toBeDisabled();
+    expect(summariesIn(store.state, 'prj_011')).toHaveLength(1);
+  });
+
+  it('posts again only to the chat of a project whose lines changed (DSH-4)', async () => {
+    const { api, store } = await renderApp(MEETING, waitsForReview);
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    const corniche = idOf(store.state, 'Corniche Office Tower');
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Order the kiosk glass.', decision: true });
+    await api.call('updates.create', { projectId: corniche, body: 'Keep the lobby double height.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    expect(await screen.findByRole('button', { name: 'Shared to 2 chats' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await api.call('updates.create', { projectId: corniche, body: 'Use the glass rail.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    await waitFor(() => expect(summariesIn(store.state, corniche)).toHaveLength(2));
+    expect(summariesIn(store.state, 'prj_011')).toHaveLength(1);
+    expect(await screen.findByText('The summary went to 1 chat.')).toBeInTheDocument();
+  });
+
+  it('names the projects that did not get the summary (DSH-17)', async () => {
+    const { api, store } = await renderApp(MEETING, (state) => {
+      waitsForReview(state);
+      const corniche = idOf(state, 'Corniche Office Tower');
+      for (const [id, chat] of Object.entries(state.conversations)) if (chat.projectId === corniche) delete state.conversations[id];
+      for (const [id, message] of Object.entries(state.messages)) if (!state.conversations[message.conversationId]) delete state.messages[id];
+    });
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Order the kiosk glass.', decision: true });
+    await api.call('updates.create', { projectId: idOf(store.state, 'Corniche Office Tower'), body: 'Keep the lobby double height.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    expect(await screen.findByText('The summary went to 1 chat. Not shared: Corniche Office Tower.')).toBeInTheDocument();
+  });
+});

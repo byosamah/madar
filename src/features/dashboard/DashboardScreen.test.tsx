@@ -40,4 +40,30 @@ describe('the Dashboard', () => {
     await waitFor(() => expect(window.location.hash).toContain('status=on_hold'));
     await waitFor(async () => expect(await tile(/Active projects/)).toHaveTextContent('0'));
   });
+
+  it('keeps the Team filter in the project lists that the numbers open (audit 2026-10-03, DSH-7)', async () => {
+    // Interiors is tm_003.
+    const count = async (name: RegExp) => Number((await tile(name)).textContent?.match(/\d+/)?.[0]);
+    for (const name of [/Active projects/, /At risk or late/]) {
+      const view = await renderApp('/dashboard?team=tm_003');
+      const n = await count(name);
+      await userEvent.click(await tile(name));
+      expect(window.location.hash).toContain('team=tm_003');
+      await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(n));
+      view.unmount();
+    }
+    await renderApp('/dashboard?team=tm_003');
+    for (const link of within(await screen.findByRole('region', { name: 'Health mix' })).getAllByRole('link')) expect(link.getAttribute('href')).toContain('team=tm_003');
+    for (const link of within(screen.getByRole('region', { name: 'Projects per stage' })).getAllByRole('link')) expect(link.getAttribute('href')).toContain('team=tm_003');
+    expect((await tile(/Area in design/)).getAttribute('href')).toContain('team=tm_003');
+  });
+
+  it('offers only the statuses that change the numbers, and reads Completed or Archived in a link as Active (audit 2026-10-03, DSH-13)', async () => {
+    await renderApp('/dashboard?status=completed');
+    expect(await tile(/Active projects/)).toHaveTextContent('9');
+    await userEvent.click(await screen.findByRole('button', { name: 'Filter' }));
+    const status = within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Status' });
+    expect(status).toHaveValue('active');
+    expect(within(status).getAllByRole('option').map((option) => option.textContent)).toEqual(['Active', 'Paused', 'All statuses']);
+  });
 });

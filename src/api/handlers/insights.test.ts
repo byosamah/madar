@@ -30,6 +30,15 @@ describe('dashboard.get', () => {
     expect(d.schedule.map((row) => row.project.code)).toEqual(['KH-26-001']);
   });
 
+  it('leaves out the area of a project in the last stage of the office, whatever its name (audit 2026-10-03, DSH-16)', async () => {
+    const state = world();
+    state.settings.defaultStages = ['Concept', 'Schematic Design', 'الإشراف'];
+    state.stages.stg_002.name = 'الإشراف';
+    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign).toBe(0);
+    state.stages.stg_002.name = 'Schematic Design';
+    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign).toBe(1000);
+  });
+
   it('gives each schedule row its health, as the health mix counts it', async () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.schedule.map((row) => row.health)).toEqual(['at_risk']);

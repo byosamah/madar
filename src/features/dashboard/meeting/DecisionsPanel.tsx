@@ -14,10 +14,24 @@ const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-
 
 type Kind = 'decision' | 'action';
 
+/**
+ * A value that the person typed and did not add yet. The meeting keeps it, so Done, Skip, the keys and the Decision/Action
+ * choice never throw it away (audit 2026-10-03, DSH-3). Outside a meeting it is plain state.
+ */
+function useDraft<T extends string>(key: string, initial: () => T): [T, (value: T) => void] {
+  const drafts = useMeeting()?.drafts;
+  const [value, setValue] = useState(() => (drafts?.get(key) as T | undefined) ?? initial());
+  const set = (next: T) => {
+    drafts?.set(key, next);
+    setValue(next);
+  };
+  return [value, set];
+}
+
 /** One line of text and an Add button. A decision posts to the Activity of the project, and never to the Tracker. */
 function DecisionForm({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
-  const [text, setText] = useState('');
+  const [text, setText] = useDraft<string>(`decision:${projectId}`, () => '');
   const post = useAction('updates.create', { onSuccess: () => setText('') });
   return (
     <form
@@ -36,9 +50,9 @@ function DecisionForm({ projectId }: { projectId: string }) {
 /** A title, a person from the team and a due date. The task goes in the current stage. It is a first date, so no date reason is asked. */
 function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId: string; stageId: string; members: { id: string; name: string }[]; defaultUserId: string }) {
   const { t } = useTranslation();
-  const [title, setTitle] = useState('');
-  const [userId, setUserId] = useState('');
-  const [dueDate, setDueDate] = useState(() => addWorkingDays(todayISO(), 2));
+  const [title, setTitle] = useDraft<string>(`action:${projectId}`, () => '');
+  const [userId, setUserId] = useDraft<string>(`actionWho:${projectId}`, () => '');
+  const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
   const create = useAction('tasks.create', { onSuccess: () => setTitle('') });
   const who = userId || defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
@@ -73,9 +87,10 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const startedAt = useMeeting()?.startedAt ?? '';
   const detail = useCall('projects.get', { id: projectId });
   const posts = useCall('updates.list', { projectId, filter: 'posts' });
-  const tasks = useCall('tasks.list', { projectId });
+  // A paused project is in the meeting too, so its tasks count here (audit 2026-10-03, DSH-5).
+  const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
   const me = useCall('session.get', {}).data?.user.id;
-  const [picked, setPicked] = useState<Kind>('decision');
+  const [picked, setPicked] = useDraft<Kind>(`kind:${projectId}`, () => 'decision');
   const canDecide = detail.data?.viewerCan.post === true;
   const canAct = detail.data?.viewerCan.createTaskForAnyone === true;
   const kind: Kind = picked === 'action' && canAct ? 'action' : canDecide ? 'decision' : 'action';
