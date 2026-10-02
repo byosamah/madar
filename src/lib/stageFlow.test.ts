@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWorkingDays, compareStages, compareTasks, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, stageTagOf, workingDaysLate } from './stageFlow';
+import { addWorkingDays, compareStages, compareTasks, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, shiftPlan, stageTagOf, workingDaysLate } from './stageFlow';
 
 const stage = (id: string, order: number, startDate: string | null, endDate: string | null, prerequisiteIds?: string[]) => ({ id, order, startDate, endDate, prerequisiteIds });
 const task = (id: string, stageId: string, status = 'todo', extra: Record<string, unknown> = {}) => ({ id, stageId, title: id, status, dueDate: null, ...extra });
@@ -54,6 +54,24 @@ describe('working days', () => {
     expect(addWorkingDays('2026-10-01', 4)).toBe('2026-10-07');
     expect(addWorkingDays('2026-10-02', 1)).toBe('2026-10-05');
     expect(addWorkingDays('2026-10-01', 0)).toBe('2026-10-01');
+  });
+});
+
+describe('the shift plan', () => {
+  const dep = (id: string, extra: Record<string, unknown> = {}) => ({ id, status: 'todo', schedule: 'dynamic', startDate: '2026-10-04', dueDate: '2026-10-08', durationDays: 4, ...extra });
+  it('moves a dynamic dependent by the working days the task is late', () => {
+    // Due Fri 25 Sep, finished Wed 30 Sep: 4 working days late.
+    const plan = shiftPlan({ dueDate: '2026-09-25' }, [dep('a')], '2026-09-30');
+    expect(plan).toEqual([{ id: 'a', lateDays: 4, from: { startDate: '2026-10-04', dueDate: '2026-10-08' }, to: { startDate: '2026-10-08', dueDate: '2026-10-13' } }]);
+  });
+  it('does not move a static, done, or undated dependent', () => {
+    const list = [dep('s', { schedule: 'static' }), dep('u', { schedule: undefined }), dep('d', { status: 'done' }), dep('n', { startDate: null }), dep('z', { durationDays: null }), dep('ok')];
+    expect(shiftPlan({ dueDate: '2026-09-25' }, list, '2026-09-30').map((move) => move.id)).toEqual(['ok']);
+  });
+  it('gives an empty list when the task finishes on or before its due day, or has no due day', () => {
+    expect(shiftPlan({ dueDate: '2026-09-30' }, [dep('a')], '2026-09-30')).toEqual([]);
+    expect(shiftPlan({ dueDate: '2026-09-30' }, [dep('a')], '2026-09-28')).toEqual([]);
+    expect(shiftPlan({ dueDate: null }, [dep('a')], '2026-09-30')).toEqual([]);
   });
 });
 

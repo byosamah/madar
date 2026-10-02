@@ -13,6 +13,7 @@ import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
 import { compareTasks } from '../../lib/stageFlow';
+import { ChainsPanel } from './meeting/ChainsPanel';
 import { ClientItemsPanel } from './meeting/ClientItemsPanel';
 import { DecisionsPanel } from './meeting/DecisionsPanel';
 import { DrawingsStrip } from './meeting/DrawingsStrip';
@@ -115,9 +116,12 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
       </header>
       <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
       <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
-        <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
-          {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
-        </Column>
+        <div className="flex min-w-0 flex-col gap-5">
+          <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
+            {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
+          </Column>
+          <ChainsPanel tasks={tasks.filter((item) => item.project.id === row.project.id)} />
+        </div>
         <div className="flex min-w-0 flex-col gap-5">
           <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
             {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
