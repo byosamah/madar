@@ -924,6 +924,15 @@
           "time": "Time"
         }
       },
+      "bigScreen": "Big screen",
+      "keys": {
+        "label": "Keys:",
+        "next": "next",
+        "back": "back",
+        "agenda": "agenda",
+        "timer": "timer",
+        "leave": "leave"
+      },
       "restart": "Start a new meeting"
     },
     "views": {

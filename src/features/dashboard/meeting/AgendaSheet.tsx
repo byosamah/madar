@@ -9,6 +9,9 @@ import { MEETING_MINUTES, type MeetingMinutes, type MeetingSession } from './ses
 
 type Row = DashboardData['schedule'][number];
 
+// The letters are keys, not words, so they stay outside the translated text.
+const KEYS = [['N', 'next'], ['B', 'back'], ['A', 'agenda'], ['T', 'timer'], ['Esc', 'leave']] as const;
+
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
 /**
@@ -53,6 +56,15 @@ export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<stri
             );
           })}
         </ol>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-2">
+          <span>{t('dashboard.meeting.keys.label')}</span>
+          {KEYS.map(([key, word]) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <kbd dir="ltr" className="rounded-md bg-fill px-1.5 py-0.5 font-sans text-[14px] font-semibold text-ink">{key}</kbd>
+              <span>{t(`dashboard.meeting.keys.${word}`)}</span>
+            </span>
+          ))}
+        </p>
         <div className="flex flex-col gap-2">
           <h3 className={HEADING}>{t('dashboard.meeting.timeEach')}</h3>
           <SegmentedControl

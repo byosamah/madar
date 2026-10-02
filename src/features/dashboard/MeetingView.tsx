@@ -26,6 +26,7 @@ import { AgendaBar } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
 import { MeetingSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
+import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
@@ -37,6 +38,12 @@ const CLIENT_ID = /^cli_\d{3,}$/;
 const TEAM_ID = /^tm_\d{3,}$/;
 // A stage bar shows its name when it spans at least this share of the window.
 const LABEL_MIN_PCT = 11;
+// The big-screen choice stays on this computer. Blocked storage means off.
+const BIG_SCREEN_KEY = 'madar.meeting.bigScreen';
+const BIG_SCREEN_ZOOM = 1.25;
+const readBigScreen = () => {
+  try { return window.localStorage.getItem(BIG_SCREEN_KEY) === '1'; } catch { return false; }
+};
 const COLUMNS = 'grid grid-cols-[minmax(14rem,24rem)_minmax(0,1fr)] gap-x-6';
 
 type Row = DashboardData['schedule'][number];
@@ -262,6 +269,12 @@ export function MeetingView() {
   const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
   const session = useMeetingSession(agendaIds, mode === 'projects');
   const [agendaOpen, setAgendaOpen] = useState(false);
+  const [bigScreen, setBigScreen] = useState(readBigScreen);
+  const toggleBigScreen = () => setBigScreen((on) => {
+    try { window.localStorage.setItem(BIG_SCREEN_KEY, on ? '0' : '1'); } catch { /* blocked storage: the choice lasts until the page closes */ }
+    return !on;
+  });
+  useWakeLock();
   // The summary takes the place of the screen. Back shows the same mode and the same project again.
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
@@ -321,6 +334,19 @@ export function MeetingView() {
         exit();
         return;
       }
+      // The letter keys go by the physical key, so an Arabic keyboard works too.
+      const letter = ['KeyN', 'KeyB', 'KeyA', 'KeyT'].includes(event.code);
+      if (letter) {
+        if (summaryRef.current || modeRef.current !== 'projects' || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (target instanceof Element && (target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') || (target as HTMLElement).isContentEditable)) return;
+        const run = sessionRef.current;
+        event.preventDefault();
+        if (event.code === 'KeyN') run.goTo(run.current + 1);
+        else if (event.code === 'KeyB') run.goTo(run.current - 1);
+        else if (event.code === 'KeyA') setAgendaOpen(true);
+        else run.togglePause();
+        return;
+      }
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       if (summaryRef.current || event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
       event.preventDefault();
@@ -351,7 +377,12 @@ export function MeetingView() {
   const shown = session.currentId ? rowOf.get(session.currentId) ?? null : null;
   return (
     <MeetingProvider value={meeting}>
-    <main aria-label={t('dashboard.meeting.title')} className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10">
+    <main
+      aria-label={t('dashboard.meeting.title')}
+      // CSS zoom makes everything 1.25 times larger. The height shrinks by the same factor, so the screen still fits.
+      style={bigScreen ? { zoom: BIG_SCREEN_ZOOM, height: `calc(100dvh / ${BIG_SCREEN_ZOOM})` } : undefined}
+      className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10"
+    >
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 pb-4">
         <div className="min-w-0">
           <h1 className="text-[34px] font-bold leading-tight text-ink">{t('app.name')}</h1>
@@ -396,6 +427,7 @@ export function MeetingView() {
           </Button>
           </>
           )}
+          <Button aria-pressed={bigScreen} onClick={toggleBigScreen}>{t('dashboard.meeting.bigScreen')}</Button>
           <Button onClick={() => setSummaryOpen(true)}>{t('dashboard.meeting.summaryButton')}</Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
