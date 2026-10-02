@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MAX_ATTACHMENTS } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
@@ -95,6 +96,24 @@ export function MessageLog({ bubbles, resetKey, emptyText }: { bubbles: Bubble[]
   );
 }
 
+/**
+ * Half-written messages, by chat or task thread, for this browser tab. Opening another chat, another tab or Search unmounts
+ * the box; its draft waits here until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the keys of
+ * the comment box (CommentThread), so a task thread and the comments of its task share one draft. Picked files stay in memory
+ * only, because session storage cannot hold a file.
+ */
+const DRAFT = 'madar.draft.';
+const readDraft = (key: string) => {
+  try { return window.sessionStorage.getItem(DRAFT + key) ?? ''; } catch { return ''; }
+};
+const writeDraft = (key: string, text: string) => {
+  try {
+    if (text) window.sessionStorage.setItem(DRAFT + key, text);
+    else window.sessionStorage.removeItem(DRAFT + key);
+  } catch { /* blocked storage */ }
+};
+const pickedFiles = new Map<string, File[]>();
+
 /** The box under the messages. Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. */
 export function Composer({
   id, people, pending, onSend, upload,
@@ -109,9 +128,18 @@ export function Composer({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const attachments = useAttachments();
+  const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
+  const attachments = useAttachments(MAX_ATTACHMENTS, pickedFiles.get(draftKey));
   const [uploading, setUploading] = useState(false);
-  const [text, setText] = useState('');
+  const [text, setTextState] = useState(() => readDraft(draftKey));
+  const setText = (next: string) => {
+    writeDraft(draftKey, next);
+    setTextState(next);
+  };
+  useEffect(() => {
+    if (attachments.files.length > 0) pickedFiles.set(draftKey, attachments.files);
+    else pickedFiles.delete(draftKey);
+  }, [draftKey, attachments.files]);
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     field.current?.focus();

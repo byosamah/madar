@@ -18,11 +18,11 @@ export type UploadTarget = { projectId: string; stageId?: string | null; taskId?
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
  * and a file that went up before a failed send is not sent a second time.
  */
-export function useAttachments(max: number = MAX_ATTACHMENTS) {
+export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = []) {
   const { t } = useTranslation();
   const { api } = useRuntime();
   const toast = useToast();
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
 
   const add = (list: FileList | null) => {

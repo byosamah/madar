@@ -6,6 +6,7 @@ import { renderApp } from '../../test/render';
 
 const list = async () => within(await screen.findByRole('list', { name: 'Chats' }));
 const rowLink = async (name: RegExp) => (await list()).getByRole('link', { name });
+const PICKED = 'Files to send';
 
 // Hala is the Admin and leads the clinic project. The sample talk leaves two unread messages in the tower chat and one in Faisal's chat.
 const withTaskTalk = (state: State) => {
@@ -124,6 +125,35 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     await waitFor(() => expect(Object.values(store.state.messages).filter((m) => m.body === 'Please check beam B14.')).toHaveLength(1));
     await waitFor(() => expect(box).toHaveValue(''));
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Half a thought about the riser');
+    await userEvent.upload(screen.getByLabelText('Attach files'), new File(['x'], 'Riser.pdf', { type: 'application/pdf' }));
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' });
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await screen.findByRole('heading', { level: 2, name: 'Corniche Office Tower' });
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('Half a thought about the riser');
+    expect(within(screen.getByRole('list', { name: PICKED })).getByText('Riser.pdf')).toBeInTheDocument();
+    // Another tab and back keeps it too.
+    await userEvent.click(within(await screen.findByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Projects' }));
+    await screen.findByRole('heading', { level: 1, name: 'Projects' });
+    window.location.hash = '#/inbox';
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('Half a thought about the riser');
+    // A sent message leaves no draft behind.
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue(''));
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' });
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await screen.findByRole('heading', { level: 2, name: 'Corniche Office Tower' });
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
+    expect(screen.queryByRole('list', { name: PICKED })).toBeNull();
   });
 });
 
