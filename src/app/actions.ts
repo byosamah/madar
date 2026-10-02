@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput } from '../api/calls';
 import { canRetry, errorMessage } from './errors';
-import { useRuntime } from './runtime';
+import { useRetryableMutate, useRuntime } from './runtime';
 import { useToast } from './toasts';
 
 /** A story ID for one action on screen. Every change the action makes carries it, so one Undo reverses them all. */
@@ -60,6 +60,7 @@ export function useUndoable<N extends CallName>(
       });
     },
   });
-  retry.current = mutation.mutate;
-  return mutation;
+  const steps = useRetryableMutate(mutation.mutate);
+  retry.current = steps.retry;
+  return { ...mutation, mutate: steps.mutate };
 }

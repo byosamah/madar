@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../api/errors';
 import { renderWithRuntime } from '../test/render';
 import { useUndoable } from './actions';
-import { useRuntime } from './runtime';
+import { useAction, useRuntime } from './runtime';
 import { usePersistentChoice } from './choices';
 import { useFileUrl } from './files';
 
@@ -45,6 +45,35 @@ describe('undo toasts', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Task done.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_013.status).toBe('done');
+  });
+});
+
+describe('Retry keeps the steps of the call (audit 2026-10-03, SHL-10)', () => {
+  function Both() {
+    const [done, setDone] = useState<string[]>([]);
+    const complete = useUndoable('tasks.complete', { message: () => 'Task done.' });
+    const move = useAction('tasks.move');
+    return (
+      <>
+        <button type="button" onClick={() => complete.mutate({ id: 'tsk_013' }, { onSuccess: () => setDone((all) => [...all, 'tick']) })}>Tick</button>
+        <button type="button" onClick={() => move.mutate({ id: 'tsk_012', status: 'in_progress' }, { onSuccess: () => setDone((all) => [...all, 'move']) })}>Move</button>
+        <p>Done: {done.join(', ')}</p>
+      </>
+    );
+  }
+
+  it('runs the per-call success step after a Retry, for an undoable change and a plain one', async () => {
+    // Call 0 is the first tick and call 3 the first move; the undoable tick also reads its changes (call 2).
+    let calls = 0;
+    const fail = new Set([0, 3]);
+    await renderWithRuntime(<Both />, asFaisal, { failureRate: () => (fail.has(calls++) ? 1 : 0) });
+    await userEvent.click(screen.getByText('Tick'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Done: tick')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Move'));
+    const retries = await screen.findAllByRole('button', { name: 'Retry' });
+    await userEvent.click(retries.at(-1)!);
+    expect(await screen.findByText('Done: tick, move')).toBeInTheDocument();
   });
 });
 

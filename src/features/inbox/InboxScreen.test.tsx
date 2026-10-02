@@ -113,6 +113,20 @@ describe('the Inbox chat', () => {
   });
 });
 
+describe('the Inbox chat after the audit of 2026-10-03', () => {
+  it('empties the box after a Retry of a failed send, so the next Send does not post it twice (SHL-10)', async () => {
+    const { store } = await renderApp('/inbox', undefined, { failFirst: 'chats.send' });
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    const box = await screen.findByRole('textbox', { name: 'Message' });
+    await userEvent.type(box, 'Please check beam B14.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(Object.values(store.state.messages).filter((m) => m.body === 'Please check beam B14.')).toHaveLength(1));
+    await waitFor(() => expect(box).toHaveValue(''));
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+});
+
 describe('the bell and the Inbox badge', () => {
   it('opens the notifications from the bell in the pill', async () => {
     await renderApp('/dashboard');
