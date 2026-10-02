@@ -30,9 +30,10 @@ export function AgendaSheet({ rows, session, onClose }: { rows: ReadonlyMap<stri
       footer={asking ? (
         <>
           <p className="basis-full text-[17px] text-ink">{t('dashboard.meeting.restartAsk')}</p>
-          {/* The safe choice takes the focus, so a second Enter does not clear the meeting. */}
+          {/* A double press must not clear the meeting. Cancel takes the place of the first button and the focus,
+              and the confirm, with its own name, goes to the start side, away from the pointer. */}
+          <Button variant="destructive" className="me-auto" onClick={() => { session.restart(); onClose(); }}>{t('dashboard.meeting.restartConfirm')}</Button>
           <Button autoFocus onClick={() => setAsking(false)}>{t('common.cancel')}</Button>
-          <Button variant="destructive" onClick={() => { session.restart(); onClose(); }}>{t('dashboard.meeting.restart')}</Button>
         </>
       ) : <Button onClick={() => setAsking(true)}>{t('dashboard.meeting.restart')}</Button>}
     >

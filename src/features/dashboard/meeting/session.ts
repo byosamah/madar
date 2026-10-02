@@ -138,6 +138,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
   }, [ids, commit, key]);
 
   // The clock runs while the project is on the screen, the meeting is not paused, and a project is still open.
+  // A new day starts a new meeting with its clock stopped while the screen stays live, so the day key starts the clock again too.
   const live = onScreen && !session.paused && at >= 0 && !allDiscussed;
   useEffect(() => {
     if (!live) {
@@ -146,7 +147,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     }
     commit((s) => (s.runningSince === null ? { ...s, runningSince: Date.now() } : s));
     return () => commit((s) => stop(s, Date.now()));
-  }, [live, commit]);
+  }, [live, commit, key]);
 
   /** The time a project used, in milliseconds. It reads the latest state, so a timer can call it each second. */
   const elapsedFor = useCallback((id: string) => {

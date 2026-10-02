@@ -20,8 +20,8 @@ const timer = () => screen.getByRole('timer');
 const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
 
 /** Waits until the clock of the project on the screen runs, then for its one-second tick. */
-async function ticking() {
-  const runs = () => JSON.parse(window.sessionStorage.getItem(KEY) ?? '{}').runningSince != null;
+async function ticking(key = KEY) {
+  const runs = () => JSON.parse(window.sessionStorage.getItem(key) ?? '{}').runningSince != null;
   for (let tries = 0; tries < 100 && !runs(); tries += 1) await flush();
   expect(runs()).toBe(true);
   await flush();
@@ -163,11 +163,30 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     // One press only asks. The meeting is the same until the person confirms.
     expect(within(sheet).getByText('Start a new meeting? This clears the discussed marks and the timers.')).toBeInTheDocument();
     expect(within(sheet).getByText('All projects discussed')).toBeInTheDocument();
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Start a new meeting' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Clear and start again' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Agenda' })).toBeNull());
     const article = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     expect(within(article).queryByText('Discussed')).toBeNull();
     expect(timer()).toHaveTextContent('5:00 left');
+  });
+
+  it('keeps the meeting for a double press: the second press lands on Cancel, and the confirm sits on the start side', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const sheet = await openAgenda();
+    // The footer is the end of the sheet, so its last button sits where "Start a new meeting" was.
+    const inPlace = () => within(sheet).getAllByRole('button').at(-1)!;
+    expect(inPlace()).toHaveAccessibleName('Start a new meeting');
+    await userEvent.click(inPlace());
+    expect(inPlace()).toHaveAccessibleName('Cancel');
+    await userEvent.click(inPlace());
+    expect(agendaItems(sheet)[0]).toHaveTextContent(/Al Waha Clinic Fit-out.*Discussed/);
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Start a new meeting' }));
+    // The confirm has its own name and goes to the start side, away from the place of the first press.
+    expect(within(sheet).queryAllByRole('button', { name: 'Start a new meeting' })).toHaveLength(0);
+    expect(within(sheet).getByRole('button', { name: 'Clear and start again' })).toHaveClass('me-auto');
   });
 
   it('keeps the meeting when the person cancels a new meeting', async () => {
@@ -216,6 +235,20 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(within(article).queryByText('Discussed')).toBeNull();
     expect(saved('madar.meeting.2026-10-01')?.startedAt).toBe('2026-10-01T08:00:00.000+03:00');
     expect(saved('madar.meeting.2026-10-01')?.discussed).toEqual([]);
+  });
+
+  it('runs the clock of the new meeting when a press starts the new day', async () => {
+    fakeClock();
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await ticking();
+    // The room screen stayed awake all night, so the first press of the morning starts the new meeting.
+    setNow(NEXT_MORNING);
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    await ticking('madar.meeting.2026-10-01');
+    pass(30);
+    expect(timer()).toHaveTextContent('4:30 left');
   });
 
   it('starts a new meeting before it saves a change on a new day', async () => {
