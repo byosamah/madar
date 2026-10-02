@@ -100,7 +100,7 @@ function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.sta
   if (status === 'done') shiftDependents(ctx, task);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
   }
   touch(ctx, task.projectId);
 }
@@ -213,7 +213,7 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   if (prerequisiteIds.length > 0) task.prerequisiteIds = prerequisiteIds;
   ctx.state.tasks[id] = task;
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
   // A new open task in an earlier stage moves the project back, and that needs a reason.
   watch.finish({ reason: input.reason });
   touch(ctx, project.id);
@@ -355,7 +355,7 @@ export const tasksUpdate = defineCall({
     watch.finish({ reason: input.reason });
     if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
     const told = [...(reassigned ? [task.ownerId] : []), ...added];
-    if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id });
+    if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
     touch(ctx, task.projectId);
     return detail(ctx, task);
   },
@@ -444,7 +444,7 @@ export const tasksApprove = defineCall({
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, 'done', 'task.approved');
     watch.finish({ ask: false });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
     return detail(ctx, task);
   },
 });
@@ -460,7 +460,7 @@ export const tasksSendBack = defineCall({
     changeStatus(ctx, task, 'in_progress', 'task.sent_back');
     watch.finish({ ask: false });
     insertComment(ctx, 'task', task.id, task.projectId, input.note);
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
     return detail(ctx, task);
   },
 });

@@ -491,6 +491,8 @@ export const Notification = z.object({
   read: z.boolean(),
   createdAt: Stamp,
   dedupeKey: z.string().nullable(),
+  /** The story of the change that made the notice, so an Undo of the whole story takes the notice back. Optional, so older notices load. */
+  correlationId: z.string().min(1).max(80).optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 

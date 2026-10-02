@@ -62,7 +62,7 @@ export function insertComment(
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId, correlationId: ctx.correlationId });
   return comment;
 }
 
@@ -73,7 +73,7 @@ export function addMember(ctx: Ctx, projectId: string, userId: string, disciplin
   const member = { projectId, userId, discipline: discipline ?? ctx.state.users[userId].discipline };
   ctx.state.members[key] = member;
   recordCreate(ctx, { projectId, verb: 'member.added', targetType: 'member', targetId: key, entity: member });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
 }
 
 /**

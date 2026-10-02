@@ -163,12 +163,15 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       const why = reason?.trim() ?? '';
       if (back && ask && !why) throw stageBackError(after);
       const stageBack = back && ask && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
+      // An older office can hold a saved stage behind the tag. The saved stage first takes the tag the call found, so the event
+      // holds the stage the project moved from, and an Undo can bring back what this move cleared (audit 2026-10-03, API-5).
+      if (moved && before) project.currentStageId = before.id;
       const changes: Partial<Project> = { currentStageId: after.id };
       // Only a real change is written, so a project saved before the Overview note is not marked changed for a null it never had.
       if (JSON.stringify(stageBack) !== JSON.stringify(project.stageBack ?? null)) changes.stageBack = stageBack;
       if (moved) changes.healthOverride = null;
       applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });
-      if (moved) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId });
+      if (moved) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
     },
   };
 }

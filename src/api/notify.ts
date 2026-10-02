@@ -9,6 +9,8 @@ export type NotifyInput = {
   targetType: NotificationTarget;
   targetId: string;
   dedupeKey?: string;
+  /** The story of the change, so an Undo can take the notice back (audit 2026-10-03, API-13). */
+  correlationId?: string;
 };
 
 /** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
@@ -25,6 +27,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     const notification: Notification = {
       id, userId, trigger: input.trigger, actorId: actor?.id ?? null, targetType: input.targetType,
       targetId: input.targetId, read: false, createdAt: stamp, dedupeKey,
+      ...(input.correlationId ? { correlationId: input.correlationId } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);

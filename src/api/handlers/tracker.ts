@@ -83,7 +83,7 @@ function openReplyTask(ctx: Ctx, entry: TrackerEntry, reply: ReplyBy): void {
   };
   ctx.state.tasks[id] = task;
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [reply.userId], trigger: 'task_assigned', targetType: 'task', targetId: id });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [reply.userId], trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
   applyPatch(ctx, entry, { replyTaskId: id }, { projectId: entry.projectId, verb: 'tracker.reply_assigned', targetType: 'tracker', targetId: entry.id });
   touch(ctx, project.id);
 }
