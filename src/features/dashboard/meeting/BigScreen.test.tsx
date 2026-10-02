@@ -145,6 +145,37 @@ describe('big screen (owner, 2026-10-02)', () => {
   });
 });
 
+describe('big screen for the whole page (final review, 2026-10-02)', () => {
+  it('zooms the whole page, so the panels over the meeting grow too, and removes the zoom when off and on Exit', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    const root = document.documentElement;
+    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    expect(root.style.zoom).toBe('1.25');
+    // The zoom sits on the page, not on the meeting box as well, so it does not count twice.
+    expect(screen.getByRole('main').style.zoom).toBe('');
+    // Zoom also scales the screen height, so the page and the meeting box divide their height by the zoom.
+    expect(document.body.style.minHeight).not.toBe('');
+    expect(screen.getByRole('main').style.height).not.toBe('');
+    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    expect(root.style.zoom).toBe('');
+    expect(document.body.style.minHeight).toBe('');
+    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    expect(root.style.zoom).toBe('1.25');
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    await waitFor(() => expect(root.style.zoom).toBe(''));
+    expect(document.body.style.minHeight).toBe('');
+  });
+
+  it('shows the on state like the other pressed buttons', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article');
+    expect(screen.getByRole('button', { name: 'Big screen' })).not.toHaveClass('ring-accent');
+    await userEvent.click(screen.getByRole('button', { name: 'Big screen' }));
+    expect(screen.getByRole('button', { name: 'Big screen' })).toHaveClass('ring-1', 'ring-inset', 'ring-accent');
+  });
+});
+
 describe('screen that stays awake (owner, 2026-10-02)', () => {
   it('asks for a lock when the meeting opens and releases it on Exit', async () => {
     const release = vi.fn().mockResolvedValue(undefined);

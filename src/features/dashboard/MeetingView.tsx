@@ -289,6 +289,20 @@ export function MeetingView() {
     return !on;
   });
   useWakeLock();
+  // Big screen zooms the whole page, so the panels over the meeting grow too: they live outside <main>.
+  // Zoom also scales the screen-height units, so the page divides its height by the zoom and still fits the screen.
+  useEffect(() => {
+    if (!bigScreen) return;
+    const root = document.documentElement.style;
+    const body = document.body.style;
+    const before = { zoom: root.zoom, minHeight: body.minHeight };
+    root.zoom = String(BIG_SCREEN_ZOOM);
+    body.minHeight = `calc(100dvh / ${BIG_SCREEN_ZOOM})`;
+    return () => {
+      root.zoom = before.zoom;
+      body.minHeight = before.minHeight;
+    };
+  }, [bigScreen]);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
@@ -407,8 +421,8 @@ export function MeetingView() {
     <MeetingProvider value={meeting}>
     <main
       aria-label={t('dashboard.meeting.title')}
-      // CSS zoom makes everything 1.25 times larger. The height shrinks by the same factor, so the screen still fits.
-      style={bigScreen ? { zoom: BIG_SCREEN_ZOOM, height: `calc(100dvh / ${BIG_SCREEN_ZOOM})` } : undefined}
+      // The page zoom makes everything 1.25 times larger, the screen height too. The height shrinks by the same factor, so the screen still fits.
+      style={bigScreen ? { height: `calc(100dvh / ${BIG_SCREEN_ZOOM})` } : undefined}
       className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10"
     >
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 pb-4">
@@ -456,7 +470,8 @@ export function MeetingView() {
           </Button>
           </>
           )}
-          <Button aria-pressed={bigScreen} onClick={toggleBigScreen}>{t('dashboard.meeting.bigScreen')}</Button>
+          {/* The on state looks like the other pressed buttons (a reaction you gave): a stronger fill and an accent ring. */}
+          <Button aria-pressed={bigScreen} className={bigScreen ? '!bg-fill-strong ring-1 ring-inset ring-accent' : ''} onClick={toggleBigScreen}>{t('dashboard.meeting.bigScreen')}</Button>
           <Button onClick={() => setSummaryOpen(true)}>{t('dashboard.meeting.summaryButton')}</Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
