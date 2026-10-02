@@ -102,6 +102,32 @@ describe('overlays', () => {
     expect(screen.getByText('Health')).toHaveFocus();
   });
 
+  it('closes a popover when the focus leaves it, and keeps the focus where it went (audit 2026-10-03, SHL-20)', async () => {
+    function Demo() {
+      const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+      const close = () => {
+        // Like the Filter button: closing gives the focus back to the control.
+        anchor?.focus();
+        setAnchor(null);
+      };
+      return (
+        <>
+          <button type="button">Before</button>
+          <button type="button" onClick={(event) => setAnchor(event.currentTarget)}>Health</button>
+          {anchor && <Popover anchor={anchor} label="Set health" onClose={close}><button type="button">Inside</button></Popover>}
+        </>
+      );
+    }
+    render(<Demo />);
+    await userEvent.click(screen.getByText('Health'));
+    expect(screen.getByText('Inside')).toHaveFocus();
+    // The first Tab leaves the page (as to the address bar); the next one comes back to the first control.
+    await userEvent.tab();
+    await userEvent.tab();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Before')).toHaveFocus();
+  });
+
   it('moves between tabs with the arrow keys', async () => {
     function Demo() {
       const [tab, setTab] = useState<'one' | 'two'>('one');
