@@ -315,6 +315,8 @@ export const Update = z.object({
   authorId: UserId,
   body: z.string().trim().min(1).max(5000),
   fileIds: z.array(FileId).max(20),
+  /** Set only on a decision made in a team meeting. */
+  decision: z.literal(true).optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });

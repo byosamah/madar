@@ -39,6 +39,21 @@ describe('updates', () => {
     expect(edited.kind === 'update' ? edited.body : '').toBe('Final summary.');
   });
 
+  it('stores the decision flag, and the feed item carries it', async () => {
+    const t = testApi(contentCalls);
+    t.as('usr_003');
+    const decided = await t.api.call('updates.create', { projectId: 'prj_001', body: 'Keep the lobby double height.', decision: true });
+    expect(decided.kind === 'update' && decided.decision).toBe(true);
+    expect(t.store.state.updates[decided.id].decision).toBe(true);
+    const plain = await t.api.call('updates.create', { projectId: 'prj_001', body: 'A normal post.' });
+    expect(plain.kind === 'update' && 'decision' in plain).toBe(false);
+    expect('decision' in t.store.state.updates[plain.id]).toBe(false);
+    const notDecided = await t.api.call('updates.create', { projectId: 'prj_001', body: 'Not a decision.', decision: false });
+    expect('decision' in t.store.state.updates[notDecided.id]).toBe(false);
+    const feed = await t.api.call('updates.list', { projectId: 'prj_001' });
+    expect(feed.filter((item) => item.kind === 'update' && item.decision).map((item) => item.id)).toEqual([decided.id]);
+  });
+
   it('stops an outsider from posting', async () => {
     const t = testApi(contentCalls);
     t.as('usr_004');

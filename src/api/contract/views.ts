@@ -26,7 +26,7 @@ export const HealthResult = z.object({
 export const FeedItem = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('update'), id: UpdateId, at: Stamp, author: UserCard, body: z.string(), fileIds: z.array(FileId),
-    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(),
+    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(), decision: z.literal(true).optional(),
   }),
   z.object({
     kind: z.literal('event'), id: EventId, at: Stamp, author: UserCard, verb: z.string(), targetType: EventTarget,

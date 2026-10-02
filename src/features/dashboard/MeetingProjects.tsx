@@ -14,6 +14,7 @@ import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
 import { compareTasks } from '../../lib/stageFlow';
 import { ClientItemsPanel } from './meeting/ClientItemsPanel';
+import { DecisionsPanel } from './meeting/DecisionsPanel';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -122,6 +123,7 @@ export function MeetingProject({ row, tasks, index, total, discussed = false, on
           <ClientItemsPanel projectId={row.project.id} />
         </div>
         <div className="flex min-h-0 min-w-0 flex-col gap-5">
+          <DecisionsPanel projectId={row.project.id} />
           <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
             <h3 className={HEADING}>{t('overview.comingUp')}</h3>
             {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (

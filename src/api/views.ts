@@ -92,6 +92,7 @@ export function updateItemOf(state: State, update: Update, viewer: User): FeedIt
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
     fileIds: update.fileIds, editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
     canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
+    ...(update.decision ? { decision: true as const } : {}),
   };
 }
 

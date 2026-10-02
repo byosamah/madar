@@ -725,6 +725,7 @@
     "cannot": "Only the project team can comment here."
   },
   "posts": {
+    "decision": "Decision",
     "actions": "Actions for this post",
     "edit": "Edit post",
     "delete": "Delete post",
@@ -814,6 +815,15 @@
     "meeting": {
       "title": "Meeting view",
       "clientItems": "Client items",
+      "decisions": "Decisions",
+      "entryKind": "What to add",
+      "kindDecision": "Decision",
+      "kindAction": "Action",
+      "writeDecision": "Write a decision",
+      "writeAction": "Write an action",
+      "actionWho": "Who",
+      "actionBy": "Due date",
+      "actionLine": "Action: {{title}} · {{name}} · {{date}}",
       "replyLine": "Reply: {{name}} · {{date}}",
       "timeline": "Project timeline",
       "controls": "Meeting view controls",

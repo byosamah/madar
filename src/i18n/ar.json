@@ -808,6 +808,7 @@
     "cannot": "التعليق هنا لفريق المشروع فقط."
   },
   "posts": {
+    "decision": "قرار",
     "actions": "إجراءات هذا المنشور",
     "edit": "تعديل المنشور",
     "delete": "حذف المنشور",
@@ -897,6 +898,15 @@
     "meeting": {
       "title": "عرض الاجتماع",
       "clientItems": "بنود العميل",
+      "decisions": "القرارات",
+      "entryKind": "ما الذي تضيفه",
+      "kindDecision": "قرار",
+      "kindAction": "إجراء",
+      "writeDecision": "اكتب قرارا",
+      "writeAction": "اكتب إجراء",
+      "actionWho": "من",
+      "actionBy": "تاريخ الاستحقاق",
+      "actionLine": "إجراء: {{title}} · {{name}} · {{date}}",
       "replyLine": "الرد: {{name}} · {{date}}",
       "timeline": "الجدول الزمني للمشاريع",
       "controls": "أدوات عرض الاجتماع",

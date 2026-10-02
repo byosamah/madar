@@ -84,7 +84,12 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
             <Button variant="primary" type="submit" disabled={!draft.trim() || save.isPending}>{t('comments.save')}</Button>
           </div>
         </form>
-      ) : <RichText body={item.body} className="text-body" />}
+      ) : (
+        <div className="flex flex-col items-start gap-1">
+          {item.decision && <span className="rounded-full bg-fill px-2 text-caption font-semibold text-label-2">{t('posts.decision')}</span>}
+          <RichText body={item.body} className="text-body" />
+        </div>
+      )}
       {item.fileIds.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {item.fileIds.map((id) => (
