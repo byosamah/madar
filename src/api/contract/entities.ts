@@ -494,6 +494,8 @@ export const Notification = z.object({
   dedupeKey: z.string().nullable(),
   /** The story of the change that made the notice, so an Undo of the whole story takes the notice back. Optional, so older notices load. */
   correlationId: z.string().min(1).max(80).optional(),
+  /** The due day a reminder names, so its words say the day, never "tomorrow" (audit 2026-10-03, API-11). Optional, so older notices load. */
+  dueDate: Day.optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 

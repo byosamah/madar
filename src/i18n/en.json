@@ -71,7 +71,7 @@
     "triggers": {
       "task_assigned": "A task is assigned to me",
       "mention": "Someone mentions me",
-      "due_tomorrow": "My task is due tomorrow",
+      "due_tomorrow": "My task is due the next working day",
       "overdue": "My task is past due",
       "review_requested": "A task goes to review",
       "task_approved": "My task is approved",
@@ -707,7 +707,7 @@
     "trigger": {
       "task_assigned": "{{actor}} gave you “{{target}}”",
       "mention": "{{actor}} mentioned you in {{target}}",
-      "due_tomorrow": "“{{target}}” is due tomorrow",
+      "due_tomorrow": "“{{target}}” is due on {{day}}",
       "overdue": "“{{target}}” is past due",
       "review_requested": "{{actor}} sent “{{target}}” to review",
       "task_approved": "{{actor}} approved “{{target}}”",

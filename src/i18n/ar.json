@@ -76,7 +76,7 @@
     "triggers": {
       "task_assigned": "إسناد مهمة إليّ",
       "mention": "إشارة أحد إليّ",
-      "due_tomorrow": "استحقاق مهمتي غدًا",
+      "due_tomorrow": "استحقاق مهمتي في يوم العمل التالي",
       "overdue": "تأخر مهمتي",
       "review_requested": "إرسال مهمة للمراجعة",
       "task_approved": "اعتماد مهمتي",
@@ -783,7 +783,7 @@
     "trigger": {
       "task_assigned": "{{actor}} أسند إليك «{{target}}»",
       "mention": "{{actor}} أشار إليك في {{target}}",
-      "due_tomorrow": "«{{target}}» مستحقة غدًا",
+      "due_tomorrow": "«{{target}}» مستحقة يوم {{day}}",
       "overdue": "«{{target}}» تجاوزت موعدها",
       "review_requested": "{{actor}} أرسل «{{target}}» للمراجعة",
       "task_approved": "{{actor}} اعتمد «{{target}}»",

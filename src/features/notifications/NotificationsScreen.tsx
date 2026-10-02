@@ -27,7 +27,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   const lang = useLang();
   const toast = useToast();
   const phone = useIsPhone();
-  const { notification: n, actor, target, project, link, canApprove, gone } = view;
+  const { notification: n, actor, target, project, link, canApprove, gone, dueDate } = view;
   const markRead = useAction('notifications.markRead');
   const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const read = () => {
@@ -39,6 +39,8 @@ function InboxItem({ view }: { view: NoticeView }) {
     actor: actor?.name ?? t('inbox.someone'),
     context: actorContext(actor),
     target,
+    // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
+    day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
   });
   const body = (
     <>

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { runScheduledTriggers } from './notify';
 import type { State } from './store';
-import { makeTask, makeWorld, STAMP } from '../test/factories';
+import { calls } from './calls';
+import { makeTask, makeWorld, STAMP, testApi } from '../test/factories';
 
 let state: State;
 beforeEach(() => {
@@ -11,7 +12,7 @@ beforeEach(() => {
 const at = (day: string) => new Date(`${day}T06:00:00Z`);
 const sent = (trigger: string) => Object.values(state.notifications).filter((n) => n.trigger === trigger);
 
-describe('The "due tomorrow" reminder goes out on the last working day before the due day (audit 2026-10-03, API-11)', () => {
+describe('The due reminder goes out on the last working day before the due day (audit 2026-10-03, API-11)', () => {
   it('names a task due on Sunday on the Thursday before', () => {
     state.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', dueDate: '2026-10-04' }); // Sun
     expect(runScheduledTriggers(state, at('2026-09-30'))).toBe(0); // Wed
@@ -52,5 +53,28 @@ describe('A paused project tells its leader on the restart day (audit 2026-10-03
     state.notifications = {};
     state.projects.prj_001.status = 'active';
     expect(runScheduledTriggers(state, at('2026-10-04'))).toBe(0);
+  });
+});
+
+describe('The reminder names the due day, never "tomorrow" (audit 2026-10-03, API-11)', () => {
+  it('keeps the due day on the notice, and the Inbox view sends it', async () => {
+    state.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', dueDate: '2026-10-04' });
+    runScheduledTriggers(state, at('2026-10-01'));
+    expect(sent('due_tomorrow')[0].dueDate).toBe('2026-10-04');
+    const t = testApi(calls, state);
+    t.as('usr_003');
+    const [view] = await t.api.call('notifications.list', {});
+    expect(view.dueDate).toBe('2026-10-04');
+  });
+
+  it('takes the due day of the task for a reminder saved before the day was kept', async () => {
+    state.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', dueDate: '2026-10-05' });
+    state.notifications.ntf_001 = {
+      id: 'ntf_001', userId: 'usr_003', trigger: 'due_tomorrow', actorId: null, targetType: 'task', targetId: 'tsk_001', read: false, createdAt: STAMP, dedupeKey: null,
+    };
+    const t = testApi(calls, state);
+    t.as('usr_003');
+    const [view] = await t.api.call('notifications.list', {});
+    expect(view.dueDate).toBe('2026-10-05');
   });
 });

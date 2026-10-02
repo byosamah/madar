@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
+import { Day, Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
@@ -27,6 +27,8 @@ export const NotificationView = z.object({
   canApprove: z.boolean(),
   /** The task, post or project is deleted. The sentence keeps its last name, and there is nothing to open. */
   gone: z.boolean(),
+  /** The due day a reminder names, so the screen writes the day, never "tomorrow" (audit 2026-10-03, API-11). Null for other notices. */
+  dueDate: Day.nullable(),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
@@ -52,6 +54,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let link = '/notifications';
   let canApprove = false;
   let gone = false;
+  let dueDate: string | null = null;
   if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
     const copy: Copy | null = task ?? deletedCopy(state, 'task', n.targetId);
@@ -61,6 +64,8 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !task;
     if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
+    // A reminder saved before it kept its day names the due day of the task.
+    if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
       && can(viewer, 'task.review', { projectRole: projectRoleOf(state, task.projectId, viewer.id) });
   } else if (n.targetType === 'update') {
@@ -92,7 +97,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate,
   };
 }
 
