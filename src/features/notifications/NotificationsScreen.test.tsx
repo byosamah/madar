@@ -55,6 +55,19 @@ describe('the notifications screen', () => {
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
   });
 
+  it('offers Undo after Mark all read (audit 2026-10-03, SHL-16)', async () => {
+    const { store } = await renderApp('/notifications', withNotices('usr_005', [
+      notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8),
+      notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
+    ]));
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
+    expect(await screen.findByText('All caught up.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(false));
+    expect(store.state.notifications.ntf_903.read).toBe(false);
+    expect(await screen.findByRole('button', { name: 'Mark all read' })).toBeInTheDocument();
+  });
+
   it('lets the leader approve from the Inbox while the task waits', async () => {
     const { store } = await renderApp('/notifications', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
     await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));

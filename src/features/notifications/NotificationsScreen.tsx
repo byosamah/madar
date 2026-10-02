@@ -118,7 +118,18 @@ export function NotificationsScreen() {
   const lang = useLang();
   const toast = useToast();
   const list = useCall('notifications.list', {});
-  const markAll = useAction('notifications.markAllRead', { onSuccess: () => toast.show({ message: t('inbox.allRead') }) });
+  // A mis-press of Mark all read would lose every to-do dot, so the toast offers Undo for the notices it cleared (audit 2026-10-03, SHL-16).
+  const cleared = useRef<string[]>([]);
+  const markUnread = useAction('notifications.markUnread');
+  const markAll = useAction('notifications.markAllRead', {
+    onSuccess: () => {
+      const ids = cleared.current;
+      toast.show({
+        message: t('inbox.allRead'),
+        action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }) } : undefined,
+      });
+    },
+  });
   const today = todayISO();
   const dayLabel = (day: string) => (day === today ? t('inbox.today') : day === addDays(today, -1) ? t('inbox.yesterday') : formatDay(day, lang, 'long'));
   const items = list.data ?? [];
@@ -134,7 +145,18 @@ export function NotificationsScreen() {
     <>
       <ScreenTitle
         title={t('screens.notifications')}
-        action={unread ? <Button variant="plain" className="shrink-0 px-3" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button> : undefined}
+        action={unread ? (
+          <Button
+            variant="plain"
+            className="shrink-0 px-3"
+            onClick={() => {
+              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id).slice(0, 200);
+              markAll.mutate({});
+            }}
+          >
+            {t('inbox.markAllRead')}
+          </Button>
+        ) : undefined}
       />
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}

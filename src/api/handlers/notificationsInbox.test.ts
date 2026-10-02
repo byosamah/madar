@@ -49,4 +49,18 @@ describe('the bell and the notifications list (audit 2026-10-03)', () => {
     expect(view).toMatchObject({ target: '', project: null, link: `/inbox/${id}` });
     expect(view.notification).toMatchObject({ trigger: 'mention', targetType: 'chat' });
   });
+
+  it('marks my notices unread again, for the Undo of Mark all read, and refuses other people (SHL-16)', async () => {
+    const t = testApi(notificationCalls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask();
+    notify(s, s.users.usr_002, stamp(0), { userIds: ['usr_003', 'usr_004'], trigger: 'task_assigned', targetType: 'task', targetId: 'tsk_001' });
+    const [mine, theirs] = Object.values(s.notifications);
+    t.as('usr_003');
+    await t.api.call('notifications.markAllRead', {});
+    expect(await t.api.call('notifications.markUnread', { ids: [mine.id] })).toEqual({ unread: 1, badge: 1 });
+    expect(s.notifications[mine.id].read).toBe(false);
+    await expect(t.api.call('notifications.markUnread', { ids: [theirs.id] })).rejects.toMatchObject({ code: 'forbidden' });
+  });
 });
+

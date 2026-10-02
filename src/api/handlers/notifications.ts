@@ -155,6 +155,23 @@ export const notificationsMarkAllRead = defineCall({
   },
 });
 
+/** Marks my notices unread again: the Undo of "Mark all read" (audit 2026-10-03, SHL-16). A notice that is gone by now is skipped. */
+export const notificationsMarkUnread = defineCall({
+  input: z.object({ ids: z.array(NotificationId).min(1).max(200) }),
+  output: Counts,
+  run(input, ctx) {
+    for (const id of input.ids) {
+      const n = ctx.state.notifications[id];
+      if (n && n.userId !== ctx.authority.id) throw forbidden('This notification belongs to someone else.');
+    }
+    for (const id of input.ids) {
+      const n = ctx.state.notifications[id];
+      if (n) n.read = false;
+    }
+    return counts(ctx);
+  },
+});
+
 export const notificationsUpdateSettings = defineCall({
   input: z.object({ trigger: Trigger, on: z.boolean() }),
   output: User,
@@ -171,5 +188,6 @@ export const notificationCalls = {
   'notifications.count': notificationsCount,
   'notifications.markRead': notificationsMarkRead,
   'notifications.markAllRead': notificationsMarkAllRead,
+  'notifications.markUnread': notificationsMarkUnread,
   'notifications.updateSettings': notificationsUpdateSettings,
 };
