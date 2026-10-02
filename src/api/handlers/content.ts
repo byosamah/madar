@@ -43,7 +43,8 @@ function newMentions(ctx: Ctx, before: string, after: string): string[] {
 export const updatesList = defineCall({
   input: z.object({
     projectId: ProjectId,
-    filter: z.enum(['all', 'posts', 'tasks', 'files']).default('all'),
+    // Decisions: only the posts marked as a decision, so a team finds what it decided (owner, 2026-10-03).
+    filter: z.enum(['all', 'posts', 'decisions', 'tasks', 'files']).default('all'),
     limit: z.number().int().min(1).max(200).default(50),
   }),
   output: z.array(FeedItem),
