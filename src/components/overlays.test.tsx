@@ -336,4 +336,31 @@ describe('overlays after the audit of 2026-10-03', () => {
       vi.useRealTimers();
     }
   });
+
+  it('moves the focus into a blocking sheet: to its first field, or to its title (BRW-2)', async () => {
+    function Demo({ withField }: { withField: boolean }) {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open</button>
+          <Sheet open={open} onOpenChange={setOpen} title="New Project" footer={<button type="button">Save</button>}>
+            {withField ? <TextField id="name" label="Name" /> : <p>Nothing to fill in.</p>}
+          </Sheet>
+        </>
+      );
+    }
+    const first = render(<Demo withField />);
+    await userEvent.click(screen.getByText('Open'));
+    const dialog = await screen.findByRole('dialog', { name: 'New Project' });
+    await waitFor(() => expect(within(dialog).getByLabelText('Name')).toHaveFocus());
+    first.unmount();
+    render(<Demo withField={false} />);
+    await userEvent.click(screen.getByText('Open'));
+    const plain = await screen.findByRole('dialog', { name: 'New Project' });
+    await waitFor(() => expect(within(plain).getByRole('heading', { name: 'New Project' })).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Open')).toHaveFocus();
+  });
 });
+

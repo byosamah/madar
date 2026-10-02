@@ -24,6 +24,20 @@ type SheetProps = {
 
 const TITLE = 'text-section text-ink [text-wrap:balance]';
 const DESCRIPTION = 'text-footnote text-label-2';
+/** A field a person types or picks in: the first one takes the focus when a sheet opens. */
+const FIELD = 'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled])';
+
+/**
+ * Vaul never moves the focus into a sheet (its autoFocus is off), so a keyboard stayed behind the sheet and a screen reader
+ * did not hear it open. The sheet now gives the focus to its first field, or to its title (audit 2026-10-03, BRW-2). On a
+ * phone the title takes it, so the keyboard does not pop up over the sheet.
+ */
+function focusInto(sheet: HTMLElement | null, phone: boolean): void {
+  if (!sheet) return;
+  const field = phone ? null : sheet.querySelector<HTMLElement>(FIELD);
+  field?.focus();
+  if (!field || document.activeElement !== field) sheet.querySelector<HTMLElement>('[data-sheet-title]')?.focus();
+}
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
@@ -127,6 +141,10 @@ export function Sheet(props: SheetProps) {
   const direction = phone ? 'bottom' : rtl ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
   usePanelOpen(open && modal);
+  const content = useRef<HTMLDivElement>(null);
+  // The control that had the focus when the sheet opened. Radix gives the focus back to a Dialog.Trigger only, and the app
+  // opens sheets from its own buttons, so the sheet gives it back itself (audit 2026-10-03, BRW-2).
+  const returnTo = useRef<HTMLElement | null>(null);
   if (!modal) return <SidePanel {...props} />;
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
@@ -137,7 +155,18 @@ export function Sheet(props: SheetProps) {
       <Drawer.Portal>
         {modal && <Drawer.Overlay className="fixed inset-0 z-40 bg-[var(--c-scrim)]" />}
         <Drawer.Content
+          ref={content}
           {...described}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            returnTo.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+            focusInto(content.current, phone);
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (returnTo.current?.isConnected) returnTo.current.focus();
+            returnTo.current = null;
+          }}
           // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
           onPointerDownOutside={(event) => {
             if (event.target instanceof Element && event.target.closest('[data-toasts]')) event.preventDefault();
@@ -152,7 +181,7 @@ export function Sheet(props: SheetProps) {
           <Frame
             heading={(
               <>
-                <Drawer.Title className={TITLE}>{title}</Drawer.Title>
+                <Drawer.Title data-sheet-title tabIndex={-1} className={`${TITLE} outline-none`}>{title}</Drawer.Title>
                 {description && <Drawer.Description className={DESCRIPTION}>{description}</Drawer.Description>}
               </>
             )}
