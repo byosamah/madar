@@ -66,7 +66,9 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
         if (!output.success) throw new ApiError('failed', `The call ${name} returned data in the wrong shape.`, { issues: output.error.issues.length });
         return output.data;
       };
-      return (def.readOnly ? store.read(execute) : store.run(execute)) as z.output<M[N]['output']>;
+      const output = (def.readOnly ? store.read(execute) : store.run(execute)) as z.output<M[N]['output']>;
+      if (def.after) await def.after(output, { state: store.state, persister: store.persister, actor, now: at }, prepared).catch(() => undefined);
+      return output;
     },
   };
 }

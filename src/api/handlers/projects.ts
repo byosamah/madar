@@ -205,13 +205,29 @@ export const projectsSetLeader = defineCall({
   },
 });
 
+/**
+ * A pause ends, by Resume or by another status: the pause goes, and the open entry of a client pause closes with it. An entry that a
+ * person already closed, changed or deleted stays as it is.
+ */
+function endPause(ctx: Ctx, project: Project, status: Project['status'], verb: string): void {
+  const waiting = project.pause?.trackerId ? trackerOf(ctx.state)[project.pause.trackerId] : undefined;
+  applyPatch(ctx, project, { status, pause: null }, { projectId: project.id, verb, targetType: 'project', targetId: project.id });
+  if (waiting && waiting.waiting === 'client' && waiting.closedAt === null) {
+    applyPatch(ctx, waiting, { closedAt: ctx.stamp, closedBy: ctx.actor.id }, { projectId: project.id, verb: 'tracker.closed', targetType: 'tracker', targetId: waiting.id });
+  }
+}
+
 export const projectsSetStatus = defineCall({
   input: z.object({ id: ProjectId, status: ProjectStatus }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
-    applyPatch(ctx, project, { status: input.status }, { projectId: project.id, verb: 'project.status_changed', targetType: 'project', targetId: project.id });
+    // A pause needs a reason (owner decision D7), so it goes through projects.pause. A paused project that is completed or
+    // archived ends its pause as Resume does, so no "waiting for the client" item stays open (audit 2026-10-03, API-8).
+    if (input.status === 'on_hold' && project.status !== 'on_hold') throw invalid('status', 'Use Pause project and write why the project pauses.', 'pause_needs_reason');
+    if (project.status === 'on_hold' && input.status !== 'on_hold') endPause(ctx, project, input.status, 'project.status_changed');
+    else applyPatch(ctx, project, { status: input.status }, { projectId: project.id, verb: 'project.status_changed', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -319,13 +335,8 @@ export const projectsResume = defineCall({
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
     if (project.status !== 'on_hold') throw new ApiError('conflict', 'This project is not paused.');
-    const waiting = project.pause?.trackerId ? trackerOf(ctx.state)[project.pause.trackerId] : undefined;
-    applyPatch(ctx, project, { status: 'active', pause: null }, { projectId: project.id, verb: 'project.resumed', targetType: 'project', targetId: project.id });
-    // The wait is over, so the open entry of a client pause closes with the pause. An entry that a person already closed,
-    // changed or deleted stays as it is.
-    if (waiting && waiting.waiting === 'client' && waiting.closedAt === null) {
-      applyPatch(ctx, waiting, { closedAt: ctx.stamp, closedBy: ctx.actor.id }, { projectId: project.id, verb: 'tracker.closed', targetType: 'tracker', targetId: waiting.id });
-    }
+    // The wait is over, so the open entry of a client pause closes with the pause.
+    endPause(ctx, project, 'active', 'project.resumed');
     touch(ctx, project.id);
     return detail(ctx, project);
   },
@@ -356,9 +367,33 @@ export const projectsClearHealthOverride = defineCall({
   },
 });
 
+/** Every stored file data key of a project: its files now, and the versions its file events remember. */
+function blobKeysOf(state: State, projectId: string): string[] {
+  const keys = new Set<string>();
+  const add = (value: unknown) => {
+    for (const version of (value as { versions?: { blobKey?: string }[] } | null)?.versions ?? []) if (version.blobKey) keys.add(version.blobKey);
+  };
+  for (const file of Object.values(state.files)) if (file.projectId === projectId) add(file);
+  for (const event of Object.values(state.events)) {
+    if (event.projectId !== projectId || event.targetType !== 'file') continue;
+    add(event.before);
+    add(event.after);
+  }
+  return [...keys];
+}
+
 export const projectsDelete = defineCall({
   input: z.object({ id: ProjectId, confirm: z.literal(true) }),
   output: z.object({ deleted: z.literal(true) }),
+  async prepare(input, p) {
+    return { blobKeys: blobKeysOf(p.state, input.id) };
+  },
+  // A deleted project never comes back, so its stored file data goes after the delete (audit 2026-10-03, API-17).
+  // A key that a file of another project still uses stays.
+  async after(_output, p, prepared) {
+    const used = new Set(Object.values(p.state.files).flatMap((file) => file.versions.map((version) => version.blobKey)));
+    for (const key of prepared.blobKeys) if (!used.has(key)) await p.persister.deleteBlob(key);
+  },
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.delete', { projectRole: roleIn(ctx, project.id) });
@@ -374,6 +409,8 @@ export const projectsDelete = defineCall({
     drop(state.files);
     drop(state.members);
     drop(paymentsOf(state));
+    // A Tracker entry has no meaning without its project (audit 2026-10-03, API-17).
+    drop(trackerOf(state));
     for (const [key, comment] of Object.entries(state.comments)) {
       const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
       if (!target) delete state.comments[key];
@@ -439,7 +476,8 @@ export const membersRemove = defineCall({
     if (!member) throw notFound('Member', key);
     if (project.leaderId === input.userId) throw invalid('userId', 'Change the leader first.');
     const hasOpenTasks = Object.values(ctx.state.tasks).some((t) => t.projectId === project.id && involves(t, input.userId) && t.status !== 'done');
-    if (hasOpenTasks) throw invalid('userId', 'Give their open tasks to someone else first.');
+    // The reason has its own words on the screen, so the person knows what to do (audit 2026-10-03, PRJ-3).
+    if (hasOpenTasks) throw invalid('userId', 'Give their open tasks to someone else first.', 'member_has_open_tasks');
     delete ctx.state.members[key];
     recordDelete(ctx, { projectId: project.id, verb: 'member.removed', targetType: 'member', targetId: key, entity: member });
     touch(ctx, project.id);

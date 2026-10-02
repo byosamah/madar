@@ -7,7 +7,7 @@ import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions
 import type { State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
-import { helpersOf } from '../lib/taskPeople';
+import { helpersOf, involves } from '../lib/taskPeople';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
 import { staleDaysOf } from './pause';
 
@@ -199,8 +199,9 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
 
 export function detailOf(state: State, project: Project, today: string, viewer: User): ProjectDetail {
   const summary = summaryOf(state, project, today, viewer);
+  // A person leads a task or helps on it. Both count, as in members.remove and the Overview (audit 2026-10-03, PRJ-3).
   const openBy = (userId: string) =>
-    Object.values(state.tasks).filter((t) => t.projectId === project.id && t.ownerId === userId && t.status !== 'done').length;
+    Object.values(state.tasks).filter((t) => t.projectId === project.id && involves(t, userId) && t.status !== 'done').length;
   const members = Object.values(state.members)
     .filter((m) => m.projectId === project.id)
     .map((m) => ({
