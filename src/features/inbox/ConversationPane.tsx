@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
-import { useAction, useCall } from '../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
@@ -86,6 +86,12 @@ export function TaskPane({ id }: { id: string }) {
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
+  const { api } = useRuntime();
+  const count = comments.data?.length;
+  useEffect(() => {
+    // Opening the thread reads it (audit 2026-10-03, SHL-5). A failed read mark is not worth an error toast.
+    if (count !== undefined) api.call('chats.markRead', { conversationId: id }).catch(() => undefined);
+  }, [api, id, count]);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;

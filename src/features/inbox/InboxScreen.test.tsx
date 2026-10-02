@@ -150,6 +150,17 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
   });
 
+  it('marks a task thread with a new comment as unread, and reads it when it opens (SHL-5)', async () => {
+    const { store } = await renderApp('/inbox', withTaskTalk);
+    const row = await rowLink(/Room finish schedule/);
+    expect(within(row).getByText('Unread: 1')).toBeInTheDocument();
+    await userEvent.click(row);
+    expect(await within(await screen.findByRole('log', { name: 'Messages' })).findByText('The finish codes are ready.')).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Chats' })).getByRole('link', { name: /Room finish schedule/ })).not.toHaveTextContent('Unread'));
+    const taskId = Object.values(store.state.tasks).find((t) => t.title === 'Room finish schedule')?.id ?? '';
+    expect(Object.values(store.state.chatReads).some((r) => r.conversationId === taskId && r.userId === 'usr_001')).toBe(true);
+  });
+
   it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {
     await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));
@@ -195,14 +206,15 @@ describe('the bell and the Inbox badge', () => {
     await renderApp('/dashboard');
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     const inbox = within(nav).getByRole('link', { name: /^Inbox/ });
-    expect(await within(inbox).findByText('Unread messages: 3')).toBeInTheDocument();
+    // Three chat messages, and two task threads with a new comment from someone else (audit 2026-10-03, SHL-5).
+    expect(await within(inbox).findByText('Unread messages: 5')).toBeInTheDocument();
   });
 
   it('counts a new chat message and clears the count once the chat is read', async () => {
     const { api, store } = await renderApp('/dashboard');
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
-    await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 3');
+    await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
     await api.call('chats.markRead', { conversationId: Object.values(store.state.conversations).find((c) => c.projectId === 'prj_001')?.id ?? '' });
-    expect(await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 1')).toBeInTheDocument();
+    expect(await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 3')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, UserId, type Conversation, type Message, type User } from '../contract/entities';
+import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, TaskId, UserId, type Comment, type Conversation, type Message, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
 import { addDirectConversation, canSeeConversation, messagesOf, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
@@ -62,6 +62,16 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
   };
 }
 
+/**
+ * The new comments of a task thread for one person: by other people, after their own last comment and after they last read
+ * the thread. A thread counts as unread the same way a chat does, so feedback on my task never goes unseen (audit 2026-10-03, SHL-5).
+ */
+function taskUnread(state: State, taskId: string, comments: Comment[], viewerId: string): number {
+  const lastRead = state.chatReads[chatReadKey(taskId, viewerId)]?.lastReadAt ?? '';
+  const mine = comments.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
+  return comments.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
+}
+
 /** Tasks I own, lead or commented on, that have at least one comment. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse. */
 function taskRows(state: State, viewer: User): ChatRow[] {
   const rows: ChatRow[] = [];
@@ -79,7 +89,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
     rows.push({
       kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
-      previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: 0, personLeft: false,
+      previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
     });
   }
   return rows;
@@ -96,7 +106,8 @@ function messageViewOf(state: State, message: Message, viewerId: string): Messag
 }
 
 function totalUnread(state: State, viewer: User): number {
-  return visibleConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
+  const chats = visibleConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
+  return chats + taskRows(state, viewer).reduce((sum, row) => sum + row.unread, 0);
 }
 
 function markReadNow(ctx: Ctx, conversation: Conversation): void {
@@ -176,11 +187,24 @@ export const chatsSend = defineCall({
   },
 });
 
+/** A task thread read now: every comment in it so far counts as read. Reading follows the rule of comments.list. */
+function markTaskReadNow(ctx: Ctx, taskId: string): void {
+  if (!ctx.state.tasks[taskId]) throw notFound('Task', taskId);
+  if (!can(ctx.authority, 'comment.read')) throw forbidden('You cannot read these comments.', { action: 'comment.read' });
+  const last = Object.values(ctx.state.comments)
+    .filter((c) => c.targetType === 'task' && c.targetId === taskId)
+    .reduce((latest, c) => (c.createdAt > latest ? c.createdAt : latest), '');
+  const lastReadAt = last > ctx.stamp ? last : ctx.stamp;
+  ctx.state.chatReads[chatReadKey(taskId, ctx.authority.id)] = { conversationId: taskId, userId: ctx.authority.id, lastReadAt };
+}
+
 export const chatsMarkRead = defineCall({
-  input: z.object({ conversationId: ConversationId }),
+  /** A chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5). */
+  input: z.object({ conversationId: z.union([ConversationId, TaskId]) }),
   output: z.object({ unread: z.number().int().min(0) }),
   run(input, ctx) {
-    markReadNow(ctx, requireConversation(ctx, input.conversationId));
+    if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
+    else markReadNow(ctx, requireConversation(ctx, input.conversationId));
     return { unread: totalUnread(ctx.state, ctx.authority) };
   },
 });
