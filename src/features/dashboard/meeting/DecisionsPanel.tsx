@@ -73,7 +73,8 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const startedAt = useMeeting()?.startedAt ?? '';
   const detail = useCall('projects.get', { id: projectId });
   const posts = useCall('updates.list', { projectId, filter: 'posts' });
-  const tasks = useCall('tasks.list', { projectId });
+  // A paused project is in the meeting too, so its tasks count here (audit 2026-10-03, DSH-5).
+  const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
   const me = useCall('session.get', {}).data?.user.id;
   const [picked, setPicked] = useState<Kind>('decision');
   const canDecide = detail.data?.viewerCan.post === true;

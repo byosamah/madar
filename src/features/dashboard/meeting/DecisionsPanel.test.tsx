@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { openAgendaSheet } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -69,6 +70,20 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(task.stageId).toBe(project.currentStageId);
     expect(task.ownerId).toBe(person.id);
     expect(task.dueDate).toBe('2026-10-08');
+  });
+
+  it('lists an action of a paused project (audit 2026-10-03, DSH-5)', async () => {
+    const { store } = await renderApp(`${MEETING}&status=all`, shoreWalkFirst);
+    await panel();
+    const sheet = await openAgendaSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: /Gulf Crest HQ Interiors/ }));
+    await screen.findByRole('article', { name: 'Gulf Crest HQ Interiors' });
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Call the client back');
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).filter((task) => task.title === 'Call the client back')).toHaveLength(1));
+    expect(await decisions.findByText(/^Action: Call the client back/)).toBeInTheDocument();
   });
 
   it('lists the decisions and actions of this meeting only, the newest last', async () => {
