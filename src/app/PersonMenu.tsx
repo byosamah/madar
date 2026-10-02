@@ -72,7 +72,8 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
             </Link>
-            <button type="button" onClick={() => { setOpen(false); setFeedback(true); }} className={row}>
+            {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
+            <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>
               <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
               {t('feedback.menu')}
             </button>
