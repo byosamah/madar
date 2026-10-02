@@ -358,10 +358,12 @@
     "feedFilter": {
       "all": "All",
       "posts": "Posts",
+      "decisions": "Decisions",
       "tasks": "Tasks",
       "files": "Files"
     },
     "emptyFeed": "No updates yet.",
+    "emptyDecisions": "No decisions yet. A decision added in a meeting shows here.",
     "facts": "Key facts",
     "deadlines": "Next deadlines",
     "noDeadlines": "No deadlines yet.",

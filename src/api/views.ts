@@ -119,14 +119,17 @@ function newestFirst(a: FeedItem, b: FeedItem): number {
 
 /** mayUndo comes from the history rules, so the feed offers Undo exactly when events.undo accepts it. */
 export function feedFor(
-  state: State, projectId: string, filter: 'all' | 'posts' | 'tasks' | 'files', limit: number, viewer: User,
+  state: State, projectId: string, filter: 'all' | 'posts' | 'decisions' | 'tasks' | 'files', limit: number, viewer: User,
   mayUndo: (event: Event) => boolean = () => false,
 ): FeedItem[] {
   const items: FeedItem[] = [];
-  if (filter === 'all' || filter === 'posts') {
-    for (const update of Object.values(state.updates)) if (update.projectId === projectId) items.push(updateItemOf(state, update, viewer));
+  if (filter === 'all' || filter === 'posts' || filter === 'decisions') {
+    for (const update of Object.values(state.updates)) {
+      if (update.projectId !== projectId || (filter === 'decisions' && !update.decision)) continue;
+      items.push(updateItemOf(state, update, viewer));
+    }
   }
-  if (filter !== 'posts') {
+  if (filter !== 'posts' && filter !== 'decisions') {
     for (const event of Object.values(state.events)) {
       if (event.projectId !== projectId || event.undoneBy || !FEED_VERBS.has(event.verb)) continue;
       if (filter === 'tasks' && !event.verb.startsWith('task.')) continue;

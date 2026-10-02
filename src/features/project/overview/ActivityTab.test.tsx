@@ -29,6 +29,26 @@ describe('the Activity tab', () => {
     expect(screen.getByText(/I uploaded revision B/)).toBeInTheDocument();
   });
 
+  it('shows only the decisions with the Decisions filter, newest first (owner, 2026-10-03)', async () => {
+    const { api } = await renderApp(PROJECT);
+    await screen.findByText(/I uploaded revision B/);
+    await api.call('updates.create', { projectId: 'prj_001', body: 'Keep the lobby double height.', decision: true });
+    await api.call('updates.create', { projectId: 'prj_001', body: 'Use the glass rail.', decision: true });
+    await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Decisions' }));
+    await waitFor(() => expect(screen.queryByText(/I uploaded revision B/)).toBeNull());
+    const shown = screen.getAllByText(/^(Keep the lobby double height\.|Use the glass rail\.)$/).map((node) => node.textContent);
+    expect(shown).toEqual(['Use the glass rail.', 'Keep the lobby double height.']);
+  });
+
+  it('says where decisions come from when the project has none yet', async () => {
+    await renderApp(PROJECT);
+    await screen.findByText(/I uploaded revision B/);
+    await userEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Decisions' }));
+    expect(await screen.findByText('No decisions yet. A decision added in a meeting shows here.')).toBeInTheDocument();
+  });
+
   it('posts an update that mentions a teammate', async () => {
     const { store } = await renderApp(PROJECT, as('usr_002'));
     const box = await screen.findByRole('textbox', { name: 'Post an update' });

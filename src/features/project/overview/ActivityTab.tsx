@@ -8,7 +8,8 @@ import type { TabProps } from '../tabs';
 import { Composer } from './Composer';
 import { FeedEntry } from './FeedEntry';
 
-const FILTERS = ['all', 'posts', 'tasks', 'files'] as const;
+// Decisions sits next to Posts: a decision is a post with the Decision label (owner, 2026-10-03).
+const FILTERS = ['all', 'posts', 'decisions', 'tasks', 'files'] as const;
 
 /** The project's log: posts and system events with a filter, and the composer on top (spec 5.2). The Overview shows the state of the project instead (owner, 2026-10-01). */
 export function ActivityTab({ detail }: TabProps) {
@@ -37,7 +38,7 @@ export function ActivityTab({ detail }: TabProps) {
           </FilterButton>
         </div>
         {feed.data && feed.data.length === 0
-          ? <EmptyState title={t('overview.feed')} body={t('overview.emptyFeed')} />
+          ? <EmptyState title={t('overview.feed')} body={t(filter === 'decisions' ? 'overview.emptyDecisions' : 'overview.emptyFeed')} />
           : <ol className="flex flex-col gap-3">{(feed.data ?? []).map((item) => (
             <FeedEntry
               key={item.id}

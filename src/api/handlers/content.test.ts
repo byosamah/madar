@@ -82,6 +82,16 @@ describe('updates', () => {
     expect(await t.api.call('updates.list', { projectId: 'prj_001', filter: 'posts' })).toHaveLength(1);
     expect(await t.api.call('updates.list', { projectId: 'prj_001', filter: 'tasks' })).toHaveLength(0);
   });
+
+  it('lists only the decisions with the decisions filter (owner, 2026-10-03)', async () => {
+    const t = testApi(contentCalls);
+    t.as('usr_003');
+    await t.api.call('updates.create', { projectId: 'prj_001', body: 'Site visit done.' });
+    await t.api.call('updates.create', { projectId: 'prj_001', body: 'Keep the lobby double height.', decision: true });
+    const decisions = await t.api.call('updates.list', { projectId: 'prj_001', filter: 'decisions' });
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({ kind: 'update', body: 'Keep the lobby double height.', decision: true });
+  });
 });
 
 describe('comments', () => {
