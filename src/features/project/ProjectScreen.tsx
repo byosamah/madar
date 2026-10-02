@@ -25,13 +25,15 @@ export function ProjectScreen() {
   const detail = useCall('projects.get', { id: projectId });
   const queryClient = useQueryClient();
 
-  if (detail.error) {
+  // A failed refresh keeps the project on screen: the error page shows only when there is no data (audit 2026-10-03, PRJ-1).
+  if (detail.error && !detail.data) {
     const gone = detail.error instanceof ApiError && detail.error.code === 'not_found';
+    const title = gone ? t('project.notFoundTitle') : t('common.loadFailed');
     return (
       <>
-        <ScreenTitle title={t('project.notFoundTitle')} />
+        <ScreenTitle title={title} />
         <EmptyState
-          title={t('project.notFoundTitle')}
+          title={title}
           body={gone ? t('project.notFound') : errorMessage(detail.error, t)}
           action={gone
             ? <Link to="/projects" className="pressable inline-flex min-h-11 items-center font-semibold text-link">{t('project.back')}</Link>

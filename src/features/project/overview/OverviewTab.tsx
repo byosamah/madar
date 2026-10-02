@@ -278,7 +278,7 @@ export function OverviewTab({ detail }: TabProps) {
     next.delete('task');
     return next;
   }), [setParams]);
-  if (tasks.error) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
+  if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
   return (

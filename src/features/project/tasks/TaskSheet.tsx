@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
 import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
+import { ApiError } from '../../../api/errors';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { useAction, useCall } from '../../../app/runtime';
@@ -16,6 +17,7 @@ import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { SelectField, TextArea, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
@@ -334,9 +336,11 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
   const focus = useFocusLink();
+  // Only a task that is gone closes the panel. A failed refresh keeps it open with the text a person typed (audit 2026-10-03, PRJ-1).
+  const gone = task.error instanceof ApiError && task.error.code === 'not_found';
   useEffect(() => {
-    if (task.error) onClose();
-  }, [task.error, onClose]);
+    if (gone) onClose();
+  }, [gone, onClose]);
   return (
     <Sheet
       open
@@ -353,6 +357,7 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
       )}
     >
       {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} />}
+      {!task.data && task.error && !gone && <LoadFailed error={task.error} onRetry={() => void task.refetch()} />}
     </Sheet>
   );
 }
