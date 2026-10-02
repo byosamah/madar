@@ -105,8 +105,9 @@ export function DashboardScreen() {
           />
           <TabPanel value={section} idPrefix="dash-section">
             {section === 'projects' && (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* grid-cols-1: one auto column grows to its widest card and pushes a phone page sideways. */}
+                <div className="min-w-0 empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: `/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}` },

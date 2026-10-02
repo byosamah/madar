@@ -80,7 +80,7 @@ test('the project Overview shows where the project stands', async ({ page }) => 
     await expect(page.getByRole('region', { name }), name).toBeVisible();
   }
   const tabs = page.getByRole('tablist', { name: 'Project sections' }).getByRole('tab');
-  await expect(tabs).toHaveText(['Overview', 'Tasks', 'Activity', 'Schedule', 'Files', 'Team']);
+  await expect(tabs).toHaveText(['Overview', 'Tasks', 'Activity', 'Tracker', 'Schedule', 'Files', 'Team']);
 });
 
 test('a leader pauses and resumes a project', async ({ page }) => {
