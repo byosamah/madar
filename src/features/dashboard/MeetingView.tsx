@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
+import { MeetingProvider } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -19,9 +20,16 @@ import { projectHue } from '../../lib/projectColor';
 import { clipSpan, groupClose, MEETING_ZOOMS, meetingWindow, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
+import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
+import { AgendaBar } from './meeting/AgendaBar';
+import { AgendaSheet } from './meeting/AgendaSheet';
+import { MeetingSummary, type SharedSummary } from './meeting/MeetingSummary';
+import { useMeetingSession } from './meeting/session';
+import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
+import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
@@ -30,6 +38,12 @@ const CLIENT_ID = /^cli_\d{3,}$/;
 const TEAM_ID = /^tm_\d{3,}$/;
 // A stage bar shows its name when it spans at least this share of the window.
 const LABEL_MIN_PCT = 11;
+// The big-screen choice stays on this computer. Blocked storage means off.
+const BIG_SCREEN_KEY = 'madar.meeting.bigScreen';
+const BIG_SCREEN_ZOOM = 1.25;
+const readBigScreen = () => {
+  try { return window.localStorage.getItem(BIG_SCREEN_KEY) === '1'; } catch { return false; }
+};
 const COLUMNS = 'grid grid-cols-[minmax(14rem,24rem)_minmax(0,1fr)] gap-x-6';
 
 type Row = DashboardData['schedule'][number];
@@ -222,6 +236,16 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
   );
 }
 
+/** The task panel over the meeting. It opens with the project of the task, so the team and the stages in it are the ones of that project. */
+function MeetingTaskSheet({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+  const task = useCall('tasks.get', { id: taskId });
+  useEffect(() => {
+    if (task.error) onClose();
+  }, [task.error, onClose]);
+  if (!task.data) return null;
+  return <ProjectTaskSheet projectId={task.data.project.id} taskId={taskId} onClose={onClose} />;
+}
+
 /**
  * The meeting-room screen: every project on one big timeline (owner request, 2026-10-01).
  * It keeps the Dashboard filters from the link. Time runs toward the end side, so Arabic reads right to left.
@@ -247,9 +271,40 @@ export function MeetingView() {
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
+  // The project screens follow the meeting agenda (owner, 2026-10-02): the projects that need the team most come first.
+  // The timeline keeps its own order. The session keeps the agenda, the current project and the clocks for the day.
+  const schedule = dashboard.data?.schedule;
+  const agendaIds = useMemo(() => agendaOrder(schedule ?? []).map((row) => row.project.id), [schedule]);
+  const rowOf = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row])), [schedule]);
+  const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
+  // The summary takes the place of the screen. Back shows the same mode and the same project again.
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [shared, setShared] = useState<SharedSummary | null>(null);
+  // The clock of a project runs only while its screen shows, so not on the timeline and not behind the summary.
+  const session = useMeetingSession(agendaIds, mode === 'projects' && !summaryOpen);
+  const [agendaOpen, setAgendaOpen] = useState(false);
+  const [bigScreen, setBigScreen] = useState(readBigScreen);
+  const toggleBigScreen = () => setBigScreen((on) => {
+    try { window.localStorage.setItem(BIG_SCREEN_KEY, on ? '0' : '1'); } catch { /* blocked storage: the choice lasts until the page closes */ }
+    return !on;
+  });
+  useWakeLock();
+  // Big screen zooms the whole page, so the panels over the meeting grow too: they live outside <main>.
+  // Zoom also scales the screen-height units, so the page divides its height by the zoom and still fits the screen.
+  useEffect(() => {
+    if (!bigScreen) return;
+    const root = document.documentElement.style;
+    const body = document.body.style;
+    const before = { zoom: root.zoom, minHeight: body.minHeight };
+    root.zoom = String(BIG_SCREEN_ZOOM);
+    body.minHeight = `calc(100dvh / ${BIG_SCREEN_ZOOM})`;
+    return () => {
+      root.zoom = before.zoom;
+      body.minHeight = before.minHeight;
+    };
+  }, [bigScreen]);
   const [zoom, setZoom] = useState<MeetingZoom>('half');
   const [shift, setShift] = useState(0);
-  const [slide, setSlide] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) => setOpened((current) => {
@@ -257,8 +312,8 @@ export function MeetingView() {
     if (!next.delete(id)) next.add(id);
     return next;
   });
-  const setMode = (next: (typeof MODES)[number], at?: number) => {
-    if (at !== undefined) setSlide(at);
+  const setMode = (next: (typeof MODES)[number], projectId?: string) => {
+    if (projectId !== undefined) session.goTo(session.order.indexOf(projectId));
     setParams((current) => {
       const value = new URLSearchParams(current);
       if (next === 'timeline') value.delete('mode');
@@ -276,23 +331,71 @@ export function MeetingView() {
   const rtl = lang === 'ar';
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const countRef = useRef(0);
-  countRef.current = dashboard.data?.schedule.length ?? 0;
+  const summaryRef = useRef(summaryOpen);
+  summaryRef.current = summaryOpen;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  // The meeting started when the session of the day started, so a reload keeps the same start.
+  const meeting = useMemo(() => ({ startedAt: session.startedAt }), [session.startedAt]);
+  // The open task lives in the link, so a reload keeps it. A press replaces the entry, it does not add one.
+  const taskId = params.get('task');
+  const openTask = (id: string) => setParams((current) => {
+    const value = new URLSearchParams(current);
+    value.set('task', id);
+    return value;
+  }, { replace: true });
+  const closeTask = () => setParams((current) => {
+    const value = new URLSearchParams(current);
+    value.delete('task');
+    return value;
+  }, { replace: true });
+  // The task panel belongs to the screen it opened on. Another project, another mode or the summary closes it,
+  // so Done, Skip and the arrows never leave a panel open over a project that is not on the screen.
+  // The first project shows when the data arrives. That is not a move, so a panel from the link stays open.
+  const place = useRef({ mode, currentId: session.currentId, summaryOpen });
+  useEffect(() => {
+    const before = place.current;
+    place.current = { mode, currentId: session.currentId, summaryOpen };
+    const moved = before.mode !== mode || before.summaryOpen !== summaryOpen || (before.currentId !== null && before.currentId !== session.currentId);
+    if (moved && taskId) closeTask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a move of the screen closes the panel
+  }, [mode, session.currentId, summaryOpen]);
   const exit = () => navigate({ pathname: '/dashboard', search: params.toString() });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      // A dialog owns the keys while it is open. Escape then closes the dialog only.
+      if (document.querySelector('[role="dialog"]')) return;
+      // A key with a modifier belongs to the browser. A key in a field belongs to the field, so Escape there keeps the typed text.
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (target instanceof Element && (target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') || (target as HTMLElement).isContentEditable)) return;
+      // A held key repeats. One press is one step, so a held N does not run through the whole agenda.
+      if (event.repeat) return;
       if (event.key === 'Escape') {
         event.preventDefault();
-        exit();
+        // Escape on the summary goes back to the same screen. The next Escape leaves the meeting.
+        if (summaryRef.current) setSummaryOpen(false);
+        else exit();
+        return;
+      }
+      // The letter keys go by the physical key, so an Arabic keyboard works too.
+      const letter = ['KeyN', 'KeyB', 'KeyA', 'KeyT'].includes(event.code);
+      if (letter) {
+        if (summaryRef.current || modeRef.current !== 'projects') return;
+        const run = sessionRef.current;
+        event.preventDefault();
+        if (event.code === 'KeyN') run.goTo(run.current + 1);
+        else if (event.code === 'KeyB') run.goTo(run.current - 1);
+        else if (event.code === 'KeyA') setAgendaOpen(true);
+        else run.togglePause();
         return;
       }
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (event.altKey || event.ctrlKey || event.metaKey || target?.closest('input, select, textarea, [role="radiogroup"]')) return;
+      if (summaryRef.current || target?.closest('[role="radiogroup"]')) return;
       event.preventDefault();
       const toEnd = (event.key === 'ArrowRight') !== rtl;
-      // On the project screens the arrows move between projects; on the timeline they move one month.
-      if (modeRef.current === 'projects') setSlide((n) => Math.min(Math.max(0, n + (toEnd ? 1 : -1)), countRef.current - 1));
+      // On the project screens the arrows move along the agenda; on the timeline they move one month.
+      if (modeRef.current === 'projects') sessionRef.current.goTo(sessionRef.current.current + (toEnd ? 1 : -1));
       else setShift((n) => n + (toEnd ? 1 : -1));
     };
     window.addEventListener('keydown', onKey);
@@ -313,8 +416,15 @@ export function MeetingView() {
     client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);
 
+  const shown = session.currentId ? rowOf.get(session.currentId) ?? null : null;
   return (
-    <main aria-label={t('dashboard.meeting.title')} className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10">
+    <MeetingProvider value={meeting}>
+    <main
+      aria-label={t('dashboard.meeting.title')}
+      // The page zoom makes everything 1.25 times larger, the screen height too. The height shrinks by the same factor, so the screen still fits.
+      style={bigScreen ? { height: `calc(100dvh / ${BIG_SCREEN_ZOOM})` } : undefined}
+      className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10"
+    >
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 pb-4">
         <div className="min-w-0">
           <h1 className="text-[34px] font-bold leading-tight text-ink">{t('app.name')}</h1>
@@ -331,17 +441,19 @@ export function MeetingView() {
             onChange={(next) => setMode(next)}
             options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
           />
-          {mode === 'projects' && view && view.schedule.length > 0 && (
+          {/* The summary takes the place of the screen, so the controls of the screen below it hide too. */}
+          {!summaryOpen && mode === 'projects' && shown && (
             <>
-              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={slide === 0} onClick={() => setSlide((n) => Math.max(0, n - 1))}>
+              <AgendaBar session={session} onOpenAgenda={() => setAgendaOpen(true)} onOpenSummary={() => setSummaryOpen(true)} />
+              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
                 <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
-              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={slide >= view.schedule.length - 1} onClick={() => setSlide((n) => Math.min(view.schedule.length - 1, n + 1))}>
+              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={session.current >= session.order.length - 1} onClick={() => session.goTo(session.current + 1)}>
                 <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
               </Button>
             </>
           )}
-          {mode === 'timeline' && (
+          {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl
             label={t('dashboard.meeting.zoom')}
@@ -358,6 +470,9 @@ export function MeetingView() {
           </Button>
           </>
           )}
+          {/* The on state looks like the other pressed buttons (a reaction you gave): a stronger fill and an accent ring. */}
+          <Button aria-pressed={bigScreen} className={bigScreen ? '!bg-fill-strong ring-1 ring-inset ring-accent' : ''} onClick={toggleBigScreen}>{t('dashboard.meeting.bigScreen')}</Button>
+          <Button onClick={() => setSummaryOpen(true)}>{t('dashboard.meeting.summaryButton')}</Button>
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
         </div>
       </header>
@@ -366,16 +481,21 @@ export function MeetingView() {
         <EmptyState title={t('dashboard.meeting.title')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />
       )}
       {view && view.schedule.length === 0 && <p className="text-[20px] text-ink-2">{t('dashboard.noData')}</p>}
-      {mode === 'projects' && view && view.schedule.length > 0 && (
+      {summaryOpen && (
+        <MeetingSummary agendaIds={agendaIds} names={names} startedAt={session.startedAt} shared={shared} onShared={setShared} onBack={() => setSummaryOpen(false)} />
+      )}
+      {!summaryOpen && mode === 'projects' && shown && (
         <MeetingProject
-          key={view.schedule[Math.min(slide, view.schedule.length - 1)].project.id}
-          row={view.schedule[Math.min(slide, view.schedule.length - 1)]}
+          key={shown.project.id}
+          row={shown}
           tasks={tasks.data ?? []}
-          index={Math.min(slide, view.schedule.length - 1)}
-          total={view.schedule.length}
+          index={session.current}
+          total={session.order.length}
+          discussed={session.discussed.has(shown.project.id)}
+          onOpenTask={openTask}
         />
       )}
-      {mode === 'timeline' && view && view.schedule.length > 0 && (
+      {!summaryOpen && mode === 'timeline' && view && view.schedule.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-card panel">
           <div className={`sticky top-0 z-20 border-b border-separator bg-[var(--c-panel)] px-5 ${COLUMNS}`}>
             <div />
@@ -418,7 +538,7 @@ export function MeetingView() {
                         <AnimatedIcon icon={ChevronDownIcon} size={20} aria-hidden className={`size-5 shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {isOpen && (
-                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', index)}>
+                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', row.project.id)}>
                           {t('dashboard.meeting.openProject')}
                         </Button>
                       )}
@@ -439,6 +559,9 @@ export function MeetingView() {
           </ul>
         </div>
       )}
+      {mode === 'projects' && taskId && <MeetingTaskSheet key={taskId} taskId={taskId} onClose={closeTask} />}
+      {mode === 'projects' && agendaOpen && <AgendaSheet rows={rowOf} session={session} onClose={() => setAgendaOpen(false)} />}
     </main>
+    </MeetingProvider>
   );
 }

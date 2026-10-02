@@ -8,8 +8,7 @@ import { stagesOf } from './views';
 import { insertComment } from './handlers/shared';
 import { addTrackerEntry } from './handlers/tracker';
 import { formatDay } from '../lib/dates';
-import { addWorkingDays, openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono, workingDaysLate } from '../lib/stageFlow';
-import { dueFromDuration } from '../lib/workdays';
+import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, shiftPlan, tasksChrono } from '../lib/stageFlow';
 
 /**
  * How tasks and stages hold each other up (owner, 2026-10-02). A task may need other tasks first, and a stage may need other stages first.
@@ -113,17 +112,16 @@ const workingDays = (n: number): string => `${n} working ${n === 1 ? 'day' : 'da
  * A static task never moves. Each move is written in the task and logged in the Tracker, in the same story as the finish.
  */
 export function shiftDependents(ctx: Ctx, task: Task): Task[] {
-  if (!task.dueDate) return [];
-  const late = workingDaysLate(task.dueDate, ctx.today);
-  if (late < 1) return [];
+  const dependents = dependentsOf(ctx.state, task);
+  const byId = new Map(dependents.map((dependent) => [dependent.id, dependent]));
   const moved: Task[] = [];
-  for (const dependent of dependentsOf(ctx.state, task)) {
-    if (dependent.status === 'done' || (dependent.schedule ?? 'static') !== 'dynamic' || !dependent.startDate || !dependent.durationDays) continue;
-    const startDate = addWorkingDays(dependent.startDate, late);
-    const dueDate = dueFromDuration(startDate, dependent.durationDays);
+  for (const move of shiftPlan(task, dependents, ctx.today)) {
+    const dependent = byId.get(move.id)!;
+    const late = move.lateDays;
+    const { startDate, dueDate } = move.to;
     const reason = `${task.title} finished ${workingDays(late)} late`;
     const note: DateNote = {
-      from: { startDate: dependent.startDate, dueDate: dependent.dueDate }, to: { startDate, dueDate }, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late,
+      from: move.from, to: move.to, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late,
     };
     const from = dependent.dueDate;
     applyPatch(ctx, dependent, { startDate, dueDate, dateNotes: [...(dependent.dateNotes ?? []), note].slice(-20) }, {

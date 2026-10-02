@@ -26,7 +26,7 @@ export const HealthResult = z.object({
 export const FeedItem = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('update'), id: UpdateId, at: Stamp, author: UserCard, body: z.string(), fileIds: z.array(FileId),
-    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(),
+    editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(), decision: z.literal(true).optional(),
   }),
   z.object({
     kind: z.literal('event'), id: EventId, at: Stamp, author: UserCard, verb: z.string(), targetType: EventTarget,
@@ -92,6 +92,10 @@ export type ProjectDetail = z.infer<typeof ProjectDetail>;
 
 export const EventView = z.object({ event: Event, actor: UserCard });
 export type EventView = z.infer<typeof EventView>;
+
+/** An event with the words the Activity feed uses for it: the name of the thing it changed, and the detail of the change. */
+export const EventLineView = EventView.extend({ label: z.string(), detail: z.record(z.string(), z.string()) });
+export type EventLineView = z.infer<typeof EventLineView>;
 
 export const TaskRow = z.object({
   task: Task,

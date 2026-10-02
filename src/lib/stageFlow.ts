@@ -1,5 +1,5 @@
 import { addDays } from './dates';
-import { firstWorkingDay, isWorkingDay } from './workdays';
+import { dueFromDuration, firstWorkingDay, isWorkingDay } from './workdays';
 
 /** The parts of a stage that the order and the tag need. */
 export type StageShape = { id: string; order: number; startDate: string | null; endDate: string | null; prerequisiteIds?: string[] };
@@ -76,6 +76,32 @@ export function addWorkingDays(day: string, n: number): string {
     if (isWorkingDay(out)) left -= 1;
   }
   return out;
+}
+
+/** The parts of a dependent task that the shift plan needs. */
+export type ShiftShape = { id: string; status: string; schedule?: string | null; startDate?: string | null; dueDate: string | null; durationDays?: number | null };
+export type PlannedMove = { id: string; lateDays: number; from: { startDate: string; dueDate: string | null }; to: { startDate: string; dueDate: string } };
+
+/**
+ * Where each dependent moves when a task finishes on a given day. A dependent moves when it is not done, is dynamic, and has a start
+ * day and a duration. It moves later by the working days the task is late. The list is empty when the task is not late.
+ * The real shift and the meeting preview both use this, so they cannot disagree.
+ */
+export function shiftPlan(task: { dueDate: string | null }, dependents: ShiftShape[], finishDay: string): PlannedMove[] {
+  if (!task.dueDate) return [];
+  const lateDays = workingDaysLate(task.dueDate, finishDay);
+  if (lateDays < 1) return [];
+  const moves: PlannedMove[] = [];
+  for (const dependent of dependents) {
+    if (dependent.status === 'done' || (dependent.schedule ?? 'static') !== 'dynamic' || !dependent.startDate || !dependent.durationDays) continue;
+    const startDate = addWorkingDays(dependent.startDate, lateDays);
+    moves.push({
+      id: dependent.id, lateDays,
+      from: { startDate: dependent.startDate, dueDate: dependent.dueDate },
+      to: { startDate, dueDate: dueFromDuration(startDate, dependent.durationDays) },
+    });
+  }
+  return moves;
 }
 
 export type Overlap = { start: string; end: string; stageIds: [string, string] };

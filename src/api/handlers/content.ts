@@ -55,7 +55,7 @@ export const updatesList = defineCall({
 });
 
 export const updatesCreate = defineCall({
-  input: z.object({ projectId: ProjectId, body: Body, fileIds: z.array(FileId).max(20).default([]) }),
+  input: z.object({ projectId: ProjectId, body: Body, fileIds: z.array(FileId).max(20).default([]), decision: z.boolean().optional() }),
   output: FeedItem,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
@@ -65,6 +65,7 @@ export const updatesCreate = defineCall({
     }
     const id = nextId(ctx.state, 'upd');
     const update: Update = { id, projectId: project.id, authorId: ctx.actor.id, body: input.body, fileIds: input.fileIds, createdAt: ctx.stamp, editedAt: null };
+    if (input.decision) update.decision = true;
     ctx.state.updates[id] = update;
     recordCreate(ctx, { projectId: project.id, verb: 'update.posted', targetType: 'update', targetId: id, entity: update });
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id });

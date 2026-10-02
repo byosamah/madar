@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import type { DateMove } from '../../../api/contract/entities';
 import { ApiError } from '../../../api/errors';
 import { useLang } from '../../../app/lang';
+import { useMeeting } from '../../../app/meeting';
 import { Button } from '../../../components/Button';
 import { TextArea } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
-import { formatDay } from '../../../lib/dates';
+import { formatDay, todayISO } from '../../../lib/dates';
 
 type Pending = { move: Pick<DateMove, 'from' | 'to'>; send: (reason: string) => void };
 
@@ -65,6 +66,8 @@ export function useDateReason(onCancel?: () => void): {
 
 function DateReasonSheet({ move, onSend, onClose }: { move: Pick<DateMove, 'from' | 'to'>; onSend: (reason: string) => void; onClose: () => void }) {
   const { t } = useTranslation();
+  const lang = useLang();
+  const meeting = useMeeting();
   const [reason, setReason] = useState('');
   return (
     <Sheet
@@ -89,6 +92,12 @@ function DateReasonSheet({ move, onSend, onClose }: { move: Pick<DateMove, 'from
         }}
       >
         <DateMoveLines move={move} className="text-subheadline font-semibold" />
+        {meeting && (
+          // One press gives the reason a meeting always has: the team decided it today.
+          <Button onClick={() => onSend(t('dateReason.meetingReason', { date: formatDay(todayISO(), lang, 'withWeekday') }))}>
+            {t('dateReason.meetingReason', { date: formatDay(todayISO(), lang, 'withWeekday') })}
+          </Button>
+        )}
         <TextArea
           id="date-reason"
           label={t('dateReason.label')}

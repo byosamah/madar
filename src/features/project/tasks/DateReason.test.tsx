@@ -41,6 +41,15 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
   });
 
+  it('does not offer the meeting reason outside a meeting', async () => {
+    await renderApp(TASK, staticTask);
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-10-26' } });
+    fireEvent.blur(within(sheet).getByLabelText('Due date'));
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    expect(within(ask).queryByRole('button', { name: /Decided in the meeting/ })).toBeNull();
+  });
+
   it('keeps the old date when the person cancels', async () => {
     const { store } = await renderApp(TASK, staticTask);
     const before = messagesOf(store.state).length;

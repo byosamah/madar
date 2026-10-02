@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { EllipsisIcon } from './icons/animated/ellipsis';
+import { measure, menuPlace } from './placement';
 
 export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
 
@@ -108,19 +109,10 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
   }, [open, close]);
   if (items.every((item) => item.hidden)) return null;
   const openMenu = () => {
-    const rect = trigger.current?.getBoundingClientRect();
-    if (!rect) return;
-    const rtl = document.documentElement.dir === 'rtl';
-    const height = items.filter((item) => !item.hidden).length * 44 + 12;
-    const below = rect.bottom + 4 + height <= window.innerHeight;
-    const vertical = below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 };
-    // The menu grows from its button toward the start side; near the screen edge it stays 8 px inside the screen.
-    const width = 224;
-    const side = rtl
-      ? (rect.left + width <= window.innerWidth - 8 ? { left: rect.left } : { right: 8 }) // rtl-ok: screen coordinates from the button
-      : (rect.right - width >= 8 ? { right: window.innerWidth - rect.right } : { left: 8 }); // rtl-ok: screen coordinates from the button
-    const origin = `${below ? 'top' : 'bottom'} ${rtl ? 'left' : 'right'}`; // rtl-ok: the menu grows from the corner of its button
-    setPlace({ position: 'fixed', ...vertical, ...side, transformOrigin: origin });
+    if (!trigger.current) return;
+    // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
+    const { box, screen } = measure(trigger.current);
+    setPlace(menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl' }));
     setOpen(true);
   };
   return (

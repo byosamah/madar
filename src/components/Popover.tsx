@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
+import { measure, popoverPlace } from './placement';
 
 /** A small floating panel next to its control, for a short choice. Escape or a press outside closes it. */
 export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElement; label: string; onClose: () => void; children: ReactNode }) {
@@ -18,11 +19,9 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
   }, [anchor, onClose]);
-  const rect = anchor.getBoundingClientRect();
-  const width = Math.min(320, window.innerWidth - 16);
-  const x = Math.min(Math.max(8, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 8); // rtl-ok: screen coordinates
-  const below = rect.bottom + 300 < window.innerHeight;
-  const place = below ? { top: rect.bottom + 8, left: x } : { bottom: window.innerHeight - rect.top + 8, left: x }; // rtl-ok: screen coordinates
+  // The measures come in the units of the panel, so the panel opens next to its control also under Big screen.
+  const { box, screen } = measure(anchor);
+  const place = popoverPlace(box, screen);
   return createPortal(
     <motion.div
       ref={ref}
@@ -38,7 +37,7 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={spring.standard}
-      style={{ position: 'fixed', width, ...place }}
+      style={{ position: 'fixed', ...place }}
       className="float z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4"
     >
       {children}

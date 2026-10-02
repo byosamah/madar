@@ -58,7 +58,23 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
     case 'task': {
       const title = state.tasks[event.targetId]?.title
         ?? (typeof after.title === 'string' ? after.title : typeof before.title === 'string' ? before.title : '');
-      return { label: title, detail: typeof after.status === 'string' ? { status: after.status } : {} };
+      const detail: Record<string, string> = {};
+      if (typeof after.status === 'string') detail.status = after.status;
+      // A new lead, by name, for the meeting summary.
+      if (typeof after.ownerId === 'string') detail.lead = state.users[after.ownerId]?.name ?? '';
+      return { label: title, detail };
+    }
+    case 'tracker': {
+      // A client item: its title, what it waits for, and the person who replies, for the meeting summary.
+      const entry = state.tracker?.[event.targetId];
+      const title = entry?.title ?? (typeof after.title === 'string' ? after.title : typeof before.title === 'string' ? before.title : '');
+      const detail: Record<string, string> = {};
+      if (entry?.waiting) detail.waiting = entry.waiting;
+      if (typeof after.replyTaskId === 'string') {
+        const reply = state.tasks[after.replyTaskId];
+        if (reply) detail.person = state.users[reply.ownerId]?.name ?? '';
+      }
+      return { label: title, detail };
     }
     case 'file': {
       const letter = lastLetter(event.after);
@@ -92,6 +108,7 @@ export function updateItemOf(state: State, update: Update, viewer: User): FeedIt
     kind: 'update', id: update.id, at: update.createdAt, author: cardOf(state, update.authorId), body: update.body,
     fileIds: update.fileIds, editedAt: update.editedAt, commentCount: countComments(state, 'update', update.id),
     canEdit: canEditContent(state, update.projectId, update.authorId, viewer),
+    ...(update.decision ? { decision: true as const } : {}),
   };
 }
 

@@ -40,6 +40,13 @@ window.scrollTo = (() => undefined) as typeof window.scrollTo;
 afterEach(() => {
   window.localStorage.clear();
   cleanup();
+  // The meeting keeps its session for the day in the session storage, so each test starts a new meeting.
+  // The clear comes after the unmount, because a meeting saves its clock when it closes.
+  try {
+    window.sessionStorage.clear();
+  } catch {
+    // A test blocked the storage, so it holds nothing.
+  }
   setNow(null);
   const root = document.documentElement;
   for (const name of ['dir', 'lang', 'data-theme', 'data-glass', 'data-contrast']) root.removeAttribute(name);

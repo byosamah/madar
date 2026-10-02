@@ -13,6 +13,12 @@ import { diffDays, formatDay, todayISO } from '../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../lib/due';
 import { needsAttention } from '../../lib/overview';
 import { compareTasks } from '../../lib/stageFlow';
+import { ChainsPanel } from './meeting/ChainsPanel';
+import { ClientItemsPanel } from './meeting/ClientItemsPanel';
+import { DecisionsPanel } from './meeting/DecisionsPanel';
+import { DrawingsStrip } from './meeting/DrawingsStrip';
+import { MeetingPayments } from './meeting/MeetingPayments';
+import { PeopleStrip } from './meeting/PeopleStrip';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
@@ -27,21 +33,25 @@ export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
   return { doing, ...needsAttention(mine, today) };
 }
 
-function TaskItem({ row, label }: { row: TaskRow; label?: string }) {
+function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen: (row: TaskRow) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   const when = word && row.task.dueDate ? dueText(word, t, lang, row.task.dueDate) : null;
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <Avatar user={row.owner} size={36} />
-      <span className="min-w-0 flex-1">
-        <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
-        <span className="block truncate text-[15px] text-ink-2">
-          <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+    <li>
+      {/* The whole item is one button: a press opens the task panel over the meeting. */}
+      <button type="button" onClick={() => onOpen(row)} className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start">
+        {/* The owner name is in the text below, so the picture stays out of the button name and the name starts with the title. */}
+        <span aria-hidden className="shrink-0"><Avatar user={row.owner} size={36} /></span>
+        <span className="min-w-0 flex-1">
+          <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
+          <span className="block truncate text-[15px] text-ink-2">
+            <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+          </span>
         </span>
-      </span>
-      {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+        {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+      </button>
     </li>
   );
 }
@@ -60,9 +70,9 @@ function Column({ title, empty, children, count }: { title: string; empty: strin
 
 /**
  * One project per screen, for a meeting (owner, 2026-10-01): where it stands, the work in progress now with its people,
- * what needs a decision, and what comes next. The arrow keys move between projects.
+ * what needs a decision, and what comes next. The arrow keys move between projects in agenda order.
  */
-export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: TaskRow[]; index: number; total: number }) {
+export function MeetingProject({ row, tasks, index, total, discussed = false, onOpenTask }: { row: Row; tasks: TaskRow[]; index: number; total: number; discussed?: boolean; onOpenTask: (taskId: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const today = todayISO();
@@ -73,13 +83,17 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
   const posts = useCall('updates.list', { projectId: row.project.id, filter: 'posts' });
   const latest = posts.data?.find((item) => item.kind === 'update');
   const attentionCount = work.pastDue.length + work.review.length + work.flagged.length;
+  const open = (item: TaskRow) => onOpenTask(item.task.id);
   const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
   return (
     <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
-      <header className="panel flex flex-wrap items-center gap-x-6 gap-y-4 p-6">
+      <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">
         <ProjectTile id={row.project.id} mark={row.project.mark} size={64} />
         <div className="min-w-0 flex-1 basis-80">
-          <p className="text-[15px] font-medium text-ink-2">{t('dashboard.meeting.projectOf', { n: index + 1, total })}</p>
+          <div className="flex flex-wrap items-center gap-x-3">
+            <p className="text-[15px] font-medium text-ink-2">{t('dashboard.meeting.projectOf', { n: index + 1, total })}</p>
+            {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
+          </div>
           <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
         </div>
         <div className="flex min-w-72 flex-col gap-2">
@@ -100,47 +114,61 @@ export function MeetingProject({ row, tasks, index, total }: { row: Row; tasks: 
           )}
         </div>
       </header>
-      <div className="grid min-h-0 flex-1 content-start items-start gap-5 overflow-y-auto lg:grid-cols-3">
-        <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
-          {work.doing.map((item) => <TaskItem key={item.task.id} row={item} />)}
-        </Column>
-        <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
-          {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} />)}
-          {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} />)}
-          {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} />)}
-        </Column>
-        <div className="flex min-h-0 min-w-0 flex-col gap-5">
-          <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
-            <h3 className={HEADING}>{t('overview.comingUp')}</h3>
-            {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (
-              <ul className="flex flex-col gap-2 pt-1">
-                {next.map((deadline) => {
-                  const word = wordForDays(diffDays(today, deadline.date));
-                  return (
-                    <li key={deadline.id} className="flex items-baseline justify-between gap-3">
-                      <bdi className="min-w-0 truncate text-[17px] text-ink">{deadline.name}</bdi>
-                      <span className="tabular shrink-0 text-[15px] text-ink-2">{word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-          <section aria-label={t('overview.latest')} className="panel flex min-h-0 flex-col gap-2 p-5">
-            <h3 className={HEADING}>{t('overview.latest')}</h3>
-            {posts.data && !latest && <p className="text-[17px] text-ink-2">{t('overview.noPosts')}</p>}
-            {latest && latest.kind === 'update' && (
-              <div className="flex min-h-0 flex-col gap-2">
-                <span className="flex items-center gap-2 text-[15px] text-ink-2">
-                  <Avatar user={latest.author} size={24} />
-                  <bdi className="font-semibold text-ink">{latest.author.name}</bdi>
-                  <Age stamp={latest.at} />
-                </span>
-                <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>
-              </div>
-            )}
-          </section>
+      {/* One scroll area below the project header: the people, the three columns, and the drawings as the last full-width row.
+          Nothing is pinned under the columns, so they keep their full height on every screen and in Big screen. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+        <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
+        <div className="grid shrink-0 content-start items-start gap-5 lg:grid-cols-3">
+          <div className="flex min-w-0 flex-col gap-5">
+            <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
+              {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
+            </Column>
+            <ChainsPanel tasks={tasks.filter((item) => item.project.id === row.project.id)} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+            <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
+              {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
+              {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
+              {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
+            </Column>
+            <ClientItemsPanel projectId={row.project.id} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-5">
+            <DecisionsPanel projectId={row.project.id} />
+            <section aria-label={t('overview.comingUp')} className="panel flex flex-col gap-2 p-5">
+              <h3 className={HEADING}>{t('overview.comingUp')}</h3>
+              {next.length === 0 ? <p className="text-[17px] text-ink-2">{t('overview.noDeadlines')}</p> : (
+                <ul className="flex flex-col gap-2 pt-1">
+                  {next.map((deadline) => {
+                    const word = wordForDays(diffDays(today, deadline.date));
+                    return (
+                      <li key={deadline.id} className="flex items-baseline justify-between gap-3">
+                        <bdi className="min-w-0 truncate text-[17px] text-ink">{deadline.name}</bdi>
+                        <span className="tabular shrink-0 text-[15px] text-ink-2">{word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+            <section aria-label={t('overview.latest')} className="panel flex flex-col gap-2 p-5">
+              <h3 className={HEADING}>{t('overview.latest')}</h3>
+              {posts.data && !latest && <p className="text-[17px] text-ink-2">{t('overview.noPosts')}</p>}
+              {latest && latest.kind === 'update' && (
+                <div className="flex flex-col gap-2">
+                  <span className="flex items-center gap-2 text-[15px] text-ink-2">
+                    <Avatar user={latest.author} size={24} />
+                    <bdi className="font-semibold text-ink">{latest.author.name}</bdi>
+                    <Age stamp={latest.at} />
+                  </span>
+                  <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>
+                </div>
+              )}
+            </section>
+            <MeetingPayments projectId={row.project.id} />
+          </div>
         </div>
+        <DrawingsStrip projectId={row.project.id} />
       </div>
     </article>
   );

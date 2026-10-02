@@ -12,6 +12,23 @@ beforeEach(() => setNow(NOW));
 const calls = { ...taskCalls, ...historyCalls, ...projectCalls, ...peopleCalls };
 
 describe('events', () => {
+  it('lists only the events at or after the stamp in since', async () => {
+    const t = testApi(calls);
+    t.store.state.tasks.tsk_001 = makeTask({ needsReview: false });
+    t.store.state.tasks.tsk_002 = makeTask({ id: 'tsk_002', needsReview: false });
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    setNow(new Date(NOW.getTime() + 60 * 60 * 1000));
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    const all = await t.api.call('events.list', { projectId: 'prj_001' });
+    expect(all).toHaveLength(2);
+    const since = all[0].event.createdAt;
+    expect(since > all[1].event.createdAt).toBe(true);
+    const late = await t.api.call('events.list', { projectId: 'prj_001', since });
+    expect(late.map((view) => view.event.id)).toEqual([all[0].event.id]);
+    expect(late[0].label).toBeTruthy();
+  });
+
   it('undoes my own change', async () => {
     const t = testApi(calls);
     t.store.state.tasks.tsk_001 = makeTask({ needsReview: false });
