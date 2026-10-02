@@ -62,9 +62,6 @@ describe('meeting windows', () => {
       span: { start: '2026-09-01', end: '2026-11-30' },
       ticks: ['2026-09-01', '2026-10-01', '2026-11-01'],
     });
-    const half = meetingWindow('2026-10-15', 'half');
-    expect(half.span).toEqual({ start: '2026-09-01', end: '2027-02-28' });
-    expect(half.ticks).toHaveLength(6);
     const year = meetingWindow('2026-10-15', 'year');
     expect(year.span).toEqual({ start: '2026-08-01', end: '2027-07-31' });
     expect(year.ticks).toHaveLength(12);
@@ -114,7 +111,7 @@ describe('meeting windows', () => {
 
   it('steps one week in the week zoom and one month in the others', () => {
     expect(meetingStep('week')).toBe('week');
-    for (const zoom of ['month', 'quarter', 'half', 'year'] as const) expect(meetingStep(zoom)).toBe('month');
+    for (const zoom of ['month', 'quarter', 'year'] as const) expect(meetingStep(zoom)).toBe('month');
   });
 });
 

@@ -25,12 +25,20 @@ type Row = DashboardData['schedule'][number];
 
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
-/** The work of one project that a meeting talks about: in progress now, and what needs attention. */
+/**
+ * The work of one project that a meeting talks about: what needs attention, and the rest of the work in progress now.
+ * A task shows in one place only (owner, 2026-10-02: the ADHD pass): under its first reason, past due before waiting for review
+ * before flagged, and never again under In progress. The counts on the timeline use the same lists, so the numbers match.
+ */
 export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
   const mine = rows.filter((row) => row.project.id === projectId);
-  const doing = mine.filter((row) => row.task.status === 'in_progress')
+  const { pastDue, review, flagged } = needsAttention(mine, today);
+  const seen = new Set<string>();
+  const once = (list: TaskRow[]) => list.filter((row) => !seen.has(row.task.id) && Boolean(seen.add(row.task.id)));
+  const attention = { pastDue: once(pastDue), review: once(review), flagged: once(flagged) };
+  const doing = mine.filter((row) => row.task.status === 'in_progress' && !seen.has(row.task.id))
     .sort((a, b) => compareTasks(a.task, b.task));
-  return { doing, ...needsAttention(mine, today) };
+  return { doing, ...attention };
 }
 
 function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen: (row: TaskRow) => void }) {
@@ -56,7 +64,7 @@ function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen
   );
 }
 
-function Column({ title, empty, children, count }: { title: string; empty: string; children: React.ReactNode; count: number }) {
+function Column({ title, empty = '', children, count }: { title: string; empty?: string; children: React.ReactNode; count: number }) {
   return (
     <section aria-label={title} className="panel flex min-w-0 flex-col p-5">
       <h3 className={`${HEADING} flex items-center gap-2`}>
@@ -77,6 +85,7 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   const lang = useLang();
   const today = todayISO();
   const work = meetingWork(tasks, row.project.id, today);
+  const mine = tasks.filter((item) => item.project.id === row.project.id);
   const stageIndex = row.stages.findIndex((stage) => stage.id === row.currentStageId);
   const stage = row.stages[stageIndex];
   const next = row.deadlines.filter((deadline) => deadline.date >= today).slice(0, 4);
@@ -89,9 +98,13 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
     <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
       <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">
         <ProjectTile id={row.project.id} mark={row.project.mark} size={64} />
-        <div className="min-w-0 flex-1 basis-80">
-          {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
-          <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
+        {/* The header holds who, where and how: the name, the people with open work, and the stage with its state. */}
+        <div className="flex min-w-0 flex-1 basis-80 flex-col gap-3">
+          <div>
+            {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
+            <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
+          </div>
+          <PeopleStrip tasks={mine} onOpenTask={onOpenTask} />
         </div>
         <div className="flex min-w-72 flex-col gap-2">
           <div className="flex items-center justify-between gap-3">
@@ -111,24 +124,26 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
           )}
         </div>
       </header>
-      {/* One scroll area below the project header: the people, the three columns, and the drawings as the last full-width row.
+      {/* One scroll area below the project header, read in the order the meeting talks (owner, 2026-10-02: the ADHD pass).
+          The wide side holds what to talk about, the most urgent first: what needs attention, the client items, the work in
+          progress, and what waits for what. The narrow side holds the one place to write, then the facts. The drawings close it.
           Nothing is pinned under the columns, so they keep their full height on every screen and in Big screen. */}
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
-        <PeopleStrip tasks={tasks.filter((item) => item.project.id === row.project.id)} onOpenTask={onOpenTask} />
-        <div className="grid shrink-0 content-start items-start gap-5 lg:grid-cols-3">
-          <div className="flex min-w-0 flex-col gap-5">
-            <Column title={t('dashboard.meeting.inProgress')} empty={t('dashboard.meeting.nothingInProgress')} count={work.doing.length}>
-              {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
-            </Column>
-            <ChainsPanel tasks={tasks.filter((item) => item.project.id === row.project.id)} />
-          </div>
+        <div className="grid shrink-0 content-start items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <div className="flex min-w-0 flex-col gap-5">
             <Column title={t('overview.attention')} empty={t('overview.allClear')} count={attentionCount}>
-              {work.pastDue.map((item) => <TaskItem key={`p-${item.task.id}`} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
-              {work.review.map((item) => <TaskItem key={`r-${item.task.id}`} row={item} label={t('overview.groups.review')} onOpen={open} />)}
-              {work.flagged.map((item) => <TaskItem key={`f-${item.task.id}`} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
+              {work.pastDue.map((item) => <TaskItem key={item.task.id} row={item} label={t('overview.groups.pastDue')} onOpen={open} />)}
+              {work.review.map((item) => <TaskItem key={item.task.id} row={item} label={t('overview.groups.review')} onOpen={open} />)}
+              {work.flagged.map((item) => <TaskItem key={item.task.id} row={item} label={t('overview.groups.flagged')} onOpen={open} />)}
             </Column>
             <ClientItemsPanel projectId={row.project.id} />
+            {/* An empty display panel hides (owner, 2026-10-02). The late work in progress already shows above. */}
+            {work.doing.length > 0 && (
+              <Column title={t('dashboard.meeting.inProgress')} count={work.doing.length}>
+                {work.doing.map((item) => <TaskItem key={item.task.id} row={item} onOpen={open} />)}
+              </Column>
+            )}
+            <ChainsPanel tasks={mine} />
           </div>
           <div className="flex min-w-0 flex-col gap-5">
             <DecisionsPanel projectId={row.project.id} />

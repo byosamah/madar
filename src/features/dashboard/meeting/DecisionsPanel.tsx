@@ -5,6 +5,7 @@ import { useMeeting } from '../../../app/meeting';
 import { useAction, useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
+import { SegmentedControl } from '../../../components/SegmentedControl';
 import { addWorkingDays } from '../../../lib/workdays';
 import { formatDay, todayISO } from '../../../lib/dates';
 import { plainText } from '../../../lib/text';
@@ -90,11 +91,14 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   return (
     <section aria-label={t('dashboard.meeting.decisions')} className="panel flex flex-col gap-3 p-5">
       <h3 className={HEADING}>{t('dashboard.meeting.decisions')}</h3>
+      {/* One choice, like every other choice in the meeting. Two filled buttons here competed with Done (the ADHD pass). */}
       {canDecide && canAct && (
-        <div role="group" aria-label={t('dashboard.meeting.entryKind')} className="flex gap-2">
-          <Button variant={kind === 'decision' ? 'primary' : 'secondary'} aria-pressed={kind === 'decision'} onClick={() => setPicked('decision')}>{t('dashboard.meeting.kindDecision')}</Button>
-          <Button variant={kind === 'action' ? 'primary' : 'secondary'} aria-pressed={kind === 'action'} onClick={() => setPicked('action')}>{t('dashboard.meeting.kindAction')}</Button>
-        </div>
+        <SegmentedControl
+          label={t('dashboard.meeting.entryKind')}
+          value={kind}
+          onChange={setPicked}
+          options={[{ value: 'decision', label: t('dashboard.meeting.kindDecision') }, { value: 'action', label: t('dashboard.meeting.kindAction') }]}
+        />
       )}
       {kind === 'decision' && canDecide && <DecisionForm projectId={projectId} />}
       {kind === 'action' && canAct && detail.data && <ActionForm projectId={projectId} stageId={detail.data.project.currentStageId} members={members} defaultUserId={defaultUserId} />}

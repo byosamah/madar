@@ -16,7 +16,6 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { ProjectSign } from '../../components/ProjectSign';
 import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, formatMonthYear, todayISO } from '../../lib/dates';
-import { projectHue } from '../../lib/projectColor';
 import { clipSpan, groupClose, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf } from '../../lib/params';
@@ -44,6 +43,11 @@ const BIG_SCREEN_ZOOM = 1.25;
 const readBigScreen = () => {
   try { return window.localStorage.getItem(BIG_SCREEN_KEY) === '1'; } catch { return false; }
 };
+// The zoom also stays on this computer, so the meeting opens the same way each week. Blocked storage means Quarter.
+const ZOOM_KEY = 'madar.meeting.zoom';
+const readZoom = (): MeetingZoom => {
+  try { return oneOf(window.localStorage.getItem(ZOOM_KEY), MEETING_ZOOMS, 'quarter'); } catch { return 'quarter'; }
+};
 const COLUMNS = 'grid grid-cols-[minmax(14rem,24rem)_minmax(0,1fr)] gap-x-6';
 
 type Row = DashboardData['schedule'][number];
@@ -54,6 +58,17 @@ function StateOfRow({ health, pause }: { health: Row['health']; pause: Row['paus
   if (health === 'late') return <StatusSign state="late">{t('health.late')}</StatusSign>;
   if (health === 'at_risk') return <StatusSign state="at_risk">{t('health.at_risk')}</StatusSign>;
   return null;
+}
+
+/**
+ * The color of the current stage says the state of the project, and nothing else (owner, 2026-10-02: the ADHD pass).
+ * A quiet grey when on track or paused, an orange tint when at risk, solid red when late, so the problems are the loudest marks on the
+ * screen. The project color stays on its tile.
+ */
+function currentTone(row: Row): string {
+  if (row.pause || row.health === 'on_track') return 'bg-ink-2 text-bg';
+  // At risk is a soft orange tint with an orange edge, so it never looks like the solid red of late, in light or dark.
+  return row.health === 'late' ? 'bg-red-text text-bg' : 'bg-attn-bg text-attn ring-2 ring-inset ring-attn';
 }
 
 type Mark = { id: string; name: string; when: string; label: string; at: number };
@@ -75,7 +90,8 @@ function DeadlineMark({ group }: { group: Mark[] }) {
       // 24 px to press (WCAG 2.2 target size); the drawn diamond stays 12 px.
       className="group absolute bottom-px z-10 grid size-6 place-items-center rounded-sm outline-offset-2"
     >
-      <span aria-hidden className="size-3 rotate-45 rounded-sm bg-attn" />
+      {/* A deadline is a date, not a warning, so the diamond is quiet. The Late sign beside the name carries the warning. */}
+      <span aria-hidden className="size-3 rotate-45 rounded-sm bg-ink-2" />
       {group.length > 1 && (
         <span aria-hidden className="tabular absolute -end-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold leading-none text-bg">
           {group.length}
@@ -118,37 +134,47 @@ function DeadlineMarks({ marks }: { marks: Mark[] }) {
   );
 }
 
-/** "2 in progress · 1 past due · 1 waits for review" under a project name on the timeline. */
+/**
+ * "1 past due · 1 waiting for review · 2 in progress" under a project name on the timeline: the same lists as the project
+ * screen, the urgent ones first. A count of zero says nothing, so it is not there, and with no work the line is empty.
+ */
 function WorkLine({ work }: { work: ReturnType<typeof meetingWork> }) {
   const { t } = useTranslation();
-  const parts = [
-    t('dashboard.meeting.countInProgress', { n: work.doing.length }),
-    work.pastDue.length > 0 ? t('dashboard.meeting.countPastDue', { n: work.pastDue.length }) : null,
-    work.review.length > 0 ? t('dashboard.meeting.countReview', { n: work.review.length }) : null,
-  ].filter(Boolean);
+  const parts = ([
+    ['countPastDue', work.pastDue.length],
+    ['countReview', work.review.length],
+    ['countFlagged', work.flagged.length],
+    ['countInProgress', work.doing.length],
+  ] as const).filter(([, n]) => n > 0).map(([key, n]) => t(`dashboard.meeting.${key}`, { n }));
+  if (parts.length === 0) return null;
   return <span className={`block truncate text-[15px] ${work.pastDue.length > 0 ? 'text-attn' : 'text-ink-2'}`}>{parts.join(' · ')}</span>;
 }
 
 function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; end: string }; drawing: boolean; index: number }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const hue = projectHue(row.project.id);
   const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
   const nameOf = (id: string) => row.stages.find((stage) => stage.id === id)?.name ?? '';
+  const overlaps = stageOverlaps(row.stages);
+  const startsInside = new Set(overlaps.map((overlap) => overlap.stageIds[1]));
+  // The current stage draws last, so it lies over a next stage that starts inside it, and the next stage's outline
+  // never crosses the current bar.
+  const stages = row.stages.map((stage, i) => ({ stage, kind: i < current ? 'done' as const : i === current ? 'current' as const : 'next' as const }));
+  const order = [...stages.filter((item) => item.kind !== 'current'), ...stages.filter((item) => item.kind === 'current')];
   return (
     <>
-      {row.stages.map((stage, i) => {
+      {order.map(({ stage, kind }) => {
         if (!stage.startDate || !stage.endDate) return null;
         const part = clipSpan({ start: stage.startDate, end: stage.endDate }, span);
         if (!part) return null;
-        const kind = i < current ? 'done' : i === current ? 'current' : 'next';
         const width = widthPct(span, part.start, part.end);
-        const tone = kind === 'done' ? 'bg-ink-2/35 text-ink' : kind === 'current' ? '' : 'ring-2 ring-inset ring-chart-muted text-ink-2';
+        const tone = kind === 'done' ? 'bg-ink-2/35 text-ink' : kind === 'current' ? currentTone(row) : 'ring-2 ring-inset ring-chart-muted text-ink-2';
+        // A stage that starts inside an earlier one shows its name at its end, out from under the bar before it.
+        const side = kind !== 'current' && startsInside.has(stage.id) ? 'justify-end' : '';
         const style = {
           insetInlineStart: `${offsetPct(span, part.start)}%`,
           width: `${width}%`,
           animationDelay: `${Math.min(index, 12) * 40}ms`,
-          ...(kind === 'current' ? { background: `var(--p-${hue}-fg)`, color: `var(--p-${hue}-bg)` } : {}),
         };
         return (
           <span
@@ -157,26 +183,17 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
             role="img"
             aria-label={t('dashboard.meeting.stage', { stage: stage.name, state: t(`dashboard.meeting.stageStates.${kind}`) })}
             style={style}
-            className={`absolute top-2 flex h-9 items-center overflow-hidden rounded-full px-3 text-[16px] font-semibold leading-none ${tone} ${drawing ? 'draw-line' : ''}`}
+            className={`absolute top-2 flex h-9 items-center overflow-hidden rounded-full px-3 text-[16px] font-semibold leading-none ${tone} ${side} ${drawing ? 'draw-line' : ''}`}
           >
             {width >= LABEL_MIN_PCT && <bdi className="truncate">{stage.name}</bdi>}
           </span>
         );
       })}
-      {/* Two stages at the same time share a hatched strip, with a word for a screen reader. */}
-      {stageOverlaps(row.stages).map((overlap) => {
-        const part = clipSpan(overlap, span);
-        if (!part) return null;
-        return (
-          <span
-            key={overlap.stageIds.join('-')}
-            role="img"
-            aria-label={t('dashboard.meeting.overlap', { a: nameOf(overlap.stageIds[0]), b: nameOf(overlap.stageIds[1]) })}
-            style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%` }}
-            className="overlap-hatch absolute top-2 h-9 rounded-full opacity-60"
-          />
-        );
-      })}
+      {/* Two stages at the same time: the one line says it to a screen reader only, because stripes here covered a stage name.
+          The opened lines show the stripes, where each stage has its own line. */}
+      {overlaps.map((overlap) => (clipSpan(overlap, span) ? (
+        <span key={overlap.stageIds.join('-')} role="img" aria-label={t('dashboard.meeting.overlap', { a: nameOf(overlap.stageIds[0]), b: nameOf(overlap.stageIds[1]) })} className="sr-only" />
+      ) : null))}
       <DeadlineMarks
         marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
           id: d.id, name: d.name, when: formatDay(d.date, lang), at: midPct(span, d.date),
@@ -191,7 +208,6 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
 function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: string; end: string }; todayAt: { insetInlineStart: string }; todayIn: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const hue = projectHue(row.project.id);
   const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
   const overlaps = stageOverlaps(row.stages);
   return (
@@ -199,7 +215,7 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
       {row.stages.map((stage, i) => {
         const part = stage.startDate && stage.endDate ? clipSpan({ start: stage.startDate, end: stage.endDate }, span) : null;
         const kind = i < current ? 'done' : i === current ? 'current' : 'next';
-        const tone = kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? '' : 'ring-2 ring-inset ring-chart-muted';
+        const tone = kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row) : 'ring-2 ring-inset ring-chart-muted';
         return (
           <div key={stage.id} className={`${COLUMNS} items-center`}>
             <div className="min-w-0 ps-[3.75rem] text-[17px] text-ink-2">
@@ -212,7 +228,7 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
                 <span
                   role="img"
                   aria-label={t('dashboard.meeting.stage', { stage: stage.name, state: t(`dashboard.meeting.stageStates.${kind}`) })}
-                  style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%`, ...(kind === 'current' ? { background: `var(--p-${hue}-fg)` } : {}) }}
+                  style={{ insetInlineStart: `${offsetPct(span, part.start)}%`, width: `${widthPct(span, part.start, part.end)}%` }}
                   className={`absolute top-3 h-6 rounded-full ${tone}`}
                 />
               )}
@@ -303,7 +319,11 @@ export function MeetingView() {
       body.minHeight = before.minHeight;
     };
   }, [bigScreen]);
-  const [zoom, setZoom] = useState<MeetingZoom>('half');
+  const [zoom, setZoomState] = useState<MeetingZoom>(readZoom);
+  const setZoom = (next: MeetingZoom) => {
+    try { window.localStorage.setItem(ZOOM_KEY, next); } catch { /* blocked storage: the choice lasts until the page closes */ }
+    setZoomState(next);
+  };
   const [shift, setShift] = useState(0);
   // A project shows its stages on one line. A press opens it to one line for each stage.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
@@ -440,7 +460,7 @@ export function MeetingView() {
       aria-label={t('dashboard.meeting.title')}
       // The page zoom makes everything 1.25 times larger, the screen height too. The height shrinks by the same factor, so the screen still fits.
       style={bigScreen ? { height: `calc(100dvh / ${BIG_SCREEN_ZOOM})` } : undefined}
-      className="flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10"
+      className="meeting-type flex h-dvh flex-col overflow-hidden px-6 pb-4 pt-5 text-ink sm:px-10"
     >
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 pb-4">
         <div className="min-w-0">
@@ -452,27 +472,21 @@ export function MeetingView() {
           </p>
         </div>
         <div role="group" aria-label={t('dashboard.meeting.controls')} className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            label={t('dashboard.meeting.mode')}
-            value={mode}
-            onChange={(next) => setMode(next)}
-            options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
-          />
+          {/* The view switch does nothing while the summary covers the screen, so it hides there. Back is the one way back. */}
+          {!summaryOpen && (
+            <SegmentedControl
+              label={t('dashboard.meeting.mode')}
+              value={mode}
+              onChange={(next) => setMode(next)}
+              options={MODES.map((value) => ({ value, label: t(`dashboard.meeting.modes.${value}`) }))}
+            />
+          )}
           {session.order.length > 0 && (
             <AgendaButton session={session} showPosition={!summaryOpen && mode === 'projects'} onOpenAgenda={() => setAgendaOpen(true)} />
           )}
-          {/* The summary takes the place of the screen, so the controls of the screen below it hide too. */}
-          {!summaryOpen && mode === 'projects' && shown && (
-            <>
-              <AgendaBar session={session} onOpenSummary={() => setSummaryOpen(true)} />
-              <Button aria-label={t('dashboard.meeting.previous')} title={t('dashboard.meeting.previous')} className="!px-3" disabled={session.current === 0} onClick={() => session.goTo(session.current - 1)}>
-                <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
-              </Button>
-              <Button aria-label={t('dashboard.meeting.next')} title={t('dashboard.meeting.next')} className="!px-3" disabled={session.current >= session.order.length - 1} onClick={() => session.goTo(session.current + 1)}>
-                <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
-              </Button>
-            </>
-          )}
+          {/* The summary takes the place of the screen, so the controls of the screen below it hide too.
+              Done and Skip are the only ways forward on screen. The arrow keys, N and B, and the Agenda still move anywhere. */}
+          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} onOpenSummary={() => setSummaryOpen(true)} />}
           {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl

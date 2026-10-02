@@ -77,9 +77,9 @@ export function scheduleWindow(today: string, zoom: Zoom): { span: Span; ticks: 
   return { span, ticks };
 }
 
-// Week and Month serve the weekly and the monthly meeting (owner, 2026-10-02).
-export type MeetingZoom = 'week' | 'month' | 'quarter' | 'half' | 'year';
-export const MEETING_ZOOMS: MeetingZoom[] = ['week', 'month', 'quarter', 'half', 'year'];
+// Week and Month serve the weekly and the monthly meeting (owner, 2026-10-02). Four choices only, so the control stays short.
+export type MeetingZoom = 'week' | 'month' | 'quarter' | 'year';
+export const MEETING_ZOOMS: MeetingZoom[] = ['week', 'month', 'quarter', 'year'];
 
 /** One press of an arrow moves the week zoom by one week, and every other zoom by one month. */
 export function meetingStep(zoom: MeetingZoom): 'week' | 'month' {
@@ -90,7 +90,6 @@ export function meetingStep(zoom: MeetingZoom): 'week' | 'month' {
 const MEETING_MONTHS: Record<Exclude<MeetingZoom, 'week'>, { before: number; count: number }> = {
   month: { before: 0, count: 1 },
   quarter: { before: 1, count: 3 },
-  half: { before: 1, count: 6 },
   year: { before: 2, count: 12 },
 };
 

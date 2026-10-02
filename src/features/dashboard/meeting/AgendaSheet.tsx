@@ -4,6 +4,7 @@ import { Button } from '../../../components/Button';
 import { ProjectTile } from '../../../components/ProjectTile';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
+import { StatusSign } from '../../../components/StatusSign';
 import { Switch } from '../../../components/Switch';
 import { counted } from '../../../lib/grammar';
 import type { DashboardData } from '../Tiles';
@@ -37,15 +38,16 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
       title={t('dashboard.meeting.agenda')}
+      // "Start a new meeting" is rare, so it sits quietly at the end of the panel. The footer shows only while it asks.
       footer={asking ? (
         <>
           <p className="basis-full text-[17px] text-ink">{t('dashboard.meeting.restartAsk')}</p>
-          {/* A double press must not clear the meeting. Cancel takes the place of the first button and the focus,
-              and the confirm, with its own name, goes to the start side, away from the pointer. */}
+          {/* A double press must not clear the meeting. Cancel takes the focus, and the confirm, with its own name,
+              goes to the start side, away from the pointer. */}
           <Button variant="destructive" className="me-auto" onClick={() => { session.restart(); onClose(); }}>{t('dashboard.meeting.restartConfirm')}</Button>
           <Button autoFocus onClick={() => setAsking(false)}>{t('common.cancel')}</Button>
         </>
-      ) : <Button onClick={() => setAsking(true)}>{t('dashboard.meeting.restart')}</Button>}
+      ) : undefined}
     >
       <div className="flex flex-col gap-5 pt-2">
         {session.allDiscussed && <p role="status" className="text-[17px] font-semibold text-ink">{t('dashboard.meeting.allDiscussed')}</p>}
@@ -54,8 +56,8 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
             const row = rows.get(id);
             if (!row) return null;
             const now = index === session.current;
+            const discussed = session.discussed.has(id);
             const states = [
-              session.discussed.has(id) ? t('dashboard.meeting.discussed') : null,
               now ? t('dashboard.meeting.agendaStates.now') : null,
               id === session.nextId ? t('dashboard.meeting.agendaStates.next') : null,
             ].filter((state): state is string => state !== null);
@@ -69,7 +71,9 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
                 >
                   <span className="tabular w-6 shrink-0 text-[15px] text-ink-2">{index + 1}</span>
                   <ProjectTile id={row.project.id} mark={row.project.mark} size={36} />
-                  <bdi className={`min-w-0 flex-1 truncate text-[17px] ${now ? 'font-bold text-ink' : 'font-semibold text-ink'}`}>{row.project.name}</bdi>
+                  {/* A discussed project fades and carries the check, so the eye goes to what is left. */}
+                  <bdi className={`min-w-0 flex-1 truncate text-[17px] ${now ? 'font-bold text-ink' : discussed ? 'font-medium text-ink-2' : 'font-semibold text-ink'}`}>{row.project.name}</bdi>
+                  {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
                   {states.length > 0 && <span className="shrink-0 text-[15px] text-ink-2">{states.join(' · ')}</span>}
                 </button>
               </li>
@@ -96,6 +100,7 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
             </span>
           ))}
         </p>
+        {!asking && <Button variant="plain" className="self-start" onClick={() => setAsking(true)}>{t('dashboard.meeting.restart')}</Button>}
       </div>
     </Sheet>
   );

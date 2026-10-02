@@ -64,14 +64,12 @@ describe('the meeting view', () => {
     await renderApp('/dashboard/meeting');
     const list = await screen.findByRole('list', { name: 'Project timeline' });
     const main = list.closest('main') as HTMLElement;
-    expect(screen.getByRole('radio', { name: 'Half year' })).toHaveAttribute('aria-checked', 'true');
-    await waitFor(() => expect(months(main)).toHaveLength(6));
+    expect(screen.getByRole('radio', { name: 'Quarter' })).toHaveAttribute('aria-checked', 'true');
+    await waitFor(() => expect(months(main)).toHaveLength(3));
     const first = months(main)[0];
-    await userEvent.click(screen.getByRole('radio', { name: 'Quarter' }));
-    expect(months(main)).toHaveLength(3);
     await userEvent.click(screen.getByRole('radio', { name: 'Year' }));
     expect(months(main)).toHaveLength(12);
-    await userEvent.click(screen.getByRole('radio', { name: 'Half year' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Quarter' }));
     await userEvent.click(screen.getByRole('button', { name: 'One month later' }));
     expect(months(main)[0]).not.toBe(first);
     await userEvent.click(screen.getByRole('button', { name: 'Today' }));
@@ -173,9 +171,11 @@ describe('the meeting view timeline, stage by stage (owner, 2026-10-02)', () => 
     const school = (await within(timeline).findAllByRole('button', { name: /Eastern Shore Primary School/ }))[0];
     const row = school.closest('li') as HTMLElement;
     expect(within(row).getAllByRole('img', { name: 'Schematic Design and Design Development run at the same time' }).length).toBeGreaterThan(0);
+    // The one line draws no stripes, because stripes there covered a stage name. The opened lines draw them on both stages.
+    expect(row.querySelectorAll('.overlap-hatch')).toHaveLength(0);
     await userEvent.click(school);
     const lines = within(row).getByRole('group', { name: 'Stages of Eastern Shore Primary School' });
-    expect(row.querySelectorAll('.overlap-hatch').length).toBeGreaterThan(2);
+    expect(row.querySelectorAll('.overlap-hatch')).toHaveLength(2);
     expect(within(lines).getByText('Design Development')).toBeInTheDocument();
   });
 });

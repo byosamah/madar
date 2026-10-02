@@ -575,3 +575,15 @@
     animation: none;
   }
 }
+
+/*
+ * The meeting screen is read from across a room (owner, 2026-10-02: the ADHD pass). The shared parts inside it (buttons,
+ * fields, choices, the payments list) take one step larger text, so every word on the screen reads at the same distance.
+ */
+.meeting-type {
+  --size-headline: 19px;
+  --size-body: 19px;
+  --size-subheadline: 17px;
+  --size-footnote: 15px;
+  --size-caption: 14px;
+}

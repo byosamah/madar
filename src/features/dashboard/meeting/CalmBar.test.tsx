@@ -16,17 +16,17 @@ afterEach(() => {
 });
 
 describe('the calm meeting top bar (owner, 2026-10-02)', () => {
-  it('holds the eight controls (mode switch plus seven buttons) on the project screens and no Big screen or Summary button', async () => {
+  it('holds six controls (mode switch plus five buttons) on the project screens and no Big screen, Summary or arrow button', async () => {
     await renderApp(PROJECTS);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     const bar = within(header());
     expect(bar.getByRole('radiogroup', { name: 'View' })).toBeInTheDocument();
     expect(bar.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
     expect(bar.getByRole('button', { name: 'Pause timer' })).toBeInTheDocument();
-    for (const name of ['Done', 'Skip', 'Previous project', 'Next project', 'Exit']) expect(bar.getByRole('button', { name })).toBeInTheDocument();
+    for (const name of ['Done', 'Skip', 'Exit']) expect(bar.getByRole('button', { name })).toBeInTheDocument();
     expect(bar.queryByRole('button', { name: 'Big screen' })).toBeNull();
     expect(bar.queryByRole('button', { name: 'Summary' })).toBeNull();
-    expect(barButtons()).toHaveLength(7);
+    expect(barButtons()).toHaveLength(5);
   });
 
   it('makes Done the one filled button and keeps Skip quiet', async () => {
@@ -113,7 +113,7 @@ describe('the calm meeting top bar (owner, 2026-10-02)', () => {
     expect(document.documentElement.style.zoom).toBe('');
   });
 
-  it('closes the sheet and opens the summary from the Summary button, then the bar shows three controls', async () => {
+  it('closes the sheet and opens the summary from the Summary button, then the bar shows only Agenda and Exit', async () => {
     await renderApp(PROJECTS);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
     await userEvent.click(screen.getByRole('button', { name: /^Agenda/ }));
@@ -122,7 +122,8 @@ describe('the calm meeting top bar (owner, 2026-10-02)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Agenda' })).toBeNull());
     expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
     const bar = within(header());
-    expect(bar.getByRole('radiogroup', { name: 'View' })).toBeInTheDocument();
+    // The view switch does nothing while the summary covers the screen, so it hides. Back is the one way back.
+    expect(bar.queryByRole('radiogroup', { name: 'View' })).toBeNull();
     expect(bar.getByRole('button', { name: /^Agenda/ })).toBeInTheDocument();
     expect(bar.getByRole('button', { name: 'Exit' })).toBeInTheDocument();
     expect(barButtons()).toHaveLength(2);
