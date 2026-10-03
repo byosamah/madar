@@ -57,8 +57,9 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Interiors');
     await userEvent.selectOptions(language, 'en');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(call).toHaveBeenCalledWith('users.create', expect.objectContaining({ email: 'noura@madar.test', kind: 'human', language: 'en' })));
-  });
+    // useAction sends the idempotency key of the attempt as the third argument (track R1).
+    await waitFor(() => expect(call).toHaveBeenCalledWith('users.create', expect.objectContaining({ email: 'noura@madar.test', kind: 'human', language: 'en' }), expect.objectContaining({ key: expect.any(String) })));
+  }, 20000);
 
   it('marks an invited person and sends the invitation again, with a toast', async () => {
     const { api } = await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), answer: invites });
@@ -70,7 +71,7 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     await userEvent.click(within(faisal).getByRole('button', { name: 'Actions for Faisal Al-Harbi' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Send the invitation again' }));
     expect(await screen.findByText('Invitation sent to Faisal Al-Harbi.')).toBeInTheDocument();
-    expect(call).toHaveBeenCalledWith('users.resendInvite', { id: 'usr_002' });
+    expect(call).toHaveBeenCalledWith('users.resendInvite', { id: 'usr_002' }, expect.objectContaining({ key: expect.any(String) }));
   });
 
   it('offers no new invitation to a person who has signed in', async () => {
