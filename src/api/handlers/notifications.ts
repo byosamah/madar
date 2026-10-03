@@ -186,12 +186,34 @@ export const notificationsMarkUnread = defineCall({
   },
 });
 
+/**
+ * One switch at a time: an in-app switch ({ trigger, on }), an email switch ({ channel: 'email', trigger, on }), or the morning
+ * summary ({ morningSummary }). The email switches and the summary are the real build's (plan 4.13, A7; spec 2, section 10).
+ */
+const SettingsChange = z.object({
+  channel: z.enum(['app', 'email']).default('app'),
+  trigger: Trigger.optional(),
+  on: z.boolean().optional(),
+  morningSummary: z.boolean().optional(),
+}).refine(
+  (change) => (change.trigger !== undefined && change.on !== undefined) !== (change.morningSummary !== undefined)
+    && (change.morningSummary === undefined || (change.trigger === undefined && change.on === undefined)),
+  { message: 'Name one switch: a trigger with on, or morningSummary.', path: ['trigger'] },
+);
+
 export const notificationsUpdateSettings = defineCall({
-  input: z.object({ trigger: Trigger, on: z.boolean() }),
+  input: SettingsChange,
   output: User,
   run(input, ctx) {
     const prefs = ctx.authority.preferences;
-    const next = { ...prefs, notifications: { ...prefs.notifications, [input.trigger]: input.on } };
+    const email = input.channel === 'email' || input.morningSummary !== undefined;
+    // An email leaves the office, so only the person sets where their email goes. Their agent may not.
+    if (email && ctx.actor.kind === 'agent') throw forbidden('Only the person changes their email settings.', { action: 'notifications.email' });
+    const next = input.morningSummary !== undefined
+      ? { ...prefs, morningSummary: input.morningSummary }
+      : input.channel === 'email'
+        ? { ...prefs, email: { ...prefs.email, [input.trigger!]: input.on! } }
+        : { ...prefs, notifications: { ...prefs.notifications, [input.trigger!]: input.on! } };
     applyPatch(ctx, ctx.authority, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
     return ctx.authority;
   },

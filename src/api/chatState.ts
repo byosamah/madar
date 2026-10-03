@@ -38,7 +38,13 @@ export function canSeeConversation(state: State, conversation: Conversation, use
   return can(user, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
 }
 
-/** The messages of a conversation, oldest first. */
+/** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */
+export const MESSAGE_PAGE = 200;
+export const MESSAGE_PAGE_MAX = 500;
+/** The most task threads that chats.list shows. The Inbox keeps the newest; older threads stay on their task. */
+export const TASK_THREAD_LIMIT = 100;
+
+/** The messages of a conversation, oldest first: by stamp, then by id. The server reads them in the same order. */
 export function messagesOf(state: State, conversationId: string): Message[] {
   return Object.values(state.messages)
     .filter((m) => m.conversationId === conversationId)
@@ -51,4 +57,16 @@ export function unreadIn(state: State, conversationId: string, userId: string): 
   return Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
   ).length;
+}
+
+/**
+ * One page of a conversation: the newest "limit" messages that come before the message "before", oldest first.
+ * "before" is a message id, not a stamp, so messages with the same stamp never fall between two pages.
+ * Null when "before" is not a message of this conversation.
+ */
+export function messagePage(state: State, conversationId: string, limit: number, before?: string): Message[] | null {
+  const all = messagesOf(state, conversationId);
+  const end = before === undefined ? all.length : all.findIndex((m) => m.id === before);
+  if (end < 0) return null;
+  return all.slice(Math.max(0, end - limit), end);
 }

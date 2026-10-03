@@ -1,11 +1,12 @@
 import type { Event, EventTarget, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
+import { isReferenced } from './references';
 import { nextId, type State } from './store';
 
 export type EventContext = { state: State; actor: User; stamp: string; authority?: User; correlationId?: string };
 export type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string; causeEventId?: string };
 
-const COLLECTION: Record<EventTarget, keyof State | null> = {
+export const COLLECTION: Record<EventTarget, keyof State | null> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates',
   comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker', payment: 'payments', feedback: 'feedback', team: 'teams',
 };
@@ -21,7 +22,7 @@ export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'proj
  */
 export const FOLLOW_ON = new Set(['task.reopened', 'task.dates_shifted']);
 
-export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown }): Event {
+export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string }): Event {
   const id = nextId(ec.state, 'evt');
   const event: Event = {
     id, seq: ec.state.counters.evt, projectId: input.projectId, actorId: ec.actor.id, actorKind: ec.actor.kind,
@@ -31,6 +32,7 @@ export function writeEvent(ec: EventContext, input: EventMeta & { before: unknow
     verb: input.verb, targetType: input.targetType, targetId: input.targetId, before: input.before, after: input.after,
     createdAt: ec.stamp, undoneBy: null,
     ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
+    ...(input.undoes ? { undoes: input.undoes } : {}),
   };
   ec.state.events[id] = event;
   return event;
@@ -69,7 +71,6 @@ const REFERENCE_FIELDS: Record<string, keyof State> = {
   projectId: 'projects', stageId: 'stages', currentStageId: 'stages', taskId: 'tasks', clientId: 'clients', coverFileId: 'files',
   userId: 'users', ownerId: 'users', authorId: 'users', leaderId: 'users', createdBy: 'users',
 };
-const SKIP_WHEN_SCANNING = new Set<keyof State>(['events', 'notifications', 'session', 'settings', 'counters']);
 
 function assertReferencesExist(state: State, targetType: EventTarget, values: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(values)) {
@@ -82,26 +83,6 @@ function assertReferencesExist(state: State, targetType: EventTarget, values: Re
     const target = values.targetType === 'task' ? state.tasks[String(values.targetId)] : state.updates[String(values.targetId)];
     if (!target) throw conflict('Something this change needs is gone. Undo is not available.');
   }
-}
-
-function mentions(value: unknown, id: string, depth: number): boolean {
-  if (value === id) return true;
-  if (depth === 0 || value === null || typeof value !== 'object') return false;
-  return Object.values(value).some((item) => mentions(item, id, depth - 1));
-}
-
-/** True when a record other than the target itself still points at the target. */
-function isUsedElsewhere(state: State, collectionKey: keyof State, targetId: string): boolean {
-  for (const key of Object.keys(state) as (keyof State)[]) {
-    if (SKIP_WHEN_SCANNING.has(key)) continue;
-    const value = state[key];
-    if (value === null || typeof value !== 'object') continue;
-    for (const [recordKey, record] of Object.entries(value)) {
-      if (key === collectionKey && recordKey === targetId) continue;
-      if (mentions(record, targetId, 3)) return true;
-    }
-  }
-  return false;
 }
 
 /** "derived" lets the history calls take back a stage move together with the story that caused it. */
@@ -117,11 +98,12 @@ export function undoEvent(ec: EventContext, eventId: string, options: { derived?
   const later = Object.values(ec.state.events).filter(
     (e) => e.seq > event.seq && e.targetType === event.targetType && e.targetId === event.targetId && e.undoneBy === null && e.verb !== 'undo',
   );
-  const meta: EventMeta = { projectId: event.projectId, verb: 'undo', targetType: event.targetType, targetId: event.targetId };
+  // The undo event names the event it undoes. The server stores only that link and fills undoneBy from it (plan 4.3, AM 7.8).
+  const meta = { projectId: event.projectId, verb: 'undo', targetType: event.targetType, targetId: event.targetId, undoes: event.id };
   let undo: Event;
   if (event.before === null) {
     if (!current || later.length > 0) throw conflict();
-    if (isUsedElsewhere(ec.state, key, event.targetId)) throw conflict('Other items now use this. Undo is not available.');
+    if (isReferenced(ec.state, event.targetType, event.targetId)) throw conflict('Other items now use this. Undo is not available.');
     delete collection[event.targetId];
     undo = writeEvent(ec, { ...meta, before: structuredClone(current), after: null });
   } else if (event.after === null) {

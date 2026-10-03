@@ -141,6 +141,8 @@ export const usersCreate = defineCall({
     discipline: Discipline,
     ownerId: UserId.optional(),
     gender: Gender.optional(),
+    /** The language of the person's screens and emails. Missing: the language of the person who creates them (plan 4.13, A8). */
+    language: Language.optional(),
   }),
   output: User,
   run(input, ctx) {
@@ -159,7 +161,8 @@ export const usersCreate = defineCall({
     const id = nextId(ctx.state, 'usr');
     const user: User = {
       id, name: input.name, email: input.email, systemRole: input.systemRole, kind: input.kind, discipline: input.discipline,
-      ownerId, avatarUrl: null, active: true, preferences: defaultPreferences(), gender: input.gender,
+      ownerId, avatarUrl: null, active: true, gender: input.gender,
+      preferences: { ...defaultPreferences(), language: input.language ?? ctx.authority.preferences.language },
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
@@ -241,11 +244,12 @@ export const meUpdatePreferences = defineCall({
   output: User,
   run(input, ctx) {
     const current = ctx.actor.preferences;
+    // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
+      ...current,
       language: input.language ?? current.language,
       theme: input.theme ?? current.theme,
       glass: input.glass ?? current.glass,
-      notifications: current.notifications,
     };
     applyPatch(ctx, ctx.actor, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
     return ctx.actor;

@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { notificationCalls } from './notifications';
 import { taskCalls } from './tasks';
 import { contentCalls } from './content';
-import { notify } from '../notify';
+import { historyCalls } from './history';
+import { emailOn, morningSummaryOn, notify } from '../notify';
+import { defaultPreferences, TRIGGERS } from '../contract/entities';
 import { makeTask, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
@@ -63,5 +65,84 @@ describe('notice links and approval', () => {
     await t.api.call('tasks.approve', { id: 'tsk_001' });
     const after = await t.api.call('notifications.list', {});
     expect(after.find((v) => v.notification.trigger === 'review_requested')?.canApprove).toBe(false);
+  });
+});
+
+describe('email switches and the morning summary (plan 4.13, A7; spec 2, section 10)', () => {
+  it('reads the defaults: email on for assigned tasks, reviews and mentions, and the morning summary on', () => {
+    const prefs = defaultPreferences();
+    expect(TRIGGERS.filter((trigger) => emailOn(prefs, trigger))).toEqual(['task_assigned', 'mention', 'review_requested']);
+    expect(morningSummaryOn(prefs)).toBe(true);
+    expect(morningSummaryOn({ ...prefs, morningSummary: false })).toBe(false);
+    expect(emailOn({ ...prefs, email: { mention: false, overdue: true } }, 'mention')).toBe(false);
+    expect(emailOn({ ...prefs, email: { mention: false, overdue: true } }, 'overdue')).toBe(true);
+  });
+
+  it('saves an email switch and the morning summary, apart from the in-app switches', async () => {
+    const t = withNotices();
+    const user = await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'overdue', on: true });
+    expect(user.preferences.email).toEqual({ overdue: true });
+    expect(user.preferences.notifications.overdue).toBe(true);
+    const off = await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false });
+    expect(off.preferences.email).toEqual({ overdue: true, mention: false });
+    expect(off.preferences.notifications.mention).toBe(true);
+    const summary = await t.api.call('notifications.updateSettings', { morningSummary: false });
+    expect(summary.preferences.morningSummary).toBe(false);
+    expect(morningSummaryOn(t.store.state.users[summary.id].preferences)).toBe(false);
+    // The in-app form of today still works.
+    expect((await t.api.call('notifications.updateSettings', { trigger: 'mention', on: false })).preferences.notifications.mention).toBe(false);
+  });
+
+  it('refuses a change that names no switch, or two', async () => {
+    const t = withNotices();
+    await expect(t.api.call('notifications.updateSettings', {})).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('notifications.updateSettings', { trigger: 'mention', on: true, morningSummary: true })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('lets no agent change the email switches or the morning summary', async () => {
+    const t = withNotices();
+    t.as('usr_005');
+    await expect(t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('notifications.updateSettings', { morningSummary: false })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.users.usr_003.preferences.email).toBeUndefined();
+    expect(t.store.state.users.usr_003.preferences.morningSummary).toBeUndefined();
+  });
+
+  it('lets no agent undo the person\'s change to an email switch or the morning summary (review 2026-10-03)', async () => {
+    const changes = [{ channel: 'email' as const, trigger: 'mention' as const, on: false }, { morningSummary: false }];
+    for (const change of changes) {
+      const t = testApi({ ...notificationCalls, ...historyCalls });
+      t.as('usr_003');
+      await t.api.call('notifications.updateSettings', change);
+      const event = Object.values(t.store.state.events).at(-1)!;
+      const saved = structuredClone(t.store.state.users.usr_003.preferences);
+      t.as('usr_005');
+      await expect(t.api.call('events.undo', { eventId: event.id })).rejects.toMatchObject({ code: 'forbidden', details: { action: 'notifications.email' } });
+      expect(t.store.state.users.usr_003.preferences).toEqual(saved);
+    }
+  });
+
+  it('still lets the agent undo the person\'s change to an in-app switch, and lets the person undo an email switch', async () => {
+    const t = testApi({ ...notificationCalls, ...historyCalls });
+    t.as('usr_003');
+    await t.api.call('notifications.updateSettings', { trigger: 'mention', on: false });
+    const appEvent = Object.values(t.store.state.events).at(-1)!;
+    await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false });
+    const emailEvent = Object.values(t.store.state.events).at(-1)!;
+    await t.api.call('events.undo', { eventId: emailEvent.id });
+    expect(t.store.state.users.usr_003.preferences.email ?? {}).toEqual({});
+    t.as('usr_005');
+    await t.api.call('events.undo', { eventId: appEvent.id });
+    expect(t.store.state.users.usr_003.preferences.notifications.mention).toBe(true);
+  });
+
+  it('makes no notice while the in-app switch is off, even with the email switch on, so no email goes (review 2026-10-03)', () => {
+    const t = withNotices();
+    const s = t.store.state;
+    s.users.usr_003.preferences = { ...s.users.usr_003.preferences, notifications: { ...s.users.usr_003.preferences.notifications, mention: false }, email: { mention: true } };
+    const before = Object.keys(s.notifications).length;
+    notify(s, s.users.usr_002, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'task', targetId: 'tsk_001' });
+    expect(Object.keys(s.notifications)).toHaveLength(before);
   });
 });
