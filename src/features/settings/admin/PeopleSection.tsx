@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import { useUndoable } from '../../../app/actions';
-import { useCall } from '../../../app/runtime';
+import { REMOTE } from '../../../app/mode';
+import { useAction, useCall } from '../../../app/runtime';
+import { useToast } from '../../../app/toasts';
+import { actorContext } from '../../../lib/grammar';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -18,6 +21,11 @@ export function PeopleSection() {
   const users = useCall('users.list', { includeInactive: true });
   const session = useCall('session.get', {});
   const teams = useCall('teams.list', {});
+  // Who still waits for their invitation (plan 5.1). The prototype has no sign-in, so it never asks.
+  const invites = useCall('users.invites', {}, { enabled: REMOTE });
+  const invited = new Set((invites.data ?? []).filter((row) => row.state === 'invited').map((row) => row.userId));
+  const toast = useToast();
+  const resend = useAction('users.resendInvite');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   // A person with live work gets a warning first (owner, 2026-10-03, API-7).
@@ -52,6 +60,7 @@ export function PeopleSection() {
                 <bdi className="font-semibold">{user.name}</bdi>
                 {user.kind === 'agent' && <AgentLabel />}
                 {!user.active && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('admin.inactive')}</span>}
+                {user.active && invited.has(user.id) && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('people.invited', { context: actorContext(user) })}</span>}
               </p>
               <p className="truncate text-footnote text-label-2">
                 <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi>
@@ -62,6 +71,11 @@ export function PeopleSection() {
               label={t('admin.actions', { name: user.name })}
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
+                {
+                  label: t('people.resend'),
+                  onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.sent', { name: user.name }) }) }),
+                  hidden: !user.active || !invited.has(user.id),
+                },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },
                 // An agent comes back only while its person is active, as the API asks.
                 { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !byId.get(user.ownerId ?? '')?.active) },

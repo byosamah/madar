@@ -1,0 +1,19 @@
+{
+  "people": {
+    "invited": "Invited",
+    "resend": "Send the invitation again",
+    "sent": "Invitation sent to {{name}}.",
+    "languageHint": "Madar uses this language for the invitation email and the first sign-in."
+  },
+  "password": {
+    "title": "Password",
+    "current": "Current password",
+    "new": "New password",
+    "save": "Change the password",
+    "changed": "Password changed. Your other devices sign out."
+  },
+  "connection": {
+    "lost": "No connection. Madar cannot save changes until it connects again.",
+    "paused": "Live updates paused. Your changes still save."
+  }
+}
