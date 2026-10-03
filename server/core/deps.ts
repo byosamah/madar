@@ -154,7 +154,11 @@ export function consoleLogger(): Logger {
 }
 
 export function buildDeps(read: ReadEnv = env): Deps {
-  const values = serverEnvFrom(read);
+  return depsFrom(serverEnvFrom(read));
+}
+
+/** The ports of read values. The entries keep the values too, for the health check. */
+export function depsFrom(values: ServerEnv): Deps {
   const { config } = values;
   const db = pgDb(values.database);
   return {
