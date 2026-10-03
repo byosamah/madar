@@ -5,7 +5,6 @@ import { SERVER_EXCLUDED } from '../src/api/sharedCalls';
 import { SERVER_CALLS, SERVER_HOOKS } from './calls/index';
 import { ROUTES } from './http/routes';
 import { runCall } from './core/runCall';
-import { pgDb } from './data/sql';
 import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
@@ -60,11 +59,8 @@ describe('the registries', () => {
 });
 
 describe('the stubs', () => {
-  it('runCall, the database and the signal sender refuse', async () => {
+  it('runCall and the signal sender refuse (the database is built: server/data/sql.test.ts)', async () => {
     await refusesNotBuilt(() => runCall(deps, { principal: { userId: 'usr_001' }, name: 'users.list', input: {}, batch: ctx.batch }));
-    const db = pgDb({ writeUrl: 'postgres://w', readUrl: 'postgres://r' });
-    await refusesNotBuilt(() => db.tx('read', async () => 1));
-    await refusesNotBuilt(() => db.statement('read', 'select 1'));
     await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
   });
 
