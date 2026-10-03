@@ -1,4 +1,4 @@
-import type { ServerCallName } from '../../src/api/contract/server';
+import { SERVER_CALL_NAMES } from '../../src/api/contract/server';
 import type { SharedCallName } from '../../src/api/sharedCalls';
 import type { SaveResult } from '../data/save';
 import type { Deps, Query } from './ports';
@@ -7,8 +7,11 @@ import type { Deps, Query } from './ports';
  * Effects after the commit (plan 4.12; task C3). Handlers stay synchronous and pure, so work outside the database (an invitation,
  * a ban in Auth, an email, removing stored file data) goes through the outbox table.
  *
- * - A track registers an outbox producer for a call with registerOutbox(name, producer). runCall asks the producers of the call
- *   for their rows after the save step and writes them in the call's transaction, so a rollback leaves no effect.
+ * - A track registers an outbox producer for a shared call with registerOutbox(name, producer). runCall asks the producers of
+ *   the call for their rows after the save step and writes them in the call's transaction, so a rollback leaves no effect.
+ * - A server call (one of the 9, for example users.resendInvite or agents.remove) has no producers: runCall never asks for its
+ *   rows, so registerOutbox refuses its name (at compile time and at run time). A server write writes its own rows with
+ *   writeOutbox(q, rows) inside its own transaction, and calls processOutbox(deps, ids) after its commit.
  * - A track registers the handler of one effect kind with registerEffect(kind, handler). Kinds and owners: auth.invite, auth.ban,
  *   auth.unban, auth.email (P), agents.revokeAll (G), mail.notice (N2), r2.delete (F).
  * - The module that registers must be imported by the entry: the call files through server/calls/index.ts, the effect handlers
@@ -21,7 +24,8 @@ import type { Deps, Query } from './ports';
 export type OutboxRow = { kind: string; payload: Record<string, unknown> };
 export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query) => Promise<OutboxRow[]>;
 export type EffectHandler = (payload: Record<string, unknown>, deps: Deps) => Promise<void>;
-export type OutboxCallName = SharedCallName | ServerCallName;
+/** Only shared calls: runCall asks their producers. A server call writes its own rows (see above). */
+export type OutboxCallName = SharedCallName;
 
 /** The outbox producers of each call. Tracks add to it only through registerOutbox. */
 export const EFFECTS_OF: Partial<Record<OutboxCallName, OutboxProducer[]>> = {};
@@ -29,6 +33,9 @@ const HANDLERS = new Map<string, EffectHandler>();
 
 /** Adds a producer for a call. The result removes it again (for tests). */
 export function registerOutbox(name: OutboxCallName, producer: OutboxProducer): () => void {
+  if ((SERVER_CALL_NAMES as readonly string[]).includes(name)) {
+    throw new Error(`${name} is a server call: it writes its own outbox rows with writeOutbox and runs processOutbox after its commit.`);
+  }
   const list = (EFFECTS_OF[name] ??= []);
   list.push(producer);
   return () => {

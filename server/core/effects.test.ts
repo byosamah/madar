@@ -82,6 +82,13 @@ describe('effects after the commit (plan 4.12)', () => {
     expect(deps.logs.map((line) => line.level)).toEqual(['warn', 'warn']);
   });
 
+  it('takes producers for shared calls only: a server call never asks the producers, so its name does not compile', () => {
+    // @ts-expect-error agents.remove is a server call; it writes its own rows with writeOutbox and runs processOutbox itself.
+    expect(() => registerOutbox('agents.remove', async () => [])).toThrow(/agents.remove/);
+    // @ts-expect-error users.resendInvite is a server call too.
+    expect(() => registerOutbox('users.resendInvite', async () => [])).toThrow(/server call/);
+  });
+
   it('refuses a second handler for one kind', () => {
     undo.push(registerEffect('test.once', async () => undefined));
     expect(() => registerEffect('test.once', async () => undefined)).toThrow(/test.once/);
