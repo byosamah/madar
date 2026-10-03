@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
@@ -55,6 +55,27 @@ export function TrackerTab({ detail }: TabProps) {
     else next.delete('entry');
     return next;
   }, { replace: !id });
+  // The Overview opens an entry here, and its opener is then gone. So when an entry closes and the focus is not on this tab,
+  // the focus goes to the entry's row, or to the Tracker tab itself, never to the page (audit 2026-10-03, V-30). The timer
+  // runs after the sheet gave the focus back to its opener, when that opener is still on the page.
+  const root = useRef<HTMLDivElement>(null);
+  const lastOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (openId) {
+      lastOpen.current = openId;
+      return undefined;
+    }
+    const closed = lastOpen.current;
+    lastOpen.current = null;
+    if (!closed) return undefined;
+    const timer = window.setTimeout(() => {
+      const here = root.current;
+      if (!here || here.contains(document.activeElement)) return;
+      const tab = document.getElementById(here.closest('[role="tabpanel"]')?.getAttribute('aria-labelledby') ?? '');
+      (here.querySelector<HTMLElement>(`[data-entry="${closed}"]`) ?? tab)?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [openId]);
   const [exporting, setExporting] = useState(false);
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const history = useCall('tracker.list', {
@@ -66,7 +87,7 @@ export function TrackerTab({ detail }: TabProps) {
   const active = [filter.type !== 'all', filter.direction !== 'all', filter.openOnly].filter(Boolean).length;
   const shown = [...(history.data ?? []), ...(open.data ?? [])].find((row) => row.entry.id === openId);
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div ref={root} className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       {open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />}
       {detail.viewerCan.post ? <QuickLog projectId={projectId} members={replyPeople(detail.members)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}

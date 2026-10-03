@@ -485,6 +485,17 @@ describe('a client item on the Overview opens that item (audit 2026-10-03, PRJ-1
     expect(screen.getByRole('tab', { name: 'Tracker', hidden: true })).toHaveAttribute('aria-selected', 'true');
     expect(router.state.location.search).toContain(`entry=${row.entry.id}`);
   });
+
+  it('gives the focus to the entry row on the Tracker tab after Escape, never to the page (audit 2026-10-03, V-30)', async () => {
+    const { api } = await renderApp('/projects/prj_001', as('usr_002'));
+    await api.call('tracker.log', { projectId: 'prj_001', type: 'message', direction: 'out', title: 'We need the soil report.', date: '2026-09-30', waiting: 'client', fileIds: [] });
+    const attention = await screen.findByRole('region', { name: 'Needs attention' });
+    await userEvent.click(await within(attention).findByRole('button', { name: 'Open We need the soil report.' }));
+    await screen.findByRole('dialog', { name: 'We need the soil report.' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'We need the soil report.' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open We need the soil report.' })));
+  });
 });
 
 describe('filters stay in the link (audit 2026-10-03, PRJ-22)', () => {
