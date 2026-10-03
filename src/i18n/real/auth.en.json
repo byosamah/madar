@@ -1,0 +1,57 @@
+{
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "newPassword": "New password",
+    "passwordHint": "At least 8 characters.",
+    "backToSignIn": "Back to sign in",
+    "signOut": "Sign out",
+    "signIn": {
+      "title": "Sign in to Madar",
+      "submit": "Sign in",
+      "forgot": "Forgot your password?"
+    },
+    "reasons": {
+      "signed_out": "You signed out.",
+      "expired": "Your session ended. Sign in again."
+    },
+    "welcome": {
+      "title": "Welcome to Madar",
+      "body": "You have an invitation to join your office in Madar.",
+      "open": "Accept the invitation",
+      "greeting": "Welcome, {{name}}",
+      "setBody": "Set a password. You sign in with this email and password from now on.",
+      "save": "Set the password",
+      "ended": "This link has ended. Ask the Admin for a new invitation."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "body": "Type the email of your account. Madar sends a link to set a new password.",
+      "send": "Send the link",
+      "sent": "If this email has an account in Madar, a link is on its way. Check your email."
+    },
+    "reset": {
+      "title": "Set a new password",
+      "body": "Other devices sign out when you save the new password.",
+      "save": "Save the password",
+      "ended": "This link has ended. Ask for a new link.",
+      "again": "Ask for a new link"
+    },
+    "expired": {
+      "title": "Your session ended",
+      "body": "Type your password to continue. This screen and your unsent words stay.",
+      "submit": "Continue",
+      "other": "Sign in as another person"
+    },
+    "errors": {
+      "wrong": "The email or the password is not right.",
+      "wrongPassword": "The password is not right.",
+      "short": "Use at least 8 characters.",
+      "weak": "This password is too easy to guess. Use a longer one.",
+      "same": "Use a password that is not your current one.",
+      "tooMany": "Too many tries. Wait a few minutes, then try again.",
+      "offline": "Madar cannot connect. Check your connection, then try again.",
+      "failed": "Something went wrong. Try again."
+    }
+  }
+}

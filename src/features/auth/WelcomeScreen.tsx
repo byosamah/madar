@@ -1,0 +1,106 @@
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useCall } from '../../app/runtime';
+import { Button } from '../../components/Button';
+import { TextField } from '../../components/Fields';
+import { AuthPage, FormError, QUIET_LINK } from './AuthPage';
+import { failureText, MIN_PASSWORD, reasonOf } from './authFailure';
+import { useAuth } from './useAuth';
+
+type Step = 'open' | 'set' | 'ended';
+
+/** The link has ended: one calm line and the way back to Sign in. */
+export function LinkEnded({ text, to, label }: { text: string; to: string; label: string }) {
+  return (
+    <>
+      <p role="alert" className="text-body text-ink">{text}</p>
+      <Link to={to} className={QUIET_LINK}>{label}</Link>
+    </>
+  );
+}
+
+/**
+ * The invitation link (client map 7.1). The token is used only when the person presses the button, so a mail scanner that opens
+ * the link does not use it. Then the person sees their name and email and sets a password.
+ */
+export function WelcomeScreen() {
+  const { t } = useTranslation();
+  const auth = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const tokenHash = params.get('token_hash');
+  const [step, setStep] = useState<Step>(tokenHash && params.get('type') === 'invite' ? 'open' : 'ended');
+  const [password, setPassword] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | undefined>();
+  const user = useCall('session.get', {}, { enabled: step === 'set' }).data?.user;
+
+  const accept = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      await auth.verifyLink(tokenHash ?? '', 'invite');
+      await queryClient.invalidateQueries({ queryKey: ['api'] });
+      setStep('set');
+    } catch (failure) {
+      if (reasonOf(failure) === 'link_ended') setStep('ended');
+      else setError(failureText(failure, t));
+    }
+    setPending(false);
+  };
+
+  const save = async () => {
+    if (password.length < MIN_PASSWORD) {
+      setFieldError(t('auth.errors.short'));
+      return;
+    }
+    setPending(true);
+    setFieldError(undefined);
+    try {
+      await auth.setPassword(password);
+      await navigate('/', { replace: true });
+    } catch (failure) {
+      setFieldError(failureText(failure, t));
+      setPending(false);
+    }
+  };
+
+  return (
+    <AuthPage title={t('auth.welcome.title')}>
+      {step === 'ended' && <LinkEnded text={t('auth.welcome.ended')} to="/sign-in" label={t('auth.backToSignIn')} />}
+      {step === 'open' && (
+        <>
+          <p className="text-body text-ink-2">{t('auth.welcome.body')}</p>
+          <FormError text={error} />
+          <Button variant="primary" className="w-full" disabled={pending} onClick={() => void accept()}>{t('auth.welcome.open')}</Button>
+        </>
+      )}
+      {step === 'set' && (
+        <form
+          noValidate
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          {user && (
+            <div className="min-w-0">
+              <p className="text-headline text-ink">{t('auth.welcome.greeting', { name: user.name })}</p>
+              <p className="truncate text-footnote text-ink-2"><bdi dir="ltr">{user.email}</bdi></p>
+            </div>
+          )}
+          <p className="text-body text-ink-2">{t('auth.welcome.setBody')}</p>
+          {/* The email field helps the browser save the new password with the right account. */}
+          {user && <input type="email" autoComplete="username" value={user.email} readOnly hidden />}
+          <TextField id="welcome-password" type="password" dir="ltr" autoComplete="new-password" label={t('auth.newPassword')} hint={t('auth.passwordHint')} value={password} error={fieldError} disabled={pending} onChange={(event) => setPassword(event.target.value)} />
+          <Button type="submit" variant="primary" className="w-full" disabled={pending || !password}>{t('auth.welcome.save')}</Button>
+        </form>
+      )}
+    </AuthPage>
+  );
+}
