@@ -68,7 +68,7 @@ export function TasksTab({ detail }: TabProps) {
       {tasks.error && !tasks.data && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
-        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} onOpen={open} />)}
+        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} canLog={detail.viewerCan.post} onOpen={open} />)}
       {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={panel.close} />}
     </div>
   );

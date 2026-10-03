@@ -25,6 +25,8 @@ const HelperIds = z.array(UserId).max(MAX_HELPERS);
 const Reason = z.string().trim().min(1).max(280);
 /** Why the project moves back a stage, when a change would do that. Optional: only that case needs it. */
 const StageBackReason = z.string().trim().max(280).optional();
+/** Also log a move back in the Tracker as a Balady update (owner, 2026-10-03, API-14). It does nothing when the project does not move back. */
+const LogInTracker = z.boolean().optional();
 // Why the dates of a task moved (owner, 2026-10-02). It goes to the task's Conversation, so it is never empty.
 const DateReason = z.string().trim().min(1).max(280).optional();
 const PrerequisiteIds = z.array(TaskId).max(MAX_PREREQUISITES);
@@ -199,7 +201,7 @@ export const tasksGet = defineCall({
 type NewTask = {
   projectId: string; title: string; stageId?: string; ownerId?: string; helperIds?: string[]; dueDate?: string | null; startDate?: string | null;
   schedule?: Task['schedule']; durationDays?: number | null; description: string; flagged: boolean; needsReview?: boolean; checklist?: string[];
-  prerequisiteIds?: string[]; reason?: string;
+  prerequisiteIds?: string[]; reason?: string; logInTracker?: boolean;
   /** The review setting comes from a template a leader saved, so a team member may use it without the right to set it. */
   fromTemplate?: boolean;
 };
@@ -239,7 +241,7 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
   notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
   // A new open task in an earlier stage moves the project back, and that needs a reason.
-  watch.finish({ reason: input.reason });
+  watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
   touch(ctx, project.id);
   return task;
 }
@@ -260,6 +262,7 @@ export const tasksCreate = defineCall({
     flagged: z.boolean().default(false),
     needsReview: z.boolean().optional(),
     reason: StageBackReason,
+    logInTracker: LogInTracker,
   }),
   output: TaskDetail,
   run(input, ctx) {
@@ -272,7 +275,9 @@ export const tasksCreate = defineCall({
  * and its checklist with every item unticked. The stage must be the one the template was saved for. A dynamic template starts today.
  */
 export const tasksCreateFromTemplate = defineCall({
-  input: z.object({ templateId: TaskTemplateId, stageId: StageId, ownerId: UserId.optional(), helperIds: HelperIds.optional(), reason: StageBackReason }),
+  input: z.object({
+    templateId: TaskTemplateId, stageId: StageId, ownerId: UserId.optional(), helperIds: HelperIds.optional(), reason: StageBackReason, logInTracker: LogInTracker,
+  }),
   output: TaskDetail,
   run(input, ctx) {
     const template = taskTemplatesOf(ctx.state)[input.templateId];
@@ -285,7 +290,7 @@ export const tasksCreateFromTemplate = defineCall({
     const dynamic = template.schedule === 'dynamic';
     return detail(ctx, createTask(ctx, {
       projectId: stage.projectId, stageId: stage.id, ownerId: input.ownerId, helperIds: input.helperIds, title: template.name, description: template.description,
-      flagged: false, needsReview: template.needsReview, checklist: template.checklist, fromTemplate: true, reason: input.reason,
+      flagged: false, needsReview: template.needsReview, checklist: template.checklist, fromTemplate: true, reason: input.reason, logInTracker: input.logInTracker,
       ...(dynamic ? { schedule: 'dynamic' as const, durationDays: template.durationDays, startDate: ctx.today } : {}),
     }));
   },
@@ -324,6 +329,7 @@ export const tasksUpdate = defineCall({
       checklist: z.array(ChecklistItem).max(100).optional(),
     }),
     reason: StageBackReason,
+    logInTracker: LogInTracker,
     dateReason: DateReason,
   }),
   output: TaskDetail,
@@ -379,7 +385,7 @@ export const tasksUpdate = defineCall({
     }
     applyPatch(ctx, task, changes, { projectId: task.projectId, verb: reassigned ? 'task.reassigned' : 'task.updated', targetType: 'task', targetId: task.id });
     // Moving an open task into an earlier stage moves the project back, and that needs a reason.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
     const told = [...(reassigned ? [task.ownerId] : []), ...added];
     if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
@@ -401,6 +407,7 @@ export const tasksNewVersion = defineCall({
     schedule: TaskSchedule.optional(),
     durationDays: DurationDays.nullable().optional(),
     dueDate: Day.nullable().optional(),
+    logInTracker: LogInTracker,
   }),
   output: TaskDetail,
   run(input, ctx) {
@@ -422,7 +429,7 @@ export const tasksNewVersion = defineCall({
     }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id })!;
     reopenDependents(ctx, task, opened.id);
     // The reason for the new version is also the reason the project moves back, when it does.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     addTrackerEntry(ctx, {
       projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
     });
@@ -464,7 +471,7 @@ export const tasksComplete = defineCall({
 });
 
 export const tasksMove = defineCall({
-  input: z.object({ id: TaskId, status: TaskStatus, reason: StageBackReason }),
+  input: z.object({ id: TaskId, status: TaskStatus, reason: StageBackReason, logInTracker: LogInTracker }),
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
@@ -482,7 +489,7 @@ export const tasksMove = defineCall({
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
     // Opening a done task again (and the done tasks that need it) can move the project back, and that needs a reason.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     return { result, task: detail(ctx, task) };
   },
 });

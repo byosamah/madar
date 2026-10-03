@@ -113,11 +113,11 @@ function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
 }
 
 /** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
-export function TaskBoard({ rows, reviews, onOpen }: { rows: TaskRow[]; reviews: boolean; onOpen: (taskId: string) => void }) {
+export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; reviews: boolean; canLog: boolean; onOpen: (taskId: string) => void }) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
-  const back = useStageBack();
+  const back = useStageBack(canLog);
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),

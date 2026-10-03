@@ -5,7 +5,7 @@ import { applyPatch } from './events';
 import { notify, projectPeople } from './notify';
 import type { State } from './store';
 import { stagesOf } from './views';
-import { insertComment } from './handlers/shared';
+import { assertCan, insertComment, roleIn } from './handlers/shared';
 import { addTrackerEntry } from './handlers/tracker';
 import { formatDay } from '../lib/dates';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, shiftPlan, tasksChrono } from '../lib/stageFlow';
@@ -149,14 +149,28 @@ function stageBackError(to: Stage): ApiError {
 }
 
 /**
+ * The person ticked "Also log this in the Tracker as a Balady update" (owner, 2026-10-03, API-14): one Balady entry from a third
+ * party, with the reason, in the story of the move, so one Undo takes back both. The Tracker rule for logging applies. A title
+ * holds 200 characters at most, so a longer reason also goes whole into the note.
+ */
+function logStageBack(ctx: Ctx, projectId: string, reason: string): void {
+  assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
+  const long = reason.length > 200;
+  addTrackerEntry(ctx, {
+    projectId, type: 'balady', direction: 'third_party', title: long ? `${reason.slice(0, 199).trimEnd()}…` : reason, note: long ? reason : '',
+  });
+}
+
+/**
  * Watches the stage tag of a project across one call. Take it before the call changes anything, and call "finish" after.
  * The tag follows the tasks. When it moves to an earlier stage, the call needs a reason (ask is true), which the Overview shows
  * until the tag moves forward again. A call that cannot move the tag back, or a change by Undo, passes ask false.
+ * "logInTracker" also logs a move back in the Tracker. It does nothing when the tag does not move back.
  */
-export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { reason?: string; ask?: boolean }): void } {
+export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { reason?: string; ask?: boolean; logInTracker?: boolean }): void } {
   const before = stageTag(ctx.state, projectId);
   return {
-    finish({ reason, ask = true } = {}) {
+    finish({ reason, ask = true, logInTracker = false } = {}) {
       const project = ctx.state.projects[projectId];
       const after = stageTag(ctx.state, projectId);
       if (!project || !after) return;
@@ -165,7 +179,9 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       const back = moved && order.indexOf(after.id) < order.indexOf(before.id);
       const why = reason?.trim() ?? '';
       if (back && ask && !why) throw stageBackError(after);
-      const stageBack = back && ask && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
+      // A move back made by this call. A call that does not move the tag keeps the older note, which is not logged again (audit 2026-10-03, API-14 repair).
+      const movedBack = back && ask && before !== null;
+      const stageBack = movedBack && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
       // An older office can hold a saved stage behind the tag. The saved stage first takes the tag the call found, so the event
       // holds the stage the project moved from, and an Undo can bring back what this move cleared (audit 2026-10-03, API-5).
       if (moved && before) project.currentStageId = before.id;
@@ -174,6 +190,7 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       if (JSON.stringify(stageBack) !== JSON.stringify(project.stageBack ?? null)) changes.stageBack = stageBack;
       if (moved) changes.healthOverride = null;
       applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });
+      if (movedBack && logInTracker) logStageBack(ctx, projectId, why);
       // Only a move forward tells the team. A move back follows a person's own change, which says why (audit 2026-10-03, API-15).
       if (moved && !back) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
     },
