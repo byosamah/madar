@@ -68,7 +68,7 @@ function StageBackSheet({ stage, canLog, onSend, onClose }: { stage: string; can
           if (reason.trim()) onSend(reason.trim(), log);
         }}
       >
-        <TextArea id="stage-back-reason" label={t('stageBack.label')} value={reason} dir="auto" maxLength={280} rows={3} autoFocus onChange={(event) => setReason(event.target.value)} />
+        <TextArea id="stage-back-reason" label={t('stageBack.label')} value={reason} dir="auto" maxLength={280} rows={3} onChange={(event) => setReason(event.target.value)} />
       </form>
       {canLog && (
         <label className="mt-3 flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">

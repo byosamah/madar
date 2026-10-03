@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/delete.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/delete.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Transition, Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -82,6 +84,7 @@ const DeleteIcon = forwardRef<DeleteIconHandle, DeleteIconProps>(
         >
           <motion.g
             animate={controls}
+            initial="normal"
             transition={SPRING_TRANSITION}
             variants={LID_VARIANTS}
           >
@@ -90,6 +93,7 @@ const DeleteIcon = forwardRef<DeleteIconHandle, DeleteIconProps>(
           </motion.g>
           <motion.path
             animate={controls}
+            initial="normal"
             d="M19 8v12c0 1-1 2-2 2H7c-1 0-2-1-2-2V8"
             transition={SPRING_TRANSITION}
             variants={{
@@ -99,6 +103,7 @@ const DeleteIcon = forwardRef<DeleteIconHandle, DeleteIconProps>(
           />
           <motion.line
             animate={controls}
+            initial="normal"
             transition={SPRING_TRANSITION}
             variants={{
               normal: { y1: 11, y2: 17 },
@@ -111,6 +116,7 @@ const DeleteIcon = forwardRef<DeleteIconHandle, DeleteIconProps>(
           />
           <motion.line
             animate={controls}
+            initial="normal"
             transition={SPRING_TRANSITION}
             variants={{
               normal: { y1: 11, y2: 17 },
