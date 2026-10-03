@@ -16,3 +16,4 @@ dist-server/
 supabase/functions/_build/
 secrets/
 .wrangler/
+*.tsbuildinfo
