@@ -70,3 +70,34 @@ describe('runScheduledTriggers', () => {
     expect(runScheduledTriggers(state, NOW)).toBe(0);
   });
 });
+
+describe('the dedupe lookup (plan 4.13, A3; AM 7.3)', () => {
+  const remind = (s: State, options?: { dedupeUsed(key: string): boolean }) =>
+    notify(s, null, STAMP, { userIds: ['usr_003'], trigger: 'overdue', targetType: 'task', targetId: 'tsk_001', dedupeKey: 'overdue:tsk_001:2026-09-28' }, options);
+
+  it('asks the lookup for the key of each person, instead of the scan', () => {
+    const asked: string[] = [];
+    remind(state);
+    // The lookup answers for the key. The notice already in the state does not count, so the server never needs every notice.
+    const made = remind(state, { dedupeUsed: (key) => (asked.push(key), false) });
+    expect(asked).toEqual(['overdue:tsk_001:2026-09-28:usr_003']);
+    expect(made).toHaveLength(1);
+    expect(remind(state, { dedupeUsed: () => true })).toEqual([]);
+  });
+
+  it('gives the same notices with and without the lookup', () => {
+    state.tasks.tsk_001 = makeTask({ ownerId: 'usr_003', dueDate: '2026-10-01' });
+    state.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_003', dueDate: '2026-09-28' });
+    state.tasks.tsk_003 = makeTask({ id: 'tsk_003', ownerId: 'usr_002', helperIds: ['usr_003'], dueDate: '2026-09-27' });
+    state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', status: 'on_hold', pause: { reason: 'Client', resumeOn: '2026-09-29', by: 'usr_002', at: STAMP } };
+    const other = structuredClone(state);
+    const lookupOf = (s: State) => ({ dedupeUsed: (key: string) => Object.values(s.notifications).some((n) => n.dedupeKey === key) });
+    const keysOf = (s: State) => Object.values(s.notifications).map((n) => [n.id, n.userId, n.trigger, n.targetId, n.dedupeKey]);
+
+    expect(runScheduledTriggers(state, NOW)).toBe(runScheduledTriggers(other, NOW, lookupOf(other)));
+    expect(keysOf(other)).toEqual(keysOf(state));
+    expect(keysOf(state).length).toBeGreaterThan(3);
+    expect(runScheduledTriggers(other, NOW, lookupOf(other))).toBe(0);
+  });
+
+});

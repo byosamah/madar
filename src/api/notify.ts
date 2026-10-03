@@ -17,8 +17,15 @@ export type NotifyInput = {
   dueDate?: string;
 };
 
+/**
+ * How notify learns that a dedupe key is used. The prototype scans its notices. The server's job passes a lookup backed by the
+ * unique index, so it never loads every notice (plan 4.13, A3; AM 7.3). Only the scheduled triggers pass dedupe keys.
+ */
+export type NotifyOptions = { dedupeUsed?(key: string): boolean };
+
 /** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
-export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput): Notification[] {
+export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput, options: NotifyOptions = {}): Notification[] {
+  const used = options.dedupeUsed ?? ((key: string) => Object.values(state.notifications).some((n) => n.dedupeKey === key));
   const created: Notification[] = [];
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
@@ -26,7 +33,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
     if (!user.preferences.notifications[input.trigger]) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;
-    if (dedupeKey && Object.values(state.notifications).some((n) => n.dedupeKey === dedupeKey)) continue;
+    if (dedupeKey && used(dedupeKey)) continue;
     const id = nextId(state, 'ntf');
     const notification: Notification = {
       id, userId, trigger: input.trigger, actorId: actor?.id ?? null, targetType: input.targetType,
@@ -67,7 +74,7 @@ function lastWorkingDayBefore(day: string): string {
 }
 
 /** Time-based triggers. The app runs them at start and every minute. Dedupe keys stop repeats. */
-export function runScheduledTriggers(state: State, at: Date): number {
+export function runScheduledTriggers(state: State, at: Date, options: NotifyOptions = {}): number {
   const clock = officeClock(at);
   const today = clock.day;
   const stamp = nowStamp(at);
@@ -80,12 +87,12 @@ export function runScheduledTriggers(state: State, at: Date): number {
     if (task.dueDate > today && lastWorkingDayBefore(task.dueDate) <= today) {
       count += notify(state, null, stamp, {
         userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`, dueDate: task.dueDate,
-      }).length;
+      }, options).length;
     }
     if (task.dueDate < today) {
       count += notify(state, null, stamp, {
         userIds: peopleOfTask(task), trigger: 'overdue', targetType: 'task', targetId: task.id, dedupeKey: `overdue:${task.id}:${task.dueDate}`,
-      }).length;
+      }, options).length;
     }
   }
   // A paused project reaches its planned restart day: the person who may resume it gets one notice (audit 2026-10-03, API-18).
@@ -94,7 +101,7 @@ export function runScheduledTriggers(state: State, at: Date): number {
     if (!day || day > today) continue;
     count += notify(state, null, stamp, {
       userIds: reviewersOf(state, project.id), trigger: 'resume_due', targetType: 'project', targetId: project.id, dedupeKey: `resume_due:${project.id}:${day}`,
-    }).length;
+    }, options).length;
   }
   return count;
 }
