@@ -3,7 +3,7 @@
 //   npx tsx scripts/proof/z0a.ts <step>     steps: deploy keys region pg ssl hook realtime storage worker cleanup
 // Each step prints a JSON report with every secret redacted. docs/superpowers/real-build/proof.md, section Z0a, records the results.
 // The probe objects (the z0a-probe function and its secret, the madar_server role, the hook, the probe tables, users and buckets) go in cleanup.
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -330,6 +330,66 @@ async function realtime() {
   }
 }
 
+/** One "wrangler dev" run of the probe worker in scripts/proof/worker. hyperdriveParams is the query of the local Hyperdrive connection string. */
+async function wranglerRun(password: string, hyperdriveParams: string, routes: string[]): Promise<Record<string, unknown>> {
+  const envFile = join(stateDir(), 'worker.env');
+  writeFileSync(envFile, `PG_PASSWORD=${password}\nPG_USER=madar_server.${REF}\nPG_HOST=${POOLER_HOST}\n`, { mode: 0o600 });
+  const port = 8799;
+  const dev = spawn('npx', ['wrangler', 'dev', '-c', 'scripts/proof/worker/wrangler.toml', '--ip', '127.0.0.1', '--port', String(port), '--env-file', envFile], {
+    env: {
+      ...process.env,
+      WRANGLER_SEND_METRICS: 'false',
+      // The local Hyperdrive binding: wrangler itself connects to the pooler with this string.
+      CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB: `postgresql://madar_server.${REF}:${password}@${POOLER_HOST}:6543/postgres?${hyperdriveParams}`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  dev.stdout.on('data', (d) => (log += d));
+  dev.stderr.on('data', (d) => (log += d));
+  const out: Record<string, unknown> = {};
+  try {
+    for (let i = 0; i < 60 && !out.ready; i++) {
+      await sleep(2000);
+      try {
+        await fetch(`http://127.0.0.1:${port}/`);
+        out.ready = true;
+      } catch {
+        // not ready yet
+      }
+    }
+    for (const route of routes) out[route] = await (await fetch(`http://127.0.0.1:${port}/${route}`)).json();
+  } finally {
+    dev.kill('SIGINT');
+    await sleep(1500);
+    if (dev.exitCode === null) dev.kill('SIGKILL');
+    rmSync(envFile, { force: true });
+    rmSync(new URL('./worker/.wrangler', import.meta.url), { recursive: true, force: true });
+  }
+  out.wrangler = log.match(/wrangler \S+/)?.[0] ?? null;
+  return out;
+}
+
+/** The Workers path (plan 2b, point 2): pg straight from workerd, the raw TLS step, and the local Hyperdrive binding in two TLS modes. */
+async function worker() {
+  const password = await serverRole();
+  const ca = new URL('./supabase-root-2021-ca.crt', import.meta.url).pathname;
+  const verifyFull = await wranglerRun(password, `sslmode=verify-full&sslrootcert=${ca}`, ['probe', 'tls', 'hyperdrive']);
+  const require = await wranglerRun(password, 'sslmode=require', ['hyperdrive']);
+  // A control: a self-signed CA that did not sign the pooler certificate must fail, or verify-full checks nothing.
+  const wrongCa = join(stateDir(), 'wrong-ca.crt');
+  spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(stateDir(), 'wrong-ca.key'), '-out', wrongCa, '-days', '1', '-subj', '/CN=Z0a wrong CA'], { encoding: 'utf8' });
+  const wrong = await wranglerRun(password, `sslmode=verify-full&sslrootcert=${wrongCa}`, ['hyperdrive']);
+  report('worker', {
+    wrangler: verifyFull.wrangler,
+    pgFromWorkerd: verifyFull.probe,
+    rawTls: verifyFull.tls,
+    hyperdriveLocalVerifyFull: verifyFull.hyperdrive,
+    hyperdriveLocalRequire: require.hyperdrive,
+    hyperdriveLocalVerifyFullWrongCa: wrong.hyperdrive,
+  });
+}
+
 async function cleanup() {
   const out: Record<string, unknown> = {};
   out.auth = await restoreAuth();
@@ -363,7 +423,7 @@ async function cleanup() {
   report('cleanup', out);
 }
 
-const steps: Record<string, () => Promise<void>> = { deploy, keys, region, pg: pgStep, ssl: sslStep, hook, realtime, storage: storageStep, cleanup };
+const steps: Record<string, () => Promise<void>> = { deploy, keys, region, pg: pgStep, ssl: sslStep, hook, realtime, storage: storageStep, worker, cleanup };
 
 const name = process.argv[2];
 if (name) {

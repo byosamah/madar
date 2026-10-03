@@ -1,0 +1,16 @@
+# Z0a portability probe: the Workers path (plan, section 2b, point 2), run only locally with "wrangler dev".
+name = "z0a-worker-probe"
+main = "index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.crt"]
+fallthrough = true
+
+# Hyperdrive, the Workers path to Postgres. Local runs only: the connection string comes from
+# CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB, so no password is in this file. The id is a placeholder.
+[[hyperdrive]]
+binding = "DB"
+id = "00000000000000000000000000000000"
