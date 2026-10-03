@@ -261,6 +261,64 @@ describe('change signals', () => {
   });
 });
 
+describe('a listener that throws (review of rb/R1)', () => {
+  const signal: ChangeSignal = { v: 1, id: 'sig_1', channel: 'office', seq: 4, projects: ['prj_001'], office: false, kinds: ['tasks'], people: [], storyId: 'sty_1', actorId: 'usr_002' };
+
+  it('still answers every call of the batch when onSignals throws, and the placeholder can go again', async () => {
+    const onSignals = vi.fn(() => { throw new Error('listener bug'); });
+    const { sent, fetch } = stubFetch((body) => ({ body: okAll(body, () => ({ storyId: 'sty_1', changed: true, signals: [signal] })) }));
+    const api = remote(fetch, { onSignals });
+    const results = await Promise.all([
+      api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_ui_both' }),
+      api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_ui_other' }),
+    ]);
+    expect(results).toEqual([{ name: 'tasks.complete' }, { name: 'tasks.complete' }]);
+    expect(onSignals).toHaveBeenCalledTimes(2);
+    await api.call('tasks.complete', { id: 'tsk_003' }, { correlationId: 'cor_ui_other' });
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.calls[0].story).toEqual({ id: 'sty_1' });
+  });
+
+  it('still refuses every call of the batch when onAuthError throws, and the placeholder can go again', async () => {
+    const onAuthError = vi.fn(() => { throw new Error('listener bug'); });
+    const { sent, fetch } = stubFetch((body, n) => (n < 2 ? { status: 401 } : { body: okAll(body) }));
+    const api = remote(fetch, { onAuthError });
+    const results = await Promise.allSettled([
+      api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_ui_auth' }),
+      api.call('projects.get', PROJECT),
+    ]);
+    for (const r of results) expect((r as PromiseRejectedResult).reason).toMatchObject({ code: 'unauthenticated' });
+    await api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_ui_auth' });
+    expect(sent).toHaveLength(3);
+    expect(sent[2].body.calls[0].story).toEqual({ ref: 'cor_ui_auth' });
+  });
+
+  it('sends with no token when token() throws at once, and does not leave the call waiting', async () => {
+    const { sent, fetch } = stubFetch();
+    const token = (() => { throw new Error('token bug'); }) as unknown as RemoteApiOptions<Calls>['token'];
+    expect(await remote(fetch, { token }).call('projects.get', PROJECT)).toEqual({ name: 'projects.get' });
+    expect(sent[0].headers.Authorization).toBeUndefined();
+  });
+
+  it('fails every call of the batch with failed when send() itself throws, and the placeholder can go again', async () => {
+    let broken = true;
+    const now = () => {
+      if (broken) throw new Error('clock bug');
+      return Date.now();
+    };
+    const { sent, fetch } = stubFetch((body, n) => (n < 2 ? { status: 500 } : { body: okAll(body) }));
+    const api = remote(fetch, { now });
+    const results = await Promise.allSettled([
+      api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_ui_bug' }),
+      api.call('projects.get', PROJECT),
+    ]);
+    for (const r of results) expect((r as PromiseRejectedResult).reason).toMatchObject({ code: 'failed' });
+    broken = false;
+    await api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_ui_bug' }).catch(() => undefined);
+    expect(sent[1].body.calls[0].story).toEqual({ ref: 'cor_ui_bug' });
+  });
+});
+
 describe('adapters (the slots that track F fills)', () => {
   it('runs the adapter in place of the call, and its own calls go on the wire unadapted', async () => {
     const { sent, fetch } = stubFetch((body) => ({ body: okAll(body, (call) => (call.name === 'files.upload' ? { output: { file: { id: 'fil_9' } }, storyId: 'sty_UP', changed: true } : { output: { uploadId: 'upl_1' }, storyId: 'sty_UP', changed: true })) }));

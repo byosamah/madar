@@ -48,6 +48,8 @@ type Pending = {
   key?: string;
   story?: StoryRef;
   retried: boolean;
+  /** True once the story claim of the item has ended, so a second settle never ends a later claim. */
+  storySettled?: boolean;
   resolve: (answer: Answer) => void;
   reject: (error: unknown) => void;
 };
@@ -82,7 +84,15 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
   const stories = new StoryMap({ now });
 
   const batcher = new Batcher<Pending>({
-    send: (items) => void send(items),
+    // A bug in send() must not leave a call waiting forever: every item still settles. A second resolve or reject does nothing.
+    send: (items) => {
+      send(items).catch(() => {
+        for (const item of items) {
+          settleStory(item, undefined);
+          item.reject(fromEntry({ code: 'failed', message: 'The call failed. Try again.' }));
+        }
+      });
+    },
     place: (item, request) => {
       if (!item.correlationId) return null;
       const plan = stories.plan(item.correlationId, request);
@@ -121,7 +131,27 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
 
   /** Ends the story claim of an item that went as { ref }, so a waiting call can go. */
   function settleStory(item: Pending, storyId: string | undefined): void {
+    if (item.storySettled) return;
+    item.storySettled = true;
     if (item.story && 'ref' in item.story) stories.settle(item.story.ref, storyId);
+  }
+
+  /** The token, or null. A token() that throws at once counts as no token, the same as one that rejects. */
+  async function tokenOf(get: () => Promise<string | null>): Promise<string | null> {
+    try {
+      return await get();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Calls a listener of another track. Its error stays out of the API: the calls of the request are already answered. */
+  function tell<T>(listener: ((value: T) => void) | undefined, value: T): void {
+    try {
+      listener?.(value);
+    } catch {
+      // The call itself succeeded or failed already. A listener bug must not change its answer.
+    }
   }
 
   async function send(items: Pending[]): Promise<void> {
@@ -135,9 +165,9 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         ...(item.key ? { key: item.key } : {}),
       })),
     };
-    let reply = await post(body, await o.token().catch(() => null));
+    let reply = await post(body, await tokenOf(() => o.token()));
     // One token refresh and one resend. The server ran nothing for a 401, so the writes go again with the same keys.
-    if (reply.kind === 'status' && reply.status === 401) reply = await post(body, await (o.refresh ?? o.token)().catch(() => null));
+    if (reply.kind === 'status' && reply.status === 401) reply = await post(body, await tokenOf(o.refresh ?? o.token));
 
     if (reply.kind === 'none') {
       for (const item of items) {
@@ -154,17 +184,19 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
     }
     if (reply.kind === 'status') {
       const error = fromStatus(reply.status, reply.body, reply.retryAfter, now());
-      if (error.code === 'unauthenticated') o.onAuthError?.(error);
+      // Answer the calls first, then tell the session listener, so its error cannot leave a call waiting.
       for (const item of items) {
         settleStory(item, undefined);
         item.reject(error);
       }
+      if (error.code === 'unauthenticated') tell(o.onAuthError, error);
       return;
     }
 
     const results = (reply.body as { results?: unknown })?.results;
     const byIndex = new Map<number, WireEntry>();
     if (Array.isArray(results)) for (const entry of results as WireEntry[]) if (entry && typeof entry.i === 'number') byIndex.set(entry.i, entry);
+    const signals: ChangeSignal[][] = [];
     items.forEach((item, i) => {
       const entry = byIndex.get(i);
       if (!entry) {
@@ -178,9 +210,11 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         return;
       }
       settleStory(item, entry.storyId);
-      if (entry.signals && entry.signals.length > 0) o.onSignals?.(entry.signals);
       item.resolve({ output: entry.output, storyId: entry.storyId, changed: entry.changed ?? false });
+      if (entry.signals && entry.signals.length > 0) signals.push(entry.signals);
     });
+    // Answer every call first, then hand over the signals of each entry, so a listener error cannot leave a call waiting.
+    for (const entrySignals of signals) tell(o.onSignals, entrySignals);
   }
 
   /** One call on the wire, through the batcher. A write gets a key (the meta key of a Retry, or a new one) and its story. */
