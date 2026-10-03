@@ -54,7 +54,8 @@ export function PersonMenu({ id }: { id: string }) {
           </div>
           <PreviewAs id={`preview-as-${id}`} />
           <nav aria-label={user.name} className="-mx-2 flex flex-col">
-            <button type="button" onClick={() => { setOpen(false); switchLanguage(nextLanguage); }} className={row}>
+            {/* close() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3). */}
+            <button type="button" onClick={() => { close(); switchLanguage(nextLanguage); }} className={row}>
               <AnimatedIcon icon={LanguagesIcon} size={18} className="text-ink-2" aria-hidden />
               {t(`settings.languages.${nextLanguage}`)}
             </button>

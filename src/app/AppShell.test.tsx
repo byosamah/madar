@@ -64,6 +64,16 @@ describe('app shell', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
   });
 
+  it('gives the focus back to the person picture after the language switch (audit 2026-10-03, F-3)', async () => {
+    await renderApp('/dashboard');
+    const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
+    await userEvent.click(picture);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull();
+    expect(document.activeElement).toBe(picture);
+  });
+
   it('says the unread counts in the names of the Inbox and bell links, with the right plural (audit 2026-10-03, BRW-10, BRW-12)', async () => {
     await renderApp('/dashboard', (state) => {
       const mine = Object.values(state.notifications).filter((n) => n.userId === 'usr_001' && !n.read);
