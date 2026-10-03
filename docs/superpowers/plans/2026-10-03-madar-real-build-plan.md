@@ -728,6 +728,7 @@ Each task: files, tests, done when, needs. "API tests" means the 476 tests throu
 - **A6 Tests for 8 calls.** Files: `src/api/handlers/coverage8.test.ts` (new). One test each for `updates.delete`, `projects.clearHealthOverride`, `members.update`, `deadlines.update`, `deadlines.delete`, `users.list`, `users.get`, `clients.list`. Done when: the 8 tests pass.
 - **A7 Email switches in settings.** Files: `src/api/handlers/notifications.ts`, `src/api/handlers/notifications.test.ts`. Tests: defaults (`task_assigned`, `review_requested`, `mention` on); a missing `morningSummary` reads as on; the switches save; an agent cannot change them. Done when: all tests pass.
 - **A8 Language for a new person.** Files: `src/api/handlers/people.ts`, `src/api/handlers/people.test.ts`. `users.create` takes `language?`. Tests: the default is the Admin's language; an explicit `ar` is kept in `preferences.language`. Done when: all tests pass.
+- **A9 Unread counts (added 2026-10-04 from the C2 review; runs in wave 3 after C3, with its loader half).** Cause: `chats.list` and `chats.unreadCount` load every message after the read mark, so a chat with no mark loads its whole history. The Admin sees every project chat; with AM 8 (36,000 messages in year 1) one call can read several MB, which spends the 5 GB monthly egress in days and risks the 2 s CPU limit. Files (A part): `src/api/store.ts` (`unreadCountKey(conversationId, userId)` = `unread:<conversationId>:<userId>` in `State.counts`), `src/api/chatState.ts` `unreadIn()` and `src/api/handlers/chats.ts` `taskUnread()` (read `state.counts[unreadCountKey]` first, else today's scan), `chats.ts` `writeReadMark` (set the count of the marked chat or thread to 0). Tests (A part): with counts, the numbers equal a full scan; without counts, nothing changes; `chats.markRead` gives 0 for the marked chat. Files (loader part): `server/data/loaders/chat.ts` and a filtered count in `Source` (memory and SQL): for `chats.list`, `chats.unreadCount` and `chats.markRead`, one grouped SQL count per chat (messages after the mark, the author is not the person or one of their agents, `actingForId` is not the person), and the same for task threads (after the mark and after the person's own last comment). The loader keeps only the newest message for the preview. Other writes keep the rows. Done when: these tests pass, the C2 same-answer tests still pass, and a loader test proves that a chat of 5,000 messages with no mark loads at most the newest message.
 - Track done when: all tests pass and the fake build behaves the same (`tests/e2e` smoke by the merge lead, delegated).
 
 #### Track B: Schema [Docker]
@@ -857,7 +858,7 @@ Each task: files, tests, done when, needs. "API tests" means the 476 tests throu
 |---|---|
 | 1 (after T0) | A, B, E, R1, U, O1, G1, G2, N1.0; Z0a as soon as the accounts exist |
 | 2 (after A and B) | C (serial C1, C2, C3) |
-| 3 (after C3) | D, P, F, N1.1, N2, R2 |
+| 3 (after C3) | D, P, F, N1.1, N2, R2, A9 (with its loader half; merge before D2 ends) |
 | 4 (after N2 and P) | M, G3, G4, N3 (after M and F) |
 | 5 | O2, O3, X, Z0b (after G) |
 | Deploy | Z1 to Z8 |
