@@ -26,6 +26,7 @@ import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
+import { actorContext } from '../../../lib/grammar';
 import { CommentThread } from '../../comments/CommentThread';
 import { PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
@@ -238,6 +239,12 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
     },
   });
   const deleted = useRef(false);
+  // A new lead gets the usual Undo toast. It also says when the person joined the team, and one Undo takes back both
+  // (audit 2026-10-03, F-22).
+  const leadJoins = useRef(false);
+  const newLead = useUndoable('tasks.update', {
+    message: (output) => t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: output.owner.name, context: actorContext(output.owner) }),
+  });
   const remove = useUndoable('tasks.delete', {
     message: () => t('taskSheet.deleted'),
     onSuccess: () => {
@@ -349,7 +356,15 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 </SelectField>
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
               {viewerCan.editAll ? (
-                <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
+                <SelectField
+                  id="task-owner"
+                  label={t('taskSheet.owner')}
+                  value={task.ownerId}
+                  onChange={(event) => {
+                    leadJoins.current = !teamIds.has(event.target.value);
+                    newLead.mutate({ id: task.id, patch: { ownerId: event.target.value } });
+                  }}
+                >
                   {(pickable.some((person) => person.id === task.ownerId) ? pickable : [...pickable, data.owner]).map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
