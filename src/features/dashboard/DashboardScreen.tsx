@@ -117,17 +117,17 @@ export function DashboardScreen() {
                 <div className="min-w-0 empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
-                    { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: `/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}` },
+                    { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withTeam(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, teamId) },
                     { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: withTeam('/projects?status=active', teamId) },
                   ]} />
                 </div>
                 <PerStage view={view} teamId={teamId} />
                 <HealthMix view={view} teamId={teamId} />
-                <div className="lg:col-span-2"><Throughput view={view} /></div>
+                <div className="lg:col-span-2"><Throughput view={view} teamId={teamId} /></div>
               </div>
             )}
             {section === 'people' && (
-              <Workload view={view} />
+              <Workload view={view} teamId={teamId} />
             )}
             {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}
             {section === 'schedule' && scheduled.data && <OfficeSchedule view={scheduled.data} />}

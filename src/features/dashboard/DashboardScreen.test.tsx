@@ -79,6 +79,20 @@ describe('the Dashboard', () => {
     expect((await tile(/Area in design/)).getAttribute('href')).toContain('team=tm_003');
   });
 
+  // The numbers count the tasks of the team's projects, so each link to the Task list carries the team too (audit 2026-10-03, V-37b).
+  it('keeps the Team filter in every link that opens the Task list (audit 2026-10-03, V-37b)', async () => {
+    await renderApp('/dashboard?team=tm_003');
+    expect((await tile(/Past-due tasks/)).getAttribute('href')).toContain('team=tm_003');
+    expect((await tile(/Deadlines, next 14 days/)).getAttribute('href')).toContain('team=tm_003');
+    const week = within(screen.getByRole('region', { name: 'Tasks done and created per week' })).getAllByRole('link');
+    expect(week.length).toBeGreaterThan(0);
+    for (const link of week) expect(link.getAttribute('href')).toContain('team=tm_003');
+    await userEvent.click(screen.getByRole('tab', { name: 'People' }));
+    const cells = within(await screen.findByRole('region', { name: 'Workload' })).getAllByRole('link');
+    expect(cells.length).toBeGreaterThan(0);
+    for (const link of cells) expect(link.getAttribute('href')).toContain('team=tm_003');
+  });
+
   it('offers only the statuses that change the numbers, and reads Completed or Archived in a link as Active (audit 2026-10-03, DSH-13)', async () => {
     await renderApp('/dashboard?view=schedule&status=completed');
     expect(await tile(/Active projects/)).toHaveTextContent('9');

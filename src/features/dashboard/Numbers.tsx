@@ -31,7 +31,8 @@ export function Numbers({ view, teamId }: { view: DashboardData; teamId?: string
         </Link>
       </li>
       <li>
-        <Link to="/tasks?filter=overdue" className={cell}>
+        {/* The Task list reads the team, so the list has the tasks this number counts (audit 2026-10-03, V-37b). */}
+        <Link to={withTeam('/tasks?filter=overdue', teamId)} className={cell}>
           <span className={label}>{t('dashboard.tiles.overdueTasks')}</span>
           <span className={`${big} ${tiles.overdueTasks > 0 ? 'text-attn' : 'text-ink'}`}><CountUp id="dash-past-due" value={tiles.overdueTasks} format={count} /></span>
         </Link>
