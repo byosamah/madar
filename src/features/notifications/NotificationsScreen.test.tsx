@@ -50,7 +50,8 @@ describe('the notifications screen', () => {
       notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
     ]));
     await userEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
-    expect(await screen.findByText('All caught up.')).toBeInTheDocument();
+    // The toast says what happened, so the person knows what Undo puts back (audit 2026-10-03, V-26).
+    expect(await screen.findByText('Marked 2 notifications as read.')).toBeInTheDocument();
     expect(Object.values(store.state.notifications).filter((n) => n.userId === 'usr_005').every((n) => n.read)).toBe(true);
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
   });
@@ -61,7 +62,7 @@ describe('the notifications screen', () => {
       notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
     ]));
     await userEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
-    expect(await screen.findByText('All caught up.')).toBeInTheDocument();
+    expect(await screen.findByText('Marked 2 notifications as read.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(false));
     expect(store.state.notifications.ntf_903.read).toBe(false);

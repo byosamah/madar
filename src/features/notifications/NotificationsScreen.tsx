@@ -16,7 +16,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
-import { actorContext } from '../../lib/grammar';
+import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
@@ -136,8 +136,9 @@ export function NotificationsScreen() {
   const markAll = useAction('notifications.markAllRead', {
     onSuccess: () => {
       const ids = cleared.current;
+      // The toast names the change, not a state, so the person knows what Undo puts back (audit 2026-10-03, V-26).
       toast.show({
-        message: t('inbox.allRead'),
+        message: counted(t, 'inbox.markedRead', ids.length),
         action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }), isUndo: true } : undefined,
       });
     },

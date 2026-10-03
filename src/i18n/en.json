@@ -703,6 +703,9 @@
   "inbox": {
     "markAllRead": "Mark all read",
     "allRead": "All caught up.",
+    "markedRead": "Marked {{n}} notifications as read.",
+    "markedRead_one": "Marked 1 notification as read.",
+    "markedRead_other": "Marked {{count}} notifications as read.",
     "emptyTitle": "No notifications",
     "empty": "Assignments, mentions and reviews show here.",
     "today": "Today",
