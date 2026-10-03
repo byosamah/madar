@@ -10,12 +10,12 @@ import { ScreenTitle } from '../components/ScreenTitle';
 function PageProblem({ missing, framed = false }: { missing: boolean; framed?: boolean }) {
   const { t } = useTranslation();
   const title = missing ? t('routeError.missingTitle') : t('routeError.failedTitle');
-  // The page title is the level-1 heading, as on every screen and on the project error state (audit 2026-10-03, V-34).
+  // The page title is the level-1 heading, as on every screen and on the project error state. The card under it does not say
+  // the title again (audit 2026-10-03, V-34).
   const state = (
     <>
       <ScreenTitle title={title} />
       <EmptyState
-        title={title}
         body={missing ? t('routeError.missing') : t('routeError.failed')}
         action={(
           <Link to="/" className="pressable mt-1 inline-flex min-h-11 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink">

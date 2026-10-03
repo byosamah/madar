@@ -32,8 +32,8 @@ export function ProjectScreen() {
     return (
       <>
         <ScreenTitle title={title} />
+        {/* The card does not say the page title again (audit 2026-10-03, V-34). */}
         <EmptyState
-          title={title}
           body={gone ? t('project.notFound') : errorMessage(detail.error, t)}
           action={gone
             ? <Link to="/projects" className="pressable inline-flex min-h-11 items-center font-semibold text-link">{t('project.back')}</Link>
