@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { calls } from './calls';
-import { NOW, testApi } from '../test/factories';
+import { createApi } from './client';
+import { memoryPersister } from './persist';
+import { SERVER_EXCLUDED, sharedCalls } from './sharedCalls';
+import { Store } from './store';
+import { NOW, makeWorld, testApi } from '../test/factories';
 import { setNow } from '../lib/dates';
 
 // Spec section 11.3.
@@ -78,5 +82,28 @@ describe('the call map', () => {
   it('marks exactly the session calls as prototype-only, so the agent contract leaves them out', () => {
     const marked = Object.entries(calls).filter(([, def]) => (def as { prototypeOnly?: boolean }).prototypeOnly).map(([name]) => name).sort();
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
+  });
+
+  it('has 112 calls in the map', () => {
+    const all = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS];
+    expect(all).toHaveLength(112);
+  });
+});
+
+describe('the calls the server runs', () => {
+  it('are the 108 calls of the map without the prototype controls and the blob read', () => {
+    expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
+    const names = Object.keys(sharedCalls);
+    expect(names).toHaveLength(108);
+    for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
+    for (const name of names) expect(Object.keys(calls)).toContain(name);
+    expect(sharedCalls['session.get']).toBe(calls['session.get']);
+  });
+
+  it('keep session.get as a prototype control, so it answers even when errors are simulated', async () => {
+    expect(calls['session.get'].prototypeOnly).toBe(true);
+    const api = createApi(calls, { store: new Store(makeWorld(), memoryPersister()), latencyMs: 0, failureRate: () => 1 });
+    await expect(api.call('session.get', {})).resolves.toMatchObject({ user: { id: 'usr_001' } });
+    await expect(api.call('users.list', {})).rejects.toMatchObject({ code: 'failed' });
   });
 });
