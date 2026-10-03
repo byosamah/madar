@@ -18,7 +18,8 @@ function phoneWidth() {
 }
 
 const panelGone = () => waitFor(() => expect(screen.queryByRole('dialog', { name: /Stair details/ })).toBeNull());
-const titleChanges = (state: State) => Object.values(state.events).filter((event) => event.targetId === 'tsk_007' && event.verb === 'task.updated' && (event.after as Record<string, unknown> | null)?.title !== undefined);
+/** The task saves that went to the API. The server skips a value it already has, so a count of events cannot see a second send. */
+const updates = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter(([name]) => name === 'tasks.update');
 
 // Every way of closing the task panel saves what the person typed, as the X button does (audit 2026-10-03, F-15).
 describe('closing the task panel keeps what the person typed (audit 2026-10-03, F-15)', () => {
@@ -83,25 +84,28 @@ describe('closing the task panel keeps what the person typed (audit 2026-10-03, 
     await waitFor(() => expect(store.state.tasks.tsk_007.description).toBe('Bring the drone.'));
   });
 
-  it('records a title change once when the X button closes the panel', async () => {
-    const { store } = await renderApp(TASK, as('usr_002'));
+  it('sends a title change once when the X button closes the panel', async () => {
+    // The save of the blur is still on its way when the panel closes, so only the panel's own memory stops a second send.
+    const { store, api } = await renderApp(TASK, as('usr_002'), { latencyMs: 40 });
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     const title = within(sheet).getByLabelText('Title');
     await userEvent.clear(title);
     await userEvent.type(title, 'Stair and ramp details');
+    const spy = vi.spyOn(api, 'call');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await panelGone();
     await waitFor(() => expect(store.state.tasks.tsk_007.title).toBe('Stair and ramp details'));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(titleChanges(store.state)).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(updates(spy)).toHaveLength(1);
   });
 
   it('saves nothing when nothing was typed', async () => {
-    const { store } = await renderApp(TASK, as('usr_002'));
-    const before = Object.keys(store.state.events).length;
+    const { api } = await renderApp(TASK, as('usr_002'));
     await screen.findByRole('dialog', { name: 'Stair details' });
+    const spy = vi.spyOn(api, 'call');
     await userEvent.keyboard('{Escape}');
     await panelGone();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(Object.keys(store.state.events)).toHaveLength(before);
+    expect(updates(spy)).toHaveLength(0);
   });
 });
