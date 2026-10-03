@@ -33,12 +33,32 @@ describe('the Dashboard', () => {
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(5));
   });
 
-  it('keeps its filters in the link', async () => {
-    await renderApp('/dashboard');
+  // The Status choice changes only the schedule rows; the numbers count active projects whatever it says (audit 2026-10-03, V-12).
+  it('keeps its filters in the link, and Status changes the schedule rows, not the numbers', async () => {
+    await renderApp('/dashboard?view=schedule');
     await userEvent.click(await screen.findByRole('button', { name: 'Filter' }));
     await userEvent.selectOptions(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Status' }), 'on_hold');
     await waitFor(() => expect(window.location.hash).toContain('status=on_hold'));
-    await waitFor(async () => expect(await tile(/Active projects/)).toHaveTextContent('0'));
+    const schedule = screen.getByRole('region', { name: 'Office schedule' });
+    await waitFor(() => expect(within(schedule).getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual(['Open Gulf Crest HQ Interiors', 'Open Tamr Staff Housing']));
+    expect(await tile(/Active projects/)).toHaveTextContent('9');
+    expect(await tile(/At risk or late/)).toHaveTextContent('5');
+  });
+
+  it('shows the Status choice only in the Schedule section, and reads a status in the link as Active elsewhere (audit 2026-10-03, V-12)', async () => {
+    await renderApp('/dashboard?status=on_hold');
+    expect(await tile(/Active projects/)).toHaveTextContent('9');
+    expect(within(await screen.findByRole('region', { name: 'Projects per stage' })).getAllByRole('link').length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(within(screen.getByRole('dialog', { name: 'Filter' })).queryByRole('combobox', { name: 'Status' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('tab', { name: 'People' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(within(screen.getByRole('dialog', { name: 'Filter' })).queryByRole('combobox', { name: 'Status' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('tab', { name: 'Schedule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filter, 1 active' }));
+    expect(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Status' })).toHaveValue('on_hold');
   });
 
   // Interiors is tm_003. Each number opens the Projects screen with the same team, so the list has the counted projects.
@@ -60,7 +80,7 @@ describe('the Dashboard', () => {
   });
 
   it('offers only the statuses that change the numbers, and reads Completed or Archived in a link as Active (audit 2026-10-03, DSH-13)', async () => {
-    await renderApp('/dashboard?status=completed');
+    await renderApp('/dashboard?view=schedule&status=completed');
     expect(await tile(/Active projects/)).toHaveTextContent('9');
     await userEvent.click(await screen.findByRole('button', { name: 'Filter' }));
     const status = within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Status' });

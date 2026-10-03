@@ -30,7 +30,7 @@ const SELECT = 'field mt-1.5 font-normal';
 
 /**
  * Everyone sees the same dashboard (spec 8). Three numbers, then one section at a time (redesign spec 3.6).
- * The filters and the section live in the link and apply to every number on the screen.
+ * The filters and the section live in the link. Leader, team and client apply to every number; the status to the schedule only.
  */
 export function DashboardScreen() {
   const { t } = useTranslation();
@@ -43,12 +43,13 @@ export function DashboardScreen() {
   const client = params.get('client') ?? '';
   const team = params.get('team') ?? '';
   const teamId = TEAM_ID.test(team) ? team : undefined;
-  const dashboard = useCall('dashboard.get', {
-    status,
-    leaderId: USER_ID.test(leader) ? leader : undefined,
-    clientId: CLIENT_ID.test(client) ? client : undefined,
-    teamId,
-  });
+  const filters = { leaderId: USER_ID.test(leader) ? leader : undefined, clientId: CLIENT_ID.test(client) ? client : undefined, teamId };
+  // Status changes only the rows of the schedule: every number, chart and workload counts active projects, so a Paused there
+  // read 0 everywhere. The choice shows in the Schedule section only, and elsewhere a status in the link reads as Active
+  // (audit 2026-10-03, V-12). With Active, both calls are one.
+  const statusApplies = section === 'schedule';
+  const dashboard = useCall('dashboard.get', { status: 'active', ...filters });
+  const scheduled = useCall('dashboard.get', { status: statusApplies ? status : 'active', ...filters });
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
@@ -58,9 +59,9 @@ export function DashboardScreen() {
     else next.set(key, value);
     return next;
   }, { replace: true });
-  // The meeting view takes the filters, not the section.
-  const meetingSearch = new URLSearchParams([...params].filter(([key]) => ['status', 'leader', 'client', 'team'].includes(key))).toString();
-  const active = [status !== 'active', leader !== '', client !== '', team !== ''].filter(Boolean).length;
+  // The meeting view takes the filters, not the section, and the status only where the person sees it.
+  const meetingSearch = new URLSearchParams([...params].filter(([key]) => [...(statusApplies ? ['status'] : []), 'leader', 'client', 'team'].includes(key))).toString();
+  const active = [statusApplies && status !== 'active', leader !== '', client !== '', team !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
   return (
@@ -68,11 +69,13 @@ export function DashboardScreen() {
       <ScreenTitle title={t('screens.dashboard')} />
       <div className="flex flex-wrap items-center gap-2">
         <FilterButton label={t('filter.label')} count={active}>
-          <label className={LABEL}>{t('dashboard.statusLabel')}
-            <select value={status} onChange={(event) => set('status', event.target.value, 'active')} className={SELECT}>
-              {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
-            </select>
-          </label>
+          {statusApplies && (
+            <label className={LABEL}>{t('dashboard.statusLabel')}
+              <select value={status} onChange={(event) => set('status', event.target.value, 'active')} className={SELECT}>
+                {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
+              </select>
+            </label>
+          )}
           <label className={LABEL}>{t('dashboard.leader')}
             <select value={leader} onChange={(event) => set('leader', event.target.value, '')} className={SELECT}>
               <option value="">{t('dashboard.anyLeader')}</option>
@@ -126,7 +129,8 @@ export function DashboardScreen() {
             {section === 'people' && (
               <Workload view={view} />
             )}
-            {section === 'schedule' && <OfficeSchedule view={view} />}
+            {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}
+            {section === 'schedule' && scheduled.data && <OfficeSchedule view={scheduled.data} />}
           </TabPanel>
         </>
       )}
