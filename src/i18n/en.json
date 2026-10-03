@@ -1108,9 +1108,9 @@
     "todayClear": "Nothing is due today.",
     "allTasks": "See all my tasks",
     "projects": "Your projects",
-    "projectCount": "{{n}} active",
-    "projectCount_one": "1 active",
-    "projectCount_other": "{{count}} active",
+    "projectCount": "{{n}} projects",
+    "projectCount_one": "1 project",
+    "projectCount_other": "{{count}} projects",
     "noProjects": "You are not on a project yet.",
     "allProjects": "All projects"
   },
