@@ -1,5 +1,5 @@
 import { ApiError } from '../../src/api/errors';
-import type { Query } from './ports';
+import type { Db, Query } from './ports';
 import type { StoryRef } from './types';
 
 /**
@@ -23,6 +23,16 @@ export type StoryRow = { actorId: string; createdAt: Date };
 export interface StoryStore {
   insert(id: string, actorId: string, at: Date): Promise<void>;
   get(id: string): Promise<StoryRow | undefined>;
+}
+
+/** The stories of one statement each, outside a call transaction: a server call checks a story { id } with it (plan 4.9). */
+export function statementStories(db: Pick<Db, 'statement'>): Pick<StoryStore, 'get'> {
+  return {
+    async get(id) {
+      const [row] = await db.statement<{ actor_id: string; created_at: Date | string }>('read', STORY_SELECT_SQL, [id]);
+      return row ? { actorId: row.actor_id, createdAt: new Date(row.created_at) } : undefined;
+    },
+  };
 }
 
 export function sqlStories(q: Query): StoryStore {
@@ -51,13 +61,18 @@ function notYours(): ApiError {
   return new ApiError('forbidden', 'This story does not belong to you, or it is too old. Start a new action.', { reason: 'story_not_yours' });
 }
 
+/** Refuses with story_not_yours unless the story exists, belongs to the actor, and is younger than 24 hours. */
+export async function checkStory(stories: Pick<StoryStore, 'get'>, id: string, actorId: string, now: Date): Promise<void> {
+  const row = await stories.get(id);
+  if (!row || row.actorId !== actorId || now.getTime() - row.createdAt.getTime() >= STORY_LIFE_MS) throw notYours();
+}
+
 /** The story of one write. "ref" is set when the call minted a story for a placeholder: runCall maps it after the commit. */
 export async function resolveStory(
   stories: StoryStore, story: StoryRef | undefined, refs: ReadonlyMap<string, string>, actorId: string, now: Date,
 ): Promise<{ storyId: string; ref?: string }> {
   if (story && 'id' in story) {
-    const row = await stories.get(story.id);
-    if (!row || row.actorId !== actorId || now.getTime() - row.createdAt.getTime() >= STORY_LIFE_MS) throw notYours();
+    await checkStory(stories, story.id, actorId, now);
     return { storyId: story.id };
   }
   if (story && 'ref' in story) {

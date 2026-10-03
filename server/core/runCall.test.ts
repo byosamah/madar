@@ -5,6 +5,7 @@ import { defineCall, type AnyCall } from '../../src/api/registry';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { registerOutbox } from './effects';
 import { everyCall } from './everyCall';
@@ -135,6 +136,39 @@ describe('runCall: reads and writes', () => {
     expect(deps.signal.sent.map((s) => s.channel)).toEqual([`person:${notice.userId}`]);
     expect(result.signals?.map((s) => s.channel)).toEqual([`person:${notice.userId}`]);
   });
+
+  it('sends the person signal of a notice for another person, and keeps it out of the actor\'s own signals', async () => {
+    const { call, deps } = setup();
+    const leader = seed.projects.prj_001.leaderId!;
+    const owner = Object.values(seed.members).find((m) => m.projectId === 'prj_001' && m.userId !== leader && seed.users[m.userId]?.active)!.userId;
+    const result = await call(leader, 'tasks.create', { projectId: 'prj_001', title: 'For a team member', ownerId: owner });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(deps.signal.sent.map((s) => s.channel)).toContain(`person:${owner}`);
+    expect(result.signals?.map((s) => s.channel)).toEqual(['office']);
+  });
+
+  it('stamps a write with the time after the office lock, so the stamps follow the commit order', async () => {
+    const after = new Date(NOW.getTime() + 5_000);
+    const preflightAt: Date[] = [];
+    const real = sharedCalls['clients.create'] as AnyCall;
+    const holder: { deps?: FakeDeps } = {};
+    const s = setup({
+      calls: mapWith('clients.create', real, { preflight: async (_input, ctx) => void preflightAt.push(ctx.now) }),
+      // Another write holds the lock for 5 seconds: the clock moves while this call waits.
+      wrap: (data) => ({ office: data.office, tx: (mode, work) => data.tx(mode, (t) => work({ ...t, lock: async () => holder.deps!.clock.advance(5_000) })) }),
+    });
+    holder.deps = s.deps;
+    const result = await s.call(ADMIN, 'clients.create', { name: 'Waited' }, { key: 'key-late' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(preflightAt).toEqual([NOW]);
+    const events = Object.values(s.mem.tables.state.events).filter((e) => e.correlationId === result.storyId);
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.createdAt === nowStamp(after))).toBe(true);
+    expect(s.mem.tables.stories.get(result.storyId!)?.createdAt).toEqual(after);
+    expect(s.mem.tables.keys.get(`${ADMIN}|key-late`)?.at).toEqual(after);
+  });
 });
 
 describe('runCall: the actor (plan 4.5, the actor; TM 7 suite 2)', () => {
@@ -238,6 +272,8 @@ describe('runCall: a failed call writes nothing (plan 4.5, step 5.11)', () => {
     const error = errorOf(await call(ADMIN, 'clients.create', { name: 'Busy' }));
     expect([error.code, error.details?.reason]).toEqual(['failed', 'busy']);
     expect(deps.logs.filter((line) => line.level === 'error')).toEqual([]);
+    // The call never held the lock, so it logs no hold time.
+    expect(deps.logs.filter((line) => line.message.startsWith('The call held the office lock'))).toEqual([]);
   });
 });
 
@@ -336,6 +372,20 @@ describe('runCall: idempotency keys (plan 4.10)', () => {
     expect(errorOf(refused).code).toBe('not_found');
     expect(errorOf(await call(ADMIN, 'clients.update', { id: 'cli_404', patch: { name: 'X' } }, { key: 'key-3' })).code).toBe('not_found');
   });
+
+  it('maps the placeholder of a replayed write to its stored story, so the next entry of the batch joins that story', async () => {
+    const { call, mem } = setup();
+    const first = await call(ADMIN, 'clients.create', { name: 'A' }, { key: 'key-r', story: { ref: 'cor_ui_x' } });
+    const batch = newBatch();
+    const again = await call(ADMIN, 'clients.create', { name: 'A' }, { batch, key: 'key-r', story: { ref: 'cor_ui_x' } });
+    const next = await call(ADMIN, 'clients.create', { name: 'B' }, { batch, story: { ref: 'cor_ui_x' } });
+    expect(first.ok && again.ok && next.ok).toBe(true);
+    if (!first.ok || !again.ok || !next.ok) return;
+    expect(again.storyId).toBe(first.storyId);
+    expect(batch.storyRefs.get('cor_ui_x')).toBe(first.storyId);
+    expect(next.storyId).toBe(first.storyId);
+    expect(mem.tables.stories.size).toBe(1);
+  });
 });
 
 describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)', () => {
@@ -411,6 +461,15 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
     await call(ADMIN, 'clients.create', { name: 'Timed' });
     expect(deps.logs).toContainEqual({ level: 'info', message: 'The call held the office lock.', fields: expect.objectContaining({ name: 'clients.create', region: 'eu-central-1' }) });
   });
+
+  it('logs the lock hold of a write that failed after it took the lock', async () => {
+    const refuses = defineCall({ input: z.object({ name: z.string() }), output: z.object({ id: z.string() }), run: () => {
+      throw new ApiError('conflict', 'No.');
+    } });
+    const { call, deps } = setup({ calls: mapWith('clients.create', refuses) });
+    expect(errorOf(await call(ADMIN, 'clients.create', { name: 'Refused' })).code).toBe('conflict');
+    expect(deps.logs).toContainEqual({ level: 'info', message: 'The call held the office lock.', fields: expect.objectContaining({ name: 'clients.create' }) });
+  });
 });
 
 describe('runCall: the server calls (plan 4.11)', () => {
@@ -423,6 +482,21 @@ describe('runCall: the server calls (plan 4.11)', () => {
       state.users.usr_005.active = false;
     });
     expect(errorOf(await call('usr_005', 'story.start', {})).details?.reason).toBe('account_off');
+  });
+
+  it('checks the story { id } of a server write as plan 4.9 does: another actor\'s story or an old one is refused', async () => {
+    const { call, deps } = setup();
+    const story = okOutput<{ storyId: string }>(await call(ADMIN, 'story.start', {}));
+    for (const [userId, id] of [['usr_010', story.storyId], [ADMIN, 'cor_made_up_1']] as const) {
+      const error = errorOf(await call(userId, 'story.start', {}, { story: { id } }));
+      expect([error.code, error.details?.reason]).toEqual(['forbidden', 'story_not_yours']);
+    }
+    // A server write that is not built yet refuses the foreign story before it gets to its own refusal.
+    const stub = errorOf(await call('usr_010', 'agents.remove', { agentId: AGENT }, { story: { id: story.storyId } }));
+    expect(stub.details?.reason).toBe('story_not_yours');
+    expect((await call(ADMIN, 'story.start', {}, { story: { id: story.storyId } })).ok).toBe(true);
+    deps.clock.advance(STORY_LIFE_MS);
+    expect(errorOf(await call(ADMIN, 'story.start', {}, { story: { id: story.storyId } })).details?.reason).toBe('story_not_yours');
   });
 });
 

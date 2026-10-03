@@ -12,7 +12,7 @@ import { digestOf, replay, sqlKeys, type KeyStore, type StoredResult } from './i
 import { busyOf, logLockHold, takeOfficeLock } from './lock';
 import type { Deps, Query } from './ports';
 import { serverCallMap, type CallEntry, type ServerEntry, type SharedEntry } from './serverCallMap';
-import { newStoryId, resolveStory, sqlStories, type StoryStore } from './story';
+import { checkStory, newStoryId, resolveStory, sqlStories, statementStories, type StoryStore } from './story';
 import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './types';
 
 /**
@@ -110,6 +110,9 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     const office = req.batch.office ?? (await data.office());
     resolveActor(office, req.principal);
     const now = deps.clock.now();
+    // Plan 4.9 holds for every write: a server write with a story { id } gets the same check as a shared write. A { ref } and the
+    // idempotency key stay with the server call, which runs resolveStory and the key replay in its own transaction.
+    if (!entry.readOnly && req.story && 'id' in req.story) await checkStory(statementStories(deps.db), req.story.id, req.principal.userId, now);
     const result = await entry.call(parsed, {
       deps, principal: req.principal, office, batch: req.batch, now, ...(req.story ? { story: req.story } : {}), ...(req.key ? { key: req.key } : {}),
     });
@@ -152,26 +155,29 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
 
   async function runWrite(deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData): Promise<RunResult> {
     const actorId = req.principal.userId;
-    const now = deps.clock.now();
     const hooks = entry.hooks;
     let preflight: unknown;
     if (hooks?.preflight) {
       // The preflight does network work, so it runs only for an actor that may act, and never under the lock.
       resolveActor(req.batch.office ?? (await data.office()), req.principal);
-      preflight = await hooks.preflight(parsed, { actorId, now, deps });
+      preflight = await hooks.preflight(parsed, { actorId, now: deps.clock.now(), deps });
     }
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
 
     let lockedAt = 0;
     type Done = { result: StoredResult; replayed: boolean; signals: ChangeSignal[]; ids: string[]; ref?: string; officeChanged: boolean };
-    const done = await data.tx('write', async (t): Promise<Done> => {
+    const work = async (t: CallTx): Promise<Done> => {
       await t.lock(deps.config.lockKey);
       lockedAt = performance.now();
+      // The time of the call is taken under the lock, so the stamps of records and events follow the commit order.
+      const now = deps.clock.now();
       const office = await t.office();
       resolveActor(office, req.principal);
       if (req.key !== undefined && digest !== undefined) {
         const stored = replay(await t.keys.get(actorId, req.key), digest);
-        if (stored) return { result: stored, replayed: true, signals: [], ids: [], officeChanged: false };
+        // A replayed placeholder maps to the stored story, so the next entry of the batch joins it and mints no second story.
+        const ref = req.story && 'ref' in req.story && !req.batch.storyRefs.has(req.story.ref) ? { ref: req.story.ref } : {};
+        if (stored) return { result: stored, replayed: true, signals: [], ids: [], officeChanged: false, ...ref };
       }
       const story = await resolveStory(t.stories, req.story, req.batch.storyRefs, actorId, now);
       const prepared = hooks?.prepare ? await hooks.prepare(parsed, { actorId, now, deps, q: t.q }, preflight) : preflight;
@@ -185,8 +191,14 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       if (req.key !== undefined && digest !== undefined) await t.keys.put({ actorId, key: req.key, name: entry.name, digest, result, at: now });
       if (saved.signals.length > 0) await deps.signal.send(t.q, saved.signals);
       return { result, replayed: false, signals: saved.signals, ids, ...(story.ref ? { ref: story.ref } : {}), officeChanged: saved.officeVersion !== undefined };
-    });
-    logLockHold(deps, entry.name, Math.round(performance.now() - lockedAt));
+    };
+    let done: Done;
+    try {
+      done = await data.tx('write', work);
+    } finally {
+      // Every hold is logged, also the hold of a call that failed after it took the lock.
+      if (lockedAt > 0) logLockHold(deps, entry.name, Math.round(performance.now() - lockedAt));
+    }
 
     if (done.ref !== undefined && done.result.storyId !== undefined) req.batch.storyRefs.set(done.ref, done.result.storyId);
     if (done.officeChanged) req.batch.office = undefined;
