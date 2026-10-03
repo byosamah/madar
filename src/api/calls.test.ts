@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { calls } from './calls';
-import { NOW, testApi } from '../test/factories';
+import { calls, mapCalls } from './calls';
+import { createApi } from './client';
+import { memoryPersister } from './persist';
+import { SERVER_EXCLUDED, sharedCalls } from './sharedCalls';
+import { Store } from './store';
+import { NOW, makeWorld, testApi } from '../test/factories';
 import { setNow } from '../lib/dates';
 
 // Spec section 11.3.
@@ -44,16 +48,25 @@ const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot',
 const TEAM_CALLS = ['teams.list', 'teams.create', 'teams.update', 'teams.delete', 'members.addTeam'];
 // Fixes from the audit of 2026-10-03: the Undo of "Mark all read" (SHL-16), and a way back for a deactivated person (SHL-7).
 const AUDIT_CALLS = ['notifications.markUnread', 'users.reactivate'];
+// The 9 server calls of the real build, with fake versions for the prototype (plan 4.11).
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get'];
+const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
+// Server reads named one by one, so the name rule does not decide them by accident.
+const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get']);
 
 describe('the call map', () => {
-  it('has every call from the spec plus the documented extras', () => {
-    expect(Object.keys(calls).sort()).toEqual([...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS].sort());
+  it('has every call from the spec plus the documented extras, and the 9 server calls', () => {
+    expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
+    expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
+    expect(Object.keys(calls)).toHaveLength(121);
   });
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
-      const read = /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot';
+      const read = SERVER_CALLS.includes(name)
+        ? SERVER_READS.has(name)
+        : /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });
@@ -78,5 +91,29 @@ describe('the call map', () => {
   it('marks exactly the session calls as prototype-only, so the agent contract leaves them out', () => {
     const marked = Object.entries(calls).filter(([, def]) => (def as { prototypeOnly?: boolean }).prototypeOnly).map(([name]) => name).sort();
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
+  });
+
+  it('has 112 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(112);
+    expect(Object.keys(mapCalls)).toHaveLength(112);
+  });
+});
+
+describe('the calls the server runs', () => {
+  it('are the 108 calls of the map without the prototype controls and the blob read', () => {
+    expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
+    const names = Object.keys(sharedCalls);
+    expect(names).toHaveLength(108);
+    for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
+    for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
+    for (const name of SERVER_CALLS) expect(names).not.toContain(name);
+    expect(sharedCalls['session.get']).toBe(calls['session.get']);
+  });
+
+  it('keep session.get as a prototype control, so it answers even when errors are simulated', async () => {
+    expect(calls['session.get'].prototypeOnly).toBe(true);
+    const api = createApi(calls, { store: new Store(makeWorld(), memoryPersister()), latencyMs: 0, failureRate: () => 1 });
+    await expect(api.call('session.get', {})).resolves.toMatchObject({ user: { id: 'usr_001' } });
+    await expect(api.call('users.list', {})).rejects.toMatchObject({ code: 'failed' });
   });
 });

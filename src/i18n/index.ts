@@ -1,8 +1,9 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import type { Language } from '../api/contract/entities';
-import en from './en.json';
-import ar from './ar.json';
+import { ar, en } from './trees';
+
+export { ar, en };
 
 export function initI18n(language: Language = 'en'): typeof i18n {
   if (!i18n.isInitialized) {

@@ -62,6 +62,10 @@ export const Preferences = z.object({
   theme: Theme,
   glass: Glass,
   notifications: z.record(Trigger, z.boolean()),
+  /** The real build: email switches by trigger. A missing trigger takes its default (spec 2, section 10). */
+  email: z.partialRecord(Trigger, z.boolean()).optional(),
+  /** The real build: the morning summary email. A missing value means on. */
+  morningSummary: z.boolean().optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
@@ -466,7 +470,8 @@ export const Feedback = z.object({
 });
 export type Feedback = z.infer<typeof Feedback>;
 
-export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** The absolute ceiling for one file (spec 2, section 8). The active file store of the real build can set a lower limit (plan 2b, point 1). */
+export const MAX_FILE_BYTES = 250 * 1024 * 1024;
 
 export const FileVersion = z.object({
   letter: z.string().regex(/^[A-Z]+$/),
@@ -475,6 +480,8 @@ export const FileVersion = z.object({
   size: z.number().int().min(0).max(MAX_FILE_BYTES),
   uploadedBy: UserId,
   uploadedAt: Stamp,
+  /** The real build: the stored key of the small picture of an image. Optional, so older versions load. */
+  thumbKey: z.string().min(1).optional(),
 });
 export type FileVersion = z.infer<typeof FileVersion>;
 
@@ -526,6 +533,8 @@ export const Event = z.object({
    * Optional, so older events load.
    */
   causeEventId: EventId.optional(),
+  /** The real build: on an undo event, the event it undoes. The loader fills undoneBy from it (plan 4.3). Optional, so older events load. */
+  undoes: EventId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 

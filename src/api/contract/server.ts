@@ -1,0 +1,154 @@
+import { z } from 'zod';
+import { FileId, ProjectId, StageId, TaskId, UserId } from './entities';
+
+/**
+ * The 9 calls that only the real build has (plan 4.11). They carry the work that State cannot hold: story IDs, file links,
+ * invitations, agents and usage. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones.
+ * The MCP tool list (track G) reads these contracts, not the server code.
+ */
+export const SERVER_CALL_NAMES = [
+  'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get',
+] as const;
+export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
+
+/** The reasons the server gives in details.reason. The screens have a text for each one (errors.reasons.<reason>). */
+export const SERVER_REASONS = ['account_off', 'client_outdated', 'busy', 'story_not_yours', 'key_reused', 'too_many_overviews'] as const;
+export type ServerReason = (typeof SERVER_REASONS)[number];
+
+/** A signed upload link lives 10 minutes (plan 5.2). */
+export const UPLOAD_LIFE_MS = 10 * 60 * 1000;
+/** One feedback screenshot is at most 10 MB. */
+export const MAX_SHOT_BYTES = 10 * 1024 * 1024;
+
+/** The free plan limits of the usage meters (plan 5.8). Files use 1 GB while the files stay on Supabase Storage (plan 2b, point 1). */
+export const FREE_PLAN_LIMITS = {
+  calls: 500_000,
+  databaseBytes: 500 * 1024 * 1024,
+  filesBytes: 1024 * 1024 * 1024,
+  backupCopyBytes: 10 * 1024 * 1024 * 1024,
+  emailsPerDay: 100,
+  emailsPerMonth: 3_000,
+  egressBytes: 5 * 1024 * 1024 * 1024,
+} as const;
+
+/**
+ * A signed upload: the browser sends the file with this method, URL and headers. The headers always hold Content-Type;
+ * a file store can add its own (Supabase Storage or R2, plan 2b, point 1).
+ */
+export const SignedPut = z.object({
+  url: z.string().min(1),
+  headers: z.record(z.string(), z.string()).refine((headers) => typeof headers['Content-Type'] === 'string', 'The upload needs a Content-Type header.'),
+  expiresAt: z.string().min(1),
+});
+export type SignedPut = z.infer<typeof SignedPut>;
+
+const MimeType = z.string().min(1).max(100);
+const ImageType = z.string().max(100).regex(/^image\//, 'A screenshot must be a picture.');
+const UploadId = z.string().min(1).max(80);
+const Empty = z.object({});
+const Meter = z.object({ used: z.number().min(0), limit: z.number().positive() });
+
+const storyStart = {
+  input: Empty,
+  output: z.object({ storyId: z.string().min(1).max(80) }),
+  readOnly: false,
+};
+
+const filesUploadStart = {
+  input: z.object({
+    projectId: ProjectId,
+    name: z.string().trim().min(1).max(200),
+    /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
+    size: z.number().int().min(0),
+    mimeType: MimeType,
+    stageId: StageId.nullable().optional(),
+    taskId: TaskId.nullable().optional(),
+    /** The small picture of an image (960 px WebP), made in the browser. */
+    thumb: z.object({ size: z.number().int().min(1).max(MAX_SHOT_BYTES), mimeType: ImageType }).optional(),
+  }),
+  output: z.object({ uploadId: UploadId, put: SignedPut, thumbPut: SignedPut.optional() }),
+  readOnly: false,
+};
+
+const filesLink = {
+  input: z.object({
+    id: FileId,
+    letter: z.string().regex(/^[A-Z]+$/).optional(),
+    variant: z.enum(['full', 'thumb']),
+    disposition: z.enum(['inline', 'attachment']),
+  }),
+  output: z.object({ url: z.string().min(1), expiresAt: z.string().min(1), name: z.string().min(1), mimeType: z.string().min(1), size: z.number().int().min(0) }),
+  readOnly: true,
+};
+
+const feedbackUploadStart = {
+  input: z.object({
+    screenshots: z.array(z.object({ size: z.number().int().min(1).max(MAX_SHOT_BYTES, 'Each screenshot must be 10 MB or smaller.'), mimeType: ImageType }))
+      .min(1).max(3, 'Add up to three screenshots.'),
+  }),
+  output: z.object({ uploads: z.array(z.object({ uploadId: UploadId, put: SignedPut })) }),
+  readOnly: false,
+};
+
+const usersInvites = {
+  input: Empty,
+  output: z.array(z.object({ userId: UserId, state: z.enum(['invited', 'active']), sentAt: z.string().nullable() })),
+  readOnly: true,
+};
+
+const usersResendInvite = {
+  input: z.object({ id: UserId }),
+  output: z.object({ sentAt: z.string().min(1) }),
+  readOnly: false,
+};
+
+const agentsList = {
+  input: Empty,
+  output: z.array(z.object({
+    agentId: UserId,
+    clientIds: z.array(z.string().min(1)),
+    name: z.string().min(1),
+    redirectHost: z.string().nullable(),
+    approvedAt: z.string().nullable(),
+    lastUsedAt: z.string().nullable(),
+    active: z.boolean(),
+  })),
+  readOnly: true,
+};
+
+const agentsRemove = {
+  input: z.object({ agentId: UserId }),
+  output: z.object({ removed: z.literal(true) }),
+  readOnly: false,
+};
+
+const usageGet = {
+  input: Empty,
+  output: z.object({
+    month: z.string().regex(/^\d{4}-\d{2}$/),
+    calls: Meter,
+    database: Meter,
+    files: Meter,
+    backupCopy: Meter,
+    /** Emails today (Resend counts the UTC day) and this month. */
+    emails: Meter,
+    emailsMonth: Meter,
+    egress: Meter,
+    failedEffects: z.array(z.object({ id: z.string().optional(), kind: z.string().min(1), error: z.string().nullable(), attempts: z.number().int().min(0), createdAt: z.string() })),
+    jobsLastRun: z.string().nullable(),
+  }),
+  readOnly: true,
+};
+
+export const serverContracts = {
+  'story.start': storyStart,
+  'files.uploadStart': filesUploadStart,
+  'files.link': filesLink,
+  'feedback.uploadStart': feedbackUploadStart,
+  'users.invites': usersInvites,
+  'users.resendInvite': usersResendInvite,
+  'agents.list': agentsList,
+  'agents.remove': agentsRemove,
+  'usage.get': usageGet,
+} satisfies Record<ServerCallName, { input: z.ZodType; output: z.ZodType; readOnly: boolean }>;
+export type ServerContracts = typeof serverContracts;

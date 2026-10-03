@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createApi } from './client';
 import { defineCall } from './registry';
 import { invalid } from './errors';
+import { writeEvent } from './events';
 import { Store } from './store';
 import { memoryPersister } from './persist';
 import { makeWorld } from '../test/factories';
@@ -49,7 +50,15 @@ const breaker = defineCall({
     return { limit: 'many' } as unknown as { limit: number };
   },
 });
-const CALLS = { 'test.breaker': breaker, 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'test.whoami': whoami, 'session.ping': ping };
+const logged = defineCall({
+  input: z.object({}),
+  output: z.object({ ok: z.boolean() }),
+  run(_input, ctx) {
+    writeEvent(ctx, { projectId: null, verb: 'settings.updated', targetType: 'settings', targetId: 'office', before: null, after: null });
+    return { ok: true };
+  },
+});
+const CALLS = { 'test.logged': logged, 'test.breaker': breaker, 'test.echo': echo, 'test.bump': bump, 'test.settings': settings, 'test.prepared': prepared, 'test.whoami': whoami, 'session.ping': ping };
 
 let store: Store;
 beforeEach(() => {
@@ -142,5 +151,38 @@ describe('createApi', () => {
     store.state.session.currentUserId = 'usr_005';
     store.state.users.usr_003.active = false;
     await expect(apiWith().call('session.ping', {})).resolves.toEqual({ ok: true });
+  });
+
+  it('runs a call and returns its story ID and whether it changed a record', async () => {
+    const result = await apiWith().run('test.logged', {}, { correlationId: 'cor_ui_one' });
+    expect(result).toEqual({ output: { ok: true }, storyId: 'cor_ui_one', changed: true });
+  });
+
+  it('makes a story ID when the caller passes none, and uses the same ID for the events', async () => {
+    const result = await apiWith().run('test.logged', {});
+    expect(result.storyId).toMatch(/^cor_/);
+    expect(Object.values(store.state.events).map((event) => event.correlationId)).toEqual([result.storyId]);
+  });
+
+  it('reports no change for a read, and for a write that records no event', async () => {
+    expect(await apiWith().run('test.echo', { text: 'x' })).toMatchObject({ output: { text: 'x' }, changed: false });
+    expect(await apiWith().run('test.bump', { by: 1 })).toMatchObject({ output: { limit: 11 }, changed: false });
+  });
+
+  it('counts only the events of this call when the story already has events', async () => {
+    const api = apiWith();
+    await api.run('test.logged', {}, { correlationId: 'cor_ui_two' });
+    expect((await api.run('test.bump', { by: 1 }, { correlationId: 'cor_ui_two' })).changed).toBe(false);
+    expect((await api.run('test.logged', {}, { correlationId: 'cor_ui_two' })).changed).toBe(true);
+  });
+
+  it('accepts an idempotency key in the meta, and refuses an empty one', async () => {
+    await expect(apiWith().run('test.logged', {}, { key: 'k-1' })).resolves.toMatchObject({ changed: true });
+    await expect(apiWith().call('test.logged', {}, { key: '' })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['key'] } });
+  });
+
+  it('gives run() the same errors as call()', async () => {
+    await expect(apiWith().run('test.echo', { text: '' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(apiWith(1).run('test.echo', { text: 'x' })).rejects.toMatchObject({ code: 'failed' });
   });
 });

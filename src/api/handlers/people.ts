@@ -36,6 +36,8 @@ export const sessionGet = defineCall({
   input: Empty,
   output: z.object({
     user: User, authority: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
+    /** The real build: the file limit of the active file store, so the screens check before an upload (plan 2b, point 1). */
+    limits: z.object({ maxFileBytes: z.number().int().positive() }).optional(),
   }),
   readOnly: true,
   prototypeOnly: true,
@@ -54,7 +56,10 @@ export const sessionGet = defineCall({
       }));
     const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
     // "authority" is the person whose rights and notification choices apply: the user, or the person an agent acts for.
-    return { user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
+    return {
+      user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors,
+      ...(ctx.limits ? { limits: ctx.limits } : {}),
+    };
   },
 });
 

@@ -2,11 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
+import type { ChangeSignal } from '../api/remote/wire';
 import type { Store } from '../api/store';
+import type { AuthPort } from './auth';
 import { canRetry, errorMessage } from './errors';
 import { useToast } from './toasts';
 
-export type Runtime = { store: Store; api: MadarApi };
+/**
+ * Where change signals come from (plan 5.3): Realtime in the real build, the store in the prototype. An empty list means
+ * "something changed, reload all". Track R2 adds the reload rules in src/app/signals.ts.
+ */
+export type ChangeSource = { subscribe(listener: (signals: ChangeSignal[]) => void): () => void; status(): 'open' | 'closed' };
+
+/** The prototype fills every part. The real build has no store; track R2 fills the rest from src/app/remote/bootstrap.ts. */
+export type Runtime = { store?: Store; api: MadarApi; auth?: AuthPort; changes?: ChangeSource; mode?: 'prototype' | 'remote' };
 
 const RuntimeContext = createContext<Runtime | null>(null);
 
@@ -19,7 +28,7 @@ export function createQueryClient(): QueryClient {
 /** Refreshes every screen query after any change in the store, also after a scheduled notification. */
 export function RuntimeProvider({ runtime, queryClient, children }: { runtime: Runtime; queryClient: QueryClient; children: ReactNode }) {
   useEffect(
-    () => runtime.store.subscribe(() => {
+    () => runtime.store?.subscribe(() => {
       void queryClient.invalidateQueries({ queryKey: ['api'] });
     }),
     [runtime, queryClient],

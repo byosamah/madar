@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { REMOTE } from '../../../app/mode';
 import { useCall } from '../../../app/runtime';
 import { EmptyState } from '../../../components/EmptyState';
 import { ScreenTitle } from '../../../components/ScreenTitle';
@@ -8,6 +9,7 @@ import { StageTemplatesSection } from './StageTemplatesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
 import { FeedbackSection } from './FeedbackSection';
 import { TeamsSection } from './TeamsSection';
+import { UsageSection } from './UsageSection';
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
@@ -37,6 +39,8 @@ export function AdminScreen() {
       {role === 'admin' && <StageTemplatesSection />}
       {role === 'admin' && <TaskTemplatesSection />}
       {role === 'admin' && <FeedbackSection />}
+      {/* The free plan meters exist only in the real build (plan 5.8). */}
+      {REMOTE && role === 'admin' && <UsageSection />}
     </div>
   );
 }

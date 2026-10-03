@@ -10,3 +10,9 @@ playwright-report
 !.env.example
 supabase/.temp
 supabase/.branches
+
+# Real build: server bundles, deploy secrets, local Wrangler state
+dist-server/
+supabase/functions/_build/
+secrets/
+.wrangler/

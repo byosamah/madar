@@ -7,10 +7,19 @@ import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
 import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
-import type { Runtime } from './runtime';
+import { alwaysSignedIn } from './auth';
+import type { ChangeSource, Runtime } from './runtime';
+
+/** The prototype runtime always has its store. */
+export type PrototypeRuntime = Runtime & { store: Store };
+
+/** Every change of the store is one change signal with no detail, so the screens reload all, as before. The store is always open. */
+export function storeChangeSource(store: Store): ChangeSource {
+  return { subscribe: (listener) => store.subscribe(() => listener([])), status: () => 'open' };
+}
 
 /** The only place that builds the store and the API. */
-export async function bootstrap(options: { persister?: Persister; latencyMs?: number } = {}): Promise<Runtime> {
+export async function bootstrap(options: { persister?: Persister; latencyMs?: number } = {}): Promise<PrototypeRuntime> {
   let persister = options.persister ?? (await openPersister());
   const today = todayISO();
   const saved = await persister.load().then((value) => ({ value, read: true }), () => ({ value: null, read: false }));
@@ -39,7 +48,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
     latencyMs: options.latencyMs,
     failureRate: () => (store.state.session.simulateErrors ? 0.2 : 0),
   });
-  return { store, api };
+  return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype' };
 }
 
 /** Runs the time-based triggers every minute. */

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import en from './en.json';
-import ar from './ar.json';
+import { ar, en } from './trees';
 import { applyLanguage, initI18n } from './index';
 
 function flatten(value: Record<string, unknown>, prefix = ''): Record<string, string> {
