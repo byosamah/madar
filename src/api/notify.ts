@@ -12,6 +12,8 @@ export type NotifyInput = {
   dedupeKey?: string;
   /** The story of the change, so an Undo can take the notice back (audit 2026-10-03, API-13). */
   correlationId?: string;
+  /** The due day a reminder names (audit 2026-10-03, API-11). */
+  dueDate?: string;
 };
 
 /** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
@@ -29,6 +31,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       id, userId, trigger: input.trigger, actorId: actor?.id ?? null, targetType: input.targetType,
       targetId: input.targetId, read: false, createdAt: stamp, dedupeKey,
       ...(input.correlationId ? { correlationId: input.correlationId } : {}),
+      ...(input.dueDate ? { dueDate: input.dueDate } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
@@ -70,7 +73,7 @@ export function runScheduledTriggers(state: State, at: Date): number {
     // so a reminder that nobody saw on that day still goes out before the due day (audit 2026-10-03, API-11).
     if (task.dueDate > today && lastWorkingDayBefore(task.dueDate) <= today) {
       count += notify(state, null, stamp, {
-        userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`,
+        userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`, dueDate: task.dueDate,
       }).length;
     }
     if (task.dueDate < today) {
