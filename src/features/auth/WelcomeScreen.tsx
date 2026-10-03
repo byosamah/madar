@@ -69,6 +69,9 @@ export function WelcomeScreen() {
     setFieldError(undefined);
     try {
       await auth.setPassword(password);
+      // The new password is set. A reset link also opens here, so the other devices sign out, as on the Reset screen.
+      // A failed sign-out of the other devices must not hold the person here.
+      await auth.signOut({ scope: 'others' }).catch(() => undefined);
       await navigate('/', { replace: true });
     } catch (failure) {
       setFieldError(failureText(failure, t));

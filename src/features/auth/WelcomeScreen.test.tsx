@@ -31,6 +31,8 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     await userEvent.click(screen.getByRole('button', { name: 'Set the password' }));
     expect(await screen.findByTestId('where')).toHaveTextContent(/^\/$/);
     expect(auth.current()?.password).toBe('green-field-77');
+    // A new password ends every other session of the account, as on the Reset screen.
+    expect(auth.log).toEqual(['verifyLink:invite', 'setPassword', 'signOut:others']);
   });
 
   it('refuses a short password with one line under the field', async () => {
@@ -73,6 +75,8 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     await userEvent.click(screen.getByRole('button', { name: 'Set the password' }));
     expect(await screen.findByTestId('where')).toHaveTextContent(/^\/$/);
     expect(auth.current()?.password).toBe('green-field-77');
+    // A reset link opened here also sets a new password, so a login stolen before it ends on every other device.
+    expect(auth.log).toEqual(['verifyLink:recovery', 'setPassword', 'signOut:others']);
   });
 
   it('passes the calm checks at phone width, in English and in Arabic right to left', async () => {
