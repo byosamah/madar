@@ -62,7 +62,7 @@ export function insertComment(
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId, correlationId: ctx.correlationId });
   return comment;
 }
 
@@ -73,7 +73,12 @@ export function addMember(ctx: Ctx, projectId: string, userId: string, disciplin
   const member = { projectId, userId, discipline: discipline ?? ctx.state.users[userId].discipline };
   ctx.state.members[key] = member;
   recordCreate(ctx, { projectId, verb: 'member.added', targetType: 'member', targetId: key, entity: member });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [userId], trigger: 'added_to_project', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
+}
+
+/** A person who left the office gets no new work: no task to lead, help on or reply to (audit 2026-10-03, API-7). */
+export function assertActive(ctx: Ctx, userId: string, field: string): void {
+  if (!requireUser(ctx, userId).active) throw invalid(field, 'This person is no longer active. Pick someone else.', 'person_inactive');
 }
 
 /**

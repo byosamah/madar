@@ -23,7 +23,7 @@ describe('feed sentences', () => {
 
   it('gives the text of a post with mentions as names', () => {
     const post: FeedItem = {
-      kind: 'update', id: 'upd_001', at: STAMP, author, body: 'Hi @[Sara Al-Qahtani](usr_005)', fileIds: [], editedAt: null, commentCount: 0, canEdit: false,
+      kind: 'update', id: 'upd_001', at: STAMP, author, body: 'Hi @[Sara Al-Qahtani](usr_005)', fileIds: [], attachments: [], editedAt: null, commentCount: 0, canEdit: false,
     };
     expect(feedText(post, t)).toBe('Hi @Sara Al-Qahtani');
   });

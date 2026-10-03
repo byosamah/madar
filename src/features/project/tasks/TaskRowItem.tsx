@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
+import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
@@ -15,13 +16,31 @@ import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
-import { versionOf } from '../../../lib/taskPeople';
+import { actorContext } from '../../../lib/grammar';
+import { helpersOf, versionOf } from '../../../lib/taskPeople';
 import { isWaiting, waitingNames } from './waiting';
 import { PauseIcon } from '../../../components/icons/animated/pause';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
+
+/** A mark that no translation contains. It shows where the name sits in a translated line. */
+const NAME_MARK = '\u0001';
+
+/**
+ * "Helper · Lead: <name>". The name sits in its own box, so a narrow line wraps before the name, and a name too long for the
+ * whole line is cut at its own end. One truncated Arabic line cut the start of a Latin name instead (audit 2026-10-03, F-7).
+ */
+function HelperLine({ name, context }: { name: string; context: string | undefined }) {
+  const { t } = useTranslation();
+  const [before, after = ''] = t('tasks.helperLine', { name: NAME_MARK, context }).split(NAME_MARK);
+  return (
+    <span dir="auto" className="min-w-0">
+      {before}<bdi className="inline-block max-w-full truncate align-bottom">{name}</bdi>{after}
+    </span>
+  );
+}
 
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
@@ -36,6 +55,9 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
   });
   const { task } = row;
+  // A helper cannot finish the task, so the row says that they help and who leads it (audit 2026-10-03, V-35).
+  const me = useCall('session.get', {}).data?.authority;
+  const helping = Boolean(me && task.ownerId !== me.id && helpersOf(task).includes(me.id));
   const done = task.status === 'done';
   const inReview = task.status === 'in_review';
   const canTick = row.canMove && !done && !inReview;
@@ -65,26 +87,35 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
       transition={{ ...spring.standard, duration: 0.46 }}
       className="flex min-h-14 items-center gap-2 rounded-xl px-2 transition-colors hover:bg-fill/50"
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={done || ticking}
-        aria-label={waiting ? t('tasks.completeBlocked', { title: task.title, names }) : t('tasks.complete', { title: task.title })}
-        aria-disabled={waiting && canTick ? true : undefined}
-        disabled={!canTick}
-        onClick={tick}
-        className={`pressable grid size-11 shrink-0 place-items-center rounded-full disabled:opacity-60 ${waiting ? 'opacity-60' : ''}`}
-      >
-        <motion.span
-          animate={ticking ? { scale: [1, 0.82, 1] } : { scale: 1 }}
-          transition={{ duration: 0.42, times: [0, 0.35, 1], ease: 'easeOut' }}
-          className="grid place-items-center"
+      {/* A person who cannot tick gets a plain mark, not a dead button (spec 2.3; audit 2026-10-03, BRW-13). */}
+      {canTick ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={ticking}
+          aria-label={waiting ? t('tasks.completeBlocked', { title: task.title, names }) : t('tasks.complete', { title: task.title })}
+          aria-disabled={waiting ? true : undefined}
+          onClick={tick}
+          className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${waiting ? 'opacity-60' : ''}`}
         >
-          {done || ticking
+          <motion.span
+            animate={ticking ? { scale: [1, 0.82, 1] } : { scale: 1 }}
+            transition={{ duration: 0.42, times: [0, 0.35, 1], ease: 'easeOut' }}
+            className="grid place-items-center"
+          >
+            {ticking
+              ? <AnimatedIcon icon={CircleCheckIcon} size={22} className="text-[var(--sig-from)]" aria-hidden />
+              : <AnimatedIcon icon={CircleIcon} size={22} className="text-ink-2" aria-hidden />}
+          </motion.span>
+        </button>
+      ) : (
+        <span className="grid size-11 shrink-0 place-items-center">
+          {done
             ? <AnimatedIcon icon={CircleCheckIcon} size={22} className="text-[var(--sig-from)]" aria-hidden />
-            : inReview ? <AnimatedIcon icon={CircleDashedIcon} size={22} className="text-attn" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={22} className="text-ink-2" aria-hidden />}
-        </motion.span>
-      </button>
+            : inReview ? <AnimatedIcon icon={CircleDashedIcon} size={22} className="text-attn" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={22} className="text-ink-2/60" aria-hidden />}
+          {done && <span className="sr-only">{t('common.done')}</span>}
+        </span>
+      )}
       <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 py-2 text-start">
         <span className="flex items-center gap-2">
           <span dir="auto" className={`block min-w-0 truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
@@ -96,6 +127,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           )}
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
+          {helping && <HelperLine name={row.owner.name} context={actorContext(me)} />}
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {waiting && (

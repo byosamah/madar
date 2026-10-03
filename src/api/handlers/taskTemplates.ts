@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { DurationDays, StageName, TaskId, TaskSchedule, TaskTemplate, TaskTemplateId } from '../contract/entities';
+import { DurationDays, Gender, StageName, TaskId, TaskSchedule, TaskTemplate, TaskTemplateId } from '../contract/entities';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, taskTemplatesOf } from '../store';
@@ -9,15 +9,20 @@ import { assertCan, requireTask, roleIn } from './shared';
 const Title = z.string().trim().min(1).max(200);
 const ItemTitle = z.string().trim().min(1).max(200);
 
-/** A template as a screen reads it: the name of the person who saved it, and whether the current person may rename or delete it. */
-export const TaskTemplateRow = TaskTemplate.extend({ createdByName: z.string(), canEdit: z.boolean() });
+/**
+ * A template as a screen reads it: the name of the person who saved it, and whether the current person may rename or delete it.
+ * The gender of that person picks the Arabic verb of "saved by" (audit 2026-10-03, SHL-17).
+ */
+export const TaskTemplateRow = TaskTemplate.extend({ createdByName: z.string(), createdByGender: Gender.optional(), canEdit: z.boolean() });
 export type TaskTemplateRow = z.infer<typeof TaskTemplateRow>;
 
 function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
   return ctx.authority.active && (ctx.authority.systemRole === 'admin' || template.createdBy === ctx.authority.id);
 }
 
-const rowOf = (ctx: Ctx, template: TaskTemplate) => ({ ...template, createdByName: ctx.state.users[template.createdBy]?.name ?? '', canEdit: mayEdit(ctx, template) });
+const rowOf = (ctx: Ctx, template: TaskTemplate) => ({
+  ...template, createdByName: ctx.state.users[template.createdBy]?.name ?? '', createdByGender: ctx.state.users[template.createdBy]?.gender, canEdit: mayEdit(ctx, template),
+});
 
 const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 

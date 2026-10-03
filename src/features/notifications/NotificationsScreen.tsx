@@ -1,10 +1,11 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { BellIcon } from '../../components/icons/animated/bell';
 import { motion } from 'motion/react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
+import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -15,7 +16,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
-import { actorContext } from '../../lib/grammar';
+import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
@@ -25,20 +26,34 @@ type NoticeView = CallOutput<'notifications.list'>[number];
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const toast = useToast();
   const phone = useIsPhone();
-  const { notification: n, actor, target, project, link, canApprove, gone } = view;
+  const { notification: n, actor, target, project, link, canApprove, gone, dueDate } = view;
   const markRead = useAction('notifications.markRead');
-  const approve = useAction('tasks.approve', { onSuccess: () => toast.show({ message: t('taskSheet.approved') }) });
   const read = () => {
     if (!n.read) markRead.mutate({ ids: [n.id] });
   };
+  // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
+  // Approve is a change like any other, so its toast offers Undo (audit 2026-10-03, BRW-5).
+  // Undo also gives back the unread mark that Approve took, so the bell counts the review again (audit 2026-10-03, V-16).
+  const wasUnread = useRef(false);
+  const markUnread = useAction('notifications.markUnread');
+  const approve = useUndoable('tasks.approve', {
+    message: () => t('taskSheet.approved'),
+    onSuccess: read,
+    onUndo: () => {
+      if (wasUnread.current) markUnread.mutate({ ids: [n.id] });
+    },
+  });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
-  const sentence = t(`inbox.trigger.${n.trigger}`, {
+  // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
+  const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project;
+  const sentence = t(direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
     actor: actor?.name ?? t('inbox.someone'),
     context: actorContext(actor),
     target,
+    // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
+    day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
   });
   const body = (
     <>
@@ -96,9 +111,11 @@ function InboxItem({ view }: { view: NoticeView }) {
           className="shrink-0"
           disabled={approve.isPending}
           onClick={() => {
+            wasUnread.current = !n.read;
             approve.mutate({ id: n.targetId });
-            read();
           }}
+          // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
+          aria-label={t('inbox.approveTask', { target })}
         >
           {t('inbox.approve')}
         </Button>
@@ -113,16 +130,50 @@ export function NotificationsScreen() {
   const lang = useLang();
   const toast = useToast();
   const list = useCall('notifications.list', {});
-  const markAll = useAction('notifications.markAllRead', { onSuccess: () => toast.show({ message: t('inbox.allRead') }) });
+  // A mis-press of Mark all read would lose every to-do dot, so the toast offers Undo for the notices it cleared (audit 2026-10-03, SHL-16).
+  const cleared = useRef<string[]>([]);
+  const markUnread = useAction('notifications.markUnread');
+  const markAll = useAction('notifications.markAllRead', {
+    onSuccess: () => {
+      const ids = cleared.current;
+      // The toast names the change, not a state, so the person knows what Undo puts back (audit 2026-10-03, V-26).
+      // It counts every notice that it marked. One markUnread call takes 200 at most, so Undo sends groups of 200.
+      const undo = () => {
+        for (let start = 0; start < ids.length; start += 200) markUnread.mutate({ ids: ids.slice(start, start + 200) });
+      };
+      toast.show({
+        message: counted(t, 'inbox.markedRead', ids.length),
+        action: ids.length > 0 ? { label: t('common.undo'), run: undo, isUndo: true } : undefined,
+      });
+    },
+  });
   const today = todayISO();
   const dayLabel = (day: string) => (day === today ? t('inbox.today') : day === addDays(today, -1) ? t('inbox.yesterday') : formatDay(day, lang, 'long'));
   const items = list.data ?? [];
   const unread = items.some((view) => !view.notification.read);
+  // A notice of a deleted item has nothing to open, so it turns read once the list shows it (audit 2026-10-03, SHL-12).
+  const markGone = useAction('notifications.markRead');
+  const goneUnread = items.filter((view) => view.gone && !view.notification.read).map((view) => view.notification.id).join(',');
+  useEffect(() => {
+    if (goneUnread) markGone.mutate({ ids: goneUnread.split(',').slice(0, 200) });
+    // The mutation object changes on every render. Only a new set of gone notices matters here.
+  }, [goneUnread]);
   return (
     <>
       <ScreenTitle
         title={t('screens.notifications')}
-        action={unread ? <Button variant="plain" className="shrink-0 px-3" onClick={() => markAll.mutate({})}>{t('inbox.markAllRead')}</Button> : undefined}
+        action={unread ? (
+          <Button
+            variant="plain"
+            className="shrink-0 px-3"
+            onClick={() => {
+              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id);
+              markAll.mutate({});
+            }}
+          >
+            {t('inbox.markAllRead')}
+          </Button>
+        ) : undefined}
       />
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}

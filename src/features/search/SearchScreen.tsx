@@ -1,7 +1,7 @@
 import { Command } from 'cmdk';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
 import { useDebounced } from '../../app/useDebounced';
@@ -26,12 +26,19 @@ function Item({ value, onSelect, children }: { value: string; onSelect: () => vo
 function Results({ query, onPerson }: { query: string; onPerson: (person: UserCard) => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const results = useCall('search.query', { text: query });
+  // The last results stay while the next ones load, so the list never flashes empty between key presses (audit PER-14).
+  const results = useCall('search.query', { text: query }, { keepPrevious: true });
   if (results.error) return <LoadFailed error={results.error} onRetry={() => void results.refetch()} />;
   if (!results.data) return null;
   const { projects, tasks, people, files } = results.data;
   if (projects.length + tasks.length + people.length + files.length === 0) {
-    return <p className="px-3 py-2 text-subheadline text-label-2">{t('search.empty', { text: query })}</p>;
+    // An empty search says what to try next (audit PER-18).
+    return (
+      <div className="flex flex-col gap-1 px-3 py-2">
+        <p className="text-subheadline text-label-2">{t('search.empty', { text: query })}</p>
+        <p className="text-footnote text-label-2">{t('search.emptyHint')}</p>
+      </div>
+    );
   }
   return (
     <>
@@ -69,7 +76,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
       {files.length > 0 && (
         <Command.Group heading={t('search.files')} className={GROUP}>
           {files.map((file) => (
-            <Item key={file.id} value={`file-${file.id}`} onSelect={() => navigate(`/projects/${file.projectId}?tab=files`)}>
+            <Item key={file.id} value={`file-${file.id}`} onSelect={() => navigate(`/projects/${file.projectId}?tab=files&file=${file.id}`)}>
               <bdi className="min-w-0 flex-1 truncate">{file.name}</bdi>
               <span className="tabular text-footnote text-label-2">{file.projectCode}</span>
             </Item>
@@ -84,8 +91,13 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
 export function SearchScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [text, setText] = useState('');
+  // The search text lives in the link too, so Back from a result shows the same search again (audit PER-14).
+  const [params, setParams] = useSearchParams();
+  const [text, setText] = useState(() => params.get('q') ?? '');
   const query = useDebounced(text.trim(), 150);
+  useEffect(() => {
+    setParams(query ? { q: query } : {}, { replace: true });
+  }, [query, setParams]);
   const [sheet, setSheet] = useState<'task' | 'project' | null>(null);
   const [person, setPerson] = useState<UserCard | null>(null);
   const commands = [
@@ -105,7 +117,8 @@ export function SearchScreen() {
           placeholder={t('search.placeholder')}
           className="panel min-h-14 w-full !rounded-2xl px-5 text-[calc(18px*var(--boost))] text-ink placeholder:text-ink-2 focus-visible:outline-2 focus-visible:outline-[var(--c-link)]"
         />
-        <Command.List className="surface flex flex-col gap-2 rounded-card p-2">
+        {/* The list gets its own name: the library default is the English word "Suggestions" (audit 2026-10-03, F-4). */}
+        <Command.List label={t('search.suggestions')} className="surface flex flex-col gap-2 rounded-card p-2">
           {commands.length > 0 && (
             <Command.Group heading={t('search.commands')} className={GROUP}>
               {commands.map((command) => <Item key={command.id} value={`command-${command.id}`} onSelect={command.run}>{command.label}</Item>)}

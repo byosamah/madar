@@ -8,19 +8,19 @@ import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { useEditFocus } from '../../../components/editFocus';
 import { MentionField } from '../../../components/MentionField';
 import { Menu } from '../../../components/Menu';
 import { RichText } from '../../../components/RichText';
-import { plainText, withMentionMarkup } from '../../../lib/text';
+import { editedBody, plainText } from '../../../lib/text';
 import { CommentThread } from '../../comments/CommentThread';
+import { FileChips } from '../../files/Attachments';
 import { feedText } from '../../projects/feed';
-import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
 type PostItem = Extract<FeedItem, { kind: 'update' }>;
 
-function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: PostItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+function PostCard({ item, projectId, people, canPost, startOpen }: {
+  item: PostItem; projectId: string; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -28,6 +28,7 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
   const [showComments, setShowComments] = useState(startOpen);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const focus = useEditFocus(editing);
   const save = useAction('updates.update', {
     onSuccess: () => {
       setEditing(false);
@@ -54,19 +55,21 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           </p>
         </div>
         {item.canEdit && !editing && (
-          <Menu
-            label={t('posts.actions')}
-            items={[
-              {
-                label: t('posts.edit'),
-                onSelect: () => {
-                  setDraft(plainText(item.body));
-                  setEditing(true);
+          <span ref={focus.actions} className="contents">
+            <Menu
+              label={t('posts.actions')}
+              items={[
+                {
+                  label: t('posts.edit'),
+                  onSelect: () => {
+                    setDraft(plainText(item.body));
+                    setEditing(true);
+                  },
                 },
-              },
-              { label: t('posts.delete'), onSelect: () => remove.mutate({ id: item.id }), destructive: true },
-            ]}
-          />
+                { label: t('posts.delete'), onSelect: () => remove.mutate({ id: item.id }), destructive: true },
+              ]}
+            />
+          </span>
         )}
       </div>
       {editing ? (
@@ -74,11 +77,11 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            const body = withMentionMarkup(draft.trim(), people);
+            const body = editedBody(draft.trim(), people, item.body);
             if (body) save.mutate({ id: item.id, body });
           }}
         >
-          <MentionField id={`post-${item.id}`} label={t('posts.editLabel')} value={draft} onChange={setDraft} people={people} />
+          <MentionField id={`post-${item.id}`} label={t('posts.editLabel')} value={draft} onChange={setDraft} people={people} inputRef={focus.field} />
           <div className="flex justify-end gap-2">
             <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
             <Button variant="primary" type="submit" disabled={!draft.trim() || save.isPending}>{t('comments.save')}</Button>
@@ -90,16 +93,8 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           <RichText body={item.body} className="text-body" />
         </div>
       )}
-      {item.fileIds.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {item.fileIds.map((id) => (
-            <li key={id} className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote">
-              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
-              <bdi>{fileNames.get(id) ?? id}</bdi>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* The API names the files of a post in "attachments"; a deleted file says "File removed", never its id (audit 2026-10-03, PRJ-6, V-20). */}
+      <FileChips files={item.attachments} />
       <Button variant="plain" className="self-start px-0" aria-expanded={showComments} onClick={() => setShowComments((open) => !open)}>{commentLabel}</Button>
       {showComments && <CommentThread targetType="update" targetId={item.id} projectId={projectId} people={people} canPost={canPost} />}
     </li>
@@ -130,9 +125,9 @@ function EventLine({ item }: { item: EventItem }) {
 }
 
 /** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
-export function FeedEntry({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: FeedItem; projectId: string; fileNames: Map<string, string>; people: UserCard[]; canPost: boolean; startOpen: boolean;
+export function FeedEntry({ item, projectId, people, canPost, startOpen }: {
+  item: FeedItem; projectId: string; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
-  if (item.kind === 'update') return <PostCard item={item} projectId={projectId} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
+  if (item.kind === 'update') return <PostCard item={item} projectId={projectId} people={people} canPost={canPost} startOpen={startOpen} />;
   return <EventLine item={item} />;
 }

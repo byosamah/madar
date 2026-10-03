@@ -204,6 +204,24 @@ export const usersDeactivate = defineCall({
   },
 });
 
+/**
+ * Turns a deactivated person on again, with their account and history, under the same rules as Deactivate. Without it a
+ * person deactivated by mistake stays locked out, because the email check still counts them (audit 2026-10-03, SHL-7).
+ */
+export const usersReactivate = defineCall({
+  input: z.object({ id: UserId }),
+  output: User,
+  run(input, ctx) {
+    assertCan(ctx, 'people.manage');
+    const user = requireUser(ctx, input.id);
+    assertMayTouch(ctx, user, undefined);
+    const owner = user.ownerId ? ctx.state.users[user.ownerId] : undefined;
+    if (user.kind === 'agent' && !owner?.active) throw invalid('id', 'An agent needs an active person to act for.');
+    applyPatch(ctx, user, { active: true }, { projectId: null, verb: 'user.reactivated', targetType: 'user', targetId: user.id });
+    return user;
+  },
+});
+
 export const meUpdateProfile = defineCall({
   input: z.object({ name: Name.optional(), discipline: Discipline.optional(), avatarUrl: z.string().max(2000).nullable().optional() }),
   output: User,
@@ -302,6 +320,7 @@ export const peopleCalls = {
   'users.create': usersCreate,
   'users.update': usersUpdate,
   'users.deactivate': usersDeactivate,
+  'users.reactivate': usersReactivate,
   'me.updateProfile': meUpdateProfile,
   'me.updatePreferences': meUpdatePreferences,
   'clients.list': clientsList,

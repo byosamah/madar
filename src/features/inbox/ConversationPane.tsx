@@ -4,13 +4,14 @@ import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
-import { useAction, useCall } from '../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
+import { actorContext } from '../../lib/grammar';
 
 type Thread = CallOutput<'chats.messages'>;
 
@@ -56,17 +57,23 @@ export function ChatPane({ id }: { id: string }) {
   const lead = chat.kind === 'project' && chat.project
     ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
     : chat.person ? <Avatar user={chat.person} size={40} /> : null;
+  // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
+  // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
+  const context = actorContext(chat.person);
+  const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   return (
     <>
-      <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={chat.kind === 'project' ? t('chat.projectChat') : t('chat.directChat')} />
+      <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={subtitle} />
       <MessageLog key={id} bubbles={bubblesOf(data)} resetKey={id} emptyText={t('chat.noMessages')} />
-      <Composer
-        id={id}
-        people={data.people}
-        pending={send.isPending}
-        upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
-        onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
-      />
+      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
+        <Composer
+          id={id}
+          people={data.people}
+          pending={send.isPending}
+          upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
+          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
+        />
+      )}
     </>
   );
 }
@@ -80,6 +87,12 @@ export function TaskPane({ id }: { id: string }) {
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
+  const { api } = useRuntime();
+  const count = comments.data?.length;
+  useEffect(() => {
+    // Opening the thread reads it (audit 2026-10-03, SHL-5). A failed read mark is not worth an error toast.
+    if (count !== undefined) api.call('chats.markRead', { conversationId: id }).catch(() => undefined);
+  }, [api, id, count]);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;

@@ -1,20 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/entities';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
+import { readDraft, useDraftOwner, writeDraft } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
-import { useAction, useCall } from '../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Age } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { useEditFocus } from '../../components/editFocus';
 import { MentionField } from '../../components/MentionField';
 import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
-import { plainText, withMentionMarkup } from '../../lib/text';
+import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
@@ -28,6 +30,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   const { comment, author, canEdit, files } = view;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const focus = useEditFocus(editing);
   const update = useAction('comments.update', { onSuccess: () => setEditing(false) });
   const remove = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const react = useAction('reactions.toggle');
@@ -66,11 +69,11 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
             className="mt-1 flex flex-col gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              const body = withMentionMarkup(draft.trim(), people);
+              const body = editedBody(draft.trim(), people, comment.body);
               if (body) update.mutate({ id: comment.id, body });
             }}
           >
-            <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} />
+            <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} inputRef={focus.field} />
             <div className="flex justify-end gap-2">
               <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
               <Button variant="primary" type="submit" disabled={!draft.trim() || update.isPending}>{t('comments.save')}</Button>
@@ -111,23 +114,50 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
               </button>
             );
           })}
-          {canEdit && !editing && actions.length > 0 && <Menu label={t('comments.actions')} items={actions} />}
+          {canEdit && !editing && actions.length > 0 && <span ref={focus.actions} className="contents"><Menu label={t('comments.actions')} items={actions} /></span>}
         </div>
       </div>
     </li>
   );
 }
 
-/** Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author. */
-export function CommentThread({
-  targetType, targetId, projectId, stageId = null, people, canPost,
-}: { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean }) {
+type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean };
+
+/**
+ * Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author.
+ * A change of person starts a new thread with that person's draft, so no half-written words or picked files go over to the
+ * next person (audit 2026-10-03, V-22).
+ */
+export function CommentThread(props: CommentThreadProps) {
+  const owner = useDraftOwner();
+  return owner ? <CommentThreadFor key={owner} owner={owner} {...props} /> : null;
+}
+
+/**
+ * A panel that closes (Focus mode, another task row, the Back button) unmounts its thread; its half-written comment waits in
+ * the drafts of the person until they come back or send it (audit PER-11). Blocked storage means the draft lasts only while
+ * the panel is open.
+ */
+function CommentThreadFor({
+  targetType, targetId, projectId, stageId = null, people, canPost, owner,
+}: CommentThreadProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   const attachments = useAttachments();
   const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
-  const [body, setBody] = useState('');
+  // Comments read here also count as read in the Inbox thread of the task (audit 2026-10-03, SHL-5).
+  const { api } = useRuntime();
+  const count = comments.data?.length;
+  useEffect(() => {
+    if (targetType === 'task' && count) api.call('chats.markRead', { conversationId: targetId }).catch(() => undefined);
+  }, [api, targetType, targetId, count]);
+  const draftKey = `${targetType}:${targetId}`;
+  const [body, setBodyState] = useState(() => readDraft(owner, draftKey));
+  const setBody = (next: string) => {
+    writeDraft(owner, draftKey, next);
+    setBodyState(next);
+  };
   const create = useAction('comments.create', {
     onSuccess: () => {
       setBody('');

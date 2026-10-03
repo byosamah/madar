@@ -5,7 +5,7 @@ import { applyPatch } from './events';
 import { notify, projectPeople } from './notify';
 import type { State } from './store';
 import { stagesOf } from './views';
-import { insertComment } from './handlers/shared';
+import { assertCan, insertComment, roleIn } from './handlers/shared';
 import { addTrackerEntry } from './handlers/tracker';
 import { formatDay } from '../lib/dates';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, shiftPlan, tasksChrono } from '../lib/stageFlow';
@@ -83,9 +83,10 @@ export function dependentsOf(state: State, task: Task): Task[] {
 
 /**
  * A task that was done opens again, so every done task that needs it (and every done task that needs those) opens again too.
- * Each one is its own change in the same story, so one Undo brings them all back.
+ * Each one is its own change in the same story, so one Undo brings them all back. "causeEventId" is the change that opened the
+ * task: each reopen names it, so a story Undo can check that the cause is in the story (audit 2026-10-03, V-2).
  */
-export function reopenDependents(ctx: Ctx, task: Task): Task[] {
+export function reopenDependents(ctx: Ctx, task: Task, causeEventId: string): Task[] {
   const queue = [task];
   const seen = new Set([task.id]);
   const reopened: Task[] = [];
@@ -99,7 +100,7 @@ export function reopenDependents(ctx: Ctx, task: Task): Task[] {
     }
   }
   for (const dependent of reopened) {
-    applyPatch(ctx, dependent, { status: 'todo', completedAt: null }, { projectId: dependent.projectId, verb: 'task.reopened', targetType: 'task', targetId: dependent.id });
+    applyPatch(ctx, dependent, { status: 'todo', completedAt: null }, { projectId: dependent.projectId, verb: 'task.reopened', targetType: 'task', targetId: dependent.id, causeEventId });
   }
   return reopened;
 }
@@ -110,29 +111,31 @@ const workingDays = (n: number): string => `${n} working ${n === 1 ? 'day' : 'da
 /**
  * A task is done after its due day. Every dynamic task that needs it, and is not done, moves later by the working days it was late.
  * A static task never moves. Each move is written in the task and logged in the Tracker, in the same story as the finish.
+ * "finishDay" is the day the owner finished, which is earlier than today for a task that waited in review.
+ * "causeEventId" is the finish: each move names it (audit 2026-10-03, V-2).
  */
-export function shiftDependents(ctx: Ctx, task: Task): Task[] {
+export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, finishDay = ctx.today): Task[] {
   const dependents = dependentsOf(ctx.state, task);
   const byId = new Map(dependents.map((dependent) => [dependent.id, dependent]));
   const moved: Task[] = [];
-  for (const move of shiftPlan(task, dependents, ctx.today)) {
+  for (const move of shiftPlan(task, dependents, finishDay)) {
     const dependent = byId.get(move.id)!;
-    const late = move.lateDays;
+    const late = move.taskLateDays;
     const { startDate, dueDate } = move.to;
     const reason = `${task.title} finished ${workingDays(late)} late`;
     const note: DateNote = {
-      from: move.from, to: move.to, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late,
+      from: move.from, to: move.to, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late, forDueDate: task.dueDate ?? undefined,
     };
     const from = dependent.dueDate;
     applyPatch(ctx, dependent, { startDate, dueDate, dateNotes: [...(dependent.dateNotes ?? []), note].slice(-20) }, {
-      projectId: dependent.projectId, verb: 'task.dates_shifted', targetType: 'task', targetId: dependent.id,
+      projectId: dependent.projectId, verb: 'task.dates_shifted', targetType: 'task', targetId: dependent.id, causeEventId,
     });
     insertComment(ctx, 'task', dependent.id, dependent.projectId, reason, [], {
       from: note.from, to: note.to, byTaskId: task.id, byTaskTitle: task.title.slice(0, 200), lateDays: late,
     });
     addTrackerEntry(ctx, {
       projectId: dependent.projectId, type: 'other', direction: 'none', auto: 'shift',
-      title: `${dependent.title.slice(0, 160)} moved ${workingDays(late)}`,
+      title: `${dependent.title.slice(0, 160)} moved ${workingDays(move.lateDays)}`,
       note: `It needs "${task.title.slice(0, 160)}", which finished ${workingDays(late)} late. Due date moved from ${when(from)} to ${when(dueDate)}.`,
     });
     moved.push(dependent);
@@ -146,14 +149,28 @@ function stageBackError(to: Stage): ApiError {
 }
 
 /**
+ * The person ticked "Also log this in the Tracker as a Balady update" (owner, 2026-10-03, API-14): one Balady entry from a third
+ * party, with the reason, in the story of the move, so one Undo takes back both. The Tracker rule for logging applies. A title
+ * holds 200 characters at most, so a longer reason also goes whole into the note.
+ */
+function logStageBack(ctx: Ctx, projectId: string, reason: string): void {
+  assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
+  const long = reason.length > 200;
+  addTrackerEntry(ctx, {
+    projectId, type: 'balady', direction: 'third_party', title: long ? `${reason.slice(0, 199).trimEnd()}…` : reason, note: long ? reason : '',
+  });
+}
+
+/**
  * Watches the stage tag of a project across one call. Take it before the call changes anything, and call "finish" after.
  * The tag follows the tasks. When it moves to an earlier stage, the call needs a reason (ask is true), which the Overview shows
  * until the tag moves forward again. A call that cannot move the tag back, or a change by Undo, passes ask false.
+ * "logInTracker" also logs a move back in the Tracker. It does nothing when the tag does not move back.
  */
-export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { reason?: string; ask?: boolean }): void } {
+export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { reason?: string; ask?: boolean; logInTracker?: boolean }): void } {
   const before = stageTag(ctx.state, projectId);
   return {
-    finish({ reason, ask = true } = {}) {
+    finish({ reason, ask = true, logInTracker = false } = {}) {
       const project = ctx.state.projects[projectId];
       const after = stageTag(ctx.state, projectId);
       if (!project || !after) return;
@@ -162,13 +179,20 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       const back = moved && order.indexOf(after.id) < order.indexOf(before.id);
       const why = reason?.trim() ?? '';
       if (back && ask && !why) throw stageBackError(after);
-      const stageBack = back && ask && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
+      // A move back made by this call. A call that does not move the tag keeps the older note, which is not logged again (audit 2026-10-03, API-14 repair).
+      const movedBack = back && ask && before !== null;
+      const stageBack = movedBack && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
+      // An older office can hold a saved stage behind the tag. The saved stage first takes the tag the call found, so the event
+      // holds the stage the project moved from, and an Undo can bring back what this move cleared (audit 2026-10-03, API-5).
+      if (moved && before) project.currentStageId = before.id;
       const changes: Partial<Project> = { currentStageId: after.id };
       // Only a real change is written, so a project saved before the Overview note is not marked changed for a null it never had.
       if (JSON.stringify(stageBack) !== JSON.stringify(project.stageBack ?? null)) changes.stageBack = stageBack;
       if (moved) changes.healthOverride = null;
       applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });
-      if (moved) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId });
+      if (movedBack && logInTracker) logStageBack(ctx, projectId, why);
+      // Only a move forward tells the team. A move back follows a person's own change, which says why (audit 2026-10-03, API-15).
+      if (moved && !back) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
     },
   };
 }

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
+import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
+import { TODAY } from '../../test/factories';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -15,6 +17,48 @@ describe('Home', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Good morning, Sara' })).toBeInTheDocument();
     expect(screen.getByText(/30 September/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: '1 of 2 done today' })).toBeInTheDocument();
+  });
+
+  // One count for today (audit PER-12): with the ring on screen, a second number that counts other things only confused.
+  // Faisal has a review waiting and a task due today, so both counts could show; the header keeps only the ring (audit 2026-10-03, V-18).
+  it('shows one count for today: the ring when it shows, never the reviews beside the date', async () => {
+    await renderApp('/', (state) => {
+      as('usr_002')(state);
+      const task = Object.values(state.tasks).find((item) => item.ownerId === 'usr_002' && item.status === 'todo' && !item.prerequisiteIds?.length)!;
+      task.dueDate = TODAY;
+    });
+    await screen.findByRole('progressbar', { name: /done today/ });
+    const header = screen.getByRole('heading', { level: 1 }).nextElementSibling as HTMLElement;
+    expect(within(header).queryByText(/review/)).toBeNull();
+    expect(within(header).getByText(/30 September/).textContent).toBe('Wednesday 30 September');
+    expect(within(await next()).getByText('Approve “Toilet details”')).toBeInTheDocument();
+  });
+
+  // A paused or stale project of mine still needs me, so Home keeps it in "Your projects" with its state word (audit PER-13).
+  it('keeps a paused project of mine in Your projects', async () => {
+    await renderApp('/', as('usr_003'));
+    const list = await screen.findByRole('list', { name: 'Your projects' });
+    expect(within(list).getByText('Tamr Staff Housing')).toBeInTheDocument();
+  });
+
+  // The list holds paused projects too, so the count says "projects", not "active" (audit 2026-10-03, V-6).
+  it('counts Your projects with a neutral word, as the list holds paused projects too', async () => {
+    await renderApp('/', as('usr_003'));
+    const list = await screen.findByRole('list', { name: 'Your projects' });
+    const rows = within(list).getAllByRole('listitem');
+    const region = screen.getByRole('region', { name: 'Your projects' });
+    expect(within(region).getByText(`${rows.length} projects`)).toBeInTheDocument();
+    expect(within(region).queryByText(/active/)).toBeNull();
+    const ar = initI18n('en').getFixedT('ar');
+    expect([0, 1, 2, 4, 11, 100].map((count) => ar('home.projectCount', { n: count, count }))).toEqual(['لا مشاريع', 'مشروع واحد', 'مشروعان', '4 مشاريع', '11 مشروعًا', '100 مشروع']);
+  });
+
+  // With no task of mine due, the header names what waits: reviews, not "things today" (audit BRW-16).
+  it('says how many reviews wait when nothing of mine is due today', async () => {
+    await renderApp('/', as('usr_002'));
+    await screen.findByRole('heading', { level: 1 });
+    expect(await screen.findByText(/reviews? waiting for you/)).toBeInTheDocument();
+    expect(screen.queryByText(/things? today/)).toBeNull();
   });
 
   it('offers the oldest past-due task as the one next thing', async () => {

@@ -16,22 +16,47 @@ import { NextDeadlineLabel } from '../projects/ProjectCard';
 
 const FILTERS = ['all', 'overdue', 'flagged'] as const;
 const USER_ID = /^usr_\d{3,}$/;
+const TEAM_ID = /^tm_\d{3,}$/;
+
+/**
+ * The office team in the link. The Dashboard sends it, so the list holds the tasks it counted, and the subtitle names the team
+ * (audit 2026-10-03, V-37a).
+ */
+function useTeam(): { teamId?: string; teamText: string } {
+  const { t } = useTranslation();
+  const [params] = useSearchParams();
+  const team = params.get('team') ?? '';
+  const teamId = TEAM_ID.test(team) ? team : undefined;
+  const teams = useCall('teams.list', {}, { enabled: teamId !== undefined });
+  const name = teams.data?.find((item) => item.id === teamId)?.name;
+  return { teamId, teamText: name ? t('taskList.team', { name }) : '' };
+}
 
 function Subtitle({ text }: { text: string }) {
   return text ? <p className="-mt-3 pb-4 text-subheadline text-label-2">{text}</p> : null;
 }
 
+/** The way back from a list the Dashboard opened. */
+function BackToDashboard() {
+  const { t } = useTranslation();
+  return <Link to="/dashboard" className="flex min-h-11 items-center text-subheadline font-semibold text-link">{t('taskList.backToDashboard')}</Link>;
+}
+
 function DeadlineList({ from, to }: { from?: string; to?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const deadlines = useCall('deadlines.list', { from, to });
+  const { teamId, teamText } = useTeam();
+  const deadlines = useCall('deadlines.list', { from, to, teamId });
   const rows = deadlines.data ?? [];
+  const range = from && to ? t('taskList.dateRange', { from: formatDay(from, lang), to: formatDay(to, lang) }) : '';
   return (
     <>
       <ScreenTitle title={t('taskList.deadlinesTitle')} />
-      <Subtitle text={from && to ? t('taskList.dateRange', { from: formatDay(from, lang), to: formatDay(to, lang) }) : ''} />
+      <Subtitle text={[teamText, range].filter(Boolean).join(' · ')} />
       {deadlines.error && <LoadFailed error={deadlines.error} onRetry={() => void deadlines.refetch()} />}
-      {deadlines.data && rows.length === 0 ? <EmptyState title={t('taskList.deadlinesTitle')} body={t('taskList.emptyDeadlines')} /> : (
+      {/* The list draws only with data, so a failed or loading list shows no empty panel; an empty list says where to go (audit PER-18). */}
+      {deadlines.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.emptyDeadlines')} action={<BackToDashboard />} />}
+      {rows.length > 0 && (
         <ul className="surface flex flex-col rounded-card p-2">
           {rows.map((row) => (
             <li key={row.deadline.id}>
@@ -62,9 +87,10 @@ function TaskResults() {
   const createdTo = dayParam(params.get('createdTo'));
   const doneFrom = dayParam(params.get('doneFrom'));
   const doneTo = dayParam(params.get('doneTo'));
+  const { teamId, teamText } = useTeam();
   const users = useCall('users.list', { includeInactive: true });
   const tasks = useCall('tasks.list', {
-    filter, ownerId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
+    filter, ownerId, teamId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   const open = (row: TaskRow, thread = false) => setParams((current) => {
@@ -87,7 +113,7 @@ function TaskResults() {
     : filter === 'flagged' ? t('taskList.flagged')
       : person ? t('taskList.forPerson', { name: person.name }) : t('taskList.title');
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
-  const subtitle = [range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
+  const subtitle = [teamText, range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
@@ -97,7 +123,8 @@ function TaskResults() {
       <ScreenTitle title={title} />
       <Subtitle text={subtitle} />
       {tasks.error && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
-      {tasks.data && rows.length === 0 ? <EmptyState title={title} body={t('taskList.empty')} /> : (
+      {tasks.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.empty')} action={<BackToDashboard />} />}
+      {rows.length > 0 && (
         <ul className="surface overflow-hidden rounded-card py-1">
           <AnimatePresence initial={false}>
             {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => open(row, thread)} showProject />)}

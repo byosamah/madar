@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMention, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
+import { activeMention, editedBody, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
 
 describe('text helpers', () => {
   it('reads mentions once each', () => {
@@ -60,3 +60,17 @@ describe('mentions in posts', () => {
     ]);
   });
 });
+
+// An edit keeps every mention the text had, also of a person who left the team or changed their name (audit PER-19).
+describe('the body of an edited post or comment', () => {
+  it('keeps a mention of a person who is no longer in the people list', () => {
+    const before = `Please check ${mentionMarkup('Omar Haddad', 'usr_004')} today`;
+    const draft = plainText(before).replace('today', 'tomorrow');
+    expect(editedBody(draft, [{ id: 'usr_005', name: 'Sara Al-Qahtani' }], before)).toBe(`Please check ${mentionMarkup('Omar Haddad', 'usr_004')} tomorrow`);
+  });
+
+  it('links a new mention of a current person too', () => {
+    expect(editedBody('Thanks @Sara Al-Qahtani', [{ id: 'usr_005', name: 'Sara Al-Qahtani' }], 'Thanks')).toBe(`Thanks ${mentionMarkup('Sara Al-Qahtani', 'usr_005')}`);
+  });
+});
+

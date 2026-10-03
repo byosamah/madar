@@ -18,6 +18,17 @@ describe('the Files tab', () => {
     expect(within(group).getByText('Version B')).toBeInTheDocument();
   });
 
+  it('puts Versions on its own line under the name on a phone, so the name keeps most of the row (audit 2026-10-03, V-33)', async () => {
+    await renderApp(FILES);
+    const group = await screen.findByRole('region', { name: 'Construction Documents' });
+    const versions = within(group).getByRole('button', { name: 'Versions' });
+    const row = versions.parentElement as HTMLElement;
+    // A phone lays the row out as a grid: picture, name and menu on the first line, Versions under the name. sm and up is one flex line.
+    expect(row).toHaveClass('grid', 'grid-cols-[auto_minmax(0,1fr)_auto]', 'sm:flex');
+    expect(versions).toHaveClass('col-start-2', 'row-start-2');
+    expect(within(row).getByRole('button', { name: 'Actions for Ground floor plan.pdf' })).toBeInTheDocument();
+  });
+
   it('uploads a file, and a second upload with the same name becomes version B', async () => {
     const { store } = await renderApp(FILES, as('usr_005'));
     const input = await screen.findByLabelText('Upload files');
@@ -109,7 +120,7 @@ describe('the Files tab', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Share Site plan.pdf' });
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Message (optional)' }), 'Please check this.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
-    expect(await screen.findByText('File shared.')).toBeInTheDocument();
+    expect(await screen.findByText('Shared in the Corniche Office Tower chat.')).toBeInTheDocument();
     const room = Object.values(store.state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001');
     const message = Object.values(store.state.messages).find((m) => m.conversationId === room?.id && m.body === 'Please check this.');
     expect(message?.fileIds).toEqual(['fil_004']);

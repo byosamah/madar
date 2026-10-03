@@ -3,8 +3,8 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { DERIVED, NOT_UNDOABLE, undoEvent } from '../events';
-import { assertMayFinish, reopenDependents, resyncStage } from '../flow';
+import { DERIVED, FOLLOW_ON, NOT_UNDOABLE, undoEvent } from '../events';
+import { assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
@@ -28,13 +28,18 @@ export const eventsList = defineCall({
   run(input, ctx) {
     // A payment event holds an amount, so only the people who may handle payments ever read one.
     const seesPayments = can(ctx.authority, 'payment.manage');
+    // A bug report can be private, so only the Admin, who reads the reports, reads their events (audit 2026-10-03, API-12).
+    const seesFeedback = can(ctx.authority, 'admin.manage');
+    // The contract takes any time offset, so "since" compares times, not text (audit 2026-10-03, API-20).
+    const since = input.since ? Date.parse(input.since) : null;
     return Object.values(ctx.state.events)
       .filter((e) => (seesPayments || e.targetType !== 'payment')
+        && (seesFeedback || e.targetType !== 'feedback')
         && (!input.projectId || e.projectId === input.projectId)
         && (!input.targetType || e.targetType === input.targetType)
         && (!input.targetId || e.targetId === input.targetId)
         && (!input.correlationId || e.correlationId === input.correlationId)
-        && (!input.since || e.createdAt >= input.since))
+        && (since === null || Date.parse(e.createdAt) >= since))
       .sort((a, b) => b.seq - a.seq)
       .slice(0, input.limit)
       .map((e) => ({ ...eventViewOf(ctx.state, e), ...eventLabel(ctx.state, e) }));
@@ -89,6 +94,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
       if (event.verb === 'project.status_changed') return need('project.archive');
       if (event.verb.startsWith('project.health_')) return need('project.healthOverride');
+      // A team member adds, edits and removes links, so they may take back their own link change (audit 2026-10-03, API-6).
+      if (event.verb === 'project.updated' && Object.keys(fieldsOf(event.after)).every((key) => key === 'links')) return need('content.post');
       return need('project.edit');
     case 'member':
       need('project.edit');
@@ -100,6 +107,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // A reply task belongs to the Tracker entry it answers, so the people who may post there may take back its making and its finish.
       const replyTask = ctx.state.tasks[event.targetId]?.trackerEntryId;
       if (replyTask && (event.verb === 'task.created' || event.verb === 'task.status_changed')) return need('content.post');
+      // The link of a reply task to its entry is part of the Tracker loop, so the people who may post there may bring it back (audit 2026-10-03, V-13).
+      if (event.verb === 'task.reply_unlinked') return need('content.post');
       if (event.verb === 'task.created' || event.verb === 'task.deleted') return need('task.delete');
       if (event.verb === 'task.approved') return need('task.review');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
@@ -110,6 +119,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     }
     case 'update':
     case 'comment': {
+      // A person who may react may take back their own reaction (audit 2026-10-03, API-19).
+      if (event.verb === 'comment.reacted') return need('content.post');
       const current = event.targetType === 'update' ? ctx.state.updates[event.targetId] : ctx.state.comments[event.targetId];
       const authorId = String(current?.authorId ?? record.authorId);
       return need('content.editOwn', { authorId: principalOf(ctx.state, authorId) });
@@ -189,10 +200,11 @@ export function mayUndoAgentChange(ctx: Ctx, event: Event): boolean {
  * Undoes one event for the current person, under the rules of the original action.
  * A task that was done and opens again opens the done tasks that need it, on this path too.
  * "guard" is true for a single Undo: it may not finish a task whose prerequisite is open. A story brings every task back together, so it skips the guard.
+ * "followOn" is true for a follow-on change in a story with the change that caused it: the person's right to that change covers it.
  */
-function undoOne(ctx: Ctx, event: Event, guard: boolean): EventView {
+function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
   assertUndoRight(ctx, event);
-  assertMayUndo(ctx, event);
+  if (!followOn) assertMayUndo(ctx, event);
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   const was = task?.status;
   if (guard && task && event.before !== null && event.after !== null) {
@@ -201,14 +213,42 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean): EventView {
   }
   const undo = undoEvent(ctx, event.id);
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
-  if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now);
+  // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
+  if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
   return eventViewOf(ctx.state, undo);
 }
 
-/** The stage tag follows the tasks, so after an Undo it moves with them. An Undo never asks why the project moves back. */
-function settle(ctx: Ctx, events: Event[]): void {
+/**
+ * The stage tag follows the tasks, so after an Undo it moves with them. An Undo never asks why the project moves back.
+ * When the tag leaves the stage where a stage move of the story put the project, that move is taken back too, so the health
+ * override and the "moved back" note that it cleared come back (audit 2026-10-03, API-5).
+ * The moves of one project form a chain, newest first: a move comes back while the saved stage is still where it put the project
+ * and the tag is not there. So a story with two moves takes back both, one after the other (audit 2026-10-03, V-21).
+ */
+function settle(ctx: Ctx, events: Event[], correlationId: string): void {
+  const moves = Object.values(ctx.state.events)
+    .filter((e) => e.correlationId === correlationId && DERIVED.has(e.verb) && !e.undoneBy)
+    .sort((a, b) => b.seq - a.seq);
+  for (const move of moves) {
+    // Only a stage move made for this person comes back this way. Any other move keeps its own rules.
+    if (move.actingForId !== ctx.authority.id) continue;
+    const to = fieldsOf(move.after).currentStageId;
+    if (typeof to !== 'string' || ctx.state.projects[move.targetId]?.currentStageId !== to || stageTag(ctx.state, move.targetId)?.id === to) continue;
+    try {
+      undoEvent(ctx, move.id, { derived: true });
+    } catch {
+      // A later change set the same fields. The tag still follows the tasks below.
+    }
+  }
   for (const projectId of new Set(events.map((event) => event.projectId))) if (projectId) resyncStage(ctx, projectId);
+}
+
+/** A story that is wholly taken back takes its notices with it, so no badge points at a change that did not happen (audit 2026-10-03, API-13). */
+function dropNotices(ctx: Ctx, correlationId: string): void {
+  const kept = Object.values(ctx.state.events).some((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
+  if (kept) return;
+  for (const [id, notice] of Object.entries(ctx.state.notifications)) if (notice.correlationId === correlationId) delete ctx.state.notifications[id];
 }
 
 export const eventsUndo = defineCall({
@@ -218,7 +258,8 @@ export const eventsUndo = defineCall({
     const event = ctx.state.events[input.eventId];
     if (!event) throw notFound('Event', input.eventId);
     const view = undoOne(ctx, event, true);
-    settle(ctx, [event]);
+    settle(ctx, [event], event.correlationId);
+    dropNotices(ctx, event.correlationId);
     return view;
   },
 });
@@ -232,8 +273,26 @@ export const eventsUndoStory = defineCall({
       .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb))
       .sort((a, b) => b.seq - a.seq);
     if (story.length === 0) throw notFound('Story', input.correlationId);
-    const undone = story.map((event) => undoOne(ctx, event, false));
-    settle(ctx, story);
+    // A reopened task or a moved date rides on the change that caused it (audit 2026-10-03, API-1). The relief applies only
+    // when the whole story is the person's own, and the cause still passes its full check (a refusal rolls the call back).
+    // The cause must be a change of this story that this call takes back. A story ID comes from the caller, so a follow-on
+    // change with its cause in another story, or with no cause, keeps its own rules (audit 2026-10-03, V-2).
+    const mine = story.every((event) => event.actingForId === ctx.authority.id);
+    const causes = new Set(story.filter((event) => !FOLLOW_ON.has(event.verb) && !event.undoneBy).map((event) => event.id));
+    const relieved = (event: Event) => mine && FOLLOW_ON.has(event.verb) && event.causeEventId !== undefined && causes.has(event.causeEventId);
+    const was = new Map(story.flatMap((event) => {
+      const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
+      return task ? [[task.id, task.status] as const] : [];
+    }));
+    const undone = story.map((event) => undoOne(ctx, event, false, relieved(event)));
+    // The story skips the finish check for each task, because its tasks come back together. When the story is done, a task that
+    // it brought back to Done or In review must have no open prerequisite. Else the call fails and nothing changes (audit 2026-10-03, V-2).
+    for (const [id, status] of was) {
+      const task = ctx.state.tasks[id];
+      if (task && task.status !== status && (task.status === 'done' || task.status === 'in_review')) assertMayFinish(ctx.state, task);
+    }
+    settle(ctx, story, input.correlationId);
+    dropNotices(ctx, input.correlationId);
     return { undone };
   },
 });

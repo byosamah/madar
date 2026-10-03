@@ -72,7 +72,8 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
             {viewerIsAdmin && <option value="admin">{t('admin.roles.admin')}</option>}
           </SelectField>
         )}
-        {!person && (
+        {/* Only an Admin adds an agent, so the Kind field shows to the Admin only (audit 2026-10-03, SHL-9). */}
+        {!person && viewerIsAdmin && (
           <SelectField id="person-kind" label={t('admin.kind')} value={form.kind} onChange={(event) => set('kind', event.target.value as Form['kind'])}>
             <option value="human">{t('admin.kinds.human')}</option>
             <option value="agent">{t('admin.kinds.agent')}</option>

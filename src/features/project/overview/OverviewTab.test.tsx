@@ -70,7 +70,15 @@ describe('project links (colleague comment 5)', () => {
     const about = await screen.findByRole('region', { name: 'About' });
     expect(await within(about).findByRole('link', { name: /Pinterest: facades/ })).toBeInTheDocument();
     expect(within(about).queryByRole('button', { name: 'Add link' })).toBeNull();
-    expect(within(about).queryByRole('button', { name: /^Change / })).toBeNull();
+    expect(within(about).queryByRole('button', { name: /^Edit / })).toBeNull();
+  });
+
+  // Every edit on the project screen says Edit, as the deadline does (audit 2026-10-03, V-23).
+  it('says Edit for the edit of a link, as every other edit does', async () => {
+    await renderApp('/projects/prj_001', as('usr_002'));
+    const about = await screen.findByRole('region', { name: 'About' });
+    await userEvent.click(await within(about).findByRole('button', { name: /^Edit Pinterest: facades/ }));
+    expect(await screen.findByRole('dialog', { name: 'Edit link' })).toBeInTheDocument();
   });
 });
 

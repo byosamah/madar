@@ -1,8 +1,10 @@
 import { motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
+import { readDraft, readDraftFiles, useDraftOwner, writeDraft, writeDraftFiles } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useToast } from '../../app/toasts';
@@ -95,10 +97,7 @@ export function MessageLog({ bubbles, resetKey, emptyText }: { bubbles: Bubble[]
   );
 }
 
-/** The box under the messages. Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. */
-export function Composer({
-  id, people, pending, onSend, upload,
-}: {
+type ComposerProps = {
   id: string;
   people: UserCard[];
   pending: boolean;
@@ -106,18 +105,44 @@ export function Composer({
   onSend: (body: string, fileIds: string[], clear: () => void) => void;
   /** Where picked files go. A chat with no project of its own has none, so it shows no attach control. */
   upload?: UploadTarget;
-}) {
+};
+
+/**
+ * The box under the messages, for the current person. A change of person starts a new box with that person's draft, so no
+ * typed words or picked files go over to the next person (audit 2026-10-03, V-22).
+ */
+export function Composer(props: ComposerProps) {
+  const owner = useDraftOwner();
+  return owner ? <ComposerBox key={owner} owner={owner} {...props} /> : null;
+}
+
+/**
+ * Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. Opening another chat, another tab or
+ * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
+ * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
+ */
+function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const attachments = useAttachments();
+  const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
+  const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
-  const [text, setText] = useState('');
+  const [text, setTextState] = useState(() => readDraft(owner, draftKey));
+  const setText = (next: string) => {
+    writeDraft(owner, draftKey, next);
+    setTextState(next);
+  };
+  useEffect(() => {
+    writeDraftFiles(owner, draftKey, attachments.files);
+  }, [owner, draftKey, attachments.files]);
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     field.current?.focus();
   }, [id]);
+  // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
+  const files = upload ? attachments.files : [];
   const submit = async () => {
-    const body = withMentionMarkup(text.trim(), people);
+    const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
     if (!body || pending || uploading) return;
     let fileIds: string[] = [];
     if (upload && attachments.files.length > 0) {
@@ -169,7 +194,7 @@ export function Composer({
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>
-      <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || pending || uploading}>{t('chat.send')}</Button>
+      <Button variant="primary" type="submit" className="shrink-0" disabled={(!text.trim() && files.length === 0) || pending || uploading}>{t('chat.send')}</Button>
       </div>
     </form>
   );

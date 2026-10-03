@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput } from '../api/calls';
 import { canRetry, errorMessage } from './errors';
-import { useRuntime } from './runtime';
+import { useRetryableMutate, useRuntime } from './runtime';
 import { useToast } from './toasts';
 
 /** A story ID for one action on screen. Every change the action makes carries it, so one Undo reverses them all. */
@@ -19,6 +19,8 @@ export function useUndoable<N extends CallName>(
     onSuccess?: (output: CallOutput<N>) => void;
     /** A screen that answers a refusal itself (it asks a question, then calls again) returns true, and no error toast shows. */
     onRefused?: (error: unknown, input: CallInput<N>) => boolean;
+    /** A step outside the story that Undo also takes back, for example a read mark (audit 2026-10-03, V-16). */
+    onUndo?: () => void;
   },
 ) {
   const { api } = useRuntime();
@@ -43,8 +45,9 @@ export function useUndoable<N extends CallName>(
         message: latest.current.message(output),
         action: {
           label: t('common.undo'),
+          isUndo: true,
           run: () => {
-            api.call('events.undoStory', { correlationId: storyId }).catch((error: unknown) => {
+            api.call('events.undoStory', { correlationId: storyId }).then(() => latest.current.onUndo?.(), (error: unknown) => {
               toast.show({ tone: 'error', message: errorMessage(error, t) });
             });
           },
@@ -56,10 +59,11 @@ export function useUndoable<N extends CallName>(
       toast.show({
         tone: 'error',
         message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
+        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input), isUndo: false } : undefined,
       });
     },
   });
-  retry.current = mutation.mutate;
-  return mutation;
+  const steps = useRetryableMutate(mutation.mutate);
+  retry.current = steps.retry;
+  return { ...mutation, mutate: steps.mutate };
 }

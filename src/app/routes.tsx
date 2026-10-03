@@ -13,15 +13,18 @@ import { TaskListScreen } from '../features/tasklist/TaskListScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { AdminScreen } from '../features/settings/admin/AdminScreen';
 import { WorkScreen } from '../features/work/WorkScreen';
+import { NotFound, RouteError } from './RouteError';
 
 /** Hash links, so the build runs on any static host, the review link included. */
 export function createAppRouter() {
   return createHashRouter([
     // The meeting view fills the whole screen, so it sits outside the shell with its tabs.
-    { path: '/dashboard/meeting', element: <MeetingView /> },
+    { path: '/dashboard/meeting', element: <MeetingView />, errorElement: <RouteError framed /> },
     {
       path: '/',
       element: <AppShell />,
+      errorElement: <RouteError framed />,
+      // A wrong link or a broken screen shows a calm page inside the shell, so the tabs stay (audit 2026-10-03, SHL-6).
       children: [
         { index: true, element: <HomeOrRedirect /> },
         { path: 'projects', element: <ProjectsScreen /> },
@@ -35,7 +38,8 @@ export function createAppRouter() {
         { path: 'tasks', element: <TaskListScreen /> },
         { path: 'settings', element: <SettingsScreen /> },
         { path: 'admin', element: <AdminScreen /> },
-      ],
+        { path: '*', element: <NotFound /> },
+      ].map((route) => ({ ...route, errorElement: <RouteError /> })),
     },
   ]);
 }

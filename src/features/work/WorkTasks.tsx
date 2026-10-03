@@ -49,7 +49,9 @@ export function WorkTasks() {
     return <LoadFailed error={mine.error ?? review.error} onRetry={() => { void mine.refetch(); void review.refetch(); }} />;
   }
   if (!mine.data || !review.data) return null;
-  const groups = groupMyTasks(mine.data, todayISO());
+  // One place for each thing (audit PER-10): a task in my review queue does not show again under its date.
+  const inReview = new Set(review.data.map((row) => row.task.id));
+  const groups = groupMyTasks(mine.data.filter((row) => !inReview.has(row.task.id)), todayISO());
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (

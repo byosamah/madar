@@ -22,21 +22,27 @@ export function TabPill() {
       aria-label={t('nav.main')}
       data-pill
       data-compact={compact || undefined}
-      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
+      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 max-[319px]:gap-0 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
+        // On a phone the tabs share the width, but a tab never gets narrower than its longest word and some room for the round
+        // ends of its highlight. A label of two words such as "لوحة المعلومات" wraps onto two short lines, so it stays whole and
+        // the five tabs still fit inside the bar at 320 to 412 px. On a phone the highlight is a rounded box, not a pill, so a
+        // second line clears its corners (audit 2026-10-03, F-2 and its re-check).
+        // Below 320 px the five whole labels do not fit at full size, so the label takes 11 px (the floor), the padding gets
+        // smaller and each tab starts from its own width. The tabs can also shrink, so the bar never runs off the screen (F-2).
         return (
           <Link
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-12 min-w-min flex-1 flex-col items-center justify-center gap-0.5 rounded-full max-sm:rounded-[18px] px-1.5 text-caption min-[360px]:px-2.5 max-[319px]:min-w-0 max-[319px]:flex-auto max-[319px]:px-1 max-[319px]:[--size-caption:11px] font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
-            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
+            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full max-sm:rounded-[18px]" />}
             <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
-            <span className="whitespace-nowrap">{t(item.key)}</span>
+            <span className="text-center leading-[1.15] sm:whitespace-nowrap">{t(item.key)}</span>
             {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
           </Link>
         );
@@ -73,10 +79,12 @@ export function InboxButton() {
   const { pathname } = useLocation();
   const unread = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const on = isNavActive(item.to, pathname);
+  // The link's name carries the count: an aria-label replaces the hidden count inside it (audit 2026-10-03, BRW-10).
+  const name = unread > 0 ? t('nav.withBadge', { name: t(item.key), badge: t('nav.inboxUnread', { count: unread }) }) : t(item.key);
   return (
     <Link
       to={item.to}
-      aria-label={t(item.key)}
+      aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
     >
@@ -93,10 +101,13 @@ export function BellButton({ className = '' }: { className?: string }) {
   const { pathname } = useLocation();
   const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
   const on = pathname === NOTIFICATIONS_ITEM.to;
+  const name = noticeBadge > 0
+    ? t('nav.withBadge', { name: t(NOTIFICATIONS_ITEM.key), badge: t('nav.inboxBadge', { count: noticeBadge }) })
+    : t(NOTIFICATIONS_ITEM.key);
   return (
     <Link
       to={NOTIFICATIONS_ITEM.to}
-      aria-label={t(NOTIFICATIONS_ITEM.key)}
+      aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
     >

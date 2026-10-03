@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Stage } from '../../../api/contract/entities';
+import type { Deadline, Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
@@ -11,10 +11,12 @@ import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
-import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { currentTone } from '../../dashboard/scheduleMarks';
+import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DeleteIcon } from '../../../components/icons/animated/delete';
@@ -22,13 +24,14 @@ import { DeleteIcon } from '../../../components/icons/animated/delete';
 type Edge = 'start' | 'end';
 
 function StageBar({
-  stage, span: saved, range, place, color, editable, width, onCommit,
+  stage, span: saved, range, place, tone, editable, width, onCommit,
 }: {
   stage: Stage;
   span: Span;
   range: Span;
   place: 'done' | 'current' | 'later';
-  color: string;
+  /** The classes of the current stage: the state of the project, as on the Dashboard schedule. */
+  tone: string;
   editable: boolean;
   width: () => number;
   onCommit: (span: Span, onError: () => void) => void;
@@ -98,8 +101,8 @@ function StageBar({
   return (
     <div
       title={t('project.stageDates', { start: formatDay(span.start, lang), end: formatDay(span.end, lang) })}
-      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%`, ...(place === 'current' ? { background: color } : {}) }}
-      className={`absolute top-2 h-7 rounded-full ${place === 'done' ? 'bg-ink-2/35' : place === 'later' ? 'ring-1 ring-inset ring-chart-muted' : ''}`}
+      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%` }}
+      className={`absolute top-2 h-7 rounded-full ${place === 'done' ? 'bg-ink-2/35' : place === 'later' ? 'ring-1 ring-inset ring-chart-muted' : tone}`}
     >
       {editable && handle('start')}
       {editable && handle('end')}
@@ -117,6 +120,13 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   const overlaps = stageOverlaps(detail.stages);
+  // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
+  // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
+  const paused = detail.project.status === 'on_hold';
+  const tone = currentTone({
+    pause: paused ? { kind: detail.project.pause?.kind ?? 'internal', staleDays: detail.staleDays } : null,
+    health: detail.health?.value ?? 'on_track',
+  });
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
       {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
@@ -145,12 +155,12 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     span={span}
                     range={range}
                     place={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'later'}
-                    color={`var(--p-${projectHue(detail.project.id)}-fg)`}
+                    tone={tone}
                     editable={detail.viewerCan.edit}
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
-                ) : <span className="flex h-11 items-center text-footnote text-ink-2">{t('project.noDates')}</span>}
+                ) : <span className="tabular flex h-11 items-center text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>}
                 {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
                   <span
                     key={overlap.stageIds.join('-')}
@@ -171,7 +181,8 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
               key={deadline.id}
               title={`${deadline.name} · ${formatDay(deadline.date, lang)}`}
               style={{ insetInlineStart: `calc(${offsetPct(range, deadline.date)}% - 6px)` }}
-              className="absolute top-4 size-3 rotate-45 rounded-sm bg-attn"
+              // A deadline is a date, not a warning: the same quiet grey as the Dashboard and the meeting (audit 2026-10-03, V-24).
+              className="absolute top-4 size-3 rotate-45 rounded-sm bg-ink-2"
             />
           ))}
         </div>
@@ -185,6 +196,9 @@ function StageDates({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const setDates = useUndoable('stages.setDates', { message: () => t('schedule.datesChanged') });
+  // A failed or refused save puts the date fields back to the saved dates (audit 2026-10-03, PRJ-7).
+  const [failures, setFailures] = useState(0);
+  const rollback = { onError: () => setFailures((count) => count + 1) };
   const edit = detail.viewerCan.edit;
   const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
   const overlaps = stageOverlaps(detail.stages);
@@ -204,22 +218,61 @@ function StageDates({ detail }: TabProps) {
             </span>
             {edit ? (
               <>
-                <DateDraftField id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
-                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate })} />
-                <DateDraftField id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
-                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate })} />
+                <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
+                  onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate }, rollback)} />
+                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
+                  onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
               </>
             ) : (
-              <span className="tabular text-footnote text-ink-2">
-                {stage.startDate && stage.endDate
-                  ? t('project.stageDates', { start: formatDay(stage.startDate, lang), end: formatDay(stage.endDate, lang) })
-                  : t('project.noDates')}
-              </span>
+              <span className="tabular text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>
             )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** One deadline in a sheet: its name, date and stage (audit 2026-10-03, PRJ-13). Save changes it with Undo. */
+function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; deadline: Deadline; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(deadline.name);
+  const [date, setDate] = useState(deadline.date);
+  const [stageId, setStageId] = useState(deadline.stageId ?? '');
+  const save = useUndoable('deadlines.update', { message: () => t('schedule.deadlineSaved'), onSuccess: onClose });
+  const ready = Boolean(name.trim() && date);
+  const submit = () => {
+    if (ready) save.mutate({ id: deadline.id, patch: { name: name.trim(), date, stageId: stageId || null } });
+  };
+  return (
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={t('schedule.editDeadlineTitle')}
+      footer={(
+        <>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!ready || save.isPending} onClick={submit}>{t('common.save')}</Button>
+        </>
+      )}
+    >
+      <form
+        className="flex flex-col gap-4 pt-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <TextField id="deadline-edit-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
+        <TextField id="deadline-edit-date" type="date" label={t('schedule.deadlineDate')} value={date} onChange={(event) => setDate(event.target.value)} />
+        <SelectField id="deadline-edit-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
+          <option value="">{t('files.noStage')}</option>
+          {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+        </SelectField>
+      </form>
+    </Sheet>
   );
 }
 
@@ -238,6 +291,7 @@ function Deadlines({ detail }: TabProps) {
     },
   });
   const remove = useUndoable('deadlines.delete', { message: () => t('schedule.deadlineDeleted') });
+  const [editing, setEditing] = useState<Deadline | null>(null);
   const today = todayISO();
   return (
     <section aria-labelledby="schedule-deadlines" className="panel p-5">
@@ -246,8 +300,18 @@ function Deadlines({ detail }: TabProps) {
         <ul className="mt-1">
           {detail.deadlines.map((deadline) => (
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
-              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-attn" />
-              <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>
+              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-ink-2" />
+              {/* The name opens the deadline to change it, for the people who may (audit 2026-10-03, PRJ-13). */}
+              {detail.viewerCan.edit ? (
+                <button
+                  type="button"
+                  aria-label={t('schedule.editDeadline', { name: deadline.name })}
+                  onClick={() => setEditing(deadline)}
+                  className="pressable -mx-1 flex min-h-11 min-w-0 flex-1 items-center rounded-lg px-1 text-start text-subheadline hover:bg-fill"
+                >
+                  <bdi className="truncate">{deadline.name}</bdi>
+                </button>
+              ) : <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>}
               <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
               {detail.viewerCan.edit && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
@@ -275,6 +339,7 @@ function Deadlines({ detail }: TabProps) {
           <Button type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
         </form>
       )}
+      {editing && <DeadlineSheet key={editing.id} detail={detail} deadline={editing} onClose={() => setEditing(null)} />}
     </section>
   );
 }

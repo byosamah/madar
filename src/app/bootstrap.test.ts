@@ -39,6 +39,40 @@ describe('bootstrap', () => {
     expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
   });
 
+  it('never wipes an office saved by a newer build: it runs in memory and keeps the saved copy (audit 2026-10-03, API-2)', async () => {
+    setNow(NOW);
+    const persister = memoryPersister();
+    const newer = emptyState(TODAY);
+    newer.version = STATE_VERSION + 1;
+    newer.projects.prj_001 = { ...((await bootstrap({ persister: memoryPersister(), latencyMs: 0 })).store.state.projects.prj_001), name: 'MY REAL PROJECT' };
+    await persister.save(newer);
+    const runtime = await bootstrap({ persister, latencyMs: 0 });
+    expect(runtime.store.persistent).toBe(false);
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+    await runtime.api.call('projects.update', { id: 'prj_002', patch: { name: 'Changed here' } });
+    await runtime.store.flush();
+    const kept = (await persister.load())!;
+    expect(kept.version).toBe(STATE_VERSION + 1);
+    expect(kept.projects.prj_001.name).toBe('MY REAL PROJECT');
+  });
+
+  it('never wipes the saved office when it cannot be read (audit 2026-10-03, API-2)', async () => {
+    setNow(NOW);
+    const inner = memoryPersister();
+    let cleared = false;
+    const persister = {
+      ...inner, persistent: true,
+      load: () => Promise.reject(new Error('blocked')),
+      clear: async () => {
+        cleared = true;
+      },
+    };
+    const runtime = await bootstrap({ persister, latencyMs: 0 });
+    expect(cleared).toBe(false);
+    expect(runtime.store.persistent).toBe(false);
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+  });
+
   it('adds the sample genders to an office saved before them, and keeps the local work', async () => {
     setNow(NOW);
     const persister = memoryPersister();

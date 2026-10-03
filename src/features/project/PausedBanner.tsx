@@ -3,7 +3,7 @@ import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
-import { formatDay, stampDay } from '../../lib/dates';
+import { formatDay, stampDay, todayISO } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PauseIcon } from '../../components/icons/animated/pause';
@@ -24,7 +24,10 @@ export function PausedBanner({ detail }: { detail: ProjectDetail }) {
         <p dir="auto" className="text-subheadline text-ink">{pause.reason}</p>
         <p className="text-footnote text-ink-2">
           {pausedBy && t('project.pausedBy', { name: pausedBy.name, context: actorContext(pausedBy), date: formatDay(stampDay(pause.at), lang, 'long') })}
-          {pause.resumeOn && <> {t('project.restarts', { date: formatDay(pause.resumeOn, lang, 'long') })}</>}
+          {/* A restart date that passed says so in the Attention color, not "Restarts" in the present tense (audit 2026-10-03, PRJ-14). */}
+          {pause.resumeOn && (pause.resumeOn < todayISO()
+            ? <> <span className="text-attn">{t('project.restartWas', { date: formatDay(pause.resumeOn, lang, 'long') })}</span></>
+            : <> {t('project.restarts', { date: formatDay(pause.resumeOn, lang, 'long') })}</>)}
           {detail.staleDays !== null && <> {t('status.stale', { count: detail.staleDays })}</>}
         </p>
       </div>

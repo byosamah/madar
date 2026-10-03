@@ -2,6 +2,7 @@ import type { Notification, NotificationTarget, Trigger, User } from './contract
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
+import { isWorkingDay } from '../lib/workdays';
 
 export type NotifyInput = {
   userIds: string[];
@@ -9,6 +10,10 @@ export type NotifyInput = {
   targetType: NotificationTarget;
   targetId: string;
   dedupeKey?: string;
+  /** The story of the change, so an Undo can take the notice back (audit 2026-10-03, API-13). */
+  correlationId?: string;
+  /** The due day a reminder names (audit 2026-10-03, API-11). */
+  dueDate?: string;
 };
 
 /** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
@@ -25,6 +30,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     const notification: Notification = {
       id, userId, trigger: input.trigger, actorId: actor?.id ?? null, targetType: input.targetType,
       targetId: input.targetId, read: false, createdAt: stamp, dedupeKey,
+      ...(input.correlationId ? { correlationId: input.correlationId } : {}),
+      ...(input.dueDate ? { dueDate: input.dueDate } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
@@ -32,10 +39,10 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
   return created;
 }
 
-/** The leader reviews. A project with no leader goes to every active Admin. */
+/** The leader reviews. A project with no active leader goes to every active Admin (audit 2026-10-03, API-7). */
 export function reviewersOf(state: State, projectId: string): string[] {
   const project = state.projects[projectId];
-  if (project?.leaderId) return [project.leaderId];
+  if (project?.leaderId && state.users[project.leaderId]?.active) return [project.leaderId];
   return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
 }
 
@@ -46,19 +53,27 @@ export function projectPeople(state: State, projectId: string): string[] {
   return [...new Set(ids)];
 }
 
+/** The last working day before a day. The "due" reminder goes out on it, so a task due on Sunday is named on Thursday. */
+function lastWorkingDayBefore(day: string): string {
+  let out = addDays(day, -1);
+  while (!isWorkingDay(out)) out = addDays(out, -1);
+  return out;
+}
+
 /** Time-based triggers. The app runs them at start and every minute. Dedupe keys stop repeats. */
 export function runScheduledTriggers(state: State, at: Date): number {
   const clock = officeClock(at);
   const today = clock.day;
-  const tomorrow = addDays(today, 1);
   const stamp = nowStamp(at);
   let count = 0;
   for (const task of Object.values(state.tasks)) {
     if (state.projects[task.projectId]?.status !== 'active') continue;
     if (!task.dueDate || (task.status !== 'todo' && task.status !== 'in_progress')) continue;
-    if (task.dueDate === tomorrow) {
+    // From the last working day before the due day, so nobody gets it first on a day off. Madar runs this only while it is open,
+    // so a reminder that nobody saw on that day still goes out before the due day (audit 2026-10-03, API-11).
+    if (task.dueDate > today && lastWorkingDayBefore(task.dueDate) <= today) {
       count += notify(state, null, stamp, {
-        userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`,
+        userIds: peopleOfTask(task), trigger: 'due_tomorrow', targetType: 'task', targetId: task.id, dedupeKey: `due_tomorrow:${task.id}:${task.dueDate}`, dueDate: task.dueDate,
       }).length;
     }
     if (task.dueDate < today) {
@@ -66,6 +81,14 @@ export function runScheduledTriggers(state: State, at: Date): number {
         userIds: peopleOfTask(task), trigger: 'overdue', targetType: 'task', targetId: task.id, dedupeKey: `overdue:${task.id}:${task.dueDate}`,
       }).length;
     }
+  }
+  // A paused project reaches its planned restart day: the person who may resume it gets one notice (audit 2026-10-03, API-18).
+  for (const project of Object.values(state.projects)) {
+    const day = project.status === 'on_hold' ? project.pause?.resumeOn : null;
+    if (!day || day > today) continue;
+    count += notify(state, null, stamp, {
+      userIds: reviewersOf(state, project.id), trigger: 'resume_due', targetType: 'project', targetId: project.id, dedupeKey: `resume_due:${project.id}:${day}`,
+    }).length;
   }
   return count;
 }

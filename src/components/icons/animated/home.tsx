@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/home.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/home.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Transition, Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -87,6 +89,7 @@ const HomeIcon = forwardRef<HomeIconHandle, HomeIconProps>(
           <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           <motion.path
             animate={controls}
+            initial="normal"
             d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"
             transition={DEFAULT_TRANSITION}
             variants={PATH_VARIANTS}

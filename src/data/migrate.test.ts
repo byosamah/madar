@@ -30,7 +30,7 @@ describe('migrateState', () => {
     world.counters.evt = 1;
     world.version = 5;
     const done = migrateState(world)!;
-    expect(done.version).toBe(6);
+    expect(done.version).toBe(STATE_VERSION);
     expect(Object.values(done.tracker!).map((e) => [e.id, e.direction])).toEqual([
       ['trk_001', 'both'], ['trk_002', 'third_party'], ['trk_003', 'out'], ['trk_004', 'in'],
     ]);
@@ -75,7 +75,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(6);
+    expect(STATE_VERSION).toBe(8);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);
@@ -87,5 +87,48 @@ describe('migrateState', () => {
     expect(Object.keys(migrated.users)).toEqual(['usr_001', 'usr_002', 'usr_003', 'usr_004', 'usr_005']);
     expect(migrated.tasks.tsk_001.title).toBe('Ground floor plan');
     expect(Object.keys(migrated.projects)).toEqual(['prj_001']);
+  });
+
+  it('takes a version 6 office to version 7: every person gets the restart-day notice, turned on (audit 2026-10-03, API-18)', () => {
+    const world = makeWorld();
+    for (const user of Object.values(world.users)) delete (user.preferences.notifications as Record<string, boolean>).resume_due;
+    world.users.usr_003.preferences.notifications.mention = false;
+    world.version = 6;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(STATE_VERSION);
+    expect(Object.values(done.users).every((user) => user.preferences.notifications.resume_due === true)).toBe(true);
+    expect(done.users.usr_003.preferences.notifications.mention).toBe(false);
+  });
+
+  it('takes a version 7 office to version 8: an older date note gets the due day it was made for (audit 2026-10-03, V-3)', () => {
+    const world = makeWorld();
+    const note = (at: string, byTaskId: string, extra: Record<string, unknown> = {}) => ({
+      from: { startDate: '2026-10-04', dueDate: '2026-10-06' }, to: { startDate: '2026-10-07', dueDate: '2026-10-11' }, reason: 'Late', at, byTaskId, lateDays: 3, ...extra,
+    });
+    // Task A was due Sun 27 Sep and finished late on Wed 30 Sep. Version 2 on Thu 1 Oct set its due day to Thu 8 Oct.
+    world.tasks.tsk_001 = makeTask({ id: 'tsk_001', title: 'Task A', status: 'done', dueDate: '2026-10-08' });
+    world.tasks.tsk_002 = makeTask({
+      id: 'tsk_002', title: 'Task B', prerequisiteIds: ['tsk_001'],
+      dateNotes: [
+        note('2026-09-30T09:00:00.000+03:00', 'tsk_001'),
+        note('2026-10-12T09:00:00.000+03:00', 'tsk_001'),
+        note('2026-10-13T09:00:00.000+03:00', 'tsk_001', { forDueDate: '2026-10-01' }),
+        note('2026-09-30T09:00:00.000+03:00', 'tsk_009'),
+      ],
+    });
+    world.events.evt_001 = {
+      ...event('evt_001', 1, 'task', 'tsk_001'), verb: 'task.version_opened', createdAt: '2026-10-01T09:00:00.000+03:00',
+      before: { status: 'done', dueDate: '2026-09-27' }, after: { status: 'todo', dueDate: '2026-10-08' },
+    } as unknown as State['events'][string];
+    world.events.evt_002 = {
+      ...event('evt_002', 2, 'task', 'tsk_001'), verb: 'task.status_changed', createdAt: '2026-10-12T09:00:00.000+03:00',
+      before: { status: 'todo' }, after: { status: 'done' },
+    } as unknown as State['events'][string];
+    world.counters.evt = 2;
+    world.version = 7;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(STATE_VERSION);
+    expect(STATE_VERSION).toBe(8);
+    expect(done.tasks.tsk_002.dateNotes?.map((n) => n.forDueDate)).toEqual(['2026-09-27', '2026-10-08', '2026-10-01', undefined]);
   });
 });

@@ -1,5 +1,5 @@
 import type { TaskRow } from '../api/contract/views';
-import { addDays, weekStartOf } from './dates';
+import { addDays, dayOfWeek, weekStartOf } from './dates';
 
 export type WorkGroup = 'overdue' | 'today' | 'week' | 'later' | 'none';
 export const WORK_GROUPS: WorkGroup[] = ['overdue', 'today', 'week', 'later', 'none'];
@@ -10,7 +10,11 @@ export function workGroupOf(row: TaskRow, today: string): WorkGroup {
   const due = row.task.dueDate;
   if (!due) return 'none';
   if (due <= today) return 'today';
-  return due <= addDays(weekStartOf(today), 6) ? 'week' : 'later';
+  // The office works Sunday to Thursday. On Friday and Saturday the week left is days off, so "This week" means the coming
+  // Sunday to Saturday (audit 2026-10-03, BRW-9).
+  const weekend = dayOfWeek(today) >= 5;
+  const start = weekend ? addDays(weekStartOf(today), 7) : weekStartOf(today);
+  return due <= addDays(start, 6) ? 'week' : 'later';
 }
 
 export function groupMyTasks(rows: TaskRow[], today: string): { group: WorkGroup; rows: TaskRow[] }[] {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import type { FileView } from '../../../api/contract/views';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -14,9 +15,10 @@ type Kind = 'project_chat' | 'person' | 'task';
  * Posts one project file into the project chat, a direct chat or a task conversation.
  * The API decides who may open the file. A refusal shows as a message and the sheet stays open.
  */
-export function ShareFileSheet({ view, projectId, onClose }: { view: FileView; projectId: string; onClose: () => void }) {
+export function ShareFileSheet({ view, projectId, projectName, onClose }: { view: FileView; projectId: string; projectName: string; onClose: () => void }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const navigate = useNavigate();
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
   const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
@@ -24,14 +26,21 @@ export function ShareFileSheet({ view, projectId, onClose }: { view: FileView; p
   const [userId, setUserId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [message, setMessage] = useState('');
+  const me = session.data?.authority.id;
+  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== me);
+  // The toast says where the file went, and Open goes there: the chat, or the conversation of the task (audit 2026-10-03, F-20).
   const share = useAction('files.share', {
-    onSuccess: () => {
-      toast.show({ message: t('files.shared') });
+    onSuccess: (place) => {
+      const message = place.kind === 'project_chat'
+        ? t('files.sharedChat', { project: projectName })
+        : place.kind === 'person'
+          ? t('files.sharedPerson', { name: people.find((person) => person.id === userId)?.name ?? '' })
+          : t('files.sharedTask', { title: tasks.data?.find((row) => row.task.id === place.id)?.task.title ?? '' });
+      const to = place.kind === 'task' ? `/projects/${projectId}?tab=tasks&task=${place.id}&thread=1` : `/inbox/${place.id}`;
+      toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to), isUndo: false } });
       onClose();
     },
   });
-  const me = session.data?.authority.id;
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== me);
   const ready = kind === 'project_chat' || (kind === 'person' && userId !== '') || (kind === 'task' && taskId !== '');
   const submit = () => {
     if (!ready || share.isPending) return;

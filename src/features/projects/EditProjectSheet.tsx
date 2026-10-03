@@ -8,6 +8,7 @@ import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { Sheet } from '../../components/Sheet';
 import type { ProjectFormValues } from './projectForm';
+import { areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
 
 function valuesOf(detail: ProjectDetail): ProjectFormValues {
@@ -54,7 +55,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
           name: v.name.trim(),
           clientId: v.clientId || null,
           location: v.location.trim(),
-          areaM2: v.area.trim() ? Number(v.area) : null,
+          areaM2: areaValue(v.area),
           contractStartDate: v.contractStartDate || null,
           startDate: v.startDate || null,
           targetEndDate: v.targetEndDate || null,

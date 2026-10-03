@@ -1,7 +1,8 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { UploadIcon } from '../../../components/icons/animated/upload';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { MAX_FILE_BYTES } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
@@ -13,6 +14,7 @@ import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
@@ -25,7 +27,6 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
-  const session = useCall('session.get', {});
   const [showVersions, setShowVersions] = useState(false);
   const { file, latest } = view;
   const image = latest.mimeType.startsWith('image/');
@@ -34,7 +35,8 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
   const isCover = detail.project.coverFileId === file.id;
-  const canDelete = detail.viewerCan.review || file.versions[0].uploadedBy === session.data?.authority.id;
+  // The API says who may delete the file, so the screen keeps no rule of its own (audit 2026-10-03, PRJ-16, V-20).
+  const canDelete = view.canDelete;
   const size = latest.size < 1024 * 1024
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
@@ -51,7 +53,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   ];
   return (
     <li className="flex flex-col">
-      <div className="flex min-h-14 items-center gap-3 px-2">
+      {/* On a phone the row is a grid, and Versions goes on its own line under the name, so the name keeps most of the row.
+          From sm up it is one line again (audit 2026-10-03, V-33). */}
+      <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
           {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
@@ -66,7 +70,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
           </p>
         </div>
         {file.versions.length > 1 && (
-          <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)}>{t('files.versions')}</Button>
+          <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)} className="col-start-2 row-start-2 -ms-5 justify-self-start sm:ms-0">
+            {t('files.versions')}
+          </Button>
         )}
         <Menu label={t('files.actions', { name: file.name })} items={items} />
       </div>
@@ -98,6 +104,19 @@ export function FilesTab({ detail }: TabProps) {
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
   const canUpload = detail.viewerCan.post;
+  // A link with "file" (from Search) opens that file's preview once. The link part goes, so Back does not open it again.
+  const [params, setParams] = useSearchParams();
+  const linked = params.get('file');
+  useEffect(() => {
+    if (!linked || !files.data) return;
+    const view = files.data.find((item) => item.file.id === linked);
+    if (view) setPreview(view);
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('file');
+      return next;
+    }, { replace: true });
+  }, [linked, files.data, setParams]);
 
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
   const uploadQueue = async (queue: File[], meta: { correlationId: string }): Promise<void> => {
@@ -115,7 +134,7 @@ export function FilesTab({ detail }: TabProps) {
       toast.show({
         tone: 'error',
         message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta) } : undefined,
+        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta), isUndo: false } : undefined,
       });
     } finally {
       setUploading(false);
@@ -178,6 +197,8 @@ export function FilesTab({ detail }: TabProps) {
           <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
         </div>
       )}
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {files.error && !files.data && <LoadFailed error={files.error} onRetry={() => void files.refetch()} />}
       {files.data && groups.length === 0 && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} />}
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;
@@ -189,7 +210,7 @@ export function FilesTab({ detail }: TabProps) {
         );
       })}
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
-      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} onClose={() => setSharing(null)} />}
+      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} onClose={() => setSharing(null)} />}
     </div>
   );
 }

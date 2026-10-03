@@ -13,8 +13,36 @@ describe('app shell', () => {
     for (const name of ['Home', 'Projects', 'Dashboard', 'Inbox']) expect(within(nav).getByRole('link', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Search' })).toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /^Notifications/ })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
+  });
+
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 360 and 390 px.
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check was a browser run at 320 to 412 px in
+  // Arabic and English: every tab and badge inside the bar, the Arabic label whole on two lines (F-2 re-check).
+  it('lets a two-word phone label wrap, never cut, and keeps a tab no narrower than its longest word (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
+    const tab = within(nav).getByRole('link', { name: 'لوحة المعلومات' });
+    expect(tab).toHaveClass('min-w-min');
+    expect(tab).toHaveClass('max-sm:rounded-[18px]');
+    const label = within(tab).getByText('لوحة المعلومات');
+    expect(label).not.toHaveClass('whitespace-nowrap');
+    expect(label).not.toHaveClass('truncate');
+    expect(label).toHaveClass('sm:whitespace-nowrap');
+  });
+
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 280 and 300 px.
+  it('keeps every phone tab inside the bar below 320 px: a smaller label, less padding, tabs that can shrink (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard');
+    const nav = await pill();
+    expect(nav).toHaveClass('max-[319px]:gap-0');
+    for (const name of ['Home', 'Projects', 'Dashboard']) {
+      const tab = within(nav).getByRole('link', { name });
+      for (const rule of ['max-[319px]:[--size-caption:11px]', 'max-[319px]:px-1', 'max-[319px]:flex-auto', 'max-[319px]:min-w-0']) expect(tab).toHaveClass(rule);
+    }
   });
 
   it('moves between screens', async () => {
@@ -37,6 +65,16 @@ describe('app shell', () => {
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 390 px.
+  it('starts every row of the person menu at the same edge, also a label on two lines (audit 2026-10-03, F-6)', async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
+    const rows = [...within(menu).getAllByRole('button'), ...within(menu).getAllByRole('link')];
+    expect(rows.length).toBe(5);
+    for (const row of rows) expect(row).toHaveClass('text-start');
+  });
+
   it('switches between light and dark from the person menu', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
@@ -53,7 +91,7 @@ describe('app shell', () => {
 
   it('shows the bell badge for notifications that need action', async () => {
     await renderApp('/dashboard');
-    expect((await screen.findAllByText(/items need action/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^\d+ items? needs? action$/)).length).toBeGreaterThan(0);
   });
 
   it('switches to Arabic from the person menu and mirrors the page', async () => {
@@ -62,6 +100,41 @@ describe('app shell', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
+  });
+
+  it('gives the focus back to the person picture after the language switch (audit 2026-10-03, F-3)', async () => {
+    await renderApp('/dashboard');
+    const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
+    await userEvent.click(picture);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull();
+    expect(document.activeElement).toBe(picture);
+  });
+
+  it('says the unread counts in the names of the Inbox and bell links, with the right plural (audit 2026-10-03, BRW-10, BRW-12)', async () => {
+    await renderApp('/dashboard', (state) => {
+      const mine = Object.values(state.notifications).filter((n) => n.userId === 'usr_001' && !n.read);
+      for (const n of mine.slice(1)) n.read = true;
+      if (mine[0]) mine[0].trigger = 'task_assigned';
+    });
+    const nav = await pill();
+    expect(await within(nav).findByRole('link', { name: 'Notifications, 1 item needs action' })).toBeInTheDocument();
+    expect(await within(nav).findByRole('link', { name: 'Inbox, Unread messages: 5' })).toBeInTheDocument();
+  });
+
+  it('starts the open screen again for the next person after Preview as, so no unsent update goes over (audit 2026-10-03, V-22)', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=activity');
+    const form = await screen.findByRole('form', { name: 'Post an update' });
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Post an update' }), 'Only for Hala');
+    await userEvent.upload(within(form).getByLabelText('Attach files'), new File(['x'], 'Hala notes.pdf', { type: 'application/pdf' }));
+    expect(within(form).getByText('Hala notes.pdf')).toBeInTheDocument();
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.selectOptions(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('combobox', { name: /Preview as/ }), 'usr_002');
+    await waitFor(() => expect(store.state.session.currentUserId).toBe('usr_002'));
+    const next = await screen.findByRole('form', { name: 'Post an update' });
+    await waitFor(() => expect(within(next).getByRole('textbox', { name: 'Post an update' })).toHaveValue(''));
+    expect(within(next).queryByText('Hala notes.pdf')).toBeNull();
   });
 
   it('opens Search with Ctrl+K', async () => {

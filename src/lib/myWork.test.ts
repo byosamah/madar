@@ -27,6 +27,15 @@ describe('My Work groups', () => {
     expect(workGroupOf(row('tsk_006', null), TODAY)).toBe('none');
   });
 
+  // The office works Sunday to Thursday. On Friday and Saturday, "This week" is the coming work week (audit BRW-9).
+  it('on Friday and Saturday puts the coming Sunday to Thursday under This week', () => {
+    const SATURDAY = '2026-10-03';
+    expect(workGroupOf(row('tsk_007', '2026-10-04'), SATURDAY)).toBe('week');
+    expect(workGroupOf(row('tsk_008', '2026-10-08'), SATURDAY)).toBe('week');
+    expect(workGroupOf(row('tsk_009', '2026-10-11'), SATURDAY)).toBe('later');
+    expect(workGroupOf(row('tsk_010', '2026-10-06'), '2026-10-02')).toBe('week');
+  });
+
   it('keeps the group order and leaves out empty groups', () => {
     const groups = groupMyTasks([row('tsk_006', null), row('tsk_001', '2026-09-25', true)], TODAY);
     expect(groups.map((group) => group.group)).toEqual(['overdue', 'none']);

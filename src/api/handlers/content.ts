@@ -69,7 +69,7 @@ export const updatesCreate = defineCall({
     if (input.decision) update.decision = true;
     ctx.state.updates[id] = update;
     recordCreate(ctx, { projectId: project.id, verb: 'update.posted', targetType: 'update', targetId: id, entity: update });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id, correlationId: ctx.correlationId });
     touch(ctx, project.id);
     return updateItemOf(ctx.state, update, ctx.authority);
   },
@@ -83,7 +83,7 @@ export const updatesUpdate = defineCall({
     assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     const added = newMentions(ctx, update.body, input.body);
     applyPatch(ctx, update, { body: input.body, editedAt: ctx.stamp }, { projectId: update.projectId, verb: 'update.edited', targetType: 'update', targetId: update.id });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id, correlationId: ctx.correlationId });
     return updateItemOf(ctx.state, update, ctx.authority);
   },
 });
@@ -138,7 +138,7 @@ export const commentsUpdate = defineCall({
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId, correlationId: ctx.correlationId });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });
@@ -166,7 +166,9 @@ export const reactionsToggle = defineCall({
     const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
     const list = comment.reactions[input.emoji];
-    comment.reactions[input.emoji] = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
+    const next = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
+    // One event for each change, with the agent and the person it acts for (spec 17.2, audit 2026-10-03, API-19).
+    applyPatch(ctx, comment, { reactions: { ...comment.reactions, [input.emoji]: next } }, { projectId, verb: 'comment.reacted', targetType: 'comment', targetId: comment.id });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

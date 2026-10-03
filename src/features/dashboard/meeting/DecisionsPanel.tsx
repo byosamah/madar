@@ -2,23 +2,40 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../../app/lang';
 import { useMeeting } from '../../../app/meeting';
-import { useAction, useCall } from '../../../app/runtime';
+import { useUndoable } from '../../../app/actions';
+import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { addWorkingDays } from '../../../lib/workdays';
-import { formatDay, todayISO } from '../../../lib/dates';
+import { todayISO } from '../../../lib/dates';
 import { plainText } from '../../../lib/text';
+import { actionLine } from './actionLine';
 
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
 type Kind = 'decision' | 'action';
 
+/**
+ * A value that the person typed and did not add yet. The meeting keeps it, so Done, Skip, the keys and the Decision/Action
+ * choice never throw it away (audit 2026-10-03, DSH-3). Outside a meeting it is plain state.
+ */
+function useDraft<T extends string>(key: string, initial: () => T): [T, (value: T) => void] {
+  const drafts = useMeeting()?.drafts;
+  const [value, setValue] = useState(() => (drafts?.get(key) as T | undefined) ?? initial());
+  const set = (next: T) => {
+    drafts?.set(key, next);
+    setValue(next);
+  };
+  return [value, set];
+}
+
 /** One line of text and an Add button. A decision posts to the Activity of the project, and never to the Tracker. */
 function DecisionForm({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
-  const [text, setText] = useState('');
-  const post = useAction('updates.create', { onSuccess: () => setText('') });
+  const [text, setText] = useDraft<string>(`decision:${projectId}`, () => '');
+  // The app's Undo toast confirms the decision and gives a way back (browser audit 2026-10-03, BRW-14).
+  const post = useUndoable('updates.create', { message: () => t('dashboard.meeting.decisionAdded'), onSuccess: () => setText('') });
   return (
     <form
       className="flex items-end gap-3"
@@ -36,11 +53,13 @@ function DecisionForm({ projectId }: { projectId: string }) {
 /** A title, a person from the team and a due date. The task goes in the current stage. It is a first date, so no date reason is asked. */
 function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId: string; stageId: string; members: { id: string; name: string }[]; defaultUserId: string }) {
   const { t } = useTranslation();
-  const [title, setTitle] = useState('');
-  const [userId, setUserId] = useState('');
-  const [dueDate, setDueDate] = useState(() => addWorkingDays(todayISO(), 2));
-  const create = useAction('tasks.create', { onSuccess: () => setTitle('') });
-  const who = userId || defaultUserId;
+  const [title, setTitle] = useDraft<string>(`action:${projectId}`, () => '');
+  const [userId, setUserId] = useDraft<string>(`actionWho:${projectId}`, () => '');
+  const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
+  // An action makes a real task for a person, so the toast says for whom, and Undo takes it back (browser audit 2026-10-03, BRW-14).
+  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner.name }), onSuccess: () => setTitle('') });
+  // A pick that left the list (the person turned inactive) gives way to the default.
+  const who = members.some((member) => member.id === userId) ? userId : defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
   return (
     <form
@@ -73,20 +92,27 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const startedAt = useMeeting()?.startedAt ?? '';
   const detail = useCall('projects.get', { id: projectId });
   const posts = useCall('updates.list', { projectId, filter: 'posts' });
-  const tasks = useCall('tasks.list', { projectId });
+  // A paused project is in the meeting too, so its tasks count here (audit 2026-10-03, DSH-5).
+  const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
   const me = useCall('session.get', {}).data?.user.id;
-  const [picked, setPicked] = useState<Kind>('decision');
+  const everyone = useCall('users.list', {});
+  const [picked, setPicked] = useDraft<Kind>(`kind:${projectId}`, () => 'decision');
   const canDecide = detail.data?.viewerCan.post === true;
   const canAct = detail.data?.viewerCan.createTaskForAnyone === true;
   const kind: Kind = picked === 'action' && canAct ? 'action' : canDecide ? 'decision' : 'action';
   const lines = [
     ...(posts.data ?? []).flatMap((item) => (item.kind === 'update' && item.decision && item.at >= startedAt ? [{ id: item.id, at: item.at, text: plainText(item.body) }] : [])),
     ...(tasks.data ?? []).flatMap((row) => (row.task.createdAt >= startedAt
-      ? [{ id: row.task.id, at: row.task.createdAt, text: t('dashboard.meeting.actionLine', { title: row.task.title, name: row.owner.name, date: row.task.dueDate ? formatDay(row.task.dueDate, lang, 'withWeekday') : '' }) }]
+      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner.name, row.task.dueDate) }]
       : [])),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;
-  const members = (detail.data?.members ?? []).map((member) => member.user);
+  // The API refuses a task for an inactive person (API-7), so Who leaves them out, and the default is the viewer or the first
+  // active member (audit 2026-10-03, V-4c). projects.get says who is active (V-4a); until it does, the users list (active people
+  // only) says.
+  const activeIds = everyone.data ? new Set(everyone.data.map((user) => user.id)) : null;
+  const isActive = (member: { user: { id: string }; active?: boolean }) => member.active ?? activeIds?.has(member.user.id) ?? true;
+  const members = (detail.data?.members ?? []).filter(isActive).map((member) => member.user);
   const defaultUserId = members.some((member) => member.id === me) ? me ?? '' : members[0]?.id ?? '';
   return (
     <section aria-label={t('dashboard.meeting.decisions')} className="panel flex flex-col gap-3 p-5">

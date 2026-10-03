@@ -1,14 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TRIGGERS } from '../../api/contract/entities';
+import { fieldError } from '../../app/errors';
 import { useSwitchLanguage } from '../../app/languageTurn';
 import { PreviewAs } from '../../app/PreviewAs';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { TextField } from '../../components/Fields';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { Sheet } from '../../components/Sheet';
 import { Switch } from '../../components/Switch';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -17,15 +20,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="text-section text-ink">{title}</h2>
       {children}
     </section>
-  );
-}
-
-function Field({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-1.5">
-      <span className="field-label">{label}</span>
-      <input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="field" />
-    </label>
   );
 }
 
@@ -38,7 +32,14 @@ export function SettingsScreen() {
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const trigger = useAction('notifications.updateSettings');
   const simulate = useAction('session.setSimulateErrors');
-  const reset = useAction('session.resetSampleData', { onSuccess: () => toast.show({ message: t('settings.resetDone') }) });
+  // Reset wipes the whole office in this browser and has no Undo, so it asks first, like Delete project (audit 2026-10-03, SHL-8).
+  const [askReset, setAskReset] = useState(false);
+  const reset = useAction('session.resetSampleData', {
+    onSuccess: () => {
+      setAskReset(false);
+      toast.show({ message: t('settings.resetDone') });
+    },
+  });
   const user = session.data?.user;
   const [name, setName] = useState('');
   const [discipline, setDiscipline] = useState('');
@@ -68,8 +69,25 @@ export function SettingsScreen() {
             profile.mutate({ name, discipline });
           }}
         >
-          <Field id="profile-name" label={t('settings.name')} value={name} onChange={setName} />
-          <Field id="profile-discipline" label={t('settings.discipline')} value={discipline} onChange={setDiscipline} />
+          {/* A refused field shows its message under it, as in the Admin forms (audit 2026-10-03, SHL-22). */}
+          <TextField
+            id="profile-name"
+            label={t('settings.name')}
+            value={name}
+            dir="auto"
+            className="flex-1"
+            error={fieldError(profile.error, 'name', t, t('admin.errors.name'))}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <TextField
+            id="profile-discipline"
+            label={t('settings.discipline')}
+            value={discipline}
+            dir="auto"
+            className="flex-1"
+            error={fieldError(profile.error, 'discipline', t, t('admin.errors.discipline'))}
+            onChange={(event) => setDiscipline(event.target.value)}
+          />
           <Button type="submit">{t('settings.save')}</Button>
         </form>
       </Section>
@@ -115,8 +133,22 @@ export function SettingsScreen() {
           onChange={(on) => simulate.mutate({ on })}
         />
         <div>
-          <Button onClick={() => reset.mutate({})}>{t('settings.reset')}</Button>
+          <Button onClick={() => setAskReset(true)}>{t('settings.reset')}</Button>
         </div>
+        <Sheet
+          open={askReset}
+          onOpenChange={setAskReset}
+          title={t('settings.resetTitle')}
+          description={t('settings.resetBody')}
+          footer={(
+            <>
+              <Button onClick={() => setAskReset(false)}>{t('common.cancel')}</Button>
+              <Button variant="destructive" disabled={reset.isPending} onClick={() => reset.mutate({})}>{t('settings.reset')}</Button>
+            </>
+          )}
+        >
+          {null}
+        </Sheet>
       </Section>
     </div>
   );

@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow } from '../../../api/contract/views';
@@ -14,8 +13,9 @@ import { ProjectSign } from '../../../components/ProjectSign';
 import { signOfProject, StatusSign } from '../../../components/StatusSign';
 import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
-import { counted } from '../../../lib/grammar';
+import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
+import { PAYMENT_PANEL, TASK_PANEL, usePanelLink } from '../panelLink';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
@@ -93,7 +93,7 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
       </dl>
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
-          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
+          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name, context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
         </p>
       )}
     </section>
@@ -110,14 +110,13 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
   // Payments that are overdue or fall due within a week. Only the people who handle payments ask for them (colleague comment 6).
   const payments = useCall('payments.list', { projectId }, { enabled: seesPayments });
   const awaiting = (payments.data ?? []).filter((row) => row.status !== 'received' && row.dueInDays <= 7);
-  const toPayment = (id: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('payment', id);
-    return next;
-  });
-  const toTracker = () => setParams((current) => {
+  const payment = usePanelLink(PAYMENT_PANEL);
+  const toPayment = (id: string) => payment.open({ payment: id });
+  // The row opens the entry itself on the Tracker tab, not only the tab (audit 2026-10-03, PRJ-19).
+  const toTracker = (entryId: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('tab', 'tracker');
+    next.set('entry', entryId);
     return next;
   });
   const parts = [
@@ -174,7 +173,7 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
             <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{waiting.length}</span>
           </h3>
           <ul className="flex flex-col">
-            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={toTracker} compact />)}
+            {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={() => toTracker(row.entry.id)} compact />)}
           </ul>
         </div>
       )}
@@ -266,35 +265,34 @@ function LatestUpdate({ detail }: TabProps) {
  * what each person works on now, what comes next. The log of every change lives in Activity.
  */
 export function OverviewTab({ detail }: TabProps) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
-  const open = useCallback((taskId: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('task', taskId);
-    return next;
-  }), [setParams]);
-  const close = useCallback(() => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.delete('task');
-    return next;
-  }), [setParams]);
-  if (tasks.error) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
+  // Open adds one history step and Close goes back over it; Close also forgets the Conversation choice (audit 2026-10-03,
+  // PRJ-9, PRJ-10, V-36).
+  const panel = usePanelLink(TASK_PANEL);
+  const open = (taskId: string) => panel.open({ task: taskId });
+  if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
-        <Standing detail={detail} rows={rows} />
-        <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+        {/* Until the tasks arrive, a quiet space stands in, never a false "Nothing needs attention" (audit 2026-10-03, PRJ-18). */}
+        {tasks.data ? (
+          <>
+            <Standing detail={detail} rows={rows} />
+            <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+          </>
+        ) : <div aria-busy="true" className="panel min-h-64" />}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
-        <People detail={detail} rows={rows} onOpen={open} />
+        {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
       </div>
       <aside className="flex min-w-0 flex-col gap-5">
         <ComingUp detail={detail} />
         <LatestUpdate detail={detail} />
         <AboutPanel detail={detail} />
       </aside>
-      {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={close} />}
+      {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
     </div>
   );
 }

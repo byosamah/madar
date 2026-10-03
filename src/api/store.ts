@@ -7,10 +7,11 @@ import type { Persister } from './persist';
 
 /**
  * Version 2 added the grammatical gender of people. Version 3 removed the hours system (owner, 2026-10-01).
- * Version 4 added the chat: conversations, messages and read marks.
+ * Version 4 added the chat: conversations, messages and read marks. Version 7 added the restart-day notice.
+ * Version 8 gave each date note the due day it was made for.
  * src/data/migrate.ts brings older offices up to date.
  */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 8;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',

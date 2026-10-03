@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { openAgendaSheet } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -27,6 +28,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(posted).toHaveLength(1);
     expect(posted[0].projectId).toBe(shoreWalk(store.state).id);
     window.location.hash = `#/projects/${shoreWalk(store.state).id}?tab=activity`;
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull());
     const post = (await screen.findByText('Keep the lobby double height.')).closest('li')!;
     expect(within(post).getByText('Decision')).toBeInTheDocument();
   });
@@ -69,6 +71,103 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(task.stageId).toBe(project.currentStageId);
     expect(task.ownerId).toBe(person.id);
     expect(task.dueDate).toBe('2026-10-08');
+  });
+
+  // The API refuses a task for an inactive person (API-7), so the Who list leaves them out, and the default is the viewer or the
+  // first active member (audit 2026-10-03, V-4c).
+  it('leaves an inactive person out of Who, and makes the action for the first active member (audit 2026-10-03, V-4c)', async () => {
+    let leader = { id: '', name: '' };
+    const { store } = await renderApp(MEETING, (state) => {
+      shoreWalkFirst(state);
+      const project = shoreWalk(state);
+      // The Admin (the viewer) is not on this team, and the leader is inactive.
+      for (const [key, member] of Object.entries(state.members)) if (member.projectId === project.id && member.userId === state.session.currentUserId) delete state.members[key];
+      state.users[project.leaderId!].active = false;
+      leader = state.users[project.leaderId!];
+    });
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    const who = decisions.getByRole('combobox', { name: 'Who' }) as HTMLSelectElement;
+    await waitFor(() => expect([...who.options].map((option) => option.value)).not.toContain(leader.id));
+    expect(who.options.length).toBeGreaterThan(0);
+    expect(who.value).toBe(who.options[0].value);
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Call the client');
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).find((task) => task.title === 'Call the client')?.ownerId).toBe(who.options[0].value));
+  });
+
+  it('makes the action for the viewer by default when the viewer is on the team', async () => {
+    const { store } = await renderApp(MEETING, (state) => {
+      shoreWalkFirst(state);
+      const project = shoreWalk(state);
+      state.members[`${project.id}:${state.session.currentUserId}`] = { projectId: project.id, userId: state.session.currentUserId, discipline: 'Architect' };
+    });
+    const me = store.state.session.currentUserId;
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    expect(decisions.getByRole('combobox', { name: 'Who' })).toHaveValue(me);
+  });
+
+  it('lists an action of a paused project (audit 2026-10-03, DSH-5)', async () => {
+    const { store } = await renderApp(`${MEETING}&status=all`, shoreWalkFirst);
+    await panel();
+    const sheet = await openAgendaSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: /Gulf Crest HQ Interiors/ }));
+    await screen.findByRole('article', { name: 'Gulf Crest HQ Interiors' });
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Call the client back');
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).filter((task) => task.title === 'Call the client back')).toHaveLength(1));
+    expect(await decisions.findByText(/^Action: Call the client back/)).toBeInTheDocument();
+  });
+
+  it('keeps a typed decision and a typed action over a move to another project and back (audit 2026-10-03, DSH-3)', async () => {
+    await renderApp(MEETING, shoreWalkFirst);
+    let decisions = await panel();
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Half typed action');
+    // The other kind keeps its text too.
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    // Done shows the next project. B comes back to this one, with the kind and both texts as they were.
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Shore Walk Retail Kiosks' })).toBeNull());
+    await userEvent.keyboard('b');
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    decisions = await panel();
+    expect(decisions.getByRole('textbox', { name: 'Write an action' })).toHaveValue('Half typed action');
+    await userEvent.click(decisions.getByRole('radio', { name: 'Decision' }));
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toHaveValue('Half typed decision');
+  });
+
+  it('confirms a decision with an Undo toast, and Undo takes it back (browser audit 2026-10-03, BRW-14)', async () => {
+    const { store } = await renderApp(MEETING, shoreWalkFirst);
+    const decisions = await panel();
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Keep the lobby double height.{Enter}');
+    await decisions.findByText('Keep the lobby double height.');
+    const toast = (await screen.findByText('Decision added.')).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.updates).some((update) => update.body === 'Keep the lobby double height.')).toBe(false));
+    await waitFor(() => expect(decisions.queryByText('Keep the lobby double height.')).toBeNull());
+  });
+
+  it('says for whom an action made a task, and Undo takes the task back (browser audit 2026-10-03, BRW-14)', async () => {
+    const { store } = await renderApp(MEETING, shoreWalkFirst);
+    const person = store.state.users[shoreWalk(store.state).leaderId!];
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Revise sections');
+    await userEvent.selectOptions(decisions.getByRole('combobox', { name: 'Who' }), person.id);
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await decisions.findByText(/^Action: Revise sections/);
+    const toast = (await screen.findByText(`Task added for ${person.name}.`)).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Revise sections')).toBe(false));
+    await waitFor(() => expect(decisions.queryByText(/^Action: Revise sections/)).toBeNull());
   });
 
   it('lists the decisions and actions of this meeting only, the newest last', async () => {

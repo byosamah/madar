@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { PaymentRow } from '../../../api/contract/views';
@@ -7,9 +8,11 @@ import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
+import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
-import { PaymentSheet } from './PaymentSheet';
+import { PAYMENT_PANEL, usePanelLink } from '../panelLink';
+import { PaymentSheet, type PaymentDraft } from './PaymentSheet';
 
 /** "SAR 120,000" in English and "120,000 ر.س" in Arabic. Madar writes Western digits in both. */
 export function amountText(t: TFunction, lang: Lang, amount: number): string {
@@ -35,16 +38,15 @@ const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-in
 export function PaymentsPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const list = useCall('payments.list', { projectId });
   const rows = list.data ?? [];
   const openId = params.get('payment');
-  const setOpen = (id: string | null) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    if (id) next.set('payment', id);
-    else next.delete('payment');
-    return next;
-  });
+  // Open adds one history step and Close goes back over it, so a sheet costs no extra Back (audit 2026-10-03, PRJ-9, V-36).
+  const panel = usePanelLink(PAYMENT_PANEL);
+  // What a person typed in a payment sheet and did not save, for as long as this panel lives (audit 2026-10-03, F-17).
+  const drafts = useRef(new Map<string, PaymentDraft>());
+  const setOpen = (id: string | null) => (id ? panel.open({ payment: id }) : panel.close());
   const total = rows.reduce((sum, row) => sum + row.payment.amount, 0);
   const received = rows.filter((row) => row.status === 'received').reduce((sum, row) => sum + row.payment.amount, 0);
   const open = openId === 'new' ? null : rows.find((row) => row.payment.id === openId);
@@ -62,6 +64,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           {t('payments.add')}
         </Button>
       </div>
+      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+      {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && rows.length === 0 && <p className="text-subheadline text-ink-2">{t('payments.empty')}</p>}
       {rows.length > 0 && (
         <ul className="hairline -mx-2 flex flex-col">
@@ -86,8 +90,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           ))}
         </ul>
       )}
-      {openId === 'new' && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} />}
-      {open && <PaymentSheet key={open.payment.id} projectId={projectId} row={open} onClose={() => setOpen(null)} />}
+      {openId === 'new' && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} drafts={drafts.current} />}
+      {open && <PaymentSheet key={open.payment.id} projectId={projectId} row={open} onClose={() => setOpen(null)} drafts={drafts.current} />}
     </section>
   );
 }

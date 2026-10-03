@@ -24,6 +24,18 @@ describe('My Work tasks', () => {
     expect(regions[0]).toBe(review);
   });
 
+  // One place for each thing (audit PER-10): a task in my review queue that I also help on shows once, in the queue.
+  it('shows a task once when it waits for my review and I help on it', async () => {
+    await renderApp('/work', (state) => {
+      state.session.currentUserId = 'usr_002';
+      const task = Object.values(state.tasks).find((item) => item.title === 'Toilet details' && item.status === 'in_review')!;
+      task.title = 'Probe review task';
+      task.helperIds = ['usr_002'];
+    });
+    await screen.findByRole('region', { name: 'Waiting for my review' });
+    expect(screen.getAllByText('Probe review task')).toHaveLength(1);
+  });
+
   it('ticks a task from My Work', async () => {
     const { store } = await renderApp('/work', as('usr_005'));
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Complete Civil Defense drawings' }));

@@ -43,6 +43,33 @@ describe('the New Project sheet', () => {
     expect(Object.keys(store.state.projects)).toHaveLength(12);
   });
 
+  // Enter in a client field adds the client; it never sends the project form and loses the client (audit PER-7).
+  it('adds the client with Enter in a client field, and does not create the project', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Harbour Holding{Enter}');
+    await waitFor(() => expect((within(sheet).getByLabelText('Client') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Harbour Holding'));
+    expect(Object.keys(store.state.projects)).toHaveLength(12);
+    expect(screen.getByRole('dialog', { name: 'New Project' })).toBeInTheDocument();
+  });
+
+  // A sheet closed by accident (Escape, a tap outside, a swipe) keeps what the person typed. Cancel and Create start
+  // a fresh form (audit PER-8).
+  it('keeps the typed values after an accidental close, and starts empty after Cancel', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Project' })).toBeNull());
+    await userEvent.click(screen.getByText('Start'));
+    const again = await screen.findByRole('dialog', { name: 'New Project' });
+    expect(within(again).getByLabelText('Name')).toHaveValue('Harbour Gate Offices');
+    await userEvent.click(within(again).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Project' })).toBeNull());
+    await userEvent.click(screen.getByText('Start'));
+    expect(within(await screen.findByRole('dialog', { name: 'New Project' })).getByLabelText('Name')).toHaveValue('');
+  });
+
   it('creates a project with a new client, another leader and a team', async () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');

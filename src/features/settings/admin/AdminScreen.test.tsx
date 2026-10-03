@@ -34,11 +34,25 @@ describe('the Admin page', () => {
   });
 
   it('deactivates a person, then brings them back with Undo', async () => {
+    // Noura leads no project and holds no open task, so no warning comes first (owner, 2026-10-03, API-7).
     const { store } = await renderApp('/admin');
-    await userEvent.click(within(await openMenu('Omar Haddad')).getByRole('menuitem', { name: 'Deactivate' }));
-    await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
+    await userEvent.click(within(await openMenu('Noura Al-Shammari')).getByRole('menuitem', { name: 'Deactivate' }));
+    await waitFor(() => expect(store.state.users.usr_011.active).toBe(false));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.users.usr_011.active).toBe(true));
+  });
+
+  it('turns a deactivated person on again, with Undo (audit 2026-10-03, SHL-7)', async () => {
+    const { store } = await renderApp('/admin', (state) => {
+      state.users.usr_004.active = false;
+    });
+    const menu = await openMenu('Omar Haddad');
+    expect(within(menu).queryByRole('menuitem', { name: 'Deactivate' })).toBeNull();
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Reactivate' }));
     await waitFor(() => expect(store.state.users.usr_004.active).toBe(true));
+    expect(await screen.findByText('Omar Haddad reactivated.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
   });
 
   it('offers no Deactivate on my own row, and refuses to drop the last Admin', async () => {
@@ -85,6 +99,16 @@ describe('the Admin page', () => {
     await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(false));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(Object.values(store.state.taskTemplates ?? {}).some((tpl) => tpl.name === 'Plans set')).toBe(true));
+  });
+
+  it('uses the feminine Arabic verb for a template a woman saved (audit 2026-10-03, SHL-17)', async () => {
+    await renderApp('/admin', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+      state.users.usr_001.gender = 'female';
+    });
+    expect((await screen.findAllByText('حفظته Hala Nasser')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('حفظتها Hala Nasser').length).toBeGreaterThan(0);
+    expect(screen.queryByText('حفظه Hala Nasser')).toBeNull();
   });
 
   it('saves the office settings', async () => {
@@ -240,6 +264,17 @@ describe('the Admin page for Management and Accounting', () => {
     await userEvent.selectOptions(within(sheet).getByLabelText('Role'), 'accounting');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(store.state.users.usr_004.systemRole).toBe('accounting'));
+  });
+
+  it('hides from Management the person actions only an Admin may take (audit 2026-10-03, SHL-9)', async () => {
+    const { store } = await renderApp('/admin', as('usr_010'));
+    const agent = Object.values(store.state.users).find((u) => u.kind === 'agent' && u.ownerId === 'usr_001')!;
+    const people = await region('People');
+    await within(people).findByText(agent.name);
+    expect(within(people).queryByRole('button', { name: `Actions for ${agent.name}` })).toBeNull();
+    await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add person' });
+    expect(within(sheet).queryByLabelText('Kind')).toBeNull();
   });
 
   it('tells Accounting and a member the page is not theirs', async () => {

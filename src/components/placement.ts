@@ -45,6 +45,31 @@ export function menuPlace(box: Box, screen: Screen, { itemCount, rtl }: { itemCo
   return { position: 'fixed', ...vertical, ...side, transformOrigin: origin };
 }
 
+/**
+ * The box that a fixed panel inside this element is placed in. A transform, a filter or will-change on the element (a sheet
+ * that slides in) makes the element that box; with none of them it is the window. A hidden probe measures it.
+ */
+export function fixedFrame(element: HTMLElement): Box & { height: number } {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+  element.appendChild(probe);
+  const rect = probe.getBoundingClientRect();
+  probe.remove();
+  const zoom = rootZoom();
+  return { top: rect.top / zoom, right: rect.right / zoom, bottom: rect.bottom / zoom, left: rect.left / zoom, width: rect.width / zoom, height: rect.height / zoom }; // rtl-ok: screen coordinates
+}
+
+/** A fixed place on the screen, moved into a frame from fixedFrame. A frame with no size (no layout, as in tests) changes nothing. */
+export function inFrame(place: CSSProperties, frame: Box & { height: number }, screen: Screen): CSSProperties {
+  if (frame.width === 0 && frame.height === 0) return place;
+  const out: CSSProperties = { ...place };
+  if (typeof place.top === 'number') out.top = place.top - frame.top;
+  if (typeof place.bottom === 'number') out.bottom = place.bottom - (screen.height - frame.bottom);
+  if (typeof place.left === 'number') out.left = place.left - frame.left; // rtl-ok: screen coordinates
+  if (typeof place.right === 'number') out.right = place.right - (screen.width - frame.right); // rtl-ok: screen coordinates
+  return out;
+}
+
 /** The place of a popover: centred under its control, or above it when the screen ends first, and 8 px inside the screen. */
 export function popoverPlace(box: Box, screen: Screen): { width: number; left: number; top?: number; bottom?: number } {
   const width = Math.min(320, screen.width - 16);

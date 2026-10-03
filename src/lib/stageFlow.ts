@@ -78,25 +78,37 @@ export function addWorkingDays(day: string, n: number): string {
   return out;
 }
 
-/** The parts of a dependent task that the shift plan needs. */
-export type ShiftShape = { id: string; status: string; schedule?: string | null; startDate?: string | null; dueDate: string | null; durationDays?: number | null };
-export type PlannedMove = { id: string; lateDays: number; from: { startDate: string; dueDate: string | null }; to: { startDate: string; dueDate: string } };
+/** The parts of a dependent task that the shift plan needs. "dateNotes" tells how far a task already moved it. */
+export type ShiftShape = {
+  id: string; status: string; schedule?: string | null; startDate?: string | null; dueDate: string | null; durationDays?: number | null;
+  dateNotes?: { byTaskId?: string; lateDays?: number; forDueDate?: string }[];
+};
+/** "lateDays" is how many working days the dependent moves. "taskLateDays" is how late the finished task is. */
+export type PlannedMove = {
+  id: string; lateDays: number; taskLateDays: number; from: { startDate: string; dueDate: string | null }; to: { startDate: string; dueDate: string };
+};
 
 /**
  * Where each dependent moves when a task finishes on a given day. A dependent moves when it is not done, is dynamic, and has a start
  * day and a duration. It moves later by the working days the task is late. The list is empty when the task is not late.
- * The real shift and the meeting preview both use this, so they cannot disagree.
+ * A task that opened again and finishes late again moves a dependent only by the days it did not move it yet (audit 2026-10-03, API-3).
+ * That is true only when the earlier move was for the same due day. A new version with a new due day is late against that day, so it
+ * moves the dependent by the full lateness (audit 2026-10-03, V-3). The real shift and the meeting preview both use this, so they cannot disagree.
  */
-export function shiftPlan(task: { dueDate: string | null }, dependents: ShiftShape[], finishDay: string): PlannedMove[] {
+export function shiftPlan(task: { id?: string; dueDate: string | null }, dependents: ShiftShape[], finishDay: string): PlannedMove[] {
   if (!task.dueDate) return [];
-  const lateDays = workingDaysLate(task.dueDate, finishDay);
-  if (lateDays < 1) return [];
+  const taskLateDays = workingDaysLate(task.dueDate, finishDay);
+  if (taskLateDays < 1) return [];
   const moves: PlannedMove[] = [];
   for (const dependent of dependents) {
     if (dependent.status === 'done' || (dependent.schedule ?? 'static') !== 'dynamic' || !dependent.startDate || !dependent.durationDays) continue;
+    const before = [...(dependent.dateNotes ?? [])].reverse().find((note) => task.id !== undefined && note.byTaskId === task.id);
+    const moved = before?.forDueDate === task.dueDate ? (before.lateDays ?? 0) : 0;
+    const lateDays = taskLateDays - moved;
+    if (lateDays < 1) continue;
     const startDate = addWorkingDays(dependent.startDate, lateDays);
     moves.push({
-      id: dependent.id, lateDays,
+      id: dependent.id, lateDays, taskLateDays,
       from: { startDate: dependent.startDate, dueDate: dependent.dueDate },
       to: { startDate, dueDate: dueFromDuration(startDate, dependent.durationDays) },
     });

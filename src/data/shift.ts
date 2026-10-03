@@ -1,6 +1,6 @@
 import type { Event, Notification } from '../api/contract/entities';
 import type { State } from '../api/store';
-import { addDays, diffDays, nowStamp, weekStartOf } from '../lib/dates';
+import { addDays, diffDays, nowStamp, todayISO, weekStartOf } from '../lib/dates';
 import { dueFromDuration } from '../lib/workdays';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -8,9 +8,15 @@ const DAY_IN_TEXT = /\d{4}-\d{2}-\d{2}/g;
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const DAY_MS = 86_400_000;
 
-/** Only these fields hold dates. Text that people type never moves, even when it looks like a date. */
-const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn']);
-const STAMP_FIELDS = new Set(['createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt']);
+/**
+ * Only these fields hold dates. Text that people type never moves, even when it looks like a date. The read marks, the pause, the
+ * "moved back" note, the date notes, the task versions and the report times move too (audit 2026-10-03, API-10).
+ * The due day that a date note was made for moves with the due day of its task, so the two still match (audit 2026-10-03, V-3).
+ */
+const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn', 'resumeOn', 'forDueDate']);
+const STAMP_FIELDS = new Set([
+  'createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt', 'lastReadAt', 'at', 'openedAt', 'finishedAt', 'doneAt',
+]);
 
 function shiftDay(value: unknown, days: number): unknown {
   return typeof value === 'string' && DAY.test(value) ? addDays(value, days) : value;
@@ -44,6 +50,38 @@ function settleDynamicTasks(state: State): void {
     if (fit) task.startDate = fit;
     else task.dueDate = dueFromDuration(task.startDate, task.durationDays);
   }
+}
+
+/** Gives every stamp field to "fn", in the same fields the shift moves. */
+function mapStamps<T>(value: T, fn: (stamp: string) => string): T {
+  if (Array.isArray(value)) return value.map((item) => mapStamps(item, fn)) as T;
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+    key,
+    STAMP_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item) ? fn(item) : mapStamps(item, fn),
+  ])) as T;
+}
+
+/**
+ * Nothing in the office happened later than "at" (audit 2026-10-03, BRW-4). The sample office is written at fixed hours of today,
+ * and the daily shift moves yesterday's afternoon to today's. Every stamp later than "at" moves to just before it, in the same order,
+ * one minute apart when there is room, after the latest earlier stamp of the same day. A stamp in the past stays as it is.
+ */
+export function settleFuture(state: State, at: Date): State {
+  const limit = at.getTime();
+  const future = new Set<string>();
+  let floor = Date.parse(`${todayISO(at)}T00:00:00.000+03:00`);
+  mapStamps(state, (stamp) => {
+    const time = Date.parse(stamp);
+    if (time > limit) future.add(stamp);
+    else if (time > floor) floor = time;
+    return stamp;
+  });
+  if (future.size === 0) return state;
+  const order = [...future].sort((a, b) => Date.parse(a) - Date.parse(b));
+  const step = Math.floor(Math.min(60_000, (limit - floor) / (order.length + 1)));
+  const moved = new Map(order.map((stamp, i) => [stamp, nowStamp(new Date(limit - (order.length - i) * step))]));
+  return mapStamps(state, (stamp) => moved.get(stamp) ?? stamp);
 }
 
 /**

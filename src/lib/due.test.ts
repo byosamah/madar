@@ -26,8 +26,8 @@ describe('gentle due words', () => {
     expect(dueText(dueWord('2026-10-02', TODAY, 'todo')!, t, 'en', '2026-10-02')).toBe('In 2 days');
     initI18n('ar');
     const ta = i18n.t.bind(i18n);
-    expect(dueText(dueWord('2026-09-27', TODAY, 'todo')!, ta, 'ar', '2026-09-27')).toBe('متأخرة 3 أيام');
-    expect(dueText(dueWord('2026-09-28', TODAY, 'todo')!, ta, 'ar', '2026-09-28')).toBe('متأخرة يومين');
+    expect(dueText(dueWord('2026-09-27', TODAY, 'todo')!, ta, 'ar', '2026-09-27')).toBe('تجاوزت موعدها بـ3 أيام');
+    expect(dueText(dueWord('2026-09-28', TODAY, 'todo')!, ta, 'ar', '2026-09-28')).toBe('تجاوزت موعدها بيومين');
     initI18n('en');
   });
 });

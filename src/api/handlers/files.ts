@@ -4,9 +4,8 @@ import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type F
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { can, principalOf } from '../permissions';
 import { nextId } from '../store';
-import { fileViewOf, trackerRowOf } from '../views';
+import { fileViewOf, mayDeleteFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, roleIn, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
@@ -32,7 +31,7 @@ export const filesList = defineCall({
     requireProject(ctx, input.projectId);
     return Object.values(ctx.state.files)
       .filter((f) => f.projectId === input.projectId && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
-      .map((f) => fileViewOf(ctx.state, f))
+      .map((f) => fileViewOf(ctx.state, f, ctx.authority))
       .sort((a, b) => b.latest.uploadedAt.localeCompare(a.latest.uploadedAt));
   },
 });
@@ -53,7 +52,7 @@ export const filesGet = defineCall({
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
-    return { file: fileViewOf(ctx.state, file), version: prepared.version, blob: prepared.blob };
+    return { file: fileViewOf(ctx.state, file, ctx.authority), version: prepared.version, blob: prepared.blob };
   },
 });
 
@@ -72,6 +71,8 @@ export const filesUpload = defineCall({
     .refine((value) => value.blob.size <= MAX_FILE_BYTES, { path: ['blob'], message: 'Files must be 25 MB or smaller.' }),
   output: FileView,
   async prepare(input, p) {
+    // The cover must be a picture, as in projects.update. The check comes before the data is stored (audit 2026-10-03, API-16).
+    if (input.asCover && !input.blob.type.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
     const blobKey = `blob_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     await p.persister.putBlob(blobKey, input.blob);
     return { blobKey };
@@ -111,7 +112,7 @@ export const filesUpload = defineCall({
       });
     }
     touch(ctx, project.id);
-    return fileViewOf(ctx.state, file);
+    return fileViewOf(ctx.state, file, ctx.authority);
   },
 });
 
@@ -136,10 +137,7 @@ export const filesDelete = defineCall({
   run(input, ctx) {
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
-    const role = roleIn(ctx, file.projectId);
-    const allowed = can(ctx.authority, 'task.delete', { projectRole: role })
-      || can(ctx.authority, 'content.editOwn', { projectRole: role, authorId: principalOf(ctx.state, file.versions[0].uploadedBy) });
-    if (!allowed) throw forbidden('Only the uploader or the project leader can delete this file.');
+    if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {
       applyPatch(ctx, project, { coverFileId: null }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });

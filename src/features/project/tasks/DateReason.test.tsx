@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { emptyReactions } from '../../../api/contract/entities';
 import type { State } from '../../../api/store';
@@ -57,7 +57,7 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
     fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-10-26' } });
     fireEvent.blur(within(sheet).getByLabelText('Due date'));
     const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
-    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(ask).getByRole('button', { name: 'Keep the old date' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull());
     expect(within(sheet).getByLabelText('Due date')).toHaveValue('2026-10-20');
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');
@@ -79,5 +79,84 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
     expect(within(message).getByText('Start date: from Thu 1 Oct to Wed 7 Oct')).toBeInTheDocument();
     expect(within(message).getByText('Due date: from Wed 7 Oct to Tue 13 Oct')).toBeInTheDocument();
     expect(within(message).queryByRole('button', { name: 'Actions for this comment' })).toBeNull();
+  });
+});
+
+/** Moves the due date of Stair details to 26 Oct and returns the reason sheet. */
+async function moveDue(sheet: HTMLElement, day = '2026-10-26') {
+  const due = within(sheet).getByLabelText('Due date');
+  fireEvent.change(due, { target: { value: day } });
+  fireEvent.blur(due);
+  return screen.findByRole('dialog', { name: 'Why do the dates change?' });
+}
+const reasonGone = () => waitFor(() => expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull());
+
+// The reason is a required step: a press outside does not close it. Escape and Cancel put the date back, and the typed reason
+// stays for that task, so the next move opens with it (audit 2026-10-03, F-16).
+describe('the reason sheet keeps the typed reason (audit 2026-10-03, F-16)', () => {
+  it('stays open on a press outside', async () => {
+    await renderApp(TASK, staticTask);
+    const ask = await moveDue(await screen.findByRole('dialog', { name: 'Stair details' }));
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'Client asked to add the north plot');
+    // Radix waits 0 ms before it listens for presses.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    expect(screen.getByRole('dialog', { name: 'Why do the dates change?' })).toBeInTheDocument();
+    expect(within(ask).getByRole('textbox', { name: 'Reason' })).toHaveValue('Client asked to add the north plot');
+  });
+
+  it('keeps the old date on Escape, and fills the next move with the typed reason', async () => {
+    const { store } = await renderApp(TASK, staticTask);
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const ask = await moveDue(sheet);
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'Client asked to add the north plot');
+    await userEvent.keyboard('{Escape}');
+    await reasonGone();
+    expect(within(sheet).getByLabelText('Due date')).toHaveValue('2026-10-20');
+    expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');
+    const again = await moveDue(sheet);
+    expect(within(again).getByRole('textbox', { name: 'Reason' })).toHaveValue('Client asked to add the north plot');
+  });
+
+  it('keeps the typed reason after Keep the old date, and after the task panel closes', async () => {
+    const { router } = await renderApp(TASK, staticTask);
+    const ask = await moveDue(await screen.findByRole('dialog', { name: 'Stair details' }));
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'Client asked to add the north plot');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Keep the old date' }));
+    await reasonGone();
+    await act(() => router.navigate('/projects/prj_001?tab=tasks'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await act(() => router.navigate(TASK));
+    const again = await moveDue(await screen.findByRole('dialog', { name: 'Stair details' }));
+    expect(within(again).getByRole('textbox', { name: 'Reason' })).toHaveValue('Client asked to add the north plot');
+  });
+
+  it('says "Keep the old dates" when both dates move', async () => {
+    // A dynamic task takes its due date from the start, so a new start moves both dates.
+    await renderApp(TASK, (state) => {
+      Object.assign(state.tasks.tsk_007, { startDate: '2026-10-04', schedule: 'dynamic', durationDays: 5, dueDate: '2026-10-08' });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const start = within(sheet).getByLabelText('Start date');
+    fireEvent.change(start, { target: { value: '2026-10-11' } });
+    fireEvent.blur(start);
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    expect(within(ask).getByText(/^Start date: from/)).toBeInTheDocument();
+    expect(within(ask).getByText(/^Due date: from/)).toBeInTheDocument();
+    expect(within(ask).getByRole('button', { name: 'Keep the old dates' })).toBeInTheDocument();
+  });
+
+  it('starts the next move empty after Save dates', async () => {
+    const { store } = await renderApp(TASK, staticTask);
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const ask = await moveDue(sheet);
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The client sent the survey late');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-26'));
+    await reasonGone();
+    const again = await moveDue(sheet, '2026-10-28');
+    expect(within(again).getByRole('textbox', { name: 'Reason' })).toHaveValue('');
   });
 });

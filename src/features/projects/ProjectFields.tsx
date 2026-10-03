@@ -64,6 +64,7 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
       toast.show({ message: t('projectForm.clientAdded') });
     },
   });
+  const add = () => create.mutate({ ...draft, name: draft.name.trim(), nameAr: draft.nameAr.trim(), contactName: same ? named : draft.contactName });
   const field = (key: keyof typeof empty) => ({
     value: draft[key],
     onChange: (event: { target: { value: string } }) => setDraft((current) => ({ ...current, [key]: event.target.value })),
@@ -78,7 +79,16 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
         <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>
       </div>
       {adding && (
-        <div className="grid gap-3 rounded-2xl bg-fill p-3 sm:grid-cols-2">
+        <div
+          className="grid gap-3 rounded-2xl bg-fill p-3 sm:grid-cols-2"
+          onKeyDown={(event) => {
+            // Enter in a client field adds the client. It must not send the project form that holds these fields (audit PER-7).
+            const target = event.target as HTMLInputElement;
+            if (event.key !== 'Enter' || target.tagName !== 'INPUT' || target.type === 'checkbox') return;
+            event.preventDefault();
+            if (named && !create.isPending) add();
+          }}
+        >
           <TextField id="client-name" label={t('projectForm.clientName')} dir="ltr" {...field('name')} />
           <TextField id="client-name-ar" label={t('projectForm.clientNameAr')} dir="rtl" lang="ar" {...field('nameAr')} />
           <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -94,7 +104,7 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
             variant="primary"
             className="sm:col-span-2"
             disabled={!named || create.isPending}
-            onClick={() => create.mutate({ ...draft, name: draft.name.trim(), nameAr: draft.nameAr.trim(), contactName: same ? named : draft.contactName })}
+            onClick={add}
           >
             {t('projectForm.addClient')}
           </Button>

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, UserId, type DateMove, type Task,
+  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
@@ -9,14 +9,15 @@ import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
 import { notify, reviewersOf } from '../notify';
+import { projectTouchesTeam } from '../pause';
 import { can } from '../permissions';
-import { nextId, taskTemplatesOf } from '../store';
+import { nextId, taskTemplatesOf, teamsOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
-import { assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
+import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
 import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
@@ -24,6 +25,8 @@ const HelperIds = z.array(UserId).max(MAX_HELPERS);
 const Reason = z.string().trim().min(1).max(280);
 /** Why the project moves back a stage, when a change would do that. Optional: only that case needs it. */
 const StageBackReason = z.string().trim().max(280).optional();
+/** Also log a move back in the Tracker as a Balady update (owner, 2026-10-03, API-14). It does nothing when the project does not move back. */
+const LogInTracker = z.boolean().optional();
 // Why the dates of a task moved (owner, 2026-10-02). It goes to the task's Conversation, so it is never empty.
 const DateReason = z.string().trim().min(1).max(280).optional();
 const PrerequisiteIds = z.array(TaskId).max(MAX_PREREQUISITES);
@@ -86,21 +89,34 @@ function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
 }
 
 /**
+ * The day the owner finished: the day the task last went to review, or today. Time in review is not the owner's lateness
+ * (audit 2026-10-03, API-4).
+ */
+function finishedOn(ctx: Ctx, task: Task): string {
+  if (task.status !== 'in_review') return ctx.today;
+  const sent = Object.values(ctx.state.events)
+    .filter((e) => e.targetType === 'task' && e.targetId === task.id && e.verb !== 'undo' && !e.undoneBy && (e.after as { status?: string } | null)?.status === 'in_review')
+    .sort((a, b) => b.seq - a.seq)[0];
+  return sent ? stampDay(sent.createdAt) : ctx.today;
+}
+
+/**
  * One way to change a status. A task is finished (done, or sent to review) only when what it needs is done. A task that was done and
  * opens again opens the done tasks that need it. A task that becomes done late moves the dynamic tasks that need it.
  */
-function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.status_changed'): void {
+export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 'task.status_changed'): void {
   if (task.status === status) return;
   if (status === 'done' || status === 'in_review') assertMayFinish(ctx.state, task);
   const wasDone = task.status === 'done';
-  applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
+  const finishDay = status === 'done' ? finishedOn(ctx, task) : ctx.today;
+  const cause = applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
     projectId: task.projectId, verb, targetType: 'task', targetId: task.id,
-  });
-  if (wasDone && status !== 'done') reopenDependents(ctx, task);
-  if (status === 'done') shiftDependents(ctx, task);
+  })!;
+  if (wasDone && status !== 'done') reopenDependents(ctx, task, cause.id);
+  if (status === 'done') shiftDependents(ctx, task, cause.id, finishDay);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
   }
   touch(ctx, task.projectId);
 }
@@ -119,15 +135,22 @@ export const tasksList = defineCall({
     doneTo: Day.optional(),
     includeDone: z.boolean().default(true),
     activeProjectsOnly: z.boolean().default(true),
+    /**
+     * Only the tasks of the projects that this office team works on: the same rule as the Dashboard, so a number and the list it
+     * opens agree. A team that does not exist matches nothing (audit 2026-10-03, V-37a).
+     */
+    teamId: TeamId.optional(),
   }),
   output: z.array(TaskRow),
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
+    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
     const tasks = Object.values(state.tasks).filter((task) => {
       const project = state.projects[task.projectId];
       if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
+      if (input.teamId && (team === undefined || !projectTouchesTeam(state, project, team.memberIds))) return false;
       if (projectId && task.projectId !== projectId) return false;
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;
@@ -178,7 +201,7 @@ export const tasksGet = defineCall({
 type NewTask = {
   projectId: string; title: string; stageId?: string; ownerId?: string; helperIds?: string[]; dueDate?: string | null; startDate?: string | null;
   schedule?: Task['schedule']; durationDays?: number | null; description: string; flagged: boolean; needsReview?: boolean; checklist?: string[];
-  prerequisiteIds?: string[]; reason?: string;
+  prerequisiteIds?: string[]; reason?: string; logInTracker?: boolean;
   /** The review setting comes from a template a leader saved, so a team member may use it without the right to set it. */
   fromTemplate?: boolean;
 };
@@ -190,7 +213,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   // A task always belongs to a person. An agent adds tasks for the person it acts for.
   const ownerId = input.ownerId ?? ctx.authority.id;
   assertCan(ctx, ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
-  if ((input.needsReview !== undefined && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
+  // Only "no review" needs the leader's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
+  if ((input.needsReview === false && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
   // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
   // member cannot skip review through a leader's template (security review, 2026-10-01).
   const needsReview = input.fromTemplate && !can(ctx.authority, 'task.updateAny', { projectRole: role }) ? true : input.needsReview ?? true;
@@ -198,6 +222,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   requireStage(ctx, project.id, stageId);
   const watch = watchStage(ctx, project.id);
   const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
+  assertActive(ctx, ownerId, 'ownerId');
+  for (const helperId of input.helperIds ?? []) assertActive(ctx, helperId, 'helperIds');
   ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
   const helperIds = checkHelpers(ctx, project.id, ownerId, input.helperIds ?? []);
   const id = nextId(ctx.state, 'tsk');
@@ -213,9 +239,9 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   if (prerequisiteIds.length > 0) task.prerequisiteIds = prerequisiteIds;
   ctx.state.tasks[id] = task;
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
   // A new open task in an earlier stage moves the project back, and that needs a reason.
-  watch.finish({ reason: input.reason });
+  watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
   touch(ctx, project.id);
   return task;
 }
@@ -236,6 +262,7 @@ export const tasksCreate = defineCall({
     flagged: z.boolean().default(false),
     needsReview: z.boolean().optional(),
     reason: StageBackReason,
+    logInTracker: LogInTracker,
   }),
   output: TaskDetail,
   run(input, ctx) {
@@ -248,7 +275,9 @@ export const tasksCreate = defineCall({
  * and its checklist with every item unticked. The stage must be the one the template was saved for. A dynamic template starts today.
  */
 export const tasksCreateFromTemplate = defineCall({
-  input: z.object({ templateId: TaskTemplateId, stageId: StageId, ownerId: UserId.optional(), helperIds: HelperIds.optional(), reason: StageBackReason }),
+  input: z.object({
+    templateId: TaskTemplateId, stageId: StageId, ownerId: UserId.optional(), helperIds: HelperIds.optional(), reason: StageBackReason, logInTracker: LogInTracker,
+  }),
   output: TaskDetail,
   run(input, ctx) {
     const template = taskTemplatesOf(ctx.state)[input.templateId];
@@ -261,7 +290,7 @@ export const tasksCreateFromTemplate = defineCall({
     const dynamic = template.schedule === 'dynamic';
     return detail(ctx, createTask(ctx, {
       projectId: stage.projectId, stageId: stage.id, ownerId: input.ownerId, helperIds: input.helperIds, title: template.name, description: template.description,
-      flagged: false, needsReview: template.needsReview, checklist: template.checklist, fromTemplate: true, reason: input.reason,
+      flagged: false, needsReview: template.needsReview, checklist: template.checklist, fromTemplate: true, reason: input.reason, logInTracker: input.logInTracker,
       ...(dynamic ? { schedule: 'dynamic' as const, durationDays: template.durationDays, startDate: ctx.today } : {}),
     }));
   },
@@ -300,6 +329,7 @@ export const tasksUpdate = defineCall({
       checklist: z.array(ChecklistItem).max(100).optional(),
     }),
     reason: StageBackReason,
+    logInTracker: LogInTracker,
     dateReason: DateReason,
   }),
   output: TaskDetail,
@@ -332,6 +362,9 @@ export const tasksUpdate = defineCall({
     const leadId = patch.ownerId ?? task.ownerId;
     if (patch.ownerId) ensureOnTeam(ctx, task.projectId, patch.ownerId, 'ownerId');
     const reassigned = patch.ownerId !== undefined && patch.ownerId !== task.ownerId;
+    // Only a person newly named must be active. A helper who left keeps their place on the task.
+    if (reassigned) assertActive(ctx, leadId, 'ownerId');
+    for (const helperId of patch.helperIds ?? []) if (!helpersOf(task).includes(helperId)) assertActive(ctx, helperId, 'helperIds');
     // A person who becomes the lead stops being a helper, so the lead is never in the list.
     const helperIds = patch.helperIds !== undefined
       ? checkHelpers(ctx, task.projectId, leadId, patch.helperIds)
@@ -352,10 +385,10 @@ export const tasksUpdate = defineCall({
     }
     applyPatch(ctx, task, changes, { projectId: task.projectId, verb: reassigned ? 'task.reassigned' : 'task.updated', targetType: 'task', targetId: task.id });
     // Moving an open task into an earlier stage moves the project back, and that needs a reason.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
     const told = [...(reassigned ? [task.ownerId] : []), ...added];
-    if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id });
+    if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
     touch(ctx, task.projectId);
     return detail(ctx, task);
   },
@@ -374,6 +407,7 @@ export const tasksNewVersion = defineCall({
     schedule: TaskSchedule.optional(),
     durationDays: DurationDays.nullable().optional(),
     dueDate: Day.nullable().optional(),
+    logInTracker: LogInTracker,
   }),
   output: TaskDetail,
   run(input, ctx) {
@@ -390,12 +424,12 @@ export const tasksNewVersion = defineCall({
     const watch = watchStage(ctx, task.projectId);
     const versions = task.versions.map((v) => (v.n === n - 1 ? { ...v, finishedAt: task.completedAt } : v));
     versions.push({ n, reason: input.reason, openedAt: ctx.stamp, openedBy: ctx.actor.id, finishedAt: null });
-    applyPatch(ctx, task, {
+    const opened = applyPatch(ctx, task, {
       status: 'todo', completedAt: null, version: n, versions, checklist: task.checklist.map((item) => ({ ...item, done: false })), ...whenChanges(task, when),
-    }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id });
-    reopenDependents(ctx, task);
+    }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id })!;
+    reopenDependents(ctx, task, opened.id);
     // The reason for the new version is also the reason the project moves back, when it does.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     addTrackerEntry(ctx, {
       projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
     });
@@ -403,6 +437,19 @@ export const tasksNewVersion = defineCall({
     return detail(ctx, task);
   },
 });
+
+/**
+ * A reviewer's Done on a task in review is an approval, by the Approve button, the status menu, the board or the tick: the same
+ * event and the same notice to the owner (audit 2026-10-03, PRJ-2).
+ */
+function approve(ctx: Ctx, task: Task): void {
+  const watch = watchStage(ctx, task.projectId);
+  changeStatus(ctx, task, 'done', 'task.approved');
+  watch.finish({ ask: false });
+  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+}
+
+const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
 
 export const tasksComplete = defineCall({
   input: z.object({ id: TaskId }),
@@ -412,6 +459,10 @@ export const tasksComplete = defineCall({
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
+    if (result === 'done' && reviews(ctx, task)) {
+      approve(ctx, task);
+      return { result, task: detail(ctx, task) };
+    }
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
     watch.finish({ ask: false });
@@ -420,16 +471,25 @@ export const tasksComplete = defineCall({
 });
 
 export const tasksMove = defineCall({
-  input: z.object({ id: TaskId, status: TaskStatus, reason: StageBackReason }),
+  input: z.object({ id: TaskId, status: TaskStatus, reason: StageBackReason, logInTracker: LogInTracker }),
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
+    if (result === 'done' && reviews(ctx, task)) {
+      approve(ctx, task);
+      return { result, task: detail(ctx, task) };
+    }
+    // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
+    // their own task back (audit 2026-10-03, PRJ-2).
+    if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
+      throw invalid('status', 'Use Send back and write a note for the lead.', 'review_send_back');
+    }
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
     // Opening a done task again (and the done tasks that need it) can move the project back, and that needs a reason.
-    watch.finish({ reason: input.reason });
+    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     return { result, task: detail(ctx, task) };
   },
 });
@@ -441,10 +501,7 @@ export const tasksApprove = defineCall({
     const task = requireTask(ctx, input.id);
     assertCan(ctx, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
-    const watch = watchStage(ctx, task.projectId);
-    changeStatus(ctx, task, 'done', 'task.approved');
-    watch.finish({ ask: false });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id });
+    approve(ctx, task);
     return detail(ctx, task);
   },
 });
@@ -460,7 +517,7 @@ export const tasksSendBack = defineCall({
     changeStatus(ctx, task, 'in_progress', 'task.sent_back');
     watch.finish({ ask: false });
     insertComment(ctx, 'task', task.id, task.projectId, input.note);
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id });
+    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
     return detail(ctx, task);
   },
 });

@@ -1,3 +1,4 @@
+import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
@@ -84,6 +85,14 @@ export const dashboardGet = defineCall({
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
+    // A project is out of design when its stage tag is the last stage of its OWN list. A rename of the office list, an Arabic
+    // list, or a name that only this project uses ("Site supervision") changes nothing (audit 2026-10-03, DSH-16, V-17).
+    // The last stage is the last one of the list (the highest order), not the last in time, because a stage with no dates yet sorts
+    // last in time. A project with one stage has no separate site stage, so it stays in design (audit 2026-10-03, V-17).
+    const onSite = (p: Project) => {
+      const own = stagesOf(state, p.id);
+      return own.length > 1 && tagOf(p)?.id === own[own.length - 1].id;
+    };
     const perStage = new Map<string, number>();
     for (const p of active) {
       const name = tagOf(p)?.name ?? '';
@@ -110,8 +119,9 @@ export const dashboardGet = defineCall({
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
     const workloadRows = humans.map((user) => {
+      // A person's tasks are the ones they lead or help on: the same rule as the Task list this number opens (audit PER-4).
       const counts = weeks.map((ws) => tasks.filter((t) =>
-        t.ownerId === user.id && t.status !== 'done' && t.dueDate !== null && t.dueDate >= ws && t.dueDate <= addDays(ws, 6) && activeIds.has(t.projectId)).length);
+        involves(t, user.id) && t.status !== 'done' && t.dueDate !== null && t.dueDate >= ws && t.dueDate <= addDays(ws, 6) && activeIds.has(t.projectId)).length);
       return { user: userCard(user), counts, over: counts.map((count) => count > limit) };
     });
 
@@ -121,7 +131,7 @@ export const dashboardGet = defineCall({
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        areaInDesign: active.filter((p) => tagOf(p)?.name !== 'Supervision').reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        areaInDesign: active.filter((p) => !onSite(p)).reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
       },
       charts: {
         projectsPerStage: [...perStage.entries()]
@@ -161,7 +171,9 @@ export const searchQuery = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state } = ctx;
-    const query = normalizeForSearch(input.text);
+    // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
+    const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
+    if (!query) return { projects: [], tasks: [], people: [], files: [] };
     const hit = (...parts: (string | undefined)[]) => normalizeForSearch(parts.filter(Boolean).join(' ')).includes(query);
     const codeOf = (projectId: string) => state.projects[projectId]?.code ?? '';
     return {

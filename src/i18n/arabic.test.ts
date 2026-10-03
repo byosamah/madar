@@ -26,6 +26,16 @@ describe('Arabic text', () => {
     expect(ar.dashboard.meeting.ifFinishesToday).toBe('عند انتهاء {{late}} اليوم، ينتقل موعد {{dependent}} بمقدار {{lateness}} إلى {{date}}.');
   });
 
+  it('uses one word for one state (audit 2026-10-03, V-19, V-25, V-28)', () => {
+    // A task past its due date is "تجاوزت موعدها", also on the switch of its notice; "تأخر" is the project health Late.
+    expect(ar.settings.triggers.overdue).toBe('تجاوز مهمتي موعدها');
+    // A dual subject takes a dual verb and pronoun.
+    expect(ar.dashboard.meeting.personLate_two).toBe('اثنتان تجاوزتا موعدهما');
+    // A person with active off is "غير نشط" in Admin and in the chat.
+    expect(ar.chat.inactive).toBe(ar.admin.inactive);
+    expect(ar.errors.reasons.person_left).toBe(ar.chat.closed);
+  });
+
   it('never uses the plain ar-SA calendar words for dates', () => {
     const hijri = values(ar).filter(([, text]) => /هـ|هجري/.test(text));
     expect(hijri).toEqual([]);

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
+import { formatDay } from '../../../lib/dates';
 import { renderApp } from '../../../test/render';
 import { openSummary } from './steps';
 
@@ -125,12 +126,61 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     expect(whats).toEqual([
       'made a change to “Kiosk lighting question”',
       'made a change to “Signage drawings”',
-      'added the task “Reply: Kiosk lighting question”',
+      // A new task reads as an action, with its person and due date, as the meeting panel lists it (audit 2026-10-03, F-18).
+      'Action: Reply: Kiosk lighting question · Khalid Al-Mutairi · Mon 5 Oct',
       'asked Khalid Al-Mutairi to reply to “Kiosk lighting question”',
       'marked “Signage drawings” as received',
       'made Khalid Al-Mutairi the lead of “Progress photos”',
       'changed the flag of “Progress photos”',
     ]);
+  });
+
+  // The summary said only "added the task", so the minutes lost who does an action and by when (audit 2026-10-03, F-18).
+  describe('an action names its person and its due date (audit 2026-10-03, F-18)', () => {
+    /** Adds an action for the project's lead, as the meeting panel does, then opens the summary. */
+    async function actionThenSummary(arabic = false) {
+      const rendered = await renderApp(MEETING, (state) => {
+        waitsForReview(state);
+        if (arabic) state.users.usr_001.preferences.language = 'ar';
+      });
+      await screen.findByRole('article');
+      const project = rendered.store.state.projects.prj_011;
+      await rendered.api.call('tasks.create', { projectId: 'prj_011', stageId: project.currentStageId, title: 'Update the permit tracker', ownerId: project.leaderId!, dueDate: '2026-10-06' });
+      if (arabic) {
+        await userEvent.click(screen.getByRole('button', { name: /^جدول الأعمال/ }));
+        await userEvent.click(within(await screen.findByRole('dialog', { name: 'جدول الأعمال' })).getByRole('button', { name: 'عرض ملخص الاجتماع' }));
+      } else {
+        await openSummary();
+      }
+      const summary = await screen.findByRole('region', { name: /^(Meeting summary|ملخص الاجتماع)$/ });
+      const group = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+      return { ...rendered, group, lead: rendered.store.state.users[project.leaderId!].name };
+    }
+
+    it('writes the action line as the panel does, in the summary, the table and the chat message', async () => {
+      const { store, group, lead } = await actionThenSummary();
+      const line = `Action: Update the permit tracker · ${lead} · Tue 6 Oct`;
+      const item = group.getByText(line).closest('li')!;
+      // The line reads as the panel shows it, so the name of the person who added it does not come first.
+      expect(item.textContent).toBe(`09:00${line}`);
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      await userEvent.click(screen.getByRole('button', { name: 'Copy as a table' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      // The Who column holds the person of the action, the same "Who" as the meeting form, not the person who added it (audit 2026-10-03, F-18).
+      expect(lead).not.toBe(store.state.users.usr_001.name);
+      expect((writeText.mock.calls[0][0] as string).split('\n')).toContain(`Shore Walk Retail Kiosks\t${lead}\t${line}\t09:00`);
+      const chat = Object.values(store.state.conversations).find((conversation) => conversation.kind === 'project' && conversation.projectId === 'prj_011')!;
+      await userEvent.click(screen.getByRole('button', { name: 'Share to the project chats' }));
+      await screen.findByText('The summary went to 1 chat.');
+      const message = Object.values(store.state.messages).filter((m) => m.conversationId === chat.id).at(-1)!;
+      expect(message.body.split('\n')).toEqual(['Meeting summary, Wed 30 Sept', line]);
+    });
+
+    it('writes the action line in Arabic', async () => {
+      const { group, lead } = await actionThenSummary(true);
+      expect(group.getByText(`إجراء: Update the permit tracker · ${lead} · ${formatDay('2026-10-06', 'ar', 'withWeekday')}`)).toBeInTheDocument();
+    });
   });
 
   it('posts once for two presses, and stays shared until the summary changes', async () => {
@@ -177,5 +227,73 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.getByRole('button', { name: /^Agenda 1 of 9/ })).toBeInTheDocument();
     expect(screen.queryByText('No changes in this meeting yet.')).toBeNull();
+  });
+});
+
+describe('the projects of the summary, and what went to the chats (audit 2026-10-03)', () => {
+  const idOf = (state: State, name: string) => Object.values(state.projects).find((project) => project.name === name)!.id;
+  const summariesIn = (state: State, projectId: string) => {
+    const chat = Object.values(state.conversations).find((item) => item.kind === 'project' && item.projectId === projectId)!;
+    return Object.values(state.messages).filter((message) => message.conversationId === chat.id && message.body.startsWith('Meeting summary'));
+  };
+
+  it('keeps a project that leaves the agenda in the meeting, with its decision (DSH-1)', async () => {
+    const { api } = await renderApp(MEETING, waitsForReview);
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Hand over the kiosks.', decision: true });
+    await api.call('projects.setStatus', { id: 'prj_011', status: 'completed' });
+    // The completed project leaves the agenda.
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'Shore Walk Retail Kiosks' })).toBeNull());
+    await openSummary();
+    const summary = await screen.findByRole('region', { name: 'Meeting summary' });
+    const project = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+    expect(project.getByText('wrote the decision “Hand over the kiosks.”')).toBeInTheDocument();
+    expect(within(summary).queryByText('No changes in this meeting yet.')).toBeNull();
+  });
+
+  it('remembers what went to the chats after Exit and a return, so Share does not post it again (DSH-4)', async () => {
+    const { store } = await approveThenSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    await waitFor(() => expect(summariesIn(store.state, 'prj_011')).toHaveLength(1));
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    await screen.findByRole('heading', { level: 1, name: 'Dashboard' });
+    window.location.hash = `#${MEETING}`;
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await openSummary();
+    expect(await screen.findByRole('button', { name: 'Shared to 1 chat' })).toBeDisabled();
+    expect(summariesIn(store.state, 'prj_011')).toHaveLength(1);
+  });
+
+  it('posts again only to the chat of a project whose lines changed (DSH-4)', async () => {
+    const { api, store } = await renderApp(MEETING, waitsForReview);
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    const corniche = idOf(store.state, 'Corniche Office Tower');
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Order the kiosk glass.', decision: true });
+    await api.call('updates.create', { projectId: corniche, body: 'Keep the lobby double height.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    expect(await screen.findByRole('button', { name: 'Shared to 2 chats' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await api.call('updates.create', { projectId: corniche, body: 'Use the glass rail.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    await waitFor(() => expect(summariesIn(store.state, corniche)).toHaveLength(2));
+    expect(summariesIn(store.state, 'prj_011')).toHaveLength(1);
+    expect(await screen.findByText('The summary went to 1 chat.')).toBeInTheDocument();
+  });
+
+  it('names the projects that did not get the summary (DSH-17)', async () => {
+    const { api, store } = await renderApp(MEETING, (state) => {
+      waitsForReview(state);
+      const corniche = idOf(state, 'Corniche Office Tower');
+      for (const [id, chat] of Object.entries(state.conversations)) if (chat.projectId === corniche) delete state.conversations[id];
+      for (const [id, message] of Object.entries(state.messages)) if (!state.conversations[message.conversationId]) delete state.messages[id];
+    });
+    await screen.findByRole('article', { name: 'Shore Walk Retail Kiosks' });
+    await api.call('updates.create', { projectId: 'prj_011', body: 'Order the kiosk glass.', decision: true });
+    await api.call('updates.create', { projectId: idOf(store.state, 'Corniche Office Tower'), body: 'Keep the lobby double height.', decision: true });
+    await openSummary();
+    await userEvent.click(await screen.findByRole('button', { name: 'Share to the project chats' }));
+    expect(await screen.findByText('The summary went to 1 chat. Not shared: Corniche Office Tower.')).toBeInTheDocument();
   });
 });

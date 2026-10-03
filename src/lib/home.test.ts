@@ -32,6 +32,19 @@ describe('Next for you', () => {
     expect(nextForYou({ ...base, mine: [doing] })).toMatchObject({ kind: 'continue', row: doing });
   });
 
+  // A helper cannot finish a task; only its lead can (owner decision C2). Home must not ask a helper to (audit PER-1).
+  it('never offers a task the person helps on but cannot finish, and never counts it in the day ring', () => {
+    const helping = { ...row('tsk_010', { dueDate: '2026-09-01', status: 'todo' }, true), canMove: false };
+    expect(nextForYou({ ...base, mine: [helping, today] })).toMatchObject({ kind: 'dueToday', row: today });
+    expect(dayRing([helping, today], TODAY)).toEqual({ done: 0, total: 1 });
+  });
+
+  // A task that waits for another task cannot move yet, so it is not the one next step (audit PER-2).
+  it('skips a task that waits for another task or a stage', () => {
+    const blocked = { ...row('tsk_011', { dueDate: '2026-09-01', status: 'todo' }, true), waitingFor: { tasks: [{ id: 'tsk_099', title: 'Survey' }], stages: [] } };
+    expect(nextForYou({ ...base, mine: [blocked, doing] })).toMatchObject({ kind: 'continue', row: doing });
+  });
+
   it('says all is done when nothing is left', () => {
     expect(nextForYou(base)).toEqual({ kind: 'clear' });
   });

@@ -11,11 +11,17 @@ import { actorContext, counted } from '../../../lib/grammar';
 import { plainText } from '../../../lib/text';
 import { toTsv } from '../../../lib/trackerExport';
 import { FEED_EVENT_VERBS, feedText } from '../../projects/feed';
+import { actionLine } from './actionLine';
 
-type Line = { id: string; who: string; what: string; time: string };
-/** The summary that went to the chats: its content, and the number of chats that took it. */
-export type SharedSummary = { content: string; count: number };
+/**
+ * `owner`: the person of an action. An action line reads on its own, with no name before it, as in the meeting panel.
+ * The Who column of the copied table holds this person, as the "Who" field of the meeting form does (audit 2026-10-03, F-18).
+ */
+type Line = { id: string; who: string; what: string; time: string; owner?: string };
 type Group = { projectId: string; name: string; lines: Line[] };
+
+/** The content of a project's lines, by their changes. A new change makes new content, which can go to the chat again. */
+const contentOf = (group: Group) => group.lines.map((line) => line.id).join(',');
 
 type Fields = Record<string, unknown>;
 const fieldsOf = (value: unknown): Fields => (value !== null && typeof value === 'object' ? (value as Fields) : {});
@@ -64,6 +70,11 @@ function sentenceOf({ event, actor, label, detail }: EventLineView, t: TFunction
   if (event.verb === 'task.reassigned') return t('dashboard.meeting.summary.leadChanged', { label, lead: detail.lead ?? '', context });
   if (event.verb === 'tracker.closed') return t(detail.waiting === 'client' ? 'dashboard.meeting.summary.received' : 'dashboard.meeting.summary.answered', { label, context });
   if (event.verb === 'tracker.reply_assigned') return t('dashboard.meeting.summary.replyAssigned', { label, person: detail.person ?? '', context });
+  // A new task is an action of the meeting. It names the person and the due date, as the meeting panel does (audit 2026-10-03, F-18).
+  if (event.verb === 'task.created') {
+    const dueDate = fieldsOf(event.after).dueDate;
+    return actionLine(t, lang, label, detail.lead ?? '', typeof dueDate === 'string' ? dueDate : null);
+  }
   if (FEED_EVENT_VERBS.has(event.verb)) {
     const item: FeedItem = { kind: 'event', id: event.id, at: event.createdAt, author: actor, verb: event.verb, targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: false };
     return feedText(item, t);
@@ -82,12 +93,14 @@ function reasonsOf(views: readonly EventLineView[]): Map<string, string> {
 }
 
 /**
- * The summary of the meeting: every change since the meeting started, for each project in agenda order.
+ * The summary of the meeting: every change since the meeting started, for each project of the meeting in agenda order.
+ * `agendaIds` holds every project of the meeting, also the ones that left the agenda, for example a project the meeting closed.
  * A project with no change does not show. The summary can be copied as a table, or posted to the chat of each project.
- * The meeting keeps what went to the chats, so the same summary goes there once, also after Back and Summary again.
+ * The meeting session keeps the lines that went to each chat (`shared`), so the same lines go there once, also after Exit or a reload.
  */
 export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, onBack }: {
-  agendaIds: string[]; names: ReadonlyMap<string, string>; startedAt: string; shared: SharedSummary | null; onShared: (shared: SharedSummary) => void; onBack: () => void;
+  agendaIds: readonly string[]; names: ReadonlyMap<string, string>; startedAt: string;
+  shared: Readonly<Record<string, string>>; onShared: (sent: Record<string, string>) => void; onBack: () => void;
 }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -95,6 +108,9 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
   const { api } = useRuntime();
   const events = useCall('events.list', { since: startedAt, limit: 500 });
   const chats = useCall('chats.list', {});
+  // A project that left the agenda has no row in the schedule, so its name comes from the list of every project.
+  const unnamed = agendaIds.some((id) => !names.has(id) && events.data?.some((view) => view.event.projectId === id));
+  const everyProject = useCall('projects.list', { status: 'all' }, { enabled: unnamed });
 
   const groups = useMemo<Group[]>(() => {
     const views = events.data ?? [];
@@ -110,15 +126,17 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
       if (sentence === null) continue;
       const reason = view.event.verb === 'task.updated' ? reasons.get(view.event.correlationId) : undefined;
       const what = reason ? t('dashboard.meeting.summary.withReason', { line: sentence, reason }) : sentence;
-      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: view.actor.name, what, time: view.event.createdAt.slice(11, 16) }]);
+      const owner = view.event.verb === 'task.created' ? view.detail.lead ?? '' : undefined;
+      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: view.actor.name, what, time: view.event.createdAt.slice(11, 16), owner }]);
     }
-    return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: names.get(id) ?? id, lines: byProject.get(id)! }));
-  }, [events.data, agendaIds, names, t, lang]);
+    const nameOf = (id: string) => names.get(id) ?? everyProject.data?.find((row) => row.project.id === id)?.project.name ?? id;
+    return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: nameOf(id), lines: byProject.get(id)! }));
+  }, [events.data, agendaIds, names, everyProject.data, t, lang]);
 
   const copy = async () => {
     const table = [
       [t('dashboard.meeting.summary.columns.project'), t('dashboard.meeting.summary.columns.who'), t('dashboard.meeting.summary.columns.what'), t('dashboard.meeting.summary.columns.time')],
-      ...groups.flatMap((group) => group.lines.map((line) => [group.name, line.who, line.what, line.time])),
+      ...groups.flatMap((group) => group.lines.map((line) => [group.name, line.owner ?? line.who, line.what, line.time])),
     ];
     try {
       await navigator.clipboard.writeText(toTsv(table));
@@ -131,35 +149,45 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
   const chatOf = (projectId: string) => chats.data?.find((row) => row.kind === 'project' && row.project?.id === projectId);
   // Share shows only when a project in the summary has a chat the viewer can see.
   const canShare = groups.some((group) => chatOf(group.projectId) !== undefined);
-  // The lines of the summary, by their changes. A new change makes new content, which can go to the chats again.
-  const content = groups.map((group) => `${group.projectId}:${group.lines.map((line) => line.id).join(',')}`).join(' ');
-  const isShared = shared !== null && shared.content === content;
+  // Only the projects whose lines changed since they last went to their chat go again (audit 2026-10-03, DSH-4).
+  const pending = groups.filter((group) => shared[group.projectId] !== contentOf(group));
+  const isShared = canShare && pending.every((group) => chatOf(group.projectId) === undefined);
+  const sharedCount = groups.filter((group) => chatOf(group.projectId) !== undefined && shared[group.projectId] === contentOf(group)).length;
   const [sharing, setSharing] = useState(false);
   const running = useRef(false);
 
-  // One message for each project with changes. A project whose chat the viewer cannot open or post in is skipped.
+  // One message for each project with new lines. A project whose chat the viewer cannot open or post in is skipped.
   // A second press while it runs, or after it went, does not post again.
   const share = async () => {
     if (running.current || isShared) return;
     running.current = true;
     setSharing(true);
     const date = formatDay(todayISO(), lang, 'withWeekday');
-    let sent = 0;
-    for (const group of groups) {
+    const sent: Record<string, string> = {};
+    const skipped: string[] = [];
+    for (const group of pending) {
       const chat = chatOf(group.projectId);
-      if (!chat) continue;
-      const body = [t('dashboard.meeting.summary.shareTitle', { date }), ...group.lines.map((line) => `${line.who} ${line.what}`)].join('\n');
+      if (!chat) {
+        skipped.push(group.name);
+        continue;
+      }
+      const body = [t('dashboard.meeting.summary.shareTitle', { date }), ...group.lines.map((line) => (line.owner !== undefined ? line.what : `${line.who} ${line.what}`))].join('\n');
       try {
         await api.call('chats.send', { conversationId: chat.id, body });
-        sent += 1;
+        sent[group.projectId] = contentOf(group);
       } catch {
         // The chat refused the message, so this project is skipped like a project with no chat.
+        skipped.push(group.name);
       }
     }
     running.current = false;
     setSharing(false);
-    if (sent > 0) onShared({ content, count: sent });
-    toast.show({ message: sent === 0 ? t('dashboard.meeting.summary.sharedNone') : counted(t, 'dashboard.meeting.summary.shared', sent) });
+    const count = Object.keys(sent).length;
+    if (count > 0) onShared(sent);
+    // The toast names the projects that got nothing, so nobody thinks the minutes reached every project (audit 2026-10-03, DSH-17).
+    const parts = [count === 0 ? t('dashboard.meeting.summary.sharedNone') : counted(t, 'dashboard.meeting.summary.shared', count)];
+    if (skipped.length > 0) parts.push(t('dashboard.meeting.summary.notShared', { list: new Intl.ListFormat(localeFor(lang), { type: 'conjunction' }).format(skipped) }));
+    toast.show({ message: parts.join(' ') });
   };
 
   return (
@@ -176,7 +204,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
             <Button onClick={() => void copy()}>{t('dashboard.meeting.summary.copy')}</Button>
             {canShare && (
               <Button variant="primary" disabled={sharing || isShared} onClick={() => void share()}>
-                {isShared ? counted(t, 'dashboard.meeting.summary.sharedButton', shared.count) : t('dashboard.meeting.summary.share')}
+                {isShared ? counted(t, 'dashboard.meeting.summary.sharedButton', sharedCount) : t('dashboard.meeting.summary.share')}
               </Button>
             )}
           </>
@@ -190,7 +218,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
             {group.lines.map((line) => (
               <li key={line.id} className="flex items-baseline gap-3 text-[18px]">
                 <bdi dir="ltr" className="tabular w-12 shrink-0 text-ink-2">{line.time}</bdi>
-                <span className="min-w-0 flex-1"><bdi className="font-semibold text-ink">{line.who}</bdi> <span className="text-ink-2">{line.what}</span></span>
+                <span className="min-w-0 flex-1">{line.owner === undefined && <><bdi className="font-semibold text-ink">{line.who}</bdi> </>}<span className="text-ink-2">{line.what}</span></span>
               </li>
             ))}
           </ul>

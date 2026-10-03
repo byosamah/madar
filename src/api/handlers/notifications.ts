@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
+import { Day, Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
@@ -10,9 +10,9 @@ import { can, projectRoleOf } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 
-/** The Inbox badge counts only unread items of these kinds (spec 3.2). */
+/** The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
-  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back',
+  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due',
 ]);
 
 export const NotificationView = z.object({
@@ -27,6 +27,8 @@ export const NotificationView = z.object({
   canApprove: z.boolean(),
   /** The task, post or project is deleted. The sentence keeps its last name, and there is nothing to open. */
   gone: z.boolean(),
+  /** The due day a reminder names, so the screen writes the day, never "tomorrow" (audit 2026-10-03, API-11). Null for other notices. */
+  dueDate: Day.nullable(),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
@@ -52,6 +54,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let link = '/notifications';
   let canApprove = false;
   let gone = false;
+  let dueDate: string | null = null;
   if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
     const copy: Copy | null = task ?? deletedCopy(state, 'task', n.targetId);
@@ -61,6 +64,8 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !task;
     if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
+    // A reminder saved before it kept its day names the due day of the task.
+    if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
       && can(viewer, 'task.review', { projectRole: projectRoleOf(state, task.projectId, viewer.id) });
   } else if (n.targetType === 'update') {
@@ -75,8 +80,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   } else if (n.targetType === 'chat') {
     const conversation = state.conversations[n.targetId];
     const project = conversation?.projectId ? state.projects[conversation.projectId] : undefined;
-    const otherId = conversation?.memberIds.find((id) => id !== viewer.id);
-    target = project?.name ?? (otherId ? (state.users[otherId]?.name ?? '') : '');
+    // A direct chat has no name of its own, and its other member is the sender, so the target stays empty and the
+    // screen says "a direct message" (audit 2026-10-03, SHL-14).
+    target = project?.name ?? '';
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     gone = !conversation || !canSeeConversation(state, conversation, viewer);
@@ -92,7 +98,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate,
   };
 }
 
@@ -100,7 +106,9 @@ const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => 
 
 function counts(ctx: Ctx): { unread: number; badge: number } {
   const unread = mine(ctx).filter((n) => !n.read);
-  return { unread: unread.length, badge: unread.filter((n) => ACTION_TRIGGERS.has(n.trigger)).length };
+  // A notice of a deleted item has nothing to open and nothing to do, so the badge leaves it out (audit 2026-10-03, SHL-12).
+  const badge = unread.filter((n) => ACTION_TRIGGERS.has(n.trigger) && !viewOf(ctx.state, n, ctx.authority).gone);
+  return { unread: unread.length, badge: badge.length };
 }
 
 export const notificationsList = defineCall({
@@ -108,10 +116,14 @@ export const notificationsList = defineCall({
   output: z.array(NotificationView),
   readOnly: true,
   run(input, ctx) {
-    return mine(ctx)
+    const sorted = mine(ctx)
       .filter((n) => !input.unreadOnly || !n.read)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
-      .slice(0, input.limit)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+    // Every unread notice shows, so the bell never counts one that the list hides. The newest read ones fill the rest
+    // of the limit, and the list keeps its order by time (audit 2026-10-03, SHL-13).
+    let room = Math.max(0, input.limit - sorted.filter((n) => !n.read).length);
+    return sorted
+      .filter((n) => !n.read || room-- > 0)
       .map((n) => viewOf(ctx.state, n, ctx.authority));
   },
 });
@@ -148,6 +160,23 @@ export const notificationsMarkAllRead = defineCall({
   },
 });
 
+/** Marks my notices unread again: the Undo of "Mark all read" (audit 2026-10-03, SHL-16). A notice that is gone by now is skipped. */
+export const notificationsMarkUnread = defineCall({
+  input: z.object({ ids: z.array(NotificationId).min(1).max(200) }),
+  output: Counts,
+  run(input, ctx) {
+    for (const id of input.ids) {
+      const n = ctx.state.notifications[id];
+      if (n && n.userId !== ctx.authority.id) throw forbidden('This notification belongs to someone else.');
+    }
+    for (const id of input.ids) {
+      const n = ctx.state.notifications[id];
+      if (n) n.read = false;
+    }
+    return counts(ctx);
+  },
+});
+
 export const notificationsUpdateSettings = defineCall({
   input: z.object({ trigger: Trigger, on: z.boolean() }),
   output: User,
@@ -164,5 +193,6 @@ export const notificationCalls = {
   'notifications.count': notificationsCount,
   'notifications.markRead': notificationsMarkRead,
   'notifications.markAllRead': notificationsMarkAllRead,
+  'notifications.markUnread': notificationsMarkUnread,
   'notifications.updateSettings': notificationsUpdateSettings,
 };

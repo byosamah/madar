@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_PREREQUISITES } from '../../../api/contract/entities';
 import type { TaskDetail } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
+import { Button } from '../../../components/Button';
 import { SelectField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { formatDay } from '../../../lib/dates';
@@ -30,6 +33,7 @@ function Line({ title, status, onRemove, removeLabel }: { title: string; status:
 /**
  * "Needs first": the tasks of this project that must be done before this one can be finished. The leader and the Admin change the list;
  * everyone else reads it. "Unlocks": the tasks that need this one, read only (owner, 2026-10-02). The server checks cycles and the limit.
+ * An empty list does not show. The leader gets one "Add a task it needs first" press instead (audit 2026-10-03, PRJ-8).
  */
 export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEdit: boolean; onChange: (prerequisiteIds: string[]) => void }) {
   const { t } = useTranslation();
@@ -39,13 +43,22 @@ export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEd
   // A task that waits for this one cannot also be needed first: the server would refuse it as a cycle.
   const blocked = new Set([task.id, ...ids, ...unlocks.map((unlock) => unlock.id)]);
   const choices = (project.data ?? []).filter((row) => !blocked.has(row.task.id));
-  if (!canEdit && needsFirst.length === 0 && unlocks.length === 0) return null;
+  const [adding, setAdding] = useState(false);
+  const canAdd = canEdit && ids.length < MAX_PREREQUISITES && choices.length > 0;
+  const showNeeds = needsFirst.length > 0 || (adding && canEdit);
+  if (!showNeeds && unlocks.length === 0 && !canAdd) return null;
   return (
     <>
-      {(canEdit || needsFirst.length > 0) && (
+      {!showNeeds && canAdd && (
+        <Button variant="plain" className="-ms-3 self-start" onClick={() => setAdding(true)}>
+          <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
+          {t('taskSheet.addNeed')}
+        </Button>
+      )}
+      {showNeeds && (
         <section aria-labelledby="task-needs" className="flex flex-col gap-1">
           <h3 id="task-needs" className="text-headline">{t('taskSheet.needsFirst')}</h3>
-          {needsFirst.length === 0 ? <p className="text-footnote text-label-2">{t('taskSheet.noNeeds')}</p> : <p className="text-footnote text-label-2">{t('taskSheet.needsFirstHint')}</p>}
+          {needsFirst.length > 0 && <p className="text-footnote text-label-2">{t('taskSheet.needsFirstHint')}</p>}
           <ul>
             {needsFirst.map((need) => (
               <Line
@@ -57,10 +70,11 @@ export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEd
               />
             ))}
           </ul>
-          {canEdit && ids.length < MAX_PREREQUISITES && choices.length > 0 && (
+          {canAdd && (
             <SelectField
               id="task-add-need"
               label={t('taskSheet.addNeed')}
+              autoFocus={adding && needsFirst.length === 0}
               value=""
               onChange={(event) => {
                 if (event.target.value) onChange([...ids, event.target.value]);
@@ -72,11 +86,13 @@ export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEd
           )}
         </section>
       )}
-      <section aria-labelledby="task-unlocks" className="flex flex-col gap-1">
-        <h3 id="task-unlocks" className="text-headline">{t('taskSheet.unlocks')}</h3>
-        {unlocks.length === 0 ? <p className="text-footnote text-label-2">{t('taskSheet.noUnlocks')}</p> : <p className="text-footnote text-label-2">{t('taskSheet.unlocksHint')}</p>}
-        <ul>{unlocks.map((unlock) => <Line key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
-      </section>
+      {unlocks.length > 0 && (
+        <section aria-labelledby="task-unlocks" className="flex flex-col gap-1">
+          <h3 id="task-unlocks" className="text-headline">{t('taskSheet.unlocks')}</h3>
+          <p className="text-footnote text-label-2">{t('taskSheet.unlocksHint')}</p>
+          <ul>{unlocks.map((unlock) => <Line key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
+        </section>
+      )}
     </>
   );
 }

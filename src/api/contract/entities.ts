@@ -38,9 +38,10 @@ export type Theme = z.infer<typeof Theme>;
 export const Glass = z.enum(['clear', 'frosted', 'solid']);
 export type Glass = z.infer<typeof Glass>;
 
+// "resume_due": a paused project reached its planned restart day (audit 2026-10-03, API-18).
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
-  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project',
+  'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
@@ -253,6 +254,8 @@ export const DateNote = z.object({
   at: Stamp,
   byTaskId: TaskId.optional(),
   lateDays: z.number().int().min(1).optional(),
+  /** The due day of the finished task that this move was made for. A later move takes this one off only for the same due day (audit 2026-10-03, V-3). */
+  forDueDate: Day.optional(),
 });
 export type DateNote = z.infer<typeof DateNote>;
 
@@ -386,7 +389,8 @@ export const Message = z.object({
 export type Message = z.infer<typeof Message>;
 
 /** When a person last read a conversation. */
-export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
+/** One read mark. The conversation is a chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5). */
+export const ChatRead = z.object({ conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
 
 export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady', 'other'] as const;
@@ -419,8 +423,11 @@ export const TrackerEntry = z.object({
   auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
-  /** The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads. */
-  replyTaskId: TaskId.optional(),
+  /**
+   * The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads.
+   * Null when the entry stopped waiting while its reply task could not finish yet (audit 2026-10-03, V-13).
+   */
+  replyTaskId: TaskId.nullable().optional(),
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
 
@@ -491,6 +498,10 @@ export const Notification = z.object({
   read: z.boolean(),
   createdAt: Stamp,
   dedupeKey: z.string().nullable(),
+  /** The story of the change that made the notice, so an Undo of the whole story takes the notice back. Optional, so older notices load. */
+  correlationId: z.string().min(1).max(80).optional(),
+  /** The due day a reminder names, so its words say the day, never "tomorrow" (audit 2026-10-03, API-11). Optional, so older notices load. */
+  dueDate: Day.optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 
@@ -509,6 +520,12 @@ export const Event = z.object({
   after: z.unknown(),
   createdAt: Stamp,
   undoneBy: EventId.nullable(),
+  /**
+   * For a change that Madar makes because of another change (a task that opens again, a date that moves): the change that caused it.
+   * A story Undo takes it back on the right of its cause only when the cause is in the same story (audit 2026-10-03, V-2).
+   * Optional, so older events load.
+   */
+  causeEventId: EventId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 

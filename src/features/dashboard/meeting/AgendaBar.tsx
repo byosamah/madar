@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../../../app/toasts';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PauseIcon } from '../../../components/icons/animated/pause';
 import { PlayIcon } from '../../../components/icons/animated/play';
@@ -47,9 +48,26 @@ export function AgendaButton({ session, showPosition, onOpenAgenda }: { session:
 }
 
 /** The timer, Done and Skip of the project on the screen. When every project is discussed, it shows that and offers the summary. */
-export function AgendaBar({ session, onOpenSummary }: { session: MeetingSession; onOpenSummary: () => void }) {
+export function AgendaBar({ session, name, onOpenSummary }: { session: MeetingSession; name: string; onOpenSummary: () => void }) {
   const { t } = useTranslation();
+  const toast = useToast();
   const { currentId } = session;
+  // One wrong press of Done must have a way back, so the toast offers Undo (audit 2026-10-03, DSH-10).
+  const done = () => {
+    if (!currentId) return;
+    const wasDiscussed = session.discussed.has(currentId);
+    session.done();
+    toast.show({ message: t('dashboard.meeting.discussedToast', { name }), action: { label: t('common.undo'), run: () => session.undoDone(currentId, wasDiscussed), isUndo: true } });
+  };
+  // Skip moved the project quietly to the end, so a wrong press looked like a lost project. The toast says where it went
+  // and Undo puts it back in its place (audit 2026-10-03, F-21).
+  const skip = () => {
+    if (!currentId) return;
+    const index = session.meetingIds.indexOf(currentId);
+    const wasSkipped = session.skipped.has(currentId);
+    session.skip();
+    toast.show({ message: t('dashboard.meeting.skippedToast', { name }), action: { label: t('common.undo'), run: () => session.undoSkip(currentId, index, wasSkipped), isUndo: true } });
+  };
   return (
     <>
       {session.allDiscussed ? (
@@ -60,8 +78,8 @@ export function AgendaBar({ session, onOpenSummary }: { session: MeetingSession;
       ) : currentId && (
         <>
           <Timer id={currentId} minutes={session.minutes} running={session.running} paused={session.paused} elapsedFor={session.elapsedFor} onToggle={session.togglePause} />
-          <Button variant="primary" onClick={session.done}>{t('dashboard.meeting.done')}</Button>
-          <Button onClick={session.skip}>{t('dashboard.meeting.skip')}</Button>
+          <Button variant="primary" onClick={done}>{t('dashboard.meeting.done')}</Button>
+          <Button onClick={skip}>{t('dashboard.meeting.skip')}</Button>
         </>
       )}
     </>

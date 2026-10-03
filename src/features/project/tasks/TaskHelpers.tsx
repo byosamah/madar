@@ -6,10 +6,11 @@ import { XIcon } from '../../../components/icons/animated/x';
 import { Avatar } from '../../../components/Avatar';
 import { SelectField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
+import { actorContext } from '../../../lib/grammar';
 
-/** A person as a choice. Someone outside the team joins it when picked, and the choice says so. */
-export function personOption(person: Pick<User, 'id' | 'name'>, onTeam: boolean, t: ReturnType<typeof useTranslation>['t']): string {
-  return onTeam ? person.name : t('taskSheet.joinsTeam', { name: person.name });
+/** A person as a choice. Someone outside the team joins it when picked, and the choice says so. The Arabic verb agrees with a woman (audit 2026-10-03, PRJ-11). */
+export function personOption(person: Pick<User, 'id' | 'name' | 'gender'>, onTeam: boolean, t: ReturnType<typeof useTranslation>['t']): string {
+  return onTeam ? person.name : t('taskSheet.joinsTeam', { name: person.name, context: actorContext(person) });
 }
 
 /**

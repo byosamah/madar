@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -18,6 +18,40 @@ describe('comments', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(Object.values(store.state.comments).some((c) => c.body === 'Checked with @[Khalid Al-Mutairi](usr_008)')).toBe(true));
     expect(await within(sheet).findByText('@Khalid Al-Mutairi')).toBeInTheDocument();
+  });
+
+  // A half-written comment survives a closed panel, for example Focus mode or another task row (audit PER-11).
+  it('keeps a half-written comment when the panel closes and opens again', async () => {
+    const { router } = await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Half a thought');
+    await router.navigate('/projects/prj_001?tab=tasks');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await router.navigate(TASK('tsk_007'));
+    const again = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await within(again).findByRole('textbox', { name: 'Add a comment' })).toHaveValue('Half a thought');
+  });
+
+  it('shows the next person no half-written comment of the person before, after Preview as (audit 2026-10-03, V-22)', async () => {
+    const { api } = await renderApp(TASK('tsk_007'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Only for Hala');
+    await act(async () => { await api.call('session.previewAs', { userId: 'usr_002' }); });
+    await waitFor(() => expect(within(screen.getByRole('dialog', { name: 'Stair details' })).getByRole('textbox', { name: 'Add a comment' })).toHaveValue(''));
+  });
+
+  it('reads the Inbox thread of the task when its comments show in the task panel (audit 2026-10-03, SHL-5)', async () => {
+    const { store, api } = await renderApp(TASK('tsk_007'), (state) => {
+      state.session.currentUserId = 'usr_006';
+      state.comments.cmt_901 = {
+        id: 'cmt_901', targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: 'Please check the landing.',
+        reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T08:00:00.000+03:00', editedAt: null,
+      };
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await within(sheet).findByText('Please check the landing.')).toBeInTheDocument();
+    await waitFor(() => expect(Object.values(store.state.chatReads).some((r) => r.conversationId === 'tsk_007' && r.userId === 'usr_006')).toBe(true));
+    expect((await api.call('chats.list', {})).find((row) => row.id === 'tsk_007')?.unread).toBe(0);
   });
 
   it('attaches a file to a task comment and shows it as a chip', async () => {

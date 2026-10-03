@@ -37,7 +37,8 @@ export function PersonMenu({ id }: { id: string }) {
   // One press switches between light and dark. Settings keeps the third choice, System.
   const dark = resolveAppearance(user.preferences, readEnvironment()).theme === 'dark';
   const ThemeIcon = dark ? SunIcon : MoonIcon;
-  const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-body text-ink hover:bg-fill';
+  // A button centres its text by default. text-start keeps a label on two lines next to its icon (audit 2026-10-03, F-6).
+  const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-start text-body text-ink hover:bg-fill';
   return (
     <>
       <button ref={ref} type="button" aria-label={user.name} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="pressable grid size-11 place-items-center rounded-full">
@@ -54,7 +55,8 @@ export function PersonMenu({ id }: { id: string }) {
           </div>
           <PreviewAs id={`preview-as-${id}`} />
           <nav aria-label={user.name} className="-mx-2 flex flex-col">
-            <button type="button" onClick={() => { setOpen(false); switchLanguage(nextLanguage); }} className={row}>
+            {/* close() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3). */}
+            <button type="button" onClick={() => { close(); switchLanguage(nextLanguage); }} className={row}>
               <AnimatedIcon icon={LanguagesIcon} size={18} className="text-ink-2" aria-hidden />
               {t(`settings.languages.${nextLanguage}`)}
             </button>
@@ -72,7 +74,8 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
             </Link>
-            <button type="button" onClick={() => { setOpen(false); setFeedback(true); }} className={row}>
+            {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
+            <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>
               <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
               {t('feedback.menu')}
             </button>

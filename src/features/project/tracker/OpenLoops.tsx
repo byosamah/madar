@@ -11,11 +11,12 @@ import { ageText } from './marks';
 /** One open loop: the title, its age and one button to close it. The Overview shows the client's open loops too. */
 export function Loop({ row, onOpen, compact = false }: { row: TrackerRow; onOpen: () => void; compact?: boolean }) {
   const { t } = useTranslation();
-  const close = useUndoable('tracker.close', { message: () => t('tracker.closedToast') });
+  // The toast uses the word of the button and the state: Answered or Received (audit 2026-10-03, BRW-15).
+  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const action = t(row.entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
   return (
     <li className="flex min-h-14 items-center gap-3">
-      <button type="button" onClick={onOpen} aria-label={t('tracker.openEntry', { title: row.entry.title })} className="pressable min-w-0 flex-1 rounded-lg py-2 text-start hover:bg-fill">
+      <button type="button" data-entry={row.entry.id} onClick={onOpen} aria-label={t('tracker.openEntry', { title: row.entry.title })} className="pressable min-w-0 flex-1 rounded-lg py-2 text-start hover:bg-fill">
         {/* Two lines and the age under it, so a phone shows the whole question (owner review, 2026-10-01). */}
         <bdi className={`line-clamp-2 ${compact ? 'text-subheadline' : 'text-body'}`}>{row.entry.title}</bdi>
         <span className="tabular block text-footnote text-ink-2">{ageText(t, ageInDays(row.entry.date, todayISO()))}</span>

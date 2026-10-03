@@ -23,9 +23,15 @@ export const HealthResult = z.object({
   setBy: UserId.nullable(),
 });
 
+/** A file that a comment, a post or a message carries. A null name means the file was deleted. */
+export const Attachment = z.object({ id: FileId, name: z.string().nullable() });
+export type Attachment = z.infer<typeof Attachment>;
+
 export const FeedItem = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('update'), id: UpdateId, at: Stamp, author: UserCard, body: z.string(), fileIds: z.array(FileId),
+    // The files with their names, as comments carry them, so a post can open its files (audit 2026-10-03, PRJ-6).
+    attachments: z.array(Attachment),
     editedAt: Stamp.nullable(), commentCount: z.number().int().min(0), canEdit: z.boolean(), decision: z.literal(true).optional(),
   }),
   z.object({
@@ -85,6 +91,8 @@ export type TeamRow = z.infer<typeof TeamRow>;
 export const ProjectDetail = ProjectSummary.extend({
   members: z.array(z.object({
     user: UserCard, discipline: z.string(), isLeader: z.boolean(), openTasks: z.number().int().min(0),
+    /** False for a person who is no longer active. The API refuses that person for a task or a reply, so pick lists leave them out (audit 2026-10-03, V-4a). */
+    active: z.boolean(),
   })),
   deadlines: z.array(Deadline),
 });
@@ -138,10 +146,6 @@ export const TaskDetail = TaskRow.extend({
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
 
-/** A file that a comment or a message carries. A null name means the file was deleted. */
-export const Attachment = z.object({ id: FileId, name: z.string().nullable() });
-export type Attachment = z.infer<typeof Attachment>;
-
 export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment) });
 export type CommentView = z.infer<typeof CommentView>;
 
@@ -158,6 +162,8 @@ export const ChatRow = z.object({
   previewMine: z.boolean(),
   lastAt: Stamp,
   unread: z.number().int().min(0),
+  /** A direct chat whose other person left the office. It takes no new messages (audit 2026-10-03, SHL-15). */
+  personLeft: z.boolean(),
 });
 export type ChatRow = z.infer<typeof ChatRow>;
 
@@ -179,7 +185,8 @@ export const ChatThread = z.object({
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 
-export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard });
+/** "canDelete" comes from the same rule as files.delete, so the screen never keeps a rule of its own (audit 2026-10-03, PRJ-16). */
+export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard, canDelete: z.boolean() });
 export type FileView = z.infer<typeof FileView>;
 
 /** One tracker entry as a screen reads it, with the people and files named and the rights of the viewer. */
@@ -189,8 +196,8 @@ export const TrackerRow = z.object({
   closedBy: UserCard.nullable(),
   people: z.array(UserCard),
   files: z.array(Attachment),
-  /** The reply task of the entry, or null when it has none (or the task was deleted). */
-  replyTask: z.object({ id: TaskId, status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
+  /** The reply task of the entry, or null when it has none (or the task was deleted). The title lets the sheet name it (audit 2026-10-03, F-11). */
+  replyTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
   canClose: z.boolean(),
   canEdit: z.boolean(),
   canDelete: z.boolean(),

@@ -7,12 +7,19 @@ export type NextItem =
 
 /** Open means the person can still act on it: not done, and not waiting for a leader's review. */
 const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status === 'in_progress';
+/**
+ * Home asks a person only for what they can finish: a task they lead (a helper cannot finish it, owner decision C2) that waits
+ * for no other task or stage (audit 2026-10-03, PER-1 and PER-2). Helper tasks stay on the Tasks screen.
+ */
+const mayFinish = (row: TaskRow) => row.canMove;
+const free = (row: TaskRow) => row.waitingFor.tasks.length === 0 && row.waitingFor.stages.length === 0;
 const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
 
 /** The one thing for Home's card (redesign spec 3.2). The first match wins. */
 export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: string }): NextItem {
-  const { review, mine, today } = input;
+  const { review, today } = input;
   if (review.length > 0) return { kind: 'review', row: review[0] };
+  const mine = input.mine.filter((row) => mayFinish(row) && free(row));
   const pastDue = mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate < today).sort(byDue);
   if (pastDue.length > 0) return { kind: 'pastDue', row: pastDue[0] };
   const dueToday = mine.find((row) => open(row) && row.task.dueDate === today);
@@ -24,14 +31,15 @@ export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: s
 
 /** My open tasks that today asks for: due today or past due. */
 export function dueByToday(mine: TaskRow[], today: string): TaskRow[] {
-  return mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate <= today).sort(byDue);
+  return mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate <= today).sort(byDue);
 }
 
 /**
  * The day ring (redesign spec 5.2): what today asks of me, and how much of it I finished.
  * A task I sent to review is finished from my side, so it fills the ring too; otherwise a member who ticks a task sees the ring shrink.
  */
-export function dayRing(mine: TaskRow[], today: string): { done: number; total: number } {
+export function dayRing(all: TaskRow[], today: string): { done: number; total: number } {
+  const mine = all.filter(mayFinish);
   const doneToday = mine.filter((row) => row.task.status === 'done' && row.task.completedAt !== null && stampDay(row.task.completedAt) === today).length;
   const waiting = mine.filter((row) => row.task.status === 'in_review' && row.task.dueDate !== null && row.task.dueDate <= today).length;
   const done = doneToday + waiting;

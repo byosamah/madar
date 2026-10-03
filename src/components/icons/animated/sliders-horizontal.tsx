@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/sliders-horizontal.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/sliders-horizontal.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each line, so every animated attribute has a start value. With no start value, a re-render in the
+// same moment as the first animation wrote x1="undefined" and x2="undefined" (12 console errors) (audit 2026-10-03, V-31).
 import type { Transition } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -80,7 +82,7 @@ const SlidersHorizontalIcon = forwardRef<
       >
         <motion.line
           animate={controls}
-          initial={false}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -97,6 +99,7 @@ const SlidersHorizontalIcon = forwardRef<
         />
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -114,6 +117,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -131,6 +135,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -148,6 +153,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -165,6 +171,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -182,6 +189,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -201,6 +209,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {
@@ -220,6 +229,7 @@ const SlidersHorizontalIcon = forwardRef<
 
         <motion.line
           animate={controls}
+          initial="normal"
           transition={DEFAULT_TRANSITION}
           variants={{
             normal: {

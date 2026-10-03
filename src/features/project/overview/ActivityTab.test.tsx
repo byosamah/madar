@@ -18,6 +18,14 @@ describe('the Activity tab', () => {
     expect(screen.getByText(/Next deadline: Stage submission, today\./)).toBeInTheDocument();
   });
 
+  it('names the files of a post from the feed alone, with no call for the file list (audit 2026-10-03, V-20)', async () => {
+    const names: string[] = [];
+    await renderApp(PROJECT, undefined, { failFirst: (name) => { names.push(name); return false; } });
+    await screen.findByText(/I uploaded revision B/);
+    expect(names).toContain('updates.list');
+    expect(names).not.toContain('files.list');
+  });
+
   it('filters the feed to posts', async () => {
     const { api } = await renderApp(PROJECT);
     await screen.findByText(/I uploaded revision B/);

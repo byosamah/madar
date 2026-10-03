@@ -12,10 +12,10 @@ import { TaskRowItem } from './TaskRowItem';
 import { TemplateMenu } from './TemplateMenu';
 
 /** "Add a task" at the top of a group. Enter creates it. The owner is the creator and the stage is the group's (spec 5.3). */
-function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
+function QuickAdd({ projectId, stage, canLog }: { projectId: string; stage: Stage; canLog: boolean }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
-  const back = useStageBack();
+  const back = useStageBack(canLog);
   const create = useAction('tasks.create', {
     onSuccess: () => setTitle(''),
     onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
@@ -26,7 +26,7 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
       className="flex items-center gap-3 px-4"
       onSubmit={(event) => {
         event.preventDefault();
-        if (title.trim()) create.mutate({ projectId, stageId: stage.id, title: title.trim() });
+        if (title.trim() && !create.isPending) create.mutate({ projectId, stageId: stage.id, title: title.trim() });
       }}
     >
       <AnimatedIcon icon={PlusIcon} size={18} className="shrink-0 text-label-3" aria-hidden />
@@ -35,11 +35,13 @@ function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
         placeholder={t('tasks.addTask')}
         value={title}
         dir="auto"
-        disabled={create.isPending}
+        // Read only, not disabled, while it saves: a disabled field loses the focus, and the next title would go nowhere (audit 2026-10-03, BRW-11).
+        readOnly={create.isPending}
+        aria-busy={create.isPending || undefined}
         onChange={(event) => setTitle(event.target.value)}
         className="min-h-11 min-w-0 flex-1 bg-transparent text-body text-label placeholder:text-label-2"
       />
-      <TemplateMenu stage={stage} />
+      <TemplateMenu stage={stage} canLog={canLog} />
     </form>
     {back.sheet}
     </>
@@ -63,7 +65,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
             <h3 id={`stage-${stage.id}`} dir="auto" className="text-headline">{stage.name}</h3>
             <span className="tabular text-footnote text-label-2">{t('tasks.count', { n: stageRows.length })}</span>
           </header>
-          {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} />}
+          {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} canLog={detail.viewerCan.post} />}
           <ul>
             <AnimatePresence initial={false}>
               {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={onOpen} />)}

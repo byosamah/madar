@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import type { UserCard } from '../../../api/contract/views';
@@ -48,6 +48,24 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
     },
   });
 
+  // The type picker is one radio group: one Tab stop, and the arrow keys move the choice (audit 2026-10-03, PRJ-25).
+  const typeButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  const pickType = (value: TrackerType) => {
+    setType(value);
+    setDirection(sideForType(value, direction));
+    setWait(false);
+  };
+  const onTypeKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const rtl = document.documentElement.dir === 'rtl';
+    const forward = event.key === 'ArrowDown' || event.key === (rtl ? 'ArrowLeft' : 'ArrowRight');
+    const backward = event.key === 'ArrowUp' || event.key === (rtl ? 'ArrowRight' : 'ArrowLeft');
+    if (!forward && !backward) return;
+    event.preventDefault();
+    const next = (index + (forward ? 1 : -1) + TRACKER_TYPES.length) % TRACKER_TYPES.length;
+    pickType(TRACKER_TYPES[next]);
+    typeButtons.current[next]?.focus();
+  };
+
   const sides = sidesOf(type);
   const needsReply = wait && waitingFor(direction) === 'us';
   const who = replier || (members.some((member) => member.id === me) ? me : members[0]?.id) || '';
@@ -96,17 +114,18 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
         <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>
       </div>
       <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-5 gap-1.5">
-        {TRACKER_TYPES.map((value) => (
+        {TRACKER_TYPES.map((value, index) => (
           <button
             key={value}
+            ref={(node) => {
+              typeButtons.current[index] = node;
+            }}
             type="button"
             role="radio"
             aria-checked={value === type}
-            onClick={() => {
-              setType(value);
-              setDirection(sideForType(value, direction));
-              setWait(false);
-            }}
+            tabIndex={value === type ? 0 : -1}
+            onKeyDown={(event) => onTypeKey(event, index)}
+            onClick={() => pickType(value)}
             className={`pressable flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-footnote font-semibold ${value === type ? 'border-ink bg-panel text-ink' : 'border-transparent bg-fill text-ink-2 hover:text-ink'}`}
           >
             <TypeIcon type={value} size={20} animated />
