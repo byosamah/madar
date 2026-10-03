@@ -3,7 +3,7 @@ import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { CallOutput } from '../../api/calls';
+import type { MessageView } from '../../api/contract/views';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
@@ -14,8 +14,7 @@ import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-ch
 import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
-
-type Thread = CallOutput<'chats.messages'>;
+import { useEarlierMessages } from './earlier';
 
 function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: string; action?: ReactNode }) {
   const { t } = useTranslation();
@@ -34,8 +33,8 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
   );
 }
 
-function bubblesOf(thread: Thread): Bubble[] {
-  return thread.messages.map((view) => ({
+function bubblesOf(messages: MessageView[]): Bubble[] {
+  return messages.map((view) => ({
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
     createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
   }));
@@ -48,6 +47,7 @@ export function ChatPane({ id }: { id: string }) {
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
   const data = thread.data;
+  const { messages, earlier } = useEarlierMessages(id, data?.messages);
   const unread = data?.chat.unread ?? 0;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: id });
@@ -66,7 +66,7 @@ export function ChatPane({ id }: { id: string }) {
   return (
     <>
       <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={subtitle} />
-      <MessageLog key={id} bubbles={bubblesOf(data)} resetKey={id} emptyText={t('chat.noMessages')} />
+      <MessageLog key={id} bubbles={bubblesOf(messages)} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
         <Composer
           id={id}
