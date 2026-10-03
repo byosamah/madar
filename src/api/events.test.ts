@@ -95,3 +95,36 @@ describe('undo', () => {
     expect(codeOf(() => undoEvent(ec, 'evt_999'))).toBe('not_found');
   });
 });
+
+describe('undo link and the reference map (plan 4.13, A1)', () => {
+  it('names the undone event on the undo event', () => {
+    const event = applyPatch(ec, ec.state.tasks.tsk_001, { status: 'in_progress' }, meta)!;
+    const undo = undoEvent(ec, event.id);
+    expect(undo.undoes).toBe(event.id);
+    expect(writeEvent(ec, { ...meta, before: null, after: null }).undoes).toBeUndefined();
+  });
+
+  it('refuses the undo of a file upload when a direct chat message carries the file', () => {
+    ec.state.files.fil_009 = {
+      id: 'fil_009', projectId: 'prj_001', stageId: null, taskId: null, name: 'plan.pdf',
+      versions: [{ letter: 'A', blobKey: 'blob_009', mimeType: 'application/pdf', size: 10, uploadedBy: 'usr_002', uploadedAt: STAMP }],
+    };
+    const created = recordCreate(ec, { projectId: 'prj_001', verb: 'file.uploaded', targetType: 'file', targetId: 'fil_009', entity: ec.state.files.fil_009 });
+    ec.state.messages.msg_001 = {
+      id: 'msg_001', conversationId: 'cnv_099', authorId: 'usr_002', actingForId: 'usr_002', body: 'see this', mentions: [], fileIds: ['fil_009'],
+      createdAt: STAMP, editedAt: null,
+    };
+    expect(codeOf(() => undoEvent(ec, created.id))).toBe('conflict');
+    delete ec.state.messages.msg_001;
+    undoEvent(ec, created.id);
+    expect(ec.state.files.fil_009).toBeUndefined();
+  });
+
+  it('refuses the undo of a task create while another task waits for it', () => {
+    const extra = makeTask({ id: 'tsk_002' });
+    ec.state.tasks.tsk_002 = extra;
+    const created = recordCreate(ec, { ...meta, targetId: 'tsk_002', entity: extra });
+    ec.state.tasks.tsk_001.prerequisiteIds = ['tsk_002'];
+    expect(codeOf(() => undoEvent(ec, created.id))).toBe('conflict');
+  });
+});
