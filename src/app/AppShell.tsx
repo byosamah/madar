@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
-import { useDraftSweep } from './drafts';
+import { useDraftOwner, useDraftSweep } from './drafts';
 import { projectsListLink } from './lastList';
 import { FocusMode } from '../features/focus/FocusMode';
 import { NAV, isNavActive } from './nav';
@@ -54,12 +54,26 @@ function ScreenEntrance() {
 /** The chat is one screen: opening another conversation keeps the list, its search and its place. */
 const screenKey = (pathname: string): string => (pathname.startsWith('/inbox/') ? '/inbox' : pathname);
 
+/**
+ * A number that goes up each time another person becomes current (Preview as, or Reset sample data while a preview is on).
+ * The first load of the session does not count, so the screen does not start again as the app opens.
+ */
+function usePersonTurn(): number {
+  const owner = useDraftOwner();
+  const [turn, setTurn] = useState({ owner, count: 0 });
+  if (owner && owner !== turn.owner) setTurn({ owner, count: turn.owner ? turn.count + 1 : turn.count });
+  return turn.count;
+}
+
 export function AppShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // A change of person drops the half-written words of the person before (audit 2026-10-03, V-22).
   useDraftSweep();
+  // A change of person also starts the open screen again, so no box on it keeps the unsent words or picked files of the
+  // person before, for example the project update box (audit 2026-10-03, V-22).
+  const personTurn = usePersonTurn();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -93,7 +107,7 @@ export function AppShell() {
           <BellButton />
           <PersonMenu id="phone" />
         </div>
-        <ScreenEntrance key={screenKey(pathname)} />
+        <ScreenEntrance key={`${personTurn}:${screenKey(pathname)}`} />
         {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
         <ScrollRestoration getKey={(location) => location.pathname} />
       </main>

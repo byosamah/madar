@@ -110,7 +110,8 @@ describe('the Inbox chat', () => {
     const room = Object.values(store.state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'));
     await api.call('chats.send', { conversationId: room?.id ?? '', body: 'One more thing.' });
     store.state.session.currentUserId = 'usr_001';
-    expect(await within(screen.getByRole('log', { name: 'Messages' })).findByText('One more thing.')).toBeInTheDocument();
+    // The short change of person can start the screen again (V-22), so the test asks for the message log again each time.
+    await waitFor(() => expect(within(screen.getByRole('log', { name: 'Messages' })).getByText('One more thing.')).toBeInTheDocument());
   });
 });
 

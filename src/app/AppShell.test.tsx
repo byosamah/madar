@@ -75,6 +75,20 @@ describe('app shell', () => {
     expect(await within(nav).findByRole('link', { name: 'Inbox, Unread messages: 5' })).toBeInTheDocument();
   });
 
+  it('starts the open screen again for the next person after Preview as, so no unsent update goes over (audit 2026-10-03, V-22)', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=activity');
+    const form = await screen.findByRole('form', { name: 'Post an update' });
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Post an update' }), 'Only for Hala');
+    await userEvent.upload(within(form).getByLabelText('Attach files'), new File(['x'], 'Hala notes.pdf', { type: 'application/pdf' }));
+    expect(within(form).getByText('Hala notes.pdf')).toBeInTheDocument();
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.selectOptions(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('combobox', { name: /Preview as/ }), 'usr_002');
+    await waitFor(() => expect(store.state.session.currentUserId).toBe('usr_002'));
+    const next = await screen.findByRole('form', { name: 'Post an update' });
+    await waitFor(() => expect(within(next).getByRole('textbox', { name: 'Post an update' })).toHaveValue(''));
+    expect(within(next).queryByText('Hala notes.pdf')).toBeNull();
+  });
+
   it('opens Search with Ctrl+K', async () => {
     await renderApp('/dashboard');
     await pill();
