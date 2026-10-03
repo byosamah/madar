@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fieldError } from '../../app/errors';
 import { useSwitchLanguage } from '../../app/languageTurn';
+import { PROTOTYPE } from '../../app/mode';
 import { PreviewAs } from '../../app/PreviewAs';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -105,11 +106,12 @@ export function SettingsScreen() {
 
       <NotificationsSection />
 
-      {/* The real build: the password (track U) and the person's agents (track G). Both render nothing until built. */}
+      {/* The real build: the password (track U) and the person's agents (track G). The prototype has no sign-in, so no password. */}
       <PasswordSection />
       <AgentsSection />
 
-      <Section title={t('settings.prototype')}>
+      {/* The prototype controls stay out of the real build (client map 6). */}
+      {PROTOTYPE && <Section title={t('settings.prototype')}>
         <PreviewAs id="preview-as-settings" />
         <Switch
           id="simulate-errors"
@@ -135,7 +137,7 @@ export function SettingsScreen() {
         >
           {null}
         </Sheet>
-      </Section>
+      </Section>}
     </div>
   );
 }

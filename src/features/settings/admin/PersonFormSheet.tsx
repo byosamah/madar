@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SystemRole, User } from '../../../api/contract/entities';
+import type { Language, SystemRole, User } from '../../../api/contract/entities';
 import { fieldError } from '../../../app/errors';
+import { PROTOTYPE } from '../../../app/mode';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -10,16 +11,22 @@ import { Sheet } from '../../../components/Sheet';
 
 type Form = {
   name: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
-  gender: 'male' | 'female';
+  gender: 'male' | 'female'; language: Language;
 };
-const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male' };
+const EMPTY: Form = { name: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male', language: 'en' };
 
-/** Add a person or an agent, or edit a person (spec 9). The kind is set once, when the person is added (plan clarification 6). */
+/**
+ * Add a person or an agent, or edit a person (spec 9). The kind is set once, when the person is added (plan clarification 6).
+ * A new person gets a language for the invitation email and the first sign-in, the Admin's own by default (plan A8). The real
+ * build has no agent fields: an agent exists only after its person approves it (spec 12).
+ */
 export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean; onOpenChange: (open: boolean) => void; person: User | null }) {
   const { t } = useTranslation();
   const toast = useToast();
   const users = useCall('users.list', {});
-  const viewerIsAdmin = useCall('session.get', {}).data?.authority.systemRole === 'admin';
+  const session = useCall('session.get', {}).data;
+  const viewerIsAdmin = session?.authority.systemRole === 'admin';
+  const viewerLanguage = session?.user.preferences.language ?? 'en';
   const [form, setForm] = useState<Form>(EMPTY);
   const done = (message: string) => {
     toast.show({ message });
@@ -32,8 +39,8 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     create.reset();
     update.reset();
     setForm(person
-      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, gender: person.gender ?? 'male' }
-      : EMPTY);
+      ? { name: person.name, email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, gender: person.gender ?? 'male', language: person.preferences.language }
+      : { ...EMPTY, language: viewerLanguage });
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, person]);
@@ -50,7 +57,11 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
       discipline: form.discipline.trim(), ...(isAgent ? {} : { gender: form.gender }),
     };
     if (person) update.mutate({ id: person.id, patch: common });
-    else create.mutate({ ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined });
+    else {
+      // users.create takes `language` from track A (A8). Until then the contract drops the extra field, so the input goes as a value.
+      const input = { ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined, ...(form.kind === 'agent' ? {} : { language: form.language }) };
+      create.mutate(input);
+    }
   };
   const humans = (users.data ?? []).filter((user) => user.kind === 'human');
   return (
@@ -73,13 +84,13 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
           </SelectField>
         )}
         {/* Only an Admin adds an agent, so the Kind field shows to the Admin only (audit 2026-10-03, SHL-9). */}
-        {!person && viewerIsAdmin && (
+        {PROTOTYPE && !person && viewerIsAdmin && (
           <SelectField id="person-kind" label={t('admin.kind')} value={form.kind} onChange={(event) => set('kind', event.target.value as Form['kind'])}>
             <option value="human">{t('admin.kinds.human')}</option>
             <option value="agent">{t('admin.kinds.agent')}</option>
           </SelectField>
         )}
-        {!person && form.kind === 'agent' && (
+        {PROTOTYPE && !person && form.kind === 'agent' && (
           <SelectField id="person-owner" label={t('admin.owner')} value={form.ownerId} onChange={(event) => set('ownerId', event.target.value)}>
             <option value="" disabled>{t('admin.owner')}</option>
             {humans.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
@@ -90,6 +101,13 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
           <SelectField id="person-gender" label={t('admin.gender')} value={form.gender} onChange={(event) => set('gender', event.target.value as Form['gender'])}>
             <option value="male">{t('admin.genders.male')}</option>
             <option value="female">{t('admin.genders.female')}</option>
+          </SelectField>
+        )}
+        {/* The language of the invitation email and the first sign-in; after that the person chooses in Settings. */}
+        {!person && !isAgent && (
+          <SelectField id="person-language" label={t('settings.language')} hint={t('people.languageHint')} value={form.language} onChange={(event) => set('language', event.target.value as Language)}>
+            <option value="en">{t('settings.languages.en')}</option>
+            <option value="ar">{t('settings.languages.ar')}</option>
           </SelectField>
         )}
         <TextField id="person-discipline" label={t('admin.discipline')} value={form.discipline} dir="auto" error={errorFor('discipline', t('admin.errors.discipline'))} onChange={(event) => set('discipline', event.target.value)} />

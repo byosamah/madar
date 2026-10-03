@@ -1,8 +1,13 @@
 import { useTranslation } from 'react-i18next';
+import { PROTOTYPE } from './mode';
 import { useAction, useCall } from './runtime';
 
-/** Prototype control: shows the app as another person (spec 3.3). */
+/** Prototype control: shows the app as another person (spec 3.3). The real build has sign-in instead, so it draws nothing there. */
 export function PreviewAs({ id }: { id: string }) {
+  return PROTOTYPE ? <PreviewAsControl id={id} /> : null;
+}
+
+function PreviewAsControl({ id }: { id: string }) {
   const { t } = useTranslation();
   const session = useCall('session.get', {});
   const previewAs = useAction('session.previewAs');

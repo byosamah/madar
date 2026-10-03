@@ -5,7 +5,7 @@ import { calls } from '../../api/calls';
 import { createApi } from '../../api/client';
 import { memoryPersister } from '../../api/persist';
 import { Store, type State } from '../../api/store';
-import { RuntimeProvider, createQueryClient } from '../../app/runtime';
+import { RuntimeProvider, createQueryClient, type ChangeSource } from '../../app/runtime';
 import { ToastProvider } from '../../app/toasts';
 import { buildSeed } from '../../data/seed';
 import { applyLanguage, initI18n } from '../../i18n';
@@ -98,12 +98,29 @@ export async function renderRemoteApp(path: string, o: { signedInAs?: keyof type
 }
 
 /** Renders the sign-in screens over the sample office, with a fake sign-in port and no shell. */
-export async function renderAuth(path: string, o: { auth: FakeAuth; language?: Language; routes?: RouteObject[]; prepare?: (state: State) => void }) {
+export async function renderAuth(path: string, o: {
+  auth: FakeAuth;
+  language?: Language;
+  routes?: RouteObject[];
+  prepare?: (state: State) => void;
+  /** The change source of the runtime, for the connection banner. */
+  changes?: ChangeSource;
+  /** An answer in place of the fake API's, for a call the prototype answers in another way (for example users.invites). */
+  answer?: (name: string, input: unknown) => unknown;
+}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   o.prepare?.(state);
   const store = new Store(state, memoryPersister());
   const api = createApi(calls, { store, latencyMs: 0 });
+  if (o.answer) {
+    const original = api.call.bind(api);
+    api.call = ((name: string, input: unknown, meta?: unknown) => {
+      const given = o.answer?.(name, input);
+      if (given !== undefined) return Promise.resolve(given);
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+  }
   const language = o.language ?? 'en';
   initI18n(language);
   applyLanguage(document.documentElement, language);
@@ -111,7 +128,7 @@ export async function renderAuth(path: string, o: { auth: FakeAuth; language?: L
   onTestFinished(() => router.dispose());
   const queryClient = createQueryClient();
   const view = render(
-    <RuntimeProvider runtime={{ store, api, auth: o.auth, mode: 'remote' }} queryClient={queryClient}>
+    <RuntimeProvider runtime={{ store, api, auth: o.auth, changes: o.changes, mode: 'remote' }} queryClient={queryClient}>
       <ToastProvider>
         <RouterProvider router={router} />
       </ToastProvider>
