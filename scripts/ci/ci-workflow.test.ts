@@ -26,6 +26,9 @@ function condition(name: string): string {
   return match ? match[1].replace(/\s+/g, '') : '';
 }
 
+/** The text as a literal part of a regular expression. */
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const ALL_JOBS = ['unit', 'server', 'db', 'integration'];
 const PULL_REQUEST_AND_MAIN = "github.event_name=='pull_request'||github.ref=='refs/heads/main'";
 
@@ -104,6 +107,14 @@ describe('.github/workflows/ci.yml', () => {
     expect(integration).toContain('minio');
     expect(integration).toContain('supabase functions serve');
     expect(integration).toContain('npm run test:it');
+  });
+
+  it('starts the stack without the edge runtime while the function folders are missing, because config.toml names them', () => {
+    // supabase start fails with "open supabase/functions/api/index.ts: no such file" until track E adds the folders.
+    const integration = job('integration');
+    const functions = "hashFiles('supabase/functions/*/index.ts')";
+    expect(integration).toMatch(new RegExp(`if: ${escape(functions)} != ''\\n {8}run: npx supabase start\\n`));
+    expect(integration).toMatch(new RegExp(`if: ${escape(functions)} == ''\\n {8}run: npx supabase start -x edge-runtime\\n`));
   });
 
   it('uses the Supabase CLI version that package.json pins', () => {

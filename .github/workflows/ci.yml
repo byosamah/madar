@@ -112,14 +112,20 @@ jobs:
           docker run -d --name madar-minio -p 9000:9000 -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
             cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034 server /data
           for _ in $(seq 1 30); do
-            if curl -fsS "$MINIO_ENDPOINT/minio/health/live" > /dev/null; then echo "MinIO is up."; exit 0; fi
+            if curl -fs "$MINIO_ENDPOINT/minio/health/live" > /dev/null; then echo "MinIO is up."; exit 0; fi
             sleep 1
           done
           docker logs madar-minio
           echo "MinIO did not start." >&2
           exit 1
+      # config.toml names the three functions, and supabase start fails while their folders are missing.
+      # Until track E adds them, the stack starts without the edge runtime.
       - name: Start the full local stack
+        if: hashFiles('supabase/functions/*/index.ts') != ''
         run: npx supabase start
+      - name: Start the local stack without the edge runtime (no function folders yet)
+        if: hashFiles('supabase/functions/*/index.ts') == ''
+        run: npx supabase start -x edge-runtime
       - name: Local addresses and keys
         run: scripts/ci/stack-env.sh >> "$GITHUB_ENV"
       # Track E adds the bundles and the function folders. Until it merges, these two steps skip.
