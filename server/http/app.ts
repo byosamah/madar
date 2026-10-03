@@ -16,7 +16,7 @@ import { ROUTES, type RouteDef } from './routes';
  * and every route of server/http/routes.ts. The defaults are the real parts (T0 stubs until their tracks merge); tests pass fakes.
  */
 
-export type HealthCheck = () => Promise<{ status: number; body: unknown }>;
+export type HealthCheck = (request: Request) => Promise<{ status: number; body: unknown }>;
 export type AppOptions = Partial<BatchOptions> & { routes?: RouteDef[]; health?: HealthCheck };
 
 export function apiApp(deps: Deps, o: AppOptions = {}): Hono {
@@ -30,8 +30,8 @@ export function apiApp(deps: Deps, o: AppOptions = {}): Hono {
   app.use('*', cors(() => deps.config.allowedOrigins));
   if (o.health) {
     const health = o.health;
-    app.get('/health', async () => {
-      const result = await health();
+    app.get('/health', async (c) => {
+      const result = await health(c.req.raw);
       return Response.json(result.body, { status: result.status });
     });
   }
