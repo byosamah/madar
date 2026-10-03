@@ -151,7 +151,7 @@ export function memorySource(state: State): Source {
         const last = comments.map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
         found.push({ id, last, mine: mine.length > 0 ? mine.reduce((a, b) => (b > a ? b : a)) : null });
       }
-      found.sort((a, b) => before(b.last, a.last));
+      found.sort((a, b) => before(b.last, a.last) || before(b.id, a.id));
       return found.filter((thread) => found.findIndex((other) => other.last === thread.last) < o.limit);
     },
 

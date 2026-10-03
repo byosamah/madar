@@ -6,6 +6,7 @@ import { chatReadKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { runBoth, runOn, type Run } from './compare';
 import { LOADER_OF } from './index';
+import { readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -57,46 +58,23 @@ describe('the loader table', () => {
   });
 });
 
-describe('the read calls on the sample office, for every person', () => {
-  it('lists, counts and dashboards', async () => {
-    for (const actor of humans()) {
-      for (const status of ['active', 'on_hold', 'completed', 'all'] as const) await same(seed, 'projects.list', { status }, actor);
-      await same(seed, 'projects.list', { filter: 'mine' }, actor);
-      await same(seed, 'dashboard.get', {}, actor);
-      await same(seed, 'dashboard.get', { status: 'all' }, actor);
-      for (const filter of ['all', 'mine', 'overdue', 'flagged', 'review_for_me'] as const) await same(seed, 'tasks.list', { filter }, actor);
-      await same(seed, 'tasks.list', { includeDone: false, activeProjectsOnly: false }, actor);
-      await same(seed, 'tasks.list', { ownerId: actor, status: ['todo', 'in_review'] }, actor);
-      await same(seed, 'notifications.list', {}, actor);
-      await same(seed, 'notifications.list', { unreadOnly: true, limit: 3 }, actor);
-      await same(seed, 'notifications.count', {}, actor);
-      await same(seed, 'chats.list', {}, actor);
-      await same(seed, 'chats.unreadCount', {}, actor);
-      await same(seed, 'events.list', { limit: 20 }, actor);
-      await same(seed, 'search.query', { text: 'a' }, actor);
-      await same(seed, 'search.query', { text: '#KH' }, actor);
-      await same(seed, 'feedback.list', {}, actor);
-      await same(seed, 'session.get', {}, actor);
+describe('the sweep: every read call on the sample office for every person and record, and one write of each kind', () => {
+  it('reads', async () => {
+    const calls = readSweep(seed);
+    expect(calls.length).toBeGreaterThan(500);
+    for (const [name, input, actor] of calls) await same(seed, name, input, actor);
+  });
+
+  it('writes', async () => {
+    for (const [name, input, actor, prepared] of writeSweep(seed)) {
+      const run = await same(seed, name, input, actor, { prepared });
+      expect(run.outcome.error?.code, name).not.toBe('crash');
     }
   });
 
-  it('every project, its tasks, its feed, its files, its Tracker and its payments', async () => {
-    for (const project of Object.values(seed.projects)) {
-      const id = project.id;
-      await same(seed, 'projects.get', { id }, ADMIN);
-      for (const filter of ['all', 'posts', 'decisions', 'tasks', 'files'] as const) await same(seed, 'updates.list', { projectId: id, filter, limit: 3 }, ADMIN);
-      await same(seed, 'tasks.list', { projectId: id, activeProjectsOnly: false }, ADMIN);
-      await same(seed, 'files.list', { projectId: id }, ADMIN);
-      await same(seed, 'tracker.list', { projectId: id }, ADMIN);
-      await same(seed, 'tracker.export', { projectId: id }, ADMIN);
-      await same(seed, 'payments.list', { projectId: id }, ADMIN);
-      await same(seed, 'events.list', { projectId: id, limit: 7 }, ADMIN);
-    }
-    for (const task of Object.values(seed.tasks)) await same(seed, 'tasks.get', { id: task.id }, task.ownerId);
-    for (const update of Object.values(seed.updates)) await same(seed, 'comments.list', { targetType: 'update', targetId: update.id }, ADMIN);
-    for (const conversation of Object.values(seed.conversations)) {
-      for (const actor of humans()) await same(seed, 'chats.messages', { conversationId: conversation.id, limit: 2 }, actor);
-    }
+  it('reads and writes on the office with the extra records of the database test', async () => {
+    const traps = trapOffice(seed);
+    for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   });
 });
 
@@ -326,58 +304,6 @@ describe('the loaders keep what the handlers need', () => {
     apply(state, 'tasks.complete', { id: task.id }, ADMIN, { story: 'cor_done' });
     const run = await same(state, 'events.undoStory', { correlationId: 'cor_done' }, ADMIN);
     expect(run.outcome.error).toBeUndefined();
-  });
-
-  it('the write calls on the sample office', async () => {
-    const leader = seed.projects.prj_001.leaderId!;
-    const task = tasksOfProject(seed, 'prj_001').find((t) => t.status !== 'done')!;
-    const post = Object.values(seed.updates).find((u) => u.projectId === 'prj_001')!;
-    const comment = Object.values(seed.comments)[0];
-    const entry = Object.values(seed.tracker ?? {}).find((e) => e.waiting !== null && e.closedAt === null)!;
-    const payment = Object.values(seed.payments ?? {})[0];
-    const notice = Object.values(seed.notifications)[0];
-    const file = Object.values(seed.files)[0];
-    const calls: [SharedCallName, unknown, string][] = [
-      ['projects.update', { id: 'prj_001', patch: { name: 'Renamed', coverFileId: file.projectId === 'prj_001' ? file.id : null } }, ADMIN],
-      ['projects.setStatus', { id: 'prj_009', status: 'active' }, ADMIN],
-      ['projects.resume', { id: 'prj_012' }, ADMIN],
-      ['projects.pause', { id: 'prj_001', kind: 'client', reason: 'Waiting', resumeOn: null }, ADMIN],
-      ['projects.setHealthOverride', { id: 'prj_001', value: 'late', reason: 'Late' }, ADMIN],
-      ['stages.setDates', { stageId: task.stageId, startDate: '2026-09-01', endDate: '2026-12-01' }, ADMIN],
-      ['deadlines.update', { id: Object.values(seed.deadlines)[0].id, patch: { name: 'Moved' } }, ADMIN],
-      ['tasks.update', { id: task.id, patch: { title: 'New title' } }, leader],
-      ['tasks.complete', { id: task.id }, ADMIN],
-      ['tasks.newVersion', { id: Object.values(seed.tasks).find((t) => t.status === 'done')!.id, reason: 'Client change' }, ADMIN],
-      ['tasks.sendBack', { id: Object.values(seed.tasks).find((t) => t.status === 'in_review')?.id ?? task.id, note: 'Fix it' }, ADMIN],
-      ['tasks.delete', { id: task.id }, ADMIN],
-      ['tasks.createFromTemplate', { templateId: Object.values(seed.taskTemplates ?? {})[0].id, stageId: task.stageId }, ADMIN],
-      ['updates.create', { projectId: 'prj_001', body: 'Hello', fileIds: [] }, ADMIN],
-      ['updates.update', { id: post.id, body: 'Edited' }, post.authorId],
-      ['updates.delete', { id: post.id }, post.authorId],
-      ['comments.update', { id: comment.id, body: 'Edited' }, comment.authorId],
-      ['comments.delete', { id: comment.id }, comment.authorId],
-      ['reactions.toggle', { commentId: comment.id, emoji: '👍' }, ADMIN],
-      ['files.delete', { id: file.id }, ADMIN],
-      ['files.markDelivered', { id: file.id }, ADMIN],
-      ['files.share', { fileId: file.id, target: { kind: 'project_chat' } }, ADMIN],
-      ['files.share', { fileId: file.id, target: { kind: 'task', taskId: tasksOfProject(seed, file.projectId)[0].id } }, ADMIN],
-      ['tracker.close', { id: entry.id }, ADMIN],
-      ['tracker.update', { id: entry.id, waiting: null }, ADMIN],
-      ['tracker.delete', { id: entry.id }, ADMIN],
-      ['payments.markReceived', { id: payment.id }, ADMIN],
-      ['payments.delete', { id: payment.id }, ADMIN],
-      ['notifications.markRead', { ids: [notice.id] }, notice.userId],
-      ['notifications.markAllRead', {}, notice.userId],
-      ['notifications.markUnread', { ids: [notice.id] }, notice.userId],
-      ['chats.send', { conversationId: 'cnv_001', body: 'Hi' }, leader],
-      ['chats.markRead', { conversationId: 'cnv_001' }, leader],
-      ['taskTemplates.save', { fromTaskId: task.id, name: 'From a task' }, ADMIN],
-    ];
-    for (const [name, input, actor] of calls) {
-      const run = await same(seed, name, input, actor);
-      expect(run.outcome.error?.code, name).not.toBe('crash');
-    }
-    await same(seed, 'feedback.send', { kind: 'feature', message: 'An idea' }, ADMIN, { prepared: { shots: [] } });
   });
 
   it('events.list for an agent change, by story, by target and by time', async () => {

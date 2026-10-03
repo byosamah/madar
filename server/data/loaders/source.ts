@@ -17,7 +17,7 @@ export interface Source {
   /**
    * The task threads of the Inbox (chats.ts, taskThreads): the tasks that have a comment and that the person leads (owner),
    * leads the project of (led), or commented on (as a person of "me"). The newest "limit" by the stamp of their last comment,
-   * with ties, each with that stamp and the stamp of the newest comment by "me".
+   * with ties, each with that stamp and the stamp of the newest comment by "me". Newest first, then by task id from the end.
    */
   threads(o: { owner: string; led: readonly string[]; me: readonly string[]; limit: number }): Promise<{ id: string; last: string; mine: string | null }[]>;
   /** Every counter (plan, change 4). Only a write reads them, inside the lock. */
