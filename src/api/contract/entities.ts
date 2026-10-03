@@ -254,6 +254,8 @@ export const DateNote = z.object({
   at: Stamp,
   byTaskId: TaskId.optional(),
   lateDays: z.number().int().min(1).optional(),
+  /** The due day of the finished task that this move was made for. A later move takes this one off only for the same due day (audit 2026-10-03, V-3). */
+  forDueDate: Day.optional(),
 });
 export type DateNote = z.infer<typeof DateNote>;
 

@@ -124,7 +124,7 @@ export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, fini
     const { startDate, dueDate } = move.to;
     const reason = `${task.title} finished ${workingDays(late)} late`;
     const note: DateNote = {
-      from: move.from, to: move.to, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late,
+      from: move.from, to: move.to, reason, at: ctx.stamp, byTaskId: task.id, lateDays: late, forDueDate: task.dueDate ?? undefined,
     };
     const from = dependent.dueDate;
     applyPatch(ctx, dependent, { startDate, dueDate, dateNotes: [...(dependent.dateNotes ?? []), note].slice(-20) }, {

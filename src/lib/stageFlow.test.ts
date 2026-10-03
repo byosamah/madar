@@ -73,6 +73,14 @@ describe('the shift plan', () => {
     expect(shiftPlan({ dueDate: '2026-09-30' }, [dep('a')], '2026-09-28')).toEqual([]);
     expect(shiftPlan({ dueDate: null }, [dep('a')], '2026-09-30')).toEqual([]);
   });
+  it('takes off an earlier move only when it was made for the same due day (audit 2026-10-03, V-3)', () => {
+    // Version 2 is due Thu 8 Oct and finishes Mon 12 Oct: 2 working days late. Version 1 moved the dependent 3 days for Sun 27 Sep.
+    const dependent = dep('b', { startDate: '2026-10-07', dueDate: '2026-10-11', durationDays: 3 });
+    const moved = (notes: Record<string, unknown>[]) => shiftPlan({ id: 'a', dueDate: '2026-10-08' }, [{ ...dependent, dateNotes: notes }], '2026-10-12').map((move) => move.lateDays);
+    expect(moved([{ byTaskId: 'a', lateDays: 3, forDueDate: '2026-09-27' }])).toEqual([2]);
+    expect(moved([{ byTaskId: 'a', lateDays: 3 }])).toEqual([2]);
+    expect(moved([{ byTaskId: 'a', lateDays: 1, forDueDate: '2026-10-08' }])).toEqual([1]);
+  });
 });
 
 describe('stage overlaps', () => {

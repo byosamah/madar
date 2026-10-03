@@ -44,6 +44,28 @@ describe('A task that finishes late twice moves its dependent once (audit 2026-1
     expect(b.dateNotes?.[1]).toMatchObject({ lateDays: 3, reason: 'Task A finished 3 working days late' });
     expect(shifts(t).map((entry) => entry.title)).toEqual(['Task B moved 2 working days', 'Task B moved 1 working day']);
   });
+
+  it('moves it by the full lateness when a new version with a new due date finishes late (audit 2026-10-03, V-3)', async () => {
+    setNow(new Date('2026-09-30T06:00:00Z')); // Wed 30 Sep
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'Task A', needsReview: false, dueDate: '2026-09-27' }); // Sun
+    s.tasks.tsk_002 = makeTask({
+      id: 'tsk_002', ownerId: 'usr_003', title: 'Task B', schedule: 'dynamic', startDate: '2026-10-04', durationDays: 3, dueDate: '2026-10-06', prerequisiteIds: ['tsk_001'],
+    });
+    s.counters.tsk = 2;
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }); // 3 working days late
+    expect(s.tasks.tsk_002.startDate).toBe('2026-10-07');
+    expect(s.tasks.tsk_002.dateNotes?.[0]).toMatchObject({ lateDays: 3, forDueDate: '2026-09-27' });
+    await t.api.call('tasks.newVersion', { id: 'tsk_001', reason: 'Client asked for a second option', dueDate: '2026-10-08' });
+    setNow(new Date('2026-10-12T06:00:00Z')); // Mon 12 Oct: 2 working days after Thu 8 Oct
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    expect(s.tasks.tsk_002.startDate).toBe('2026-10-11');
+    expect(s.tasks.tsk_002.dueDate).toBe('2026-10-13');
+    expect(s.tasks.tsk_002.dateNotes?.[1]).toMatchObject({ lateDays: 2, forDueDate: '2026-10-08' });
+    expect(shifts(t).map((entry) => entry.title)).toEqual(['Task B moved 3 working days', 'Task B moved 2 working days']);
+  });
 });
 
 describe('Review time is not the owner lateness (audit 2026-10-03, API-4)', () => {
