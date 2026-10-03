@@ -46,3 +46,32 @@ describe('the lead of a task in review (audit 2026-10-03, F-19)', () => {
     expect(within(within(sheet).getByLabelText('Status')).getAllByRole('option').map((option) => option.textContent)).toEqual(['To do', 'In progress', 'In review', 'Done']);
   });
 });
+
+// The leader chose "Send back with a note", so the one next step is the note: the focus goes into it, and Send back is the main
+// button for that moment. A plain press on the card keeps Approve first (audit 2026-10-03, F-8).
+describe('Send back with a note from the board (audit 2026-10-03, F-8)', () => {
+  const faisal = (state: State) => {
+    state.session.currentUserId = 'usr_002';
+  };
+
+  it('opens the panel with the focus in the note and Send back as the main button', async () => {
+    await renderApp(TASKS, faisal);
+    await showBoard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Move Toilet details' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Send back with a note' }));
+    const review = await screen.findByRole('region', { name: 'Review' });
+    await waitFor(() => expect(within(review).getByRole('textbox', { name: 'What needs to change?' })).toHaveFocus());
+    expect(within(review).getByRole('button', { name: 'Send back' })).toHaveClass('signature');
+    expect(within(review).getByRole('button', { name: 'Approve' })).not.toHaveClass('signature');
+  });
+
+  it('keeps Approve as the main button after a plain press on the card', async () => {
+    await renderApp(TASKS, faisal);
+    await showBoard();
+    await userEvent.click(await screen.findByRole('button', { name: /^Toilet details/ }));
+    const review = await screen.findByRole('region', { name: 'Review' });
+    expect(within(review).getByRole('button', { name: 'Approve' })).toHaveClass('signature');
+    expect(within(review).getByRole('button', { name: 'Send back' })).not.toHaveClass('signature');
+    expect(within(review).getByRole('textbox', { name: 'What needs to change?' })).not.toHaveFocus();
+  });
+});

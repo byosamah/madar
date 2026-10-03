@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
@@ -34,6 +35,18 @@ export function TasksTab({ detail }: TabProps) {
   // (audit 2026-10-03, PRJ-9, V-36).
   const panel = usePanelLink(TASK_PANEL);
   const open = (taskId: string, thread = false) => panel.open({ task: taskId, thread: thread ? '1' : null });
+  // "Send back with a note" on the board opens the panel ready for the note. The choice lives here for that one opening, not in
+  // the link, so Back, a reload or another task opens the plain panel (audit 2026-10-03, F-8).
+  const [sendBackId, setSendBackId] = useState<string | null>(null);
+  const taskParam = params.get('task');
+  useEffect(() => {
+    if (taskParam !== sendBackId) setSendBackId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskParam]);
+  const sendBack = (taskId: string) => {
+    setSendBackId(taskId);
+    open(taskId);
+  };
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -68,8 +81,8 @@ export function TasksTab({ detail }: TabProps) {
       {tasks.error && !tasks.data && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
-        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} canLog={detail.viewerCan.post} onOpen={open} />)}
-      {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={panel.close} />}
+        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} canLog={detail.viewerCan.post} onOpen={open} onSendBack={sendBack} />)}
+      {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={panel.close} noteFirst={sendBackId === taskParam} />}
     </div>
   );
 }

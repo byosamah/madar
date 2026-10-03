@@ -73,8 +73,8 @@ function Column({ status, count, closed, children }: { status: TaskStatus; count
   );
 }
 
-function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
-  row: TaskRow; reviews: boolean; dragging: boolean; onOpen: () => void; onMove: (status: TaskStatus) => void;
+function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
+  row: TaskRow; reviews: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({
@@ -103,7 +103,8 @@ function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
             items={[
               ...moveTargets(row.task.status, reviewing, row.task.needsReview).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
               // Send back needs a note, so the item opens the task panel, where the review block comes first (audit 2026-10-03, V-5).
-              { label: t('tasks.sendBackOpen'), onSelect: onOpen, hidden: !reviewing },
+              // The panel opens ready for the note (audit 2026-10-03, F-8).
+              { label: t('tasks.sendBackOpen'), onSelect: onSendBack, hidden: !reviewing },
             ]}
           />
         </div>
@@ -113,7 +114,9 @@ function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
 }
 
 /** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
-export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; reviews: boolean; canLog: boolean; onOpen: (taskId: string) => void }) {
+export function TaskBoard({ rows, reviews, canLog, onOpen, onSendBack }: {
+  rows: TaskRow[]; reviews: boolean; canLog: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
+}) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
@@ -168,6 +171,7 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
                   reviews={reviews}
                   dragging={row.task.id === activeId}
                   onOpen={() => open(row.task.id)}
+                  onSendBack={() => onSendBack(row.task.id)}
                   onMove={(to) => move.mutate({ id: row.task.id, status: to })}
                 />
               ))}

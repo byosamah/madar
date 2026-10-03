@@ -194,7 +194,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
   );
 }
 
-function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void }) {
+function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
@@ -327,11 +327,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
           <div className="flex flex-col gap-5">
             {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
             {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
+            {/* After "Send back with a note" on the board, the note takes the focus, Send back is the main button and Approve
+                steps back to the end (audit 2026-10-03, F-8). */}
             {viewerCan.review && (
               <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
-                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+                {!noteFirst && <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
+                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" autoFocus={noteFirst} onChange={(event) => setNote(event.target.value)} />
+                <Button variant={noteFirst ? 'primary' : 'secondary'} disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+                {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
               </section>
             )}
             {edit ? (
@@ -442,7 +445,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
 }
 
 /** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). */
-export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail: ProjectDetail; onClose: () => void }) {
+export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { taskId: string; detail: ProjectDetail; onClose: () => void; noteFirst?: boolean }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
   const focus = useFocusLink();
@@ -466,7 +469,7 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
         </button>
       )}
     >
-      {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} />}
+      {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} noteFirst={noteFirst} />}
       {!task.data && task.error && !gone && <LoadFailed error={task.error} onRetry={() => void task.refetch()} />}
     </Sheet>
   );
