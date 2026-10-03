@@ -18,6 +18,17 @@ describe('the Schedule tab', () => {
     expect(within(screen.getByRole('region', { name: 'Deadlines' })).getByText('Balady submission')).toBeInTheDocument();
   });
 
+  it('draws every deadline diamond in the quiet grey of the Dashboard, not the Attention orange (audit 2026-10-03, V-24)', async () => {
+    await renderApp(SCHEDULE);
+    const chart = await screen.findByRole('region', { name: 'Stage timeline' });
+    const diamonds = [...chart.querySelectorAll('.rotate-45'), ...screen.getByRole('region', { name: 'Deadlines' }).querySelectorAll('.rotate-45')];
+    expect(diamonds.length).toBeGreaterThan(1);
+    for (const diamond of diamonds) {
+      expect(diamond).toHaveClass('bg-ink-2');
+      expect(diamond).not.toHaveClass('bg-attn');
+    }
+  });
+
   it('shows two stages that run at the same time: hatched on the chart and in words in the list', async () => {
     await renderApp('/projects/prj_003?tab=schedule');
     const chart = await screen.findByRole('region', { name: 'Stage timeline' });
