@@ -49,6 +49,16 @@ describe('app shell', () => {
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 390 px.
+  it('starts every row of the person menu at the same edge, also a label on two lines (audit 2026-10-03, F-6)', async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
+    const rows = [...within(menu).getAllByRole('button'), ...within(menu).getAllByRole('link')];
+    expect(rows.length).toBe(5);
+    for (const row of rows) expect(row).toHaveClass('text-start');
+  });
+
   it('switches between light and dark from the person menu', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);

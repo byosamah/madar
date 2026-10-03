@@ -37,7 +37,8 @@ export function PersonMenu({ id }: { id: string }) {
   // One press switches between light and dark. Settings keeps the third choice, System.
   const dark = resolveAppearance(user.preferences, readEnvironment()).theme === 'dark';
   const ThemeIcon = dark ? SunIcon : MoonIcon;
-  const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-body text-ink hover:bg-fill';
+  // A button centres its text by default. text-start keeps a label on two lines next to its icon (audit 2026-10-03, F-6).
+  const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-start text-body text-ink hover:bg-fill';
   return (
     <>
       <button ref={ref} type="button" aria-label={user.name} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="pressable grid size-11 place-items-center rounded-full">
