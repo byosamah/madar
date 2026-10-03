@@ -149,7 +149,7 @@ describe('overlays', () => {
   it('keeps toasts reachable for screen readers while a sheet is open', async () => {
     function Inside() {
       const toast = useToast();
-      return <button type="button" onClick={() => toast.show({ message: 'Saved.', action: { label: 'Undo', run: vi.fn() } })}>Save</button>;
+      return <button type="button" onClick={() => toast.show({ message: 'Saved.', action: { label: 'Undo', run: vi.fn(), isUndo: true } })}>Save</button>;
     }
     render(
       <ToastProvider>

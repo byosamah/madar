@@ -132,7 +132,7 @@ export function FilesTab({ detail }: TabProps) {
       toast.show({
         tone: 'error',
         message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta) } : undefined,
+        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta), isUndo: false } : undefined,
       });
     } finally {
       setUploading(false);

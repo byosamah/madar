@@ -177,6 +177,23 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(within(kept).getByText('Discussed')).toBeInTheDocument();
   });
 
+  it('Ctrl+Z after Done takes back Done and keeps the decision typed before it (audit 2026-10-03, V-1)', async () => {
+    const { store } = await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    const decisions = within(await screen.findByRole('region', { name: 'Decisions' }));
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write a decision' }), 'Keep the lobby double height.{Enter}');
+    await screen.findByText('Decision added.');
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    const toast = (await screen.findByText('Al Waha Clinic Fit-out marked as discussed.')).closest('[role="status"]') as HTMLElement;
+    expect(within(toast).getByRole('button', { name: 'Undo' })).toHaveAttribute('aria-keyshortcuts', 'Control+Z Meta+Z');
+    await userEvent.keyboard('{Control>}z{/Control}');
+    const back = await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    expect(within(back).queryByText('Discussed')).toBeNull();
+    await flush();
+    expect(Object.values(store.state.updates).some((update) => update.body === 'Keep the lobby double height.')).toBe(true);
+  });
+
   it('says Skipped next to a skipped project until it is discussed (browser audit 2026-10-03, BRW-19)', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

@@ -57,7 +57,7 @@ export function useUndoable<N extends CallName>(
       toast.show({
         tone: 'error',
         message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input) } : undefined,
+        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input), isUndo: false } : undefined,
       });
     },
   });

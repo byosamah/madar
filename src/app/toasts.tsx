@@ -3,8 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 export type ToastInput = {
   message: string;
   tone?: 'info' | 'error';
-  /** isUndo: Ctrl+Z or Cmd+Z runs the action of the newest such toast too (audit 2026-10-03, SHL-3). */
-  action?: { label: string; run: () => void; isUndo?: boolean };
+  /**
+   * isUndo: Ctrl+Z or Cmd+Z runs the action of the newest such toast too (audit 2026-10-03, SHL-3).
+   * It is required, so a new Undo toast cannot leave it out by mistake (audit 2026-10-03, V-1).
+   */
+  action?: { label: string; run: () => void; isUndo: boolean };
 };
 type ToastItem = ToastInput & { id: number };
 
