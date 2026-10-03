@@ -2,8 +2,13 @@
 -- The loops below act on the tables of the schema that this file runs in (current_schema()), so the test harness can apply it
 -- into one schema for each test worker.
 
--- New functions in public get no execute right for the browser roles (Supabase grants it by default, and the Data API would
--- serve them). Each function below also revokes it by name, because a default privilege only covers later functions.
+-- No execute right on new functions. Postgres gives EXECUTE on every new function to PUBLIC as a global default, and anon and
+-- authenticated are members of PUBLIC. A per-schema revoke cannot remove a global default, so the first line removes it for
+-- every function that postgres (the migration role) makes after this file, in any schema. The second line reverses the
+-- per-schema grant that Supabase adds. So a later migration must grant each function by name to the role that calls it (for
+-- example the token hook to supabase_auth_admin); guards.it.test.ts makes a probe function and checks that it is closed.
+-- Functions that postgres made before this file are not covered, so each function below also revokes it by name.
+alter default privileges revoke execute on functions from public;
 alter default privileges in schema public revoke execute on functions from anon, authenticated;
 alter default privileges in schema public revoke all on tables from anon, authenticated;
 alter default privileges in schema public revoke all on sequences from anon, authenticated;

@@ -43,6 +43,10 @@ $$;
 -- The History: read and add only (plan 4.3).
 revoke update, delete, truncate on events from madar_server;
 
+-- platform_config: read only. The token hook copies mcp_url into the aud claim of every agent token, and only
+-- scripts/deploy/secrets.ts (as postgres) writes it (plan 4.2), so a server bug cannot change the audience of the tokens.
+revoke insert, update, delete, truncate on platform_config from madar_server;
+
 -- The token hook runs as supabase_auth_admin and reads mcp_url (plan, change 6). This is the one policy for a role other
 -- than madar_server, and it only reads.
 grant select on platform_config to supabase_auth_admin;

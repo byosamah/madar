@@ -36,6 +36,9 @@ export async function applyMigrations(client: pg.Client, schema: string): Promis
   await client.query(`create schema ${schema}`);
   await client.query('begin');
   try {
+    // The "alter default privileges" lines of the migrations change the same pg_default_acl rows, so two workers that apply
+    // them at the same time fail with "tuple concurrently updated". This lock makes the workers apply them one at a time.
+    await client.query("select pg_advisory_xact_lock(hashtext('madar_migrations'))");
     await client.query(`set local search_path to ${schema}`);
     for (const name of migrationFiles({ platform: false })) await client.query(readFileSync(new URL(name, MIGRATIONS), 'utf8'));
     await client.query('commit');

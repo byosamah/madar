@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TABLES, COUNTERS_TABLE, SERVER_TABLES } from '../data/tables';
@@ -215,6 +216,86 @@ describe('the database guards on the local stack', () => {
     );
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) expect({ name: row.name, anon: row.anon, authenticated: row.authenticated }).toEqual({ name: row.name, anon: false, authenticated: false });
+    // A function that a later migration makes in public, with no revoke by name: the default privileges must cover it.
+    const probe = await rolledBack(db, async () => {
+      await db.query('create function public.madar_guard_probe() returns integer language sql as $$ select 1 $$');
+      const { rows: grants } = await db.query(
+        `select has_function_privilege('anon', 'public.madar_guard_probe()', 'execute') as anon,
+                has_function_privilege('authenticated', 'public.madar_guard_probe()', 'execute') as authenticated`,
+      );
+      return grants[0];
+    });
+    expect(probe).toEqual({ anon: false, authenticated: false });
+  });
+
+  it('checks project_id against projects only at the end of the transaction', async () => {
+    const stage = (id: string, projectId: string) => JSON.stringify({ id, projectId });
+    const childFirst = await rolledBack(db, async () => [
+      await failure(db, `insert into stages (id, doc) values ('stg_9001', '${stage('stg_9001', 'prj_9001')}')`),
+      await failure(db, `insert into projects (id, doc) values ('prj_9001', '{"id":"prj_9001"}')`),
+      await failure(db, 'set constraints all immediate'),
+    ]);
+    expect(childFirst).toEqual(['no error', 'no error', 'no error']);
+    const orphan = await rolledBack(db, async () => [
+      await failure(db, `insert into stages (id, doc) values ('stg_9002', '${stage('stg_9002', 'prj_missing')}')`),
+      await failure(db, 'set constraints all immediate'),
+    ]);
+    expect(orphan[0]).toBe('no error');
+    expect(orphan[1]).toMatch(/violates foreign key constraint/);
+  });
+
+  it('keeps platform_config read-only for madar_server', async () => {
+    const errors = await rolledBack(server, async () => [
+      await failure(server, 'update platform_config set value = value'),
+      await failure(server, `insert into platform_config (key, value) values ('mcp_url', 'https://guard.invalid')`),
+      await failure(server, 'delete from platform_config'),
+      await failure(server, 'select * from platform_config'),
+    ]);
+    for (const error of errors.slice(0, 3)) expect(error).toMatch(/permission denied/);
+    expect(errors[3]).toBe('no error');
+  });
+
+  it('accepts an agent session only from the person who approved the agent link', async () => {
+    const owner = randomUUID();
+    const stranger = randomUUID();
+    const ownerSession = randomUUID();
+    const strangerSession = randomUUID();
+    const client = randomUUID();
+    const result = await rolledBack(db, async () => {
+      for (const id of [owner, stranger]) {
+        await db.query(`insert into auth.users (id, aud, role, email) values ($1, 'authenticated', 'authenticated', $2)`, [id, `${id}@madar.invalid`]);
+      }
+      await db.query('insert into auth.sessions (id, user_id) values ($1, $2), ($3, $4)', [ownerSession, owner, strangerSession, stranger]);
+      await db.query(
+        `insert into users (id, doc, auth_user_id) values
+           ('usr_9001', '{"id":"usr_9001","kind":"human","active":true}', $1),
+           ('usr_9002', '{"id":"usr_9002","kind":"human","active":true}', $2),
+           ('usr_9003', '{"id":"usr_9003","kind":"agent","ownerId":"usr_9001","active":true}', null)`,
+        [owner, stranger],
+      );
+      await db.query(
+        `insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host)
+         values ($1, 'usr_9001', 'usr_9003', 'Guard app', 'guard.invalid')`,
+        [client],
+      );
+      const ok = async (session: string) => (await db.query('select madar_private.agent_session_ok($1, $2) as ok', [session, client])).rows[0].ok;
+      const live = { owner: await ok(ownerSession), stranger: await ok(strangerSession) };
+      await db.query('update agent_links set revoked_at = now() where client_id = $1', [client]);
+      return { ...live, revoked: await ok(ownerSession) };
+    });
+    expect(result).toEqual({ owner: true, stranger: false, revoked: false });
+  });
+
+  it('applies the migrations from several workers at the same time', async () => {
+    const schemas = [1, 2, 3].map((n) => `madar_b3_par${n}_${process.pid}`);
+    const clients = await Promise.all(schemas.map(() => localClient()));
+    try {
+      const results = await Promise.allSettled(schemas.map((schema, i) => applyMigrations(clients[i], schema)));
+      expect(results.map((result) => (result.status === 'fulfilled' ? 'ok' : String(result.reason)))).toEqual(['ok', 'ok', 'ok']);
+    } finally {
+      for (const [i, schema] of schemas.entries()) await dropSchema(clients[i], schema);
+      await Promise.all(clients.map((client) => client.end()));
+    }
   });
 
   it('keeps the madar_private functions for their roles only', async () => {
