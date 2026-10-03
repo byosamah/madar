@@ -10,6 +10,7 @@ import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
+import { useDeactivate } from './DeactivateSheet';
 import { PersonFormSheet } from './PersonFormSheet';
 
 export function PeopleSection() {
@@ -19,7 +20,8 @@ export function PeopleSection() {
   const teams = useCall('teams.list', {});
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
-  const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: user.name }) });
+  // A person with live work gets a warning first (owner, 2026-10-03, API-7).
+  const deactivate = useDeactivate();
   // A person deactivated by mistake can come back with their account and history (audit 2026-10-03, SHL-7).
   const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: user.name }) });
   const me = session.data?.authority.id;
@@ -60,7 +62,7 @@ export function PeopleSection() {
               label={t('admin.actions', { name: user.name })}
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
-                { label: t('admin.deactivate'), onSelect: () => deactivate.mutate({ id: user.id }), hidden: !user.active || user.id === me, destructive: true },
+                { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },
                 // An agent comes back only while its person is active, as the API asks.
                 { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !byId.get(user.ownerId ?? '')?.active) },
               ]}
@@ -69,6 +71,7 @@ export function PeopleSection() {
           );
         })}
       </ul>
+      {deactivate.sheet}
       <PersonFormSheet open={adding} onOpenChange={setAdding} person={null} />
       <PersonFormSheet open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} person={editing} />
     </section>
