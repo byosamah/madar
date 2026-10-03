@@ -73,3 +73,13 @@ describe('The Team tab counts the tasks a person leads or helps on (audit 2026-1
     });
   });
 });
+
+describe('projects.get says which members are active (audit 2026-10-03, V-4a)', () => {
+  it('marks an inactive member, so a pick list can leave the person out', async () => {
+    const t = testApi(calls);
+    t.as('usr_001');
+    await t.api.call('users.deactivate', { id: 'usr_002' });
+    const detail = await t.api.call('projects.get', { id: 'prj_001' });
+    expect(detail.members.map((member) => [member.user.id, member.active])).toEqual([['usr_002', false], ['usr_003', true]]);
+  });
+});

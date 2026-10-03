@@ -91,6 +91,8 @@ export type TeamRow = z.infer<typeof TeamRow>;
 export const ProjectDetail = ProjectSummary.extend({
   members: z.array(z.object({
     user: UserCard, discipline: z.string(), isLeader: z.boolean(), openTasks: z.number().int().min(0),
+    /** False for a person who is no longer active. The API refuses that person for a task or a reply, so pick lists leave them out (audit 2026-10-03, V-4a). */
+    active: z.boolean(),
   })),
   deadlines: z.array(Deadline),
 });

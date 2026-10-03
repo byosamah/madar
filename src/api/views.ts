@@ -206,6 +206,7 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
     .filter((m) => m.projectId === project.id)
     .map((m) => ({
       user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId),
+      active: state.users[m.userId]?.active ?? false,
     }))
     .sort((a, b) => Number(b.isLeader) - Number(a.isLeader) || a.user.name.localeCompare(b.user.name));
   return { ...summary, members, deadlines: deadlinesOf(state, project.id) };
