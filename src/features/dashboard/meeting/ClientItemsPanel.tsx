@@ -13,6 +13,7 @@ import { ageInDays } from '../../../lib/tracker';
 import { addWorkingDays } from '../../../lib/workdays';
 import { ReplyFields } from '../../project/tracker/ReplyFields';
 import { ageText } from '../../project/tracker/marks';
+import { activeMembers } from '../../../lib/tracker';
 
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
@@ -106,7 +107,7 @@ export function ClientItemsPanel({ projectId }: { projectId: string }) {
           </div>
         );
       })}
-      {shown && detail.data && <AssignSheet key={shown.entry.id} row={shown} members={detail.data.members.map((member) => member.user)} onClose={() => setAssigning(null)} />}
+      {shown && detail.data && <AssignSheet key={shown.entry.id} row={shown} members={activeMembers(detail.data.members)} onClose={() => setAssigning(null)} />}
     </section>
   );
 }

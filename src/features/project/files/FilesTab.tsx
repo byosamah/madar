@@ -19,7 +19,7 @@ import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
-import { PreviewSheet } from './PreviewSheet';
+import { canPreview, PreviewSheet } from './PreviewSheet';
 import { ShareFileSheet } from './ShareFileSheet';
 
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
@@ -44,7 +44,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
     downloadFile(api, file.id, letter).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
   };
   const items: MenuItem[] = [
-    { label: t('files.preview'), onSelect: onPreview, hidden: !(image || latest.mimeType === 'application/pdf') },
+    { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
     { label: t('files.download'), onSelect: () => download() },
     { label: t('files.share'), onSelect: onShare, hidden: !detail.viewerCan.post },
     { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.post },

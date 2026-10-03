@@ -109,7 +109,8 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
   const events = useCall('events.list', { since: startedAt, limit: 500 });
   const chats = useCall('chats.list', {});
   // A project that left the agenda has no row in the schedule, so its name comes from the list of every project.
-  const unnamed = agendaIds.some((id) => !names.has(id) && events.data?.some((view) => view.event.projectId === id));
+  const eventProjects = useMemo(() => new Set((events.data ?? []).map((view) => view.event.projectId)), [events.data]);
+  const unnamed = agendaIds.some((id) => !names.has(id) && eventProjects.has(id));
   const everyProject = useCall('projects.list', { status: 'all' }, { enabled: unnamed });
 
   const groups = useMemo<Group[]>(() => {

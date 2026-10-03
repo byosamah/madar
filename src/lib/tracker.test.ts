@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInDays, groupByWeek, isOpen, replyPeople } from './tracker';
+import { activeMembers, ageInDays, groupByWeek, isOpen } from './tracker';
 
 describe('isOpen', () => {
   it('is true only while a waiting entry is not closed', () => {
@@ -35,15 +35,11 @@ describe('groupByWeek', () => {
   });
 });
 
-describe('replyPeople', () => {
+describe('activeMembers', () => {
   const card = (id: string) => ({ id, name: id, avatarUrl: null, kind: 'human' as const, discipline: '' });
 
-  it('leaves out an inactive member, because the API refuses that person (audit 2026-10-03, V-4b)', () => {
-    const members = [{ user: card('usr_002'), active: false }, { user: card('usr_003'), active: true }, { user: card('usr_004') }];
-    expect(replyPeople(members).map((user) => user.id)).toEqual(['usr_003', 'usr_004']);
-  });
-
-  it('keeps every member when the list has no active flag', () => {
-    expect(replyPeople([{ user: card('usr_002') }, { user: card('usr_003') }]).map((user) => user.id)).toEqual(['usr_002', 'usr_003']);
+  it('leaves out an inactive member, because the API refuses that person (audit 2026-10-03, V-4)', () => {
+    const members = [{ user: card('usr_002'), active: false }, { user: card('usr_003'), active: true }, { user: card('usr_004'), active: true }];
+    expect(activeMembers(members).map((user) => user.id)).toEqual(['usr_003', 'usr_004']);
   });
 });

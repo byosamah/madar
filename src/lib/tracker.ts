@@ -60,10 +60,9 @@ export function waitingFor(direction: TrackerDirection): TrackerWaiting {
 }
 
 /**
- * The people who can take a reply: the active project members. The API refuses an inactive person, so the list leaves them
- * out, and the default (the viewer or the first person) is always one the API takes. A member with no active flag counts as
- * active (audit 2026-10-03, V-4b).
+ * The people who can take work: the active project members. The API refuses an inactive person, so a pick list leaves them out,
+ * and its default (the viewer or the first person) is always one the API takes (audit 2026-10-03, V-4).
  */
-export function replyPeople(members: { user: UserCard; active?: boolean }[]): UserCard[] {
-  return members.filter((member) => member.active !== false).map((member) => member.user);
+export function activeMembers(members: { user: UserCard; active: boolean }[]): UserCard[] {
+  return members.filter((member) => member.active).map((member) => member.user);
 }

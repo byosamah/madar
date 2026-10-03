@@ -1,6 +1,4 @@
-// Source: https://lucide-animated.com/r/sliders-horizontal.json (MIT, lucide-animated). Local edits: class-join import;
-// initial="normal" on each line, so every animated attribute has a start value. With no start value, a re-render in the
-// same moment as the first animation wrote x1="undefined" and x2="undefined" (12 console errors) (audit 2026-10-03, V-31).
+// Source: https://lucide-animated.com/r/sliders-horizontal.json (MIT, lucide-animated). Local edits: class-join import; a start value for each animated element (see AnimatedIcon.tsx).
 import type { Transition } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";

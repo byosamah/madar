@@ -1,5 +1,5 @@
-import type { TaskRow } from '../../../api/contract/views';
-import { localeFor, type Lang } from '../../../lib/dates';
+import type { TaskRow } from '../api/contract/views';
+import { localeFor, type Lang } from './dates';
 
 /** True while the task waits for a task or a stage that is not done. */
 export function isWaiting(row: Pick<TaskRow, 'waitingFor'>): boolean {

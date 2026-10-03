@@ -25,7 +25,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const [timing, setTiming] = useState<Timing>(NO_TIMING);
   const dynamic = timing.schedule === 'dynamic';
   const summary = options.find((option) => option.project.id === projectId);
-  const back = useStageBack(summary?.viewerCan.post ?? false);
+  const back = useStageBack();
   const create = useAction('tasks.create', {
     onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
     onSuccess: (detail) => {

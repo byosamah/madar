@@ -11,12 +11,12 @@ import { useStageBack } from './StageBack';
  * "From a template" beside a stage's quick add (colleague comments 8 and 12). It lists only the templates saved for this stage's name,
  * and hides itself when there are none. A pick makes the task at once, with its checklist unticked.
  */
-export function TemplateMenu({ stage, canLog }: { stage: Stage; canLog: boolean }) {
+export function TemplateMenu({ stage }: { stage: Stage }) {
   const { t } = useTranslation();
   const templates = useCall('taskTemplates.list', { stageName: stage.name });
   const toast = useToast();
   // No Undo here, as in the quick add: undoing a new task is the leader's right (the task.delete rule).
-  const back = useStageBack(canLog);
+  const back = useStageBack();
   const create = useAction('tasks.createFromTemplate', {
     onSuccess: (output) => toast.show({ message: t('tasks.addedFromTemplate', { title: output.task.title }) }),
     onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),

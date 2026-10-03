@@ -1,3 +1,4 @@
+import type { ProjectStatus } from '../api/contract/entities';
 import type { TaskRow } from '../api/contract/views';
 import { diffDays } from './dates';
 import { compareTasks } from './stageFlow';
@@ -35,3 +36,7 @@ export function stageStanding(rows: TaskRow[], stage: { id: string; endDate: str
     daysLeft: stage.endDate ? diffDays(today, stage.endDate) : null,
   };
 }
+
+/** Live projects are active or paused. A completed or archived project holds no open work and needs no leader. */
+export const LIVE_STATUSES: readonly ProjectStatus[] = ['active', 'on_hold'];
+export const isLive = (status: ProjectStatus): boolean => LIVE_STATUSES.includes(status);

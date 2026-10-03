@@ -1,5 +1,6 @@
 import type { TaskRow } from '../api/contract/views';
 import { nowStamp, stampDay } from './dates';
+import { isWaiting } from './waiting';
 
 export type NextItem =
   | { kind: 'review' | 'pastDue' | 'dueToday' | 'continue'; row: TaskRow }
@@ -12,14 +13,13 @@ const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status ===
  * for no other task or stage (audit 2026-10-03, PER-1 and PER-2). Helper tasks stay on the Tasks screen.
  */
 const mayFinish = (row: TaskRow) => row.canMove;
-const free = (row: TaskRow) => row.waitingFor.tasks.length === 0 && row.waitingFor.stages.length === 0;
 const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
 
 /** The one thing for Home's card (redesign spec 3.2). The first match wins. */
 export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: string }): NextItem {
   const { review, today } = input;
   if (review.length > 0) return { kind: 'review', row: review[0] };
-  const mine = input.mine.filter((row) => mayFinish(row) && free(row));
+  const mine = input.mine.filter((row) => mayFinish(row) && !isWaiting(row));
   const pastDue = mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate < today).sort(byDue);
   if (pastDue.length > 0) return { kind: 'pastDue', row: pastDue[0] };
   const dueToday = mine.find((row) => open(row) && row.task.dueDate === today);

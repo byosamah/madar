@@ -11,11 +11,10 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { clipSpan, midPct, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
 import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
-import { currentTone, DeadlineMarks } from './scheduleMarks';
+import { currentTone, DeadlineMarks, stageKind, type StageKind } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
 
 type Row = DashboardData['schedule'][number];
-type Kind = 'done' | 'current' | 'next';
 
 const HEALTHS = ['on_track', 'at_risk', 'late'] as const;
 
@@ -23,12 +22,12 @@ const HEALTHS = ['on_track', 'at_risk', 'late'] as const;
  * The colors of the meeting timeline (audit 2026-10-03, DSH-15): a done stage is a faint grey, the current stage says the state
  * of the project, and a next stage is an outline.
  */
-function toneOf(kind: Kind, row: Row): string {
-  return kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row) : 'ring-1 ring-inset ring-chart-muted';
+function toneOf(kind: StageKind, row: Row): string {
+  return kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row.pause !== null, row.health) : 'ring-1 ring-inset ring-chart-muted';
 }
 
 /** One stage bar, with its name and its state for a screen reader, as on the meeting timeline (audit 2026-10-03, DSH-14). */
-function StageBar({ row, stage, kind, span, part }: { row: Row; stage: Row['stages'][number]; kind: Kind; span: Span; part: Span }) {
+function StageBar({ row, stage, kind, span, part }: { row: Row; stage: Row['stages'][number]; kind: StageKind; span: Span; part: Span }) {
   const { t } = useTranslation();
   return (
     <span
@@ -69,7 +68,7 @@ function StageLines({ row, span, todayAt, current, overlaps }: { row: Row; span:
     <>
       {row.stages.map((stage, i) => {
         const part = stage.startDate && stage.endDate ? clipSpan({ start: stage.startDate, end: stage.endDate }, span) : null;
-        const kind: Kind = i < current ? 'done' : i === current ? 'current' : 'next';
+        const kind = stageKind(i, current);
         return (
           <Fragment key={stage.id}>
             <div className="flex min-h-11 min-w-0 items-center ps-6 text-footnote text-ink-2">
@@ -119,13 +118,13 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
             {t('dashboard.legend.current')}
             {HEALTHS.map((health) => (
               <span key={health} className="inline-flex items-center gap-1.5">
-                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone({ pause: null, health })}`} />{t(`health.${health}`)}
+                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone(false, health)}`} />{t(`health.${health}`)}
               </span>
             ))}
             {/* Paused shares the grey of On track, so the legend says so when a paused row shows (audit 2026-10-03, V-7). */}
             {paused && (
               <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone({ pause: paused, health: 'on_track' })}`} />{t('status.on_hold')}
+                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone(true, 'on_track')}`} />{t('status.on_hold')}
               </span>
             )}
           </li>
@@ -181,7 +180,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       if (!stage.startDate || !stage.endDate) return null;
                       const part = clipSpan({ start: stage.startDate, end: stage.endDate }, span);
                       if (!part) return null;
-                      return <StageBar key={stage.id} row={row} stage={stage} kind={i < current ? 'done' : i === current ? 'current' : 'next'} span={span} part={part} />;
+                      return <StageBar key={stage.id} row={row} stage={stage} kind={stageKind(i, current)} span={span} part={part} />;
                     })}
                     <OverlapMarks overlaps={overlaps} span={span} />
                     {/* The deadlines of the meeting timeline: a button to reach with the keyboard, with the name and the date (audit 2026-10-03, DSH-14). */}

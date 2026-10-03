@@ -13,7 +13,7 @@ describe('the current stage bar of the Schedule tab', () => {
     const bar = (await screen.findByRole('slider', { name: `Start of ${stage}` })).parentElement as HTMLElement;
     const row = (await api.call('dashboard.get', {})).schedule.find((item) => item.project.id === projectId);
     expect(row?.health).toBe(health);
-    for (const name of currentTone(row!).split(' ')) expect(bar).toHaveClass(name);
+    for (const name of currentTone(row!.pause !== null, row!.health).split(' ')) expect(bar).toHaveClass(name);
     expect(bar).toHaveClass(tone);
     expect(bar.style.background).toBe('');
   });

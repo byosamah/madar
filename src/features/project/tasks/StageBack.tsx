@@ -5,7 +5,7 @@ import { Button } from '../../../components/Button';
 import { TextArea } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 
-type Pending = { stage: string; send: (reason: string, log: boolean) => void };
+type Pending = { stage: string; canLog: boolean; send: (reason: string, log: boolean) => void };
 
 /** True when the server refused a change because it moves the project back a stage and wants to know why. */
 export function isStageBackRefusal(error: unknown): error is ApiError {
@@ -16,23 +16,23 @@ export function isStageBackRefusal(error: unknown): error is ApiError {
  * A change can move the project back to an earlier stage (reopening a task, adding or moving one into an earlier stage).
  * The server then asks for a reason. This hook catches that refusal, asks "This moves the project back to X. Why?" in a small sheet,
  * and sends the same call again with the reason. Pass `refused` as the "onRefused" of the action, and render `sheet`.
- * "canLog" is the person's Tracker posting right on the project (viewerCan.post). With it, the sheet also offers an optional
- * tick box that logs the move in the Tracker as a Balady update (owner, 2026-10-03, API-14).
+ * When the refusal says the person may post in the Tracker (canLog), the sheet also offers an optional tick box that logs
+ * the move in the Tracker as a Balady update (owner, 2026-10-03, API-14).
  */
-export function useStageBack(canLog: boolean): {
+export function useStageBack(): {
   refused: <I extends object>(error: unknown, input: I, resend: (next: I & { reason: string; logInTracker?: boolean }) => void) => boolean;
   sheet: ReactNode;
 } {
   const [pending, setPending] = useState<Pending | null>(null);
   const refused = <I extends object>(error: unknown, input: I, resend: (next: I & { reason: string; logInTracker?: boolean }) => void): boolean => {
     if (!isStageBackRefusal(error)) return false;
-    setPending({ stage: String(error.details.stageName ?? ''), send: (reason, log) => resend({ ...input, reason, ...(log ? { logInTracker: true } : {}) }) });
+    setPending({ stage: String(error.details.stageName ?? ''), canLog: error.details.canLog === true, send: (reason, log) => resend({ ...input, reason, ...(log ? { logInTracker: true } : {}) }) });
     return true;
   };
   const sheet = pending ? (
     <StageBackSheet
       stage={pending.stage}
-      canLog={canLog}
+      canLog={pending.canLog}
       onClose={() => setPending(null)}
       onSend={(reason, log) => {
         pending.send(reason, log);

@@ -123,10 +123,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
   // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
   const paused = detail.project.status === 'on_hold';
-  const tone = currentTone({
-    pause: paused ? { kind: detail.project.pause?.kind ?? 'internal', staleDays: detail.staleDays } : null,
-    health: detail.health?.value ?? 'on_track',
-  });
+  const tone = currentTone(paused, detail.health?.value ?? 'on_track');
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
       {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}

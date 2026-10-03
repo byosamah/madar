@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
-import { isWaiting, waitingNames } from '../project/tasks/waiting';
+import { isWaiting, waitingNames } from '../../lib/waiting';
 import type { TaskDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { usePanelOpen } from '../../app/panelOpen';

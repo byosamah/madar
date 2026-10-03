@@ -16,6 +16,7 @@ import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
 import { NextCard } from './NextCard';
 import { TodayPanel } from './TodayPanel';
+import { isLive } from '../../lib/overview';
 
 /** Home (redesign spec 3.2): your day on the start side, your projects on the end side; one column on a phone. */
 export function HomeScreen() {
@@ -31,7 +32,7 @@ export function HomeScreen() {
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
   const admin = session.data?.user.systemRole === 'admin';
   const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
-  const projects = { ...listed, data: listed.data?.filter((summary) => summary.project.status === 'active' || summary.project.status === 'on_hold') };
+  const projects = { ...listed, data: listed.data?.filter((summary) => isLive(summary.project.status)) };
   const open = useCallback((projectId: string, taskId: string, thread = false) => setParams({ project: projectId, task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);

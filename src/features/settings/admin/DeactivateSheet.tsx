@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { ProjectStatus, User } from '../../../api/contract/entities';
+import type { User } from '../../../api/contract/entities';
 import type { ProjectSummary, TaskRow } from '../../../api/contract/views';
 import type { MadarApi } from '../../../api/calls';
 import { useUndoable } from '../../../app/actions';
@@ -12,11 +12,10 @@ import { Button } from '../../../components/Button';
 import { Sheet } from '../../../components/Sheet';
 import { actorContext, counted } from '../../../lib/grammar';
 import { taskLink } from '../../../lib/params';
+import { isLive } from '../../../lib/overview';
 
 /** The sheet names this many open tasks. The count in its heading tells the rest. */
 const SHOWN = 8;
-/** Live work: a completed or archived project needs no leader and holds no work for the person. */
-const LIVE: readonly ProjectStatus[] = ['active', 'on_hold'];
 
 type OpenWork = { projects: ProjectSummary[]; tasks: TaskRow[] };
 
@@ -26,7 +25,7 @@ async function openWorkOf(api: MadarApi, id: string): Promise<OpenWork> {
     api.call('projects.list', { status: 'all', sort: 'name' }),
     api.call('tasks.list', { ownerId: id, includeDone: false, activeProjectsOnly: false }),
   ]);
-  const live = new Set(projects.filter((summary) => LIVE.includes(summary.project.status)).map((summary) => summary.project.id));
+  const live = new Set(projects.filter((summary) => isLive(summary.project.status)).map((summary) => summary.project.id));
   return {
     projects: projects.filter((summary) => summary.project.leaderId === id && live.has(summary.project.id)),
     tasks: tasks.filter((row) => live.has(row.project.id)),

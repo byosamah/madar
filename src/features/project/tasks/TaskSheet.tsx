@@ -3,7 +3,7 @@ import { CircleCheckIcon } from '../../../components/icons/animated/circle-check
 import { XIcon } from '../../../components/icons/animated/x';
 import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { ApiError } from '../../../api/errors';
@@ -28,7 +28,7 @@ import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
 import { CommentThread } from '../../comments/CommentThread';
-import { PreviewSheet } from '../files/PreviewSheet';
+import { canPreview, PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
 import { historyText } from './history';
 import { useDateReason } from './DateReason';
@@ -41,6 +41,7 @@ import { CircleIcon } from '../../../components/icons/animated/circle';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
+import { TASK_PANEL, usePanelLink } from '../panelLink';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
@@ -135,8 +136,7 @@ function TaskFiles({ views }: { views: FileView[] }) {
   const toast = useToast();
   const [preview, setPreview] = useState<FileView | null>(null);
   const open = (view: FileView) => {
-    const type = view.latest.mimeType;
-    if (type.startsWith('image/') || type === 'application/pdf') setPreview(view);
+    if (canPreview(view.latest.mimeType)) setPreview(view);
     else downloadFile(api, view.file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
   };
   return (
@@ -203,7 +203,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   const files = useCall('files.list', { projectId: detail.project.id, taskId: data.task.id });
   const { task, viewerCan } = data;
   // Reopening a task, or moving it into an earlier stage, can move the project back. The server then asks why (owner, 2026-10-02).
-  const back = useStageBack(detail.viewerCan.post);
+  const back = useStageBack();
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
   const dates = useDateReason(() => setTimingKey((key) => key + 1), `dateReason:${task.id}`);
@@ -308,16 +308,11 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   const me = session.data?.authority.id;
   const canUndoAgent = (actingForId: string) => detail.viewerCan.review || actingForId === me;
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
-  const [params, setParams] = useSearchParams();
-  const location = useLocation();
+  const [params] = useSearchParams();
+  const panel = usePanelLink(TASK_PANEL);
   const section = params.get('thread') === '1' ? 'conversation' : 'details';
-  // The choice replaces the link and keeps the history step of the panel, so Close still leaves no extra Back (audit 2026-10-03, V-36).
-  const setSection = (next: 'details' | 'conversation') => setParams((current) => {
-    const value = new URLSearchParams(current);
-    if (next === 'conversation') value.set('thread', '1');
-    else value.delete('thread');
-    return value;
-  }, { replace: true, state: location.state });
+  // The panel is open, so the choice replaces the link and keeps the history step of the panel (audit 2026-10-03, V-36).
+  const setSection = (next: 'details' | 'conversation') => panel.open({ thread: next === 'conversation' ? '1' : null });
 
   return (
     <div ref={root} className="flex flex-col gap-5 pt-1">

@@ -12,10 +12,10 @@ import { TaskRowItem } from './TaskRowItem';
 import { TemplateMenu } from './TemplateMenu';
 
 /** "Add a task" at the top of a group. Enter creates it. The owner is the creator and the stage is the group's (spec 5.3). */
-function QuickAdd({ projectId, stage, canLog }: { projectId: string; stage: Stage; canLog: boolean }) {
+function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
-  const back = useStageBack(canLog);
+  const back = useStageBack();
   const create = useAction('tasks.create', {
     onSuccess: () => setTitle(''),
     onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
@@ -41,7 +41,7 @@ function QuickAdd({ projectId, stage, canLog }: { projectId: string; stage: Stag
         onChange={(event) => setTitle(event.target.value)}
         className="min-h-11 min-w-0 flex-1 bg-transparent text-body text-label placeholder:text-label-2"
       />
-      <TemplateMenu stage={stage} canLog={canLog} />
+      <TemplateMenu stage={stage} />
     </form>
     {back.sheet}
     </>
@@ -65,7 +65,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
             <h3 id={`stage-${stage.id}`} dir="auto" className="text-headline">{stage.name}</h3>
             <span className="tabular text-footnote text-label-2">{t('tasks.count', { n: stageRows.length })}</span>
           </header>
-          {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} canLog={detail.viewerCan.post} />}
+          {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} />}
           <ul>
             <AnimatePresence initial={false}>
               {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={onOpen} />)}

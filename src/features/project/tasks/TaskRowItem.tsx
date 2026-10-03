@@ -18,7 +18,7 @@ import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { actorContext } from '../../../lib/grammar';
 import { helpersOf, versionOf } from '../../../lib/taskPeople';
-import { isWaiting, waitingNames } from './waiting';
+import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { PauseIcon } from '../../../components/icons/animated/pause';
 import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';

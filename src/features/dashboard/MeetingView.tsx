@@ -30,7 +30,7 @@ import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
-import { currentTone, DeadlineMarks } from './scheduleMarks';
+import { currentTone, DeadlineMarks, stageKind } from './scheduleMarks';
 
 // The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
 const STATUSES = ['active', 'on_hold', 'all'] as const;
@@ -87,7 +87,7 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
   const startsInside = new Set(overlaps.map((overlap) => overlap.stageIds[1]));
   // The current stage draws last, so it lies over a next stage that starts inside it, and the next stage's outline
   // never crosses the current bar.
-  const stages = row.stages.map((stage, i) => ({ stage, kind: i < current ? 'done' as const : i === current ? 'current' as const : 'next' as const }));
+  const stages = row.stages.map((stage, i) => ({ stage, kind: stageKind(i, current) }));
   const order = [...stages.filter((item) => item.kind !== 'current'), ...stages.filter((item) => item.kind === 'current')];
   return (
     <>
@@ -96,7 +96,7 @@ function Bars({ row, span, drawing, index }: { row: Row; span: { start: string; 
         const part = clipSpan({ start: stage.startDate, end: stage.endDate }, span);
         if (!part) return null;
         const width = widthPct(span, part.start, part.end);
-        const tone = kind === 'done' ? 'bg-ink-2/35 text-ink' : kind === 'current' ? currentTone(row) : 'ring-2 ring-inset ring-chart-muted text-ink-2';
+        const tone = kind === 'done' ? 'bg-ink-2/35 text-ink' : kind === 'current' ? currentTone(row.pause !== null, row.health) : 'ring-2 ring-inset ring-chart-muted text-ink-2';
         // A stage that starts inside an earlier one shows its name at its end, out from under the bar before it.
         const side = kind !== 'current' && startsInside.has(stage.id) ? 'justify-end' : '';
         const style = {
@@ -142,8 +142,8 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
     <>
       {row.stages.map((stage, i) => {
         const part = stage.startDate && stage.endDate ? clipSpan({ start: stage.startDate, end: stage.endDate }, span) : null;
-        const kind = i < current ? 'done' : i === current ? 'current' : 'next';
-        const tone = kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row) : 'ring-2 ring-inset ring-chart-muted';
+        const kind = stageKind(i, current);
+        const tone = kind === 'done' ? 'bg-ink-2/35' : kind === 'current' ? currentTone(row.pause !== null, row.health) : 'ring-2 ring-inset ring-chart-muted';
         return (
           <div key={stage.id} className={`${COLUMNS} items-center`}>
             <div className="min-w-0 ps-[3.75rem] text-[17px] text-ink-2">

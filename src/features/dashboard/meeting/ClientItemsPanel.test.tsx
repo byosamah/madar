@@ -74,6 +74,22 @@ describe('client items on each project, in the meeting (owner, 2026-10-02)', () 
     expect(items.getAllByRole('button', { name: /Who replies\?/ })).toHaveLength(1);
   });
 
+  it('leaves an inactive member out of Who replies, because the API refuses that person (audit 2026-10-03, V-4)', async () => {
+    let gone = '';
+    const { store } = await renderApp(MEETING, (state) => {
+      withItems(state);
+      const project = shoreWalk(state);
+      gone = Object.values(state.members).find((member) => member.projectId === project.id && member.userId !== project.leaderId)!.userId;
+      state.users[gone].active = false;
+    });
+    const items = await panel();
+    await userEvent.click(items.getAllByRole('button', { name: /Who replies\?/ })[0]);
+    const sheet = await screen.findByRole('dialog', { name: 'Client asked for the lease plan' });
+    const options = within(within(sheet).getByRole('combobox', { name: 'Who replies?' })).getAllByRole('option').map((option) => (option as HTMLOptionElement).value);
+    expect(options).not.toContain(gone);
+    expect(options).toContain(shoreWalk(store.state).leaderId);
+  });
+
   it('shows no Client items region when the project has no open items', async () => {
     await renderApp(MEETING, (state) => { state.tracker = {}; });
     await screen.findByRole('region', { name: 'Needs attention' });

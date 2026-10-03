@@ -1,6 +1,5 @@
 // Madar's own icon in the lucide-animated pattern (2026-10-01): an empty tick box. On hover a faint tick draws in,
-// so the box shows that one press ticks it. initial="normal" gives the tick a start value: with none, a re-render in the
-// same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
+// so the box shows that one press ticks it. The tick has a start value (see AnimatedIcon.tsx).
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";

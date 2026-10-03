@@ -40,20 +40,16 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
     name: saved?.name ?? '', amount: saved ? String(saved.amount) : '', dueDate: saved?.dueDate ?? '', receivedOn: saved?.receivedOn ?? '', note: saved?.note ?? '',
   };
   const kept = drafts?.get(draftKey) ?? start;
-  const [name, setName] = useState(kept.name);
-  const [amount, setAmount] = useState(kept.amount);
-  const [dueDate, setDueDate] = useState(kept.dueDate);
-  const [receivedOn, setReceivedOn] = useState(kept.receivedOn);
-  const [note, setNote] = useState(kept.note);
+  const [form, setForm] = useState<PaymentDraft>(kept);
+  const set = (patch: Partial<PaymentDraft>) => setForm((current) => ({ ...current, ...patch }));
+  const { name, amount, dueDate, receivedOn, note } = form;
   const [problems, setProblems] = useState<Problems>({});
   // Only a change is kept, so a later change by another person shows when the sheet opens again.
-  const typed: PaymentDraft = { name, amount, dueDate, receivedOn, note };
-  const changed = JSON.stringify(typed) !== JSON.stringify(start);
-  const typedText = JSON.stringify(typed);
+  const startText = JSON.stringify(start);
   useEffect(() => {
-    if (changed) drafts?.set(draftKey, JSON.parse(typedText) as PaymentDraft);
+    if (JSON.stringify(form) !== startText) drafts?.set(draftKey, form);
     else drafts?.delete(draftKey);
-  }, [drafts, draftKey, changed, typedText]);
+  }, [drafts, draftKey, form, startText]);
   const close = () => {
     drafts?.delete(draftKey);
     onClose();
@@ -102,13 +98,13 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
           submit();
         }}
       >
-        <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => setName(event.target.value)} />
-        <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => setAmount(event.target.value)} />
+        <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
+        <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField id="payment-due" type="date" label={t('payments.dueDate')} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(event) => setDueDate(event.target.value)} />
-          <TextField id="payment-received" type="date" label={t('payments.receivedOn')} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(event) => setReceivedOn(event.target.value)} />
+          <TextField id="payment-due" type="date" label={t('payments.dueDate')} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(event) => set({ dueDate: event.target.value })} />
+          <TextField id="payment-received" type="date" label={t('payments.receivedOn')} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(event) => set({ receivedOn: event.target.value })} />
         </div>
-        <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
+        <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} value={note} onChange={(event) => set({ note: event.target.value })} />
       </form>
     </Sheet>
   );

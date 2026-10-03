@@ -19,7 +19,7 @@ import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
 import { useStageBack } from './StageBack';
-import { isWaiting, waitingNames } from './waiting';
+import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
@@ -122,15 +122,15 @@ function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
 }
 
 /** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
-export function TaskBoard({ rows, reviews, canLog, onOpen, onSendBack }: {
-  rows: TaskRow[]; reviews: boolean; canLog: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
+export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
+  rows: TaskRow[]; reviews: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
   const board = useRef<HTMLDivElement>(null);
-  const back = useStageBack(canLog);
+  const back = useStageBack();
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),

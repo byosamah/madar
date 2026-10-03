@@ -1,6 +1,12 @@
 import { useReducedMotion } from 'motion/react';
 import { useEffect, useRef, type ForwardRefExoticComponent, type HTMLAttributes, type RefAttributes } from 'react';
 
+/*
+ * A rule for every file in `animated/`: each animated element sets `initial` to its rest variant ("normal" or "initial"), so
+ * every animated value has a start value. With no start value, a re-render in the same moment as the first animation wrote
+ * "undefined" into the icon, and the browser logged an error for each value (audit 2026-10-03, S-3 and V-31).
+ */
+
 /** The ref API that every file in `animated/` exposes. */
 export type IconHandle = { startAnimation: () => void; stopAnimation: () => void };
 

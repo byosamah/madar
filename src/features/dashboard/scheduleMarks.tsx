@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { groupClose } from '../../lib/schedule';
 import type { DashboardData } from './Tiles';
+import type { HealthValue } from '../../api/contract/entities';
 
 // The marks that the meeting timeline and the office schedule share, so one mark has one color on both screens
 // (audit 2026-10-03, DSH-14 and DSH-15).
@@ -13,11 +14,16 @@ type Row = DashboardData['schedule'][number];
  * A quiet grey when on track or paused, an orange tint when at risk, solid red when late, so the problems are the loudest marks on the
  * screen. The project color stays on its tile.
  */
-export function currentTone(row: Pick<Row, 'pause' | 'health'>): string {
-  if (row.pause || row.health === 'on_track') return 'bg-ink-2 text-bg';
+export function currentTone(paused: boolean, health: HealthValue): string {
+  if (paused || health === 'on_track') return 'bg-ink-2 text-bg';
   // At risk is a soft orange tint with an orange edge, so it never looks like the solid red of late, in light or dark.
-  return row.health === 'late' ? 'bg-red-text text-bg' : 'bg-attn-bg text-attn ring-2 ring-inset ring-attn';
+  return health === 'late' ? 'bg-red-text text-bg' : 'bg-attn-bg text-attn ring-2 ring-inset ring-attn';
 }
+
+export type StageKind = 'done' | 'current' | 'next';
+
+/** A stage before the current one is done, and a stage after it is next. */
+export const stageKind = (index: number, current: number): StageKind => (index < current ? 'done' : index === current ? 'current' : 'next');
 
 export type Mark = { id: string; name: string; when: string; label: string; at: number };
 

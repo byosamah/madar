@@ -4,6 +4,9 @@ import { useFileUrl } from '../../../app/files';
 import { Button } from '../../../components/Button';
 import { Sheet } from '../../../components/Sheet';
 
+/** True for a file the preview can show: a picture or a PDF. */
+export const canPreview = (mimeType: string) => mimeType.startsWith('image/') || mimeType === 'application/pdf';
+
 /** A file preview: an image or a PDF. With more than one view, Previous and Next move through them. */
 export function PreviewSheet({ views, index, onIndex, onClose }: { views: FileView[]; index: number; onIndex: (index: number) => void; onClose: () => void }) {
   const { t } = useTranslation();
