@@ -14,9 +14,9 @@
     "test": "vitest run --project unit --project server",
     "test:watch": "vitest --project unit --project server",
     "test:server": "vitest run --project server",
-    "test:db": "vitest run --project db",
-    "test:it": "vitest run --project it",
-    "test:mcp": "vitest run --project server server/mcp",
+    "test:db": "MADAR_DB=1 vitest run --project db",
+    "test:it": "MADAR_IT=1 vitest run --project it --passWithNoTests",
+    "test:mcp": "vitest run --project server server/mcp && conformance server --url ${MCP_URL:-http://127.0.0.1:54321/functions/v1/mcp}",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
     "check:rtl": "node scripts/check-rtl.ts",
     "check:bundles": "node scripts/check-bundles.ts"
