@@ -10,6 +10,7 @@ import type { TaskStatus } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
+import { useToast } from '../../../app/toasts';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { Menu } from '../../../components/Menu';
@@ -39,20 +40,22 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   const starts = startsLater(row.task.startDate, todayISO(), row.task.status);
   return (
-    <div className={`surface flex flex-col gap-2 rounded-2xl p-3 pe-24 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
-      <p dir="auto" className="text-subheadline font-medium text-ink">
+    // The grip and the Move menu cover only the top end of the card, so only the title keeps 96 px free and is tall enough to
+    // clear them. The due words stay on one line, and the waiting label gets a line of its own (audit 2026-10-03, F-13).
+    <div className={`surface flex flex-col gap-2 rounded-2xl p-3 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
+      <p dir="auto" className="min-h-8 pe-24 text-subheadline font-medium text-ink">
         {row.task.title}
         {versionOf(row.task) > 1 && <span title={t('tasks.versionLabel', { n: versionOf(row.task) })} className="tabular ms-2 rounded-full bg-fill-strong px-1.5 text-caption font-semibold text-ink-2">{t('tasks.versionBadge', { n: versionOf(row.task) })}</span>}
       </p>
-      <div className="flex items-center gap-2 text-footnote text-ink-2">
-        {starts && <span className="tabular">{startsText(row.task.startDate as string, t, lang)}</span>}
-        {!starts && word && row.task.dueDate && <span className={`tabular ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-ink-2">
+        {starts && <span className="tabular whitespace-nowrap">{startsText(row.task.startDate as string, t, lang)}</span>}
+        {!starts && word && row.task.dueDate && <span className={`tabular whitespace-nowrap ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
         {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
-        {isWaiting(row) && row.task.status !== 'done' && <span dir="auto" className="min-w-0 truncate">{t('tasks.waitingFor', { names: waitingNames(row, lang) })}</span>}
         <span className="ms-auto">{row.helpers.length > 0
           ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={18} leaderSize={24} />
           : <Avatar user={row.owner} size={22} />}</span>
       </div>
+      {isWaiting(row) && row.task.status !== 'done' && <p dir="auto" className="text-footnote text-ink-2">{t('tasks.waitingFor', { names: waitingNames(row, lang) })}</p>}
     </div>
   );
 }
@@ -63,11 +66,13 @@ function Column({ status, count, closed, children }: { status: TaskStatus; count
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: closed });
   const label = t(`taskStatus.${status}`);
   return (
-    <section ref={setNodeRef} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 ${isOver ? 'bg-fill-strong' : 'bg-fill'}`}>
+    <section ref={setNodeRef} data-column={status} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 ${isOver ? 'bg-fill-strong' : closed ? 'bg-fill/40' : 'bg-fill'}`}>
       <h3 className="flex items-center justify-between px-2 pt-1 text-subheadline font-semibold">
         {label}
         <span className="tabular text-footnote text-ink-2">{count}</span>
       </h3>
+      {/* While a card is lifted, a column it cannot go to says so (audit 2026-10-03, F-9). */}
+      {closed && <p className="px-2 text-footnote text-ink-2">{t('tasks.dropClosed')}</p>}
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
   );
@@ -115,8 +120,10 @@ function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
 /** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
 export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; reviews: boolean; canLog: boolean; onOpen: (taskId: string) => void }) {
   const { t } = useTranslation();
+  const toast = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
+  const board = useRef<HTMLDivElement>(null);
   const back = useStageBack(canLog);
   const move = useUndoable('tasks.move', {
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
@@ -126,11 +133,29 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: columnKeys }),
   );
-  const onDragEnd = ({ active, over }: DragEndEvent) => {
+  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviews).includes(status);
+  const onDragEnd = ({ active, over, activatorEvent, delta }: DragEndEvent) => {
     setActiveId(null);
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
-    if (row && over && moveTargets(row.task.status, reviews).includes(over.id as TaskStatus)) move.mutate({ id: row.task.id, status: over.id as TaskStatus });
+    if (!row) return;
+    if (over && moveTargets(row.task.status, reviews).includes(over.id as TaskStatus)) {
+      move.mutate({ id: row.task.id, status: over.id as TaskStatus });
+      return;
+    }
+    // A closed column takes no drop, so the card went back with no visible reason. When the pointer let go over a closed
+    // column, a toast says why and opens the review block (audit 2026-10-03, F-9). Only a card in review has closed columns.
+    const start = activatorEvent as Partial<PointerEvent>;
+    if (typeof start.clientX !== 'number' || typeof start.clientY !== 'number') return;
+    const x = start.clientX + delta.x;
+    const y = start.clientY + delta.y;
+    const refused = BOARD_COLUMNS.some((status) => {
+      const box = closedFor(row, status) ? board.current?.querySelector(`[data-column="${status}"]`)?.getBoundingClientRect() : undefined;
+      return box !== undefined && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom; // rtl-ok: screen coordinates
+    });
+    if (refused) {
+      toast.show({ message: t('errors.reasons.review_send_back'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } });
+    }
   };
   // The click that ends a pointer drag must not open the task.
   const open = (taskId: string) => {
@@ -156,11 +181,11 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+      <div ref={board} className="-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
         {BOARD_COLUMNS.map((status) => {
           const columnRows = rows.filter((row) => row.task.status === status);
           return (
-            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && status !== lifted.task.status && !moveTargets(lifted.task.status, reviews).includes(status)}>
+            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && closedFor(lifted, status)}>
               {columnRows.map((row) => (
                 <BoardCard
                   key={row.task.id}

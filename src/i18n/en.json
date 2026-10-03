@@ -473,6 +473,8 @@
     "moveTo": "Move {{title}}",
     "sendBackOpen": "Send back with a note",
     "drag": "Drag {{title}}",
+    "dropClosed": "This task cannot move here.",
+    "openTask": "Open task",
     "empty": "No tasks here yet.",
     "emptyFiltered": "No tasks match this filter.",
     "flagged": "Flagged",
