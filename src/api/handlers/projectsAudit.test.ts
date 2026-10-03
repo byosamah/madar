@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { calls } from '../calls';
-import { makeTask, NOW, testApi } from '../../test/factories';
+import { makeProject, makeTask, NOW, STAMP, testApi } from '../../test/factories';
+import { memoryPersister } from '../persist';
+import { projectsDelete } from './projects';
 import { setNow } from '../../lib/dates';
 import { memberKey } from '../store';
 
@@ -103,5 +105,78 @@ describe('projects.get says which members are active (audit 2026-10-03, V-4a)', 
     await t.api.call('users.deactivate', { id: 'usr_002' });
     const detail = await t.api.call('projects.get', { id: 'prj_001' });
     expect(detail.members.map((member) => [member.user.id, member.active])).toEqual([['usr_002', false], ['usr_003', true]]);
+  });
+});
+
+describe('projects.delete removes data by the ids of the project, not by absence (plan 4.13, A2; AM 7.2)', () => {
+  /** Project B (prj_002) with a task, a post, a comment on each, and a notice for each. */
+  function withProjectB(t: ReturnType<typeof testApi>) {
+    const s = t.store.state;
+    s.projects.prj_002 = makeProject({ id: 'prj_002', code: 'KH-26-002', name: 'Other Tower' });
+    s.tasks.tsk_201 = makeTask({ id: 'tsk_201', projectId: 'prj_002' });
+    s.updates.upd_201 = { id: 'upd_201', projectId: 'prj_002', authorId: 'usr_002', body: 'B post', fileIds: [], createdAt: STAMP, editedAt: null };
+    const comment = { authorId: 'usr_002', body: 'B note', reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: STAMP, editedAt: null };
+    s.comments.cmt_201 = { ...comment, id: 'cmt_201', targetType: 'task', targetId: 'tsk_201' };
+    s.comments.cmt_202 = { ...comment, id: 'cmt_202', targetType: 'update', targetId: 'upd_201' };
+    const notice = { userId: 'usr_003', trigger: 'mention' as const, actorId: 'usr_002', read: false, createdAt: STAMP, dedupeKey: null };
+    s.notifications.ntf_201 = { ...notice, id: 'ntf_201', targetType: 'task', targetId: 'tsk_201' };
+    s.notifications.ntf_202 = { ...notice, id: 'ntf_202', targetType: 'update', targetId: 'upd_201' };
+    s.notifications.ntf_203 = { ...notice, id: 'ntf_203', targetType: 'project', targetId: 'prj_002' };
+  }
+
+  /** Project A (prj_001) with the same set, so the delete has something of its own to remove. */
+  function withProjectA(t: ReturnType<typeof testApi>) {
+    const s = t.store.state;
+    s.tasks.tsk_101 = makeTask({ id: 'tsk_101' });
+    s.updates.upd_101 = { id: 'upd_101', projectId: 'prj_001', authorId: 'usr_002', body: 'A post', fileIds: [], createdAt: STAMP, editedAt: null };
+    const comment = { authorId: 'usr_002', body: 'A note', reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: STAMP, editedAt: null };
+    s.comments.cmt_101 = { ...comment, id: 'cmt_101', targetType: 'task', targetId: 'tsk_101' };
+    s.comments.cmt_102 = { ...comment, id: 'cmt_102', targetType: 'update', targetId: 'upd_101' };
+    const notice = { userId: 'usr_003', trigger: 'mention' as const, actorId: 'usr_002', read: false, createdAt: STAMP, dedupeKey: null };
+    s.notifications.ntf_101 = { ...notice, id: 'ntf_101', targetType: 'task', targetId: 'tsk_101' };
+    s.notifications.ntf_102 = { ...notice, id: 'ntf_102', targetType: 'update', targetId: 'upd_101' };
+    s.notifications.ntf_103 = { ...notice, id: 'ntf_103', targetType: 'project', targetId: 'prj_001' };
+  }
+
+  it('removes the comments and notices of the project and keeps those of another project', async () => {
+    const t = testApi(calls);
+    withProjectA(t);
+    withProjectB(t);
+    await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
+    const s = t.store.state;
+    expect(Object.keys(s.comments).sort()).toEqual(['cmt_201', 'cmt_202']);
+    expect(Object.keys(s.notifications).sort()).toEqual(['ntf_201', 'ntf_202', 'ntf_203']);
+  });
+
+  it('keeps the comments and notices of another project whose task and post the server did not load', async () => {
+    const t = testApi(calls);
+    withProjectA(t);
+    withProjectB(t);
+    // The server loads only what the delete needs. Rows of project B that point at rows it did not load must stay.
+    delete t.store.state.tasks.tsk_201;
+    delete t.store.state.updates.upd_201;
+    await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
+    const s = t.store.state;
+    expect(Object.keys(s.comments).sort()).toEqual(['cmt_201', 'cmt_202']);
+    expect(Object.keys(s.notifications).sort()).toEqual(['ntf_201', 'ntf_202', 'ntf_203']);
+  });
+
+  it('keeps the stored data that blobKeysInUse reports, and removes the rest', async () => {
+    const t = testApi(calls);
+    const persister = memoryPersister();
+    await persister.putBlob('blob_kept', new Blob(['a']));
+    await persister.putBlob('blob_gone', new Blob(['b']));
+    const asked: string[][] = [];
+    const ctx = {
+      state: t.store.state, persister, actor: t.store.state.users.usr_001, now: NOW,
+      async blobKeysInUse(keys: string[]) {
+        asked.push(keys);
+        return new Set(['blob_kept']);
+      },
+    };
+    await projectsDelete.after!({ deleted: true }, ctx, { blobKeys: ['blob_kept', 'blob_gone'] });
+    expect(asked).toEqual([['blob_kept', 'blob_gone']]);
+    expect(await persister.getBlob('blob_kept')).not.toBeNull();
+    expect(await persister.getBlob('blob_gone')).toBeNull();
   });
 });

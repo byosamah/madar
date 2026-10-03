@@ -389,9 +389,11 @@ export const projectsDelete = defineCall({
     return { blobKeys: blobKeysOf(p.state, input.id) };
   },
   // A deleted project never comes back, so its stored file data goes after the delete (audit 2026-10-03, API-17).
-  // A key that a file of another project still uses stays.
+  // A key that a file of another project still uses stays. The server asks the database (blobKeysInUse); the prototype scans its files.
   async after(_output, p, prepared) {
-    const used = new Set(Object.values(p.state.files).flatMap((file) => file.versions.map((version) => version.blobKey)));
+    const used = p.blobKeysInUse
+      ? await p.blobKeysInUse(prepared.blobKeys)
+      : new Set(Object.values(p.state.files).flatMap((file) => file.versions.map((version) => version.blobKey)));
     for (const key of prepared.blobKeys) if (!used.has(key)) await p.persister.deleteBlob(key);
   },
   run(input, ctx) {
@@ -399,6 +401,10 @@ export const projectsDelete = defineCall({
     assertCan(ctx, 'project.delete', { projectRole: roleIn(ctx, project.id) });
     const { state } = ctx;
     const pid = project.id;
+    // The ids of the project's tasks and posts, taken before the drops. Comments and notices go by these ids, never because
+    // their target is missing: on the server a row of another project may simply not be loaded (plan 4.13, A2; AM 7.2).
+    const taskIds = new Set(Object.values(state.tasks).filter((task) => task.projectId === pid).map((task) => task.id));
+    const updateIds = new Set(Object.values(state.updates).filter((update) => update.projectId === pid).map((update) => update.id));
     const drop = <T extends { projectId: string }>(records: Record<string, T>) => {
       for (const [key, value] of Object.entries(records)) if (value.projectId === pid) delete records[key];
     };
@@ -412,13 +418,13 @@ export const projectsDelete = defineCall({
     // A Tracker entry has no meaning without its project (audit 2026-10-03, API-17).
     drop(trackerOf(state));
     for (const [key, comment] of Object.entries(state.comments)) {
-      const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
-      if (!target) delete state.comments[key];
+      const ofProject = comment.targetType === 'task' ? taskIds.has(comment.targetId) : updateIds.has(comment.targetId);
+      if (ofProject) delete state.comments[key];
     }
     for (const [key, n] of Object.entries(state.notifications)) {
       const gone = (n.targetType === 'project' && n.targetId === pid)
-        || (n.targetType === 'task' && !state.tasks[n.targetId])
-        || (n.targetType === 'update' && !state.updates[n.targetId]);
+        || (n.targetType === 'task' && taskIds.has(n.targetId))
+        || (n.targetType === 'update' && updateIds.has(n.targetId));
       if (gone) delete state.notifications[key];
     }
     dropProjectConversation(state, pid);
