@@ -15,9 +15,14 @@ export function errorMessage(error: unknown, t: TFunction): string {
   return t('errors.failed');
 }
 
-/** Only a failed call is worth a retry. A refusal or an invalid field stays the same on a retry. */
+/**
+ * A failed call is worth a retry, and so is a call refused because the session ended: a 401 never ran on the server
+ * (client map 7.3), so the same call is safe to send again after the person signs in. A refusal, an invalid field or a
+ * turned-off account stays the same on a retry.
+ */
 export function canRetry(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'failed';
+  if (!(error instanceof ApiError)) return false;
+  return error.code === 'failed' || (error.code === 'unauthenticated' && error.details.reason !== 'account_off');
 }
 
 /** The inline message for one field of a refused form (spec 11.6), or undefined when the refusal does not name it. */

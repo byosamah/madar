@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorMessage } from './errors';
+import { canRetry, errorMessage } from './errors';
 import { API_ERROR_CODES, ApiError, forbidden, invalid } from '../api/errors';
 import { SERVER_REASONS } from '../api/contract/server';
 import { initI18n } from '../i18n';
@@ -38,3 +38,13 @@ describe('errorMessage', () => {
   });
 });
 
+
+describe('canRetry', () => {
+  it('offers a Retry after a failed call and after an ended session, never after a refusal or a turned-off account', () => {
+    expect(canRetry(new ApiError('failed', 'Could not save.'))).toBe(true);
+    // A 401 never ran on the server (client map 7.3), so the same call is safe to send again after the person signs in.
+    expect(canRetry(new ApiError('unauthenticated', 'Signed out.'))).toBe(true);
+    expect(canRetry(new ApiError('unauthenticated', 'Account off.', { reason: 'account_off' }))).toBe(false);
+    expect(canRetry(forbidden())).toBe(false);
+  });
+});
