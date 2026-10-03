@@ -234,38 +234,42 @@ Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files
 
 **Result: PASS.** A `realtime.send` inside a transaction that rolls back sends nothing. A `realtime.send` inside a transaction that commits arrives once on a private channel. The design of plan section 5.3 (send from SQL inside the save transaction) stands. No design change.
 
-**Where and when.** 2026-10-03, branch `rb/N1`, local stack from `supabase start` (CLI 2.119.0, image `supabase/realtime:v2.140.3`, `supabase/postgres:17.11.0.002`), after `supabase db reset`, under the Docker lock (holder `N1.0`).
+**Where and when.** 2026-10-03, branch `rb/N1`, local stack from `supabase start -x edge-runtime` (until track E merges; see fact 7) (CLI 2.119.0, image `supabase/realtime:v2.140.3`, `supabase/postgres:17.11.0.002`), after `supabase db reset`, under the Docker lock (holder `N1.0`). Rerun after the review fixes under the lock holder `N1-repair`, with the same images; the output below is that rerun.
 
-**Script.** `scripts/proof/realtime-rollback.ts`, run with `npx tsx scripts/proof/realtime-rollback.ts`. Its verdict step `judge()` has 10 unit tests in `scripts/proof/realtime-rollback.test.ts` (in `npm test`). The script:
+**Script.** `scripts/proof/realtime-rollback.ts`, run with `npx tsx scripts/proof/realtime-rollback.ts`. Its verdict step `judge()` has 15 unit tests in `scripts/proof/realtime-rollback.test.ts` (in `npm test`). The script:
 
 1. Creates two confirmed people through the Auth admin API: a member and a stranger.
 2. Adds a select policy on `realtime.messages` for the run's own topic, for `extension = 'broadcast'`, and only for the member (`auth.uid()`). No insert policy. This is the shape of the section 5.3 policies.
 3. Signs the member in, calls `realtime.setAuth(token)`, and joins the topic with `{ private: true }`.
-4. Sends four marks from `pg` as `postgres`, each in its own transaction, in this order: commit, rollback, an error (`select 1 / 0`) that forces the rollback, commit. The last commit proves that the listener was still alive after the two rollbacks.
+4. Sends four marks from `pg` as `postgres`, each in its own transaction, in this order: commit, rollback, an error (`select 1 / 0`) that forces the rollback, commit. The last commit proves that the listener was still alive after the two rollbacks. Inside each transaction, before its end, it counts the row of the mark in `realtime.messages`. `realtime.send` turns a failed insert into a warning (fact 1), so this count proves that each send worked, also the sends that rolled back.
 5. Waits 4 seconds, then counts the arrivals of each mark and the rows of each mark in `realtime.messages`.
 6. Removes the policy, the two people and the channels.
 
 **Output of the run** (the run id is random):
 
 ```
-member join on the private channel n1-spike-9c5d1811: joined
-join with no session on the same private channel: refused
-join of a signed-in person whom the policy does not name: refused
-received in order: 9c5d1811-commit-1, 9c5d1811-commit-2
-ok: committed mark 9c5d1811-commit-1 arrived 1 time(s) on the channel; expected 1.
-ok: committed mark 9c5d1811-commit-2 arrived 1 time(s) on the channel; expected 1.
-ok: rolled-back mark 9c5d1811-rollback arrived 0 time(s) on the channel; expected 0.
-ok: rolled-back mark 9c5d1811-error arrived 0 time(s) on the channel; expected 0.
-ok: committed mark 9c5d1811-commit-1 has 1 row(s) in realtime.messages; expected 1.
-ok: committed mark 9c5d1811-commit-2 has 1 row(s) in realtime.messages; expected 1.
-ok: rolled-back mark 9c5d1811-rollback has 0 row(s) in realtime.messages; expected 0.
-ok: rolled-back mark 9c5d1811-error has 0 row(s) in realtime.messages; expected 0.
-ok: a client with no session could not join the private channel.
-ok: a signed-in person whom the policy does not name could not join the private channel.
+member join on the private channel n1-spike-b914fd71: joined
+join with no session on the same private channel: refused (Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71)
+join of a signed-in person whom the policy does not name: refused (Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71)
+received in order: b914fd71-commit-1, b914fd71-commit-2
+ok: the send of mark b914fd71-commit-1 inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-commit-2 inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-rollback inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-error inserted 1 row(s) before its commit or rollback; expected 1.
+ok: committed mark b914fd71-commit-1 arrived 1 time(s) on the channel; expected 1.
+ok: committed mark b914fd71-commit-2 arrived 1 time(s) on the channel; expected 1.
+ok: rolled-back mark b914fd71-rollback arrived 0 time(s) on the channel; expected 0.
+ok: rolled-back mark b914fd71-error arrived 0 time(s) on the channel; expected 0.
+ok: committed mark b914fd71-commit-1 has 1 row(s) in realtime.messages; expected 1.
+ok: committed mark b914fd71-commit-2 has 1 row(s) in realtime.messages; expected 1.
+ok: rolled-back mark b914fd71-rollback has 0 row(s) in realtime.messages; expected 0.
+ok: rolled-back mark b914fd71-error has 0 row(s) in realtime.messages; expected 0.
+ok: a client with no session could not join the private channel (server: Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71).
+ok: a signed-in person whom the policy does not name could not join the private channel (server: Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71).
 PASS
 ```
 
-The two refusals are the control. They show that the policy, not chance, lets the member join. So the member's arrivals are a valid measure.
+The two refusals are the control. `judge()` counts a refusal only when the server reason is an authorization refusal (`Unauthorized` or `permission`), so a socket drop or a bad token cannot pass for the policy. They show that the policy, not chance, lets the member join. So the member's arrivals are a valid measure.
 
 **Facts for N1.1 and R2** (read from the local stack, `realtime.send` source and `pg_inherits`):
 
