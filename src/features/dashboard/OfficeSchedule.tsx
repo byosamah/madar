@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { ExternalLinkIcon } from '../../components/icons/animated/external-link';
+import { ProjectSign } from '../../components/ProjectSign';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
@@ -102,6 +103,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
   const today = todayISO();
   const { span, ticks } = scheduleWindow(today, zoom);
   const todayAt = { insetInlineStart: `${offsetPct(span, today)}%` };
+  const paused = view.schedule.find((row) => row.pause)?.pause ?? null;
   return (
     <section aria-labelledby="dash-schedule" className="panel flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -120,6 +122,12 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                 <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone({ pause: null, health })}`} />{t(`health.${health}`)}
               </span>
             ))}
+            {/* Paused shares the grey of On track, so the legend says so when a paused row shows (audit 2026-10-03, V-7). */}
+            {paused && (
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden className={`h-2.5 w-5 rounded-full ${currentTone({ pause: paused, health: 'on_track' })}`} />{t('status.on_hold')}
+              </span>
+            )}
           </li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full ring-1 ring-inset ring-chart-muted" />{t('dashboard.legend.next')}</li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rotate-45 rounded-sm bg-ink-2" />{t('dashboard.legend.deadline')}</li>
@@ -152,7 +160,12 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-2 text-start"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="tabular block text-caption text-ink-2">{row.project.code}</span>
+                        {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign sits on the code line, so the
+                            name keeps the width of the narrow column (audit 2026-10-03, V-7). */}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="tabular text-caption text-ink-2">{row.project.code}</span>
+                          {row.pause && <ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} />}
+                        </span>
                         <bdi className="block truncate text-subheadline text-ink">{row.project.name}</bdi>
                         {/* The color of the current stage says the state. A screen reader hears it as a word. */}
                         {!row.pause && row.health !== 'on_track' && <span className="sr-only">{t(`health.${row.health}`)}</span>}
