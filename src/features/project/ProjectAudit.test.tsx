@@ -591,3 +591,109 @@ describe('the Tracker type picker works with arrow keys (audit 2026-10-03, PRJ-2
     expect(within(group).getAllByRole('radio')[checked]).toHaveAttribute('aria-checked', 'true');
   });
 });
+
+// Today in the tests is Wed 30 Sep 2026. Here Stair details starts on Sun 4 Oct and is due on Tue 20 Oct.
+const staticStair = (state: State) => {
+  state.session.currentUserId = 'usr_002';
+  Object.assign(state.tasks.tsk_007, { startDate: '2026-10-04', schedule: 'static', durationDays: null, dueDate: '2026-10-20' });
+};
+
+describe('Enter, then a click on Cancel (audit 2026-10-03, BRW-3)', () => {
+  it('sends a date once, so one Cancel closes the reason sheet', async () => {
+    const { api, store } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair);
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const spy = vi.spyOn(api, 'call');
+    const due = within(sheet).getByLabelText('Due date');
+    fireEvent.change(due, { target: { value: '2026-10-26' } });
+    fireEvent.keyDown(due, { key: 'Enter' });
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    fireEvent.blur(due);
+    await settle();
+    expect(spy.mock.calls.filter(([name]) => name === 'tasks.update')).toHaveLength(1);
+    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    await settle();
+    expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull();
+    expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');
+  });
+});
+
+describe('Approve in the task panel (audit 2026-10-03, BRW-5)', () => {
+  it('offers Undo', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_010', as('usr_002'));
+    const sheet = await screen.findByRole('dialog', { name: store.state.tasks.tsk_010.title });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_review'));
+  });
+});
+
+describe('a failed save shows the saved value (audit 2026-10-03, BRW-6)', () => {
+  it('puts the title back when its save fails', async () => {
+    const fail = trap('tasks.update');
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const title = within(sheet).getByLabelText('Title');
+    fail.state.armed = true;
+    await userEvent.type(title, ' v0');
+    fireEvent.blur(title);
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await waitFor(() => expect(within(sheet).getByLabelText('Title')).toHaveValue('Stair details'));
+  });
+
+  it('keeps the typed date reason when Save dates fails, so a second Save sends it', async () => {
+    const fail = trap('tasks.update');
+    const { store } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair, { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-10-26' } });
+    fireEvent.blur(within(sheet).getByLabelText('Due date'));
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The survey came late');
+    fail.state.armed = true;
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    const again = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    expect(within(again).getByRole('textbox', { name: 'Reason' })).toHaveValue('The survey came late');
+    await userEvent.click(within(again).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-26'));
+  });
+});
+
+describe('quick add keeps the focus (audit 2026-10-03, BRW-11)', () => {
+  it('leaves the focus in the field after Enter', async () => {
+    const { store } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'), { latencyMs: 150 });
+    const field = await screen.findByRole('textbox', { name: 'Add a task in Permits' }, { timeout: 3000 });
+    await userEvent.type(field, 'Fire strategy report{Enter}');
+    // A disabled field loses the focus in a browser; jsdom keeps it, so the test checks that the field never turns disabled.
+    expect(field).toHaveAttribute('aria-busy', 'true');
+    expect(field).not.toBeDisabled();
+    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Fire strategy report')).toBe(true));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Add a task in Permits' })).toHaveValue(''));
+    expect(screen.getByRole('textbox', { name: 'Add a task in Permits' })).toHaveFocus();
+  });
+});
+
+describe('no dead tick circles (audit 2026-10-03, BRW-13)', () => {
+  it('gives a person who cannot tick a plain mark, not a button', async () => {
+    await renderApp('/projects/prj_001?tab=tasks', as('usr_005'));
+    const row = (await screen.findByText('Balady submission set')).closest('li') as HTMLElement;
+    expect(within(row).queryByRole('checkbox')).toBeNull();
+    expect(within(screen.getByText('Civil Defense drawings').closest('li') as HTMLElement).getByRole('checkbox')).toBeEnabled();
+  });
+});
+
+describe('one word for a closed client item (audit 2026-10-03, BRW-15)', () => {
+  it('says "Marked as answered." for a reply the office gave', async () => {
+    const { api } = await renderApp('/projects/prj_001?tab=tracker', as('usr_002'));
+    await api.call('tracker.log', { projectId: 'prj_001', type: 'message', direction: 'in', title: 'Client asks for the area table.', date: '2026-09-30', waiting: 'us', fileIds: [] });
+    await userEvent.click(await screen.findByRole('button', { name: 'Answered: Client asks for the area table.' }));
+    expect(await screen.findByText('Marked as answered.')).toBeInTheDocument();
+  });
+
+  it('says "Marked as received." for something the client sent', async () => {
+    const { api } = await renderApp('/projects/prj_001?tab=tracker', as('usr_002'));
+    await api.call('tracker.log', { projectId: 'prj_001', type: 'message', direction: 'out', title: 'We need the soil report.', date: '2026-09-30', waiting: 'client', fileIds: [] });
+    await userEvent.click(await screen.findByRole('button', { name: 'Received: We need the soil report.' }));
+    expect(await screen.findByText('Marked as received.')).toBeInTheDocument();
+  });
+});

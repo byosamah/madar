@@ -11,7 +11,8 @@ import { ageText } from './marks';
 /** One open loop: the title, its age and one button to close it. The Overview shows the client's open loops too. */
 export function Loop({ row, onOpen, compact = false }: { row: TrackerRow; onOpen: () => void; compact?: boolean }) {
   const { t } = useTranslation();
-  const close = useUndoable('tracker.close', { message: () => t('tracker.closedToast') });
+  // The toast uses the word of the button and the state: Answered or Received (audit 2026-10-03, BRW-15).
+  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const action = t(row.entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
   return (
     <li className="flex min-h-14 items-center gap-3">
