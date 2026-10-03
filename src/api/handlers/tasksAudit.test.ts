@@ -3,6 +3,7 @@ import { calls } from '../calls';
 import { makeTask, NOW, testApi, TODAY } from '../../test/factories';
 import { addDays, setNow } from '../../lib/dates';
 import { buildSeed } from '../../data/seed';
+import { shiftState } from '../../data/shift';
 
 beforeEach(() => setNow(NOW));
 
@@ -44,6 +45,20 @@ describe('A task that finishes late twice moves its dependent once (audit 2026-1
     expect(b.startDate).toBe('2026-09-30');
     expect(b.dateNotes?.[1]).toMatchObject({ lateDays: 3, reason: 'Task A finished 3 working days late' });
     expect(shifts(t).map((entry) => entry.title)).toEqual(['Task B moved 2 working days', 'Task B moved 1 working day']);
+  });
+
+  it('does not move it again when the daily date shift runs between the two finishes (audit 2026-10-03, V-3)', async () => {
+    const t = world();
+    await t.api.call('tasks.complete', { id: 'tsk_001' }); // Due Mon 21 Sep, finished Wed 23 Sep: 2 working days late
+    await t.api.call('tasks.move', { id: 'tsk_001', status: 'todo' });
+    // The office opens the next day. Every date moves one day: A is now due Tue 22 Sep, and it is Thu 24 Sep.
+    setNow(new Date('2026-09-24T06:00:00Z'));
+    const next = testApi(calls, shiftState(structuredClone(t.store.state), 1));
+    next.as('usr_003');
+    expect(next.store.state.tasks.tsk_002.dateNotes?.[0].forDueDate).toBe('2026-09-22');
+    await next.api.call('tasks.complete', { id: 'tsk_001' }); // 2 working days late again, for the same due day
+    expect(next.store.state.tasks.tsk_002.dateNotes).toHaveLength(1);
+    expect(shifts(next)).toHaveLength(1);
   });
 
   it('moves it by the full lateness when a new version with a new due date finishes late (audit 2026-10-03, V-3)', async () => {

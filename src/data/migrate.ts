@@ -68,5 +68,24 @@ export function migrateState(state: State): State | null {
     for (const user of Object.values(state.users)) user.preferences.notifications.resume_due ??= true;
     state.version = 7;
   }
+  if (state.version === 7) {
+    // Version 8: a date note keeps the due day of the finished task that the move was made for, so a task that finishes late
+    // again for the same due day moves its dependent only by the new days (audit 2026-10-03, V-3). An older note gets the due
+    // day that the task had when the note was written: the day before its first due-day change after the note, else its due day now.
+    const dueChanges = Object.values(state.events)
+      .filter((e) => e.targetType === 'task' && e.before !== null && typeof e.before === 'object' && 'dueDate' in e.before && e.after !== null)
+      .sort((a, b) => a.seq - b.seq);
+    for (const task of Object.values(state.tasks)) {
+      for (const note of task.dateNotes ?? []) {
+        const finished = note.byTaskId ? state.tasks[note.byTaskId] : undefined;
+        if (note.forDueDate || note.lateDays === undefined || !finished) continue;
+        const written = Date.parse(note.at);
+        const next = dueChanges.find((e) => e.targetId === finished.id && Date.parse(e.createdAt) > written);
+        const day = next ? (next.before as { dueDate?: string | null }).dueDate : finished.dueDate;
+        if (day) note.forDueDate = day;
+      }
+    }
+    state.version = 8;
+  }
   return state.version === STATE_VERSION ? state : null;
 }
