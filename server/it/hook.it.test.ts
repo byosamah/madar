@@ -12,7 +12,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * It runs the whole OAuth 2.1 flow of an MCP client against the local Auth server: dynamic client registration, the authorize
  * step, the consent approval through the Auth API (as the consent screen does), the code exchange with PKCE, and a refresh.
  * It proves: the hook sees client_id, it reads platform_config.mcp_url, Auth issues and signs the token with the changed aud,
- * a refresh keeps it, and a browser token keeps aud "authenticated". The result is in docs/superpowers/real-build/proof.md, G1.
+ * a refresh keeps it, and a browser token keeps aud "authenticated". Two probes of the G repair record that a refreshed browser
+ * token carries aud as a string, and that Auth's own endpoints (/user, /user/oauth/grants) give an agent token the rights of
+ * the person. The result is in docs/superpowers/real-build/proof.md, G1.
  */
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -162,6 +164,15 @@ describe('the token hook (G1)', () => {
     expect(claims.sub).toBe(personId);
   });
 
+  it('gives a refreshed browser token aud "authenticated" too, so only client_id tells an agent token from a person token', async () => {
+    const refreshed = await person.auth.refreshSession();
+    expect(refreshed.error).toBeNull();
+    const claims = decodeJwt(refreshed.data.session!.access_token);
+    expect([claims.aud].flat()).toEqual(['authenticated']);
+    expect(claims.client_id).toBeUndefined();
+    console.info('G1 aud form:', JSON.stringify({ refreshedPersonToken: Array.isArray(claims.aud) ? 'list' : 'string' }));
+  });
+
   it('gives an agent token aud = platform_config.mcp_url, signed by Auth, and a refresh keeps it', async () => {
     const clientId = await registerClient('G1 hook probe');
     const first = await connectAgent(clientId);
@@ -253,6 +264,55 @@ describe('the token hook (G1)', () => {
     } finally {
       await db.query(readFileSync(MIGRATION, 'utf8'));
       await db.query(`drop table if exists public.g1_hook_events`);
+    }
+  });
+
+  // Last in the file: a password change can end the other sessions of the person.
+  it("shows that Auth's own endpoints give an agent token the rights of the person (the proof records it; security review, risk 4)", async () => {
+    const admin = createClient(stack.apiUrl, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const clientA = await registerClient('G1 probe, agent A');
+    const clientB = await registerClient('G1 probe, agent B');
+    const a = (await connectAgent(clientA)).tokens!;
+    const b = (await connectAgent(clientB)).tokens!;
+    const asAgent = { apikey: stack.anonKey, Authorization: `Bearer ${a.access_token}` };
+    const NEW_PASSWORD = 'g1-hook-password-2';
+    const seen: Record<string, number | boolean | string> = {};
+    try {
+      // The grants of the person, read and revoked with the token of agent A.
+      const grants = await fetch(`${stack.apiUrl}/auth/v1/user/oauth/grants`, { headers: asAgent });
+      seen.listGrants = grants.status;
+      const grantBody = await grants.text();
+      seen.listShowsAgentB = grantBody.includes(clientB);
+      const revoke = await fetch(`${stack.apiUrl}/auth/v1/user/oauth/grants?client_id=${clientB}`, { method: 'DELETE', headers: asAgent });
+      seen.revokeOtherAgent = revoke.status;
+      const bRefresh = await fetch(`${stack.apiUrl}/auth/v1/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: b.refresh_token, client_id: clientB }),
+      });
+      seen.agentBRefreshAfterRevoke = bRefresh.status;
+
+      // A new password for the person, set with the agent token, then a sign-in to the screens with it.
+      const put = await fetch(`${stack.apiUrl}/auth/v1/user`, {
+        method: 'PUT',
+        headers: { ...asAgent, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: NEW_PASSWORD }),
+      });
+      seen.changePassword = put.status;
+      if (!put.ok) seen.changePasswordBody = (await put.text()).slice(0, 200);
+      const again = createClient(stack.apiUrl, stack.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+      const signedIn = await again.auth.signInWithPassword({ email: EMAIL, password: NEW_PASSWORD });
+      seen.signInWithNewPassword = signedIn.error === null;
+      console.info('G1 agent token on Auth endpoints:', JSON.stringify(seen));
+
+      expect(seen.listGrants).toBe(200);
+      expect(seen.listShowsAgentB).toBe(true);
+      expect(seen.revokeOtherAgent).toBeLessThan(300);
+      expect(seen.agentBRefreshAfterRevoke).toBeGreaterThanOrEqual(400);
+      expect(seen.changePassword).toBe(200);
+      expect(seen.signInWithNewPassword).toBe(true);
+    } finally {
+      await admin.auth.admin.updateUserById(personId, { password: PASSWORD });
     }
   });
 });

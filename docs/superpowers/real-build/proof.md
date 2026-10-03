@@ -406,7 +406,7 @@ Two more facts:
 
 **Result: pass.** Supabase Auth accepts a changed `aud`. The fallback of risk 4 (section 9 of the plan) is not needed.
 
-**Where:** the local stack of Supabase CLI 2.119.0, Auth (GoTrue) v2.197.0, after `supabase db reset` from the `rb/G` worktree, with the migration `supabase/migrations/20261004000400_platform_auth_hook.sql`. The test is `server/it/hook.it.test.ts` (run with `MADAR_IT=1 npx vitest run --project it server/it/hook.it.test.ts`): 6 tests, 6 passed. Without the migration the same test fails (red run first).
+**Where:** the local stack of Supabase CLI 2.119.0, Auth (GoTrue) v2.197.0, after `supabase db reset` from the `rb/G` worktree, with the migration `supabase/migrations/20261004000400_platform_auth_hook.sql`. The test is `server/it/hook.it.test.ts` (run with `MADAR_IT=1 npx vitest run --project it server/it/hook.it.test.ts`): 8 tests, 8 passed (6 at first, plus 2 probes of the G repair). Without the migration the same test fails (red run first).
 
 **How:** the test runs the full OAuth 2.1 flow of an MCP client against the local Auth server: dynamic client registration (`POST /auth/v1/oauth/clients/register`, a public client with PKCE), `GET /auth/v1/oauth/authorize` (302 to `/oauth/consent?authorization_id=...`), the consent approval through the Auth API as the consent screen does it (`getAuthorizationDetails`, `approveAuthorization`), the code exchange with `code_verifier` at `/auth/v1/oauth/token`, and a refresh at the same endpoint.
 
@@ -414,9 +414,10 @@ Two more facts:
 |---|---|
 | (a) The hook sees `client_id` | Yes, in `event.claims.client_id`, at the first token and at a refresh. The top level of the event has only `authentication_method`, `claims`, `metadata`, `user_id` (no `client_id`). `authentication_method` is `oauth_provider/authorization_code` at the first token and `token_refresh` at a refresh. The claims also carry `scope` (`email` here) and `session_id`. |
 | The hook reads `platform_config.mcp_url` | Yes. A change of the row changes the `aud` of the next token, so each project gets its own value. |
-| (b) Auth accepts the changed `aud` | Yes. Auth issues the token, signs it (ES256 on the local stack), and the token passes `jose` `jwtVerify` with the JWKS of `/auth/v1/.well-known/jwks.json`, `audience` = the MCP URL and `issuer` = `<api>/auth/v1`. The same token fails a check with `audience: 'authenticated'`. Auth's own `GET /auth/v1/user` answers the agent token with 200 and the person. |
+| (b) Auth accepts the changed `aud` | Yes. Auth issues the token, signs it (ES256 on the local stack), and the token passes `jose` `jwtVerify` with the JWKS of `/auth/v1/.well-known/jwks.json`, `audience` = the MCP URL and `issuer` = `<api>/auth/v1`. The same token fails a check with `audience: 'authenticated'`. Auth's own `GET /auth/v1/user` answers the agent token with 200 and the person. This is not only a pass: Auth treats an agent token as a full session of the person (next row; Z0a, item 2; the Z7 password-change check). |
+| Auth's own endpoints with an agent token (G repair probe) | The agent token has the full rights of the person there. `PUT /auth/v1/user {password}` gives 200, and the person then signs in to the Madar screens with the new password. `GET /auth/v1/user/oauth/grants` gives 200 and lists the grants of other agents. `DELETE /auth/v1/user/oauth/grants?client_id=<another agent>` gives 204, and the other agent's next refresh gets 400. Auth has no `client_id` or `aud` check on these routes (it uses only `requireAuthentication` for `/user`, `/user/oauth/grants`, `/logout` and `/factors`), and `config.toml` has `secure_password_change = false`. |
 | (c) A refresh keeps the new `aud` | Yes. The refreshed token has `aud` = the MCP URL, the same `client_id` and the same `session_id`. |
-| A browser token | Unchanged: `aud` is `["authenticated"]` (a list, not a string, on this Auth version) and there is no `client_id`. |
+| A browser token | Unchanged: `aud` is `["authenticated"]` (a list) at sign-in and there is no `client_id`. A refreshed browser token carries the string `"authenticated"` (G repair probe; Z0a, item 2 found the same on `madar-test`). |
 | No `mcp_url` row | Auth refuses the agent token: the code exchange gets 500 with the hook's message "Madar has no MCP URL in platform_config, so it cannot issue a token for an agent." A person still signs in. So an agent token never goes out with `aud` "authenticated". |
 
 **Decisions in the migration:**
@@ -427,7 +428,17 @@ Two more facts:
 
 **Facts for track G3 (`server/mcp/auth.ts`) and track E (the `api` token check):**
 
-- `aud` comes as a string on an agent token and as a list on a browser token. The checks use `jose` with an `audience` option, which accepts both forms. A hand-written check must accept both too.
+- `aud` comes as a string on an agent token, as a list on a browser token at sign-in, and as a string on a refreshed browser token. So the form of `aud` never tells the two token kinds apart: only `client_id` does. Never test `Array.isArray(aud)`. The checks use `jose` with an `audience` option, which accepts both forms. A hand-written check must accept both too.
 - `client_id` is a claim of every agent token, also after a refresh. The `api` function refuses any token with it.
 - The local issuer is `http://127.0.0.1:54321/auth/v1`; the cloud issuer is `https://<ref>.supabase.co/auth/v1` (platform facts 6.2).
+- Supabase Auth gives an agent token the full rights of the person on its own endpoints (`/user`, `/user/oauth/grants`, `/logout`, `/factors`). It has no `client_id` check there. So an agent can change the person's password or email outside the `mcp` function and the 36-tool allowlist, then sign in to the screens as that person (an Admin too). Removing the agent in Settings, Agents revokes the grant but does not undo the new password.
+- An agent token keeps `role` `authenticated` and `sub` = the person. So a Realtime policy on `realtime.messages` (N1) lets it join the office and person channels unless the policy checks `client_id`.
 - Z0a repeats this check on `madar-test`, with the cloud URL in `platform_config`.
+
+**Mitigations (G repair; each owner track does its own):**
+
+1. `supabase/config.toml` (T0, merge lead patch): `secure_password_change = true`. A password change then needs a sign-in in the last 24 hours. This only narrows the gap: an agent session is new at consent, so the agent passes the check on its first day. The stronger fix is Z0a's (rb/Z proof, Z7 and G bullet): Z1 turns on `security_update_password_require_current_password` in both cloud projects, so an agent token alone cannot set a new password. The local stack cannot turn it on, so no local test proves it.
+2. N1: every policy on `realtime.messages` adds `and (auth.jwt()->>'client_id') is null`.
+3. G4: the consent screen says in plain words that the agent can act as the person's account.
+
+**For the security review (Z7), risk 4 of the plan, an owner decision:** the remaining gap is that an approved agent can take over its person's account through Auth's own endpoints, with no Madar code in the path. Options: refuse agent tokens for Admin people in the hook (the hook can raise for `client_id` plus an Admin row), or accept the risk and say it on the consent screen. Default until the owner decides: mitigations 1 to 3 only.
