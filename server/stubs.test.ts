@@ -4,7 +4,6 @@ import { SERVER_CALL_NAMES } from '../src/api/contract/server';
 import { SERVER_EXCLUDED } from '../src/api/sharedCalls';
 import { SERVER_CALLS, SERVER_HOOKS } from './calls/index';
 import { ROUTES } from './http/routes';
-import { runCall } from './core/runCall';
 import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
@@ -32,9 +31,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 9 server calls by name, and every stub refuses until its track builds it', async () => {
+  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start is built: server/core/runCall.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    for (const name of SERVER_CALL_NAMES) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
+    for (const name of SERVER_CALL_NAMES.filter((n) => n !== 'story.start')) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
   it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
@@ -58,8 +57,7 @@ describe('the registries', () => {
 });
 
 describe('the stubs', () => {
-  it('runCall and the signal sender refuse (the database is built: server/data/sql.test.ts)', async () => {
-    await refusesNotBuilt(() => runCall(deps, { principal: { userId: 'usr_001' }, name: 'users.list', input: {}, batch: ctx.batch }));
+  it('the signal sender refuses (the database is built: server/data/sql.test.ts; runCall is built: server/core/runCall.test.ts)', async () => {
     await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
   });
 

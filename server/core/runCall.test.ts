@@ -1,0 +1,443 @@
+import { z } from 'zod';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { ApiError } from '../../src/api/errors';
+import { defineCall, type AnyCall } from '../../src/api/registry';
+import { sharedCalls } from '../../src/api/sharedCalls';
+import type { State } from '../../src/api/store';
+import { buildSeed } from '../../src/data/seed';
+import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
+import { registerOutbox } from './effects';
+import { everyCall } from './everyCall';
+import { memoryData, type MemoryData } from './memoryData';
+import { createRunCall, type CallData, type RunCallOptions } from './runCall';
+import { serverCallMap, type CallEntry, type SharedEntry } from './serverCallMap';
+import { STORY_LIFE_MS } from './story';
+import type { BatchScope, Principal, RunRequest, RunResult } from './types';
+
+/**
+ * Suite 2 of TM 7, the server core (task C3): runCall on the memory data (server/core/memoryData.ts), with no database.
+ * server/it/runCall.it.test.ts runs the same rules on the local database through the real office cache, loaders and save step.
+ */
+
+const TODAY = '2026-10-04';
+const NOW = new Date('2026-10-04T06:00:00Z');
+const ADMIN = 'usr_001';
+const AGENT = 'usr_009';
+const HIDDEN = 'Something went wrong. Try again.';
+
+let seed: State;
+beforeAll(async () => {
+  seed = await buildSeed(TODAY, async () => undefined);
+});
+
+const undo: (() => void)[] = [];
+afterEach(() => {
+  while (undo.length > 0) undo.pop()!();
+});
+
+const principal = (userId: string): Principal => (userId === AGENT ? { userId, agent: { clientId: 'cli-test' } } : { userId });
+const newBatch = (): BatchScope => ({ storyRefs: new Map(), overviewCalls: 0 });
+
+type Setup = {
+  mem: MemoryData;
+  deps: FakeDeps;
+  call(userId: string, name: string, input: unknown, more?: Partial<RunRequest>): Promise<RunResult>;
+  /** Changes the committed office between calls, as another isolate's commit would, and raises the office version. */
+  edit(change: (state: State) => void): void;
+};
+
+function setup(o: Omit<RunCallOptions, 'data'> & { wrap?: (data: CallData) => CallData } = {}): Setup {
+  const mem = memoryData(seed);
+  const deps = fakeDeps({ db: mem.db });
+  deps.clock.set(NOW);
+  const run = createRunCall({ ...o, data: () => (o.wrap ? o.wrap(mem.data()) : mem.data()) });
+  return {
+    mem,
+    deps,
+    call: (userId, name, input, more = {}) => run(deps, { principal: principal(userId), name, input, batch: newBatch(), ...more }),
+    edit(change) {
+      change(mem.tables.state);
+      mem.tables.version += 1;
+    },
+  };
+}
+
+/** The call map with one shared call replaced by another definition (same name, so the same loader). */
+function mapWith(name: string, def: AnyCall, hooks?: SharedEntry['hooks']): ReadonlyMap<string, CallEntry> {
+  const map = new Map(serverCallMap);
+  map.set(name, { kind: 'shared', name, def, input: def.input, readOnly: def.readOnly === true, ...(hooks ? { hooks } : {}) });
+  return map;
+}
+
+function okOutput<T = Record<string, unknown>>(result: RunResult): T {
+  if (!result.ok) throw new Error(`The call failed: ${result.error.code} ${result.error.message}`);
+  return result.output as T;
+}
+
+function errorOf(result: RunResult) {
+  if (result.ok) throw new Error('The call did not fail.');
+  return result.error;
+}
+
+describe('runCall: finding and parsing the call (plan 4.5, steps 1 and 2)', () => {
+  it('answers not_found for an unknown call and for a call that the server leaves out', async () => {
+    const { call } = setup();
+    expect(errorOf(await call(ADMIN, 'nope.call', {})).code).toBe('not_found');
+    expect(errorOf(await call(ADMIN, 'files.get', { id: 'fil_001' })).code).toBe('not_found');
+    expect(errorOf(await call(ADMIN, 'session.previewAs', { userId: 'usr_002' })).code).toBe('not_found');
+  });
+
+  it('refuses a wrong input with invalid_input and the fields, as the fake API does', async () => {
+    const { call, mem } = setup();
+    const error = errorOf(await call(ADMIN, 'tasks.create', { title: 'No project' }));
+    expect(error.code).toBe('invalid_input');
+    expect(error.details?.fields).toContain('projectId');
+    expect(mem.txCount).toEqual({ read: 0, write: 0 });
+  });
+});
+
+describe('runCall: reads and writes', () => {
+  it('runs a read in one read transaction, with no story and no change', async () => {
+    const { call, mem, deps } = setup();
+    const result = await call(ADMIN, 'users.list', {});
+    expect(okOutput<unknown[]>(result)).toHaveLength(Object.keys(seed.users).length);
+    expect(result).toMatchObject({ ok: true, changed: false });
+    expect('storyId' in result).toBe(false);
+    expect(mem.txCount).toEqual({ read: 1, write: 0 });
+    expect(deps.signal.sent).toEqual([]);
+  });
+
+  it('runs a write under a new server story, saves it, and sends its signals inside the transaction', async () => {
+    const { call, mem, deps } = setup();
+    const leader = seed.projects.prj_001.leaderId!;
+    const result = await call(leader, 'tasks.create', { projectId: 'prj_001', title: 'From the server' });
+    const { task } = okOutput<{ task: { id: string } }>(result);
+    if (!result.ok) return;
+    expect(result.storyId).toMatch(/^sty_[a-z2-7]{22}$/);
+    expect(result.changed).toBe(true);
+    expect(mem.tables.state.tasks[task.id].title).toBe('From the server');
+    expect(Object.values(mem.tables.state.events).filter((e) => e.correlationId === result.storyId).length).toBeGreaterThan(0);
+    expect(mem.tables.stories.get(result.storyId!)).toEqual({ actorId: leader, createdAt: NOW });
+    expect(deps.signal.sent.map((s) => s.channel)).toContain('office');
+    expect(deps.signal.sent.every((s) => s.storyId === result.storyId && s.actorId === leader)).toBe(true);
+    expect(result.signals?.map((s) => s.channel)).toEqual(['office']);
+    expect(result.signals?.[0].projects).toEqual(['prj_001']);
+  });
+
+  it('gives only the actor\'s own signals back: the office signal and the actor\'s person signal, never another person\'s', async () => {
+    const { call, deps } = setup();
+    const notice = Object.values(seed.notifications).find((n) => !n.read)!;
+    const result = await call(notice.userId, 'notifications.markRead', { ids: [notice.id] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A read mark changes no event, so the call counts as unchanged, as in the fake API.
+    expect(result.changed).toBe(false);
+    expect(deps.signal.sent.map((s) => s.channel)).toEqual([`person:${notice.userId}`]);
+    expect(result.signals?.map((s) => s.channel)).toEqual([`person:${notice.userId}`]);
+  });
+});
+
+describe('runCall: the actor (plan 4.5, the actor; TM 7 suite 2)', () => {
+  it('lets an agent act with its person\'s rights, and records the agent as the actor', async () => {
+    const { call, mem } = setup();
+    // Only an Admin may add a client; the agent's person usr_001 is the Admin.
+    const result = await call(AGENT, 'clients.create', { name: 'Agent client' });
+    const client = okOutput<{ id: string }>(result);
+    const event = Object.values(mem.tables.state.events).find((e) => e.targetId === client.id)!;
+    expect([event.actorId, event.actingForId, event.actorKind]).toEqual([AGENT, ADMIN, 'agent']);
+  });
+
+  it('refuses an agent whose person is turned off, and a person who is turned off, with account_off', async () => {
+    const { call, edit } = setup();
+    edit((state) => {
+      state.users.usr_005.active = false;
+    });
+    for (const [userId, name, input] of [['usr_005', 'users.list', {}], ['usr_005', 'tasks.create', { projectId: 'prj_001', title: 'X' }]] as const) {
+      const error = errorOf(await call(userId, name, input));
+      expect([error.code, error.details?.reason], name).toEqual(['unauthenticated', 'account_off']);
+    }
+    edit((state) => {
+      state.users[ADMIN].active = false;
+    });
+    const error = errorOf(await call(AGENT, 'users.list', {}));
+    expect([error.code, error.details?.reason]).toEqual(['unauthenticated', 'account_off']);
+  });
+
+  it('checks the actor on every call, so a person turned off between two calls of one batch is refused at the second', async () => {
+    const { call, edit } = setup();
+    const batch = newBatch();
+    expect((await call('usr_005', 'users.list', {}, { batch })).ok).toBe(true);
+    edit((state) => {
+      state.users.usr_005.active = false;
+    });
+    expect(errorOf(await call('usr_005', 'users.list', {}, { batch })).details?.reason).toBe('account_off');
+  });
+});
+
+describe('runCall: a failed call writes nothing (plan 4.5, step 5.11)', () => {
+  const writesAClient = (output: unknown) => defineCall({
+    input: z.object({ name: z.string() }),
+    output: z.object({ id: z.string() }),
+    run: (input, ctx) => {
+      ctx.state.clients.cli_999 = { id: 'cli_999', name: input.name, nameAr: '', contactName: '', phone: '', email: '' } as never;
+      ctx.state.counters.cli = 999;
+      return output as never;
+    },
+  });
+
+  it('rolls back a call whose output has the wrong shape: no record, no counter, no story, no signal', async () => {
+    const { call, mem, deps } = setup({ calls: mapWith('clients.create', writesAClient({ id: 42 })) });
+    const before = mem.tables;
+    const error = errorOf(await call(ADMIN, 'clients.create', { name: 'Broken' }));
+    expect(error.code).toBe('failed');
+    expect(error.message).toMatch(/wrong shape/);
+    expect(mem.tables).toBe(before);
+    expect(mem.tables.state.clients.cli_999).toBeUndefined();
+    expect(mem.tables.stories.size).toBe(0);
+    expect(deps.signal.sent).toEqual([]);
+  });
+
+  it('keeps the office unchanged after a call that adds a member and then throws; the next call does not see the member', async () => {
+    const addsThenThrows = defineCall({
+      input: z.object({ projectId: z.string(), userId: z.string() }),
+      output: z.object({}),
+      run: (input, ctx) => {
+        ctx.state.members[`${input.projectId}:${input.userId}`] = { projectId: input.projectId, userId: input.userId, discipline: 'X', addedAt: ctx.stamp } as never;
+        throw new ApiError('conflict', 'Stopped after the change.');
+      },
+    });
+    const { call, mem } = setup({ calls: mapWith('members.add', addsThenThrows) });
+    const batch = newBatch();
+    expect((await call(ADMIN, 'users.list', {}, { batch })).ok).toBe(true);
+    const office = batch.office!;
+    expect(errorOf(await call(ADMIN, 'members.add', { projectId: 'prj_001', userId: 'usr_011' }, { batch })).code).toBe('conflict');
+    expect(batch.office).toBe(office);
+    expect(await mem.data().office()).toBe(office);
+    expect(office.lists.members['prj_001:usr_011']).toBeUndefined();
+    const detail = okOutput<{ members: { user: { id: string } }[] }>(await call(ADMIN, 'projects.get', { id: 'prj_001' }, { batch }));
+    expect(detail.members.map((m) => m.user.id)).not.toContain('usr_011');
+  });
+
+  it('hides an error that is not an ApiError, and logs it with the call name', async () => {
+    const crashes = defineCall({ input: z.object({}), output: z.object({}), readOnly: true, run: () => {
+      throw new Error('a bug with private words');
+    } });
+    const { call, deps } = setup({ calls: mapWith('users.list', crashes) });
+    expect(errorOf(await call(ADMIN, 'users.list', {}))).toEqual({ code: 'failed', message: HIDDEN });
+    expect(deps.logs).toEqual([{ level: 'error', message: 'A call failed.', fields: { name: 'users.list', error: 'a bug with private words' } }]);
+  });
+
+  it('turns a lock timeout into failed with the reason busy, and logs no error', async () => {
+    const timeout = Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' });
+    const { call, deps } = setup({
+      wrap: (data) => ({
+        office: data.office,
+        tx: (mode, work) => data.tx(mode, (t) => work({ ...t, lock: () => Promise.reject(timeout) })),
+      }),
+    });
+    const error = errorOf(await call(ADMIN, 'clients.create', { name: 'Busy' }));
+    expect([error.code, error.details?.reason]).toEqual(['failed', 'busy']);
+    expect(deps.logs.filter((line) => line.level === 'error')).toEqual([]);
+  });
+});
+
+describe('runCall: the office of a batch (plan 4.7)', () => {
+  it('lets a batch entry after an office write see that write, and drops the batch office after it', async () => {
+    const { call } = setup();
+    const batch = newBatch();
+    expect((await call(ADMIN, 'clients.list', {}, { batch })).ok).toBe(true);
+    const first = batch.office!;
+    const created = okOutput<{ id: string }>(await call(ADMIN, 'clients.create', { name: 'Seen at once' }, { batch }));
+    expect(batch.office).toBeUndefined();
+    const list = okOutput<{ id: string }[]>(await call(ADMIN, 'clients.list', {}, { batch }));
+    expect(list.map((c) => c.id)).toContain(created.id);
+    expect(batch.office!.version).toBeGreaterThan(first.version);
+  });
+
+  it('keeps the batch office after a write that changed no office table, and drops it after a project touch', async () => {
+    const { call } = setup();
+    const batch = newBatch();
+    const notice = Object.values(seed.notifications).find((n) => !n.read)!;
+    await call(notice.userId, 'users.list', {}, { batch });
+    const office = batch.office;
+    expect((await call(notice.userId, 'notifications.markRead', { ids: [notice.id] }, { batch })).ok).toBe(true);
+    expect(batch.office).toBe(office);
+    // A new task touches its project's updatedAt, which the project index of the office holds (plan 4.7).
+    const leader = seed.projects.prj_001.leaderId!;
+    expect((await call(leader, 'tasks.create', { projectId: 'prj_001', title: 'A project touch' }, { batch })).ok).toBe(true);
+    expect(batch.office).toBeUndefined();
+  });
+});
+
+describe('runCall: story IDs only from the server (plan 4.9)', () => {
+  it('accepts a story from story.start for the same actor, and every event of the write carries it', async () => {
+    const { call, mem } = setup();
+    const story = okOutput<{ storyId: string }>(await call(ADMIN, 'story.start', {}));
+    expect(story.storyId).toMatch(/^sty_/);
+    const result = await call(ADMIN, 'clients.create', { name: 'In my story' }, { story: { id: story.storyId } });
+    expect(result).toMatchObject({ ok: true, storyId: story.storyId, changed: true });
+    const client = okOutput<{ id: string }>(result);
+    expect(Object.values(mem.tables.state.events).find((e) => e.targetId === client.id)?.correlationId).toBe(story.storyId);
+  });
+
+  it('refuses a story of another actor, a made-up story, and a story 24 hours old, with story_not_yours', async () => {
+    const { call, deps } = setup();
+    const story = okOutput<{ storyId: string }>(await call(ADMIN, 'story.start', {}));
+    for (const [userId, id] of [['usr_010', story.storyId], [ADMIN, 'cor_made_up_1']] as const) {
+      const error = errorOf(await call(userId, 'clients.create', { name: 'X' }, { story: { id } }));
+      expect([error.code, error.details?.reason]).toEqual(['forbidden', 'story_not_yours']);
+    }
+    deps.clock.advance(STORY_LIFE_MS);
+    const error = errorOf(await call(ADMIN, 'clients.create', { name: 'X' }, { story: { id: story.storyId } }));
+    expect(error.details?.reason).toBe('story_not_yours');
+  });
+
+  it('maps a browser placeholder once for each batch, and not after a call that failed', async () => {
+    const { call, mem } = setup();
+    const batch = newBatch();
+    const refused = await call(ADMIN, 'clients.update', { id: 'cli_404', patch: { name: 'X' } }, { batch, story: { ref: 'cor_ui_1' } });
+    expect(refused.ok).toBe(false);
+    expect(batch.storyRefs.size).toBe(0);
+    const a = await call(ADMIN, 'clients.create', { name: 'One' }, { batch, story: { ref: 'cor_ui_1' } });
+    const b = await call(ADMIN, 'clients.create', { name: 'Two' }, { batch, story: { ref: 'cor_ui_1' } });
+    expect(a.ok && b.ok && a.storyId === b.storyId).toBe(true);
+    expect(batch.storyRefs.get('cor_ui_1')).toBe(a.ok ? a.storyId : undefined);
+    const other = await call(ADMIN, 'clients.create', { name: 'Three' }, { story: { ref: 'cor_ui_1' } });
+    expect(other.ok && a.ok && other.storyId !== a.storyId).toBe(true);
+    expect(mem.tables.stories.size).toBe(2);
+  });
+});
+
+describe('runCall: idempotency keys (plan 4.10)', () => {
+  it('runs nothing for a repeated key with the same input, and gives the stored answer', async () => {
+    const { call, mem, deps } = setup();
+    const first = await call(ADMIN, 'clients.create', { name: 'Once' }, { key: 'key-1' });
+    const clients = Object.keys(mem.tables.state.clients).length;
+    const signals = deps.signal.sent.length;
+    const again = await call(ADMIN, 'clients.create', { name: 'Once' }, { key: 'key-1' });
+    expect(again.ok && first.ok).toBe(true);
+    if (!again.ok || !first.ok) return;
+    expect([again.output, again.storyId, again.changed]).toEqual([first.output, first.storyId, first.changed]);
+    expect(Object.keys(mem.tables.state.clients).length).toBe(clients);
+    expect(deps.signal.sent.length).toBe(signals);
+  });
+
+  it('gives key_reused for the same key with another input, and keeps the key for one actor only', async () => {
+    const { call } = setup();
+    await call(ADMIN, 'clients.create', { name: 'Once' }, { key: 'key-2' });
+    const error = errorOf(await call(ADMIN, 'clients.create', { name: 'Other' }, { key: 'key-2' }));
+    expect([error.code, error.details?.reason]).toEqual(['conflict', 'key_reused']);
+    expect((await call(AGENT, 'clients.create', { name: 'Other' }, { key: 'key-2' })).ok).toBe(true);
+  });
+
+  it('stores nothing for a call that failed, so a Retry with the key runs again', async () => {
+    const { call } = setup();
+    const refused = await call(ADMIN, 'clients.update', { id: 'cli_404', patch: { name: 'X' } }, { key: 'key-3' });
+    expect(errorOf(refused).code).toBe('not_found');
+    expect(errorOf(await call(ADMIN, 'clients.update', { id: 'cli_404', patch: { name: 'X' } }, { key: 'key-3' })).code).toBe('not_found');
+  });
+});
+
+describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)', () => {
+  it('runs the preflight before the lock, the prepare inside it, and gives run() the prepared value', async () => {
+    const order: string[] = [];
+    const real = sharedCalls['clients.create'] as AnyCall;
+    const def = defineCall({
+      input: real.input, output: real.output,
+      run: (input, ctx, prepared: unknown) => {
+        order.push(`run ${String(prepared)}`);
+        return real.run(input, ctx, undefined);
+      },
+    });
+    const hooks = {
+      preflight: async () => {
+        order.push('preflight');
+        return 7;
+      },
+      prepare: async (_input: unknown, _ctx: unknown, pre: unknown) => {
+        order.push(`prepare ${String(pre)}`);
+        return Number(pre) * 2;
+      },
+    };
+    const { call } = setup({
+      calls: mapWith('clients.create', def as AnyCall, hooks),
+      wrap: (data) => ({ office: data.office, tx: (mode, work) => data.tx(mode, (t) => work({ ...t, lock: async () => void order.push('lock') })) }),
+    });
+    expect((await call(ADMIN, 'clients.create', { name: 'Hooked' })).ok).toBe(true);
+    expect(order).toEqual(['preflight', 'lock', 'prepare 7', 'run 14']);
+  });
+
+  it('never runs a preflight for an actor that is turned off', async () => {
+    let ran = false;
+    const real = sharedCalls['clients.create'] as AnyCall;
+    const { call, edit } = setup({ calls: mapWith('clients.create', real, { preflight: async () => {
+      ran = true;
+    } }) });
+    edit((state) => {
+      state.users.usr_005.active = false;
+    });
+    expect(errorOf(await call('usr_005', 'clients.create', { name: 'X' })).details?.reason).toBe('account_off');
+    expect(ran).toBe(false);
+  });
+
+  it('writes the outbox rows of the call in its transaction and runs them after the commit; a failed call leaves none', async () => {
+    const ran: string[][] = [];
+    undo.push(registerOutbox('clients.create', async (output) => [{ kind: 'test.client', payload: { id: (output as { id: string }).id } }]));
+    const { call, mem } = setup({ afterCommit: async (_deps, ids) => void ran.push(ids) });
+    const created = okOutput<{ id: string }>(await call(ADMIN, 'clients.create', { name: 'With an effect' }));
+    expect(mem.tables.outbox).toEqual([{ id: '1', kind: 'test.client', payload: { id: created.id } }]);
+    expect(ran).toEqual([['1']]);
+    const failing = defineCall({ input: z.object({ name: z.string() }), output: z.object({ id: z.string() }), run: () => {
+      throw new ApiError('conflict', 'No.');
+    } });
+    expect((await createRunCall({ calls: mapWith('clients.create', failing), data: () => mem.data(), afterCommit: async (_d, ids) => void ran.push(ids) })(
+      fakeDeps({ db: mem.db }), { principal: principal(ADMIN), name: 'clients.create', input: { name: 'Refused' }, batch: newBatch() },
+    )).ok).toBe(false);
+    expect(mem.tables.outbox).toHaveLength(1);
+    expect(ran).toHaveLength(1);
+  });
+
+  it('keeps the answer of a committed call when the effects after the commit fail, and logs a warning', async () => {
+    undo.push(registerOutbox('clients.create', async () => [{ kind: 'test.client', payload: {} }]));
+    const { call, deps } = setup({ afterCommit: async () => {
+      throw new Error('the outbox table is gone');
+    } });
+    expect((await call(ADMIN, 'clients.create', { name: 'Still saved' })).ok).toBe(true);
+    expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.name === 'clients.create')).toBe(true);
+  });
+
+  it('logs how long each write held the office lock', async () => {
+    const { call, deps } = setup();
+    await call(ADMIN, 'clients.create', { name: 'Timed' });
+    expect(deps.logs).toContainEqual({ level: 'info', message: 'The call held the office lock.', fields: expect.objectContaining({ name: 'clients.create', region: 'eu-central-1' }) });
+  });
+});
+
+describe('runCall: the server calls (plan 4.11)', () => {
+  it('runs story.start, checks the actor first, and keeps the refusal of a server call that is not built yet', async () => {
+    const { call, edit } = setup();
+    expect((await call(ADMIN, 'story.start', {})).ok).toBe(true);
+    const stub = errorOf(await call(ADMIN, 'users.invites', {}));
+    expect([stub.code, stub.details?.reason]).toEqual(['failed', 'not_built']);
+    edit((state) => {
+      state.users.usr_005.active = false;
+    });
+    expect(errorOf(await call('usr_005', 'story.start', {})).details?.reason).toBe('account_off');
+  });
+});
+
+describe('runCall: every call once on the sample office (task C3, done when)', () => {
+  it('runs every shared call and story.start with no thrown error other than an ApiError', async () => {
+    const { call, deps } = setup();
+    const outcomes: Record<string, string> = {};
+    for (const item of everyCall(seed)) {
+      const result = await call(item.actorId, item.name, item.input);
+      outcomes[item.name] = result.ok ? 'ok' : result.error.code;
+      if (!result.ok) expect(result.error.message, item.name).not.toBe(HIDDEN);
+    }
+    expect(Object.keys(outcomes)).toHaveLength(Object.keys(sharedCalls).length + 1);
+    expect(deps.logs.filter((line) => line.level === 'error')).toEqual([]);
+    // Most calls run their rule to the end; the rest refuse by a rule of the office, never by a crash.
+    expect(Object.values(outcomes).filter((o) => o === 'ok').length).toBeGreaterThan(80);
+  }, 30_000);
+});
