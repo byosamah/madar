@@ -1175,7 +1175,7 @@
     "modelFolder": "Model folder",
     "addLink": "Add link",
     "addTitle": "Add a link",
-    "editTitle": "Change the link",
+    "editTitle": "Edit link",
     "hint": "A web link opens in a new tab. An office network path gets a Copy button.",
     "kind": "Kind",
     "name": "Name",
@@ -1191,7 +1191,7 @@
     "copyByHand": "Copy did not work here. The path is selected: copy it with your keyboard.",
     "pathLabel": "Path",
     "copy": "Copy {{name}}",
-    "edit": "Change {{name}}",
+    "edit": "Edit {{name}}",
     "badWeb": "Use a web link that starts with {{scheme}}.",
     "badFolder": "Use a web link ({{scheme}}...) or an office network path ({{path}})."
   },
