@@ -67,6 +67,42 @@ describe('Undo of a story with follow-on changes (audit 2026-10-03, API-1)', () 
     const reopened = Object.values(s.events).find((e) => e.verb === 'task.reopened');
     await expect(t.api.call('events.undo', { eventId: reopened!.id })).rejects.toMatchObject({ code: 'forbidden' });
   });
+
+  it('refuses the relief for a reopen whose cause is not in the story (audit 2026-10-03, V-2)', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', needsReview: false });
+    s.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_002', title: 'Leader work', needsReview: false, prerequisiteIds: ['tsk_001'] });
+    s.tasks.tsk_003 = makeTask({ id: 'tsk_003', ownerId: 'usr_003', title: 'Open one' });
+    s.counters.tsk = 3;
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    t.as('usr_002');
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    // Sara takes back her finish with a single Undo, sent with a story ID she picks: the leader task reopens in that story.
+    t.as('usr_003');
+    const finish = Object.values(s.events).find((e) => e.targetId === 'tsk_001' && e.verb === 'task.status_changed')!;
+    await t.api.call('events.undo', { eventId: finish.id }, { correlationId: 'cor_forged' });
+    expect(s.tasks.tsk_002.status).toBe('todo');
+    // She adds a change of her own to the same story and undoes the story.
+    await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_003', body: 'x' }, { correlationId: 'cor_forged' });
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_forged' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(s.tasks.tsk_001.status).toBe('todo');
+    expect(s.tasks.tsk_002.status).toBe('todo');
+  });
+
+  it('records the change that caused each follow-on change (audit 2026-10-03, V-2)', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', status: 'done', completedAt: '2026-09-29T09:00:00.000+03:00' });
+    s.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_002', status: 'done', completedAt: '2026-09-29T10:00:00.000+03:00', prerequisiteIds: ['tsk_001'] });
+    s.counters.tsk = 2;
+    t.as('usr_003');
+    await t.api.call('tasks.move', { id: 'tsk_001', status: 'todo' }, { correlationId: 'cor_open' });
+    const cause = Object.values(s.events).find((e) => e.verb === 'task.status_changed' && e.targetId === 'tsk_001')!;
+    const reopened = Object.values(s.events).find((e) => e.verb === 'task.reopened')!;
+    expect(reopened.causeEventId).toBe(cause.id);
+  });
 });
 
 describe('Undo brings back the health override that a stage move cleared (audit 2026-10-03, API-5)', () => {

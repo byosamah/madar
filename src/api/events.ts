@@ -3,7 +3,7 @@ import { ApiError, notFound } from './errors';
 import { nextId, type State } from './store';
 
 export type EventContext = { state: State; actor: User; stamp: string; authority?: User; correlationId?: string };
-export type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string };
+export type EventMeta = { projectId: string | null; verb: string; targetType: EventTarget; targetId: string; causeEventId?: string };
 
 const COLLECTION: Record<EventTarget, keyof State | null> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates',
@@ -30,6 +30,7 @@ export function writeEvent(ec: EventContext, input: EventMeta & { before: unknow
     correlationId: ec.correlationId ?? `cor_${id}`,
     verb: input.verb, targetType: input.targetType, targetId: input.targetId, before: input.before, after: input.after,
     createdAt: ec.stamp, undoneBy: null,
+    ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
   };
   ec.state.events[id] = event;
   return event;

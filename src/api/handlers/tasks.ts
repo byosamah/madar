@@ -106,11 +106,11 @@ export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 't
   if (status === 'done' || status === 'in_review') assertMayFinish(ctx.state, task);
   const wasDone = task.status === 'done';
   const finishDay = status === 'done' ? finishedOn(ctx, task) : ctx.today;
-  applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
+  const cause = applyPatch(ctx, task, { status, completedAt: status === 'done' ? ctx.stamp : null }, {
     projectId: task.projectId, verb, targetType: 'task', targetId: task.id,
-  });
-  if (wasDone && status !== 'done') reopenDependents(ctx, task);
-  if (status === 'done') shiftDependents(ctx, task, finishDay);
+  })!;
+  if (wasDone && status !== 'done') reopenDependents(ctx, task, cause.id);
+  if (status === 'done') shiftDependents(ctx, task, cause.id, finishDay);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
     notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
@@ -409,10 +409,10 @@ export const tasksNewVersion = defineCall({
     const watch = watchStage(ctx, task.projectId);
     const versions = task.versions.map((v) => (v.n === n - 1 ? { ...v, finishedAt: task.completedAt } : v));
     versions.push({ n, reason: input.reason, openedAt: ctx.stamp, openedBy: ctx.actor.id, finishedAt: null });
-    applyPatch(ctx, task, {
+    const opened = applyPatch(ctx, task, {
       status: 'todo', completedAt: null, version: n, versions, checklist: task.checklist.map((item) => ({ ...item, done: false })), ...whenChanges(task, when),
-    }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id });
-    reopenDependents(ctx, task);
+    }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id })!;
+    reopenDependents(ctx, task, opened.id);
     // The reason for the new version is also the reason the project moves back, when it does.
     watch.finish({ reason: input.reason });
     addTrackerEntry(ctx, {

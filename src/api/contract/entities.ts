@@ -515,6 +515,12 @@ export const Event = z.object({
   after: z.unknown(),
   createdAt: Stamp,
   undoneBy: EventId.nullable(),
+  /**
+   * For a change that Madar makes because of another change (a task that opens again, a date that moves): the change that caused it.
+   * A story Undo takes it back on the right of its cause only when the cause is in the same story (audit 2026-10-03, V-2).
+   * Optional, so older events load.
+   */
+  causeEventId: EventId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 

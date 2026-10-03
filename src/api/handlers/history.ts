@@ -211,7 +211,8 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   }
   const undo = undoEvent(ctx, event.id);
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
-  if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now);
+  // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
+  if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
   return eventViewOf(ctx.state, undo);
 }
@@ -270,9 +271,12 @@ export const eventsUndoStory = defineCall({
     if (story.length === 0) throw notFound('Story', input.correlationId);
     // A reopened task or a moved date rides on the change that caused it (audit 2026-10-03, API-1). The relief applies only
     // when the whole story is the person's own, and the cause still passes its full check (a refusal rolls the call back).
+    // The cause must be a change of this story that this call takes back. A story ID comes from the caller, so a follow-on
+    // change with its cause in another story, or with no cause, keeps its own rules (audit 2026-10-03, V-2).
     const mine = story.every((event) => event.actingForId === ctx.authority.id);
-    const caused = mine && story.some((event) => !FOLLOW_ON.has(event.verb));
-    const undone = story.map((event) => undoOne(ctx, event, false, caused && FOLLOW_ON.has(event.verb)));
+    const causes = new Set(story.filter((event) => !FOLLOW_ON.has(event.verb) && !event.undoneBy).map((event) => event.id));
+    const relieved = (event: Event) => mine && FOLLOW_ON.has(event.verb) && event.causeEventId !== undefined && causes.has(event.causeEventId);
+    const undone = story.map((event) => undoOne(ctx, event, false, relieved(event)));
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
     return { undone };

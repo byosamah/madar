@@ -83,9 +83,10 @@ export function dependentsOf(state: State, task: Task): Task[] {
 
 /**
  * A task that was done opens again, so every done task that needs it (and every done task that needs those) opens again too.
- * Each one is its own change in the same story, so one Undo brings them all back.
+ * Each one is its own change in the same story, so one Undo brings them all back. "causeEventId" is the change that opened the
+ * task: each reopen names it, so a story Undo can check that the cause is in the story (audit 2026-10-03, V-2).
  */
-export function reopenDependents(ctx: Ctx, task: Task): Task[] {
+export function reopenDependents(ctx: Ctx, task: Task, causeEventId: string): Task[] {
   const queue = [task];
   const seen = new Set([task.id]);
   const reopened: Task[] = [];
@@ -99,7 +100,7 @@ export function reopenDependents(ctx: Ctx, task: Task): Task[] {
     }
   }
   for (const dependent of reopened) {
-    applyPatch(ctx, dependent, { status: 'todo', completedAt: null }, { projectId: dependent.projectId, verb: 'task.reopened', targetType: 'task', targetId: dependent.id });
+    applyPatch(ctx, dependent, { status: 'todo', completedAt: null }, { projectId: dependent.projectId, verb: 'task.reopened', targetType: 'task', targetId: dependent.id, causeEventId });
   }
   return reopened;
 }
@@ -111,8 +112,9 @@ const workingDays = (n: number): string => `${n} working ${n === 1 ? 'day' : 'da
  * A task is done after its due day. Every dynamic task that needs it, and is not done, moves later by the working days it was late.
  * A static task never moves. Each move is written in the task and logged in the Tracker, in the same story as the finish.
  * "finishDay" is the day the owner finished, which is earlier than today for a task that waited in review.
+ * "causeEventId" is the finish: each move names it (audit 2026-10-03, V-2).
  */
-export function shiftDependents(ctx: Ctx, task: Task, finishDay = ctx.today): Task[] {
+export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, finishDay = ctx.today): Task[] {
   const dependents = dependentsOf(ctx.state, task);
   const byId = new Map(dependents.map((dependent) => [dependent.id, dependent]));
   const moved: Task[] = [];
@@ -126,7 +128,7 @@ export function shiftDependents(ctx: Ctx, task: Task, finishDay = ctx.today): Ta
     };
     const from = dependent.dueDate;
     applyPatch(ctx, dependent, { startDate, dueDate, dateNotes: [...(dependent.dateNotes ?? []), note].slice(-20) }, {
-      projectId: dependent.projectId, verb: 'task.dates_shifted', targetType: 'task', targetId: dependent.id,
+      projectId: dependent.projectId, verb: 'task.dates_shifted', targetType: 'task', targetId: dependent.id, causeEventId,
     });
     insertComment(ctx, 'task', dependent.id, dependent.projectId, reason, [], {
       from: note.from, to: note.to, byTaskId: task.id, byTaskTitle: task.title.slice(0, 200), lateDays: late,
