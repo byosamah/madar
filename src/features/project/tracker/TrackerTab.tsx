@@ -10,6 +10,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DownloadIcon } from '../../../components/icons/animated/download';
 import { oneOf } from '../../../lib/params';
+import { replyPeople } from '../../../lib/tracker';
 import { setFilterParam, type TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
 import { ExportSheet } from './ExportSheet';
@@ -68,7 +69,7 @@ export function TrackerTab({ detail }: TabProps) {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       {open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />}
-      {detail.viewerCan.post ? <QuickLog projectId={projectId} members={detail.members.map((member) => member.user)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
+      {detail.viewerCan.post ? <QuickLog projectId={projectId} members={replyPeople(detail.members)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
       <section aria-label={t('tracker.history')} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <FilterButton label={t('filter.label')} count={active}>

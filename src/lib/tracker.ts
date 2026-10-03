@@ -1,4 +1,5 @@
 import type { TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting } from '../api/contract/entities';
+import type { UserCard } from '../api/contract/views';
 import { addDays, diffDays, weekStartOf } from './dates';
 
 /** An open loop: the entry waits for someone and nobody closed it. */
@@ -56,4 +57,13 @@ export function sideForType(type: TrackerType, direction: TrackerDirection): Tra
 /** The loop an entry opens when it is marked as waiting: the office owes a reply, unless the entry goes to the client. */
 export function waitingFor(direction: TrackerDirection): TrackerWaiting {
   return direction === 'out' ? 'client' : 'us';
+}
+
+/**
+ * The people who can take a reply: the active project members. The API refuses an inactive person, so the list leaves them
+ * out, and the default (the viewer or the first person) is always one the API takes. A member with no active flag counts as
+ * active (audit 2026-10-03, V-4b).
+ */
+export function replyPeople(members: { user: UserCard; active?: boolean }[]): UserCard[] {
+  return members.filter((member) => member.active !== false).map((member) => member.user);
 }
