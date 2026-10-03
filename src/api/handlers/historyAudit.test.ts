@@ -103,6 +103,40 @@ describe('Undo of a story with follow-on changes (audit 2026-10-03, API-1)', () 
     const reopened = Object.values(s.events).find((e) => e.verb === 'task.reopened')!;
     expect(reopened.causeEventId).toBe(cause.id);
   });
+
+  it('refuses a story Undo that finishes your own task while its prerequisite is open (audit 2026-10-03, V-2)', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'Task A', needsReview: false });
+    s.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_003', title: 'Task B', needsReview: false, prerequisiteIds: ['tsk_001'] });
+    s.counters.tsk = 2;
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    // Sara takes back her finish of A with a single Undo, sent with a story ID she picks: B reopens in that story.
+    const finish = Object.values(s.events).find((e) => e.targetId === 'tsk_001' && e.verb === 'task.status_changed')!;
+    await t.api.call('events.undo', { eventId: finish.id }, { correlationId: 'cor_x' });
+    expect(s.tasks.tsk_002.status).toBe('todo');
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_x' })).rejects.toMatchObject({ details: { reason: 'prerequisite_open' } });
+    expect(t.store.state.tasks.tsk_001.status).toBe('todo');
+    expect(t.store.state.tasks.tsk_002.status).toBe('todo');
+  });
+
+  it('still brings two tasks back together when the story reopened both (audit 2026-10-03, V-2)', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'Task A', needsReview: false });
+    s.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_003', title: 'Task B', needsReview: false, prerequisiteIds: ['tsk_001'] });
+    s.counters.tsk = 2;
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    await t.api.call('tasks.move', { id: 'tsk_001', status: 'todo' }, { correlationId: 'cor_open' });
+    expect(s.tasks.tsk_002.status).toBe('todo');
+    await t.api.call('events.undoStory', { correlationId: 'cor_open' });
+    expect(t.store.state.tasks.tsk_001.status).toBe('done');
+    expect(t.store.state.tasks.tsk_002.status).toBe('done');
+  });
 });
 
 describe('Undo brings back the health override that a stage move cleared (audit 2026-10-03, API-5)', () => {

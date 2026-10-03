@@ -280,7 +280,17 @@ export const eventsUndoStory = defineCall({
     const mine = story.every((event) => event.actingForId === ctx.authority.id);
     const causes = new Set(story.filter((event) => !FOLLOW_ON.has(event.verb) && !event.undoneBy).map((event) => event.id));
     const relieved = (event: Event) => mine && FOLLOW_ON.has(event.verb) && event.causeEventId !== undefined && causes.has(event.causeEventId);
+    const was = new Map(story.flatMap((event) => {
+      const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
+      return task ? [[task.id, task.status] as const] : [];
+    }));
     const undone = story.map((event) => undoOne(ctx, event, false, relieved(event)));
+    // The story skips the finish check for each task, because its tasks come back together. When the story is done, a task that
+    // it brought back to Done or In review must have no open prerequisite. Else the call fails and nothing changes (audit 2026-10-03, V-2).
+    for (const [id, status] of was) {
+      const task = ctx.state.tasks[id];
+      if (task && task.status !== status && (task.status === 'done' || task.status === 'in_review')) assertMayFinish(ctx.state, task);
+    }
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
     return { undone };
