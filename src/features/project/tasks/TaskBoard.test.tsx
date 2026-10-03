@@ -43,6 +43,18 @@ describe('the task board', () => {
     expect(screen.queryByRole('button', { name: 'Drag Balady submission set' })).toBeNull();
   });
 
+  it('offers the reviewer only Done and Send back on a task in review (audit 2026-10-03, V-5)', async () => {
+    await renderApp(TASKS, as('usr_002'));
+    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Board' }));
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(await screen.findByRole('button', { name: 'Move Toilet details' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Done', 'Send back with a note']);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Send back with a note' }));
+    const panel = await screen.findByRole('region', { name: 'Review' });
+    expect(within(panel).getByRole('button', { name: 'Send back' })).toBeInTheDocument();
+  });
+
   it('gives screen readers instructions in the interface language', async () => {
     await renderApp(TASKS);
     await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
