@@ -1,4 +1,4 @@
-import type { Notification, NotificationTarget, Trigger, User } from './contract/entities';
+import type { Notification, NotificationTarget, Preferences, Trigger, User } from './contract/entities';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -16,6 +16,19 @@ export type NotifyInput = {
   /** The due day a reminder names (audit 2026-10-03, API-11). */
   dueDate?: string;
 };
+
+/** The triggers that send an email when the person never set the switch (spec 2, section 10). */
+export const EMAIL_DEFAULT_ON: ReadonlySet<Trigger> = new Set<Trigger>(['task_assigned', 'review_requested', 'mention']);
+
+/** True when the person gets an email for this trigger. A switch the person never set takes its default. */
+export function emailOn(prefs: Preferences, trigger: Trigger): boolean {
+  return prefs.email?.[trigger] ?? EMAIL_DEFAULT_ON.has(trigger);
+}
+
+/** True when the person gets the morning summary email. A missing value means on. */
+export function morningSummaryOn(prefs: Preferences): boolean {
+  return prefs.morningSummary ?? true;
+}
 
 /**
  * How notify learns that a dedupe key is used. The prototype scans its notices. The server's job passes a lookup backed by the

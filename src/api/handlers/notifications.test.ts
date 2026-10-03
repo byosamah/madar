@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { notificationCalls } from './notifications';
 import { taskCalls } from './tasks';
 import { contentCalls } from './content';
-import { notify } from '../notify';
+import { emailOn, morningSummaryOn, notify } from '../notify';
+import { defaultPreferences, TRIGGERS } from '../contract/entities';
 import { makeTask, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
@@ -63,5 +64,47 @@ describe('notice links and approval', () => {
     await t.api.call('tasks.approve', { id: 'tsk_001' });
     const after = await t.api.call('notifications.list', {});
     expect(after.find((v) => v.notification.trigger === 'review_requested')?.canApprove).toBe(false);
+  });
+});
+
+describe('email switches and the morning summary (plan 4.13, A7; spec 2, section 10)', () => {
+  it('reads the defaults: email on for assigned tasks, reviews and mentions, and the morning summary on', () => {
+    const prefs = defaultPreferences();
+    expect(TRIGGERS.filter((trigger) => emailOn(prefs, trigger))).toEqual(['task_assigned', 'mention', 'review_requested']);
+    expect(morningSummaryOn(prefs)).toBe(true);
+    expect(morningSummaryOn({ ...prefs, morningSummary: false })).toBe(false);
+    expect(emailOn({ ...prefs, email: { mention: false, overdue: true } }, 'mention')).toBe(false);
+    expect(emailOn({ ...prefs, email: { mention: false, overdue: true } }, 'overdue')).toBe(true);
+  });
+
+  it('saves an email switch and the morning summary, apart from the in-app switches', async () => {
+    const t = withNotices();
+    const user = await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'overdue', on: true });
+    expect(user.preferences.email).toEqual({ overdue: true });
+    expect(user.preferences.notifications.overdue).toBe(true);
+    const off = await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false });
+    expect(off.preferences.email).toEqual({ overdue: true, mention: false });
+    expect(off.preferences.notifications.mention).toBe(true);
+    const summary = await t.api.call('notifications.updateSettings', { morningSummary: false });
+    expect(summary.preferences.morningSummary).toBe(false);
+    expect(morningSummaryOn(t.store.state.users[summary.id].preferences)).toBe(false);
+    // The in-app form of today still works.
+    expect((await t.api.call('notifications.updateSettings', { trigger: 'mention', on: false })).preferences.notifications.mention).toBe(false);
+  });
+
+  it('refuses a change that names no switch, or two', async () => {
+    const t = withNotices();
+    await expect(t.api.call('notifications.updateSettings', {})).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('notifications.updateSettings', { trigger: 'mention', on: true, morningSummary: true })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('lets no agent change the email switches or the morning summary', async () => {
+    const t = withNotices();
+    t.as('usr_005');
+    await expect(t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('notifications.updateSettings', { morningSummary: false })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.users.usr_003.preferences.email).toBeUndefined();
+    expect(t.store.state.users.usr_003.preferences.morningSummary).toBeUndefined();
   });
 });
