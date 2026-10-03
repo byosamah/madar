@@ -55,7 +55,8 @@ function ScreenEntrance() {
 const screenKey = (pathname: string): string => (pathname.startsWith('/inbox/') ? '/inbox' : pathname);
 
 /**
- * A number that goes up each time another person becomes current (Preview as, or Reset sample data while a preview is on).
+ * A number that goes up each time another person becomes current (Preview as, or Reset sample data while a preview is on, in the
+ * prototype; a sign-in as another person in the same tab, in the real build).
  * The first load of the session does not count, so the screen does not start again as the app opens.
  */
 function usePersonTurn(): number {

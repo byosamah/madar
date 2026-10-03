@@ -3,6 +3,7 @@ import { LanguagesIcon } from '../components/icons/animated/languages';
 import { MoonIcon } from '../components/icons/animated/moon';
 import { SettingsIcon } from '../components/icons/animated/settings';
 import { SunIcon } from '../components/icons/animated/sun';
+import { LogoutIcon } from '../features/auth/LogoutIcon';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -10,13 +11,18 @@ import { Avatar } from '../components/Avatar';
 import { Popover } from '../components/Popover';
 import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
+import { PROTOTYPE, REMOTE } from './mode';
 import { useSwitchLanguage } from './languageTurn';
 import { useAction, useCall } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
 import { FeedbackSheet } from '../features/feedback/FeedbackSheet';
+import { useSignOut } from '../features/auth/signOut';
 
-/** The person's picture opens their name, Preview as (prototype), the language, light or dark mode and Settings (redesign spec 2.5). */
+/**
+ * The person's picture opens their name, the language, light or dark mode and Settings (redesign spec 2.5). The prototype adds
+ * Preview as; the real build adds Sign out at the end (plan 5.1).
+ */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
   const session = useCall('session.get', {}).data;
@@ -28,6 +34,7 @@ export function PersonMenu({ id }: { id: string }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  const signOut = useSignOut();
   if (!user) return null;
   const close = () => {
     setOpen(false);
@@ -53,7 +60,7 @@ export function PersonMenu({ id }: { id: string }) {
               <span className="block truncate text-footnote text-ink-2">{user.email}</span>
             </span>
           </div>
-          <PreviewAs id={`preview-as-${id}`} />
+          {PROTOTYPE && <PreviewAs id={`preview-as-${id}`} />}
           <nav aria-label={user.name} className="-mx-2 flex flex-col">
             {/* close() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3). */}
             <button type="button" onClick={() => { close(); switchLanguage(nextLanguage); }} className={row}>
@@ -79,6 +86,12 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
               {t('feedback.menu')}
             </button>
+            {REMOTE && (
+              <button type="button" onClick={() => { setOpen(false); void signOut(); }} className={row}>
+                <AnimatedIcon icon={LogoutIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
+                {t('auth.signOut')}
+              </button>
+            )}
           </nav>
         </Popover>
       )}
