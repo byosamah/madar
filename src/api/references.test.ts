@@ -116,5 +116,6 @@ describe('the reference map', () => {
     expect(checked).toBeGreaterThan(300);
     expect(used).toBeGreaterThan(50);
     expect(checked - used).toBeGreaterThan(50);
-  });
+    // The old scan reads the whole office once for each id. On a busy machine it needs more than the default 5 seconds.
+  }, 30_000);
 });

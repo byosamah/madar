@@ -124,7 +124,11 @@ export function valuesAt(record: unknown, path: string): unknown[] {
   return current;
 }
 
-/** The path as a Postgres SQL/JSON path, for a query such as: doc @? '$.fileIds[*] ? (@ == $id)'. */
+/**
+ * The path as a Postgres SQL/JSON path. Bind the id as a jsonpath variable, never paste it into the path text:
+ * jsonb_path_exists(doc, $1::jsonpath, jsonb_build_object('id', $2::text)), with parameter 1 the path from here plus
+ * ' ? (@ == $id)' and parameter 2 the target id. The @? operator takes no variables, so it cannot run this check.
+ */
 export function jsonPathOf(path: string): string {
   return `$.${path.split('.').map((step) => step.replace(/\[\]$/, '[*]')).join('.')}`;
 }
