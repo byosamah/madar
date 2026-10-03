@@ -34,11 +34,12 @@ describe('the Admin page', () => {
   });
 
   it('deactivates a person, then brings them back with Undo', async () => {
+    // Noura leads no project and holds no open task, so no warning comes first (owner, 2026-10-03, API-7).
     const { store } = await renderApp('/admin');
-    await userEvent.click(within(await openMenu('Omar Haddad')).getByRole('menuitem', { name: 'Deactivate' }));
-    await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
+    await userEvent.click(within(await openMenu('Noura Al-Shammari')).getByRole('menuitem', { name: 'Deactivate' }));
+    await waitFor(() => expect(store.state.users.usr_011.active).toBe(false));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(store.state.users.usr_004.active).toBe(true));
+    await waitFor(() => expect(store.state.users.usr_011.active).toBe(true));
   });
 
   it('turns a deactivated person on again, with Undo (audit 2026-10-03, SHL-7)', async () => {
