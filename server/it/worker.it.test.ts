@@ -19,6 +19,8 @@ const SUPABASE = 'http://127.0.0.1:54321';
 const WORKER_PORT = 8797;
 const ORIGIN = 'http://127.0.0.1:5173';
 const MIN_BUILD = '2026.10.4';
+/** A made-up local value. It opens the database check of GET /api/health (x-madar-jobs-secret). */
+const JOBS_SECRET = 'local-jobs-secret-made-up';
 
 type Host = { name: 'supabase' | 'workers'; base: string; region: string };
 const HOSTS: Host[] = [
@@ -69,6 +71,7 @@ beforeAll(async () => {
     MAIL_FROM: 'Madar <notices@madar.test>',
     MAIL_DRIVER: 'outbox',
     MIN_CLIENT_BUILD: MIN_BUILD,
+    JOBS_SECRET,
   };
   // Inside the Docker network the pooler is "pooler" (the Deno resolver refuses the container name with "_"; proof E1).
   const functions = envFile('functions.env', { ...common, DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@pooler:6543/postgres', SB_REGION: 'local-deno' });
@@ -95,10 +98,19 @@ const batchOf = (calls: unknown[]) => JSON.stringify({ v: 1, calls });
 const call = (i: number, name: string, input: unknown = {}) => ({ i, name, input });
 
 describe.each(HOSTS)('the server on $name', (host) => {
-  it('answers GET /api/health from the database, through the transaction pooler, with its region', async () => {
-    const response = await fetch(`${host.base}/api/health`);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, region: host.region, calls: 108, checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+  it('answers GET /api/health from the database, through the transaction pooler, with its region, for the jobs secret', async () => {
+    for (let n = 0; n < 3; n += 1) {
+      const response = await fetch(`${host.base}/api/health`, { headers: { 'x-madar-jobs-secret': JOBS_SECRET } });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, region: host.region, calls: 108, checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+    }
+  });
+
+  it('answers GET /api/health without the secret from memory, and refuses a wrong secret', async () => {
+    const open = await fetch(`${host.base}/api/health`);
+    expect([open.status, await open.json()]).toEqual([200, { ok: true, region: host.region, calls: 108 }]);
+    const wrong = await fetch(`${host.base}/api/health`, { headers: { 'x-madar-jobs-secret': 'guess' } });
+    expect(wrong.status).toBe(401);
   });
 
   it('refuses 13 entries, two overview calls, a body over 256 KB and an old build, before any sign-in', async () => {

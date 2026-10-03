@@ -1,32 +1,30 @@
 import { Hono } from 'hono';
 import { depsFrom, serverEnvFrom, type ServerEnv } from '../core/deps';
 import type { Deps } from '../core/ports';
-import { apiApp } from '../http/app';
-import { checkHealth, pgHealthClient } from '../http/health';
-import { jobsApp } from '../jobs/app';
-import { mcpApp } from '../mcp/app';
 import type { Started } from './start';
 
 /**
- * The three apps of the server, read from the environment once for each isolate. Each Supabase function mounts one app
- * under its own name; the Workers entry mounts all three under the same paths (plan 2b, point 2).
+ * The host of the server apps, read from the environment once for each isolate. Each Supabase function mounts one app under
+ * its own name; the Workers entry mounts all three under the same paths (plan 2b, point 2).
+ *
+ * This file imports no app. Each app comes from its own mount file (api.ts, mcp.ts, jobs.ts), and each Supabase entry imports
+ * only its own mount, so each function bundle holds only its own app (review of E: the api bundle never carries the MCP SDK).
  */
 
 export type AppName = 'api' | 'mcp' | 'jobs';
+export type AppMount = { name: AppName; app: (deps: Deps, values: ServerEnv) => Hono };
 
-function appOf(name: AppName, deps: Deps, values: ServerEnv): Hono {
-  if (name === 'mcp') return mcpApp(deps);
-  if (name === 'jobs') return jobsApp(deps);
-  const health = () => checkHealth({ connect: pgHealthClient(values.database.writeUrl, values.database.ca), region: values.config.region, log: deps.log });
-  return apiApp(deps, { health });
+/** The apps of the mounts, each at /<name>, on one Hono app. */
+export function hostOf(mounts: AppMount[], deps: Deps, values: ServerEnv): Hono {
+  const host = new Hono();
+  for (const mount of mounts) host.route(`/${mount.name}`, mount.app(deps, values));
+  host.notFound(() => Response.json({ v: 1, error: { code: 'not_found', message: 'This address does not exist.' } }, { status: 404 }));
+  return host;
 }
 
-/** The apps named here, each mounted at /<name>, on one Hono app. */
-export function startApps(names: AppName[]): Started {
+/** The mounted apps with the Deps of the isolate: the two pools live as long as the isolate (Supabase Edge Functions). */
+export function startApps(mounts: AppMount[]): Started {
   const values = serverEnvFrom();
-  const deps = depsFrom(values);
-  const host = new Hono();
-  for (const name of names) host.route(`/${name}`, appOf(name, deps, values));
-  host.notFound(() => Response.json({ v: 1, error: { code: 'not_found', message: 'This address does not exist.' } }, { status: 404 }));
+  const host = hostOf(mounts, depsFrom(values), values);
   return { fetch: (request) => host.fetch(request), region: values.config.region };
 }

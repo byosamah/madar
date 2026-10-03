@@ -6,11 +6,13 @@ import { MissingConfigError } from '../core/deps';
  * request tries again, so a secret set after the deploy works without a new deploy.
  */
 
-export type Started = { fetch: (request: Request) => Response | Promise<Response>; region: string };
+/** after: work that may go on after the answer (ctx.waitUntil on Workers). A host without it leaves it out. */
+export type After = (work: Promise<unknown>) => void;
+export type Started = { fetch: (request: Request, after?: After) => Response | Promise<Response>; region: string };
 
-export function lazyStart(fn: string, build: () => Started): (request: Request) => Promise<Response> {
+export function lazyStart(fn: string, build: () => Started): (request: Request, after?: After) => Promise<Response> {
   let started: Started | undefined;
-  return async (request) => {
+  return async (request, after) => {
     if (!started) {
       try {
         started = build();
@@ -24,6 +26,6 @@ export function lazyStart(fn: string, build: () => Started): (request: Request) 
         );
       }
     }
-    return started.fetch(request);
+    return started.fetch(request, after);
   };
 }
