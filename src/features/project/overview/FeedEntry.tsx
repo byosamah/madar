@@ -8,6 +8,7 @@ import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { useEditFocus } from '../../../components/editFocus';
 import { MentionField } from '../../../components/MentionField';
 import { Menu } from '../../../components/Menu';
 import { RichText } from '../../../components/RichText';
@@ -27,6 +28,7 @@ function PostCard({ item, projectId, people, canPost, startOpen }: {
   const [showComments, setShowComments] = useState(startOpen);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const focus = useEditFocus(editing);
   const save = useAction('updates.update', {
     onSuccess: () => {
       setEditing(false);
@@ -53,19 +55,21 @@ function PostCard({ item, projectId, people, canPost, startOpen }: {
           </p>
         </div>
         {item.canEdit && !editing && (
-          <Menu
-            label={t('posts.actions')}
-            items={[
-              {
-                label: t('posts.edit'),
-                onSelect: () => {
-                  setDraft(plainText(item.body));
-                  setEditing(true);
+          <span ref={focus.actions} className="contents">
+            <Menu
+              label={t('posts.actions')}
+              items={[
+                {
+                  label: t('posts.edit'),
+                  onSelect: () => {
+                    setDraft(plainText(item.body));
+                    setEditing(true);
+                  },
                 },
-              },
-              { label: t('posts.delete'), onSelect: () => remove.mutate({ id: item.id }), destructive: true },
-            ]}
-          />
+                { label: t('posts.delete'), onSelect: () => remove.mutate({ id: item.id }), destructive: true },
+              ]}
+            />
+          </span>
         )}
       </div>
       {editing ? (
@@ -77,7 +81,7 @@ function PostCard({ item, projectId, people, canPost, startOpen }: {
             if (body) save.mutate({ id: item.id, body });
           }}
         >
-          <MentionField id={`post-${item.id}`} label={t('posts.editLabel')} value={draft} onChange={setDraft} people={people} />
+          <MentionField id={`post-${item.id}`} label={t('posts.editLabel')} value={draft} onChange={setDraft} people={people} inputRef={focus.field} />
           <div className="flex justify-end gap-2">
             <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
             <Button variant="primary" type="submit" disabled={!draft.trim() || save.isPending}>{t('comments.save')}</Button>

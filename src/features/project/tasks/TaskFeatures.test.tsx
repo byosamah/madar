@@ -193,11 +193,11 @@ describe('a lead with helpers', () => {
       state.tasks.tsk_007.helperIds = ['usr_005'];
     });
     const first = await renderApp(TASKS, helping);
-    expect(within(await rowOf('Stair details')).getByText('Helper · Lead: Yousef Saleh')).toBeInTheDocument();
+    expect(await rowOf('Stair details')).toHaveTextContent('Helper · Lead: Yousef Saleh');
     expect(within(await rowOf('Civil Defense drawings')).queryByText(/^Helper ·/)).toBeNull();
     first.unmount();
     await renderApp('/work', helping);
-    expect(within(await rowOf('Stair details')).getByText('Helper · Lead: Yousef Saleh')).toBeInTheDocument();
+    expect(await rowOf('Stair details')).toHaveTextContent('Helper · Lead: Yousef Saleh');
   });
 
   it('says the helper line in Arabic, in the form for a woman (audit 2026-10-03, V-35)', async () => {
@@ -205,7 +205,7 @@ describe('a lead with helpers', () => {
       state.users.usr_005.preferences.language = 'ar';
       state.tasks.tsk_007.helperIds = ['usr_005'];
     }));
-    expect(within(await rowOf('Stair details')).getByText('مساعدة · المسؤول الرئيسي: Yousef Saleh')).toBeInTheDocument();
+    expect(await rowOf('Stair details')).toHaveTextContent('مساعدة · المسؤول الرئيسي: Yousef Saleh');
   });
 
   it('shows the lead and up to three helpers in the row, then +N', async () => {

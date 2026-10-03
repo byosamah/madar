@@ -12,6 +12,7 @@ import { Age } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { useEditFocus } from '../../components/editFocus';
 import { MentionField } from '../../components/MentionField';
 import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
@@ -29,6 +30,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   const { comment, author, canEdit, files } = view;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const focus = useEditFocus(editing);
   const update = useAction('comments.update', { onSuccess: () => setEditing(false) });
   const remove = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const react = useAction('reactions.toggle');
@@ -71,7 +73,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
               if (body) update.mutate({ id: comment.id, body });
             }}
           >
-            <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} />
+            <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} inputRef={focus.field} />
             <div className="flex justify-end gap-2">
               <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
               <Button variant="primary" type="submit" disabled={!draft.trim() || update.isPending}>{t('comments.save')}</Button>
@@ -112,7 +114,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
               </button>
             );
           })}
-          {canEdit && !editing && actions.length > 0 && <Menu label={t('comments.actions')} items={actions} />}
+          {canEdit && !editing && actions.length > 0 && <span ref={focus.actions} className="contents"><Menu label={t('comments.actions')} items={actions} /></span>}
         </div>
       </div>
     </li>

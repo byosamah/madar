@@ -23,14 +23,15 @@ export function TypeIcon({ type, size = 18 }: { type: TrackerType; size?: number
 /**
  * The mark for the side of an entry. An arrow for from or to the client (it flips in Arabic, so "from the client" still points toward
  * the office), a two-way mark for both sides, a small route mark for a third party. "None" shows nothing. The words stay for a screen reader.
+ * Where the words already show next to the mark, `spoken={false}` leaves them out, so a screen reader says them one time (audit 2026-10-03, F-23).
  */
-export function DirectionMark({ direction }: { direction: TrackerDirection }) {
+export function DirectionMark({ direction, spoken = true }: { direction: TrackerDirection; spoken?: boolean }) {
   const { t } = useTranslation();
   const Mark = direction === 'in' ? ArrowDownLeftIcon : direction === 'out' ? ArrowUpRightIcon : direction === 'both' ? ChevronsLeftRightIcon : direction === 'third_party' ? WaypointsIcon : null;
   return (
     <span data-direction={direction} className="inline-flex shrink-0 text-ink-2">
       {Mark && <AnimatedIcon icon={Mark} size={16} aria-hidden className={direction === 'in' || direction === 'out' ? 'rtl:-scale-x-100' : undefined} />}
-      <span className="sr-only">{t(`tracker.direction.${direction}`)}</span>
+      {spoken && <span className="sr-only">{t(`tracker.direction.${direction}`)}</span>}
     </span>
   );
 }

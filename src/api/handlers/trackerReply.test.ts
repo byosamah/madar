@@ -38,7 +38,8 @@ describe('tracker.log with replyBy', () => {
     });
     expect(entry.replyTaskId).toBe(task.id);
     const [row] = await t.api.call('tracker.list', { projectId: 'prj_001' });
-    expect(row.replyTask).toMatchObject({ id: task.id, status: 'todo', dueDate: '2026-10-04', owner: { id: 'usr_003' } });
+    // The row names the task, so the entry sheet can show and open it (audit 2026-10-03, F-11).
+    expect(row.replyTask).toMatchObject({ id: task.id, title: 'Reply: Can the lobby move?', status: 'todo', dueDate: '2026-10-04', owner: { id: 'usr_003' } });
     expect(Object.values(t.store.state.notifications).some((n) => n.userId === 'usr_003' && n.trigger === 'task_assigned')).toBe(true);
   });
 
