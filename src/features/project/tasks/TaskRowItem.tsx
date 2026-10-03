@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
+import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
@@ -15,7 +16,8 @@ import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
-import { versionOf } from '../../../lib/taskPeople';
+import { actorContext } from '../../../lib/grammar';
+import { helpersOf, versionOf } from '../../../lib/taskPeople';
 import { isWaiting, waitingNames } from './waiting';
 import { PauseIcon } from '../../../components/icons/animated/pause';
 import { CircleIcon } from '../../../components/icons/animated/circle';
@@ -36,6 +38,9 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.completed')),
   });
   const { task } = row;
+  // A helper cannot finish the task, so the row says that they help and who leads it (audit 2026-10-03, V-35).
+  const me = useCall('session.get', {}).data?.authority;
+  const helping = Boolean(me && task.ownerId !== me.id && helpersOf(task).includes(me.id));
   const done = task.status === 'done';
   const inReview = task.status === 'in_review';
   const canTick = row.canMove && !done && !inReview;
@@ -105,6 +110,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           )}
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
+          {helping && <span dir="auto" className="min-w-0 truncate">{t('tasks.helperLine', { name: row.owner.name, context: actorContext(me) })}</span>}
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {waiting && (

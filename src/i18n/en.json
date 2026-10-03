@@ -490,6 +490,7 @@
     "allDone": "All tasks in this stage are done.",
     "openConversation": "Conversation about “{{title}}”",
     "waitingFor": "Waiting for {{names}}",
+    "helperLine": "Helper · Lead: {{name}}",
     "completeBlocked": "{{title}} cannot be finished yet. Waiting for {{names}}.",
     "waitingToast": "Not yet. This task is waiting for {{names}}."
   },

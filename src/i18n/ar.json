@@ -555,6 +555,8 @@
     "allDone": "أُنجزت كل مهام هذه المرحلة.",
     "openConversation": "المحادثة حول «{{title}}»",
     "waitingFor": "تنتظر {{names}}",
+    "helperLine": "مساعد · المسؤول الرئيسي: {{name}}",
+    "helperLine_female": "مساعدة · المسؤول الرئيسي: {{name}}",
     "completeBlocked": "لا يمكن إنهاء {{title}} الآن. تنتظر {{names}}.",
     "waitingToast": "ليس بعد. هذه المهمة تنتظر {{names}}."
   },

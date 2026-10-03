@@ -188,6 +188,26 @@ describe('a lead with helpers', () => {
     expect(await screen.findByText('Stair details')).toBeInTheDocument();
   });
 
+  it("tells a helper in the row that they help and who leads, on the Tasks tab and in My tasks (audit 2026-10-03, V-35)", async () => {
+    const helping = as('usr_005', (state) => {
+      state.tasks.tsk_007.helperIds = ['usr_005'];
+    });
+    const first = await renderApp(TASKS, helping);
+    expect(within(await rowOf('Stair details')).getByText('Helper · Lead: Yousef Saleh')).toBeInTheDocument();
+    expect(within(await rowOf('Civil Defense drawings')).queryByText(/^Helper ·/)).toBeNull();
+    first.unmount();
+    await renderApp('/work', helping);
+    expect(within(await rowOf('Stair details')).getByText('Helper · Lead: Yousef Saleh')).toBeInTheDocument();
+  });
+
+  it('says the helper line in Arabic, in the form for a woman (audit 2026-10-03, V-35)', async () => {
+    await renderApp(TASKS, as('usr_005', (state) => {
+      state.users.usr_005.preferences.language = 'ar';
+      state.tasks.tsk_007.helperIds = ['usr_005'];
+    }));
+    expect(within(await rowOf('Stair details')).getByText('مساعدة · المسؤول الرئيسي: Yousef Saleh')).toBeInTheDocument();
+  });
+
   it('shows the lead and up to three helpers in the row, then +N', async () => {
     const { store } = await renderApp(TASKS, as('usr_002', (state) => {
       state.tasks.tsk_007.helperIds = ['usr_001', 'usr_003', 'usr_004', 'usr_005', 'usr_002'];
