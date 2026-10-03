@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { insightCalls } from './insights';
 import type { State } from '../store';
-import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
+import { makeStage, makeTask, makeWorld, NOW, STAMP, testApi, TODAY } from '../../test/factories';
+import { calls } from '../calls';
+import { buildSeed } from '../../data/seed';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -15,6 +17,16 @@ function world(): State {
   });
   state.deadlines.ddl_001 = { id: 'ddl_001', projectId: 'prj_001', stageId: null, name: 'Client presentation', date: '2026-10-12' };
   state.deadlines.ddl_002 = { id: 'ddl_002', projectId: 'prj_001', stageId: null, name: 'Permit', date: '2026-11-30' };
+  // A last stage with no task yet, as a real project has, so the project is in design (audit 2026-10-03, V-17).
+  state.stages.stg_003 = makeStage({ id: 'stg_003', name: 'Supervision', order: 2, startDate: '2026-11-01', endDate: '2027-06-30' });
+  state.counters.stg = 3;
+  return state;
+}
+
+/** Puts the open tasks of prj_001 in its last stage, so its stage tag is that stage. */
+function onSite(state: State, lastStageName: string): State {
+  state.stages.stg_003.name = lastStageName;
+  for (const task of Object.values(state.tasks)) if (task.status !== 'done') task.stageId = 'stg_003';
   return state;
 }
 
@@ -30,13 +42,51 @@ describe('dashboard.get', () => {
     expect(d.schedule.map((row) => row.project.code)).toEqual(['KH-26-001']);
   });
 
-  it('leaves out the area of a project in the last stage of the office, whatever its name (audit 2026-10-03, DSH-16)', async () => {
+  it('leaves out the area of a project in its own last stage, whatever its name (audit 2026-10-03, DSH-16, V-17)', async () => {
+    const area = async (state: State) => (await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign;
+    expect(await area(world())).toBe(1000);
+    const arabic = onSite(world(), 'الإشراف');
+    arabic.settings.defaultStages = ['Concept', 'Schematic Design', 'الإشراف'];
+    expect(await area(arabic)).toBe(0);
+    // The Admin renames the last stage of the office list. Older projects keep their own stage name and stay out of design.
+    const renamed = onSite(world(), 'Supervision');
+    renamed.settings.defaultStages = [...renamed.settings.defaultStages.slice(0, -1), 'Site supervision'];
+    expect(await area(renamed)).toBe(0);
+    // A name that only this project uses.
+    expect(await area(onSite(world(), 'Site supervision'))).toBe(0);
+  });
+
+  it('takes the last stage of the project list, so a stage with no dates yet never becomes the last stage (audit 2026-10-03, V-17)', async () => {
+    const area = async (state: State) => (await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign;
+    // Schematic Design, in the middle of the list, has no dates. The open tasks sit in Supervision, the last stage of the list.
+    const state = onSite(world(), 'Supervision');
+    state.stages.stg_002.startDate = null;
+    state.stages.stg_002.endDate = null;
+    expect(await area(state)).toBe(0);
+    // With the open tasks in the undated design stage, the tag is that stage, and the project is in design.
+    for (const task of Object.values(state.tasks)) if (task.status !== 'done') task.stageId = 'stg_002';
+    expect(await area(state)).toBe(1000);
+  });
+
+  it('counts a project with one stage as in design, because it has no separate site stage (audit 2026-10-03, V-17)', async () => {
+    const area = async (state: State) => (await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign;
     const state = world();
-    state.settings.defaultStages = ['Concept', 'Schematic Design', 'الإشراف'];
-    state.stages.stg_002.name = 'الإشراف';
-    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign).toBe(0);
-    state.stages.stg_002.name = 'Schematic Design';
-    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign).toBe(1000);
+    delete state.stages.stg_002;
+    delete state.stages.stg_003;
+    for (const task of Object.values(state.tasks)) task.stageId = 'stg_001';
+    expect(await area(state)).toBe(1000);
+    const t = testApi(calls, world());
+    t.as('usr_001');
+    await t.api.call('projects.create', { name: 'Small fit-out', areaM2: 500, stages: ['Design'] });
+    expect((await t.api.call('dashboard.get', {})).tiles.areaInDesign).toBe(1500);
+  });
+
+  it('keeps the area in design of the sample office when the Admin renames the last default stage (audit 2026-10-03, V-17)', async () => {
+    const { api } = testApi(calls, await buildSeed(TODAY, async () => undefined));
+    const before = (await api.call('dashboard.get', { status: 'active' })).tiles.areaInDesign;
+    const stages = (await api.call('settings.get', {})).defaultStages;
+    await api.call('settings.update', { defaultStages: [...stages.slice(0, -1), 'Site supervision'] });
+    expect((await api.call('dashboard.get', { status: 'active' })).tiles.areaInDesign).toBe(before);
   });
 
   it('gives each schedule row its health, as the health mix counts it', async () => {

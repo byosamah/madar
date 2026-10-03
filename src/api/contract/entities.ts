@@ -254,6 +254,8 @@ export const DateNote = z.object({
   at: Stamp,
   byTaskId: TaskId.optional(),
   lateDays: z.number().int().min(1).optional(),
+  /** The due day of the finished task that this move was made for. A later move takes this one off only for the same due day (audit 2026-10-03, V-3). */
+  forDueDate: Day.optional(),
 });
 export type DateNote = z.infer<typeof DateNote>;
 
@@ -421,8 +423,11 @@ export const TrackerEntry = z.object({
   auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
-  /** The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads. */
-  replyTaskId: TaskId.optional(),
+  /**
+   * The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads.
+   * Null when the entry stopped waiting while its reply task could not finish yet (audit 2026-10-03, V-13).
+   */
+  replyTaskId: TaskId.nullable().optional(),
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
 
@@ -515,6 +520,12 @@ export const Event = z.object({
   after: z.unknown(),
   createdAt: Stamp,
   undoneBy: EventId.nullable(),
+  /**
+   * For a change that Madar makes because of another change (a task that opens again, a date that moves): the change that caused it.
+   * A story Undo takes it back on the right of its cause only when the cause is in the same story (audit 2026-10-03, V-2).
+   * Optional, so older events load.
+   */
+  causeEventId: EventId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 

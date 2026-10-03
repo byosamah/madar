@@ -11,8 +11,9 @@ const DAY_MS = 86_400_000;
 /**
  * Only these fields hold dates. Text that people type never moves, even when it looks like a date. The read marks, the pause, the
  * "moved back" note, the date notes, the task versions and the report times move too (audit 2026-10-03, API-10).
+ * The due day that a date note was made for moves with the due day of its task, so the two still match (audit 2026-10-03, V-3).
  */
-const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn', 'resumeOn']);
+const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn', 'resumeOn', 'forDueDate']);
 const STAMP_FIELDS = new Set([
   'createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt', 'lastReadAt', 'at', 'openedAt', 'finishedAt', 'doneAt',
 ]);

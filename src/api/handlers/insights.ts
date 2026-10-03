@@ -85,9 +85,14 @@ export const dashboardGet = defineCall({
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
-    // Supervision is the last stage of the office's default list, by its place and not by an English name, so a renamed
-    // or Arabic stage list still leaves the projects on site out of the area in design (audit 2026-10-03, DSH-16).
-    const supervision = order[order.length - 1];
+    // A project is out of design when its stage tag is the last stage of its OWN list. A rename of the office list, an Arabic
+    // list, or a name that only this project uses ("Site supervision") changes nothing (audit 2026-10-03, DSH-16, V-17).
+    // The last stage is the last one of the list (the highest order), not the last in time, because a stage with no dates yet sorts
+    // last in time. A project with one stage has no separate site stage, so it stays in design (audit 2026-10-03, V-17).
+    const onSite = (p: Project) => {
+      const own = stagesOf(state, p.id);
+      return own.length > 1 && tagOf(p)?.id === own[own.length - 1].id;
+    };
     const perStage = new Map<string, number>();
     for (const p of active) {
       const name = tagOf(p)?.name ?? '';
@@ -126,7 +131,7 @@ export const dashboardGet = defineCall({
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        areaInDesign: active.filter((p) => tagOf(p)?.name !== supervision).reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        areaInDesign: active.filter((p) => !onSite(p)).reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
       },
       charts: {
         projectsPerStage: [...perStage.entries()]

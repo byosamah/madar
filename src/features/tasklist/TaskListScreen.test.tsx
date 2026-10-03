@@ -31,6 +31,22 @@ describe('the Task list', () => {
     expect((await screen.findAllByText('Stair details')).length).toBeGreaterThan(1);
   });
 
+  it('keeps the Team filter of the Dashboard and names the team (audit 2026-10-03, V-37a)', async () => {
+    const { api } = await renderApp('/tasks?filter=overdue&team=tm_003');
+    const { tiles } = await api.call('dashboard.get', { teamId: 'tm_003' });
+    const office = await api.call('tasks.list', { filter: 'overdue', includeDone: false });
+    expect(tiles.overdueTasks).toBeLessThan(office.length);
+    expect(await screen.findByText('Team: Interiors')).toBeInTheDocument();
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(tiles.overdueTasks));
+  });
+
+  it('keeps the Team filter in the deadline list (audit 2026-10-03, V-37a)', async () => {
+    const { api } = await renderApp('/tasks?mode=deadlines&from=2026-09-30&to=2026-10-14&team=tm_003');
+    const team = await api.call('deadlines.list', { from: '2026-09-30', to: '2026-10-14', teamId: 'tm_003' });
+    expect(await screen.findByText(/Team: Interiors/)).toBeInTheDocument();
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(team.length));
+  });
+
   it('opens a task in place', async () => {
     await renderApp('/tasks?filter=overdue');
     await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));

@@ -634,15 +634,19 @@ export const deadlinesList = defineCall({
     from: Day.optional(),
     to: Day.optional(),
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
+    /** Only the deadlines of the projects that this office team works on, as the Dashboard counts them (audit 2026-10-03, V-37a). */
+    teamId: TeamId.optional(),
   }),
   output: z.array(DeadlineRow),
   readOnly: true,
   run(input, ctx) {
     const { state, today } = ctx;
+    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
     return Object.values(state.deadlines)
       .filter((d) => {
         const project = state.projects[d.projectId];
         if (!project || (input.status !== 'all' && project.status !== input.status)) return false;
+        if (input.teamId && (team === undefined || !projectTouchesTeam(state, project, team.memberIds))) return false;
         return (!input.from || d.date >= input.from) && (!input.to || d.date <= input.to);
       })
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))

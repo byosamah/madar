@@ -6,7 +6,7 @@ import {
 import { TrackerExportRow, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
-import { stageTag, watchStage } from '../flow';
+import { assertMayFinish, stageTag, watchStage } from '../flow';
 import { notify } from '../notify';
 import { projectRoleOf } from '../permissions';
 import { nextId, trackerOf } from '../store';
@@ -81,6 +81,18 @@ function finishReplyTask(ctx: Ctx, entry: TrackerEntry): void {
   const watch = watchStage(ctx, task.projectId);
   changeStatus(ctx, task, 'done');
   watch.finish({ ask: false });
+}
+
+/** The open reply task of the entry when it may not finish yet, because a task or a stage it needs is open. */
+function heldReplyTask(ctx: Ctx, entry: TrackerEntry): Task | undefined {
+  const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
+  if (!task || task.status === 'done') return undefined;
+  try {
+    assertMayFinish(ctx.state, task);
+    return undefined;
+  } catch {
+    return task;
+  }
 }
 
 /**
@@ -214,9 +226,14 @@ const trackerUpdate = defineCall({
     // A new waiting value starts a new loop, so it is open again. Taking the value away ends the loop.
     const loop = waiting !== undefined && waiting !== entry.waiting ? { waiting, closedAt: null, closedBy: null } : {};
     const replyEnds = entry.waiting === 'us' && waiting !== undefined && waiting !== 'us';
-    applyPatch(ctx, entry, { type, direction, title, note, date, fileIds, peopleIds, ...loop }, { projectId: entry.projectId, verb: 'tracker.edited', targetType: 'tracker', targetId: entry.id });
+    // Ending the wait is never refused. A reply task that waits for other work cannot finish yet, so it only forgets the entry
+    // and stays the person's open task (audit 2026-10-03, V-13).
+    const held = replyEnds ? heldReplyTask(ctx, entry) : undefined;
+    const unlink = held ? { replyTaskId: null } : {};
+    applyPatch(ctx, entry, { type, direction, title, note, date, fileIds, peopleIds, ...loop, ...unlink }, { projectId: entry.projectId, verb: 'tracker.edited', targetType: 'tracker', targetId: entry.id });
+    if (held) applyPatch(ctx, held, { trackerEntryId: null }, { projectId: held.projectId, verb: 'task.reply_unlinked', targetType: 'task', targetId: held.id });
     // The entry no longer waits for our reply, so its reply task leaves the person's list (audit 2026-10-03, API-9).
-    if (replyEnds) finishReplyTask(ctx, entry);
+    else if (replyEnds) finishReplyTask(ctx, entry);
     touch(ctx, entry.projectId);
     return trackerRowOf(ctx.state, entry, ctx.authority);
   },

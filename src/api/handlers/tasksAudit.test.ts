@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
-import { makeTask, NOW, testApi } from '../../test/factories';
-import { setNow } from '../../lib/dates';
+import { makeTask, NOW, testApi, TODAY } from '../../test/factories';
+import { addDays, setNow } from '../../lib/dates';
+import { buildSeed } from '../../data/seed';
+import { shiftState } from '../../data/shift';
 
 beforeEach(() => setNow(NOW));
 
@@ -43,6 +45,42 @@ describe('A task that finishes late twice moves its dependent once (audit 2026-1
     expect(b.startDate).toBe('2026-09-30');
     expect(b.dateNotes?.[1]).toMatchObject({ lateDays: 3, reason: 'Task A finished 3 working days late' });
     expect(shifts(t).map((entry) => entry.title)).toEqual(['Task B moved 2 working days', 'Task B moved 1 working day']);
+  });
+
+  it('does not move it again when the daily date shift runs between the two finishes (audit 2026-10-03, V-3)', async () => {
+    const t = world();
+    await t.api.call('tasks.complete', { id: 'tsk_001' }); // Due Mon 21 Sep, finished Wed 23 Sep: 2 working days late
+    await t.api.call('tasks.move', { id: 'tsk_001', status: 'todo' });
+    // The office opens the next day. Every date moves one day: A is now due Tue 22 Sep, and it is Thu 24 Sep.
+    setNow(new Date('2026-09-24T06:00:00Z'));
+    const next = testApi(calls, shiftState(structuredClone(t.store.state), 1));
+    next.as('usr_003');
+    expect(next.store.state.tasks.tsk_002.dateNotes?.[0].forDueDate).toBe('2026-09-22');
+    await next.api.call('tasks.complete', { id: 'tsk_001' }); // 2 working days late again, for the same due day
+    expect(next.store.state.tasks.tsk_002.dateNotes).toHaveLength(1);
+    expect(shifts(next)).toHaveLength(1);
+  });
+
+  it('moves it by the full lateness when a new version with a new due date finishes late (audit 2026-10-03, V-3)', async () => {
+    setNow(new Date('2026-09-30T06:00:00Z')); // Wed 30 Sep
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'Task A', needsReview: false, dueDate: '2026-09-27' }); // Sun
+    s.tasks.tsk_002 = makeTask({
+      id: 'tsk_002', ownerId: 'usr_003', title: 'Task B', schedule: 'dynamic', startDate: '2026-10-04', durationDays: 3, dueDate: '2026-10-06', prerequisiteIds: ['tsk_001'],
+    });
+    s.counters.tsk = 2;
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }); // 3 working days late
+    expect(s.tasks.tsk_002.startDate).toBe('2026-10-07');
+    expect(s.tasks.tsk_002.dateNotes?.[0]).toMatchObject({ lateDays: 3, forDueDate: '2026-09-27' });
+    await t.api.call('tasks.newVersion', { id: 'tsk_001', reason: 'Client asked for a second option', dueDate: '2026-10-08' });
+    setNow(new Date('2026-10-12T06:00:00Z')); // Mon 12 Oct: 2 working days after Thu 8 Oct
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    expect(s.tasks.tsk_002.startDate).toBe('2026-10-11');
+    expect(s.tasks.tsk_002.dueDate).toBe('2026-10-13');
+    expect(s.tasks.tsk_002.dateNotes?.[1]).toMatchObject({ lateDays: 2, forDueDate: '2026-10-08' });
+    expect(shifts(t).map((entry) => entry.title)).toEqual(['Task B moved 3 working days', 'Task B moved 2 working days']);
   });
 });
 
@@ -137,5 +175,28 @@ describe('The status menu and the board follow the review rules (audit 2026-10-0
     await expect(t.api.call('tasks.move', { id: 'tsk_010', status: 'todo' })).rejects.toMatchObject({ details: { reason: 'review_send_back' } });
     expect(t.store.state.tasks.tsk_010.status).toBe('in_review');
     expect(Object.values(t.store.state.notifications)).toHaveLength(0);
+  });
+});
+
+describe('The Task list keeps the Team filter of the Dashboard (audit 2026-10-03, V-37a)', () => {
+  it('lists as many past-due tasks and deadlines as the Dashboard counts for each team', async () => {
+    const t = testApi(calls, await buildSeed(TODAY, async () => undefined));
+    const all = await t.api.call('tasks.list', { filter: 'overdue', includeDone: false });
+    let narrower = false;
+    for (const team of await t.api.call('teams.list', {})) {
+      const { tiles } = await t.api.call('dashboard.get', { teamId: team.id });
+      const tasks = await t.api.call('tasks.list', { filter: 'overdue', includeDone: false, teamId: team.id });
+      expect(tasks).toHaveLength(tiles.overdueTasks);
+      const deadlines = await t.api.call('deadlines.list', { from: TODAY, to: addDays(TODAY, 14), teamId: team.id });
+      expect(deadlines).toHaveLength(tiles.deadlinesNext14);
+      if (tasks.length < all.length) narrower = true;
+    }
+    expect(narrower).toBe(true);
+  });
+
+  it('lists nothing for a team that does not exist, like the Dashboard', async () => {
+    const t = testApi(calls, await buildSeed(TODAY, async () => undefined));
+    expect(await t.api.call('tasks.list', { teamId: 'tm_999' })).toEqual([]);
+    expect(await t.api.call('deadlines.list', { teamId: 'tm_999' })).toEqual([]);
   });
 });
