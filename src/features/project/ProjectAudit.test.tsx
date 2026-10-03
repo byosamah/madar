@@ -657,6 +657,23 @@ describe('a failed save shows the saved value (audit 2026-10-03, BRW-6)', () => 
     await userEvent.click(within(again).getByRole('button', { name: 'Save dates' }));
     await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-26'));
   });
+
+  it('offers the retry of a failed Save dates only in the reason sheet (audit 2026-10-03, V-14)', async () => {
+    const fail = trap('tasks.update');
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair, { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-10-26' } });
+    fireEvent.blur(within(sheet).getByLabelText('Due date'));
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The survey came late');
+    fail.state.armed = true;
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    // The toast still says why, with no second Retry beside the sheet's Save dates.
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
 });
 
 describe('quick add keeps the focus (audit 2026-10-03, BRW-11)', () => {

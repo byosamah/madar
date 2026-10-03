@@ -205,8 +205,12 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const update = useAction('tasks.update', {
     onRefused: (error, input) => {
       if (dates.refused(error, input, (next) => update.mutate(next)) || back.refused(error, input, (next) => update.mutate(next))) return true;
-      // A failed save with a date reason opens the reason sheet again with the typed reason; the toast still says why (audit 2026-10-03, BRW-6).
-      if (dates.retry(input, (next) => update.mutate(next))) return false;
+      // A failed save with a date reason opens the reason sheet again with the typed reason (audit 2026-10-03, BRW-6). The toast
+      // still says why, but with no Retry: the sheet's Save dates is the one place to try again (audit 2026-10-03, V-14).
+      if (dates.retry(input, (next) => update.mutate(next))) {
+        toast.show({ tone: 'error', message: errorMessage(error, t) });
+        return true;
+      }
       // The title goes back to the saved one. A description keeps the typed text, marked "Not saved", so no work is lost (audit 2026-10-03, BRW-6).
       if (input.patch.title !== undefined) setTitle(task.title);
       if (input.patch.description !== undefined) setUnsaved(true);
