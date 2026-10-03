@@ -22,6 +22,8 @@ Source: `~/Downloads/madar comments.docx`, 17 comments in 4 groups. The owner de
 | D6 | Teams: one person in several teams | Approved: office teams on the Admin page (Admin and Management), "Add a team" on a project's Team tab, a Team choice in the Filter of Projects, Dashboard and the meeting view; no team mentions or chats | 1449605 |
 | D7 | Project health: pause with reasoning, awaiting client (also pauses), stale after X days (Admin setting) | Pause existed; approved: the pause asks "Our side" or "Awaiting client" (own sign + a Tracker "waiting for the client" item closed on resume); "Stale" sign after N paused days (Admin setting, default 30) and in the Dashboard attention list | 1449605 |
 
+D3, 2026-10-03: the owner confirmed the tick box after the automatic stage tag; built again.
+
 Note: the document has 16 comments (A1-A3, B1-B4, C1-C2, D1-D7). An early chat message said 17 by mistake.
 
 Also built during the review at the owner's request: task start dates (static or dynamic), one-color people pictures, the tray Inbox icon (animated), and "Request a feature or report a bug" in the person menu.
