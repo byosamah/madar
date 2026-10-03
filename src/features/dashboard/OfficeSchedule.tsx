@@ -160,13 +160,11 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-2 text-start"
                     >
                       <span className="min-w-0 flex-1">
-                        {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign sits on the code line, so the
-                            name keeps the width of the narrow column (audit 2026-10-03, V-7). */}
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="tabular text-caption text-ink-2">{row.project.code}</span>
-                          {row.pause && <ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} />}
-                        </span>
+                        <span className="tabular block text-caption text-ink-2">{row.project.code}</span>
                         <bdi className="block truncate text-subheadline text-ink">{row.project.name}</bdi>
+                        {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign has its own line, so the
+                            name keeps the width of the narrow column (audit 2026-10-03, V-7). */}
+                        {row.pause && <span className="block"><ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} /></span>}
                         {/* The color of the current stage says the state. A screen reader hears it as a word. */}
                         {!row.pause && row.health !== 'on_track' && <span className="sr-only">{t(`health.${row.health}`)}</span>}
                         <span className="sr-only">{t('dashboard.expandHint')}</span>
