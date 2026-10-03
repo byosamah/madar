@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import type pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { emptyState, type State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { OFFICE_COLLECTIONS } from '../core/types';
+import { applyMigrations, dropSchema, localClient } from '../it/migrate';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES, collectionOf, rowsOf } from './tables';
 
 const TODAY = '2026-10-04';
@@ -67,5 +69,139 @@ describe('the table registry (server/data/tables.ts)', () => {
     expect(tasks.serverColumns!.search_text({ title: 'Floor PLANS' }, state)).toBe('floor plans');
     const files = TABLES.find((spec) => spec.collection === 'files')!;
     expect(files.serverColumns!.search_text({ name: 'مخطط  الدور' }, state)).toBe('مخطط الدور');
+  });
+});
+
+/**
+ * The schema check against zod (plan 4.4). It needs the local stack, so it runs with MADAR_IT=1 (npm run test:it, or
+ * MADAR_IT=1 npx vitest run --project server server/data/schema.test.ts under the Docker lock). It applies the non-platform
+ * migrations into a schema of its own, as the db-mode harness does for each worker.
+ *
+ * writeHere and loadHere are B2's own small writer and loader. Track C1 moves this test onto writeState and loadWhole of
+ * server/data/whole.ts.
+ */
+describe.runIf(process.env.MADAR_IT === '1')('the schema against zod, on the local database', () => {
+  const schema = `madar_b2_${process.pid}`;
+  let db: pg.Client;
+  let seed: State;
+
+  async function writeHere(state: State): Promise<void> {
+    await db.query('begin');
+    for (const spec of TABLES) {
+      const cols = Object.keys(spec.serverColumns ?? {});
+      const rows = rowsOf(state, spec).map(({ id, doc }) => ({
+        id,
+        // The save step never writes undoneBy (plan 4.3); the loader fills it.
+        doc: spec.collection === 'events' ? { ...doc, undoneBy: null } : doc,
+        ...Object.fromEntries(cols.map((col) => [col, spec.serverColumns![col](doc, state)])),
+      }));
+      if (rows.length === 0) continue;
+      await db.query(
+        `insert into ${spec.table} (id, doc${cols.map((col) => `, ${col}`).join('')})
+         select r->>'id', r->'doc'${cols.map((col) => `, r->>'${col}'`).join('')}
+         from jsonb_array_elements($1::jsonb) with ordinality as x(r, n) order by n
+         on conflict (id) do update set doc = excluded.doc`,
+        [JSON.stringify(rows)],
+      );
+    }
+    await db.query(`insert into ${COUNTERS_TABLE} (prefix, n) select key, value::integer from jsonb_each_text($1::jsonb)`, [JSON.stringify(state.counters)]);
+    await db.query('set constraints all immediate');
+    await db.query('commit');
+  }
+
+  async function loadHere(): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const spec of TABLES) {
+      const { rows } = await db.query(`select doc from ${spec.table} order by ord`);
+      out[spec.collection] = collectionOf(spec, rows.map((row) => row.doc));
+    }
+    const events = out.events as Record<string, { undoes?: string; undoneBy: string | null }>;
+    for (const [id, event] of Object.entries(events)) if (event.undoes && events[event.undoes]) events[event.undoes].undoneBy = id;
+    const { rows } = await db.query(`select prefix, n from ${COUNTERS_TABLE}`);
+    out.counters = Object.fromEntries(rows.map((row) => [row.prefix, row.n]));
+    return out;
+  }
+
+  beforeAll(async () => {
+    db = await localClient();
+    await applyMigrations(db, schema);
+    await db.query(`set search_path to ${schema}`);
+    seed = await buildSeed(TODAY, async () => undefined);
+  }, 60_000);
+
+  afterAll(async () => {
+    if (!db) return;
+    await dropSchema(db, schema);
+    await db.end();
+  });
+
+  it('starts empty, with the settings of emptyState and one office_meta row', async () => {
+    const { rows: settings } = await db.query('select id, doc from settings');
+    expect(settings).toEqual([{ id: 'office', doc: emptyState(TODAY).settings }]);
+    const { rows: meta } = await db.query('select id, version, office_seq from office_meta');
+    expect(meta).toEqual([{ id: 1, version: '0', office_seq: '0' }]);
+    for (const spec of TABLES.filter((table) => table.collection !== 'settings')) {
+      const { rows } = await db.query(`select count(*)::integer as n from ${spec.table}`);
+      expect(rows[0].n, spec.table).toBe(0);
+    }
+  });
+
+  it('has no stray table: the tables equal the registry plus the server-only list', async () => {
+    const { rows } = await db.query(
+      `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = $1 and c.relkind = 'r'`,
+      [schema],
+    );
+    const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...SERVER_TABLES].sort();
+    expect(rows.map((row) => row.relname).sort()).toEqual(expected);
+  });
+
+  it('reads only zod fields in the generated columns, and has the id, ord, doc, chg and server columns', async () => {
+    const { rows } = await db.query(
+      `select table_name, column_name, is_generated, generation_expression from information_schema.columns where table_schema = $1`,
+      [schema],
+    );
+    for (const spec of TABLES) {
+      const columns = rows.filter((row) => row.table_name === spec.table);
+      const names = columns.map((row) => row.column_name);
+      expect(names, spec.table).toEqual(expect.arrayContaining(['id', 'ord', 'doc', ...Object.keys(spec.serverColumns ?? {})]));
+      expect(names.includes('chg'), `${spec.table} has chg only when it is an office table`).toBe(spec.office);
+      for (const column of columns.filter((row) => row.is_generated === 'ALWAYS')) {
+        const fields = [...String(column.generation_expression).matchAll(/'([A-Za-z]+)'::text/g)].map((match) => match[1]);
+        expect(fields.length, `${spec.table}.${column.column_name} reads doc`).toBeGreaterThan(0);
+        for (const field of fields) expect(Object.keys(spec.schema.shape), `${spec.table}.${column.column_name}`).toContain(field);
+      }
+    }
+  });
+
+  it('gives the sample office back exactly, in the same order, events included', async () => {
+    await writeHere(seed);
+    const loaded = await loadHere();
+    // What JSON can hold: a field set to undefined is absent.
+    const expected = JSON.parse(JSON.stringify(seed)) as Record<string, unknown>;
+    for (const spec of TABLES) {
+      const want = expected[spec.collection] ?? {};
+      expect(loaded[spec.collection], spec.table).toStrictEqual(want);
+      if (spec.collection !== 'settings') expect(Object.keys(loaded[spec.collection] as object), spec.table).toEqual(Object.keys(want as object));
+    }
+    expect(loaded.counters).toStrictEqual(expected.counters);
+    expect(Object.keys(seed.events).length).toBeGreaterThan(0);
+  });
+
+  it('loads only records that parse with their zod schema', async () => {
+    const loaded = await loadHere();
+    for (const spec of TABLES) {
+      const records = spec.collection === 'settings' ? [loaded.settings] : Object.values(loaded[spec.collection] as object);
+      for (const record of records) {
+        const parsed = spec.schema.safeParse(record);
+        expect(parsed.success, `${spec.table}: ${parsed.error?.message ?? ''}`).toBe(true);
+      }
+    }
+  });
+
+  it('keeps the server columns that the save step writes', async () => {
+    const { rows } = await db.query(`select count(*)::integer as n from comments where project_id is null`);
+    expect(rows[0].n).toBe(0);
+    const { rows: tasks } = await db.query(`select search_text from tasks order by ord limit 1`);
+    expect(tasks[0].search_text).toBe(TABLES.find((spec) => spec.collection === 'tasks')!.serverColumns!.search_text(Object.values(seed.tasks)[0], seed));
   });
 });
