@@ -17,6 +17,18 @@ describe('app shell', () => {
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 360 and 390 px.
+  it('lets a phone tab grow to its whole label on one line, so a long label is never cut (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
+    const tab = within(nav).getByRole('link', { name: 'لوحة المعلومات' });
+    expect(tab).toHaveClass('min-w-fit');
+    expect(tab).not.toHaveClass('min-w-0');
+    expect(within(tab).getByText('لوحة المعلومات')).toHaveClass('whitespace-nowrap');
+  });
+
   it('moves between screens', async () => {
     await renderApp('/dashboard');
     await userEvent.click(within(await pill()).getByRole('link', { name: 'Projects' }));

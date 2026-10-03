@@ -27,12 +27,14 @@ export function TabPill() {
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
+        // On a phone the tabs share the width, but a tab never gets narrower than its label and some room for the round ends of
+        // its highlight. A long label such as "لوحة المعلومات" makes its own tab wider and stays whole (audit 2026-10-03, F-2).
         return (
           <Link
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-12 min-w-fit flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-caption min-[360px]:px-2.5 font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
             <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
