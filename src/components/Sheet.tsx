@@ -99,9 +99,18 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onOpenChange);
   close.current = onOpenChange;
+  // The control that opened the panel, noted before the focus moves into it. React StrictMode runs each effect twice in
+  // development. The second run found the focus in the panel and took the panel for the opener, so Escape left the focus
+  // on the page body. A run that finds the focus in the panel now keeps the first note (audit 2026-10-03, sheet repair).
+  const opener = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panel.current?.contains(active)) return;
+    opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [open]);
   useEffect(() => {
     if (!open) return undefined;
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     // The focus moves into the panel, so Tab reaches its controls next. A control inside that took the focus keeps it.
     if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -116,7 +125,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
       document.removeEventListener('keydown', onKey);
       const active = document.activeElement;
       const lost = !active || active === document.body || panel.current?.contains(active);
-      if (lost && before?.isConnected) before.focus();
+      if (lost && opener.current?.isConnected) opener.current.focus();
     };
   }, [open]);
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { ToastProvider, useToast } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { TextField } from './Fields';
@@ -260,6 +260,32 @@ describe('overlays after the audit of 2026-10-03', () => {
     expect(screen.getByRole('dialog', { name: 'Task panel' })).toBeInTheDocument();
     // Escape from inside the panel closes it, and the focus goes back to the control that opened it.
     screen.getByText('Inside').focus();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Open task')).toHaveFocus();
+  });
+
+  // The app runs in StrictMode, which runs each effect twice in development. The second run must not take the panel itself
+  // for the opener. The task panel leaves the page on close, so this panel does too (audit 2026-10-03, sheet repair).
+  it('gives the focus back to the opener when a non-blocking panel leaves the page, also in StrictMode', async () => {
+    function Demo() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open task</button>
+          {open && (
+            <Sheet open onOpenChange={setOpen} title="Task panel" blocking={false}>
+              <button type="button">Inside</button>
+            </Sheet>
+          )}
+        </>
+      );
+    }
+    render(<StrictMode><Demo /></StrictMode>);
+    screen.getByText('Open task').focus();
+    await userEvent.keyboard('{Enter}');
+    const panel = await screen.findByRole('dialog', { name: 'Task panel' });
+    await waitFor(() => expect(panel).toHaveFocus());
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getByText('Open task')).toHaveFocus();
