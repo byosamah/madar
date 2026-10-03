@@ -3,9 +3,15 @@ import AxeBuilder from '@axe-core/playwright';
 
 /** Checks for the owner changes of 2026-10-01: the phone tab bar, chat Inbox, bell, Overview, Pause and Meeting view. */
 
+/**
+ * Preview as answers after the fake network delay. The open screen starts again when the new person arrives (audit 2026-10-03,
+ * V-22), so the helper waits for the person button to show the new name. Without the wait, the next screen loaded as the person
+ * before and then started again under the test: an open menu closed before its item could be pressed.
+ */
 async function previewAs(page: Page, label: string): Promise<void> {
   await page.goto('/#/settings');
   await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label });
+  await expect(page.getByRole('button', { name: label.split(' · ')[0], exact: true })).toBeVisible();
 }
 
 test('the phone tab bar has exactly five tabs and no sideways scroll at 390', async ({ page }) => {
