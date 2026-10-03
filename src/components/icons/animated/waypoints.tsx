@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/waypoints.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/waypoints.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
@@ -87,6 +89,7 @@ const WaypointsIcon = forwardRef<WaypointsIconHandle, WaypointsIconProps>(
         >
           <motion.circle
             animate={controls}
+            initial="normal"
             custom={0}
             cx="12"
             cy="4.5"
@@ -95,12 +98,14 @@ const WaypointsIcon = forwardRef<WaypointsIconHandle, WaypointsIconProps>(
           />
           <motion.path
             animate={controls}
+            initial="normal"
             custom={1}
             d="m10.2 6.3-3.9 3.9"
             variants={VARIANTS}
           />
           <motion.circle
             animate={controls}
+            initial="normal"
             custom={0}
             cx="4.5"
             cy="12"
@@ -109,12 +114,14 @@ const WaypointsIcon = forwardRef<WaypointsIconHandle, WaypointsIconProps>(
           />
           <motion.path
             animate={controls}
+            initial="normal"
             custom={2}
             d="M7 12h10"
             variants={VARIANTS}
           />
           <motion.circle
             animate={controls}
+            initial="normal"
             custom={0}
             cx="19.5"
             cy="12"
@@ -123,12 +130,14 @@ const WaypointsIcon = forwardRef<WaypointsIconHandle, WaypointsIconProps>(
           />
           <motion.path
             animate={controls}
+            initial="normal"
             custom={3}
             d="m13.8 17.7 3.9-3.9"
             variants={VARIANTS}
           />
           <motion.circle
             animate={controls}
+            initial="normal"
             custom={0}
             cx="12"
             cy="19.5"

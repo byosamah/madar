@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/languages.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/languages.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -99,6 +101,7 @@ const LanguagesIcon = forwardRef<LanguagesIconHandle, LanguagesIconProps>(
       >
         <motion.svg
           animate={svgControls}
+          initial="normal"
           fill="none"
           height={size}
           stroke="currentColor"
@@ -112,36 +115,42 @@ const LanguagesIcon = forwardRef<LanguagesIconHandle, LanguagesIconProps>(
         >
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={3}
             d="m5 8 6 6"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={2}
             d="m4 14 6-6 3-3"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={1}
             d="M2 5h12"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={0}
             d="M7 2h1"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={3}
             d="m22 22-5-10-5 10"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={pathControls}
+            initial="normal"
             custom={3}
             d="M14 18h6"
             variants={PATH_VARIANTS}

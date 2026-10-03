@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/circle-dashed.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/circle-dashed.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -91,6 +93,7 @@ const CircleDashedIcon = forwardRef<
         ].map((d, index) => (
           <motion.path
             animate={controls}
+            initial="normal"
             custom={index + 1}
             d={d}
             key={d}

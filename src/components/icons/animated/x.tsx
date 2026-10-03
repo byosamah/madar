@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/x.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/x.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -81,11 +83,13 @@ const XIcon = forwardRef<XIconHandle, XIconProps>(
         >
           <motion.path
             animate={controls}
+            initial="normal"
             d="M18 6 6 18"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={controls}
+            initial="normal"
             d="m6 6 12 12"
             transition={{ delay: 0.2 }}
             variants={PATH_VARIANTS}

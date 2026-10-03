@@ -1,4 +1,6 @@
-// Source: https://lucide-animated.com/r/arrow-right.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/arrow-right.json (MIT, lucide-animated). Local edits: class-join import;
+// initial="normal" on each animated element, so every animated value has a start value. With no start value, a
+// re-render in the same moment as the first animation wrote "undefined" into the icon (audit 2026-10-03, S-3).
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -92,11 +94,13 @@ const ArrowRightIcon = forwardRef<ArrowRightIconHandle, ArrowRightIconProps>(
         >
           <motion.path
             animate={controls}
+            initial="normal"
             d="M5 12h14"
             variants={PATH_VARIANTS}
           />
           <motion.path
             animate={controls}
+            initial="normal"
             d="m12 5 7 7-7 7"
             variants={SECONDARY_PATH_VARIANTS}
           />
