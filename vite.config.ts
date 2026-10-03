@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => ({
               test: {
                 name: 'it',
                 environment: 'node',
-                include: ['server/it/**/*.it.test.ts', ...DOCKER_SCRIPT_TESTS],
+                include: ['server/it/**/*.it.test.ts', 'server/data/schema.test.ts', ...DOCKER_SCRIPT_TESTS],
                 fileParallelism: false,
                 testTimeout: 60000,
               },
