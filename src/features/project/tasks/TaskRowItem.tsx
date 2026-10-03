@@ -25,6 +25,23 @@ import { CircleDashedIcon } from '../../../components/icons/animated/circle-dash
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 
+/** A mark that no translation contains. It shows where the name sits in a translated line. */
+const NAME_MARK = '\u0001';
+
+/**
+ * "Helper · Lead: <name>". The name sits in its own box, so a narrow line wraps before the name, and a name too long for the
+ * whole line is cut at its own end. One truncated Arabic line cut the start of a Latin name instead (audit 2026-10-03, F-7).
+ */
+function HelperLine({ name, context }: { name: string; context: string | undefined }) {
+  const { t } = useTranslation();
+  const [before, after = ''] = t('tasks.helperLine', { name: NAME_MARK, context }).split(NAME_MARK);
+  return (
+    <span dir="auto" className="min-w-0">
+      {before}<bdi className="inline-block max-w-full truncate align-bottom">{name}</bdi>{after}
+    </span>
+  );
+}
+
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
  * A tick fills the circle at once, and the call runs after 0.5 s, so the row slides away then (spec 5.5).
@@ -110,7 +127,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           )}
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
-          {helping && <span dir="auto" className="min-w-0 truncate">{t('tasks.helperLine', { name: row.owner.name, context: actorContext(me) })}</span>}
+          {helping && <HelperLine name={row.owner.name} context={actorContext(me)} />}
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {waiting && (
