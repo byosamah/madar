@@ -17,6 +17,11 @@ export interface AuthPort {
   /** The link of an invitation or a reset email (the Welcome and Reset screens). */
   verifyLink(tokenHash: string, type: LinkType): Promise<void>;
   setPassword(password: string): Promise<void>;
+  /**
+   * Asks for a password reset link (the Forgot screen). The Supabase version sends a POST with { email } to
+   * `${VITE_API_URL}/auth/forgot?forceFunctionRegion=eu-central-1`. It gives the same answer for every address and never throws for an unknown one.
+   */
+  requestReset(email: string): Promise<void>;
 }
 
 export function alwaysSignedIn(): AuthPort {
@@ -28,5 +33,6 @@ export function alwaysSignedIn(): AuthPort {
     accessToken: async () => null,
     verifyLink: async () => undefined,
     setPassword: async () => undefined,
+    requestReset: async () => undefined,
   };
 }

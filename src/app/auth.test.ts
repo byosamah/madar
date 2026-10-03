@@ -10,6 +10,7 @@ describe('the prototype sign-in', () => {
     await auth.signIn('a@madar.test', 'pw');
     await auth.verifyLink('hash', 'invite');
     await auth.setPassword('new-password');
+    await expect(auth.requestReset('nobody@madar.test')).resolves.toBeUndefined();
     await auth.signOut();
     expect(auth.status()).toBe('signed_in');
     expect(await auth.accessToken()).toBeNull();
