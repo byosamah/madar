@@ -12,7 +12,7 @@ import { OFFICE_COLLECTIONS } from '../core/types';
  * generated from "doc" in the migrations (supabase/migrations/20261004000100_core.sql). server/data/schema.test.ts checks
  * that this list, the migrations and the zod schemas agree.
  */
-export type TableCollection = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'counters'>;
+export type TableCollection = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'counters' | 'counts'>;
 
 /** A record as the save step sees it: a zod record of one collection (settings is one record with the fixed key "office"). */
 type Rec = Record<string, unknown>;
