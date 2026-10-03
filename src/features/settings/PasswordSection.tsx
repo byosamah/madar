@@ -11,7 +11,9 @@ import { SettingsSection as Section } from './Section';
 
 /**
  * Settings, Password (plan 5.1): the current and the new password. A sign-in with the current password checks it, then the new
- * one is set. The prototype has no sign-in, so the section shows in the real build only.
+ * one is set, and the other devices of the person sign out, as after a reset: a person may change the password because someone
+ * else knows it. That also ends the session that the check started beside this one. The prototype has no sign-in, so the section
+ * shows in the real build only.
  */
 export function PasswordSection() {
   return REMOTE ? <PasswordForm /> : null;
@@ -44,6 +46,8 @@ function PasswordForm() {
     }
     try {
       await auth.setPassword(next);
+      // The new password holds even when the other devices cannot be signed out now.
+      await auth.signOut({ scope: 'others' }).catch(() => undefined);
       setCurrent('');
       setNext('');
       toast.show({ message: t('password.changed') });

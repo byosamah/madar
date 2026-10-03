@@ -42,21 +42,22 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
   });
 
   it('adds a person with no agent fields and a Language choice that starts at the language of the Admin', async () => {
-    const { api } = await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), prepare: (state) => { state.users.usr_001.preferences.language = 'en'; } });
+    const { api } = await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), prepare: (state) => { state.users.usr_001.preferences.language = 'ar'; } });
     const call = vi.spyOn(api, 'call');
     await userEvent.click(await screen.findByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     expect(within(sheet).queryByLabelText('Kind')).toBeNull();
     expect(within(sheet).queryByLabelText('Acts for')).toBeNull();
     const language = within(sheet).getByLabelText('Language');
-    expect(language).toHaveValue('en');
+    // The Admin reads Arabic; the labels stay English because the test renders in English.
+    expect(language).toHaveValue('ar');
     expect(within(sheet).getByText('Madar uses this language for the invitation email and the first sign-in.')).toBeInTheDocument();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Noura Al-Qahtani');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'noura@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Interiors');
-    await userEvent.selectOptions(language, 'ar');
+    await userEvent.selectOptions(language, 'en');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(call).toHaveBeenCalledWith('users.create', expect.objectContaining({ email: 'noura@madar.test', kind: 'human', language: 'ar' })));
+    await waitFor(() => expect(call).toHaveBeenCalledWith('users.create', expect.objectContaining({ email: 'noura@madar.test', kind: 'human', language: 'en' })));
   });
 
   it('marks an invited person and sends the invitation again, with a toast', async () => {
@@ -80,20 +81,45 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     expect(screen.queryByRole('menuitem', { name: 'Send the invitation again' })).toBeNull();
   });
 
-  it('shows the No connection banner when the change channel is closed or the browser is offline', async () => {
-    const closed = await renderAuth('/', { auth: signedIn(), routes: only(<StorageBanner />), changes: source('closed') });
-    expect(await screen.findByRole('status')).toHaveTextContent('No connection. Madar cannot save changes until it connects again.');
-    closed.unmount();
+  it('shows the No connection banner at once when the browser is offline', async () => {
     await renderAuth('/', { auth: signedIn(), routes: only(<StorageBanner />), changes: source('open') });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
     // The prototype line about browser storage never shows in the real build.
     expect(screen.queryByRole('status')).toBeNull();
     const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     act(() => { window.dispatchEvent(new Event('offline')); });
-    expect(await screen.findByRole('status')).toHaveTextContent('No connection.');
+    expect(await screen.findByRole('status')).toHaveTextContent('No connection. Madar cannot save changes until it connects again.');
     online.mockReturnValue(true);
     act(() => { window.dispatchEvent(new Event('online')); });
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  });
+
+  it('says live updates paused only when the change channel stays closed for two checks, and that changes still save', async () => {
+    // Only the checks of the banner run on the fake clock; the screen loads on the real one.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      let status: 'open' | 'closed' = 'closed';
+      await renderAuth('/', { auth: signedIn(), routes: only(<StorageBanner />), changes: { subscribe: () => () => undefined, status: () => status } });
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+      const check = () => act(() => { vi.advanceTimersByTime(3000); });
+      // A channel that still joins at the start, or joins again after a hidden tab, shows nothing.
+      expect(screen.queryByRole('status')).toBeNull();
+      check();
+      expect(screen.queryByRole('status')).toBeNull();
+      status = 'open';
+      check();
+      expect(screen.queryByRole('status')).toBeNull();
+      status = 'closed';
+      check();
+      expect(screen.queryByRole('status')).toBeNull();
+      check();
+      expect(screen.getByRole('status')).toHaveTextContent('Live updates paused. Your changes still save.');
+      status = 'open';
+      check();
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -108,8 +134,10 @@ describe('Settings, Password (plan 5.1)', () => {
     const auth = signedIn();
     await renderAuth('/settings', { auth, routes: only(<PasswordSection />) });
     await change(SAMPLE_ACCOUNTS.hala.password, 'green-field-77');
-    expect(await screen.findByText('Password changed.')).toBeInTheDocument();
-    expect(auth.log).toEqual([`signIn:${SAMPLE_ACCOUNTS.hala.email}`, 'setPassword']);
+    expect(await screen.findByText('Password changed. Your other devices sign out.')).toBeInTheDocument();
+    // A person who changes the password because someone else may know it signs that person out of the other devices.
+    expect(auth.log).toEqual([`signIn:${SAMPLE_ACCOUNTS.hala.email}`, 'setPassword', 'signOut:others']);
+    expect(auth.status()).toBe('signed_in');
     expect(auth.current()?.password).toBe('green-field-77');
     expect(screen.getByLabelText('Current password')).toHaveValue('');
     expect(screen.getByLabelText('New password')).toHaveValue('');

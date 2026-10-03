@@ -10,9 +10,10 @@
     "current": "Current password",
     "new": "New password",
     "save": "Change the password",
-    "changed": "Password changed."
+    "changed": "Password changed. Your other devices sign out."
   },
   "connection": {
-    "lost": "No connection. Madar cannot save changes until it connects again."
+    "lost": "No connection. Madar cannot save changes until it connects again.",
+    "paused": "Live updates paused. Your changes still save."
   }
 }
