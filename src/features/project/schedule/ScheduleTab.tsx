@@ -173,7 +173,8 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
               key={deadline.id}
               title={`${deadline.name} · ${formatDay(deadline.date, lang)}`}
               style={{ insetInlineStart: `calc(${offsetPct(range, deadline.date)}% - 6px)` }}
-              className="absolute top-4 size-3 rotate-45 rounded-sm bg-attn"
+              // A deadline is a date, not a warning: the same quiet grey as the Dashboard and the meeting (audit 2026-10-03, V-24).
+              className="absolute top-4 size-3 rotate-45 rounded-sm bg-ink-2"
             />
           ))}
         </div>
@@ -291,7 +292,7 @@ function Deadlines({ detail }: TabProps) {
         <ul className="mt-1">
           {detail.deadlines.map((deadline) => (
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
-              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-attn" />
+              <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-ink-2" />
               {/* The name opens the deadline to change it, for the people who may (audit 2026-10-03, PRJ-13). */}
               {detail.viewerCan.edit ? (
                 <button

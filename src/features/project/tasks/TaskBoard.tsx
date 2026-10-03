@@ -13,7 +13,7 @@ import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { Menu } from '../../../components/Menu';
-import { BOARD_COLUMNS, nextColumn } from '../../../lib/board';
+import { BOARD_COLUMNS, moveTargets, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
@@ -57,9 +57,10 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
   );
 }
 
-function Column({ status, count, children }: { status: TaskStatus; count: number; children: ReactNode }) {
+function Column({ status, count, closed, children }: { status: TaskStatus; count: number; closed: boolean; children: ReactNode }) {
   const { t } = useTranslation();
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  // A closed column takes no drop, and the arrow keys skip it (audit 2026-10-03, V-5).
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: closed });
   const label = t(`taskStatus.${status}`);
   return (
     <section ref={setNodeRef} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 ${isOver ? 'bg-fill-strong' : 'bg-fill'}`}>
@@ -72,13 +73,16 @@ function Column({ status, count, children }: { status: TaskStatus; count: number
   );
 }
 
-function BoardCard({ row, dragging, onOpen, onMove }: { row: TaskRow; dragging: boolean; onOpen: () => void; onMove: (status: TaskStatus) => void }) {
+function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
+  row: TaskRow; reviews: boolean; dragging: boolean; onOpen: () => void; onMove: (status: TaskStatus) => void;
+}) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({
     id: row.task.id, data: { status: row.task.status }, disabled: !row.canMove,
   });
   // The whole card follows a pointer drag. Only the grip starts a keyboard drag, so Enter on the title opens the task.
   const pointerOnly = listeners?.onPointerDown ? { onPointerDown: listeners.onPointerDown as PointerEventHandler<HTMLLIElement> } : {};
+  const reviewing = reviews && row.task.status === 'in_review';
   return (
     <li ref={setNodeRef} {...pointerOnly} className={`relative ${dragging ? 'opacity-40' : ''}`}>
       <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} /></button>
@@ -96,7 +100,11 @@ function BoardCard({ row, dragging, onOpen, onMove }: { row: TaskRow; dragging: 
           </button>
           <Menu
             label={t('tasks.moveTo', { title: row.task.title })}
-            items={BOARD_COLUMNS.filter((status) => status !== row.task.status).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) }))}
+            items={[
+              ...moveTargets(row.task.status, reviewing).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
+              // Send back needs a note, so the item opens the task panel, where the review block comes first (audit 2026-10-03, V-5).
+              { label: t('tasks.sendBackOpen'), onSelect: onOpen, hidden: !reviewing },
+            ]}
           />
         </div>
       )}
@@ -105,7 +113,7 @@ function BoardCard({ row, dragging, onOpen, onMove }: { row: TaskRow; dragging: 
 }
 
 /** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
-export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: string) => void }) {
+export function TaskBoard({ rows, reviews, onOpen }: { rows: TaskRow[]; reviews: boolean; onOpen: (taskId: string) => void }) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(null);
   const droppedAt = useRef(0);
@@ -122,7 +130,7 @@ export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: 
     setActiveId(null);
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
-    if (row && over && over.id !== row.task.status) move.mutate({ id: row.task.id, status: over.id as TaskStatus });
+    if (row && over && moveTargets(row.task.status, reviews).includes(over.id as TaskStatus)) move.mutate({ id: row.task.id, status: over.id as TaskStatus });
   };
   // The click that ends a pointer drag must not open the task.
   const open = (taskId: string) => {
@@ -152,11 +160,12 @@ export function TaskBoard({ rows, onOpen }: { rows: TaskRow[]; onOpen: (taskId: 
         {BOARD_COLUMNS.map((status) => {
           const columnRows = rows.filter((row) => row.task.status === status);
           return (
-            <Column key={status} status={status} count={columnRows.length}>
+            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && status !== lifted.task.status && !moveTargets(lifted.task.status, reviews).includes(status)}>
               {columnRows.map((row) => (
                 <BoardCard
                   key={row.task.id}
                   row={row}
+                  reviews={reviews}
                   dragging={row.task.id === activeId}
                   onOpen={() => open(row.task.id)}
                   onMove={(to) => move.mutate({ id: row.task.id, status: to })}

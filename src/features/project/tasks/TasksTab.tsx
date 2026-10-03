@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
@@ -6,6 +5,7 @@ import { useCall } from '../../../app/runtime';
 import { FilterButton } from '../../../components/FilterButton';
 import { oneOf } from '../../../lib/params';
 import { LoadFailed } from '../../../components/LoadFailed';
+import { TASK_PANEL, usePanelLink } from '../panelLink';
 import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
@@ -30,20 +30,10 @@ export function TasksTab({ detail }: TabProps) {
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
   for (const row of rows) if (row.task.status === 'done') doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
-  const open = (taskId: string, thread = false) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('task', taskId);
-    if (thread) next.set('thread', '1');
-    else next.delete('thread');
-    return next;
-  });
-  // Close replaces the link, so Back does not open the closed panel again (audit 2026-10-03, PRJ-9).
-  const closeTask = useCallback(() => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.delete('task');
-    next.delete('thread');
-    return next;
-  }, { replace: true }), [setParams]);
+  // Open adds one history step and Close goes back over it, so Back closes the panel and a panel costs no extra Back
+  // (audit 2026-10-03, PRJ-9, V-36).
+  const panel = usePanelLink(TASK_PANEL);
+  const open = (taskId: string, thread = false) => panel.open({ task: taskId, thread: thread ? '1' : null });
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -78,8 +68,8 @@ export function TasksTab({ detail }: TabProps) {
       {tasks.error && !tasks.data && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
-        : <TaskBoard rows={rows} onOpen={open} />)}
-      {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={closeTask} />}
+        : <TaskBoard rows={rows} reviews={detail.viewerCan.review} onOpen={open} />)}
+      {params.get('task') && <TaskSheet key={params.get('task')} taskId={params.get('task') as string} detail={detail} onClose={panel.close} />}
     </div>
   );
 }

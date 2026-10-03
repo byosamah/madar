@@ -26,15 +26,22 @@ function trap(name: string) {
 }
 
 describe('a failed refresh keeps the screen (audit 2026-10-03, PRJ-1)', () => {
+  // A fixed wait can pass on broken code under load. These tests wait for a visible result of the same refresh (the flag on
+  // the other row), and record every route change from before the failure (audit 2026-10-03, V-9).
   it('keeps the task panel open with its typed text when tasks.get fails on a refresh', async () => {
     const fail = trap('tasks.get');
-    const { api } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
+    const { api, router } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.type(within(sheet).getByLabelText('Description'), ' DRAFT TEXT');
+    const flagsBefore = screen.queryAllByText('Flagged').length;
+    const searches: string[] = [];
+    const stop = router.subscribe((state) => searches.push(state.location.search));
     fail.state.armed = true;
     await api.call('tasks.update', { id: 'tsk_013', patch: { flagged: true } });
     await waitFor(() => expect(fail.state.hit).toBe(true));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('Flagged')).toHaveLength(flagsBefore + 1));
+    stop();
+    expect(searches.every((search) => search.includes('task=tsk_007'))).toBe(true);
     const still = screen.getByRole('dialog', { name: 'Stair details' });
     expect((within(still).getByLabelText('Description') as HTMLTextAreaElement).value).toContain('DRAFT TEXT');
   });
@@ -48,12 +55,17 @@ describe('a failed refresh keeps the screen (audit 2026-10-03, PRJ-1)', () => {
 
   it('keeps the project when projects.get fails on a refresh', async () => {
     const fail = trap('projects.get');
-    const { api } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
+    const { api, router } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
     await screen.findByRole('dialog', { name: 'Stair details' });
+    const flagsBefore = screen.queryAllByText('Flagged').length;
+    const searches: string[] = [];
+    const stop = router.subscribe((state) => searches.push(state.location.search));
     fail.state.armed = true;
     await api.call('tasks.update', { id: 'tsk_013', patch: { flagged: true } });
     await waitFor(() => expect(fail.state.hit).toBe(true));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('Flagged')).toHaveLength(flagsBefore + 1));
+    stop();
+    expect(searches.every((search) => search.includes('task=tsk_007'))).toBe(true);
     expect(screen.getByRole('dialog', { name: 'Stair details' })).toBeInTheDocument();
     expect(screen.queryByText('Project not found')).toBeNull();
   });
@@ -109,28 +121,106 @@ describe('a tab whose list did not load says so and offers Retry (audit 2026-10-
   });
 });
 
-describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10)', () => {
-  it('Back after Close does not open the task panel again', async () => {
-    const { router } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10; no extra Back, V-36)', () => {
+  // Each test starts from a known step (the Projects list), so Back never lands on a step of an earlier test.
+  const fromProjects = async (path: string, prepare = as('usr_002')) => {
+    const view = await renderApp('/projects', prepare);
+    await view.router.navigate(path);
+    return view;
+  };
+
+  it('Close of the task panel leaves no extra step, so one Back leaves the project', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
     await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
     await router.navigate(-1);
-    await settle();
-    expect(router.state.location.search).not.toContain('task=');
-    expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
   });
 
-  it('Back after Close does not open the payment sheet again', async () => {
-    const { router } = await renderApp('/projects/prj_001', as('usr_011'));
+  it('Back from an open task panel closes it and stays on the tab', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    await screen.findByRole('dialog', { name: 'Stair details' });
+    await router.navigate(-1);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
+    expect(router.state.location.search).toBe('?tab=tasks');
+  });
+
+  it('keeps the step through Conversation and a second task, so Close still leaves no extra step', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const first = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(first).getByRole('tab', { name: /Conversation/ }));
+    await waitFor(() => expect(router.state.location.search).toContain('thread=1'));
+    await userEvent.click(screen.getByRole('button', { name: /^Civil Defense drawings/ }));
+    const second = await screen.findByRole('dialog', { name: 'Civil Defense drawings' });
+    await userEvent.click(within(second).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  it('a panel that came with the link closes in place and keeps the project on screen', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks&task=tsk_007');
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  it('Close of the payment sheet leaves no extra step, so one Back leaves the project', async () => {
+    const { router } = await fromProjects('/projects/prj_001', as('usr_011'));
     const region = await screen.findByRole('region', { name: 'Payments' });
     await userEvent.click(await within(region).findByRole('button', { name: /Concept stage fee/ }));
     const sheet = await screen.findByRole('dialog');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(router.state.location.search).not.toContain('payment='));
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
     await router.navigate(-1);
-    await settle();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  // Forward brings back the panel step with its old key. Close and Escape must still close it there (audit 2026-10-03, V-36).
+  it('Close and Escape still close a task panel that Forward brought back', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await router.navigate(1);
+    const again = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(router.state.location.search).toContain('task=tsk_007');
+    await userEvent.click(within(again).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.search).toBe('?tab=tasks');
+    await router.navigate(1);
+    await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.search).toBe('?tab=tasks');
+  });
+
+  it('Close still closes a payment sheet that Forward brought back', async () => {
+    const { router } = await fromProjects('/projects/prj_001', as('usr_011'));
+    const region = await screen.findByRole('region', { name: 'Payments' });
+    await userEvent.click(await within(region).findByRole('button', { name: /Concept stage fee/ }));
+    const sheet = await screen.findByRole('dialog');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).not.toContain('payment='));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await router.navigate(1);
+    const again = await screen.findByRole('dialog');
+    expect(router.state.location.search).toContain('payment=');
+    await userEvent.click(within(again).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(router.state.location.search).not.toContain('payment=');
   });
 
@@ -485,6 +575,17 @@ describe('a client item on the Overview opens that item (audit 2026-10-03, PRJ-1
     expect(screen.getByRole('tab', { name: 'Tracker', hidden: true })).toHaveAttribute('aria-selected', 'true');
     expect(router.state.location.search).toContain(`entry=${row.entry.id}`);
   });
+
+  it('gives the focus to the entry row on the Tracker tab after Escape, never to the page (audit 2026-10-03, V-30)', async () => {
+    const { api } = await renderApp('/projects/prj_001', as('usr_002'));
+    await api.call('tracker.log', { projectId: 'prj_001', type: 'message', direction: 'out', title: 'We need the soil report.', date: '2026-09-30', waiting: 'client', fileIds: [] });
+    const attention = await screen.findByRole('region', { name: 'Needs attention' });
+    await userEvent.click(await within(attention).findByRole('button', { name: 'Open We need the soil report.' }));
+    await screen.findByRole('dialog', { name: 'We need the soil report.' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'We need the soil report.' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open We need the soil report.' })));
+  });
 });
 
 describe('filters stay in the link (audit 2026-10-03, PRJ-22)', () => {
@@ -539,12 +640,12 @@ describe('older posts in the Activity tab (audit 2026-10-03, PRJ-5)', () => {
   }, 15_000);
 });
 
-describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
+describe('a deadline can change (audit 2026-10-03, PRJ-13; Edit word, V-23)', () => {
   it('changes the name and the date of a deadline', async () => {
     const { store } = await renderApp('/projects/prj_001?tab=schedule', as('usr_002'));
     const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
-    await userEvent.click(within(deadlines).getByRole('button', { name: 'Change Balady submission' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Change deadline' });
+    await userEvent.click(within(deadlines).getByRole('button', { name: 'Edit Balady submission' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit deadline' });
     await userEvent.clear(within(sheet).getByLabelText('Deadline name'));
     await userEvent.type(within(sheet).getByLabelText('Deadline name'), 'Balady permit submission');
     fireEvent.change(within(sheet).getByLabelText('Date'), { target: { value: '2026-12-20' } });
@@ -553,10 +654,17 @@ describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
     expect(await screen.findByText('Deadline saved.')).toBeInTheDocument();
   });
 
-  it('gives a person who cannot edit no Change button', async () => {
+  it('says Edit in Arabic too, the word of every other edit (audit 2026-10-03, V-23)', () => {
+    const ar = initI18n('ar');
+    expect(ar.t('schedule.editDeadlineTitle')).toBe('تعديل الموعد');
+    expect(ar.t('schedule.editDeadline', { name: 'تقديم بلدي' })).toBe('تعديل تقديم بلدي');
+    initI18n('en');
+  });
+
+  it('gives a person who cannot edit no Edit button', async () => {
     await renderApp('/projects/prj_001?tab=schedule', as('usr_005'));
     const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
-    expect(within(deadlines).queryByRole('button', { name: /^Change / })).toBeNull();
+    expect(within(deadlines).queryByRole('button', { name: /^Edit / })).toBeNull();
   });
 });
 
@@ -656,6 +764,23 @@ describe('a failed save shows the saved value (audit 2026-10-03, BRW-6)', () => 
     expect(within(again).getByRole('textbox', { name: 'Reason' })).toHaveValue('The survey came late');
     await userEvent.click(within(again).getByRole('button', { name: 'Save dates' }));
     await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-26'));
+  });
+
+  it('offers the retry of a failed Save dates only in the reason sheet (audit 2026-10-03, V-14)', async () => {
+    const fail = trap('tasks.update');
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair, { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-10-26' } });
+    fireEvent.blur(within(sheet).getByLabelText('Due date'));
+    const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The survey came late');
+    fail.state.armed = true;
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    // The toast still says why, with no second Retry beside the sheet's Save dates.
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   });
 });
 

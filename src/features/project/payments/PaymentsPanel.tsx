@@ -10,6 +10,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
+import { PAYMENT_PANEL, usePanelLink } from '../panelLink';
 import { PaymentSheet } from './PaymentSheet';
 
 /** "SAR 120,000" in English and "120,000 ر.س" in Arabic. Madar writes Western digits in both. */
@@ -36,17 +37,13 @@ const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-in
 export function PaymentsPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const list = useCall('payments.list', { projectId });
   const rows = list.data ?? [];
   const openId = params.get('payment');
-  // Close replaces the link, so Back does not open the closed sheet again (audit 2026-10-03, PRJ-9).
-  const setOpen = (id: string | null) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    if (id) next.set('payment', id);
-    else next.delete('payment');
-    return next;
-  }, { replace: !id });
+  // Open adds one history step and Close goes back over it, so a sheet costs no extra Back (audit 2026-10-03, PRJ-9, V-36).
+  const panel = usePanelLink(PAYMENT_PANEL);
+  const setOpen = (id: string | null) => (id ? panel.open({ payment: id }) : panel.close());
   const total = rows.reduce((sum, row) => sum + row.payment.amount, 0);
   const received = rows.filter((row) => row.status === 'received').reduce((sum, row) => sum + row.payment.amount, 0);
   const open = openId === 'new' ? null : rows.find((row) => row.payment.id === openId);

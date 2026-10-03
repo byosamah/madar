@@ -15,7 +15,7 @@ import { StatusSign } from '../../../components/StatusSign';
 import { Switch } from '../../../components/Switch';
 import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
-import { AUTO_KEY, isOpen, sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
+import { AUTO_KEY, isOpen, replyPeople, sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
 import { addWorkingDays } from '../../../lib/workdays';
 import { FileChips } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
@@ -169,7 +169,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
               </p>
             </Block>
           )}
-          {open && entry.waiting === 'us' && row.canEdit && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={detail.members.map((member) => member.user)} />}
+          {open && entry.waiting === 'us' && row.canEdit && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={replyPeople(detail.members)} />}
           {!open && entry.waiting !== null && row.closedBy && entry.closedAt && (
             <p className="flex flex-wrap items-center gap-2 pt-3">
               <StatusSign state="completed">{action}</StatusSign>
