@@ -1165,6 +1165,7 @@
     "deactivateBody_female": "تذهب المهام التي تنتظر مراجعتها إلى مديري النظام، ولا يمكن لأحد أن يسند إليها عملًا جديدًا.",
     "deactivateLeads": "المشاريع التي يقودها",
     "deactivateLeads_female": "المشاريع التي تقودها",
+    "deactivateLeaderByAdmin": "مدير النظام هو من يغيّر القائد.",
     "deactivateTasks": "{{n}} مهام مفتوحة",
     "deactivateTasks_zero": "لا مهام مفتوحة",
     "deactivateTasks_one": "مهمة مفتوحة واحدة",

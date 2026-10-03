@@ -6,7 +6,7 @@ import type { ProjectSummary, TaskRow } from '../../../api/contract/views';
 import type { MadarApi } from '../../../api/calls';
 import { useUndoable } from '../../../app/actions';
 import { canRetry, errorMessage } from '../../../app/errors';
-import { useRuntime } from '../../../app/runtime';
+import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { Sheet } from '../../../components/Sheet';
@@ -73,6 +73,10 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
   const { t } = useTranslation();
   const context = actorContext(user);
   const more = work.tasks.length - SHOWN;
+  // Only an Admin or the project's own leader changes a leader. The leader is the person here, so any other viewer, Management
+  // too, reads who does it. The links stay, to see the team (audit 2026-10-03, warn repair).
+  const session = useCall('session.get', {});
+  const adminChangesLeader = session.data !== undefined && session.data.authority.systemRole !== 'admin';
   return (
     <Sheet
       open
@@ -92,6 +96,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
         {work.projects.length > 0 && (
           <section aria-labelledby="deactivate-leads" className="flex flex-col gap-1">
             <h3 id="deactivate-leads" className="text-headline">{t('admin.deactivateLeads', { context })}</h3>
+            {adminChangesLeader && <p className="px-2 text-footnote text-label-2">{t('admin.deactivateLeaderByAdmin')}</p>}
             <ul>
               {work.projects.map(({ project }) => (
                 <li key={project.id}>

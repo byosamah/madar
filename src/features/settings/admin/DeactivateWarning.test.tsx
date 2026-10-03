@@ -22,8 +22,9 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
       'KH-26-003Eastern Shore Primary School',
       'KH-26-007Seaside Villa Compound',
     ]);
-    // The Team tab is where the leader changes.
+    // The Team tab is where the leader changes. The Admin may change it there, so the sheet needs no word about who does it.
     expect(within(led).getByRole('link', { name: /Eastern Shore Primary School/ })).toHaveAttribute('href', '#/projects/prj_003?tab=team');
+    expect(within(led).queryByText('An Admin changes the leader.')).toBeNull();
     const open = within(sheet).getByRole('region', { name: '5 open tasks' });
     const tasks = within(open).getAllByRole('link');
     expect(tasks).toHaveLength(5);
@@ -96,6 +97,10 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     });
     await pressDeactivate('Omar Haddad');
     const sheet = await screen.findByRole('dialog', { name: 'Deactivate Omar Haddad?' });
+    // Only an Admin or the leader changes a leader, so Management reads who does it. The links stay, to see the team.
+    const led = within(sheet).getByRole('region', { name: 'Projects they lead' });
+    expect(within(led).getByText('An Admin changes the leader.')).toBeInTheDocument();
+    expect(within(led).getAllByRole('link')).toHaveLength(2);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Deactivate anyway' }));
     await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
   });
