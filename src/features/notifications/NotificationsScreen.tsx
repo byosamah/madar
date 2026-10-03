@@ -137,9 +137,13 @@ export function NotificationsScreen() {
     onSuccess: () => {
       const ids = cleared.current;
       // The toast names the change, not a state, so the person knows what Undo puts back (audit 2026-10-03, V-26).
+      // It counts every notice that it marked. One markUnread call takes 200 at most, so Undo sends groups of 200.
+      const undo = () => {
+        for (let start = 0; start < ids.length; start += 200) markUnread.mutate({ ids: ids.slice(start, start + 200) });
+      };
       toast.show({
         message: counted(t, 'inbox.markedRead', ids.length),
-        action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }), isUndo: true } : undefined,
+        action: ids.length > 0 ? { label: t('common.undo'), run: undo, isUndo: true } : undefined,
       });
     },
   });
@@ -163,7 +167,7 @@ export function NotificationsScreen() {
             variant="plain"
             className="shrink-0 px-3"
             onClick={() => {
-              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id).slice(0, 200);
+              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id);
               markAll.mutate({});
             }}
           >
