@@ -80,4 +80,12 @@ describe('search', () => {
     await userEvent.type(await box(), 'zzzz');
     expect(await screen.findByText('No results for “zzzz”.')).toBeInTheDocument();
   });
+
+  it('names the suggestion list in the language of the screen (audit 2026-10-03, F-4)', async () => {
+    await renderApp('/search', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    expect(await screen.findByRole('listbox', { name: 'الاقتراحات' })).toBeInTheDocument();
+    expect(screen.queryByRole('listbox', { name: 'Suggestions' })).toBeNull();
+  });
 });

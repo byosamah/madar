@@ -766,6 +766,7 @@
   },
   "search": {
     "label": "Search",
+    "suggestions": "Suggestions",
     "placeholder": "Search projects, tasks, people and files",
     "commands": "Commands",
     "projects": "Projects",

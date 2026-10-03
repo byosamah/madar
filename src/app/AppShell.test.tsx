@@ -17,6 +17,29 @@ describe('app shell', () => {
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 360 and 390 px.
+  it('lets a phone tab grow to its whole label on one line, so a long label is never cut (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
+    const tab = within(nav).getByRole('link', { name: 'لوحة المعلومات' });
+    expect(tab).toHaveClass('min-w-fit');
+    expect(tab).not.toHaveClass('min-w-0');
+    expect(within(tab).getByText('لوحة المعلومات')).toHaveClass('whitespace-nowrap');
+  });
+
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 280 and 300 px.
+  it('keeps every phone tab inside the bar below 320 px: a smaller label, less padding, tabs that can shrink (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard');
+    const nav = await pill();
+    expect(nav).toHaveClass('max-[319px]:gap-0');
+    for (const name of ['Home', 'Projects', 'Dashboard']) {
+      const tab = within(nav).getByRole('link', { name });
+      for (const rule of ['max-[319px]:[--size-caption:11px]', 'max-[319px]:px-1', 'max-[319px]:flex-auto', 'max-[319px]:min-w-0']) expect(tab).toHaveClass(rule);
+    }
+  });
+
   it('moves between screens', async () => {
     await renderApp('/dashboard');
     await userEvent.click(within(await pill()).getByRole('link', { name: 'Projects' }));
@@ -35,6 +58,16 @@ describe('app shell', () => {
     const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
     expect(within(menu).getByRole('combobox', { name: /Preview as/ })).toBeInTheDocument();
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 390 px.
+  it('starts every row of the person menu at the same edge, also a label on two lines (audit 2026-10-03, F-6)', async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
+    const rows = [...within(menu).getAllByRole('button'), ...within(menu).getAllByRole('link')];
+    expect(rows.length).toBe(5);
+    for (const row of rows) expect(row).toHaveClass('text-start');
   });
 
   it('switches between light and dark from the person menu', async () => {
@@ -62,6 +95,16 @@ describe('app shell', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
+  });
+
+  it('gives the focus back to the person picture after the language switch (audit 2026-10-03, F-3)', async () => {
+    await renderApp('/dashboard');
+    const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
+    await userEvent.click(picture);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull();
+    expect(document.activeElement).toBe(picture);
   });
 
   it('says the unread counts in the names of the Inbox and bell links, with the right plural (audit 2026-10-03, BRW-10, BRW-12)', async () => {

@@ -117,7 +117,8 @@ export function SearchScreen() {
           placeholder={t('search.placeholder')}
           className="panel min-h-14 w-full !rounded-2xl px-5 text-[calc(18px*var(--boost))] text-ink placeholder:text-ink-2 focus-visible:outline-2 focus-visible:outline-[var(--c-link)]"
         />
-        <Command.List className="surface flex flex-col gap-2 rounded-card p-2">
+        {/* The list gets its own name: the library default is the English word "Suggestions" (audit 2026-10-03, F-4). */}
+        <Command.List label={t('search.suggestions')} className="surface flex flex-col gap-2 rounded-card p-2">
           {commands.length > 0 && (
             <Command.Group heading={t('search.commands')} className={GROUP}>
               {commands.map((command) => <Item key={command.id} value={`command-${command.id}`} onSelect={command.run}>{command.label}</Item>)}

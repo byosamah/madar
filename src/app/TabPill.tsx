@@ -22,17 +22,21 @@ export function TabPill() {
       aria-label={t('nav.main')}
       data-pill
       data-compact={compact || undefined}
-      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
+      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center gap-0.5 max-[319px]:gap-0 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
+        // On a phone the tabs share the width, but a tab never gets narrower than its label and some room for the round ends of
+        // its highlight. A long label such as "لوحة المعلومات" makes its own tab wider and stays whole (audit 2026-10-03, F-2).
+        // Below 320 px the five whole labels do not fit at full size, so the label takes 11 px (the floor), the padding gets
+        // smaller and each tab starts from its own width. The tabs can also shrink, so the bar never runs off the screen (F-2).
         return (
           <Link
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-caption font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-12 min-w-fit flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-caption min-[360px]:px-2.5 max-[319px]:min-w-0 max-[319px]:flex-auto max-[319px]:px-1 max-[319px]:[--size-caption:11px] font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
             <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
