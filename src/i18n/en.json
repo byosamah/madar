@@ -10,6 +10,9 @@
     "search": "Search",
     "settings": "Settings",
     "inboxBadge": "{{count}} items need action",
+    "inboxBadge_one": "{{count}} item needs action",
+    "inboxBadge_other": "{{count}} items need action",
+    "withBadge": "{{name}}, {{badge}}",
     "home": "Home",
     "lightMode": "Light mode",
     "darkMode": "Dark mode",
@@ -20,19 +23,23 @@
   },
   "screens": {
     "projects": "Projects",
-    "project": "Project",
     "myWork": "Tasks",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "search": "Search",
-    "tasks": "Tasks",
     "settings": "Settings",
-    "home": "Home",
     "notifications": "Notifications"
   },
   "placeholder": {
     "title": "This screen comes next",
     "body": "This screen arrives in build step {{step}}."
+  },
+  "routeError": {
+    "missingTitle": "This page does not exist",
+    "missing": "The link is wrong or old.",
+    "failedTitle": "This page did not open",
+    "failed": "Something went wrong on this page. Go to Home and try again.",
+    "home": "Go to Home"
   },
   "storage": {
     "notSaved": "Changes will not be saved in this window."
@@ -84,6 +91,8 @@
     "simulateErrors": "Simulate errors",
     "simulateErrorsHint": "1 in 5 actions fail, so you can see the error states.",
     "reset": "Reset sample data",
+    "resetTitle": "Reset the sample data?",
+    "resetBody": "This deletes every project, task, message and file that you added in this browser. Then the sample office comes back. You cannot undo it.",
     "resetDone": "The sample data is back to its start state."
   },
   "errors": {
@@ -108,6 +117,7 @@
       "file_other_project": "A file belongs to another project.",
       "file_not_visible": "You are not on the project of this file.",
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
+      "person_left": "This person left the office. The chat takes no new messages.",
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back.",
       "review_send_back": "This task is in review. Use Send back and write a note for the owner.",
@@ -160,10 +170,8 @@
     "cancel": "Cancel",
     "save": "Save",
     "add": "Add",
-    "remove": "Remove",
     "delete": "Delete",
     "edit": "Edit",
-    "none": "None",
     "agent": "Agent",
     "done": "Done",
     "loadFailed": "The data did not load."
@@ -235,7 +243,6 @@
     "archive": "Archive",
     "archived": "Project archived.",
     "cover": "Cover image of {{name}}",
-    "openTasks": "Open tasks: {{n}}",
     "loadFailed": "The projects did not load.",
     "healthFilter": "Health: {{health}}",
     "clearHealth": "Show all health",
@@ -374,10 +381,7 @@
     "emptyFeed": "No updates yet.",
     "showOlder": "Show older",
     "emptyDecisions": "No decisions yet. A decision added in a meeting shows here.",
-    "facts": "Key facts",
-    "deadlines": "Next deadlines",
     "noDeadlines": "No deadlines yet.",
-    "team": "Team",
     "edited": "Edited",
     "cannotPost": "Only the project team can post here.",
     "none": "Not set",
@@ -453,7 +457,6 @@
       "board": "Board"
     },
     "startsOn": "Starts {{date}}",
-    "filters": "Task filters",
     "filter": {
       "all": "All",
       "mine": "Mine",
@@ -472,7 +475,6 @@
     "empty": "No tasks here yet.",
     "emptyFiltered": "No tasks match this filter.",
     "flagged": "Flagged",
-    "overdue": "Past due",
     "comments": "Comments: {{n}}",
     "files": "Files: {{n}}",
     "column": "{{status}}: {{n}}",
@@ -607,8 +609,6 @@
     "startOf": "Start of {{stage}}",
     "endOf": "End of {{stage}}",
     "datesChanged": "Dates changed.",
-    "start": "Start",
-    "end": "End",
     "addDeadline": "Add deadline",
     "deadlineName": "Deadline name",
     "deadlineDate": "Date",
@@ -708,9 +708,10 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "unread": "Unread",
-    "open": "Open",
     "approve": "Approve",
+    "approveTask": "Approve “{{target}}”",
     "someone": "Someone",
+    "mentionDirect": "{{actor}} mentioned you in a direct message",
     "trigger": {
       "task_assigned": "{{actor}} gave you “{{target}}”",
       "mention": "{{actor}} mentioned you in {{target}}",
@@ -773,7 +774,6 @@
     "project": "Project",
     "name": "Title",
     "stage": "Stage",
-    "due": "Due date",
     "create": "Create task",
     "created": "Task created.",
     "open": "Open",
@@ -1006,7 +1006,6 @@
     "dateRange": "{{from}} to {{to}}",
     "empty": "No tasks match this list.",
     "emptyDeadlines": "No deadlines in this period.",
-    "count": "Items: {{n}}",
     "emptyTitle": "Nothing here",
     "backToDashboard": "Back to Dashboard"
   },
@@ -1031,6 +1030,8 @@
     "discipline": "Discipline",
     "deactivate": "Deactivate",
     "deactivated": "{{name}} deactivated.",
+    "reactivate": "Reactivate",
+    "reactivated": "{{name}} reactivated.",
     "added": "{{name}} added.",
     "saved": "Saved.",
     "inactive": "Inactive",
@@ -1039,15 +1040,12 @@
     "editTitle": "Edit person",
     "save": "Save",
     "office": "Office settings",
-    "stages": "Default stages",
     "prefix": "Project code prefix",
     "prefixHint": "One to four capital letters, for example KH.",
     "limit": "Workload limit",
     "limitHint": "Open tasks per person in one week before the cell turns red.",
     "saveOffice": "Save office settings",
     "officeSaved": "Office settings saved.",
-    "person": "Person",
-    "week": "Any day in the week",
     "errors": {
       "email": "Use a valid email address.",
       "limit": "Use a whole number from 1 to 100.",
@@ -1128,7 +1126,6 @@
     "break": "Time for a short break."
   },
   "chat": {
-    "title": "Chats",
     "list": "Chats",
     "search": "Search chats",
     "newMessage": "New message",
@@ -1143,6 +1140,8 @@
     "openTask": "Open task",
     "projectChat": "Project chat",
     "directChat": "Direct message",
+    "leftOffice": "Left the office",
+    "closed": "{{name}} left the office. This chat takes no new messages.",
     "taskThread": "Task thread",
     "you": "You",
     "messages": "Messages",
@@ -1195,7 +1194,6 @@
     "badFolder": "Use a web link ({{scheme}}...) or an office network path ({{path}})."
   },
   "tracker": {
-    "region": "Client tracker",
     "open": "Open",
     "waitingUs": "Waiting for our reply",
     "waitingClient": "Waiting for the client",

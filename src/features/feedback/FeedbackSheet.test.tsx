@@ -27,6 +27,17 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
     expect(report.screenshots).toHaveLength(1);
   });
 
+  it('gives the focus back to the person picture when the sheet closes (audit 2026-10-03, SHL-19)', async () => {
+    await renderApp('/');
+    const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
+    await userEvent.click(picture);
+    await userEvent.click(await screen.findByRole('button', { name: 'Request a feature or report a bug' }));
+    await screen.findByRole('dialog', { name: 'Request a feature or report a bug' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Request a feature or report a bug' })).toBeNull());
+    await waitFor(() => expect(picture).toHaveFocus());
+  });
+
   it('shows the reports to the Admin, who marks one done', async () => {
     await renderApp('/admin', (state) => {
       state.feedback = {

@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { EllipsisIcon } from './icons/animated/ellipsis';
-import { measure, menuPlace } from './placement';
+import { fixedFrame, inFrame, measure, menuPlace } from './placement';
 
 export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
 
@@ -87,10 +87,13 @@ export function MenuList({
 /**
  * A "…" button with a menu that grows from it (spec 10.6). It hides itself when the viewer may use no item.
  * The list draws at the page level with a fixed place, so a clipping box (a cover, a scrolling board) never cuts it off.
+ * Inside an open sheet or panel the list draws inside that dialog instead: a blocking sheet holds the focus and the pointer,
+ * so a list outside it could not be used (audit 2026-10-03, SHL-1).
  */
 export function Menu({ label, items, triggerClassName = '', icon }: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
+  const [layer, setLayer] = useState<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
@@ -112,7 +115,11 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
     if (!trigger.current) return;
     // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
     const { box, screen } = measure(trigger.current);
-    setPlace(menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl' }));
+    const dialog = trigger.current.closest<HTMLElement>('[role="dialog"]');
+    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl' });
+    // A sheet that moves (a transform) is the frame of a fixed list inside it, so the place turns into the sheet's units.
+    setPlace(dialog ? inFrame(onScreen, fixedFrame(dialog), screen) : onScreen);
+    setLayer(dialog);
     setOpen(true);
   };
   return (
@@ -131,7 +138,7 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
       </button>
       {createPortal(
         <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,
-        document.body,
+        layer ?? document.body,
       )}
     </>
   );

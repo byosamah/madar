@@ -387,7 +387,8 @@ export const Message = z.object({
 export type Message = z.infer<typeof Message>;
 
 /** When a person last read a conversation. */
-export const ChatRead = z.object({ conversationId: ConversationId, userId: UserId, lastReadAt: Stamp });
+/** One read mark. The conversation is a chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5). */
+export const ChatRead = z.object({ conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
 
 export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady', 'other'] as const;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
@@ -29,6 +29,16 @@ describe('settings screen', () => {
     expect(await screen.findByText('Profile saved.')).toBeInTheDocument();
   });
 
+  it('shows a refused profile field under the field (audit 2026-10-03, SHL-22)', async () => {
+    await renderApp('/settings');
+    const name = await screen.findByLabelText('Name');
+    await userEvent.clear(name);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('Enter a name.');
+    expect(screen.getByLabelText('Discipline')).not.toHaveAttribute('aria-invalid');
+  });
+
   it('previews the app as another person', async () => {
     const { store } = await renderApp('/settings');
     const selects = await screen.findAllByRole('combobox', { name: /Preview as/ });
@@ -36,10 +46,18 @@ describe('settings screen', () => {
     await waitFor(() => expect(store.state.session.currentUserId).toBe('usr_005'));
   });
 
-  it('resets the sample data and says so', async () => {
+  it('asks first, then resets the sample data and says so (audit 2026-10-03, SHL-8)', async () => {
     const { store } = await renderApp('/settings');
     store.state.projects.prj_001.name = 'Changed';
     await userEvent.click(await screen.findByRole('button', { name: 'Reset sample data' }));
+    // One press only asks. Cancel keeps everything.
+    const ask = await screen.findByRole('dialog', { name: 'Reset the sample data?' });
+    expect(ask).toHaveTextContent('You cannot undo it.');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(store.state.projects.prj_001.name).toBe('Changed');
+    await userEvent.click(screen.getByRole('button', { name: 'Reset sample data' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Reset the sample data?' })).getByRole('button', { name: 'Reset sample data' }));
     expect(await screen.findByText('The sample data is back to its start state.')).toBeInTheDocument();
     expect(store.state.projects.prj_001.name).toBe('Corniche Office Tower');
   });

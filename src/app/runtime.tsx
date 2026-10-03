@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import type { Store } from '../api/store';
@@ -48,6 +48,24 @@ export function useCall<N extends CallName>(name: N, input: CallInput<N>, option
   });
 }
 
+/**
+ * A mutate that remembers the steps a screen passed with each call (for example "clear the box" after a send), so the Retry
+ * of a failed call runs them too. Without them a Retry posted the message but left it in the box (audit 2026-10-03, SHL-10).
+ */
+export function useRetryableMutate<TData, TInput>(
+  mutate: (input: TInput, options?: MutateOptions<TData, unknown, TInput>) => void,
+): { mutate: (input: TInput, options?: MutateOptions<TData, unknown, TInput>) => void; retry: (input: TInput) => void } {
+  const steps = useRef(new WeakMap<object, MutateOptions<TData, unknown, TInput>>());
+  const remember = useCallback((input: TInput, options?: MutateOptions<TData, unknown, TInput>) => {
+    if (options && typeof input === 'object' && input !== null) steps.current.set(input, options);
+    mutate(input, options);
+  }, [mutate]);
+  const retry = useCallback((input: TInput) => {
+    mutate(input, typeof input === 'object' && input !== null ? steps.current.get(input) : undefined);
+  }, [mutate]);
+  return { mutate: remember, retry };
+}
+
 export function useAction<N extends CallName>(
   name: N,
   options: { onSuccess?: (output: CallOutput<N>) => void; onRefused?: (error: unknown, input: CallInput<N>) => boolean } = {},
@@ -71,6 +89,7 @@ export function useAction<N extends CallName>(
       });
     },
   });
-  retry.current = mutation.mutate;
-  return mutation;
+  const steps = useRetryableMutate(mutation.mutate);
+  retry.current = steps.retry;
+  return { ...mutation, mutate: steps.mutate };
 }

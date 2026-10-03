@@ -32,6 +32,20 @@ describe('comments', () => {
     expect(await within(again).findByRole('textbox', { name: 'Add a comment' })).toHaveValue('Half a thought');
   });
 
+  it('reads the Inbox thread of the task when its comments show in the task panel (audit 2026-10-03, SHL-5)', async () => {
+    const { store, api } = await renderApp(TASK('tsk_007'), (state) => {
+      state.session.currentUserId = 'usr_006';
+      state.comments.cmt_901 = {
+        id: 'cmt_901', targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: 'Please check the landing.',
+        reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T08:00:00.000+03:00', editedAt: null,
+      };
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await within(sheet).findByText('Please check the landing.')).toBeInTheDocument();
+    await waitFor(() => expect(Object.values(store.state.chatReads).some((r) => r.conversationId === 'tsk_007' && r.userId === 'usr_006')).toBe(true));
+    expect((await api.call('chats.list', {})).find((row) => row.id === 'tsk_007')?.unread).toBe(0);
+  });
+
   it('attaches a file to a task comment and shows it as a chip', async () => {
     const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });

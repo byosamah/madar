@@ -13,7 +13,7 @@ describe('app shell', () => {
     for (const name of ['Home', 'Projects', 'Dashboard', 'Inbox']) expect(within(nav).getByRole('link', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Search' })).toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /^Notifications/ })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe('app shell', () => {
 
   it('shows the bell badge for notifications that need action', async () => {
     await renderApp('/dashboard');
-    expect((await screen.findAllByText(/items need action/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/^\d+ items? needs? action$/)).length).toBeGreaterThan(0);
   });
 
   it('switches to Arabic from the person menu and mirrors the page', async () => {
@@ -62,6 +62,17 @@ describe('app shell', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
+  });
+
+  it('says the unread counts in the names of the Inbox and bell links, with the right plural (audit 2026-10-03, BRW-10, BRW-12)', async () => {
+    await renderApp('/dashboard', (state) => {
+      const mine = Object.values(state.notifications).filter((n) => n.userId === 'usr_001' && !n.read);
+      for (const n of mine.slice(1)) n.read = true;
+      if (mine[0]) mine[0].trigger = 'task_assigned';
+    });
+    const nav = await pill();
+    expect(await within(nav).findByRole('link', { name: 'Notifications, 1 item needs action' })).toBeInTheDocument();
+    expect(await within(nav).findByRole('link', { name: 'Inbox, Unread messages: 5' })).toBeInTheDocument();
   });
 
   it('opens Search with Ctrl+K', async () => {

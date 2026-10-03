@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/entities';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
 import { errorMessage } from '../../app/errors';
-import { useAction, useCall } from '../../app/runtime';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Age } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
@@ -143,6 +143,12 @@ export function CommentThread({
   const attachments = useAttachments();
   const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
+  // Comments read here also count as read in the Inbox thread of the task (audit 2026-10-03, SHL-5).
+  const { api } = useRuntime();
+  const count = comments.data?.length;
+  useEffect(() => {
+    if (targetType === 'task' && count) api.call('chats.markRead', { conversationId: targetId }).catch(() => undefined);
+  }, [api, targetType, targetId, count]);
   const draftKey = `${targetType}:${targetId}`;
   const [body, setBodyState] = useState(() => readDraft(draftKey));
   const setBody = (next: string) => {

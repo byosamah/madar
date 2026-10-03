@@ -73,10 +73,12 @@ export function InboxButton() {
   const { pathname } = useLocation();
   const unread = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const on = isNavActive(item.to, pathname);
+  // The link's name carries the count: an aria-label replaces the hidden count inside it (audit 2026-10-03, BRW-10).
+  const name = unread > 0 ? t('nav.withBadge', { name: t(item.key), badge: t('nav.inboxUnread', { count: unread }) }) : t(item.key);
   return (
     <Link
       to={item.to}
-      aria-label={t(item.key)}
+      aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
     >
@@ -93,10 +95,13 @@ export function BellButton({ className = '' }: { className?: string }) {
   const { pathname } = useLocation();
   const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
   const on = pathname === NOTIFICATIONS_ITEM.to;
+  const name = noticeBadge > 0
+    ? t('nav.withBadge', { name: t(NOTIFICATIONS_ITEM.key), badge: t('nav.inboxBadge', { count: noticeBadge }) })
+    : t(NOTIFICATIONS_ITEM.key);
   return (
     <Link
       to={NOTIFICATIONS_ITEM.to}
-      aria-label={t(NOTIFICATIONS_ITEM.key)}
+      aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
     >
