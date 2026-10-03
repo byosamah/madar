@@ -337,6 +337,28 @@ describe('overlays after the audit of 2026-10-03', () => {
     }
   });
 
+  it('lets the other toasts time out after the toast under the pointer goes away (audit 2026-10-03, V-15)', async () => {
+    vi.useFakeTimers();
+    try {
+      function Show() {
+        const toast = useToast();
+        const [n, setN] = useState(0);
+        return <button type="button" onClick={() => { setN(n + 1); toast.show({ message: `Saved ${n + 1}.`, action: { label: `Undo ${n + 1}`, run: vi.fn(), isUndo: true } }); }}>Save</button>;
+      }
+      render(<ToastProvider><Show /></ToastProvider>);
+      fireEvent.click(screen.getByText('Save'));
+      fireEvent.click(screen.getByText('Save'));
+      // The pointer rests on the first toast and presses its Undo. The toast goes away under the pointer, with no leave event.
+      fireEvent.pointerEnter(screen.getAllByRole('status')[0]);
+      fireEvent.click(screen.getByRole('button', { name: 'Undo 1' }));
+      expect(screen.getAllByRole('status')).toHaveLength(1);
+      act(() => vi.advanceTimersByTime(5100));
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('moves the focus into a blocking sheet: to its first field, or to its title (BRW-2)', async () => {
     function Demo({ withField }: { withField: boolean }) {
       const [open, setOpen] = useState(false);
