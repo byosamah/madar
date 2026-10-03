@@ -1,11 +1,15 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { emptyReactions, type Event, type Notification, type Task } from '../../../src/api/contract/entities';
+import { runScheduledTriggers } from '../../../src/api/notify';
 import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
-import { runBoth, runOn, type Run } from './compare';
+import { snapshotOf } from '../officeCache';
+import { changesOf, runBoth, runOn, type Run } from './compare';
 import { LOADER_OF } from './index';
+import { loadJobs } from './jobs';
+import { memorySource } from './memorySource';
 import { readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
@@ -50,6 +54,7 @@ const inserted = (run: Run, table: string) => (Array.isArray(run.changes) ? run.
 const docs = (run: Run, table: string) => (Array.isArray(run.changes) ? run.changes.find((c) => c.table === table)?.docs ?? [] : []) as Record<string, unknown>[];
 const humans = () => Object.values(seed.users).filter((u) => u.kind === 'human' && u.active).map((u) => u.id);
 const tasksOfProject = (state: State, projectId: string) => Object.values(state.tasks).filter((t) => t.projectId === projectId);
+const todo = (state: State, projectId: string) => tasksOfProject(state, projectId).filter((t) => t.status === 'todo');
 
 describe('the loader table', () => {
   it('has a loader for every call that the server runs, and for nothing else', () => {
@@ -311,5 +316,74 @@ describe('the loaders keep what the handlers need', () => {
     await same(seed, 'events.list', { correlationId: event.correlationId }, ADMIN);
     await same(seed, 'events.list', { targetType: event.targetType, targetId: event.targetId }, ADMIN);
     await same(seed, 'events.list', { since: '2026-10-01T00:00:00+03:00', limit: 500 }, 'usr_005');
+  });
+});
+
+describe('the guarded reads of the review (2026-10-04)', () => {
+  it('an undone status change leaves the feed, so the project view, the feed and the project list read past it', async () => {
+    const state = office();
+    const task = todo(state, 'prj_001')[0];
+    apply(state, 'tasks.move', { id: task.id, status: 'in_progress' }, ADMIN, { story: 'cor_move' });
+    const moved = Object.values(state.events).find((e) => e.correlationId === 'cor_move' && e.targetId === task.id)!;
+    apply(state, 'events.undo', { eventId: moved.id }, ADMIN, { story: 'cor_undo_move' });
+    await same(state, 'projects.get', { id: 'prj_001' }, ADMIN);
+    await same(state, 'updates.list', { projectId: 'prj_001', filter: 'tasks', limit: 2 }, ADMIN);
+    await same(state, 'projects.list', { status: 'all' }, ADMIN);
+  });
+
+  it('projects.delete removes the mention notices of its project chat', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const member = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => state.users[m.userId])
+      .find((u) => u.id !== ADMIN && u.kind === 'human' && u.active && u.preferences.notifications.mention)!;
+    apply(state, 'chats.send', { conversationId: room.id, body: `See this @[${member.name}](${member.id})` }, ADMIN);
+    const notices = Object.values(state.notifications).filter((n) => n.targetType === 'chat' && n.targetId === room.id).map((n) => n.id);
+    expect(notices.length).toBeGreaterThan(0);
+    const run = await same(state, 'projects.delete', { id: 'prj_001', confirm: true }, ADMIN);
+    expect(deleted(run, 'notifications')).toEqual(expect.arrayContaining(notices));
+  });
+
+  it('feed events of one stamp keep their order when the ids pass evt_999', async () => {
+    const state = office((s) => {
+      s.counters.evt = 998;
+    });
+    const [a, b] = todo(state, 'prj_001');
+    apply(state, 'tasks.move', { id: a.id, status: 'in_progress' }, ADMIN);
+    apply(state, 'tasks.move', { id: b.id, status: 'in_progress' }, ADMIN);
+    expect(state.events.evt_1000).toBeDefined();
+    await same(state, 'updates.list', { projectId: 'prj_001', filter: 'tasks', limit: 1 }, ADMIN);
+  });
+});
+
+describe('the jobs loader (plan 4.6, for track N3)', () => {
+  it('gives runScheduledTriggers the same notices on its scoped load as on the whole office', async () => {
+    const state = office();
+    const [soon, late] = todo(state, 'prj_001');
+    soon.dueDate = '2026-10-05';
+    late.dueDate = '2026-09-30';
+    const paused = Object.values(state.projects).find((p) => p.status === 'active' && p.id !== 'prj_001')!;
+    paused.status = 'on_hold';
+    paused.pause = { reason: 'Client', resumeOn: '2026-10-01', by: ADMIN, at: '2026-09-20T09:00:00.000+03:00' };
+    // A notice the job wrote on an earlier run: the dedupe lookup must stop a second one.
+    const key = `overdue:${late.id}:${late.dueDate}`;
+    state.notifications.ntf_990 = {
+      id: 'ntf_990', userId: late.ownerId, trigger: 'overdue', actorId: null, targetType: 'task', targetId: late.id, read: false,
+      createdAt: '2026-10-03T09:00:00.000+03:00', dedupeKey: `${key}:${late.ownerId}`,
+    };
+
+    const whole = structuredClone(state);
+    const wholeBefore = structuredClone(whole);
+    const count = runScheduledTriggers(whole, NOW);
+
+    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1) });
+    expect(Object.keys(loaded.notifications)).toEqual([]);
+    const scoped = structuredClone(loaded);
+    const dedupeUsed = (k: string) => Object.values(state.notifications).some((n) => n.dedupeKey === k);
+    expect(runScheduledTriggers(scoped, NOW, { dedupeUsed })).toBe(count);
+    expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
+
+    const made = Object.values(whole.notifications).filter((n) => !state.notifications[n.id]);
+    expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due']));
+    expect(made.some((n) => n.dedupeKey === `${key}:${late.ownerId}`)).toBe(false);
   });
 });
