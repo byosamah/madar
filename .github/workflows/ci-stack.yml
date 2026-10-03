@@ -1,0 +1,124 @@
+# CI for Madar, part 2 of 2 (plan 6.3, task O1; test map, section 6): the db and integration jobs.
+# They need the local Supabase stack, so they run on pull requests, on main, and when someone starts the workflow by hand.
+# ci.yml holds unit and server. The jobs have no event conditions: GitHub reports a job that an if: skips as Success,
+# and that skipped run could meet a required check. No job uses a secret: the local stack has fixed demo keys.
+# Minutes: an older run of the same branch or pull request stops when a new one starts, and a change only to docs/ runs nothing.
+name: CI stack
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-stack-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.23.1'
+
+jobs:
+  db:
+    name: db
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # No step uses git after the checkout, so the job token does not stay in .git/config for install scripts to read.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Postgres only (test map 6.1). The CLI version is the one that package.json pins.
+      - name: Start the local database
+        run: npx supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Database address
+        run: scripts/ci/stack-env.sh >> "$GITHUB_ENV"
+      - name: API tests in db mode
+        run: npm run test:db
+
+  integration:
+    name: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # MinIO stands in for R2 (test map 6.1). Fixed local values, not secrets.
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_ROOT_USER: madar-minio
+      MINIO_ROOT_PASSWORD: madar-minio-local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # When the edge runtime starts, the CLI opens every file that a function's index.ts imports, and those imports
+      # are the bundles in supabase/functions/_build/. So the bundles come before the stack starts.
+      # Track E adds vite.server.config.ts. Until it merges, this step skips.
+      - name: Server bundles
+        if: hashFiles('vite.server.config.ts') != ''
+        run: npm run build:server
+      # MinIO no longer publishes its own image on Docker Hub, so this is the Chainguard build of MinIO, pinned by digest.
+      - name: Start MinIO
+        run: |
+          docker run -d --name madar-minio -p 9000:9000 -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
+            cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034 server /data
+          for _ in $(seq 1 30); do
+            if curl -fs "$MINIO_ENDPOINT/minio/health/live" > /dev/null; then echo "MinIO is up."; exit 0; fi
+            sleep 1
+          done
+          docker logs madar-minio
+          echo "MinIO did not start." >&2
+          exit 1
+      # config.toml names the three functions, and supabase start fails while their folders are missing.
+      # Until track E adds them, the stack starts without the edge runtime.
+      - name: Start the full local stack
+        if: hashFiles('supabase/functions/*/index.ts') != ''
+        run: npx supabase start
+      - name: Start the local stack without the edge runtime (no function folders yet)
+        if: hashFiles('supabase/functions/*/index.ts') == ''
+        run: npx supabase start -x edge-runtime
+      - name: Local addresses and keys
+        run: scripts/ci/stack-env.sh >> "$GITHUB_ENV"
+      # Track E adds the function folders. Until it merges, this step skips.
+      - name: Serve the functions
+        if: hashFiles('supabase/functions/*/index.ts') != ''
+        run: |
+          nohup npx supabase functions serve > "$RUNNER_TEMP/functions.log" 2>&1 &
+          for _ in $(seq 1 90); do
+            if grep -q 'Serving functions on' "$RUNNER_TEMP/functions.log"; then
+              code="$(curl -s -o /dev/null -w '%{http_code}' "$SUPABASE_URL/functions/v1/api" || true)"
+              case "$code" in
+                000 | 502 | 503 | 504) ;;
+                *) echo "The functions answer (HTTP $code)."; exit 0 ;;
+              esac
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/functions.log"
+          echo "The functions did not start." >&2
+          exit 1
+      # Plan 6.5: test:mcp passes in CI. It runs the conformance runner against the served mcp function.
+      # G3 adds server/mcp/run.ts (app.ts is already a T0 stub, so it cannot be the condition). Until G3 merges, this step skips.
+      - name: MCP conformance
+        if: hashFiles('server/mcp/run.ts') != ''
+        run: npm run test:mcp
+      - name: Integration tests
+        run: npm run test:it
+      - name: Function log
+        if: failure() && hashFiles('supabase/functions/*/index.ts') != ''
+        run: cat "$RUNNER_TEMP/functions.log" || true
