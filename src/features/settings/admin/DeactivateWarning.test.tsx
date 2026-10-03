@@ -88,6 +88,16 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     expect(store.state.users.usr_004.active).toBe(true);
   });
 
+  it('warns Management too, who may deactivate a person who is not an Admin', async () => {
+    const { store } = await renderApp('/admin', (state) => {
+      state.session.currentUserId = 'usr_010';
+    });
+    await pressDeactivate('Omar Haddad');
+    const sheet = await screen.findByRole('dialog', { name: 'Deactivate Omar Haddad?' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Deactivate anyway' }));
+    await waitFor(() => expect(store.state.users.usr_004.active).toBe(false));
+  });
+
   it('speaks Arabic with the feminine form for a woman, and Arabic plural forms for the counts', async () => {
     await renderApp('/admin', (state) => {
       state.users.usr_001.preferences.language = 'ar';
