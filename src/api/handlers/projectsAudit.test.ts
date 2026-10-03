@@ -161,6 +161,41 @@ describe('projects.delete removes data by the ids of the project, not by absence
     expect(Object.keys(s.notifications).sort()).toEqual(['ntf_201', 'ntf_202', 'ntf_203']);
   });
 
+  it('removes the comments and notices of a task and a post that were deleted before the project (review 2026-10-03)', async () => {
+    const t = testApi(calls);
+    withProjectA(t);
+    withProjectB(t);
+    t.as('usr_002');
+    await t.api.call('tasks.delete', { id: 'tsk_101' });
+    await t.api.call('updates.delete', { id: 'upd_101' });
+    // The deletes keep the comments and notices, so an Undo can bring them back.
+    expect(t.store.state.comments.cmt_101).toBeDefined();
+    expect(t.store.state.notifications.ntf_102).toBeDefined();
+    t.as('usr_001');
+    await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
+    const s = t.store.state;
+    expect(Object.keys(s.comments).sort()).toEqual(['cmt_201', 'cmt_202']);
+    expect(Object.keys(s.notifications).sort()).toEqual(['ntf_201', 'ntf_202', 'ntf_203']);
+  });
+
+  it('removes the picture data of the project with its file data, and keeps a key that blobKeysInUse reports (review 2026-10-03)', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    const version = { letter: 'A', blobKey: 'prj-001/fil-901/1', thumbKey: 'prj-001/fil-901/1/thumb', size: 1, mimeType: 'image/png', uploadedBy: 'usr_002', uploadedAt: STAMP };
+    s.files.fil_901 = { id: 'fil_901', projectId: 'prj_001', stageId: null, taskId: null, name: 'site.png', versions: [version] };
+    const keys = (await projectsDelete.prepare!({ id: 'prj_001', confirm: true }, { state: s } as never)) as { blobKeys: string[] };
+    expect(keys.blobKeys.sort()).toEqual(['prj-001/fil-901/1', 'prj-001/fil-901/1/thumb']);
+    const persister = memoryPersister();
+    for (const key of keys.blobKeys) await persister.putBlob(key, new Blob(['x']));
+    const ctx = {
+      state: s, persister, actor: s.users.usr_001, now: NOW,
+      async blobKeysInUse() { return new Set(['prj-001/fil-901/1']); },
+    };
+    await projectsDelete.after!({ deleted: true }, ctx, keys);
+    expect(await persister.getBlob('prj-001/fil-901/1')).not.toBeNull();
+    expect(await persister.getBlob('prj-001/fil-901/1/thumb')).toBeNull();
+  });
+
   it('keeps the stored data that blobKeysInUse reports, and removes the rest', async () => {
     const t = testApi(calls);
     const persister = memoryPersister();

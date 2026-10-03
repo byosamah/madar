@@ -367,11 +367,15 @@ export const projectsClearHealthOverride = defineCall({
   },
 });
 
-/** Every stored file data key of a project: its files now, and the versions its file events remember. */
+/** Every stored file data key of a project (the file and its small picture): its files now, and the versions its file events remember. */
 function blobKeysOf(state: State, projectId: string): string[] {
   const keys = new Set<string>();
   const add = (value: unknown) => {
-    for (const version of (value as { versions?: { blobKey?: string }[] } | null)?.versions ?? []) if (version.blobKey) keys.add(version.blobKey);
+    for (const version of (value as { versions?: { blobKey?: string; thumbKey?: string }[] } | null)?.versions ?? []) {
+      if (version.blobKey) keys.add(version.blobKey);
+      // The small picture of an image is stored data too, and it counts toward the storage limit (plan 2b, point 1).
+      if (version.thumbKey) keys.add(version.thumbKey);
+    }
   };
   for (const file of Object.values(state.files)) if (file.projectId === projectId) add(file);
   for (const event of Object.values(state.events)) {
@@ -393,7 +397,7 @@ export const projectsDelete = defineCall({
   async after(_output, p, prepared) {
     const used = p.blobKeysInUse
       ? await p.blobKeysInUse(prepared.blobKeys)
-      : new Set(Object.values(p.state.files).flatMap((file) => file.versions.map((version) => version.blobKey)));
+      : new Set(Object.values(p.state.files).flatMap((file) => file.versions.flatMap((version) => (version.thumbKey ? [version.blobKey, version.thumbKey] : [version.blobKey]))));
     for (const key of prepared.blobKeys) if (!used.has(key)) await p.persister.deleteBlob(key);
   },
   run(input, ctx) {
@@ -405,6 +409,12 @@ export const projectsDelete = defineCall({
     // their target is missing: on the server a row of another project may simply not be loaded (plan 4.13, A2; AM 7.2).
     const taskIds = new Set(Object.values(state.tasks).filter((task) => task.projectId === pid).map((task) => task.id));
     const updateIds = new Set(Object.values(state.updates).filter((update) => update.projectId === pid).map((update) => update.id));
+    // A task or post deleted earlier keeps its comments and notices for Undo, so its delete event names it (review 2026-10-03).
+    for (const event of Object.values(state.events)) {
+      if (event.projectId !== pid || event.after !== null) continue;
+      if (event.targetType === 'task') taskIds.add(event.targetId);
+      if (event.targetType === 'update') updateIds.add(event.targetId);
+    }
     const drop = <T extends { projectId: string }>(records: Record<string, T>) => {
       for (const [key, value] of Object.entries(records)) if (value.projectId === pid) delete records[key];
     };
