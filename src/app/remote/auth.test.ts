@@ -3,10 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AuthFailure } from '../../features/auth/authFailure';
 import { createSupabaseAuth } from './auth';
 
-type Listener = (event: string, session: { access_token: string } | null) => void;
+type StubSession = { access_token: string; user?: { id: string } };
+type Listener = (event: string, session: StubSession | null) => void;
 
 /** A Supabase client with only the auth parts that the port uses. Each method answers what the test gives it. */
-function stubClient(o: { session?: { access_token: string } | null; results?: Record<string, { error: unknown } | (() => { error: unknown })> } = {}) {
+function stubClient(o: { session?: StubSession | null; results?: Record<string, { error: unknown } | (() => { error: unknown })> } = {}) {
   let session = o.session ?? null;
   let listener: Listener = () => undefined;
   const steps: string[] = [];
@@ -24,18 +25,22 @@ function stubClient(o: { session?: { access_token: string } | null; results?: Re
       steps.push(`signIn:${input.email}`);
       const result = answer('signIn');
       if (!result.error) {
-        session = { access_token: 'token-2' };
+        session = { access_token: 'token-2', user: { id: o.session?.user?.id ?? 'usr_001' } };
         listener('SIGNED_IN', session);
       }
       return { data: {}, ...result };
     }),
     signOut: vi.fn(async (input?: { scope?: string }) => {
       steps.push(`signOut:${input?.scope}`);
+      steps.push(`leaving:${window.localStorage.getItem('madar.auth.leaving')}`);
+      const result = answer('signOut');
+      // As auth-js 2.117.2: a session it cannot refresh gives an error, and then it keeps the session.
+      if (result.error) return result;
       if (input?.scope !== 'others') {
         session = null;
         listener('SIGNED_OUT', null);
       }
-      return answer('signOut');
+      return result;
     }),
     verifyOtp: vi.fn(async (input: { token_hash: string; type: string }) => {
       steps.push(`verifyOtp:${input.type}:${input.token_hash}`);
@@ -53,7 +58,7 @@ function stubClient(o: { session?: { access_token: string } | null; results?: Re
       return [];
     }),
   } as unknown as SupabaseClient;
-  return { client, steps, fire: (event: string, next: { access_token: string } | null) => { session = next; listener(event, next); } };
+  return { client, steps, fire: (event: string, next: StubSession | null) => { session = next; listener(event, next); } };
 }
 
 const apiError = (code: string, status = 400) => Object.assign(new Error(code), { name: 'AuthApiError', code, status, __isAuthError: true });
@@ -102,15 +107,66 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     const stub = stubClient({ session: { access_token: 'token-1' } });
     const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
     await auth.signOut();
-    expect(stub.steps).toEqual(['signOut:local', 'removeAllChannels']);
+    expect(stub.steps).toEqual(['signOut:local', 'leaving:1', 'removeAllChannels']);
     expect(auth.status()).toBe('signed_out');
+  });
+
+  it('removes the kept session itself when Supabase cannot end it, so the next person cannot open the account', async () => {
+    const stub = stubClient({
+      session: { access_token: 'token-1', user: { id: 'usr_001' } },
+      results: { signOut: { error: Object.assign(new Error('fetch failed'), { name: 'AuthRetryableFetchError', status: 0 }) } },
+    });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    window.localStorage.setItem('madar.auth', '{"refresh_token":"kept"}');
+    window.localStorage.setItem('madar.auth-code-verifier', 'kept');
+    const seen: string[] = [];
+    auth.subscribe((status) => seen.push(status));
+    await expect(auth.signOut()).resolves.toBeUndefined();
+    expect(window.localStorage.getItem('madar.auth')).toBeNull();
+    expect(window.localStorage.getItem('madar.auth-code-verifier')).toBeNull();
+    expect(auth.status()).toBe('signed_out');
+    expect(seen).toEqual(['signed_out']);
+    expect(stub.steps).toContain('removeAllChannels');
+  });
+
+  it('tells a sign-out on purpose in another tab apart from an ended session, and names a change of person', async () => {
+    const stub = stubClient({ session: { access_token: 'token-1', user: { id: 'usr_001' } } });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    const seen: string[] = [];
+    auth.subscribe((status, change?: string) => seen.push(`${status}:${change ?? '-'}`));
+    // The session ends with no sign-out: the refresh token is gone.
+    stub.fire('SIGNED_OUT', null);
+    // The same person signs in again (the session sheet), then another tab signs out on purpose.
+    stub.fire('SIGNED_IN', { access_token: 'token-2', user: { id: 'usr_001' } });
+    window.localStorage.setItem('madar.auth.leaving', '1');
+    stub.fire('SIGNED_OUT', null);
+    // Another tab signs in as another person.
+    window.localStorage.removeItem('madar.auth.leaving');
+    stub.fire('SIGNED_IN', { access_token: 'token-3', user: { id: 'usr_002' } });
+    // While signed in, a third person signs in from another tab: the status stays, the person changes.
+    stub.fire('SIGNED_IN', { access_token: 'token-4', user: { id: 'usr_003' } });
+    // A refresh or a new sign-in of the same person says nothing.
+    stub.fire('TOKEN_REFRESHED', { access_token: 'token-5', user: { id: 'usr_003' } });
+    stub.fire('SIGNED_IN', { access_token: 'token-6', user: { id: 'usr_003' } });
+    expect(seen).toEqual(['signed_out:-', 'signed_in:-', 'signed_out:left', 'signed_in:person', 'signed_in:person']);
+  });
+
+  it('forgets the mark of a sign-out on purpose at the next sign-in or link', async () => {
+    const stub = stubClient();
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    window.localStorage.setItem('madar.auth.leaving', '1');
+    await auth.signIn('a@b.test', 'right-pass');
+    expect(window.localStorage.getItem('madar.auth.leaving')).toBeNull();
+    window.localStorage.setItem('madar.auth.leaving', '1');
+    await auth.verifyLink('hash-1', 'invite');
+    expect(window.localStorage.getItem('madar.auth.leaving')).toBeNull();
   });
 
   it('signs out the other devices after a reset and keeps this one', async () => {
     const stub = stubClient({ session: { access_token: 'token-1' } });
     const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
     await auth.signOut({ scope: 'others' });
-    expect(stub.steps).toEqual(['signOut:others']);
+    expect(stub.steps).toEqual(['signOut:others', 'leaving:null']);
     expect(auth.status()).toBe('signed_in');
   });
 
