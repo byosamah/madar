@@ -92,7 +92,7 @@
     "simulateErrorsHint": "1 in 5 actions fail, so you can see the error states.",
     "reset": "Reset sample data",
     "resetTitle": "Reset the sample data?",
-    "resetBody": "This removes everything that you added or changed in this browser, also your name, language and notification choices. Then the sample office comes back as it was at the start. You cannot undo it.",
+    "resetBody": "This puts the sample office in this browser back as it was at the start. It deletes everything that you added to the office, such as projects, tasks, messages and files. It undoes every change that you made to the office, also to your name, language and notification choices. The Simulate errors switch and your view choices, such as list or board, stay. You cannot undo it.",
     "resetDone": "The sample data is back to its start state."
   },
   "errors": {
