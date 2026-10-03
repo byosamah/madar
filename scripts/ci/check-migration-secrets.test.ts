@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { checkMigrationSecrets, findLiteralSecrets } from './check-migration-secrets.ts';
@@ -86,6 +86,37 @@ describe('findLiteralSecrets', () => {
   it('keeps a comment marker inside a string from hiding the next call', () => {
     expect(lines("select '--', vault.create_secret('hunter2');")).toEqual([1]);
   });
+
+  it('keeps an apostrophe inside dollar-quoted text from hiding a later call', () => {
+    const sql = ["comment on function f() is $$Madar's nightly job$$;", "select vault.create_secret('hunter2', 'jobs_secret');"].join('\n');
+    expect(lines(sql)).toEqual([2]);
+    expect(lines("comment on table t is $c$the office's events$c$;\nselect vault.create_secret('hunter2');")).toEqual([2]);
+  });
+
+  it('masks dollar-quoted text that starts at the first character of the file', () => {
+    expect(lines("$$Madar's job$$;\nselect vault.create_secret('hunter2');")).toEqual([2]);
+  });
+
+  it('still finds a call inside a function body that also holds an apostrophe in a string', () => {
+    const sql = ['do $$', 'begin', "  raise notice 'it''s set';", "  perform vault.create_secret('hunter2', 'k');", 'end', '$$;'].join('\n');
+    expect(lines(sql)).toEqual([4]);
+  });
+
+  it('keeps an apostrophe inside a quoted name from hiding a later call', () => {
+    expect(lines('create table "it\'s" (id int);\nselect vault.create_secret(\'hunter2\');')).toEqual([2]);
+  });
+
+  it('finds the older named form new_secret := with a literal value', () => {
+    expect(lines("select vault.create_secret(new_secret := 'hunter2');")).toEqual([1]);
+    expect(lines("select vault.create_secret(new_name := 'n', new_secret := 'hunter2');")).toEqual([1]);
+    expect(lines("select vault.create_secret(new_name := 'n', new_secret := p_value);")).toEqual([]);
+  });
+
+  it('finds a literal value in brackets', () => {
+    expect(lines("select vault.create_secret(('hunter2'), 'k');")).toEqual([1]);
+    expect(lines("select vault.update_secret(id, ((E'hunter2')));")).toEqual([1]);
+    expect(lines("select vault.create_secret((p_value), 'k');")).toEqual([]);
+  });
 });
 
 describe('checkMigrationSecrets', () => {
@@ -128,5 +159,16 @@ describe('the command', () => {
     const good = run(migrations({ 'a.sql': "select vault.create_secret(current_setting('app.k'));" }));
     expect(good.status).toBe(0);
     expect(good.stdout).toMatch(/1 file\b/);
+  });
+
+  it('still runs the check, and fails closed, when started through a symlinked path', () => {
+    const link = join(mkdtempSync(join(tmpdir(), 'madar-link-')), 'ci');
+    dirs.push(dirname(link));
+    symlinkSync(dirname(script), link);
+    const bad = spawnSync(process.execPath, [join(link, 'check-migration-secrets.ts'), migrations({ 'a.sql': "select vault.create_secret('hunter2');" })], {
+      encoding: 'utf8',
+    });
+    expect(bad.status).toBe(1);
+    expect(bad.stdout + bad.stderr).toContain('Migration secret check failed.');
   });
 });
