@@ -13,7 +13,7 @@ export type StoryRef = { id: string } | { ref: string };
 export type RunError = { code: ApiErrorCode; message: string; details?: Record<string, unknown> };
 
 /** What a change touched. projectTouched: only a project's updatedAt changed. preferences: only a person's own preferences changed. */
-export type Kind = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'counters'> | 'projectTouched' | 'preferences';
+export type Kind = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'counters' | 'counts'> | 'projectTouched' | 'preferences';
 
 /**
  * One change signal (plan, change 13). The office channel carries office changes; each person:<userId> channel carries the
