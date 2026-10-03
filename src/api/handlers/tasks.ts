@@ -8,10 +8,10 @@ import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
-import { notify, reviewersOf } from '../notify';
-import { projectTouchesTeam } from '../pause';
+import { notifyIn, reviewersOf } from '../notify';
+import { teamFilter } from '../pause';
 import { can } from '../permissions';
-import { nextId, taskTemplatesOf, teamsOf } from '../store';
+import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
@@ -116,7 +116,7 @@ export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 't
   if (status === 'done') shiftDependents(ctx, task, cause.id, finishDay);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+    notifyIn(ctx, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id });
   }
   touch(ctx, task.projectId);
 }
@@ -146,11 +146,11 @@ export const tasksList = defineCall({
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
-    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
+    const inTeam = teamFilter(state, input.teamId);
     const tasks = Object.values(state.tasks).filter((task) => {
       const project = state.projects[task.projectId];
       if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
-      if (input.teamId && (team === undefined || !projectTouchesTeam(state, project, team.memberIds))) return false;
+      if (!inTeam(project)) return false;
       if (projectId && task.projectId !== projectId) return false;
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;
@@ -239,7 +239,7 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   if (prerequisiteIds.length > 0) task.prerequisiteIds = prerequisiteIds;
   ctx.state.tasks[id] = task;
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
+  notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id });
   // A new open task in an earlier stage moves the project back, and that needs a reason.
   watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
   touch(ctx, project.id);
@@ -388,7 +388,7 @@ export const tasksUpdate = defineCall({
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
     const told = [...(reassigned ? [task.ownerId] : []), ...added];
-    if (told.length > 0) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+    if (told.length > 0) notifyIn(ctx, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id });
     touch(ctx, task.projectId);
     return detail(ctx, task);
   },
@@ -446,7 +446,7 @@ function approve(ctx: Ctx, task: Task): void {
   const watch = watchStage(ctx, task.projectId);
   changeStatus(ctx, task, 'done', 'task.approved');
   watch.finish({ ask: false });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+  notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id });
 }
 
 const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
@@ -459,13 +459,12 @@ export const tasksComplete = defineCall({
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
-    if (result === 'done' && reviews(ctx, task)) {
-      approve(ctx, task);
-      return { result, task: detail(ctx, task) };
+    if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
+    else {
+      const watch = watchStage(ctx, task.projectId);
+      changeStatus(ctx, task, result);
+      watch.finish({ ask: false });
     }
-    const watch = watchStage(ctx, task.projectId);
-    changeStatus(ctx, task, result);
-    watch.finish({ ask: false });
     return { result, task: detail(ctx, task) };
   },
 });
@@ -477,19 +476,18 @@ export const tasksMove = defineCall({
     const task = requireTask(ctx, input.id);
     assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
-    if (result === 'done' && reviews(ctx, task)) {
-      approve(ctx, task);
-      return { result, task: detail(ctx, task) };
+    if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
+    else {
+      // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
+      // their own task back (audit 2026-10-03, PRJ-2).
+      if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
+        throw invalid('status', 'Use Send back and write a note for the lead.', 'review_send_back');
+      }
+      const watch = watchStage(ctx, task.projectId);
+      changeStatus(ctx, task, result);
+      // Opening a done task again (and the done tasks that need it) can move the project back, and that needs a reason.
+      watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     }
-    // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
-    // their own task back (audit 2026-10-03, PRJ-2).
-    if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
-      throw invalid('status', 'Use Send back and write a note for the lead.', 'review_send_back');
-    }
-    const watch = watchStage(ctx, task.projectId);
-    changeStatus(ctx, task, result);
-    // Opening a done task again (and the done tasks that need it) can move the project back, and that needs a reason.
-    watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     return { result, task: detail(ctx, task) };
   },
 });
@@ -517,7 +515,7 @@ export const tasksSendBack = defineCall({
     changeStatus(ctx, task, 'in_progress', 'task.sent_back');
     watch.finish({ ask: false });
     insertComment(ctx, 'task', task.id, task.projectId, input.note);
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id, correlationId: ctx.correlationId });
+    notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_sent_back', targetType: 'task', targetId: task.id });
     return detail(ctx, task);
   },
 });

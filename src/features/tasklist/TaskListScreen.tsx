@@ -9,14 +9,13 @@ import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay } from '../../lib/dates';
-import { dayParam, oneOf } from '../../lib/params';
+import { dayParam, oneOf, teamParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 
 const FILTERS = ['all', 'overdue', 'flagged'] as const;
 const USER_ID = /^usr_\d{3,}$/;
-const TEAM_ID = /^tm_\d{3,}$/;
 
 /**
  * The office team in the link. The Dashboard sends it, so the list holds the tasks it counted, and the subtitle names the team
@@ -25,8 +24,7 @@ const TEAM_ID = /^tm_\d{3,}$/;
 function useTeam(): { teamId?: string; teamText: string } {
   const { t } = useTranslation();
   const [params] = useSearchParams();
-  const team = params.get('team') ?? '';
-  const teamId = TEAM_ID.test(team) ? team : undefined;
+  const teamId = teamParam(params.get('team'));
   const teams = useCall('teams.list', {}, { enabled: teamId !== undefined });
   const name = teams.data?.find((item) => item.id === teamId)?.name;
   return { teamId, teamText: name ? t('taskList.team', { name }) : '' };

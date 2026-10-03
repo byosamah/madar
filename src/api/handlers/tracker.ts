@@ -6,10 +6,10 @@ import {
 import { TrackerExportRow, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
-import { assertMayFinish, stageTag, watchStage } from '../flow';
-import { notify } from '../notify';
+import { mayFinish, stageTag, watchStage } from '../flow';
+import { notifyIn } from '../notify';
 import { projectRoleOf } from '../permissions';
-import { nextId, trackerOf } from '../store';
+import { nextId, trackerOf, type State } from '../store';
 import { attachmentsOf, mayDeleteTracker, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
@@ -71,13 +71,19 @@ function closeEntry(ctx: Ctx, entry: TrackerEntry): void {
   applyPatch(ctx, entry, { closedAt: ctx.stamp, closedBy: ctx.actor.id }, { projectId: entry.projectId, verb: 'tracker.closed', targetType: 'tracker', targetId: entry.id });
 }
 
+/** The reply task of the entry while it is open. */
+function openReplyTaskOf(state: State, entry: TrackerEntry): Task | undefined {
+  const task = entry.replyTaskId ? state.tasks[entry.replyTaskId] : undefined;
+  return task && task.status !== 'done' ? task : undefined;
+}
+
 /**
  * The reply task and the loop never disagree: when the loop ends, the open reply task finishes too. It finishes by the task rules,
  * so what it needs must be done, and the stage tag follows (audit 2026-10-03, API-9).
  */
 function finishReplyTask(ctx: Ctx, entry: TrackerEntry): void {
-  const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
-  if (!task || task.status === 'done') return;
+  const task = openReplyTaskOf(ctx.state, entry);
+  if (!task) return;
   const watch = watchStage(ctx, task.projectId);
   changeStatus(ctx, task, 'done');
   watch.finish({ ask: false });
@@ -85,14 +91,8 @@ function finishReplyTask(ctx: Ctx, entry: TrackerEntry): void {
 
 /** The open reply task of the entry when it may not finish yet, because a task or a stage it needs is open. */
 function heldReplyTask(ctx: Ctx, entry: TrackerEntry): Task | undefined {
-  const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
-  if (!task || task.status === 'done') return undefined;
-  try {
-    assertMayFinish(ctx.state, task);
-    return undefined;
-  } catch {
-    return task;
-  }
+  const task = openReplyTaskOf(ctx.state, entry);
+  return task && !mayFinish(ctx.state, task) ? task : undefined;
 }
 
 /**
@@ -111,7 +111,7 @@ function openReplyTask(ctx: Ctx, entry: TrackerEntry, reply: ReplyBy): void {
   };
   ctx.state.tasks[id] = task;
   recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: [reply.userId], trigger: 'task_assigned', targetType: 'task', targetId: id, correlationId: ctx.correlationId });
+  notifyIn(ctx, { userIds: [reply.userId], trigger: 'task_assigned', targetType: 'task', targetId: id });
   applyPatch(ctx, entry, { replyTaskId: id }, { projectId: entry.projectId, verb: 'tracker.reply_assigned', targetType: 'tracker', targetId: entry.id });
   // A task in the tag stage never moves the tag back. The saved stage catches up when it is behind.
   watch.finish({ ask: false });

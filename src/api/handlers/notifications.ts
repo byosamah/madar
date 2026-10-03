@@ -9,6 +9,7 @@ import type { State } from '../store';
 import { can, projectRoleOf } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
+import { taskLink } from '../../lib/params';
 
 /** The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
@@ -47,13 +48,25 @@ function deletedCopy(state: State, targetType: string, id: string): Copy | null 
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+/** True when the item of a notice is gone, or is a chat the viewer can no longer see. It builds no text, so the badge count stays cheap. */
+function isGone(state: State, n: Notification, viewer: User): boolean {
+  if (n.targetType === 'task') return !state.tasks[n.targetId];
+  if (n.targetType === 'update') return !state.updates[n.targetId];
+  if (n.targetType === 'project') return !state.projects[n.targetId];
+  if (n.targetType === 'chat') {
+    const conversation = state.conversations[n.targetId];
+    return !conversation || !canSeeConversation(state, conversation, viewer);
+  }
+  return false;
+}
+
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let projectCode: string | null = null;
   let tile: { id: string; name: string; mark: number } | null = null;
   let link = '/notifications';
   let canApprove = false;
-  let gone = false;
+  const gone = isGone(state, n, viewer);
   let dueDate: string | null = null;
   if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
@@ -62,8 +75,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = text(copy?.title);
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    gone = !task;
-    if (task) link = `/projects/${task.projectId}?tab=tasks&task=${task.id}`;
+    if (task) link = taskLink(task.projectId, task.id);
     // A reminder saved before it kept its day names the due day of the task.
     if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
@@ -75,7 +87,6 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    gone = !update;
     if (update) link = `/projects/${update.projectId}?tab=activity&update=${update.id}`;
   } else if (n.targetType === 'chat') {
     const conversation = state.conversations[n.targetId];
@@ -85,7 +96,6 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = project?.name ?? '';
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    gone = !conversation || !canSeeConversation(state, conversation, viewer);
     if (!gone) link = `/inbox/${n.targetId}`;
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
@@ -93,7 +103,6 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = text(copy?.name);
     projectCode = copy ? text(copy.code) || null : null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    gone = !project;
     if (project) link = `/projects/${project.id}`;
   }
   return {
@@ -107,7 +116,7 @@ const mine = (ctx: Ctx) => Object.values(ctx.state.notifications).filter((n) => 
 function counts(ctx: Ctx): { unread: number; badge: number } {
   const unread = mine(ctx).filter((n) => !n.read);
   // A notice of a deleted item has nothing to open and nothing to do, so the badge leaves it out (audit 2026-10-03, SHL-12).
-  const badge = unread.filter((n) => ACTION_TRIGGERS.has(n.trigger) && !viewOf(ctx.state, n, ctx.authority).gone);
+  const badge = unread.filter((n) => ACTION_TRIGGERS.has(n.trigger) && !isGone(ctx.state, n, ctx.authority));
   return { unread: unread.length, badge: badge.length };
 }
 

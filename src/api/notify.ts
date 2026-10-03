@@ -3,6 +3,7 @@ import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
 import { isWorkingDay } from '../lib/workdays';
+import type { Ctx } from './registry';
 
 export type NotifyInput = {
   userIds: string[];
@@ -37,6 +38,11 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     created.push(notification);
   }
   return created;
+}
+
+/** A notice from inside a call. It takes the actor, the time and the story from the call, so a story Undo takes the notice back too. */
+export function notifyIn(ctx: Ctx, input: Omit<NotifyInput, 'correlationId'>): Notification[] {
+  return notify(ctx.state, ctx.actor, ctx.stamp, { ...input, correlationId: ctx.correlationId });
 }
 
 /** The leader reviews. A project with no active leader goes to every active Admin (audit 2026-10-03, API-7). */

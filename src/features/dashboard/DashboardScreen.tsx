@@ -9,7 +9,7 @@ import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
-import { oneOf } from '../../lib/params';
+import { oneOf, teamParam } from '../../lib/params';
 import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { withTeam } from './Tiles';
@@ -24,7 +24,6 @@ const STATUSES = ['active', 'on_hold', 'all'] as const;
 const VIEWS = ['projects', 'people', 'schedule'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
-const TEAM_ID = /^tm_\d{3,}$/;
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
 const SELECT = 'field mt-1.5 font-normal';
 
@@ -42,7 +41,7 @@ export function DashboardScreen() {
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
   const team = params.get('team') ?? '';
-  const teamId = TEAM_ID.test(team) ? team : undefined;
+  const teamId = teamParam(team);
   const filters = { leaderId: USER_ID.test(leader) ? leader : undefined, clientId: CLIENT_ID.test(client) ? client : undefined, teamId };
   // Status changes only the rows of the schedule: every number, chart and workload counts active projects, so a Paused there
   // read 0 everywhere. The choice shows in the Schedule section only, and elsewhere a status in the link reads as Active

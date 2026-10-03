@@ -9,3 +9,13 @@ export function dayParam(value: string | null): string | undefined {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : undefined;
 }
+
+/** An office team from the link, when it has the form of a team id. */
+export function teamParam(value: string | null): string | undefined {
+  return value && /^tm_\d{3,}$/.test(value) ? value : undefined;
+}
+
+/** The link that opens a task panel in its project. "thread" opens the Conversation of the task. */
+export function taskLink(projectId: string, taskId: string, thread = false): string {
+  return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;
+}

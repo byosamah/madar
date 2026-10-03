@@ -6,8 +6,8 @@ import {
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
-import { pauseKindOf, projectTouchesTeam, staleDaysOf } from '../pause';
-import { teamsOf, trackerOf, type State } from '../store';
+import { pauseKindOf, staleDaysOf, teamFilter } from '../pause';
+import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
@@ -63,10 +63,9 @@ export const dashboardGet = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority: actor } = ctx;
-    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
-    // The people filters apply to every number. A team that does not exist matches nothing, like a leader that does not exist.
-    const inFilters = (p: Project) => (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId)
-      && (!input.teamId || (team !== undefined && projectTouchesTeam(state, p, team.memberIds)));
+    const inTeam = teamFilter(state, input.teamId);
+    // The people filters apply to every number.
+    const inFilters = (p: Project) => (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId) && inTeam(p);
     const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
     const active = projects.filter((p) => p.status === 'active');
     const inScope = new Set(projects.map((p) => p.id));

@@ -12,6 +12,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
+import { taskLink } from '../../lib/params';
 
 type Thread = CallOutput<'chats.messages'>;
 
@@ -111,7 +112,7 @@ export function TaskPane({ id }: { id: string }) {
         subtitle={`${t('chat.taskThread')} · ${task.data.project.name}`}
         action={(
           <Link
-            to={`/projects/${task.data.project.id}?tab=tasks&task=${id}`}
+            to={taskLink(task.data.project.id, id)}
             className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
           >
             {t('chat.openTask')}

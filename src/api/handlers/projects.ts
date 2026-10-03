@@ -7,7 +7,7 @@ import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
-import { projectTouchesTeam } from '../pause';
+import { teamFilter } from '../pause';
 import { projectRoleOf } from '../permissions';
 import { memberKey, nextId, paymentsOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
@@ -80,18 +80,18 @@ export const projectsList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
-    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
+    const inTeam = teamFilter(state, input.teamId);
+    // The filters that read only the project come first, so the summary is built only for the projects that stay.
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
-      .map((p) => summaryOf(state, p, today, ctx.authority))
-      .filter((s) => input.filter !== 'mine' || projectRoleOf(state, s.project.id, authority.id) !== 'other')
+      .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
+      .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
+      .filter((p) => !input.clientId || p.clientId === input.clientId)
+      .filter(inTeam)
+      .map((p) => summaryOf(state, p, today, authority))
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
       .filter((s) => !input.stageName || s.currentStage.name === input.stageName)
       .filter((s) => !input.health || s.health?.value === input.health)
-      .filter((s) => !input.leaderId || s.project.leaderId === input.leaderId)
-      .filter((s) => !input.clientId || s.project.clientId === input.clientId)
-      // A team that does not exist matches nothing, like a leader or a client that does not exist.
-      .filter((s) => !input.teamId || (team !== undefined && projectTouchesTeam(state, s.project, team.memberIds)))
       .sort(SORTS[input.sort]);
   },
 });
@@ -641,12 +641,12 @@ export const deadlinesList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today } = ctx;
-    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
+    const inTeam = teamFilter(state, input.teamId);
     return Object.values(state.deadlines)
       .filter((d) => {
         const project = state.projects[d.projectId];
         if (!project || (input.status !== 'all' && project.status !== input.status)) return false;
-        if (input.teamId && (team === undefined || !projectTouchesTeam(state, project, team.memberIds))) return false;
+        if (!inTeam(project)) return false;
         return (!input.from || d.date >= input.from) && (!input.to || d.date <= input.to);
       })
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))

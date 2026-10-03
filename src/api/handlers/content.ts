@@ -4,7 +4,7 @@ import { CommentId, FileId, MAX_ATTACHMENTS, ProjectId, Reaction, TaskId, Update
 import { CommentView, FeedItem } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
-import { notify } from '../notify';
+import { notifyIn } from '../notify';
 import { principalOf } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
@@ -69,7 +69,7 @@ export const updatesCreate = defineCall({
     if (input.decision) update.decision = true;
     ctx.state.updates[id] = update;
     recordCreate(ctx, { projectId: project.id, verb: 'update.posted', targetType: 'update', targetId: id, entity: update });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id, correlationId: ctx.correlationId });
+    notifyIn(ctx, { userIds: activeMentions(ctx.state, input.body), trigger: 'mention', targetType: 'update', targetId: id });
     touch(ctx, project.id);
     return updateItemOf(ctx.state, update, ctx.authority);
   },
@@ -83,7 +83,7 @@ export const updatesUpdate = defineCall({
     assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     const added = newMentions(ctx, update.body, input.body);
     applyPatch(ctx, update, { body: input.body, editedAt: ctx.stamp }, { projectId: update.projectId, verb: 'update.edited', targetType: 'update', targetId: update.id });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id, correlationId: ctx.correlationId });
+    notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id });
     return updateItemOf(ctx.state, update, ctx.authority);
   },
 });
@@ -138,7 +138,7 @@ export const commentsUpdate = defineCall({
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
-    notify(ctx.state, ctx.actor, ctx.stamp, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId, correlationId: ctx.correlationId });
+    notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

@@ -19,7 +19,7 @@ import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, formatMonthYear, todayISO } from '../../lib/dates';
 import { clipSpan, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
-import { oneOf } from '../../lib/params';
+import { oneOf, teamParam } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork } from './MeetingProjects';
 import { AgendaBar, AgendaButton } from './meeting/AgendaBar';
@@ -37,7 +37,6 @@ const STATUSES = ['active', 'on_hold', 'all'] as const;
 const MODES = ['timeline', 'projects'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
-const TEAM_ID = /^tm_\d{3,}$/;
 // A stage bar shows its name when it spans at least this share of the window.
 const LABEL_MIN_PCT = 11;
 // The big-screen choice stays on this computer. Blocked storage means off.
@@ -214,7 +213,7 @@ export function MeetingView() {
     status,
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
-    teamId: TEAM_ID.test(team) ? team : undefined,
+    teamId: teamParam(team),
   });
   // Every open task of the office, once, for the counts on the timeline and the project screens.
   const tasks = useCall('tasks.list', { includeDone: false, activeProjectsOnly: false });

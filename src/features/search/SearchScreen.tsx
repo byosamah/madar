@@ -12,6 +12,7 @@ import { NewProjectSheet } from '../projects/NewProjectSheet';
 import { NewTaskSheet } from './NewTaskSheet';
 import { PersonSheet } from './PersonSheet';
 import { LoadFailed } from '../../components/LoadFailed';
+import { taskLink } from '../../lib/params';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
@@ -55,7 +56,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
       {tasks.length > 0 && (
         <Command.Group heading={t('search.tasks')} className={GROUP}>
           {tasks.map((task) => (
-            <Item key={task.id} value={`task-${task.id}`} onSelect={() => navigate(`/projects/${task.projectId}?tab=tasks&task=${task.id}`)}>
+            <Item key={task.id} value={`task-${task.id}`} onSelect={() => navigate(taskLink(task.projectId, task.id))}>
               <bdi className="min-w-0 flex-1 truncate">{task.title}</bdi>
               <span className="tabular text-footnote text-label-2">{task.projectCode}</span>
             </Item>

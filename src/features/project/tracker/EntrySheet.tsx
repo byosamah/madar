@@ -21,6 +21,7 @@ import { addWorkingDays } from '../../../lib/workdays';
 import { FileChips } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
 import { DirectionMark, TypeIcon } from './marks';
+import { taskLink } from '../../../lib/params';
 
 function Person({ user }: { user: UserCard }) {
   return (
@@ -165,7 +166,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
             <Block title={t('tracker.replyTask')}>
               {/* The block names the reply task and opens its panel, so the next step is one press (audit 2026-10-03, F-11). */}
               <Link
-                to={`/projects/${detail.project.id}?tab=tasks&task=${row.replyTask.id}`}
+                to={taskLink(detail.project.id, row.replyTask.id)}
                 className="pressable -mx-2 flex flex-col gap-1 rounded-xl px-2 py-1.5 hover:bg-fill"
               >
                 <span dir="auto" className="text-subheadline font-semibold text-link">{row.replyTask.title}</span>

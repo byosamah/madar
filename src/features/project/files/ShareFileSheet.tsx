@@ -8,6 +8,7 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextArea } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
+import { taskLink } from '../../../lib/params';
 
 type Kind = 'project_chat' | 'person' | 'task';
 
@@ -36,7 +37,7 @@ export function ShareFileSheet({ view, projectId, projectName, onClose }: { view
         : place.kind === 'person'
           ? t('files.sharedPerson', { name: people.find((person) => person.id === userId)?.name ?? '' })
           : t('files.sharedTask', { title: tasks.data?.find((row) => row.task.id === place.id)?.task.title ?? '' });
-      const to = place.kind === 'task' ? `/projects/${projectId}?tab=tasks&task=${place.id}&thread=1` : `/inbox/${place.id}`;
+      const to = place.kind === 'task' ? taskLink(projectId, place.id, true) : `/inbox/${place.id}`;
       toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to), isUndo: false } });
       onClose();
     },

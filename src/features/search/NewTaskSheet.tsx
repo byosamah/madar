@@ -8,6 +8,7 @@ import { SelectField, TextField } from '../../components/Fields';
 import { TaskTiming, type Timing } from '../project/tasks/TaskTiming';
 import { Sheet } from '../../components/Sheet';
 import { useStageBack } from '../project/tasks/StageBack';
+import { taskLink } from '../../lib/params';
 
 const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: null, dueDate: null };
 
@@ -31,7 +32,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
       onOpenChange(false);
       toast.show({
         message: t('newTask.created'),
-        action: { label: t('newTask.open'), run: () => navigate(`/projects/${detail.task.projectId}?tab=tasks&task=${detail.task.id}`), isUndo: false },
+        action: { label: t('newTask.open'), run: () => navigate(taskLink(detail.task.projectId, detail.task.id)), isUndo: false },
       });
     },
   });

@@ -11,6 +11,7 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { Sheet } from '../../../components/Sheet';
 import { actorContext, counted } from '../../../lib/grammar';
+import { taskLink } from '../../../lib/params';
 
 /** The sheet names this many open tasks. The count in its heading tells the rest. */
 const SHOWN = 8;
@@ -117,7 +118,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
             <ul>
               {work.tasks.slice(0, SHOWN).map(({ task, project }) => (
                 <li key={task.id}>
-                  <Link to={`/projects/${project.id}?tab=tasks&task=${task.id}`} onClick={onClose} className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1 hover:bg-fill">
+                  <Link to={taskLink(project.id, task.id)} onClick={onClose} className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1 hover:bg-fill">
                     <bdi className="truncate">{task.title}</bdi>
                     <bdi className="truncate text-footnote text-label-2">{project.name}</bdi>
                   </Link>

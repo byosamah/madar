@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, TaskId, UserId, type Comment, type Conversation, type Message, type User } from '../contract/entities';
+import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
 import { addDirectConversation, canSeeConversation, messagesOf, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
-import { notify } from '../notify';
+import { notifyIn } from '../notify';
 import { can, principalOf } from '../permissions';
 import { chatReadKey, nextId, type State } from '../store';
 import { attachmentsOf, cardOf } from '../views';
@@ -72,27 +72,44 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
   return comments.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
 }
 
-/** Tasks I own, lead or commented on, that have at least one comment. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse. */
-function taskRows(state: State, viewer: User): ChatRow[] {
-  const rows: ChatRow[] = [];
-  if (!can(viewer, 'comment.read')) return rows;
-  for (const task of Object.values(state.tasks)) {
-    const comments = Object.values(state.comments)
-      .filter((c) => c.targetType === 'task' && c.targetId === task.id)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    const last = comments.at(-1);
-    const project = state.projects[task.projectId];
-    if (!last || !project) continue;
+type TaskThread = { task: Task; project: Project; comments: Comment[] };
+
+/**
+ * Tasks I own, lead or commented on, that have at least one comment, with their comments in time order. The comments are
+ * grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
+ */
+function taskThreads(state: State, viewer: User): TaskThread[] {
+  if (!can(viewer, 'comment.read')) return [];
+  const byTask = new Map<string, Comment[]>();
+  for (const c of Object.values(state.comments)) {
+    if (c.targetType !== 'task') continue;
+    const list = byTask.get(c.targetId);
+    if (list) list.push(c);
+    else byTask.set(c.targetId, [c]);
+  }
+  const threads: TaskThread[] = [];
+  for (const [taskId, comments] of byTask) {
+    const task = state.tasks[taskId];
+    const project = task && state.projects[task.projectId];
+    if (!task || !project) continue;
     const involved = task.ownerId === viewer.id || project.leaderId === viewer.id
       || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
     if (!involved) continue;
-    rows.push({
+    comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    threads.push({ task, project, comments });
+  }
+  return threads;
+}
+
+function taskRows(state: State, viewer: User): ChatRow[] {
+  return taskThreads(state, viewer).map(({ task, project, comments }) => {
+    const last = comments[comments.length - 1];
+    return {
       kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
-    });
-  }
-  return rows;
+    };
+  });
 }
 
 function messageViewOf(state: State, message: Message, viewerId: string): MessageView {
@@ -107,13 +124,17 @@ function messageViewOf(state: State, message: Message, viewerId: string): Messag
 
 function totalUnread(state: State, viewer: User): number {
   const chats = visibleConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
-  return chats + taskRows(state, viewer).reduce((sum, row) => sum + row.unread, 0);
+  return chats + taskThreads(state, viewer).reduce((sum, t) => sum + taskUnread(state, t.task.id, t.comments, viewer.id), 0);
+}
+
+/** Marks a chat or a task thread read up to now, or up to its last item when that is later. */
+function writeReadMark(ctx: Ctx, conversationId: string, lastAt: string | undefined): void {
+  const lastReadAt = lastAt && lastAt > ctx.stamp ? lastAt : ctx.stamp;
+  ctx.state.chatReads[chatReadKey(conversationId, ctx.authority.id)] = { conversationId, userId: ctx.authority.id, lastReadAt };
 }
 
 function markReadNow(ctx: Ctx, conversation: Conversation): void {
-  const last = messagesOf(ctx.state, conversation.id).at(-1);
-  const lastReadAt = last && last.createdAt > ctx.stamp ? last.createdAt : ctx.stamp;
-  ctx.state.chatReads[chatReadKey(conversation.id, ctx.authority.id)] = { conversationId: conversation.id, userId: ctx.authority.id, lastReadAt };
+  writeReadMark(ctx, conversation.id, messagesOf(ctx.state, conversation.id).at(-1)?.createdAt);
 }
 
 export const chatsList = defineCall({
@@ -166,7 +187,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
     createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.messages[id] = message;
-  notify(ctx.state, ctx.actor, ctx.stamp, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
+  notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
   markReadNow(ctx, conversation);
   return messageViewOf(ctx.state, message, ctx.authority.id);
 }
@@ -194,8 +215,7 @@ function markTaskReadNow(ctx: Ctx, taskId: string): void {
   const last = Object.values(ctx.state.comments)
     .filter((c) => c.targetType === 'task' && c.targetId === taskId)
     .reduce((latest, c) => (c.createdAt > latest ? c.createdAt : latest), '');
-  const lastReadAt = last > ctx.stamp ? last : ctx.stamp;
-  ctx.state.chatReads[chatReadKey(taskId, ctx.authority.id)] = { conversationId: taskId, userId: ctx.authority.id, lastReadAt };
+  writeReadMark(ctx, taskId, last);
 }
 
 export const chatsMarkRead = defineCall({

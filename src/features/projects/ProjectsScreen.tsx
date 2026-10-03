@@ -12,7 +12,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { oneOf } from '../../lib/params';
+import { oneOf, teamParam } from '../../lib/params';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
 
@@ -20,7 +20,6 @@ const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
-const TEAM_ID = /^tm_\d{3,}$/;
 const SELECT = 'field mt-1.5 font-normal';
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 
@@ -34,8 +33,7 @@ export function ProjectsScreen() {
   const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
-  const teamParam = params.get('team') ?? '';
-  const teamId = TEAM_ID.test(teamParam) ? teamParam : undefined;
+  const teamId = teamParam(params.get('team'));
   const healthParam = params.get('health');
   const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).

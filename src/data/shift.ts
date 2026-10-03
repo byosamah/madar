@@ -18,21 +18,36 @@ const STAMP_FIELDS = new Set([
   'createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt', 'lastReadAt', 'at', 'openedAt', 'finishedAt', 'doneAt',
 ]);
 
-function shiftDay(value: unknown, days: number): unknown {
-  return typeof value === 'string' && DAY.test(value) ? addDays(value, days) : value;
-}
+const isDay = (key: string, item: unknown): item is string => DAY_FIELDS.has(key) && typeof item === 'string' && DAY.test(item);
+const isStamp = (key: string, item: unknown): item is string => STAMP_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item);
 
-function shiftStamp(value: unknown, days: number): unknown {
-  return typeof value === 'string' && STAMP.test(value) ? nowStamp(new Date(new Date(value).getTime() + days * DAY_MS)) : value;
-}
-
-function shiftFields<T>(value: T, days: number): T {
-  if (Array.isArray(value)) return value.map((item) => shiftFields(item, days)) as T;
+/** Builds a copy of a value. Each day field goes through "day" and each stamp field through "stamp", when that function is given. */
+function mapDateFields<T>(value: T, fns: { day?: (day: string) => string; stamp?: (stamp: string) => string }): T {
+  if (Array.isArray(value)) return value.map((item) => mapDateFields(item, fns)) as T;
   if (value === null || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [
     key,
-    DAY_FIELDS.has(key) ? shiftDay(item, days) : STAMP_FIELDS.has(key) ? shiftStamp(item, days) : shiftFields(item, days),
+    fns.day && isDay(key, item) ? fns.day(item) : fns.stamp && isStamp(key, item) ? fns.stamp(item) : mapDateFields(item, fns),
   ])) as T;
+}
+
+/** Gives each stamp field to "visit". It only reads, so a scan builds no copy of the state. */
+function eachStamp(value: unknown, visit: (stamp: string) => void): void {
+  if (Array.isArray(value)) {
+    for (const item of value) eachStamp(item, visit);
+  } else if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (isStamp(key, item)) visit(item);
+      else eachStamp(item, visit);
+    }
+  }
+}
+
+function shiftFields<T>(value: T, days: number): T {
+  return mapDateFields(value, {
+    day: (day) => addDays(day, days),
+    stamp: (stamp) => nowStamp(new Date(new Date(stamp).getTime() + days * DAY_MS)),
+  });
 }
 
 /**
@@ -52,16 +67,6 @@ function settleDynamicTasks(state: State): void {
   }
 }
 
-/** Gives every stamp field to "fn", in the same fields the shift moves. */
-function mapStamps<T>(value: T, fn: (stamp: string) => string): T {
-  if (Array.isArray(value)) return value.map((item) => mapStamps(item, fn)) as T;
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).map(([key, item]) => [
-    key,
-    STAMP_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item) ? fn(item) : mapStamps(item, fn),
-  ])) as T;
-}
-
 /**
  * Nothing in the office happened later than "at" (audit 2026-10-03, BRW-4). The sample office is written at fixed hours of today,
  * and the daily shift moves yesterday's afternoon to today's. Every stamp later than "at" moves to just before it, in the same order,
@@ -71,17 +76,16 @@ export function settleFuture(state: State, at: Date): State {
   const limit = at.getTime();
   const future = new Set<string>();
   let floor = Date.parse(`${todayISO(at)}T00:00:00.000+03:00`);
-  mapStamps(state, (stamp) => {
+  eachStamp(state, (stamp) => {
     const time = Date.parse(stamp);
     if (time > limit) future.add(stamp);
     else if (time > floor) floor = time;
-    return stamp;
   });
   if (future.size === 0) return state;
   const order = [...future].sort((a, b) => Date.parse(a) - Date.parse(b));
   const step = Math.floor(Math.min(60_000, (limit - floor) / (order.length + 1)));
   const moved = new Map(order.map((stamp, i) => [stamp, nowStamp(new Date(limit - (order.length - i) * step))]));
-  return mapStamps(state, (stamp) => moved.get(stamp) ?? stamp);
+  return mapDateFields(state, { stamp: (stamp) => moved.get(stamp) ?? stamp });
 }
 
 /**
