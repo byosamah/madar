@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { SERVER_CALL_NAMES, serverContracts } from '../../src/api/contract/server';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { recordSamples } from '../../scripts/record-samples';
-import { INSTRUCTIONS, TOOL_DOCS } from './docs';
+import { INSTRUCTIONS, TOOL_DOCS, readFirstAnswer } from './docs';
 import { MCP_ALLOW, MCP_DENY, READ_FIRST, mcpTools } from './tools';
 
 /** The recorded sample input of each tool (scripts/record-samples.ts writes it from runs on the sample office). */
@@ -78,6 +78,17 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.find((tool) => tool.name === 'tasks.create')!.annotations.destructiveHint).toBe(false);
   });
 
+  it('marks every write that changes or removes a record as destructive, and only the pure adds as not (MCP: false means additive only)', () => {
+    const additive = ['story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create'];
+    for (const tool of tools.filter((t) => !t.readOnly)) {
+      expect(tool.annotations.destructiveHint, tool.name).toBe(!additive.includes(tool.name));
+    }
+    for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
+      expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
+    }
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(14);
+  });
+
   it('gives each write tool except story.start an optional storyId, and no read tool one', () => {
     for (const tool of tools) {
       const properties = (tool.inputSchema.properties ?? {}) as Record<string, unknown>;
@@ -136,6 +147,17 @@ describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
     for (const word of ['madar.readFirst', 'story.start', 'storyId', 'events.undoStory', 'reason', 'dateReason', 'upload', 'act for', 'notification']) {
       expect(INSTRUCTIONS, word).toContain(word);
     }
+  });
+
+  it('answers madar.readFirst with the instructions plus one line that names the person and the role the agent acts for', () => {
+    const answer = readFirstAnswer({ name: 'Sara Ali', systemRole: 'accounting' });
+    expect(answer.startsWith(INSTRUCTIONS)).toBe(true);
+    const added = answer.slice(INSTRUCTIONS.length).trim();
+    expect(added.split('\n')).toHaveLength(1);
+    expect(added).toContain('Sara Ali');
+    expect(added).toContain('Accounting');
+    expect(added).toContain('act for');
+    expect(readFirstAnswer({ name: 'Omar', systemRole: 'admin' })).toContain('Admin');
   });
 
   it('holds no em dash', () => {

@@ -1,9 +1,11 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
- * server/discover and is the answer of madar.readFirst. TOOL_DOCS gives each of the 36 tools its title and description.
+ * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 36 tools its title and description.
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
+
+import type { SystemRole, User } from '../../src/api/contract/entities';
 
 export const INSTRUCTIONS = [
   'Madar is the project tool of an architecture office: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
@@ -25,6 +27,17 @@ export const INSTRUCTIONS = [
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
 ].join('\n');
+
+/** The role names that the Madar screens show. */
+const ROLE_NAMES: Record<SystemRole, string> = { admin: 'Admin', management: 'Management', accounting: 'Accounting', member: 'Member' };
+
+/**
+ * The answer of madar.readFirst: INSTRUCTIONS plus one line that names the person the agent acts for and that person's role
+ * (spec 1, section 17, rule 7). run.ts (G3) passes the users row of the agent principal's owner.
+ */
+export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole'>): string {
+  return `${INSTRUCTIONS}\n\nYou act for ${person.name}, whose role in Madar is ${ROLE_NAMES[person.systemRole]}.`;
+}
 
 export const TOOL_DOCS: Record<string, { title: string; description: string }> = {
   'madar.readFirst': {

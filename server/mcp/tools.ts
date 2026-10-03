@@ -55,8 +55,11 @@ export const MCP_DENY = [
   'agents.list', 'agents.remove', 'usage.get',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
-/** The writes that can remove a record: an Undo of a create removes it. The client may ask its person before it runs one. */
-const DESTRUCTIVE = new Set<string>(['events.undo', 'events.undoStory']);
+/**
+ * The writes that only add a record. MCP reads destructiveHint false as "the tool performs only additive updates", so every
+ * other write (a change, a status change, an undo) is destructive, and the client may ask its person before it runs one.
+ */
+const ADDITIVE = new Set<string>(['story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create']);
 
 /** A story ID from story.start (plan 4.9): the changes that share it undo together. */
 const StoryId = z.string().min(1).max(80).describe('The story ID from story.start. Changes with the same story ID undo together. Leave it out for a change on its own.');
@@ -124,7 +127,7 @@ function build(name: McpToolName): ToolDef {
     annotations: {
       title: doc.title,
       readOnlyHint: readOnly,
-      ...(readOnly ? {} : { destructiveHint: DESTRUCTIVE.has(name), idempotentHint: false }),
+      ...(readOnly ? {} : { destructiveHint: !ADDITIVE.has(name), idempotentHint: false }),
       openWorldHint: false,
     },
   };
