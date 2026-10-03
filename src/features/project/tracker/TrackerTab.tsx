@@ -11,6 +11,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DownloadIcon } from '../../../components/icons/animated/download';
 import { oneOf } from '../../../lib/params';
 import { replyPeople } from '../../../lib/tracker';
+import { ENTRY_PANEL, usePanelLink } from '../panelLink';
 import { setFilterParam, type TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
 import { ExportSheet } from './ExportSheet';
@@ -47,14 +48,11 @@ export function TrackerTab({ detail }: TabProps) {
     if (next.direction !== filter.direction) setFilterParam(setParams, 'side', next.direction === 'all' ? null : next.direction);
     if (next.openOnly !== filter.openOnly) setFilterParam(setParams, 'open', next.openOnly ? '1' : null);
   };
-  // The open entry lives in the link too, so the Overview can open one entry (audit 2026-10-03, PRJ-19). Close replaces the link.
+  // The open entry lives in the link too, so the Overview can open one entry (audit 2026-10-03, PRJ-19). Open adds one
+  // history step and Close goes back over it, so an entry costs no extra Back (audit 2026-10-03, S-1).
   const openId = params.get('entry');
-  const setOpenId = (id: string | null) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    if (id) next.set('entry', id);
-    else next.delete('entry');
-    return next;
-  }, { replace: !id });
+  const panel = usePanelLink(ENTRY_PANEL);
+  const setOpenId = (id: string | null) => (id ? panel.open({ entry: id }) : panel.close());
   // The Overview opens an entry here, and its opener is then gone. So when an entry closes and the focus is not on this tab,
   // the focus goes to the entry's row, or to the Tracker tab itself, never to the page (audit 2026-10-03, V-30). The timer
   // runs after the sheet gave the focus back to its opener, when that opener is still on the page.

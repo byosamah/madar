@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router';
 /** The parts of the link that belong to a panel. The first one says whether the panel is open. */
 export const TASK_PANEL = ['task', 'thread'] as const;
 export const PAYMENT_PANEL = ['payment'] as const;
+export const ENTRY_PANEL = ['entry'] as const;
 
 type Mark = { panelClose?: string } | null;
 
@@ -14,7 +15,7 @@ const without = (search: string, keys: readonly string[]): string => {
 };
 
 /**
- * Open and close of a panel that lives in the link: the task panel and the payment sheet. Open adds one history step, so
+ * Open and close of a panel that lives in the link: the task panel, the payment sheet and the Tracker entry sheet. Open adds one history step, so
  * Back closes the panel. That step remembers the link that Close leads to. Close goes back over the step when it leads
  * exactly there, so a panel a person looked at costs no extra Back. A panel that came with the link (a reload, a shared
  * link), or a link that changed in between, closes the old way: Close replaces the link (audit 2026-10-03, PRJ-9, V-36).

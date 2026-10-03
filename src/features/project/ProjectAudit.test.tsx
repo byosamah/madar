@@ -187,6 +187,31 @@ describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10; no extra Back, V-
     await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
   });
 
+  // The Tracker entry sheet follows the same rule as the task panel and the payment sheet (audit 2026-10-03, S-1).
+  it('Close of a Tracker entry leaves no extra step, so one Back leaves the project', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tracker');
+    const history = await screen.findByRole('region', { name: 'History' });
+    await userEvent.click(await within(history).findByRole('button', { name: /Kick-off meeting at the client office/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Kick-off meeting at the client office' });
+    expect(router.state.location.search).toContain('entry=');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Kick-off meeting at the client office' })).toBeNull());
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tracker'));
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  it('Back from an open Tracker entry closes it and stays on the Tracker tab', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tracker');
+    const history = await screen.findByRole('region', { name: 'History' });
+    await userEvent.click(await within(history).findByRole('button', { name: /Kick-off meeting at the client office/ }));
+    await screen.findByRole('dialog', { name: 'Kick-off meeting at the client office' });
+    await router.navigate(-1);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Kick-off meeting at the client office' })).toBeNull());
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
+    expect(router.state.location.search).toBe('?tab=tracker');
+  });
+
   // Forward brings back the panel step with its old key. Close and Escape must still close it there (audit 2026-10-03, V-36).
   it('Close and Escape still close a task panel that Forward brought back', async () => {
     const { router } = await fromProjects('/projects/prj_001?tab=tasks');
