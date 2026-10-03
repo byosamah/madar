@@ -212,3 +212,69 @@ async function testApiNotices(t: ReturnType<typeof world>) {
   const api = createApi({ ...notificationCalls }, { store: t.store, latencyMs: 0 });
   return api.call('notifications.list', {});
 }
+
+describe('chat pages (plan 4.13, A5; AM 7.5)', () => {
+  /** 450 messages in the project room. Three messages share each stamp, so a page that splits by stamp alone would lose some. */
+  function longRoom() {
+    const t = world();
+    for (let i = 0; i < 450; i += 1) {
+      const id = `msg_${String(i + 1).padStart(3, '0')}`;
+      const second = Math.floor(i / 3);
+      const at = `2026-09-29T${String(8 + Math.floor(second / 60)).padStart(2, '0')}:${String(second % 60).padStart(2, '0')}:00.000+03:00`;
+      t.store.state.messages[id] = {
+        id, conversationId: t.room, authorId: 'usr_002', actingForId: 'usr_002', body: `Message ${i + 1}`, mentions: [], fileIds: [], createdAt: at, editedAt: null,
+      };
+    }
+    t.as('usr_003');
+    return t;
+  }
+  const bodies = (thread: { messages: { message: { body: string } }[] }) => thread.messages.map((m) => m.message.body);
+  const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `Message ${from + i}`);
+
+  it('returns the newest 200 messages by default, oldest first', async () => {
+    const t = longRoom();
+    expect(bodies(await t.api.call('chats.messages', { conversationId: t.room }))).toEqual(range(251, 450));
+  });
+
+  it('pages back through all 450 messages with before and limit, and loses none', async () => {
+    const t = longRoom();
+    const seen: string[] = [];
+    let before: string | undefined;
+    for (let page = 0; page < 10; page += 1) {
+      const thread = await t.api.call('chats.messages', { conversationId: t.room, limit: 100, ...(before ? { before } : {}) });
+      if (thread.messages.length === 0) break;
+      seen.unshift(...bodies(thread));
+      before = thread.messages[0].message.id;
+    }
+    expect(seen).toEqual(range(1, 450));
+    const page = await t.api.call('chats.messages', { conversationId: t.room, limit: 7, before: 'msg_101' });
+    expect(bodies(page)).toEqual(range(94, 100));
+  });
+
+  it('refuses a page start that is not a message of this chat, and a limit out of range', async () => {
+    const t = longRoom();
+    await expect(t.api.call('chats.messages', { conversationId: t.room, before: 'msg_999' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('chats.messages', { conversationId: t.room, limit: 0 })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('chats.messages', { conversationId: t.room, limit: 501 })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('keeps the newest 100 task threads in chats.list, and counts unread only in those', async () => {
+    const t = world();
+    const s = t.store.state;
+    for (let i = 0; i < 105; i += 1) {
+      const taskId = `tsk_${String(i + 1).padStart(3, '0')}`;
+      s.tasks[taskId] = makeTask({ id: taskId, ownerId: 'usr_003' });
+      const at = `2026-09-${String(1 + Math.floor(i / 5)).padStart(2, '0')}T09:${String(i % 60).padStart(2, '0')}:00.000+03:00`;
+      s.comments[`cmt_${String(i + 1).padStart(3, '0')}`] = {
+        id: `cmt_${String(i + 1).padStart(3, '0')}`, targetType: 'task', targetId: taskId, authorId: 'usr_002', body: `Note ${i + 1}`,
+        reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: at, editedAt: null,
+      };
+    }
+    t.as('usr_003');
+    const rows = (await t.api.call('chats.list', {})).filter((row) => row.kind === 'task');
+    expect(rows).toHaveLength(100);
+    expect(rows.map((row) => row.id)).not.toContain('tsk_001');
+    expect(rows.map((row) => row.id)).toContain('tsk_105');
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(100);
+  });
+});

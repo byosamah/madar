@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
-import { addDirectConversation, canSeeConversation, messagesOf, unreadIn } from '../chatState';
+import { addDirectConversation, canSeeConversation, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, principalOf } from '../permissions';
@@ -77,6 +77,7 @@ type TaskThread = { task: Task; project: Project; comments: Comment[] };
 /**
  * Tasks I own, lead or commented on, that have at least one comment, with their comments in time order. The comments are
  * grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
+ * Only the newest TASK_THREAD_LIMIT threads count, for the list and for the unread number alike (plan 4.13, A5).
  */
 function taskThreads(state: State, viewer: User): TaskThread[] {
   if (!can(viewer, 'comment.read')) return [];
@@ -98,7 +99,9 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
     comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
     threads.push({ task, project, comments });
   }
-  return threads;
+  const lastAt = (thread: TaskThread) => thread.comments[thread.comments.length - 1].createdAt;
+  threads.sort((a, b) => lastAt(b).localeCompare(lastAt(a)) || b.task.id.localeCompare(a.task.id));
+  return threads.slice(0, TASK_THREAD_LIMIT);
 }
 
 function taskRows(state: State, viewer: User): ChatRow[] {
@@ -148,18 +151,28 @@ export const chatsList = defineCall({
 });
 
 export const chatsMessages = defineCall({
-  input: z.object({ conversationId: ConversationId }),
+  /**
+   * One page of messages (plan 4.13, A5): the newest "limit" messages before the message "before", oldest first.
+   * The screen asks for the next page with the id of the oldest message it shows. A page shorter than "limit" is the last one.
+   */
+  input: z.object({
+    conversationId: ConversationId,
+    before: MessageId.optional(),
+    limit: z.number().int().min(1).max(MESSAGE_PAGE_MAX).default(MESSAGE_PAGE),
+  }),
   output: ChatThread,
   readOnly: true,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
+    const page = messagePage(ctx.state, conversation.id, input.limit, input.before);
+    if (!page) throw invalid('before', 'This message is not in this chat.');
     const people = Object.values(ctx.state.users)
       .filter((u) => u.kind === 'human' && u.id !== ctx.authority.id && canSeeConversation(ctx.state, conversation, u))
       .map((u) => cardOf(ctx.state, u.id));
     return {
       chat: { ...rowOf(ctx.state, conversation, ctx.authority), id: conversation.id },
       people,
-      messages: messagesOf(ctx.state, conversation.id).map((m) => messageViewOf(ctx.state, m, ctx.authority.id)),
+      messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority.id)),
     };
   },
 });
