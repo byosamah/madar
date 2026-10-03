@@ -109,29 +109,70 @@ describe('a tab whose list did not load says so and offers Retry (audit 2026-10-
   });
 });
 
-describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10)', () => {
-  it('Back after Close does not open the task panel again', async () => {
-    const { router } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
+describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10; no extra Back, V-36)', () => {
+  // Each test starts from a known step (the Projects list), so Back never lands on a step of an earlier test.
+  const fromProjects = async (path: string, prepare = as('usr_002')) => {
+    const view = await renderApp('/projects', prepare);
+    await view.router.navigate(path);
+    return view;
+  };
+
+  it('Close of the task panel leaves no extra step, so one Back leaves the project', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
     await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
     await router.navigate(-1);
-    await settle();
-    expect(router.state.location.search).not.toContain('task=');
-    expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
   });
 
-  it('Back after Close does not open the payment sheet again', async () => {
-    const { router } = await renderApp('/projects/prj_001', as('usr_011'));
+  it('Back from an open task panel closes it and stays on the tab', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    await screen.findByRole('dialog', { name: 'Stair details' });
+    await router.navigate(-1);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
+    expect(router.state.location.search).toBe('?tab=tasks');
+  });
+
+  it('keeps the step through Conversation and a second task, so Close still leaves no extra step', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const first = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(first).getByRole('tab', { name: /Conversation/ }));
+    await waitFor(() => expect(router.state.location.search).toContain('thread=1'));
+    await userEvent.click(screen.getByRole('button', { name: /^Civil Defense drawings/ }));
+    const second = await screen.findByRole('dialog', { name: 'Civil Defense drawings' });
+    await userEvent.click(within(second).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  it('a panel that came with the link closes in place and keeps the project on screen', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks&task=tsk_007');
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
+    await router.navigate(-1);
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+  });
+
+  it('Close of the payment sheet leaves no extra step, so one Back leaves the project', async () => {
+    const { router } = await fromProjects('/projects/prj_001', as('usr_011'));
     const region = await screen.findByRole('region', { name: 'Payments' });
     await userEvent.click(await within(region).findByRole('button', { name: /Concept stage fee/ }));
     const sheet = await screen.findByRole('dialog');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(router.state.location.search).not.toContain('payment='));
+    expect(router.state.location.pathname).toBe('/projects/prj_001');
     await router.navigate(-1);
-    await settle();
-    expect(router.state.location.search).not.toContain('payment=');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
   });
 
   it('a task closed on the Overview forgets its Conversation, so the next task opens on Details', async () => {

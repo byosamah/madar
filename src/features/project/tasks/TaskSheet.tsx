@@ -3,7 +3,7 @@ import { CircleCheckIcon } from '../../../components/icons/animated/circle-check
 import { XIcon } from '../../../components/icons/animated/x';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { ApiError } from '../../../api/errors';
@@ -254,13 +254,15 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const canUndoAgent = (actingForId: string) => detail.viewerCan.review || actingForId === me;
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const section = params.get('thread') === '1' ? 'conversation' : 'details';
+  // The choice replaces the link and keeps the history step of the panel, so Close still leaves no extra Back (audit 2026-10-03, V-36).
   const setSection = (next: 'details' | 'conversation') => setParams((current) => {
     const value = new URLSearchParams(current);
     if (next === 'conversation') value.set('thread', '1');
     else value.delete('thread');
     return value;
-  }, { replace: true });
+  }, { replace: true, state: location.state });
 
   return (
     <div className="flex flex-col gap-5 pt-1">

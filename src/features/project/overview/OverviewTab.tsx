@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow } from '../../../api/contract/views';
@@ -16,6 +15,7 @@ import { formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
+import { PAYMENT_PANEL, TASK_PANEL, usePanelLink } from '../panelLink';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
@@ -110,11 +110,8 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
   // Payments that are overdue or fall due within a week. Only the people who handle payments ask for them (colleague comment 6).
   const payments = useCall('payments.list', { projectId }, { enabled: seesPayments });
   const awaiting = (payments.data ?? []).filter((row) => row.status !== 'received' && row.dueInDays <= 7);
-  const toPayment = (id: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('payment', id);
-    return next;
-  });
+  const payment = usePanelLink(PAYMENT_PANEL);
+  const toPayment = (id: string) => payment.open({ payment: id });
   // The row opens the entry itself on the Tracker tab, not only the tab (audit 2026-10-03, PRJ-19).
   const toTracker = (entryId: string) => setParams((current) => {
     const next = new URLSearchParams(current);
@@ -268,20 +265,12 @@ function LatestUpdate({ detail }: TabProps) {
  * what each person works on now, what comes next. The log of every change lives in Activity.
  */
 export function OverviewTab({ detail }: TabProps) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
-  const open = useCallback((taskId: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('task', taskId);
-    return next;
-  }), [setParams]);
-  // Close forgets the Conversation choice too, and replaces the link so Back does not open the panel again (audit 2026-10-03, PRJ-9, PRJ-10).
-  const close = useCallback(() => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.delete('task');
-    next.delete('thread');
-    return next;
-  }, { replace: true }), [setParams]);
+  // Open adds one history step and Close goes back over it; Close also forgets the Conversation choice (audit 2026-10-03,
+  // PRJ-9, PRJ-10, V-36).
+  const panel = usePanelLink(TASK_PANEL);
+  const open = (taskId: string) => panel.open({ task: taskId });
   if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
@@ -303,7 +292,7 @@ export function OverviewTab({ detail }: TabProps) {
         <LatestUpdate detail={detail} />
         <AboutPanel detail={detail} />
       </aside>
-      {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={close} />}
+      {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
     </div>
   );
 }
