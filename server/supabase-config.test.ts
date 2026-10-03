@@ -51,6 +51,6 @@ describe('supabase/seed.sql', () => {
   });
 
   it('holds no em dash', () => {
-    expect(seed).not.toContain('—');
+    expect(seed).not.toContain(String.fromCharCode(0x2014));
   });
 });
