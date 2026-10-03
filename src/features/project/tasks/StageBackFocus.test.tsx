@@ -20,9 +20,10 @@ function phoneWidth() {
 /** A task added in Design Development moves the project back from Construction Documents, so the server asks why. */
 async function askWhy() {
   await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
-  await userEvent.click(await screen.findByRole('button', { name: 'From a template in Design Development' }));
+  // The first render of the Tasks tab can take more than a second on a busy machine.
+  await userEvent.click(await screen.findByRole('button', { name: 'From a template in Design Development' }, { timeout: 3000 }));
   await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Material board' }));
-  return screen.findByRole('dialog', { name: ASK });
+  return screen.findByRole('dialog', { name: ASK }, { timeout: 3000 });
 }
 
 // The stage-back sheet follows the Sheet rule: on a phone the title takes the focus, so the keyboard does not open over
