@@ -185,4 +185,17 @@ describe('createApi', () => {
     await expect(apiWith().run('test.echo', { text: '' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(apiWith(1).run('test.echo', { text: 'x' })).rejects.toMatchObject({ code: 'failed' });
   });
+
+  it('runs through call(), so a stand-in for call() in a screen test also covers run()', async () => {
+    const api = apiWith();
+    const seen: unknown[] = [];
+    const original = api.call.bind(api);
+    api.call = ((name: string, input: unknown, meta?: unknown) => {
+      seen.push([name, meta]);
+      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+    }) as typeof api.call;
+    const result = await api.run('test.logged', {}, { key: 'k-2' });
+    expect(seen).toEqual([['test.logged', { key: 'k-2', correlationId: result.storyId }]]);
+    expect(result.changed).toBe(true);
+  });
 });

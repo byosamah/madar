@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
+import { AttemptKeys } from '../api/remote/keys';
 import type { ChangeSignal } from '../api/remote/wire';
 import type { Store } from '../api/store';
 import type { AuthPort } from './auth';
@@ -60,19 +61,30 @@ export function useCall<N extends CallName>(name: N, input: CallInput<N>, option
 /**
  * A mutate that remembers the steps a screen passed with each call (for example "clear the box" after a send), so the Retry
  * of a failed call runs them too. Without them a Retry posted the message but left it in the box (audit 2026-10-03, SHL-10).
+ * With "attempts", each new call gets a new idempotency key and a Retry gets the key of the failed attempt (plan 4.10).
  */
 export function useRetryableMutate<TData, TInput>(
   mutate: (input: TInput, options?: MutateOptions<TData, unknown, TInput>) => void,
+  attempts?: AttemptKeys,
 ): { mutate: (input: TInput, options?: MutateOptions<TData, unknown, TInput>) => void; retry: (input: TInput) => void } {
   const steps = useRef(new WeakMap<object, MutateOptions<TData, unknown, TInput>>());
   const remember = useCallback((input: TInput, options?: MutateOptions<TData, unknown, TInput>) => {
     if (options && typeof input === 'object' && input !== null) steps.current.set(input, options);
+    attempts?.fresh(input);
     mutate(input, options);
-  }, [mutate]);
+  }, [mutate, attempts]);
   const retry = useCallback((input: TInput) => {
+    attempts?.again(input);
     mutate(input, typeof input === 'object' && input !== null ? steps.current.get(input) : undefined);
-  }, [mutate]);
+  }, [mutate, attempts]);
   return { mutate: remember, retry };
+}
+
+/** The idempotency keys of one action hook, kept for the life of the screen. */
+export function useAttemptKeys(): AttemptKeys {
+  const keys = useRef<AttemptKeys | null>(null);
+  keys.current ??= new AttemptKeys();
+  return keys.current;
 }
 
 export function useAction<N extends CallName>(
@@ -85,9 +97,10 @@ export function useAction<N extends CallName>(
   const latest = useRef(options);
   latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
+  const attempts = useAttemptKeys();
   const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
-    mutationFn: (input) => api.call(name, input),
+    mutationFn: (input) => attempts.run(input, (key) => api.call(name, input, { key })),
     onSuccess: (output) => options.onSuccess?.(output),
     onError: (error, input) => {
       if (latest.current.onRefused?.(error, input)) return;
@@ -98,7 +111,7 @@ export function useAction<N extends CallName>(
       });
     },
   });
-  const steps = useRetryableMutate(mutation.mutate);
+  const steps = useRetryableMutate(mutation.mutate, attempts);
   retry.current = steps.retry;
   return { ...mutation, mutate: steps.mutate };
 }
