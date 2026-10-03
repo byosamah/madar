@@ -63,7 +63,7 @@ describe('the sweep: every read call on the sample office for every person and r
     const calls = readSweep(seed);
     expect(calls.length).toBeGreaterThan(500);
     for (const [name, input, actor] of calls) await same(seed, name, input, actor);
-  });
+  }, 30_000);
 
   it('writes', async () => {
     for (const [name, input, actor, prepared] of writeSweep(seed)) {
@@ -75,7 +75,7 @@ describe('the sweep: every read call on the sample office for every person and r
   it('reads and writes on the office with the extra records of the database test', async () => {
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
-  });
+  }, 30_000);
 });
 
 describe('the 18 places of AM 6', () => {

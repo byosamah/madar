@@ -98,12 +98,21 @@ export function memorySource(state: State): Source {
         const groups = new Map<string, (Row & { key: string })[]>();
         for (const row of rows) {
           const group = s.per ? String(columnOf(s.c, s.per).value(row.doc, state, spec)) : '';
-          groups.set(group, [...(groups.get(group) ?? []), row]);
+          const list = groups.get(group);
+          if (list) list.push(row);
+          else groups.set(group, [row]);
         }
         rows = [...groups.values()].flatMap((group) => {
           const sorted = [...group].sort(compare);
           // The rank of a row is one more than the rows that come strictly before it, as rank() in SQL.
-          return sorted.filter((row) => (s.ties ? sorted.findIndex((other) => compare(other, row) === 0) : sorted.indexOf(row)) < s.limit!);
+          const kept: (Row & { key: string })[] = [];
+          let rank = 0;
+          for (const [index, row] of sorted.entries()) {
+            if (index === 0 || !s.ties || compare(sorted[index - 1], row) !== 0) rank = index;
+            if (rank >= s.limit!) break;
+            kept.push(row);
+          }
+          return kept;
         });
         rows.sort((a, b) => a.ord - b.ord);
       }
@@ -140,7 +149,9 @@ export function memorySource(state: State): Source {
       for (const row of all('comments')) {
         if (row.doc.targetType !== 'task') continue;
         const id = String(row.doc.targetId);
-        byTask.set(id, [...(byTask.get(id) ?? []), row.doc]);
+        const list = byTask.get(id);
+        if (list) list.push(row.doc);
+        else byTask.set(id, [row.doc]);
       }
       const found: { id: string; last: string; mine: string | null }[] = [];
       for (const [id, comments] of byTask) {
@@ -152,7 +163,8 @@ export function memorySource(state: State): Source {
         found.push({ id, last, mine: mine.length > 0 ? mine.reduce((a, b) => (b > a ? b : a)) : null });
       }
       found.sort((a, b) => before(b.last, a.last) || before(b.id, a.id));
-      return found.filter((thread) => found.findIndex((other) => other.last === thread.last) < o.limit);
+      const cut = found[o.limit - 1]?.last;
+      return cut === undefined ? found : found.filter((thread) => thread.last >= cut);
     },
 
     async counters() {
