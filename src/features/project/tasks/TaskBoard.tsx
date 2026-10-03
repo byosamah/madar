@@ -41,12 +41,15 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
   const starts = startsLater(row.task.startDate, todayISO(), row.task.status);
   return (
     // The grip and the Move menu cover only the top end of the card, so only the title keeps 96 px free and is tall enough to
-    // clear them. The due words stay on one line, and the waiting label gets a line of its own (audit 2026-10-03, F-13).
+    // clear them. The box of the title follows the page direction, so a Latin title in Arabic keeps the free space on the side
+    // of the buttons. The due words stay on one line, and the waiting label gets a line of its own (audit 2026-10-03, F-13).
     <div className={`surface flex flex-col gap-2 rounded-2xl p-3 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
-      <p dir="auto" className="min-h-8 pe-24 text-subheadline font-medium text-ink">
-        {row.task.title}
-        {versionOf(row.task) > 1 && <span title={t('tasks.versionLabel', { n: versionOf(row.task) })} className="tabular ms-2 rounded-full bg-fill-strong px-1.5 text-caption font-semibold text-ink-2">{t('tasks.versionBadge', { n: versionOf(row.task) })}</span>}
-      </p>
+      <div className="min-h-8 pe-24">
+        <p dir="auto" className="text-subheadline font-medium text-ink">
+          {row.task.title}
+          {versionOf(row.task) > 1 && <span title={t('tasks.versionLabel', { n: versionOf(row.task) })} className="tabular ms-2 rounded-full bg-fill-strong px-1.5 text-caption font-semibold text-ink-2">{t('tasks.versionBadge', { n: versionOf(row.task) })}</span>}
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-ink-2">
         {starts && <span className="tabular whitespace-nowrap">{startsText(row.task.startDate as string, t, lang)}</span>}
         {!starts && word && row.task.dueDate && <span className={`tabular whitespace-nowrap ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}

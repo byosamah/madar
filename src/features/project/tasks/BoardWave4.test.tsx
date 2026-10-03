@@ -26,9 +26,14 @@ describe('a board card', () => {
     await openBoard();
     const title = screen.getByText('Specifications draft');
     const card = cardOf('Specifications draft');
-    expect(title).toHaveClass('pe-24');
-    expect(title.parentElement).not.toHaveClass('pe-24');
-    const due = title.parentElement?.querySelector('span.tabular') as HTMLElement;
+    // The free space follows the page direction, not the direction of the title text, so a Latin title in Arabic stays
+    // clear of the buttons too.
+    const titleBox = title.parentElement as HTMLElement;
+    expect(titleBox).toHaveClass('pe-24');
+    expect(titleBox).not.toHaveAttribute('dir');
+    const face = titleBox.parentElement as HTMLElement;
+    expect(face).not.toHaveClass('pe-24');
+    const due = face.querySelector('span.tabular') as HTMLElement;
     expect(due.textContent).toMatch(/\d/);
     expect(due).toHaveClass('whitespace-nowrap');
     const waiting = card.getByText(/^Waiting for /);
