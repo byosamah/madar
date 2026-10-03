@@ -26,15 +26,22 @@ function trap(name: string) {
 }
 
 describe('a failed refresh keeps the screen (audit 2026-10-03, PRJ-1)', () => {
+  // A fixed wait can pass on broken code under load. These tests wait for a visible result of the same refresh (the flag on
+  // the other row), and record every route change from before the failure (audit 2026-10-03, V-9).
   it('keeps the task panel open with its typed text when tasks.get fails on a refresh', async () => {
     const fail = trap('tasks.get');
-    const { api } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
+    const { api, router } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.type(within(sheet).getByLabelText('Description'), ' DRAFT TEXT');
+    const flagsBefore = screen.queryAllByText('Flagged').length;
+    const searches: string[] = [];
+    const stop = router.subscribe((state) => searches.push(state.location.search));
     fail.state.armed = true;
     await api.call('tasks.update', { id: 'tsk_013', patch: { flagged: true } });
     await waitFor(() => expect(fail.state.hit).toBe(true));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('Flagged')).toHaveLength(flagsBefore + 1));
+    stop();
+    expect(searches.every((search) => search.includes('task=tsk_007'))).toBe(true);
     const still = screen.getByRole('dialog', { name: 'Stair details' });
     expect((within(still).getByLabelText('Description') as HTMLTextAreaElement).value).toContain('DRAFT TEXT');
   });
@@ -48,12 +55,17 @@ describe('a failed refresh keeps the screen (audit 2026-10-03, PRJ-1)', () => {
 
   it('keeps the project when projects.get fails on a refresh', async () => {
     const fail = trap('projects.get');
-    const { api } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
+    const { api, router } = await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', as('usr_002'), { failFirst: fail.match });
     await screen.findByRole('dialog', { name: 'Stair details' });
+    const flagsBefore = screen.queryAllByText('Flagged').length;
+    const searches: string[] = [];
+    const stop = router.subscribe((state) => searches.push(state.location.search));
     fail.state.armed = true;
     await api.call('tasks.update', { id: 'tsk_013', patch: { flagged: true } });
     await waitFor(() => expect(fail.state.hit).toBe(true));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('Flagged')).toHaveLength(flagsBefore + 1));
+    stop();
+    expect(searches.every((search) => search.includes('task=tsk_007'))).toBe(true);
     expect(screen.getByRole('dialog', { name: 'Stair details' })).toBeInTheDocument();
     expect(screen.queryByText('Project not found')).toBeNull();
   });
