@@ -200,10 +200,12 @@ export function MeetingView() {
   const lang = useLang();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  // A phone has no room for the timeline bars, so the meeting opens on the project screens there.
-  // A mode in the link still wins (browser audit 2026-10-03, BRW-18).
-  const firstMode = useIsPhone() ? 'projects' : 'timeline';
-  const mode = oneOf(params.get('mode'), MODES, firstMode);
+  // A phone has no room for the timeline bars, so the meeting opens on the project screens there (browser audit 2026-10-03, BRW-18).
+  // The bars got no width at all on a phone, so a phone offers the project screens only: the View choice hides, and a
+  // timeline link opens the project screens (audit 2026-10-03, F-5).
+  const isPhone = useIsPhone();
+  const firstMode = isPhone ? 'projects' : 'timeline';
+  const mode = isPhone ? 'projects' : oneOf(params.get('mode'), MODES, firstMode);
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const leader = params.get('leader') ?? '';
   const client = params.get('client') ?? '';
@@ -415,8 +417,9 @@ export function MeetingView() {
           </p>
         </div>
         <div role="group" aria-label={t('dashboard.meeting.controls')} className="flex flex-wrap items-center gap-2">
-          {/* The view switch does nothing while the summary covers the screen, so it hides there. Back is the one way back. */}
-          {!summaryOpen && (
+          {/* The view switch does nothing while the summary covers the screen, so it hides there. Back is the one way back.
+              A phone shows the project screens only, so it has no switch (audit 2026-10-03, F-5). */}
+          {!summaryOpen && !isPhone && (
             <SegmentedControl
               label={t('dashboard.meeting.mode')}
               value={mode}
@@ -438,13 +441,16 @@ export function MeetingView() {
             onChange={(next) => { setZoom(next); setShift(0); }}
             options={MEETING_ZOOMS.map((value) => ({ value, label: t(`dashboard.meeting.zooms.${value}`) }))}
           />
-          <Button aria-label={t(`dashboard.meeting.earlier.${step}`)} title={t(`dashboard.meeting.earlier.${step}`)} className="!px-3" onClick={() => setShift((n) => n - 1)}>
-            <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
-          </Button>
-          <Button onClick={() => setShift(0)}>{t('dashboard.meeting.today')}</Button>
-          <Button aria-label={t(`dashboard.meeting.later.${step}`)} title={t(`dashboard.meeting.later.${step}`)} className="!px-3" onClick={() => setShift((n) => n + 1)}>
-            <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
-          </Button>
+          {/* Earlier, Today and later wrap as one piece, so the two arrows never sit on two rows (audit 2026-10-03, F-5). */}
+          <div className="flex flex-nowrap items-center gap-2">
+            <Button aria-label={t(`dashboard.meeting.earlier.${step}`)} title={t(`dashboard.meeting.earlier.${step}`)} className="!px-3" onClick={() => setShift((n) => n - 1)}>
+              <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
+            </Button>
+            <Button onClick={() => setShift(0)}>{t('dashboard.meeting.today')}</Button>
+            <Button aria-label={t(`dashboard.meeting.later.${step}`)} title={t(`dashboard.meeting.later.${step}`)} className="!px-3" onClick={() => setShift((n) => n + 1)}>
+              <AnimatedIcon icon={ChevronRightIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
+            </Button>
+          </div>
           </>
           )}
           <Button variant="plain" onClick={exit}>{t('dashboard.meeting.exit')}</Button>
