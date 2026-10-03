@@ -63,9 +63,9 @@ describe('Retry keeps the steps of the call (audit 2026-10-03, SHL-10)', () => {
   }
 
   it('runs the per-call success step after a Retry, for an undoable change and a plain one', async () => {
-    // Call 0 is the first tick and call 3 the first move; the undoable tick also reads its changes (call 2).
+    // Call 0 is the first tick and call 2 the first move. The undoable tick sends one call: run() says whether it changed something.
     let calls = 0;
-    const fail = new Set([0, 3]);
+    const fail = new Set([0, 2]);
     await renderWithRuntime(<Both />, asFaisal, { failureRate: () => (fail.has(calls++) ? 1 : 0) });
     await userEvent.click(screen.getByText('Tick'));
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
@@ -129,13 +129,13 @@ describe('actions that change nothing', () => {
   });
 });
 
-describe('a change whose follow-up check fails', () => {
-  it('still offers Undo and reports no failure', async () => {
+describe('an Undo whose call fails', () => {
+  it('shows the error and keeps the change', async () => {
     const { store, api } = await renderWithRuntime(<Tick />, asFaisal);
     const original = api.call.bind(api);
     let failed = false;
     api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
-      if (name === 'events.list' && !failed) {
+      if (name === 'events.undoStory' && !failed) {
         failed = true;
         return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
       }
@@ -143,7 +143,73 @@ describe('a change whose follow-up check fails', () => {
     }) as typeof api.call;
     await userEvent.click(screen.getByText('Tick'));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    expect(screen.queryByText('Something went wrong. Try again.')).toBeNull();
-    await waitFor(() => expect(store.state.tasks.tsk_013.status).toBe('todo'));
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    expect(failed).toBe(true);
+    expect(store.state.tasks.tsk_013.status).toBe('done');
+  });
+});
+
+/** Records the names and idempotency keys of the calls, and fails the first call of each name in failFirstOf. */
+function recordCalls(api: { call: unknown }, failFirstOf: string[] = []) {
+  const seen: { name: string; key?: string }[] = [];
+  const failed = new Set<string>();
+  const original = (api.call as (n: string, i: unknown, m?: unknown) => Promise<unknown>).bind(api);
+  api.call = (name: string, input: unknown, meta?: { key?: string }) => {
+    seen.push({ name, key: meta?.key });
+    if (failFirstOf.includes(name) && !failed.has(name)) {
+      failed.add(name);
+      return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
+    }
+    return original(name, input, meta);
+  };
+  return seen;
+}
+
+describe('one call for each action (plan 4.10)', () => {
+  it('sends no second call to learn whether the action changed something', async () => {
+    const { api } = await renderWithRuntime(<Tick />, asFaisal);
+    const seen = recordCalls(api);
+    await userEvent.click(screen.getByText('Tick'));
+    expect(await screen.findByText('Task done.')).toBeInTheDocument();
+    expect(seen.map((c) => c.name)).toEqual(['tasks.complete']);
+  });
+});
+
+describe('idempotency keys (plan 4.10)', () => {
+  function Both() {
+    const complete = useUndoable('tasks.complete', { message: () => 'Task done.' });
+    const move = useAction('tasks.move');
+    return (
+      <>
+        <button type="button" onClick={() => complete.mutate({ id: 'tsk_013' })}>Tick</button>
+        <button type="button" onClick={() => move.mutate({ id: 'tsk_012', status: 'in_progress' })}>Move</button>
+      </>
+    );
+  }
+  const keysOf = (seen: { name: string; key?: string }[], name: string) => seen.filter((c) => c.name === name).map((c) => c.key);
+
+  it('sends the key of a failed attempt again only from Retry, for an undoable change and a plain one', async () => {
+    const { api } = await renderWithRuntime(<Both />, asFaisal);
+    const seen = recordCalls(api, ['tasks.complete', 'tasks.move']);
+    await userEvent.click(screen.getByText('Tick'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await screen.findByText('Task done.');
+    await userEvent.click(screen.getByText('Tick'));
+    await waitFor(() => expect(keysOf(seen, 'tasks.complete')).toHaveLength(3));
+    const [tickFailed, tickRetry, tickAgain] = keysOf(seen, 'tasks.complete');
+    expect(tickFailed).toMatch(/\S/);
+    expect(tickRetry).toBe(tickFailed);
+    expect(tickAgain).not.toBe(tickFailed);
+
+    await userEvent.click(screen.getByText('Move'));
+    const retries = await screen.findAllByRole('button', { name: 'Retry' });
+    await userEvent.click(retries.at(-1)!);
+    await waitFor(() => expect(keysOf(seen, 'tasks.move')).toHaveLength(2));
+    await userEvent.click(screen.getByText('Move'));
+    await waitFor(() => expect(keysOf(seen, 'tasks.move')).toHaveLength(3));
+    const [moveFailed, moveRetry, moveAgain] = keysOf(seen, 'tasks.move');
+    expect(moveFailed).toMatch(/\S/);
+    expect(moveRetry).toBe(moveFailed);
+    expect(moveAgain).not.toBe(moveFailed);
   });
 });

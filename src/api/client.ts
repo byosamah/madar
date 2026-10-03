@@ -44,9 +44,9 @@ function storyEvents(state: State, storyId: string): number {
 export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api<M> {
   const { store, latencyMs = 120, failureRate = () => 0, random = Math.random } = options;
 
-  // One async function for call() and run(), returned without an extra await, so call() resolves on the same tick as before
+  // call() returns this function's promise without an extra await, so it resolves on the same tick as before
   // (screen tests depend on that order).
-  async function invoke(name: string, rawInput: unknown, meta: CallMeta, full: boolean): Promise<unknown> {
+  async function invoke(name: string, rawInput: unknown, meta: CallMeta): Promise<unknown> {
     const def: AnyCall | undefined = calls[name];
     if (!def) throw new ApiError('not_found', `There is no call named ${name}.`);
     if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs));
@@ -57,19 +57,13 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
     if (!parsedMeta.success) throw invalidInput(parsedMeta.error);
     const actorId = store.state.session.currentUserId;
     const { actor, authority } = resolveAuthority(store.state, actorId, def);
-    const correlationId = parsedMeta.data.correlationId ?? `cor_${Date.now().toString(36)}${random().toString(36).slice(2, 8)}`;
+    const correlationId = parsedMeta.data.correlationId ?? newCorrelationId();
     const at = clockNow();
     const prepared = def.prepare
       ? await def.prepare(parsed.data, { state: store.state, persister: store.persister, actor, now: at })
       : undefined;
     const base = { actorId, authorityId: authority.id, correlationId, now: at, persistent: store.persistent };
-    let changed = false;
-    const execute = (state: State) => {
-      const before = def.readOnly ? 0 : storyEvents(state, correlationId);
-      const output = executeParsed(def, name, parsed.data, state, base, prepared);
-      changed = !def.readOnly && storyEvents(state, correlationId) > before;
-      return output;
-    };
+    const execute = (state: State) => executeParsed(def, name, parsed.data, state, base, prepared);
     const output = def.readOnly ? store.read(execute) : store.run(execute);
     // Work outside the state (removing stored file data) waits until the change is saved, so a closed tab never keeps a record
     // whose data is gone (review 2026-10-03).
@@ -77,15 +71,26 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
       await store.flush();
       await def.after(output, { state: store.state, persister: store.persister, actor, now: at }, prepared).catch(() => undefined);
     }
-    return full ? { output, storyId: correlationId, changed } : output;
+    return output;
   }
 
-  return {
+  function newCorrelationId(): string {
+    return `cor_${Date.now().toString(36)}${random().toString(36).slice(2, 8)}`;
+  }
+
+  const api: Api<M> = {
     call<N extends keyof M & string>(name: N, rawInput: z.input<M[N]['input']>, meta: CallMeta = {}): Promise<z.output<M[N]['output']>> {
-      return invoke(name, rawInput, meta, false) as Promise<z.output<M[N]['output']>>;
+      return invoke(name, rawInput, meta) as Promise<z.output<M[N]['output']>>;
     },
-    run<N extends keyof M & string>(name: N, rawInput: z.input<M[N]['input']>, meta: CallMeta = {}): Promise<CallResult<z.output<M[N]['output']>>> {
-      return invoke(name, rawInput, meta, true) as Promise<CallResult<z.output<M[N]['output']>>>;
+    // run() goes through api.call, so a test that stands in for call() (a failure, a record of the calls) also covers run().
+    // "changed": the call wrote at least one event under its story.
+    async run<N extends keyof M & string>(name: N, rawInput: z.input<M[N]['input']>, meta: CallMeta = {}): Promise<CallResult<z.output<M[N]['output']>>> {
+      const storyId = meta.correlationId ?? newCorrelationId();
+      const write = calls[name] !== undefined && !calls[name].readOnly;
+      const before = write ? storyEvents(store.state, storyId) : 0;
+      const output = await api.call(name, rawInput, { ...meta, correlationId: storyId });
+      return { output, storyId, changed: write && storyEvents(store.state, storyId) > before };
     },
   };
+  return api;
 }

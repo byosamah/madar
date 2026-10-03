@@ -2,11 +2,15 @@ import { useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput } from '../api/calls';
+import type { CallResult } from '../api/client';
 import { canRetry, errorMessage } from './errors';
-import { useRetryableMutate, useRuntime } from './runtime';
+import { useAttemptKeys, useRetryableMutate, useRuntime } from './runtime';
 import { useToast } from './toasts';
 
-/** A story ID for one action on screen. Every change the action makes carries it, so one Undo reverses them all. */
+/**
+ * A story ID for one action on screen. Every change the action makes carries it, so one Undo reverses them all.
+ * In the real build it is a placeholder: RemoteApi maps it to the story that the server makes (client map 2.4).
+ */
 export function newStoryId(): string {
   return `cor_ui_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -29,18 +33,16 @@ export function useUndoable<N extends CallName>(
   const latest = useRef(options);
   latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
-  const mutation = useMutation<{ output: CallOutput<N>; storyId: string }, unknown, CallInput<N>>({
+  const attempts = useAttemptKeys();
+  const mutation = useMutation<CallResult<CallOutput<N>>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
-    mutationFn: async (input) => {
-      const storyId = newStoryId();
-      return { output: await api.call(name, input, { correlationId: storyId }), storyId };
-    },
-    onSuccess: async ({ output, storyId }) => {
+    // run() returns the story that the call used (the server makes it in the real build) and whether it changed a record,
+    // so no second call is needed. A Retry sends the idempotency key of the failed attempt again (plan 4.10).
+    mutationFn: (input) => attempts.run(input, (key) => api.run(name, input, { key })),
+    onSuccess: ({ output, storyId, changed }) => {
       latest.current.onSuccess?.(output);
       // An action that changed nothing gets no toast: there is nothing to report and nothing to undo.
-      // When this check itself fails, the change still happened, so the toast and its Undo still show.
-      const changes = await api.call('events.list', { correlationId: storyId, limit: 1 }).catch(() => null);
-      if (changes?.length === 0) return;
+      if (!changed) return;
       toast.show({
         message: latest.current.message(output),
         action: {
@@ -63,7 +65,7 @@ export function useUndoable<N extends CallName>(
       });
     },
   });
-  const steps = useRetryableMutate(mutation.mutate);
+  const steps = useRetryableMutate(mutation.mutate, attempts);
   retry.current = steps.retry;
   return { ...mutation, mutate: steps.mutate };
 }
