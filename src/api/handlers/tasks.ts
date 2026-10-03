@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, UserId, type DateMove, type Task,
+  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
@@ -9,8 +9,9 @@ import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
 import { notify, reviewersOf } from '../notify';
+import { projectTouchesTeam } from '../pause';
 import { can } from '../permissions';
-import { nextId, taskTemplatesOf } from '../store';
+import { nextId, taskTemplatesOf, teamsOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
@@ -132,15 +133,22 @@ export const tasksList = defineCall({
     doneTo: Day.optional(),
     includeDone: z.boolean().default(true),
     activeProjectsOnly: z.boolean().default(true),
+    /**
+     * Only the tasks of the projects that this office team works on: the same rule as the Dashboard, so a number and the list it
+     * opens agree. A team that does not exist matches nothing (audit 2026-10-03, V-37a).
+     */
+    teamId: TeamId.optional(),
   }),
   output: z.array(TaskRow),
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
+    const team = input.teamId ? teamsOf(state)[input.teamId] : undefined;
     const tasks = Object.values(state.tasks).filter((task) => {
       const project = state.projects[task.projectId];
       if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
+      if (input.teamId && (team === undefined || !projectTouchesTeam(state, project, team.memberIds))) return false;
       if (projectId && task.projectId !== projectId) return false;
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;

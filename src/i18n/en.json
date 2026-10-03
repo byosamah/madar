@@ -1000,6 +1000,7 @@
     "overdue": "Past-due tasks",
     "flagged": "Flagged tasks",
     "forPerson": "Tasks of {{name}}",
+    "team": "Team: {{name}}",
     "dueRange": "Due {{from}} to {{to}}",
     "createdRange": "Created {{from}} to {{to}}",
     "doneRange": "Done {{from}} to {{to}}",

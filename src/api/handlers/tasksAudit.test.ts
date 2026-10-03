@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
-import { makeTask, NOW, testApi } from '../../test/factories';
-import { setNow } from '../../lib/dates';
+import { makeTask, NOW, testApi, TODAY } from '../../test/factories';
+import { addDays, setNow } from '../../lib/dates';
+import { buildSeed } from '../../data/seed';
 
 beforeEach(() => setNow(NOW));
 
@@ -159,5 +160,28 @@ describe('The status menu and the board follow the review rules (audit 2026-10-0
     await expect(t.api.call('tasks.move', { id: 'tsk_010', status: 'todo' })).rejects.toMatchObject({ details: { reason: 'review_send_back' } });
     expect(t.store.state.tasks.tsk_010.status).toBe('in_review');
     expect(Object.values(t.store.state.notifications)).toHaveLength(0);
+  });
+});
+
+describe('The Task list keeps the Team filter of the Dashboard (audit 2026-10-03, V-37a)', () => {
+  it('lists as many past-due tasks and deadlines as the Dashboard counts for each team', async () => {
+    const t = testApi(calls, await buildSeed(TODAY, async () => undefined));
+    const all = await t.api.call('tasks.list', { filter: 'overdue', includeDone: false });
+    let narrower = false;
+    for (const team of await t.api.call('teams.list', {})) {
+      const { tiles } = await t.api.call('dashboard.get', { teamId: team.id });
+      const tasks = await t.api.call('tasks.list', { filter: 'overdue', includeDone: false, teamId: team.id });
+      expect(tasks).toHaveLength(tiles.overdueTasks);
+      const deadlines = await t.api.call('deadlines.list', { from: TODAY, to: addDays(TODAY, 14), teamId: team.id });
+      expect(deadlines).toHaveLength(tiles.deadlinesNext14);
+      if (tasks.length < all.length) narrower = true;
+    }
+    expect(narrower).toBe(true);
+  });
+
+  it('lists nothing for a team that does not exist, like the Dashboard', async () => {
+    const t = testApi(calls, await buildSeed(TODAY, async () => undefined));
+    expect(await t.api.call('tasks.list', { teamId: 'tm_999' })).toEqual([]);
+    expect(await t.api.call('deadlines.list', { teamId: 'tm_999' })).toEqual([]);
   });
 });

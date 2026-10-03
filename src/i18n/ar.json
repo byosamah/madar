@@ -1119,6 +1119,7 @@
     "overdue": "مهام تجاوزت موعدها",
     "flagged": "المهام المميّزة",
     "forPerson": "مهام {{name}}",
+    "team": "فريق المكتب: {{name}}",
     "dueRange": "مستحقة من {{from}} إلى {{to}}",
     "createdRange": "أُنشئت من {{from}} إلى {{to}}",
     "doneRange": "أُنجزت من {{from}} إلى {{to}}",
