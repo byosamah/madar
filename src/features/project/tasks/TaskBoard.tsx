@@ -4,7 +4,7 @@ import {
 } from '@dnd-kit/core';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
-import { useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskStatus } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
@@ -137,7 +137,23 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
     useSensor(KeyboardSensor, { coordinateGetter: columnKeys }),
   );
   const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviews).includes(status);
-  const onDragEnd = ({ active, over, activatorEvent, delta }: DragEndEvent) => {
+  // The screen point of the pointer while a card is lifted. The delta of the drag end also counts the scroll of the board
+  // and the page since the drag began, so on a phone, where the board scrolls, it missed the column (audit 2026-10-03, F-9).
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!activeId) return undefined;
+    pointer.current = null;
+    const track = (event: PointerEvent) => {
+      pointer.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener('pointermove', track, true);
+    window.addEventListener('pointerup', track, true);
+    return () => {
+      window.removeEventListener('pointermove', track, true);
+      window.removeEventListener('pointerup', track, true);
+    };
+  }, [activeId]);
+  const onDragEnd = ({ active, over, activatorEvent }: DragEndEvent) => {
     setActiveId(null);
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
@@ -148,10 +164,10 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
     }
     // A closed column takes no drop, so the card went back with no visible reason. When the pointer let go over a closed
     // column, a toast says why and opens the review block (audit 2026-10-03, F-9). Only a card in review has closed columns.
-    const start = activatorEvent as Partial<PointerEvent>;
-    if (typeof start.clientX !== 'number' || typeof start.clientY !== 'number') return;
-    const x = start.clientX + delta.x;
-    const y = start.clientY + delta.y;
+    // A keyboard drag has no pointer point and cannot reach a closed column.
+    const at = pointer.current;
+    if (!at || typeof (activatorEvent as Partial<PointerEvent>).clientX !== 'number') return;
+    const { x, y } = at;
     const refused = BOARD_COLUMNS.some((status) => {
       const box = closedFor(row, status) ? board.current?.querySelector(`[data-column="${status}"]`)?.getBoundingClientRect() : undefined;
       return box !== undefined && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom; // rtl-ok: screen coordinates

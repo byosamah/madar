@@ -85,4 +85,40 @@ describe('a refused board drop', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open task' }));
     expect(await screen.findByRole('region', { name: 'Review' })).toBeInTheDocument();
   });
+
+  // On a phone the board scrolls while the card goes to the start edge. The delta of the drag end counts that scroll too,
+  // so the drop point missed To do and no reason showed (audit 2026-10-03, F-9).
+  it('says why after a drop on To do when the board scrolled during the drag', async () => {
+    await renderApp(TASKS, as('usr_002'));
+    await openBoard();
+    const card = screen.getByText('Toilet details').closest('li') as HTMLElement;
+    const board = screen.getByRole('region', { name: /^To do/ }).parentElement as HTMLElement;
+    // jsdom has no layout. The board scrolls by its style and its scrollLeft, and the columns move with the scroll.
+    let scroll = 500;
+    board.style.overflowX = 'auto';
+    Object.defineProperty(board, 'scrollLeft', { configurable: true, get: () => scroll, set: (value: number) => { scroll = value; } });
+    const box = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    const columns = ['todo', 'in_progress', 'in_review', 'done'];
+    const measure = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const at = columns.indexOf(this.getAttribute('data-column') ?? '');
+      if (at >= 0) return box(at * 250 - scroll, 0, 240, 600);
+      if (this === card) return box(505 - scroll, 60, 230, 80);
+      if (this === board) return box(0, 0, 390, 600);
+      return box(0, 0, 0, 0);
+    });
+    try {
+      // At the start To do is off the screen and the card is in view. The board then scrolls to its start, and the
+      // pointer lets go over To do.
+      fireEvent.pointerDown(card, { clientX: 100, clientY: 100, isPrimary: true, button: 0 });
+      fireEvent.pointerMove(document, { clientX: 90, clientY: 100 });
+      scroll = 0;
+      fireEvent.scroll(board);
+      fireEvent.pointerMove(document, { clientX: 120, clientY: 100 });
+      fireEvent.pointerUp(document, { clientX: 120, clientY: 100 });
+    } finally {
+      measure.mockRestore();
+    }
+    expect(await screen.findByText('This task is in review. Use Send back and write a note for the lead.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open task' })).toBeInTheDocument();
+  });
 });
