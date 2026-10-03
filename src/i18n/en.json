@@ -1038,6 +1038,7 @@
     "deactivated": "{{name}} deactivated.",
     "deactivateTitle": "Deactivate {{name}}?",
     "deactivateBody": "Their reviews go to the Admins, and nobody can give them new work.",
+    "deactivateBodyTasks": "Nobody can give them new work.",
     "deactivateLeads": "Projects they lead",
     "deactivateLeaderByAdmin": "An Admin changes the leader.",
     "deactivateTasks": "{{n}} open tasks",

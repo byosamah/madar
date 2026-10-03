@@ -82,7 +82,8 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
       title={t('admin.deactivateTitle', { name: user.name })}
-      description={t('admin.deactivateBody', { context })}
+      // Only a leader reviews, so a person who leads no live project reads only the part about new work (audit 2026-10-03, warn repair).
+      description={t(work.projects.length > 0 ? 'admin.deactivateBody' : 'admin.deactivateBodyTasks', { context })}
       footer={(
         <>
           {/* A double press must not turn the person off. Cancel takes the focus, and the confirm, with its own name, goes to

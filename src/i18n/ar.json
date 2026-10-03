@@ -1163,6 +1163,8 @@
     "deactivateTitle": "إيقاف حساب {{name}}؟",
     "deactivateBody": "تذهب المهام التي تنتظر مراجعته إلى مديري النظام، ولا يمكن لأحد أن يسند إليه عملًا جديدًا.",
     "deactivateBody_female": "تذهب المهام التي تنتظر مراجعتها إلى مديري النظام، ولا يمكن لأحد أن يسند إليها عملًا جديدًا.",
+    "deactivateBodyTasks": "لا يمكن لأحد أن يسند إليه عملًا جديدًا.",
+    "deactivateBodyTasks_female": "لا يمكن لأحد أن يسند إليها عملًا جديدًا.",
     "deactivateLeads": "المشاريع التي يقودها",
     "deactivateLeads_female": "المشاريع التي تقودها",
     "deactivateLeaderByAdmin": "مدير النظام هو من يغيّر القائد.",

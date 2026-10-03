@@ -44,6 +44,9 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     await pressDeactivate('Sara Al-Qahtani');
     const sheet = await screen.findByRole('dialog', { name: 'Deactivate Sara Al-Qahtani?' });
     expect(within(sheet).queryByRole('region', { name: 'Projects they lead' })).toBeNull();
+    // Only a leader reviews, so a person who leads nothing has no reviews to hand on.
+    expect(within(sheet).getByText('Nobody can give them new work.')).toBeInTheDocument();
+    expect(within(sheet).queryByText(/reviews/)).toBeNull();
     const open = within(sheet).getByRole('region', { name: '10 open tasks' });
     expect(within(open).getAllByRole('link')).toHaveLength(8);
     expect(within(open).getByText('2 more tasks')).toBeInTheDocument();
