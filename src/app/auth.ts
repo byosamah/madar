@@ -16,7 +16,13 @@ export interface AuthPort {
   accessToken(): Promise<string | null>;
   /** The link of an invitation or a reset email (the Welcome and Reset screens). */
   verifyLink(tokenHash: string, type: LinkType): Promise<void>;
+  /** Sets a password from the session of an invitation or reset link (the Welcome and Reset screens). */
   setPassword(password: string): Promise<void>;
+  /**
+   * Changes the password of the signed-in person (Settings, Password). Auth checks the current password itself, with the
+   * setting "require current password" on (proof.md Z0a, item 2). A wrong current password fails with the reason wrong_credentials.
+   */
+  changePassword(current: string, next: string): Promise<void>;
   /**
    * Asks for a password reset link (the Forgot screen). The Supabase version sends a POST with { email } to
    * `${VITE_API_URL}/auth/forgot?forceFunctionRegion=eu-central-1`. It gives the same answer for every address and never throws for an unknown one.
@@ -33,6 +39,7 @@ export function alwaysSignedIn(): AuthPort {
     accessToken: async () => null,
     verifyLink: async () => undefined,
     setPassword: async () => undefined,
+    changePassword: async () => undefined,
     requestReset: async () => undefined,
   };
 }

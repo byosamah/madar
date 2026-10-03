@@ -191,6 +191,34 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     }
   });
 
+  it('changes the password in one call that carries the current one, and signs in nowhere (proof.md Z0a, item 2)', async () => {
+    const stub = stubClient({ session: { access_token: 'token-1', user: { id: 'usr_001' } } });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    await auth.changePassword('old-pass-11', 'green-field-77');
+    // With "require current password" on, Auth refuses a new password without the current one. Auth checks it itself, so a
+    // sign-in to check it would only start a second session.
+    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', current_password: 'old-pass-11' });
+    expect(stub.client.auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(stub.steps).toEqual(['updateUser']);
+  });
+
+  it('names a wrong current password as a wrong password, and keeps the other refusals', async () => {
+    const cases: [unknown, string][] = [
+      [apiError('current_password_invalid'), 'wrong_credentials'],
+      [apiError('current_password_required'), 'wrong_credentials'],
+      [apiError('weak_password', 422), 'weak'],
+      [apiError('same_password', 422), 'same'],
+      [apiError('over_request_rate_limit', 429), 'too_many'],
+    ];
+    for (const [error, reason] of cases) {
+      const auth = await createSupabaseAuth(stubClient({ results: { updateUser: { error } } }).client, { apiUrl: 'https://api.test' });
+      await expect(auth.changePassword('old-pass-11', 'green-field-77')).rejects.toMatchObject({ reason });
+    }
+    // The Welcome and Reset screens set a password from a link session, with no current one: the same codes never mean a wrong password there.
+    const port = await createSupabaseAuth(stubClient({ results: { updateUser: { error: apiError('current_password_required') } } }).client, { apiUrl: 'https://api.test' });
+    await expect(port.setPassword('green-field-77')).rejects.toMatchObject({ reason: 'failed' });
+  });
+
   it('asks the Madar server for a reset link in Frankfurt and never says whether the email exists', async () => {
     const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
     const auth = await createSupabaseAuth(stubClient().client, { apiUrl: 'https://api.test/functions/v1/api/', fetch });

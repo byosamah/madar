@@ -10,10 +10,9 @@ import { useAuth } from '../auth/useAuth';
 import { SettingsSection as Section } from './Section';
 
 /**
- * Settings, Password (plan 5.1): the current and the new password. A sign-in with the current password checks it, then the new
- * one is set, and the other devices of the person sign out, as after a reset: a person may change the password because someone
- * else knows it. That also ends the session that the check started beside this one. The prototype has no sign-in, so the section
- * shows in the real build only.
+ * Settings, Password (plan 5.1): the current and the new password go to Auth in one change, and Auth checks the current one
+ * itself (proof.md Z0a, item 2). Then the other devices of the person sign out, as after a reset: a person may change the
+ * password because someone else knows it. The prototype has no sign-in, so the section shows in the real build only.
  */
 export function PasswordSection() {
   return REMOTE ? <PasswordForm /> : null;
@@ -30,7 +29,6 @@ function PasswordForm() {
   const [errors, setErrors] = useState<{ current?: string; next?: string }>({});
 
   const submit = async () => {
-    if (!email) return;
     if (next.length < MIN_PASSWORD) {
       setErrors({ next: t('auth.errors.short') });
       return;
@@ -38,21 +36,16 @@ function PasswordForm() {
     setPending(true);
     setErrors({});
     try {
-      await auth.signIn(email, current);
-    } catch (failure) {
-      setErrors({ current: reasonOf(failure) === 'wrong_credentials' ? t('auth.errors.wrongPassword') : failureText(failure, t) });
-      setPending(false);
-      return;
-    }
-    try {
-      await auth.setPassword(next);
+      await auth.changePassword(current, next);
       // The new password holds even when the other devices cannot be signed out now.
       await auth.signOut({ scope: 'others' }).catch(() => undefined);
       setCurrent('');
       setNext('');
       toast.show({ message: t('password.changed') });
     } catch (failure) {
-      setErrors({ next: failureText(failure, t) });
+      // A wrong current password shows under its own field; every other refusal is about the new one or the network.
+      if (reasonOf(failure) === 'wrong_credentials') setErrors({ current: t('auth.errors.wrongPassword') });
+      else setErrors({ next: failureText(failure, t) });
     }
     setPending(false);
   };

@@ -108,6 +108,15 @@ export function fakeAuth(o: {
       if (password === current.password) throw new AuthFailure('same');
       current.password = password;
     },
+    async changePassword(currentPassword, next) {
+      log.push('changePassword');
+      if (!current) throw new AuthFailure('failed');
+      // As Auth with "require current password" on: it checks the current password before it looks at the new one.
+      if (currentPassword !== current.password) throw new AuthFailure('wrong_credentials');
+      if (next.length < MIN_PASSWORD) throw new AuthFailure('short');
+      if (next === current.password) throw new AuthFailure('same');
+      current.password = next;
+    },
     async requestReset(email) {
       log.push('requestReset');
       resets.push(email);

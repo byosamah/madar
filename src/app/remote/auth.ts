@@ -25,6 +25,9 @@ function reasonFor(error: unknown, link = false): AuthFailureReason {
   return 'failed';
 }
 
+// Auth refuses a password change with no current password, or a wrong one, with these codes (supabase/auth, user.go).
+const CURRENT_PASSWORD_CODES = new Set(['current_password_invalid', 'current_password_required']);
+
 function fail(error: unknown, link = false): never {
   const message = error instanceof Error ? error.message : String(error);
   throw new AuthFailure(reasonFor(error, link), message);
@@ -99,6 +102,15 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
     async setPassword(password) {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) fail(error);
+    },
+    async changePassword(current, next) {
+      // One call: Auth checks the current password itself. A sign-in to check it first would start a second session, and with
+      // "require current password" on, an update without current_password fails (proof.md Z0a, item 2).
+      const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
+      if (!error) return;
+      const code = (error as { code?: string }).code ?? '';
+      if (CURRENT_PASSWORD_CODES.has(code)) throw new AuthFailure('wrong_credentials', error.message);
+      fail(error);
     },
     async requestReset(email) {
       let response: Response;
