@@ -293,3 +293,22 @@ describe('Management and people', () => {
     expect(t.store.state.users.usr_004.systemRole).toBe('admin');
   });
 });
+
+describe('the language of a new person (plan 4.13, A8; spec 2, section 10)', () => {
+  it('takes the language of the Admin who creates the person, when the form names none', async () => {
+    const t = testApi(peopleCalls);
+    t.as('usr_001');
+    expect((await t.api.call('users.create', { name: 'New One', email: 'one@madar.test', discipline: 'MEP' })).preferences.language).toBe('en');
+    t.store.state.users.usr_001.preferences.language = 'ar';
+    expect((await t.api.call('users.create', { name: 'New Two', email: 'two@madar.test', discipline: 'MEP' })).preferences.language).toBe('ar');
+  });
+
+  it('keeps an explicit language in preferences.language', async () => {
+    const t = testApi(peopleCalls);
+    t.as('usr_001');
+    const created = await t.api.call('users.create', { name: 'New Three', email: 'three@madar.test', discipline: 'MEP', language: 'ar' });
+    expect(created.preferences.language).toBe('ar');
+    expect(t.store.state.users[created.id].preferences.language).toBe('ar');
+    await expect(t.api.call('users.create', { name: 'New Four', email: 'four@madar.test', discipline: 'MEP', language: 'fr' } as never)).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+});
