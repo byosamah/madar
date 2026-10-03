@@ -3,7 +3,7 @@
 // The signing runs inside the z0a-probe function with the injected secret key, as the server adapter will. The bucket goes at the end.
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { decodeJwtPayload, parseContentDisposition } from './lib.ts';
 import { SUPABASE_URL, probe, report, sleep } from './cloud.ts';
 
