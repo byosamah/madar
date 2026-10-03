@@ -205,7 +205,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const back = useStageBack(detail.viewerCan.post);
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
-  const dates = useDateReason(() => setTimingKey((key) => key + 1));
+  const dates = useDateReason(() => setTimingKey((key) => key + 1), `dateReason:${task.id}`);
   // A failed or refused save puts the dates and the checklist back to the saved values; the toast still says why (audit 2026-10-03, PRJ-7).
   const [failures, setFailures] = useState(0);
   const update = useAction('tasks.update', {

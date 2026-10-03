@@ -20,6 +20,8 @@ type SheetProps = {
   footer?: ReactNode;
   /** One quiet action next to the title, for example Focus on the task panel. */
   headerAction?: ReactNode;
+  /** A required step: a press outside does not close it. Escape and the sheet's own buttons still do (audit 2026-10-03, F-16). */
+  keepOnOutsidePress?: boolean;
   children: ReactNode;
 };
 
@@ -160,7 +162,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet(props: SheetProps) {
-  const { open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, children } = props;
+  const { open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, keepOnOutsidePress = false, children } = props;
   const phone = useIsPhone();
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
   const direction = phone ? 'bottom' : rtl ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
@@ -207,7 +209,7 @@ export function Sheet(props: SheetProps) {
           // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
           // The toast can be gone from the page when Radix asks, so the check uses the press itself (audit 2026-10-03, V-11).
           onPointerDownOutside={(event) => {
-            if (isToastPress(event.detail.originalEvent)) event.preventDefault();
+            if (keepOnOutsidePress || isToastPress(event.detail.originalEvent)) event.preventDefault();
           }}
           // Escape in a "…" menu inside the sheet closes the menu only (audit 2026-10-03, SHL-1).
           onEscapeKeyDown={(event) => {
