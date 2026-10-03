@@ -25,6 +25,19 @@ describe('the Meeting view button', () => {
     await waitFor(() => expect(window.location.hash).toContain('/dashboard/meeting'));
     expect(window.location.hash).not.toContain('status=');
   });
+
+  // The exit goes back to the Schedule section, the one place that shows the status, so the next press keeps it (V-12 repair).
+  it('keeps the paused projects in the meeting after Escape and Meeting view again', async () => {
+    await renderApp('/dashboard?view=schedule&status=all');
+    await userEvent.click(await screen.findByRole('button', { name: 'Meeting view' }));
+    expect(within(await screen.findByRole('list', { name: 'Project timeline' })).getAllByText('Tamr Staff Housing').length).toBeGreaterThan(0);
+    await userEvent.keyboard('{Escape}');
+    expect(await screen.findByRole('tab', { name: 'Schedule' })).toHaveAttribute('aria-selected', 'true');
+    expect(window.location.hash).toContain('status=all');
+    await userEvent.click(screen.getByRole('button', { name: 'Meeting view' }));
+    expect(within(await screen.findByRole('list', { name: 'Project timeline' })).getAllByText('Tamr Staff Housing').length).toBeGreaterThan(0);
+    expect(window.location.hash).toContain('status=all');
+  });
 });
 
 describe('the meeting view', () => {

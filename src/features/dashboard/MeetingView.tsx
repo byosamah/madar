@@ -317,6 +317,9 @@ export function MeetingView() {
     const search = new URLSearchParams(params);
     search.delete('mode');
     search.delete('task');
+    // Only the Schedule section shows and keeps a status, so a meeting with a status goes back there.
+    // Another section drops the status from the next meeting (audit 2026-10-03, V-12 repair).
+    if (status !== 'active') search.set('view', 'schedule');
     navigate({ pathname: '/dashboard', search: search.toString() });
   };
   useEffect(() => {
