@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import type { Query } from '../core/ports';
-import { createOfficeCache, OFFICE_ROWS_SQL, userIdOfAuth } from '../data/officeCache';
+import { createOfficeCache, OFFICE_ROWS_SQL, setAuthUserId, userIdOfAuth } from '../data/officeCache';
 import { save } from '../data/save';
 import { loadWhole, writeState } from '../data/whole';
 import { recordingMeter } from '../test/fakes/meter';
@@ -115,12 +115,47 @@ describe('the office cache on the local database', () => {
     expect(Object.values(snapshot.lists.clients)[0].name).toBe('Client renamed');
   });
 
-  it('gives frozen objects, and finds a user by auth_user_id', async () => {
-    await db.query("update users set auth_user_id = '00000000-0000-4000-8000-000000000001' where id = 'usr_002'");
-    const snapshot = await inTx('read', () => createOfficeCache().read(deps, q));
+  it('never serves the rows of a transaction that rolled back, when a later commit reuses its version number', async () => {
+    const cache = createOfficeCache();
+    const warm = await inTx('read', () => cache.read(deps, q));
+    await db.query('begin');
+    try {
+      const before = await loadWhole(q, { today: TODAY });
+      const after = structuredClone(before);
+      after.projects.prj_003.name = 'Rolled back';
+      await save(q, before, after, { story: STORY });
+      // The same transaction reads the cache after its own save, as an effect builder of runCall may.
+      const inside = await cache.read(deps, q);
+      expect(inside.version).toBe(warm.version + 1);
+      expect(inside.lists.projects.prj_003.name).toBe('Rolled back');
+    } finally {
+      await db.query('rollback');
+    }
+    expect(cache.version()).toBe(warm.version);
+    await change((state) => {
+      state.projects.prj_004.name = 'Committed instead';
+    });
+    const later = await inTx('read', () => cache.read(deps, q));
+    expect(later.version).toBe(warm.version + 1);
+    expect(later.lists.projects.prj_003.name).toBe(warm.lists.projects.prj_003.name);
+    expect(later.lists.projects.prj_004.name).toBe('Committed instead');
+  });
+
+  it('gives frozen objects, and a warm cache finds a sign-in link that setAuthUserId writes and drops a link it clears', async () => {
+    const auth = '00000000-0000-4000-8000-000000000001';
+    const cache = createOfficeCache();
+    const warm = await inTx('read', () => cache.read(deps, q));
     expect(() => {
-      (snapshot.lists.users.usr_002 as { name: string }).name = 'Changed';
+      (warm.lists.users.usr_002 as { name: string }).name = 'Changed';
     }).toThrow(TypeError);
-    expect(userIdOfAuth(snapshot, '00000000-0000-4000-8000-000000000001')).toBe('usr_002');
+    expect(userIdOfAuth(warm, auth)).toBeUndefined();
+    expect(await inTx('write', () => setAuthUserId(q, 'usr_002', auth))).toBe(true);
+    const linked = await inTx('read', () => cache.read(deps, q));
+    expect(refreshes.at(-1)).toEqual({ above: warm.version, rows: 1 });
+    expect(userIdOfAuth(linked, auth)).toBe('usr_002');
+    await inTx('write', () => setAuthUserId(q, 'usr_002', null));
+    const cleared = await inTx('read', () => cache.read(deps, q));
+    expect(userIdOfAuth(cleared, auth)).toBeUndefined();
+    expect(cleared.lists.users.usr_002).toEqual(warm.lists.users.usr_002);
   });
 });

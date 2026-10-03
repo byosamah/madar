@@ -11,8 +11,15 @@ import { tableOf } from './tables';
  *   lock. The same version gives the cached snapshot. A newer version loads only the office rows with "chg" above the cached
  *   version, and the office_deletes rows above it. Every office row comes in one statement (union all), so a refresh is one round
  *   trip.
- * - The cache holds only rows it read from the database, so it holds only committed data, or the data of the open transaction that
- *   read it. A call's own change reaches the cache on a later request, through the version.
+ * - The cache holds only committed data. office_meta tells it when the open transaction that reads it wrote the office_meta row
+ *   itself ("own"): the cache then builds the snapshot for that read from what it holds, but never keeps it, because the
+ *   transaction may still roll back and another commit may then reuse the same version number. A call's own change reaches the
+ *   cache on a later request, through the version. "own" compares the row's xmin with the top-level transaction id, so a write
+ *   of office_meta inside a savepoint is not seen as own: runCall uses no savepoint around the save step.
+ * - The rule for every write of an office table: it raises office_meta.version and sets "chg" of each row it writes to the new
+ *   version, in the same transaction, and records a deleted row in office_deletes. save.ts does this for the calls. A write
+ *   outside save.ts must do the same, or a warm cache never sees it. For the sign-in link (users.auth_user_id, written by the
+ *   auth.invite effect of track P and every later change of the link), that write is setAuthUserId below, and nothing else.
  * - A full load runs on a cold start, and when the cache may have missed a delete: the job keeps office_deletes rows for
  *   OFFICE_DELETES_KEEP_DAYS, so a cache that was last known current more than KEEP_DAYS - 1 days ago (by the database clock)
  *   loads everything again.
@@ -37,7 +44,25 @@ export type OfficeCache = {
   clear(): void;
 };
 
-const META_SQL = 'select version, now() as at from office_meta';
+/**
+ * The version, the database clock, and "own": true when the open transaction wrote this office_meta row (its xmin is the
+ * transaction's own id; pg_current_xact_id_if_assigned is null in a transaction that wrote nothing).
+ */
+export const META_SQL =
+  "select version, now() as at, coalesce(xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296), false) as own from office_meta";
+
+/**
+ * The one statement that writes the sign-in link of a person (plan 5.1): it raises office_meta.version and gives the users row
+ * that version as "chg", so every warm cache loads the row again (the rule in the file comment). The row lock on office_meta keeps
+ * the version order equal to the commit order. $2 null clears the link.
+ */
+export const AUTH_LINK_SQL =
+  'with v as (update office_meta set version = version + 1 returning version) update users set auth_user_id = $2::uuid, chg = (select version from v) where id = $1 returning id';
+
+/** Writes (or with null clears) the auth.users id of a Madar user. False when no user has that id. */
+export async function setAuthUserId(q: Query, userId: string, authUserId: string | null): Promise<boolean> {
+  return (await q<{ id: string }>(AUTH_LINK_SQL, [userId, authUserId])).length > 0;
+}
 
 /**
  * Every office row with "chg" above $1, in one statement: the collection, the key, the insertion order, the doc, and the
@@ -97,7 +122,8 @@ export function createOfficeCache(o: { keepMs?: number } = {}): OfficeCache {
     return { rows, deletes };
   }
 
-  async function refresh(deps: OfficeCacheDeps, q: Query, version: number, at: number): Promise<OfficeSnapshot> {
+  /** own: the reading transaction wrote office_meta, so the snapshot is for this read only and the cache keeps what it held. */
+  async function refresh(deps: OfficeCacheDeps, q: Query, version: number, at: number, own: boolean): Promise<OfficeSnapshot> {
     const from = cached && cached.version < version && at - cached.syncedAt <= keepMs ? cached : undefined;
     const tables: Tables = new Map(OFFICE_COLLECTIONS.map((c) => [c, new Map(from?.tables.get(c))]));
     const { rows, deletes } = await rowsAbove(deps, q, from ? from.version : -1);
@@ -106,22 +132,23 @@ export function createOfficeCache(o: { keepMs?: number } = {}): OfficeCache {
     for (const gone of deletes) tables.get(byTable.get(gone.tbl)!)?.delete(gone.id);
     for (const row of rows) tables.get(row.c)!.set(row.id, { ord: Number(row.ord), doc: row.doc, auth: row.auth });
     const snapshot = build(tables, version);
-    cached = { version, syncedAt: at, tables, snapshot };
+    if (!own) cached = { version, syncedAt: at, tables, snapshot };
     return snapshot;
   }
 
   const cache: OfficeCache = {
     async read(deps, q) {
       if (!q) return deps.db.tx('read', (inner) => cache.read(deps, inner));
-      const [meta] = await q<{ version: string | number; at: Date | string }>(META_SQL);
+      const [meta] = await q<{ version: string | number; at: Date | string; own: boolean | null }>(META_SQL);
       const version = Number(meta.version);
       const at = new Date(meta.at).getTime();
-      if (cached && cached.version === version) {
+      const own = meta.own === true;
+      if (!own && cached && cached.version === version) {
         // Still current at this time, so no delete above the version happened before it.
         if (at > cached.syncedAt) cached.syncedAt = at;
         return cached.snapshot;
       }
-      return refresh(deps, q, version, at);
+      return refresh(deps, q, version, at, own);
     },
     version: () => cached?.version ?? null,
     clear() {

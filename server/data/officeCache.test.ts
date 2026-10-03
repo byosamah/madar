@@ -3,7 +3,7 @@ import { emptyState, type State } from '../../src/api/store';
 import type { Db, Query } from '../core/ports';
 import { OFFICE_COLLECTIONS } from '../core/types';
 import { recordingMeter } from '../test/fakes/meter';
-import { createOfficeCache, OFFICE_DELETES_KEEP_DAYS, OFFICE_DELETES_SQL, OFFICE_ROWS_SQL, readOffice, snapshotOf, userIdOfAuth } from './officeCache';
+import { AUTH_LINK_SQL, createOfficeCache, META_SQL, OFFICE_DELETES_KEEP_DAYS, OFFICE_DELETES_SQL, OFFICE_ROWS_SQL, readOffice, setAuthUserId, snapshotOf, userIdOfAuth } from './officeCache';
 import { tableOf } from './tables';
 
 /**
@@ -21,6 +21,8 @@ function fakeOffice() {
     rows: [] as Row[],
     deletes: [] as { tbl: string; id: string; chg: number }[],
     ord: 0,
+    /** True while the office_meta row that the fake gives was written by the open transaction of the reader. */
+    own: false,
     asked: [] as { sql: string; values?: unknown[] }[],
     /** One save: the rows it writes and the rows it deletes get the next version, as the save step does (plan 4.7). */
     save(write: { c: string; doc: Record<string, unknown>; auth?: string }[], remove: { c: string; id: string }[] = []) {
@@ -39,7 +41,13 @@ function fakeOffice() {
   };
   const q: Query = async <R,>(sql: string, values?: unknown[]) => {
     db.asked.push({ sql, values });
-    if (sql.startsWith('select version, now()')) return [{ version: String(db.version), at: new Date(db.now) }] as R[];
+    if (sql === META_SQL) return [{ version: String(db.version), at: new Date(db.now), own: db.own }] as R[];
+    if (sql === AUTH_LINK_SQL) {
+      db.version += 1;
+      const row = db.rows.find((r) => r.c === 'users' && r.id === values![0]);
+      if (row) Object.assign(row, { auth: values![1], chg: db.version });
+      return (row ? [{ id: row.id }] : []) as R[];
+    }
     if (sql === OFFICE_ROWS_SQL) {
       const above = Number(values![0]);
       return db.rows.filter((row) => row.chg > above).map((row) => ({ c: row.c, id: row.id, ord: String(row.ord), doc: structuredClone(row.doc), auth: row.auth })) as R[];
@@ -157,6 +165,41 @@ describe('the office cache', () => {
     const snapshot = await cache.read(deps, q);
     expect(Object.keys(snapshot.lists.projects)).toEqual(['prj_001', 'prj_002']);
     expect(rowsAsked()).toEqual([-1, -1]);
+  });
+
+  it('never keeps a snapshot that its own open transaction wrote, so a rolled-back change is not served when a commit reuses its version', async () => {
+    const { db, q } = seeded();
+    const cache = createOfficeCache();
+    await cache.read(deps, q);
+    // Transaction T1 saves a change (version 2) and reads the cache inside the same transaction.
+    db.save([{ c: 'projects', doc: project('prj_003', 'Tried') }]);
+    db.own = true;
+    expect(Object.keys((await cache.read(deps, q)).lists.projects)).toContain('prj_003');
+    expect(cache.version()).toBe(1);
+    // T1 rolls back. Another isolate commits a different change, which gets version 2 too.
+    db.own = false;
+    db.version = 1;
+    db.rows = db.rows.filter((row) => row.id !== 'prj_003');
+    db.save([{ c: 'projects', doc: project('prj_002', 'Villa committed') }]);
+    const snapshot = await cache.read(deps, q);
+    expect(Object.keys(snapshot.lists.projects)).toEqual(['prj_001', 'prj_002']);
+    expect(snapshot.lists.projects.prj_002.name).toBe('Villa committed');
+  });
+
+  it('a warm cache finds a sign-in link that setAuthUserId writes, and drops a link it clears', async () => {
+    const { q } = seeded();
+    const cache = createOfficeCache();
+    const first = await cache.read(deps, q);
+    expect(userIdOfAuth(first, 'auth-2')).toBeUndefined();
+    expect(await setAuthUserId(q, 'usr_002', 'auth-2')).toBe(true);
+    const linked = await cache.read(deps, q);
+    expect(linked.version).toBe(first.version + 1);
+    expect(userIdOfAuth(linked, 'auth-2')).toBe('usr_002');
+    await setAuthUserId(q, 'usr_001', null);
+    const cleared = await cache.read(deps, q);
+    expect(userIdOfAuth(cleared, 'auth-1')).toBeUndefined();
+    expect(userIdOfAuth(cleared, 'auth-2')).toBe('usr_002');
+    expect(await setAuthUserId(q, 'usr_404', 'auth-9')).toBe(false);
   });
 
   it('gives frozen objects: a write into the cache throws', async () => {
