@@ -58,11 +58,42 @@ describe('the fake server calls', () => {
     const first = await t.api.call('files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
     expect(first).toMatchObject({ name: 'plan.pdf', mimeType: 'application/pdf', size: 5, expiresAt: TEN_MINUTES_LATER });
     expect(first.url).toMatch(/^blob:/);
-    const again = await t.api.call('files.link', { id: file.file.id, letter: 'A', variant: 'thumb', disposition: 'attachment' });
+    const again = await t.api.call('files.link', { id: file.file.id, letter: 'A', variant: 'thumb', disposition: 'inline' });
     expect(again.url).toBe(first.url);
     expect(make).toHaveBeenCalledTimes(1);
     await expect(t.api.call('files.link', { id: 'fil_404', variant: 'full', disposition: 'inline' })).rejects.toMatchObject({ code: 'not_found' });
     await expect(t.api.call('files.link', { id: file.file.id, letter: 'Z', variant: 'full', disposition: 'inline' })).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('files.link never opens a page or a drawing that can run a script: those types and every attachment link are download-only data (plan 5.2)', async () => {
+    const types: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      types.push((blob as Blob).type);
+      return `blob:madar-test/${types.length}`;
+    });
+    const t = testApi(CALLS);
+    t.as('usr_003');
+    const link = async (name: string, type: string, disposition: 'inline' | 'attachment') => {
+      const stored = await t.api.call('files.upload', { projectId: 'prj_001', name, blob: new Blob(['<x/>'], { type }) });
+      return t.api.call('files.link', { id: stored.file.id, variant: 'full', disposition });
+    };
+    const risky = [
+      ['page.html', 'text/html'], ['page2.html', 'TEXT/HTML; charset=utf-8'], ['logo.svg', 'image/svg+xml'],
+      ['page.xhtml', 'application/xhtml+xml'], ['data.xml', 'text/xml'], ['data2.xml', 'application/xml'], ['feed.atom', 'application/atom+xml'],
+    ];
+    for (const [name, type] of risky) {
+      const out = await link(name, type, 'inline');
+      // The screen still learns the stored type; only the data in the link cannot render.
+      expect(out.mimeType).toBe(type.toLowerCase());
+    }
+    expect(types).toEqual(risky.map(() => 'application/octet-stream'));
+
+    types.length = 0;
+    const plan = await t.api.call('files.upload', { projectId: 'prj_001', name: 'plan.pdf', blob: pdf('rev A') });
+    const view = await t.api.call('files.link', { id: plan.file.id, variant: 'full', disposition: 'inline' });
+    const save = await t.api.call('files.link', { id: plan.file.id, variant: 'full', disposition: 'attachment' });
+    expect(types).toEqual(['application/pdf', 'application/octet-stream']);
+    expect(save.url).not.toBe(view.url);
   });
 
   it('feedback.uploadStart gives one upload for each screenshot, up to three pictures of 10 MB', async () => {

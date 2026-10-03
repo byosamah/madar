@@ -3,6 +3,7 @@ import { MAX_FILE_BYTES, type FileVersion, type User } from '../contract/entitie
 import { FREE_PLAN_LIMITS, UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contract/server';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
+import { can, projectRoleOf } from '../permissions';
 import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn } from './shared';
 
@@ -19,8 +20,15 @@ function fakePut(uploadId: string, mimeType: string, now: Date): SignedPut {
 
 const uploadId = () => `upl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
-/** One blob: URL for each stored key, kept for the life of the page, so a list of pictures never makes a URL for each draw. */
+/** One blob: URL for each stored key and type, kept for the life of the page, so a list of pictures never makes a URL for each draw. */
 const blobUrls = new Map<string, string>();
+
+/** The type of the data in a link. A blob: URL runs on the app's own origin, so a page, a drawing, every XML type and every download stay plain data (plan 5.2). */
+export function linkType(mimeType: string, disposition: 'inline' | 'attachment'): string {
+  const type = mimeType.split(';')[0].trim().toLowerCase();
+  const runs = type === 'text/html' || type === 'image/svg+xml' || type === 'application/xhtml+xml' || type === 'text/xml' || type === 'application/xml' || type.endsWith('+xml');
+  return disposition === 'inline' && !runs ? type : 'application/octet-stream';
+}
 
 const storyStart = defineCall({
   ...c['story.start'],
@@ -52,21 +60,25 @@ const filesLink = defineCall({
   async prepare(input, p): Promise<{ url: string; version: FileVersion }> {
     const file = p.state.files[input.id];
     if (!file) throw notFound('File', input.id);
+    // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3).
+    if (!can(p.actor, 'project.view', { projectRole: projectRoleOf(p.state, file.projectId, p.actor.id) })) throw forbidden('You cannot do this.', { action: 'project.view' });
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
-    let url = blobUrls.get(key);
+    const type = linkType(version.mimeType, input.disposition);
+    let url = blobUrls.get(`${key}|${type}`);
     if (!url) {
       const blob = await p.persister.getBlob(key);
       if (!blob) throw notFound('File data', key);
-      url = URL.createObjectURL(blob);
-      blobUrls.set(key, url);
+      url = URL.createObjectURL(blob.type === type ? blob : new Blob([blob], { type }));
+      blobUrls.set(`${key}|${type}`, url);
     }
     return { url, version };
   },
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
+    assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };
   },
