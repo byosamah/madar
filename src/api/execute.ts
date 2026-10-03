@@ -21,7 +21,8 @@ export function resolveAuthority(state: State, actorId: string, def: AnyCall): {
   throw new ApiError('forbidden', 'This agent has no active person to act for.');
 }
 
-export type ExecuteBase = { actorId: string; authorityId: string; correlationId: string; now: Date; persistent: boolean };
+/** wireOutput: the server checks the output in its wire form (def.wire.output), for a call whose answer differs on the wire. */
+export type ExecuteBase = { actorId: string; authorityId: string; correlationId: string; now: Date; persistent: boolean; wireOutput?: boolean };
 
 /** Runs a call on input that already passed its input check. The output is checked inside the change, so a wrong shape rolls it back. */
 export function executeParsed(def: AnyCall, name: string, parsed: unknown, state: State, base: ExecuteBase, prepared: unknown): unknown {
@@ -29,7 +30,7 @@ export function executeParsed(def: AnyCall, name: string, parsed: unknown, state
     state, actor: state.users[base.actorId], authority: state.users[base.authorityId], correlationId: base.correlationId,
     stamp: nowStamp(base.now), today: todayISO(base.now), now: base.now, persistent: base.persistent,
   }, prepared);
-  const output = def.output.safeParse(result);
+  const output = (base.wireOutput ? (def.wire?.output ?? def.output) : def.output).safeParse(result);
   if (!output.success) throw new ApiError('failed', `The call ${name} returned data in the wrong shape.`, { issues: output.error.issues.length });
   return output.data;
 }

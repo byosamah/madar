@@ -36,6 +36,8 @@ export const sessionGet = defineCall({
   input: Empty,
   output: z.object({
     user: User, authority: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
+    /** The real build: the file limit of the active file store, so the screens check before an upload (plan 2b, point 1). */
+    limits: z.object({ maxFileBytes: z.number().int().positive() }).optional(),
   }),
   readOnly: true,
   prototypeOnly: true,

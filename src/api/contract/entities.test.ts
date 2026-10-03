@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Comment, Project, Stamp, TRIGGERS, User, defaultPreferences, emptyReactions } from './entities';
+import { Comment, Event, FileVersion, MAX_FILE_BYTES, Preferences, Project, Stamp, TRIGGERS, User, defaultPreferences, emptyReactions } from './entities';
 
 const user = {
   id: 'usr_001', name: 'Hala Nasser', email: 'hala@madar.test', avatarUrl: null, kind: 'human',
@@ -48,5 +48,37 @@ describe('entity schemas', () => {
   it('checks project codes', () => {
     expect(Project.safeParse(project).success).toBe(true);
     expect(Project.safeParse({ ...project, code: 'kh-26-014' }).success).toBe(false);
+  });
+
+  // The real build adds optional fields (plan, T0.3). Records saved before them must still parse, unchanged.
+  describe('the real build fields', () => {
+    const event = {
+      id: 'evt_002', seq: 2, projectId: null, actorId: 'usr_001', actorKind: 'human', actingForId: 'usr_001', correlationId: 'cor_x',
+      verb: 'task.updated', targetType: 'task', targetId: 'tsk_001', before: null, after: null, createdAt: '2026-09-30T09:00:00.000+03:00', undoneBy: null,
+    };
+    const version = { letter: 'A', blobKey: 'blob_1', mimeType: 'image/png', size: 10, uploadedBy: 'usr_001', uploadedAt: '2026-09-30T09:00:00.000+03:00' };
+
+    it('parses old records without the new fields and adds nothing', () => {
+      expect(Event.parse(event)).toEqual(event);
+      expect(FileVersion.parse(version)).toEqual(version);
+      expect(Preferences.parse(defaultPreferences())).toEqual(defaultPreferences());
+      expect('email' in defaultPreferences()).toBe(false);
+      expect('morningSummary' in defaultPreferences()).toBe(false);
+    });
+
+    it('parses the undo link, the email switches, the morning summary and the thumbnail key', () => {
+      expect(Event.parse({ ...event, undoes: 'evt_001' }).undoes).toBe('evt_001');
+      expect(Event.safeParse({ ...event, undoes: 'cor_1' }).success).toBe(false);
+      const prefs = { ...defaultPreferences(), email: { task_assigned: true, mention: false }, morningSummary: false };
+      expect(Preferences.parse(prefs)).toEqual(prefs);
+      expect(Preferences.safeParse({ ...defaultPreferences(), email: { not_a_trigger: true } }).success).toBe(false);
+      expect(FileVersion.parse({ ...version, thumbKey: 'prj-001/fil-001/1/thumb' }).thumbKey).toBe('prj-001/fil-001/1/thumb');
+    });
+
+    it('allows files up to 250 MB, the absolute ceiling', () => {
+      expect(MAX_FILE_BYTES).toBe(250 * 1024 * 1024);
+      expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES }).success).toBe(true);
+      expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES + 1 }).success).toBe(false);
+    });
   });
 });

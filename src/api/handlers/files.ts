@@ -56,26 +56,39 @@ export const filesGet = defineCall({
   },
 });
 
+/** The fields of an upload that both forms share. */
+const UploadFields = z.object({
+  projectId: ProjectId,
+  name: z.string().trim().min(1).max(200),
+  stageId: StageId.nullable().default(null),
+  taskId: TaskId.nullable().default(null),
+  asCover: z.boolean().default(false),
+  /** The client sent this file: the upload also logs a File entry on the tracker. */
+  receivedFromClient: z.boolean().default(false),
+});
+
+/**
+ * What run() needs from the stored data. The prototype makes it from the blob in "prepare"; the real build makes it from the upload intent
+ * in its server prepare hook (plan 5.2).
+ */
+export type UploadPrepared = { blobKey: string; size: number; mimeType: string; thumbKey?: string };
+
 export const filesUpload = defineCall({
-  input: z
-    .object({
-      projectId: ProjectId,
-      name: z.string().trim().min(1).max(200),
-      blob: z.instanceof(Blob),
-      stageId: StageId.nullable().default(null),
-      taskId: TaskId.nullable().default(null),
-      asCover: z.boolean().default(false),
-      /** The client sent this file: the upload also logs a File entry on the tracker. */
-      receivedFromClient: z.boolean().default(false),
-    })
-    .refine((value) => value.blob.size <= MAX_FILE_BYTES, { path: ['blob'], message: 'Files must be 25 MB or smaller.' }),
+  // The screens send the blob (prototype) or an upload ID from files.uploadStart (real build): exactly one (plan 5.2).
+  input: UploadFields.extend({ blob: z.instanceof(Blob).optional(), uploadId: z.string().min(1).max(80).optional() })
+    .refine((value) => value.blob !== undefined || value.uploadId !== undefined, { path: ['blob'], message: 'Choose a file.' })
+    .refine((value) => value.blob === undefined || value.uploadId === undefined, { path: ['uploadId'], message: 'Send the file or its upload, not both.' })
+    .refine((value) => value.blob === undefined || value.blob.size <= MAX_FILE_BYTES, { path: ['blob'], message: 'Files must be 250 MB or smaller.' }),
   output: FileView,
-  async prepare(input, p) {
+  wire: { input: UploadFields.extend({ uploadId: z.string().min(1).max(80) }).strict() },
+  async prepare(input, p): Promise<UploadPrepared> {
+    // The prototype keeps the data in this browser, so it has no uploads to confirm.
+    if (input.uploadId !== undefined || !input.blob) throw invalid('uploadId', 'Send the file itself.');
     // The cover must be a picture, as in projects.update. The check comes before the data is stored (audit 2026-10-03, API-16).
     if (input.asCover && !input.blob.type.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
     const blobKey = `blob_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     await p.persister.putBlob(blobKey, input.blob);
-    return { blobKey };
+    return { blobKey, size: input.blob.size, mimeType: input.blob.type || 'application/octet-stream' };
   },
   run(input, ctx, prepared) {
     const project = requireProject(ctx, input.projectId);
@@ -84,9 +97,10 @@ export const filesUpload = defineCall({
     if (input.asCover) assertCan(ctx, 'project.edit', { projectRole: role });
     if (input.stageId) requireStage(ctx, project.id, input.stageId);
     if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
+    if (input.asCover && !prepared.mimeType.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
     const version: Version = {
-      letter: 'A', blobKey: prepared.blobKey, mimeType: input.blob.type || 'application/octet-stream', size: input.blob.size,
-      uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp,
+      letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
+      uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
     };
     const same = Object.values(ctx.state.files).find((f) => f.projectId === project.id && f.name.toLowerCase() === input.name.toLowerCase());
     let file: FileRec;

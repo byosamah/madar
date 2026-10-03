@@ -54,4 +54,18 @@ describe('executeParsed', () => {
     expect(() => executeParsed(wrongShape, 'test.wrong', {}, state, { actorId: 'usr_001', authorityId: 'usr_001', correlationId: 'cor_x', now: at, persistent: true }, undefined))
       .toThrow(expect.objectContaining({ code: 'failed' }));
   });
+
+  it('checks the wire output on the server, when the call has one', () => {
+    const linked = defineCall({
+      input: z.object({}),
+      output: z.object({ blob: z.instanceof(Blob) }),
+      wire: { output: z.object({ url: z.string() }) },
+      run: () => ({ url: 'https://files.example/x' }) as unknown as { blob: Blob },
+    });
+    const base = { actorId: 'usr_001', authorityId: 'usr_001', correlationId: 'cor_x', now: at, persistent: true };
+    expect(executeParsed(linked, 'test.linked', {}, makeWorld(), { ...base, wireOutput: true }, undefined)).toEqual({ url: 'https://files.example/x' });
+    expect(() => executeParsed(linked, 'test.linked', {}, makeWorld(), base, undefined)).toThrow(expect.objectContaining({ code: 'failed' }));
+    expect(executeParsed(whoami, 'test.whoami', {}, makeWorld(), { ...base, wireOutput: true }, 'p')).toMatchObject({ got: 'p' });
+  });
 });
+

@@ -1,4 +1,6 @@
-export type ApiErrorCode = 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'failed';
+/** "unauthenticated" is for the real build: no valid sign-in, or a person whose account is off (client map 2.3). */
+export const API_ERROR_CODES = ['invalid_input', 'forbidden', 'not_found', 'conflict', 'failed', 'unauthenticated'] as const;
+export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
 export class ApiError extends Error {
   readonly code: ApiErrorCode;

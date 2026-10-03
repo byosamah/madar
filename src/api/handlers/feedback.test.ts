@@ -37,4 +37,27 @@ describe('feature requests and bug reports (owner, 2026-10-01)', () => {
     await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', screenshots: [new Blob(['x'], { type: 'application/pdf' })] })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', screenshots: [png(), png(), png(), png()] })).rejects.toMatchObject({ code: 'invalid_input' });
   });
+
+  it('takes screenshots or upload IDs, not both; the prototype has no uploads, so it refuses the IDs', async () => {
+    const t = testApi(feedbackCalls);
+    t.as('usr_003');
+    await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', screenshots: [png()], uploadIds: ['upl_001'] })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', uploadIds: ['upl_001'] })).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['uploadIds'] },
+    });
+    expect((await t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', uploadIds: [] })).screenshots).toEqual([]);
+  });
+
+  it('sends upload IDs on the wire and gets a link back for a screenshot', () => {
+    const send = feedbackCalls['feedback.send'].wire?.input;
+    expect(send?.safeParse({ kind: 'bug', message: 'Broken', page: '/', uploadIds: ['upl_001', 'upl_002'] }).success).toBe(true);
+    expect(send?.safeParse({ kind: 'bug', message: 'Broken', page: '/', uploadIds: ['a', 'b', 'c', 'd'] }).success).toBe(false);
+    expect(send?.safeParse({ kind: 'bug', message: 'Broken', page: '/', screenshots: [png()] }).success).toBe(false);
+    const shot = feedbackCalls['feedback.screenshot'].wire?.output;
+    expect(shot?.parse({ url: 'https://files.example/x', expiresAt: '2026-10-03T09:10:00.000+03:00' })).toEqual({
+      url: 'https://files.example/x', expiresAt: '2026-10-03T09:10:00.000+03:00',
+    });
+    expect(shot?.safeParse({ blob: png() }).success).toBe(false);
+  });
 });
+

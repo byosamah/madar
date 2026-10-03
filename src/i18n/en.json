@@ -635,7 +635,7 @@
     "uploadStage": "Stage for new files",
     "noStage": "No stage",
     "uploaded": "Files uploaded: {{n}}.",
-    "tooBig": "{{name}} is larger than 25 MB.",
+    "tooBig": "{{name}} is larger than 250 MB.",
     "emptyTitle": "No files yet",
     "empty": "Upload drawings, renders and documents here.",
     "version": "Version {{letter}}",

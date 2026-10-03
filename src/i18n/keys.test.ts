@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import en from './en.json';
+import { en } from './trees';
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

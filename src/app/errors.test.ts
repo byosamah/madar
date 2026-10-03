@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { errorMessage } from './errors';
-import { ApiError, forbidden, invalid } from '../api/errors';
+import { API_ERROR_CODES, ApiError, forbidden, invalid } from '../api/errors';
+import { SERVER_REASONS } from '../api/contract/server';
 import { initI18n } from '../i18n';
 
 describe('errorMessage', () => {
@@ -20,4 +21,20 @@ describe('errorMessage', () => {
     const ar = initI18n('ar');
     expect(errorMessage(refusal, ar.t.bind(ar))).toBe('هذه المهمة قيد المراجعة. استخدم «إعادة للتعديل» واكتب ملاحظة للمسؤول الرئيسي عنها.');
   });
+
+  it('has a text in both languages for every error code and every server reason (plan, T0.3)', () => {
+    for (const language of ['en', 'ar'] as const) {
+      const i18n = initI18n(language);
+      const t = i18n.t.bind(i18n);
+      for (const code of API_ERROR_CODES) {
+        expect({ language, code, exists: i18n.exists(`errors.${code}`) }).toEqual({ language, code, exists: true });
+      }
+      for (const reason of SERVER_REASONS) {
+        expect({ language, reason, exists: i18n.exists(`errors.reasons.${reason}`) }).toEqual({ language, reason, exists: true });
+        expect(errorMessage(new ApiError('failed', 'x', { reason }), t)).toBe(t(`errors.reasons.${reason}`));
+      }
+    }
+    expect(API_ERROR_CODES).toContain('unauthenticated');
+  });
 });
+

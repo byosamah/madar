@@ -17,6 +17,7 @@ import { shareCalls } from './handlers/sharing';
 import { teamCalls } from './handlers/teams';
 import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
+import { serverFakes } from './handlers/serverFakes';
 
 /** The 112 calls of the call map. The server runs 108 of them (sharedCalls.ts). */
 export const mapCalls = {
@@ -39,8 +40,11 @@ export const mapCalls = {
   ...teamCalls,
 };
 
-/** Every action in Madar. Screens and, later, AI agents use exactly these calls. */
-export const calls = mapCalls;
+/**
+ * Every action in Madar. Screens and, later, AI agents use exactly these calls.
+ * The prototype adds fake versions of the 9 server calls, so the screens use the same calls in both builds (plan 4.11).
+ */
+export const calls = { ...mapCalls, ...serverFakes };
 
 export type Calls = typeof calls;
 export type CallName = keyof Calls & string;

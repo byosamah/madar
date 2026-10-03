@@ -4,11 +4,10 @@ import { Feedback, FeedbackKind } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
+import { MAX_SHOT_BYTES } from '../contract/server';
 import { feedbackOf, nextId } from '../store';
 import { cardOf } from '../views';
 import { assertCan } from './shared';
-
-const MAX_SHOT_BYTES = 10 * 1024 * 1024;
 
 /** A screen inside Madar: a path from the root, never another site or a script link (security review, 2026-10-01). */
 export const isAppPath = (page: string): boolean => page.startsWith('/') && !page.startsWith('//') && !page.includes('\\');
@@ -22,31 +21,44 @@ function requireFeedback(ctx: Ctx, id: string): Feedback {
   return item;
 }
 
+const SendFields = z.object({
+  kind: FeedbackKind,
+  message: z.string().trim().min(1, 'Write what you need or what went wrong.').max(2000),
+  page: z.string().max(300).default('').refine((page) => page === '' || isAppPath(page), 'Send the Madar screen you were on.'),
+});
+const UploadIds = z.array(z.string().min(1).max(80)).max(3, 'Add up to three screenshots.');
+
+/** The stored screenshots that run() records. The real build makes them from the upload intents in its server prepare hook (plan 5.2). */
+export type FeedbackPrepared = { shots: { blobKey: string; type: string }[] };
+
 /** Anyone in the office sends a feature request or a bug report, with up to three screenshots (owner, 2026-10-01). */
 const feedbackSend = defineCall({
-  input: z.object({
-    kind: FeedbackKind,
-    message: z.string().trim().min(1, 'Write what you need or what went wrong.').max(2000),
-    page: z.string().max(300).default('').refine((page) => page === '' || isAppPath(page), 'Send the Madar screen you were on.'),
+  // The screens send the pictures (prototype) or upload IDs from feedback.uploadStart (real build), not both.
+  input: SendFields.extend({
     screenshots: z.array(z.instanceof(Blob)).max(3, 'Add up to three screenshots.').default([]),
-  }).refine((value) => value.screenshots.every((shot) => shot.type.startsWith('image/')), { path: ['screenshots'], message: 'A screenshot must be a picture.' })
+    uploadIds: UploadIds.optional(),
+  }).refine((value) => value.uploadIds === undefined || value.screenshots.length === 0, { path: ['uploadIds'], message: 'Send the screenshots or their uploads, not both.' })
+    .refine((value) => value.screenshots.every((shot) => shot.type.startsWith('image/')), { path: ['screenshots'], message: 'A screenshot must be a picture.' })
     .refine((value) => value.screenshots.every((shot) => shot.size <= MAX_SHOT_BYTES), { path: ['screenshots'], message: 'Each screenshot must be 10 MB or smaller.' }),
   output: Feedback,
-  async prepare(input, p) {
-    const keys: string[] = [];
+  wire: { input: SendFields.extend({ uploadIds: UploadIds.default([]) }).strict() },
+  async prepare(input, p): Promise<FeedbackPrepared> {
+    // The prototype keeps the pictures in this browser, so it has no uploads to confirm.
+    if (input.uploadIds !== undefined && input.uploadIds.length > 0) throw invalid('uploadIds', 'Send the screenshots themselves.');
+    const shots: FeedbackPrepared['shots'] = [];
     for (const shot of input.screenshots) {
       const blobKey = `blob_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
       await p.persister.putBlob(blobKey, shot);
-      keys.push(blobKey);
+      shots.push({ blobKey, type: shot.type });
     }
-    return { keys };
+    return { shots };
   },
   run(input, ctx, prepared) {
     if (!ctx.authority.active) throw invalid('message', 'Only an active person can send a report.');
     const id = nextId(ctx.state, 'fbk');
     const item: Feedback = {
       id, kind: input.kind, message: input.message, page: input.page,
-      screenshots: prepared.keys.map((blobKey, i) => ({ blobKey, type: input.screenshots[i].type })),
+      screenshots: prepared.shots.map((shot) => ({ blobKey: shot.blobKey, type: shot.type })),
       status: 'new', createdBy: ctx.actor.id, createdAt: ctx.stamp, doneBy: null, doneAt: null,
     };
     feedbackOf(ctx.state)[id] = item;
@@ -68,18 +80,23 @@ const feedbackList = defineCall({
   },
 });
 
+/** The prototype reads the picture itself; the real build signs a link in its server prepare hook and answers with wire.output. */
+export type ScreenshotPrepared = { blob: Blob | null } | { link: { url: string; expiresAt: string } };
+
 /** One screenshot of a report, for the Admin only. */
 const feedbackScreenshot = defineCall({
   input: z.object({ id: z.string(), index: z.number().int().min(0).max(2) }),
   output: z.object({ blob: z.instanceof(Blob) }),
+  wire: { output: z.object({ url: z.string().min(1), expiresAt: z.string().min(1) }) },
   readOnly: true,
-  async prepare(input, p) {
+  async prepare(input, p): Promise<ScreenshotPrepared> {
     const shot = (p.state.feedback ?? {})[input.id]?.screenshots[input.index];
     return { blob: shot ? await p.persister.getBlob(shot.blobKey) : null };
   },
   run(input, ctx, prepared) {
     assertCan(ctx, 'admin.manage');
     requireFeedback(ctx, input.id);
+    if ('link' in prepared) return prepared.link as unknown as { blob: Blob };
     if (!prepared.blob) throw notFound('Screenshot', `${input.id}#${input.index}`);
     return { blob: prepared.blob };
   },

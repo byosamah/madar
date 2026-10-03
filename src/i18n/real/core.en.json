@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "unauthenticated": "Sign in to continue.",
+    "reasons": {
+      "account_off": "Your account is turned off. Ask the Admin.",
+      "client_outdated": "Madar has a new version. Reload the page.",
+      "busy": "Madar is busy with another change. Try again.",
+      "story_not_yours": "This change belongs to another action. Try again.",
+      "key_reused": "This change was already sent with other details. Try again.",
+      "too_many_overviews": "Too many lists asked at once. Try again."
+    }
+  }
+}

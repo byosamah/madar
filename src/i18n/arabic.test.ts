@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import ar from './ar.json';
+import { ar } from './trees';
 
 /** Real names that stay in Latin letters in Arabic text. */
 const ALLOWED = ['Revit', 'KH', 'Escape', 'English'];
