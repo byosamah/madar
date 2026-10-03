@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaymentRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
@@ -13,6 +13,9 @@ import { areaValue } from '../../projects/projectForm';
 
 type Problems = { name?: string; amount?: string; dueDate?: string; receivedOn?: string };
 
+/** What the person typed in a payment sheet and did not save, by project and sheet ("new", or the ID of the payment). */
+export type PaymentDraft = { name: string; amount: string; dueDate: string; receivedOn: string; note: string };
+
 /**
  * "120,000" and "120000.50" both read as a number. An empty or broken text reads as NaN.
  * An Arabic phone keyboard types Arabic-Indic digits and marks, so those count too (audit 2026-10-03, PRJ-12).
@@ -24,25 +27,45 @@ function parseAmount(text: string): number {
 /**
  * One payment milestone in a sheet: add it, or edit it, mark it received, or delete it with Undo.
  * The page shows this sheet only to people who may handle payments, and the API refuses everyone else.
+ * A sheet closed by accident (Escape, a press outside, a swipe, Close) keeps what the person typed in `drafts`. Only Cancel
+ * and a done change start the next sheet from the saved values: the New Project sheet rule (audit 2026-10-03, F-17).
  */
-export function PaymentSheet({ projectId, row, onClose }: { projectId: string; row: PaymentRow | null; onClose: () => void }) {
+export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: string; row: PaymentRow | null; onClose: () => void; drafts?: Map<string, PaymentDraft> }) {
   const { t } = useTranslation();
   const toast = useToast();
   const saved = row?.payment;
-  const [name, setName] = useState(saved?.name ?? '');
-  const [amount, setAmount] = useState(saved ? String(saved.amount) : '');
-  const [dueDate, setDueDate] = useState(saved?.dueDate ?? '');
-  const [receivedOn, setReceivedOn] = useState(saved?.receivedOn ?? '');
-  const [note, setNote] = useState(saved?.note ?? '');
+  // The meeting shows one Payments panel for project after project, so the key names the project too.
+  const draftKey = `${projectId}:${saved?.id ?? 'new'}`;
+  const start: PaymentDraft = {
+    name: saved?.name ?? '', amount: saved ? String(saved.amount) : '', dueDate: saved?.dueDate ?? '', receivedOn: saved?.receivedOn ?? '', note: saved?.note ?? '',
+  };
+  const kept = drafts?.get(draftKey) ?? start;
+  const [name, setName] = useState(kept.name);
+  const [amount, setAmount] = useState(kept.amount);
+  const [dueDate, setDueDate] = useState(kept.dueDate);
+  const [receivedOn, setReceivedOn] = useState(kept.receivedOn);
+  const [note, setNote] = useState(kept.note);
   const [problems, setProblems] = useState<Problems>({});
+  // Only a change is kept, so a later change by another person shows when the sheet opens again.
+  const typed: PaymentDraft = { name, amount, dueDate, receivedOn, note };
+  const changed = JSON.stringify(typed) !== JSON.stringify(start);
+  const typedText = JSON.stringify(typed);
+  useEffect(() => {
+    if (changed) drafts?.set(draftKey, JSON.parse(typedText) as PaymentDraft);
+    else drafts?.delete(draftKey);
+  }, [drafts, draftKey, changed, typedText]);
+  const close = () => {
+    drafts?.delete(draftKey);
+    onClose();
+  };
   const done = (message: string) => {
     toast.show({ message });
-    onClose();
+    close();
   };
   const create = useAction('payments.create', { onSuccess: () => done(t('payments.added')) });
   const update = useAction('payments.update', { onSuccess: () => done(t('payments.saved')) });
-  const mark = useUndoable('payments.markReceived', { message: () => t('payments.receivedToast'), onSuccess: onClose });
-  const remove = useUndoable('payments.delete', { message: () => t('payments.deleted'), onSuccess: onClose });
+  const mark = useUndoable('payments.markReceived', { message: () => t('payments.receivedToast'), onSuccess: close });
+  const remove = useUndoable('payments.delete', { message: () => t('payments.deleted'), onSuccess: close });
   const error = saved ? update.error : create.error;
   const problem = (field: keyof Problems, fallback: string) => problems[field] ?? fieldError(error, field, t, fallback);
 
@@ -65,6 +88,7 @@ export function PaymentSheet({ projectId, row, onClose }: { projectId: string; r
     <>
       {saved && <Button variant="destructive" disabled={busy} onClick={() => remove.mutate({ id: saved.id })}>{t('common.delete')}</Button>}
       {saved && !saved.receivedOn && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
+      <Button variant="plain" onClick={close}>{t('common.cancel')}</Button>
       <Button variant="primary" disabled={busy} onClick={submit}>{t('common.save')}</Button>
     </>
   );
