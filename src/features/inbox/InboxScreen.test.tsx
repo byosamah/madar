@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -110,7 +110,8 @@ describe('the Inbox chat', () => {
     const room = Object.values(store.state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'));
     await api.call('chats.send', { conversationId: room?.id ?? '', body: 'One more thing.' });
     store.state.session.currentUserId = 'usr_001';
-    expect(await within(screen.getByRole('log', { name: 'Messages' })).findByText('One more thing.')).toBeInTheDocument();
+    // The short change of person can start the screen again (V-22), so the test asks for the message log again each time.
+    await waitFor(() => expect(within(screen.getByRole('log', { name: 'Messages' })).getByText('One more thing.')).toBeInTheDocument());
   });
 });
 
@@ -139,14 +140,15 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
-  it('closes a direct chat with a person who left the office (SHL-15)', async () => {
+  it('closes a direct chat with an inactive person (SHL-15)', async () => {
     await renderApp('/inbox', (state) => {
       state.users.usr_002.active = false;
     });
     await userEvent.click(await rowLink(/Faisal Al-Harbi/));
     await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' });
-    expect(await screen.findByText('Left the office')).toBeInTheDocument();
-    expect(screen.getByText('Faisal Al-Harbi left the office. This chat takes no new messages.')).toBeInTheDocument();
+    // The chat uses the same word as Admin for this state (audit 2026-10-03, V-25).
+    expect(await screen.findByText('Inactive')).toBeInTheDocument();
+    expect(screen.getByText('This person is inactive. This chat takes no new messages.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
   });
 
@@ -202,6 +204,35 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
     expect(screen.queryByRole('list', { name: PICKED })).toBeNull();
     // Many steps, so the test gets more time than the default on a busy machine.
+  }, 20000);
+
+  // A draft belongs to the person who typed it, not to the browser tab (audit 2026-10-03, V-22).
+  const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.sessionStorage.getItem(key));
+
+  it('shows the next person no unsent words or files of the person before, after Preview as (V-22)', async () => {
+    const { api } = await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Do not tell Faisal yet');
+    await userEvent.upload(screen.getByLabelText('Attach files'), new File(['x'], 'Secret.pdf', { type: 'application/pdf' }));
+    await act(async () => { await api.call('session.previewAs', { userId: 'usr_002' }); });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue(''));
+    expect(screen.queryByRole('list', { name: PICKED })).toBeNull();
+    // The words of the person before are gone from this tab too.
+    expect(savedDrafts()).not.toContain('Do not tell Faisal yet');
+  }, 20000);
+
+  it('keeps the draft of one person out of the box of another in the same tab (V-22)', async () => {
+    let room = '';
+    await renderApp('/inbox', (state) => {
+      room = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'))!.id;
+    });
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Do not tell Faisal yet');
+    cleanup();
+    // The same tab, now as Faisal: the app starts again with another current person.
+    await renderApp(`/inbox/${room}`, (state) => { state.session.currentUserId = 'usr_002'; });
+    await screen.findByRole('heading', { level: 2, name: 'Hala Nasser' });
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
   }, 20000);
 });
 

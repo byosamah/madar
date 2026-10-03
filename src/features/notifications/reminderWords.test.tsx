@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import i18n from 'i18next';
+import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
 
 describe('The due reminder names the day (audit 2026-10-03, API-11)', () => {
@@ -18,6 +18,8 @@ describe('The due reminder names the day (audit 2026-10-03, API-11)', () => {
   });
 
   it('has the same sentence in Arabic, with the weekday', () => {
+    // The test starts i18n itself, so it passes alone or in any order (audit 2026-10-03, V-29).
+    const i18n = initI18n('en');
     expect(i18n.t('inbox.trigger.due_tomorrow', { lng: 'ar', target: 'تفاصيل الحمامات', day: 'الأحد، 4 أكتوبر' })).toBe('«تفاصيل الحمامات» مستحقة يوم الأحد، 4 أكتوبر');
     expect(i18n.t('settings.triggers.due_tomorrow', { lng: 'en' })).not.toMatch(/tomorrow/);
     expect(i18n.t('settings.triggers.due_tomorrow', { lng: 'ar' })).not.toMatch(/غد/);

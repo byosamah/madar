@@ -92,7 +92,7 @@
     "simulateErrorsHint": "1 in 5 actions fail, so you can see the error states.",
     "reset": "Reset sample data",
     "resetTitle": "Reset the sample data?",
-    "resetBody": "This deletes every project, task, message and file that you added in this browser. Then the sample office comes back. You cannot undo it.",
+    "resetBody": "This puts the sample office in this browser back as it was at the start. It deletes everything that you added to the office, such as projects, tasks, messages and files. It undoes every change that you made to the office, also to your name, language and notification choices. The Simulate errors switch and your view choices, such as list or board, stay. You cannot undo it.",
     "resetDone": "The sample data is back to its start state."
   },
   "errors": {
@@ -117,7 +117,7 @@
       "file_other_project": "A file belongs to another project.",
       "file_not_visible": "You are not on the project of this file.",
       "recipient_not_on_project": "This person is not on the project of this file. They cannot open it.",
-      "person_left": "This person left the office. The chat takes no new messages.",
+      "person_left": "This person is inactive. This chat takes no new messages.",
       "client_name_missing": "Write the client name in English or in Arabic.",
       "stage_back_reason": "Write why the project moves back.",
       "review_send_back": "This task is in review. Use Send back and write a note for the lead.",
@@ -705,6 +705,9 @@
   "inbox": {
     "markAllRead": "Mark all read",
     "allRead": "All caught up.",
+    "markedRead": "Marked {{n}} notifications as read.",
+    "markedRead_one": "Marked 1 notification as read.",
+    "markedRead_other": "Marked {{count}} notifications as read.",
     "emptyTitle": "No notifications",
     "empty": "Assignments, mentions and reviews show here.",
     "today": "Today",
@@ -1143,8 +1146,8 @@
     "openTask": "Open task",
     "projectChat": "Project chat",
     "directChat": "Direct message",
-    "leftOffice": "Left the office",
-    "closed": "{{name}} left the office. This chat takes no new messages.",
+    "inactive": "Inactive",
+    "closed": "This person is inactive. This chat takes no new messages.",
     "taskThread": "Task thread",
     "you": "You",
     "messages": "Messages",

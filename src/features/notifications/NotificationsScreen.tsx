@@ -16,7 +16,7 @@ import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
-import { actorContext } from '../../lib/grammar';
+import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
@@ -34,7 +34,16 @@ function InboxItem({ view }: { view: NoticeView }) {
   };
   // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
   // Approve is a change like any other, so its toast offers Undo (audit 2026-10-03, BRW-5).
-  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: read });
+  // Undo also gives back the unread mark that Approve took, so the bell counts the review again (audit 2026-10-03, V-16).
+  const wasUnread = useRef(false);
+  const markUnread = useAction('notifications.markUnread');
+  const approve = useUndoable('tasks.approve', {
+    message: () => t('taskSheet.approved'),
+    onSuccess: read,
+    onUndo: () => {
+      if (wasUnread.current) markUnread.mutate({ ids: [n.id] });
+    },
+  });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
   // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
@@ -101,7 +110,10 @@ function InboxItem({ view }: { view: NoticeView }) {
         <Button
           className="shrink-0"
           disabled={approve.isPending}
-          onClick={() => approve.mutate({ id: n.targetId })}
+          onClick={() => {
+            wasUnread.current = !n.read;
+            approve.mutate({ id: n.targetId });
+          }}
           // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
           aria-label={t('inbox.approveTask', { target })}
         >
@@ -124,9 +136,14 @@ export function NotificationsScreen() {
   const markAll = useAction('notifications.markAllRead', {
     onSuccess: () => {
       const ids = cleared.current;
+      // The toast names the change, not a state, so the person knows what Undo puts back (audit 2026-10-03, V-26).
+      // It counts every notice that it marked. One markUnread call takes 200 at most, so Undo sends groups of 200.
+      const undo = () => {
+        for (let start = 0; start < ids.length; start += 200) markUnread.mutate({ ids: ids.slice(start, start + 200) });
+      };
       toast.show({
-        message: t('inbox.allRead'),
-        action: ids.length > 0 ? { label: t('common.undo'), run: () => markUnread.mutate({ ids }), isUndo: true } : undefined,
+        message: counted(t, 'inbox.markedRead', ids.length),
+        action: ids.length > 0 ? { label: t('common.undo'), run: undo, isUndo: true } : undefined,
       });
     },
   });
@@ -150,7 +167,7 @@ export function NotificationsScreen() {
             variant="plain"
             className="shrink-0 px-3"
             onClick={() => {
-              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id).slice(0, 200);
+              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id);
               markAll.mutate({});
             }}
           >

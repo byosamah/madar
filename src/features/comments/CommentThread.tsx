@@ -4,6 +4,7 @@ import { REACTIONS } from '../../api/contract/entities';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
+import { readDraft, useDraftOwner, writeDraft } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
 import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -118,26 +119,26 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   );
 }
 
-/**
- * Half-written comments, by task or post, for this browser tab (session storage, so a reload keeps them too). A panel that
- * closes (Focus mode, another task row, the Back button) unmounts its thread; its draft waits here until the person comes
- * back or sends it (audit PER-11). Blocked storage means the draft lasts only while the panel is open.
- */
-const DRAFT = 'madar.draft.';
-const readDraft = (key: string) => {
-  try { return window.sessionStorage.getItem(DRAFT + key) ?? ''; } catch { return ''; }
-};
-const writeDraft = (key: string, text: string) => {
-  try {
-    if (text) window.sessionStorage.setItem(DRAFT + key, text);
-    else window.sessionStorage.removeItem(DRAFT + key);
-  } catch { /* blocked storage */ }
-};
+type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean };
 
-/** Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author. */
-export function CommentThread({
-  targetType, targetId, projectId, stageId = null, people, canPost,
-}: { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean }) {
+/**
+ * Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author.
+ * A change of person starts a new thread with that person's draft, so no half-written words or picked files go over to the
+ * next person (audit 2026-10-03, V-22).
+ */
+export function CommentThread(props: CommentThreadProps) {
+  const owner = useDraftOwner();
+  return owner ? <CommentThreadFor key={owner} owner={owner} {...props} /> : null;
+}
+
+/**
+ * A panel that closes (Focus mode, another task row, the Back button) unmounts its thread; its half-written comment waits in
+ * the drafts of the person until they come back or send it (audit PER-11). Blocked storage means the draft lasts only while
+ * the panel is open.
+ */
+function CommentThreadFor({
+  targetType, targetId, projectId, stageId = null, people, canPost, owner,
+}: CommentThreadProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   const attachments = useAttachments();
@@ -150,9 +151,9 @@ export function CommentThread({
     if (targetType === 'task' && count) api.call('chats.markRead', { conversationId: targetId }).catch(() => undefined);
   }, [api, targetType, targetId, count]);
   const draftKey = `${targetType}:${targetId}`;
-  const [body, setBodyState] = useState(() => readDraft(draftKey));
+  const [body, setBodyState] = useState(() => readDraft(owner, draftKey));
   const setBody = (next: string) => {
-    writeDraft(draftKey, next);
+    writeDraft(owner, draftKey, next);
     setBodyState(next);
   };
   const create = useAction('comments.create', {

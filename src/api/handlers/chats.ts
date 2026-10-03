@@ -181,7 +181,7 @@ export const chatsSend = defineCall({
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
     if (personLeft(ctx.state, conversation, ctx.authority)) {
-      throw forbidden('This person left the office. The chat takes no new messages.', { conversationId: conversation.id, reason: 'person_left' });
+      throw forbidden('This person is inactive. This chat takes no new messages.', { conversationId: conversation.id, reason: 'person_left' });
     }
     return postMessage(ctx, conversation, input.body, input.fileIds);
   },

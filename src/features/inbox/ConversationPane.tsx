@@ -57,14 +57,15 @@ export function ChatPane({ id }: { id: string }) {
   const lead = chat.kind === 'project' && chat.project
     ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
     : chat.person ? <Avatar user={chat.person} size={40} /> : null;
-  // A direct chat with a person who left the office says so and takes no new messages (audit 2026-10-03, SHL-15).
+  // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
+  // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
   const context = actorContext(chat.person);
-  const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.leftOffice', { context }) : t('chat.directChat');
+  const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   return (
     <>
       <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={subtitle} />
       <MessageLog key={id} bubbles={bubblesOf(data)} resetKey={id} emptyText={t('chat.noMessages')} />
-      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed', { name: chat.title, context })}</p> : (
+      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
         <Composer
           id={id}
           people={data.people}

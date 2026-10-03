@@ -53,6 +53,10 @@ describe('settings screen', () => {
     // One press only asks. Cancel keeps everything.
     const ask = await screen.findByRole('dialog', { name: 'Reset the sample data?' });
     expect(ask).toHaveTextContent('You cannot undo it.');
+    // It names what goes and what stays, and no more (audit 2026-10-03, V-27).
+    expect(ask).toHaveTextContent('It deletes everything that you added to the office, such as projects, tasks, messages and files.');
+    expect(ask).toHaveTextContent('It undoes every change that you made to the office, also to your name, language and notification choices.');
+    expect(ask).toHaveTextContent('The Simulate errors switch and your view choices, such as list or board, stay.');
     await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(store.state.projects.prj_001.name).toBe('Changed');
@@ -60,6 +64,17 @@ describe('settings screen', () => {
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Reset the sample data?' })).getByRole('button', { name: 'Reset sample data' }));
     expect(await screen.findByText('The sample data is back to its start state.')).toBeInTheDocument();
     expect(store.state.projects.prj_001.name).toBe('Corniche Office Tower');
+  });
+
+  it('keeps the Simulate errors switch on after Reset, as the question says (audit 2026-10-03, V-27)', async () => {
+    const { store } = await renderApp('/settings');
+    await userEvent.click(await screen.findByRole('switch', { name: 'Simulate errors' }));
+    await waitFor(() => expect(store.state.session.simulateErrors).toBe(true));
+    await userEvent.click(screen.getByRole('button', { name: 'Reset sample data' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Reset the sample data?' })).getByRole('button', { name: 'Reset sample data' }));
+    expect(await screen.findByText('The sample data is back to its start state.')).toBeInTheDocument();
+    expect(store.state.session.simulateErrors).toBe(true);
+    expect(screen.getByRole('switch', { name: 'Simulate errors' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it("shows the notification switches of the agent's person when previewing as an agent", async () => {

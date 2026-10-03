@@ -37,7 +37,8 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
     }) as typeof api.call;
   }
   initI18n('en');
-  window.location.hash = `#${path}`;
+  // replaceState queues no popstate. A set of location.hash did, and the late popstate mounted the route a second time (audit 2026-10-03, V-8).
+  window.history.replaceState(null, '', `#${path}`);
   const router = createAppRouter();
   onTestFinished(() => router.dispose());
   const view = render(

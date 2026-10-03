@@ -55,7 +55,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       toast.show({
         tone: 'error',
         message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadCover(projectId, stageId, file) } : undefined,
+        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadCover(projectId, stageId, file), isUndo: false } : undefined,
       });
     }
   };

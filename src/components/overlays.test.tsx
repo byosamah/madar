@@ -149,7 +149,7 @@ describe('overlays', () => {
   it('keeps toasts reachable for screen readers while a sheet is open', async () => {
     function Inside() {
       const toast = useToast();
-      return <button type="button" onClick={() => toast.show({ message: 'Saved.', action: { label: 'Undo', run: vi.fn() } })}>Save</button>;
+      return <button type="button" onClick={() => toast.show({ message: 'Saved.', action: { label: 'Undo', run: vi.fn(), isUndo: true } })}>Save</button>;
     }
     render(
       <ToastProvider>
@@ -312,6 +312,30 @@ describe('overlays after the audit of 2026-10-03', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it('does not close a blocking sheet when the toast is gone before the press ends, as in a browser (audit 2026-10-03, V-11)', async () => {
+    const onOpenChange = vi.fn();
+    const run = vi.fn();
+    render(
+      <ToastProvider>
+        <Sheet open onOpenChange={onOpenChange} title="Task"><UndoInside run={run} /></Sheet>
+      </ToastProvider>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Task' });
+    await userEvent.click(within(dialog).getByText('Delete'));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
+    // Radix waits 0 ms before it listens for presses.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    // The press starts on Undo. Radix decides at the click; in a browser React has removed the toast by then.
+    // A test cannot get that order from one click, so the toast goes first (Ctrl+Z runs the same Undo), then the click comes.
+    fireEvent.pointerDown(undo, { button: 0, pointerType: 'touch' });
+    await userEvent.keyboard('{Control>}z{/Control}');
+    await waitFor(() => expect(undo.isConnected).toBe(false));
+    fireEvent.click(document.body);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    expect(run).toHaveBeenCalledOnce();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it('keeps a toast while the pointer or the focus is on it (SHL-3)', async () => {
     vi.useFakeTimers();
     try {
@@ -335,6 +359,98 @@ describe('overlays after the audit of 2026-10-03', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('lets the other toasts time out after the toast under the pointer goes away (audit 2026-10-03, V-15)', async () => {
+    vi.useFakeTimers();
+    try {
+      function Show() {
+        const toast = useToast();
+        const [n, setN] = useState(0);
+        return <button type="button" onClick={() => { setN(n + 1); toast.show({ message: `Saved ${n + 1}.`, action: { label: `Undo ${n + 1}`, run: vi.fn(), isUndo: true } }); }}>Save</button>;
+      }
+      render(<ToastProvider><Show /></ToastProvider>);
+      fireEvent.click(screen.getByText('Save'));
+      fireEvent.click(screen.getByText('Save'));
+      // The pointer rests on the first toast and presses its Undo. The toast goes away under the pointer, with no leave event.
+      fireEvent.pointerEnter(screen.getAllByRole('status')[0]);
+      fireEvent.click(screen.getByRole('button', { name: 'Undo 1' }));
+      expect(screen.getAllByRole('status')).toHaveLength(1);
+      act(() => vi.advanceTimersByTime(5100));
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives the focus back to its opener when a field inside took the focus first (audit 2026-10-03, V-10)', async () => {
+    function Demo() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>From a template</button>
+          {open && <Sheet open onOpenChange={setOpen} title="Why?"><textarea aria-label="Reason" autoFocus /></Sheet>}
+        </>
+      );
+    }
+    render(<Demo />);
+    const opener = screen.getByText('From a template');
+    opener.focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByLabelText('Reason')).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('moves the focus to the new copy of a rebuilt opener, else to its panel, else to the page title, never to the body (V-10)', async () => {
+    function Demo({ sameId }: { sameId: boolean }) {
+      const [open, setOpen] = useState(false);
+      const [round, setRound] = useState(0);
+      return (
+        <main>
+          <h1>Corniche Office Tower</h1>
+          <div role="dialog" aria-label="Stair details" tabIndex={-1}>
+            {(sameId || round === 0) && <input key={round} id="task-due" aria-label="Due date" onKeyDown={(event) => { if (event.key === 'Enter') setOpen(true); }} />}
+          </div>
+          <Sheet open={open} onOpenChange={(value) => { setOpen(value); if (!value) setRound((n) => n + 1); }} title="Why do the dates change?"><textarea aria-label="Reason" /></Sheet>
+        </main>
+      );
+    }
+    const closeFrom = async () => {
+      screen.getByLabelText('Due date').focus();
+      await userEvent.keyboard('{Enter}');
+      await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull());
+    };
+    // The field is built again with the same id: the focus goes to the new field.
+    const first = render(<Demo sameId />);
+    await closeFrom();
+    await waitFor(() => expect(screen.getByLabelText('Due date')).toHaveFocus());
+    first.unmount();
+    // The field is gone: the focus goes to the panel that held it.
+    const second = render(<Demo sameId={false} />);
+    await closeFrom();
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Stair details' })).toHaveFocus());
+    second.unmount();
+    // No panel: the focus goes to the title of the page.
+    function Plain() {
+      const [open, setOpen] = useState(false);
+      return (
+        <main>
+          <h1>Corniche Office Tower</h1>
+          {!open && <button type="button" onClick={() => setOpen(true)}>Move back</button>}
+          <Sheet open={open} onOpenChange={setOpen} title="Why?"><textarea aria-label="Reason" /></Sheet>
+        </main>
+      );
+    }
+    render(<Plain />);
+    await userEvent.click(screen.getByText('Move back'));
+    await screen.findByRole('dialog', { name: 'Why?' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
   });
 
   it('moves the focus into a blocking sheet: to its first field, or to its title (BRW-2)', async () => {

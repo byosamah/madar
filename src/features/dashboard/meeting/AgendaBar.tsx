@@ -57,7 +57,7 @@ export function AgendaBar({ session, name, onOpenSummary }: { session: MeetingSe
     if (!currentId) return;
     const wasDiscussed = session.discussed.has(currentId);
     session.done();
-    toast.show({ message: t('dashboard.meeting.discussedToast', { name }), action: { label: t('common.undo'), run: () => session.undoDone(currentId, wasDiscussed) } });
+    toast.show({ message: t('dashboard.meeting.discussedToast', { name }), action: { label: t('common.undo'), run: () => session.undoDone(currentId, wasDiscussed), isUndo: true } });
   };
   return (
     <>

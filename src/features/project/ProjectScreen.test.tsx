@@ -142,6 +142,9 @@ describe('the Project screen header', () => {
     first.unmount();
     await renderApp('/projects/prj_999');
     expect(await screen.findByText('This project does not exist anymore.')).toBeInTheDocument();
+    // The title shows once, as the page title, and the card under it has the sentence and the way back (audit 2026-10-03, V-34).
+    expect(screen.getByRole('heading', { level: 1, name: 'Project not found' })).toBeInTheDocument();
+    expect(screen.getAllByText('Project not found')).toHaveLength(1);
   });
 
   it('goes Back to the same filtered list the project was opened from', async () => {
