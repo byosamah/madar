@@ -4,7 +4,7 @@ import type {
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
-import type { State } from './store';
+import { commentCountKey, fileCountKey, type State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
 import { helpersOf, involves } from '../lib/taskPeople';
@@ -36,8 +36,18 @@ export function deadlinesOf(state: State, projectId: string): Deadline[] {
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
 
+/** A count from State.counts when a loader put one there, else a scan of the comments in the state (plan 4.13, A4). */
 export function countComments(state: State, targetType: 'task' | 'update', targetId: string): number {
+  const counted = state.counts?.[commentCountKey(targetId)];
+  if (counted !== undefined) return counted;
   return Object.values(state.comments).filter((c) => c.targetType === targetType && c.targetId === targetId).length;
+}
+
+/** The files of a task, from State.counts first, as countComments. */
+export function countFiles(state: State, taskId: string): number {
+  const counted = state.counts?.[fileCountKey(taskId)];
+  if (counted !== undefined) return counted;
+  return Object.values(state.files).filter((f) => f.taskId === taskId).length;
 }
 
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
@@ -237,7 +247,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
     stage: { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
-    fileCount: Object.values(state.files).filter((f) => f.taskId === task.id).length,
+    fileCount: countFiles(state, task.id),
     overdue: isOverdue(task, today),
     canMove: can(viewer, 'task.updateOwn', { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId }),
     waitingFor: waitingOf(state, task),

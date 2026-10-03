@@ -9,7 +9,7 @@ import type { State } from './store';
  * A path names fields with dots. "name[]" walks each item of a list. "*" walks each value of a record (for example the reactions).
  * Events, notifications, the session, the settings and the counters are left out, as the scan before this map left them out.
  */
-export type RefCollection = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'settings' | 'counters' | 'events' | 'notifications'>;
+export type RefCollection = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'settings' | 'counters' | 'counts' | 'events' | 'notifications'>;
 export type ReferenceField = { collection: RefCollection; path: string; targets: readonly EventTarget[] };
 export type Reference = { collection: RefCollection; path: string };
 

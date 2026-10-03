@@ -51,6 +51,11 @@ export type State = {
   teams?: Record<string, Team>;
   settings: Settings;
   counters: Record<string, number>;
+  /**
+   * The real build: counts that a server loader puts in a read, so a list shows the number of comments and files without loading
+   * them (plan 4.13, A4). Keys come from commentCountKey and fileCountKey. The prototype never sets it, and the server never saves it.
+   */
+  counts?: Record<string, number>;
 };
 
 export function emptyState(today: string): State {
@@ -124,6 +129,16 @@ export function memberKey(projectId: string, userId: string): string {
 
 export function chatReadKey(conversationId: string, userId: string): string {
   return `${conversationId}:${userId}`;
+}
+
+/** The key of the comment count of a task or a post in State.counts. */
+export function commentCountKey(targetId: string): string {
+  return `comments:${targetId}`;
+}
+
+/** The key of the file count of a task in State.counts. */
+export function fileCountKey(taskId: string): string {
+  return `files:${taskId}`;
 }
 
 export function nextId(state: State, prefix: string): string {
