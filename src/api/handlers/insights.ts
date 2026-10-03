@@ -85,11 +85,13 @@ export const dashboardGet = defineCall({
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
-    // A project is out of design when its stage tag is the last stage of its OWN list, in time order. A rename of the office
-    // list, an Arabic list, or a name that only this project uses ("Site supervision") changes nothing (audit 2026-10-03, DSH-16, V-17).
+    // A project is out of design when its stage tag is the last stage of its OWN list. A rename of the office list, an Arabic
+    // list, or a name that only this project uses ("Site supervision") changes nothing (audit 2026-10-03, DSH-16, V-17).
+    // The last stage is the last one of the list (the highest order), not the last in time, because a stage with no dates yet sorts
+    // last in time. A project with one stage has no separate site stage, so it stays in design (audit 2026-10-03, V-17).
     const onSite = (p: Project) => {
-      const own = stagesInTime(state, p.id);
-      return own.length > 0 && tagOf(p)?.id === own[own.length - 1].id;
+      const own = stagesOf(state, p.id);
+      return own.length > 1 && tagOf(p)?.id === own[own.length - 1].id;
     };
     const perStage = new Map<string, number>();
     for (const p of active) {

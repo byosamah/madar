@@ -56,6 +56,31 @@ describe('dashboard.get', () => {
     expect(await area(onSite(world(), 'Site supervision'))).toBe(0);
   });
 
+  it('takes the last stage of the project list, so a stage with no dates yet never becomes the last stage (audit 2026-10-03, V-17)', async () => {
+    const area = async (state: State) => (await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign;
+    // Schematic Design, in the middle of the list, has no dates. The open tasks sit in Supervision, the last stage of the list.
+    const state = onSite(world(), 'Supervision');
+    state.stages.stg_002.startDate = null;
+    state.stages.stg_002.endDate = null;
+    expect(await area(state)).toBe(0);
+    // With the open tasks in the undated design stage, the tag is that stage, and the project is in design.
+    for (const task of Object.values(state.tasks)) if (task.status !== 'done') task.stageId = 'stg_002';
+    expect(await area(state)).toBe(1000);
+  });
+
+  it('counts a project with one stage as in design, because it has no separate site stage (audit 2026-10-03, V-17)', async () => {
+    const area = async (state: State) => (await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.areaInDesign;
+    const state = world();
+    delete state.stages.stg_002;
+    delete state.stages.stg_003;
+    for (const task of Object.values(state.tasks)) task.stageId = 'stg_001';
+    expect(await area(state)).toBe(1000);
+    const t = testApi(calls, world());
+    t.as('usr_001');
+    await t.api.call('projects.create', { name: 'Small fit-out', areaM2: 500, stages: ['Design'] });
+    expect((await t.api.call('dashboard.get', {})).tiles.areaInDesign).toBe(1500);
+  });
+
   it('keeps the area in design of the sample office when the Admin renames the last default stage (audit 2026-10-03, V-17)', async () => {
     const { api } = testApi(calls, await buildSeed(TODAY, async () => undefined));
     const before = (await api.call('dashboard.get', { status: 'active' })).tiles.areaInDesign;
