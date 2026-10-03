@@ -14,9 +14,9 @@ The prototype runs in one browser with sample data and a fake API. The real buil
 |---|---|
 | Server language | TypeScript, the language of the prototype rules and their tests |
 | Screens host | Cloudflare Pages, free plan |
-| Server host | Supabase Edge Functions, free plan, Frankfurt. The code stays portable, so the server can move to Railway at any time |
+| Server host | Supabase Edge Functions, free plan, Frankfurt. The code stays portable, so the server can move to Cloudflare Workers ($5 a month plan) at any time. Railway is dropped (owner, 2026-10-03) |
 | Database, sign-in, live updates | Supabase, free plan, Frankfurt. Upgrade when the office needs it |
-| Files | Cloudflare R2, free plan (10 GB) |
+| Files | Supabase Storage, free plan (1 GB, 50 MB per file), through the S3 standard behind one interface. A move to Cloudflare R2 (10 GB free, then $0.015 per GB a month) is a settings change plus a tested copy script (owner, 2026-10-03) |
 | Email | Resend, free plan |
 | Phone notices | None. A mobile app comes later and uses the same server |
 | Sign-in | Email and password |
@@ -45,8 +45,8 @@ flowchart LR
   B -->|sign-in| AUTH[Supabase Auth]
   A -->|OAuth 2.1| AUTH
   B <-->|change signals| RT[Supabase Realtime]
-  API -->|signed links| R2[(Cloudflare R2: files)]
-  B -->|upload and download with signed links| R2
+  API -->|signed links| ST[(Supabase Storage: files; R2 later)]
+  B -->|upload and download with signed links| ST
   CRON[pg_cron, every 15 min] --> JOBS[Edge Function: jobs]
   JOBS --> DB
   API --> MAIL[Resend: email]
@@ -62,7 +62,7 @@ flowchart LR
 | Postgres | Holds every record. Only the server reads and writes it. |
 | Supabase Auth | Holds the passwords and the agent approvals. Madar keeps names, roles and settings in its own `users` table. |
 | Realtime | Tells open screens that something changed, so they load again. |
-| R2 | Holds file data. The database holds only the file records. |
+| Storage | Holds file data (Supabase Storage now, Cloudflare R2 later, both through the S3 standard). The database holds only the file records. |
 
 All Edge Functions run in Frankfurt (`x-region: eu-central-1`), next to the database.
 
@@ -70,7 +70,7 @@ All Edge Functions run in Frankfurt (`x-region: eu-central-1`), next to the data
 
 ### 5.1 One code base, two homes
 
-The server is one standard web handler (a `fetch(request)` function, with Hono for routes). It runs on Deno (Supabase Edge Functions) and on Node (Railway) with no change. The code uses no feature that only one host has. The project keeps a setup file for each host, and step 1 of the build deploys a test copy to both.
+The server is one standard web handler (a `fetch(request)` function, with Hono for routes). It runs on Deno (Supabase Edge Functions) and on Cloudflare Workers with no change. The code uses no feature that only one host has. The project keeps a setup file for each host, and step 1 of the build runs a test copy on both (the Workers copy runs locally with Wrangler, so it costs nothing). The Workers free plan allows only 10 ms of CPU per call, which is too little for Madar; the fallback is the Workers paid plan at $5 a month.
 
 ### 5.2 The calls
 
@@ -121,10 +121,10 @@ The first spec (17.8) says the change log has no update and no delete path. The 
 
 ## 8. Files
 
-- The server gives the browser a signed upload link to R2, valid for 10 minutes. The browser sends the file straight to R2, so a big file never passes through the server.
+- The server gives the browser a signed upload link to the storage, valid for 10 minutes. The browser sends the file straight to the storage, so a big file never passes through the server.
 - Downloads and previews use signed links that last 10 minutes.
-- One file can be up to 250 MB. The free plan holds 10 GB in total.
-- The Admin page shows the storage used. At 80%, Madar tells the Admin by email. The office then pays R2 for more space or removes old versions.
+- On Supabase Storage free, one file can be up to 50 MB and all files together up to 1 GB. A bigger file gets a clear message that names the limit. After the move to R2, one file can be up to 250 MB and the free space is 10 GB.
+- The Admin page shows the storage used. At 80%, Madar tells the Admin by email. The office then moves to R2 (or pays for more space) or removes old versions.
 - Deleting a project removes its file data after the delete is saved (the review fix of 2026-10-03).
 
 ## 9. Live updates
@@ -159,7 +159,7 @@ After each saved change, the server sends one Realtime message on the office cha
 ## 13. Backups and recovery
 
 - **Nightly:** a GitHub Action makes a full copy of the database at 02:00 Riyadh time. It encrypts the copy and stores it in a second place outside Frankfurt and outside Supabase. The copies are kept for 30 days.
-- **Files:** R2 keeps the file data. A weekly copy of the R2 bucket goes to the same second place.
+- **Files:** a weekly copy of the stored files goes to the same second place.
 - **Restore test:** step 7 of the build restores a copy into the second Supabase project and checks it. After go-live, the restore test runs once a month.
 - **Why:** the free Supabase plan has no backups. Also, in March 2026 strikes damaged Amazon's data centres in the UAE and Bahrain, and Amazon could not restore data held only there. One copy is never enough.
 
@@ -167,7 +167,7 @@ After each saved change, the server sends one Realtime message on the office cha
 
 - Every rule stays in the server, in `can()`. The browser has no direct database access (section 6).
 - Each request carries the person's sign-in token. The server checks it on every call.
-- Secrets (service key, R2 keys, Resend key) live only in the hosts' secret stores, never in the repository.
+- Secrets (service key, storage keys, Resend key) live only in the hosts' secret stores, never in the repository.
 - Sign-in and invitations are rate-limited.
 - The security fixes of the audits stay: link safety, agent ownership, helper Undo, the story checks.
 - Before go-live, an independent security review of the server and the MCP sign-in.
@@ -178,7 +178,7 @@ After each saved change, the server sends one Realtime message on the office cha
 |---|---|---|---|
 | Server calls | 500,000 a month | about 150,000 with batching | Email to the Admin; upgrade Supabase |
 | Database | 500 MB | under 100 MB in the first year | Email to the Admin |
-| Files | 10 GB (R2) | depends on uploads | Email to the Admin |
+| Files | 1 GB, 50 MB per file (Supabase Storage) | depends on uploads | Email to the Admin; move to R2 |
 | Emails | 100 a day | 20 to 60 | Notices stay in the app |
 | Open screens at once | 200 | under 30 | None needed |
 | Screen builds | 500 a month | under 100 | None needed |
@@ -192,10 +192,10 @@ After each saved change, the server sends one Realtime message on the office cha
 
 ## 17. Build order
 
-1. **Proof.** A minimal Madar on all the parts together: one screen, one call, sign-in, one file, one email, and a test deploy on Railway. If a part fails here, we change it before more work.
+1. **Proof.** A minimal Madar on all the parts together: one screen, one call, sign-in, one file, one email, and a local test run on Cloudflare Workers (Wrangler). If a part fails here, we change it before more work.
 2. **Data.** The tables, the load, run and save steps, the batch request, and the 108 calls on real data.
 3. **People.** Sign-in, invitations, password reset, the first Admin, and the removal of the prototype-only controls.
-4. **Files.** R2 with signed links, the storage meter.
+4. **Files.** Supabase Storage through the S3 standard with signed links, the storage meter, and the tested copy script for the move to R2.
 5. **Live and email.** Realtime signals, timed work, Resend, the email switches and the morning summary.
 6. **Agents.** The MCP function, the consent screen, Settings, Agents.
 7. **Go-live.** Backups and the restore test, the security review, the limit warnings, and a pilot: 2 or 3 people use it on real projects for 2 weeks. Then the whole office.
@@ -207,7 +207,7 @@ After each saved change, the server sends one Realtime message on the office cha
 | Supabase's OAuth server documents only the older agent registration (Dynamic Client Registration), which MCP now marks as deprecated | Check at step 1. Older registration still works today; if a main AI app drops it, we add Client ID Metadata Documents in the MCP function |
 | A heavy call (Dashboard) uses more than 2 seconds of server CPU | Measure at step 2. If needed, the Dashboard reads a summary table that the server keeps up to date |
 | Frankfurt is far from Khobar | About 0.1 seconds per request. Batching keeps the number of requests low |
-| A free plan changes its terms or limits | The code stays portable (section 5.1). Railway is the fallback for the server |
+| A free plan changes its terms or limits | The code stays portable (section 5.1). Cloudflare Workers ($5 a month) is the fallback for the server |
 | The team review changes screens | The server work does not depend on the screens, so steps 1 and 2 can start before the review ends |
 
 ## 19. Open items
