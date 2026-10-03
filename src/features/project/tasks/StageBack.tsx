@@ -64,7 +64,7 @@ function StageBackSheet({ stage, onSend, onClose }: { stage: string; onSend: (re
           if (reason.trim()) onSend(reason.trim());
         }}
       >
-        <TextArea id="stage-back-reason" label={t('stageBack.label')} value={reason} dir="auto" maxLength={280} rows={3} autoFocus onChange={(event) => setReason(event.target.value)} />
+        <TextArea id="stage-back-reason" label={t('stageBack.label')} value={reason} dir="auto" maxLength={280} rows={3} onChange={(event) => setReason(event.target.value)} />
       </form>
     </Sheet>
   );
