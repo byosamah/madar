@@ -469,7 +469,7 @@ export const tasksMove = defineCall({
     // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
     // their own task back (audit 2026-10-03, PRJ-2).
     if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
-      throw invalid('status', 'Use Send back and write a note for the owner.', 'review_send_back');
+      throw invalid('status', 'Use Send back and write a note for the lead.', 'review_send_back');
     }
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, result);
