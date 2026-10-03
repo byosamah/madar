@@ -45,6 +45,25 @@ describe('the office schedule', () => {
     for (const word of ['Done stages', 'Current stage', 'Next stages', 'Deadline', 'Today', 'Two stages at the same time']) expect(within(schedule).getAllByText(word).length).toBeGreaterThan(0);
   });
 
+  // A paused project draws its current stage in the same quiet grey as On track (owner, 2026-10-02), so its row says Paused
+  // with the meeting's sign, and the legend names Paused when a paused row shows (audit 2026-10-03, V-7).
+  it('says Paused beside a paused project, as the meeting does, and names Paused in the legend', async () => {
+    await renderApp('/dashboard?view=schedule&status=all');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    expect(within(within(schedule).getByRole('button', { name: /Tamr Staff Housing/ })).getByText(/^Stale/)).toBeInTheDocument();
+    expect(within(within(schedule).getByRole('button', { name: /Gulf Crest HQ Interiors/ })).getByText('Awaiting client')).toBeInTheDocument();
+    expect(within(within(schedule).getByRole('button', { name: /Corniche Office Tower/ })).queryByText(/Stale|Paused|Awaiting client/)).toBeNull();
+    const legend = within(schedule).getByText('Paused');
+    expect(legend.querySelector('span')?.className).toContain('bg-ink-2 text-bg');
+  });
+
+  it('leaves Paused out of the legend when no paused project shows', async () => {
+    await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    expect(within(schedule).getByText('On track')).toBeInTheDocument();
+    expect(within(schedule).queryByText('Paused')).toBeNull();
+  });
+
   it('names its deadlines as buttons and its stages with their state, for keyboard and screen reader use (audit 2026-10-03, DSH-14)', async () => {
     await renderApp('/dashboard?view=schedule');
     const schedule = await screen.findByRole('region', { name: 'Office schedule' });

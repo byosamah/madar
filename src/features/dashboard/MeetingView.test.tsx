@@ -9,13 +9,21 @@ const days = (root: HTMLElement) => within(root).queryAllByText(/^(Sun|Mon|Tue|W
 const sundays = (root: HTMLElement) => within(root).queryAllByText(/^\d{1,2} [A-Z][a-z]{2,3}$/).map((node) => node.textContent);
 
 describe('the Meeting view button', () => {
+  // The Dashboard shows its Status choice in the Schedule section only, so the status goes to the meeting from there (audit 2026-10-03, V-12).
   it('shows on the Dashboard and opens the meeting view with the filters in the link', async () => {
-    await renderApp('/dashboard?status=all&view=people');
+    await renderApp('/dashboard?status=all&view=schedule');
     await userEvent.click(await screen.findByRole('button', { name: 'Meeting view' }));
     expect(await screen.findByRole('list', { name: 'Project timeline' })).toBeInTheDocument();
     expect(window.location.hash).toContain('/dashboard/meeting');
     expect(window.location.hash).toContain('status=all');
     expect(window.location.hash).not.toContain('view=');
+  });
+
+  it('leaves out a status that the section does not show', async () => {
+    await renderApp('/dashboard?status=all&view=people');
+    await userEvent.click(await screen.findByRole('button', { name: 'Meeting view' }));
+    await waitFor(() => expect(window.location.hash).toContain('/dashboard/meeting'));
+    expect(window.location.hash).not.toContain('status=');
   });
 });
 

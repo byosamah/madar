@@ -79,13 +79,14 @@ export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: stri
   );
 }
 
-export function Throughput({ view }: { view: DashboardData }) {
+export function Throughput({ view, teamId }: { view: DashboardData; teamId?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
   const rows = view.charts.throughput.map((week) => ({ ...week, label: formatDay(week.weekStart, lang), end: addDays(week.weekStart, 6) }));
-  const doneLink = (row: (typeof rows)[number]) => `/tasks?doneFrom=${row.weekStart}&doneTo=${row.end}`;
-  const createdLink = (row: (typeof rows)[number]) => `/tasks?createdFrom=${row.weekStart}&createdTo=${row.end}`;
+  // The weeks count the tasks of the team's projects, so the Task list gets the team too (audit 2026-10-03, V-37b).
+  const doneLink = (row: (typeof rows)[number]) => withTeam(`/tasks?doneFrom=${row.weekStart}&doneTo=${row.end}`, teamId);
+  const createdLink = (row: (typeof rows)[number]) => withTeam(`/tasks?createdFrom=${row.weekStart}&createdTo=${row.end}`, teamId);
   const rtl = lang === 'ar';
   return (
     <Card title={t('dashboard.charts.throughput')}>

@@ -73,6 +73,41 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(task.dueDate).toBe('2026-10-08');
   });
 
+  // The API refuses a task for an inactive person (API-7), so the Who list leaves them out, and the default is the viewer or the
+  // first active member (audit 2026-10-03, V-4c).
+  it('leaves an inactive person out of Who, and makes the action for the first active member (audit 2026-10-03, V-4c)', async () => {
+    let leader = { id: '', name: '' };
+    const { store } = await renderApp(MEETING, (state) => {
+      shoreWalkFirst(state);
+      const project = shoreWalk(state);
+      // The Admin (the viewer) is not on this team, and the leader is inactive.
+      for (const [key, member] of Object.entries(state.members)) if (member.projectId === project.id && member.userId === state.session.currentUserId) delete state.members[key];
+      state.users[project.leaderId!].active = false;
+      leader = state.users[project.leaderId!];
+    });
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    const who = decisions.getByRole('combobox', { name: 'Who' }) as HTMLSelectElement;
+    await waitFor(() => expect([...who.options].map((option) => option.value)).not.toContain(leader.id));
+    expect(who.options.length).toBeGreaterThan(0);
+    expect(who.value).toBe(who.options[0].value);
+    await userEvent.type(decisions.getByRole('textbox', { name: 'Write an action' }), 'Call the client');
+    await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.tasks).find((task) => task.title === 'Call the client')?.ownerId).toBe(who.options[0].value));
+  });
+
+  it('makes the action for the viewer by default when the viewer is on the team', async () => {
+    const { store } = await renderApp(MEETING, (state) => {
+      shoreWalkFirst(state);
+      const project = shoreWalk(state);
+      state.members[`${project.id}:${state.session.currentUserId}`] = { projectId: project.id, userId: state.session.currentUserId, discipline: 'Architect' };
+    });
+    const me = store.state.session.currentUserId;
+    const decisions = await panel();
+    await userEvent.click(decisions.getByRole('radio', { name: 'Action' }));
+    expect(decisions.getByRole('combobox', { name: 'Who' })).toHaveValue(me);
+  });
+
   it('lists an action of a paused project (audit 2026-10-03, DSH-5)', async () => {
     const { store } = await renderApp(`${MEETING}&status=all`, shoreWalkFirst);
     await panel();

@@ -55,6 +55,17 @@ describe('the project row', () => {
     expect(within(row).getByText(/Corniche Office Tower and Podium/)).toHaveClass('truncate');
   });
 
+  // On a phone the name of the next deadline and its date share one short line. The name gives way and the date stays whole
+  // (audit 2026-10-03, V-32).
+  it('cuts a long deadline name, never the date of the next deadline', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, undefined, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    expect(within(row).getByText('Coordination workshop')).toHaveClass('truncate');
+    const when = within(row).getByText(/· In 5 days/);
+    expect(when).toHaveClass('shrink-0');
+    expect(when.closest('.truncate')).toBeNull();
+  });
+
   it('draws the project picture large when there is no cover', async () => {
     await renderWithRuntime(<Cover id="prj_005" />, undefined, { path: '/' });
     const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
