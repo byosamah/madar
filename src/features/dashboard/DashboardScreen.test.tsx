@@ -34,12 +34,13 @@ describe('the Dashboard', () => {
   });
 
   // The Status choice changes only the schedule rows; the numbers count active projects whatever it says (audit 2026-10-03, V-12).
+  // The delay is on purpose: the schedule of the new status comes after the link changes, so the test waits for it (V-12 repair).
   it('keeps its filters in the link, and Status changes the schedule rows, not the numbers', async () => {
-    await renderApp('/dashboard?view=schedule');
+    await renderApp('/dashboard?view=schedule', undefined, { latencyMs: 100 });
     await userEvent.click(await screen.findByRole('button', { name: 'Filter' }));
     await userEvent.selectOptions(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Status' }), 'on_hold');
     await waitFor(() => expect(window.location.hash).toContain('status=on_hold'));
-    const schedule = screen.getByRole('region', { name: 'Office schedule' });
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
     await waitFor(() => expect(within(schedule).getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual(['Open Gulf Crest HQ Interiors', 'Open Tamr Staff Housing']));
     expect(await tile(/Active projects/)).toHaveTextContent('9');
     expect(await tile(/At risk or late/)).toHaveTextContent('5');
