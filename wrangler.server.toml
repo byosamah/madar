@@ -1,0 +1,13 @@
+# The Cloudflare Workers entry of the Madar server: the fallback host (plan, section 2b, point 2).
+# For local runs only (`npm run start:server`, `server/it/worker.it.test.ts`): `wrangler dev` on the Mac against the local stack.
+# A deploy needs the paid Workers plan and the owner's yes; nothing here deploys.
+# Values: pass them with `--env-file` (never in this file, never in git). The names are in server/core/deps.ts.
+name = "madar-server"
+main = "dist-server/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[dev]
+ip = "127.0.0.1"
+port = 8787

@@ -1,4 +1,5 @@
-import { notBuiltResponse } from '../core/notBuilt';
+import { startApps } from './apps';
+import { lazyStart } from './start';
 
-/** The mcp function on Supabase Edge Functions (Deno). */
-export default { fetch: async (_request: Request): Promise<Response> => notBuiltResponse('The MCP server') };
+/** The mcp function on Supabase Edge Functions (Deno). supabase/functions/mcp/index.ts serves this bundle; the path starts with /mcp. */
+export default { fetch: lazyStart('mcp', () => startApps(['mcp'])) };

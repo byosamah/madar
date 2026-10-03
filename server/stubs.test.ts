@@ -102,7 +102,9 @@ describe('the stubs', () => {
       expect(response.status).toBe(501);
       expect(await response.json()).toMatchObject({ error: { code: 'failed' } });
     }
-    const response = await worker.fetch(new Request('http://127.0.0.1/api/batch', { method: 'POST' }), {});
+    // Track E4 built the Workers entry: with its values, it mounts the MCP stub, which still answers 501.
+    const bindings = { DATABASE_URL: 'postgres://u:p@127.0.0.1:54329/postgres', SUPABASE_URL: 'http://127.0.0.1:54321', MADAR_SECRET_KEY: 'x', APP_URL: 'http://127.0.0.1:5173', MAIL_FROM: 'Madar <a@madar.test>', MAIL_DRIVER: 'outbox' };
+    const response = await worker.fetch(new Request('http://127.0.0.1/mcp', { method: 'POST' }), bindings);
     expect(response.status).toBe(501);
   });
 
