@@ -18,16 +18,24 @@ async function ask(t: T, title = 'Client asks for the area table') {
 }
 
 describe('Reply tasks follow the task rules (audit 2026-10-03, API-9)', () => {
-  it('refuses to close the entry while the reply task waits for another task', async () => {
+  it('closes the entry while the reply task waits for another task, and the task stays open and unlinked (V-13 rule, review 2026-10-03)', async () => {
     const t = world();
     t.as('usr_002');
     const { entryId, taskId } = await ask(t);
     t.store.state.tasks.tsk_900 = makeTask({ id: 'tsk_900', ownerId: 'usr_003', title: 'Must come first' });
     t.store.state.counters.tsk = 900;
     await t.api.call('tasks.update', { id: taskId, patch: { prerequisiteIds: ['tsk_900'] } });
-    await expect(t.api.call('tracker.close', { id: entryId })).rejects.toMatchObject({ details: { reason: 'prerequisite_open' } });
-    expect(t.store.state.tasks[taskId].status).toBe('todo');
-    expect(t.store.state.tracker![entryId].closedAt).toBeNull();
+    await t.api.call('tracker.close', { id: entryId }, { correlationId: 'cor_close' });
+    const s = t.store.state;
+    expect(s.tracker![entryId].closedAt).not.toBeNull();
+    expect(s.tracker![entryId].replyTaskId ?? null).toBeNull();
+    expect(s.tasks[taskId].status).toBe('todo');
+    expect(s.tasks[taskId].trackerEntryId ?? null).toBeNull();
+    // One Undo brings back the open entry and the link.
+    await t.api.call('events.undoStory', { correlationId: 'cor_close' });
+    expect(s.tracker![entryId].closedAt).toBeNull();
+    expect(s.tracker![entryId].replyTaskId).toBe(taskId);
+    expect(s.tasks[taskId].trackerEntryId).toBe(entryId);
   });
 
   it('moves the stage tag when closing the entry finishes the last open task of a stage', async () => {

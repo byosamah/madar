@@ -479,8 +479,8 @@ export const tasksMove = defineCall({
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
       // A reviewer sends a task in review back only by Send back, with a note that tells the owner why. The owner may still pull
-      // their own task back (audit 2026-10-03, PRJ-2).
-      if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task)) {
+      // their own task back, also an owner who may review it (audit 2026-10-03, PRJ-2).
+      if ((result === 'todo' || result === 'in_progress') && reviews(ctx, task) && task.ownerId !== ctx.authority.id) {
         throw invalid('status', 'Use Send back and write a note for the lead.', 'review_send_back');
       }
       const watch = watchStage(ctx, task.projectId);

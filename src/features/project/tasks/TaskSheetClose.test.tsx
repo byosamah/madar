@@ -109,3 +109,28 @@ describe('closing the task panel keeps what the person typed (audit 2026-10-03, 
     expect(updates(spy)).toHaveLength(0);
   });
 });
+
+describe('the save on close never crosses to another person or a gone task (review 2026-10-03)', () => {
+  it('drops what one person typed when another person becomes current (Preview as)', async () => {
+    const { store, api } = await renderApp(TASK, as('usr_002'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add an item' }), 'Handrail height');
+    await act(async () => { await api.call('session.previewAs', { userId: 'usr_001' }); });
+    await waitFor(() => expect(within(screen.getByRole('dialog', { name: 'Stair details' })).getByRole('textbox', { name: 'Add an item' })).toHaveValue(''));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+    expect(store.state.tasks.tsk_007.checklist).toEqual([]);
+    expect(Object.values(store.state.events).some((e) => e.targetId === 'tsk_007' && e.actorId === 'usr_001')).toBe(false);
+  });
+
+  it('sends no save for a task that someone deleted while the panel was open', async () => {
+    const { api } = await renderApp(TASK, as('usr_002'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add an item' }), 'Handrail height');
+    const spy = vi.spyOn(api, 'call');
+    await act(async () => { await api.call('tasks.delete', { id: 'tsk_007' }); });
+    await panelGone();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+    expect(updates(spy)).toHaveLength(0);
+    expect(screen.queryByText(/not found/i)).toBeNull();
+  });
+});

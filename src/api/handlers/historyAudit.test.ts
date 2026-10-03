@@ -296,3 +296,33 @@ describe('Undo takes back the notices of the undone change (audit 2026-10-03, AP
     expect(Object.values(t.store.state.notifications)).toHaveLength(1);
   });
 });
+
+describe('Undo of a story after one of its changes was undone alone (review 2026-10-03)', () => {
+  it('takes back the rest of the story and skips the change that is already undone', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'First' });
+    s.tasks.tsk_003 = makeTask({ id: 'tsk_003', ownerId: 'usr_003', title: 'Second' });
+    s.counters.tsk = 3;
+    t.as('usr_003');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'First, renamed' } }, { correlationId: 'cor_two' });
+    await t.api.call('tasks.update', { id: 'tsk_003', patch: { title: 'Second, renamed' } }, { correlationId: 'cor_two' });
+    const first = Object.values(s.events).find((e) => e.correlationId === 'cor_two' && e.targetId === 'tsk_001')!;
+    await t.api.call('events.undo', { eventId: first.id });
+    await t.api.call('events.undoStory', { correlationId: 'cor_two' });
+    expect(s.tasks.tsk_001.title).toBe('First');
+    expect(s.tasks.tsk_003.title).toBe('Second');
+  });
+
+  it('says the change is already undone when every change of the story is', async () => {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', title: 'First' });
+    s.counters.tsk = 1;
+    t.as('usr_003');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'Renamed' } }, { correlationId: 'cor_one' });
+    const only = Object.values(s.events).find((e) => e.correlationId === 'cor_one')!;
+    await t.api.call('events.undo', { eventId: only.id });
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_one' })).rejects.toMatchObject({ code: 'conflict' });
+  });
+});

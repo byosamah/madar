@@ -55,6 +55,7 @@ export function DateDraftField({ id, label, error, hint, className, value, onCom
 }) {
   const [draft, setDraft] = useState(value);
   // The draft sent last. Enter and the blur after it send the same draft once, so a reason sheet does not open twice (audit 2026-10-03, BRW-3).
+  // A new visit to the field or a new draft forgets it, so a person can send a refused date again (review 2026-10-03).
   const sent = useRef<string | null>(null);
   useEffect(() => {
     setDraft(value);
@@ -84,7 +85,11 @@ export function DateDraftField({ id, label, error, hint, className, value, onCom
       type="date"
       value={draft}
       disabled={disabled}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => {
+        sent.current = null;
+        setDraft(event.target.value);
+      }}
+      onFocus={() => { sent.current = null; }}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key !== 'Enter') return;

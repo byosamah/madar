@@ -67,7 +67,12 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
         return output.data;
       };
       const output = (def.readOnly ? store.read(execute) : store.run(execute)) as z.output<M[N]['output']>;
-      if (def.after) await def.after(output, { state: store.state, persister: store.persister, actor, now: at }, prepared).catch(() => undefined);
+      // Work outside the state (removing stored file data) waits until the change is saved, so a closed tab never keeps a record
+      // whose data is gone (review 2026-10-03).
+      if (def.after) {
+        await store.flush();
+        await def.after(output, { state: store.state, persister: store.persister, actor, now: at }, prepared).catch(() => undefined);
+      }
       return output;
     },
   };

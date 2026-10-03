@@ -176,6 +176,14 @@ describe('The status menu and the board follow the review rules (audit 2026-10-0
     expect(t.store.state.tasks.tsk_010.status).toBe('in_review');
     expect(Object.values(t.store.state.notifications)).toHaveLength(0);
   });
+
+  it('lets a reviewer who leads the task pull it back, as any owner may (review 2026-10-03)', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_010.ownerId = 'usr_002';
+    t.as('usr_002');
+    expect((await t.api.call('tasks.move', { id: 'tsk_010', status: 'in_progress' })).result).toBe('in_progress');
+    expect(t.store.state.tasks.tsk_010.status).toBe('in_progress');
+  });
 });
 
 describe('The Task list keeps the Team filter of the Dashboard (audit 2026-10-03, V-37a)', () => {

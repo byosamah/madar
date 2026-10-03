@@ -237,8 +237,10 @@ function settle(ctx: Ctx, events: Event[], correlationId: string): void {
     if (typeof to !== 'string' || ctx.state.projects[move.targetId]?.currentStageId !== to || stageTag(ctx.state, move.targetId)?.id === to) continue;
     try {
       undoEvent(ctx, move.id, { derived: true });
-    } catch {
-      // A later change set the same fields. The tag still follows the tasks below.
+    } catch (error) {
+      // A later change set the same fields, so the API refuses this one. The tag still follows the tasks below. Any other
+      // error is a fault in the code, and it fails the call (review 2026-10-03).
+      if (!(error instanceof ApiError)) throw error;
     }
   }
   for (const projectId of new Set(events.map((event) => event.projectId))) if (projectId) resyncStage(ctx, projectId);
@@ -269,16 +271,17 @@ export const eventsUndoStory = defineCall({
   input: z.object({ correlationId: z.string().min(1).max(80) }),
   output: z.object({ undone: z.array(EventView) }),
   run(input, ctx) {
-    const story = Object.values(ctx.state.events)
-      .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb))
-      .sort((a, b) => b.seq - a.seq);
-    if (story.length === 0) throw notFound('Story', input.correlationId);
+    const all = Object.values(ctx.state.events).filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb));
+    if (all.length === 0) throw notFound('Story', input.correlationId);
+    // A change of the story that was undone on its own stays undone. The rest of the story comes back (review 2026-10-03).
+    const story = all.filter((e) => !e.undoneBy).sort((a, b) => b.seq - a.seq);
+    if (story.length === 0) throw new ApiError('conflict', 'This change is already undone.');
     // A reopened task or a moved date rides on the change that caused it (audit 2026-10-03, API-1). The relief applies only
     // when the whole story is the person's own, and the cause still passes its full check (a refusal rolls the call back).
     // The cause must be a change of this story that this call takes back. A story ID comes from the caller, so a follow-on
     // change with its cause in another story, or with no cause, keeps its own rules (audit 2026-10-03, V-2).
     const mine = story.every((event) => event.actingForId === ctx.authority.id);
-    const causes = new Set(story.filter((event) => !FOLLOW_ON.has(event.verb) && !event.undoneBy).map((event) => event.id));
+    const causes = new Set(story.filter((event) => !FOLLOW_ON.has(event.verb)).map((event) => event.id));
     const relieved = (event: Event) => mine && FOLLOW_ON.has(event.verb) && event.causeEventId !== undefined && causes.has(event.causeEventId);
     const was = new Map(story.flatMap((event) => {
       const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;

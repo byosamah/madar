@@ -42,6 +42,7 @@ import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
+import { useQueryClient } from '@tanstack/react-query';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
 
@@ -284,9 +285,17 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   const edit = viewerCan.edit;
   // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
   // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
+  // The save goes only as the person who typed, and only for a task that is still there. A change of person (Preview as) and a
+  // task deleted by someone else also close the panel (review 2026-10-03, V-22).
+  const queryClient = useQueryClient();
+  const typedBy = useRef<string | undefined>(undefined);
+  typedBy.current ??= session.data?.user.id;
   const saveTyped = useRef<() => void>(() => undefined);
   saveTyped.current = () => {
     if (!edit || deleted.current) return;
+    const person = queryClient.getQueryData<{ user: { id: string } }>(['api', 'session.get', {}])?.user.id;
+    const taskError = queryClient.getQueryState(['api', 'tasks.get', { id: task.id }])?.error;
+    if (person !== typedBy.current || (taskError instanceof ApiError && taskError.code === 'not_found')) return;
     const changes: Patch = {};
     if (title.trim() && title.trim() !== (sent.current.title ?? task.title)) changes.title = title.trim();
     if (description !== (sent.current.description ?? task.description)) changes.description = description;

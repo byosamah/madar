@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { calls } from '../calls';
 import { makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -55,6 +55,28 @@ describe('Deleting a project removes its Tracker entries and its file data (audi
     await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
     expect(Object.keys(t.store.state.tracker ?? {})).toHaveLength(0);
     for (const key of keys) expect(await t.store.persister.getBlob(key)).toBeNull();
+  });
+
+  it('saves the office without the project before it removes the file data (review 2026-10-03)', async () => {
+    const t = testApi(calls);
+    t.as('usr_002');
+    await t.api.call('files.upload', { projectId: 'prj_001', name: 'plan.pdf', blob: new Blob(['a'], { type: 'application/pdf' }) });
+    const order: string[] = [];
+    const { persister } = t.store;
+    const save = persister.save.bind(persister);
+    const deleteBlob = persister.deleteBlob.bind(persister);
+    vi.spyOn(persister, 'save').mockImplementation(async (state) => {
+      if (!state.projects.prj_001) order.push('saved without the project');
+      return save(state);
+    });
+    vi.spyOn(persister, 'deleteBlob').mockImplementation(async (key) => {
+      order.push('file data removed');
+      return deleteBlob(key);
+    });
+    t.as('usr_001');
+    await t.api.call('projects.delete', { id: 'prj_001', confirm: true });
+    expect(order[0]).toBe('saved without the project');
+    expect(order).toContain('file data removed');
   });
 });
 

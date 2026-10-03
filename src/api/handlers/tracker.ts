@@ -67,8 +67,13 @@ export function addTrackerEntry(ctx: Ctx, input: NewEntry): TrackerEntry {
   return entry;
 }
 
-function closeEntry(ctx: Ctx, entry: TrackerEntry): void {
-  applyPatch(ctx, entry, { closedAt: ctx.stamp, closedBy: ctx.actor.id }, { projectId: entry.projectId, verb: 'tracker.closed', targetType: 'tracker', targetId: entry.id });
+function closeEntry(ctx: Ctx, entry: TrackerEntry, extra: Partial<TrackerEntry> = {}): void {
+  applyPatch(ctx, entry, { closedAt: ctx.stamp, closedBy: ctx.actor.id, ...extra }, { projectId: entry.projectId, verb: 'tracker.closed', targetType: 'tracker', targetId: entry.id });
+}
+
+/** The task forgets the entry it answered, and stays the person's open task. */
+function unlinkReply(ctx: Ctx, task: Task): void {
+  applyPatch(ctx, task, { trackerEntryId: null }, { projectId: task.projectId, verb: 'task.reply_unlinked', targetType: 'task', targetId: task.id });
 }
 
 /** The reply task of the entry while it is open. */
@@ -195,9 +200,12 @@ const trackerClose = defineCall({
     assertMayPost(ctx, entry.projectId);
     if (entry.waiting === null) throw invalid('id', 'This entry is not waiting for anything.', 'not_open');
     if (entry.closedAt !== null) throw invalid('id', 'This entry is already closed.', 'already_closed');
-    closeEntry(ctx, entry);
-    // The entry is closed first, so finishing the task logs no second reply.
-    finishReplyTask(ctx, entry);
+    // Ending the wait is never refused, the same as an edit that ends it: a reply task that waits for other work only forgets
+    // the entry (audit 2026-10-03, V-13). The entry is closed first, so finishing the task logs no second reply.
+    const held = heldReplyTask(ctx, entry);
+    closeEntry(ctx, entry, held ? { replyTaskId: null } : {});
+    if (held) unlinkReply(ctx, held);
+    else finishReplyTask(ctx, entry);
     touch(ctx, entry.projectId);
     return trackerRowOf(ctx.state, entry, ctx.authority);
   },
@@ -231,7 +239,7 @@ const trackerUpdate = defineCall({
     const held = replyEnds ? heldReplyTask(ctx, entry) : undefined;
     const unlink = held ? { replyTaskId: null } : {};
     applyPatch(ctx, entry, { type, direction, title, note, date, fileIds, peopleIds, ...loop, ...unlink }, { projectId: entry.projectId, verb: 'tracker.edited', targetType: 'tracker', targetId: entry.id });
-    if (held) applyPatch(ctx, held, { trackerEntryId: null }, { projectId: held.projectId, verb: 'task.reply_unlinked', targetType: 'task', targetId: held.id });
+    if (held) unlinkReply(ctx, held);
     // The entry no longer waits for our reply, so its reply task leaves the person's list (audit 2026-10-03, API-9).
     else if (replyEnds) finishReplyTask(ctx, entry);
     touch(ctx, entry.projectId);
@@ -247,9 +255,7 @@ const trackerDelete = defineCall({
     if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can delete it.');
     // The reply task stays. It only forgets the entry, and Undo of the delete brings the link back.
     const task = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
-    if (task && task.trackerEntryId === entry.id) {
-      applyPatch(ctx, task, { trackerEntryId: null }, { projectId: task.projectId, verb: 'task.reply_unlinked', targetType: 'task', targetId: task.id });
-    }
+    if (task && task.trackerEntryId === entry.id) unlinkReply(ctx, task);
     recordDelete(ctx, { projectId: entry.projectId, verb: 'tracker.deleted', targetType: 'tracker', targetId: entry.id, entity: entry });
     delete trackerOf(ctx.state)[entry.id];
     touch(ctx, entry.projectId);
