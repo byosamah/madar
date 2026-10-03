@@ -50,6 +50,9 @@ export type HookCtx<D> = { actorId: string; now: Date; deps: D };
 export interface ServerHooks<I = unknown, P = unknown, D = unknown> {
   /** Before the office lock: network work (object checks, copies) and single read statements. It never holds the lock. */
   preflight?(input: I, ctx: HookCtx<D>): Promise<unknown>;
-  /** Inside the lock, SQL only. Its value reaches run() as "prepared". */
+  /**
+   * Inside the lock, SQL only. Its value reaches run() as "prepared".
+   * A read call takes no lock and has no prepare: runCall passes the preflight value as "prepared".
+   */
   prepare?(input: I, ctx: HookCtx<D> & { q: HookQuery }, preflight: unknown): Promise<P>;
 }

@@ -12,6 +12,8 @@ import { resendMailPort } from './mail/resend';
 import { outboxMailPort } from './mail/outboxDriver';
 import { realtimeSignalPort } from './signal/realtime';
 import { verifyBrowserToken } from './auth/verify';
+import { principalOf } from './auth/principal';
+import { readOffice } from './data/officeCache';
 import { authAdminPort } from './auth/admin';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
@@ -37,13 +39,18 @@ describe('the registries', () => {
     for (const name of SERVER_CALL_NAMES) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
-  it('hold the server hooks of files.upload and feedback.send, never for an excluded call', async () => {
-    expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.send', 'files.upload']);
+  it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
+    expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.screenshot', 'feedback.send', 'files.upload', 'projects.delete']);
     for (const name of Object.keys(SERVER_HOOKS)) expect(SERVER_EXCLUDED as readonly string[]).not.toContain(name);
     const hookCtx = { actorId: 'usr_001', now: new Date(), deps };
+    const q = (async () => []) as never;
     await refusesNotBuilt(async () => SERVER_HOOKS['files.upload']?.preflight?.({} as never, hookCtx));
-    await refusesNotBuilt(async () => SERVER_HOOKS['files.upload']?.prepare?.({} as never, { ...hookCtx, q: (async () => []) as never }, undefined));
-    await refusesNotBuilt(async () => SERVER_HOOKS['feedback.send']?.prepare?.({} as never, { ...hookCtx, q: (async () => []) as never }, undefined));
+    await refusesNotBuilt(async () => SERVER_HOOKS['files.upload']?.prepare?.({} as never, { ...hookCtx, q }, undefined));
+    await refusesNotBuilt(async () => SERVER_HOOKS['feedback.send']?.prepare?.({} as never, { ...hookCtx, q }, undefined));
+    // A read call: its preflight value reaches run() as "prepared", so the stub must refuse with an ApiError before run() reads it.
+    await refusesNotBuilt(async () => SERVER_HOOKS['feedback.screenshot']?.preflight?.({ id: 'fbk_001', index: 0 } as never, hookCtx));
+    // Until track F lists the stored files, projects.delete removes no stored data, so the db-mode tests of D2 pass before F merges.
+    await expect(SERVER_HOOKS['projects.delete']?.prepare?.({ id: 'prj_001' } as never, { ...hookCtx, q }, undefined)).resolves.toEqual({ blobKeys: [] });
   });
 
   it('hold the extra HTTP route of the api function: POST /auth/forgot', async () => {
@@ -80,6 +87,8 @@ describe('the stubs', () => {
     await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
     await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
     await refusesNotBuilt(() => verifyBrowserToken('Bearer x'));
+    await refusesNotBuilt(async () => principalOf('auth-user-1', office));
+    await refusesNotBuilt(() => readOffice(deps));
     const admin = authAdminPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x' });
     await refusesNotBuilt(() => admin.generateLink('invite', 'a@madar.test'));
     await refusesNotBuilt(() => admin.createUser('a@madar.test', 'pw'));

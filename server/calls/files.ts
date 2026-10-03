@@ -13,3 +13,12 @@ export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
   preflight: () => notBuiltAsync('The files.upload preflight'),
   prepare: () => notBuiltAsync('The files.upload prepare'),
 };
+
+/**
+ * projects.delete on the server (plan 5.2, the prepare for projects.delete): inside the lock, the stored data keys of the project's files,
+ * so the effect after the commit removes the ones no other record uses. Track F replaces this stub. Until then it lists no keys,
+ * so a delete removes no stored data.
+ */
+export const projectsDeleteHooks: ServerHooks<unknown, { blobKeys: string[] }, Deps> = {
+  prepare: async () => ({ blobKeys: [] }),
+};

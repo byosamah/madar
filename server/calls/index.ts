@@ -4,8 +4,8 @@ import type { SharedCallName } from '../../src/api/sharedCalls';
 import type { Deps } from '../core/ports';
 import type { ServerCall } from '../core/types';
 import { agentsList, agentsRemove } from './agents';
-import { feedbackSendHooks, feedbackUploadStart } from './feedback';
-import { filesLink, filesUploadHooks, filesUploadStart } from './files';
+import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from './feedback';
+import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
 import { usageGet } from './usage';
@@ -28,9 +28,11 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
 
 /**
  * The server hooks of the shared calls (plan 4.5, steps 5.1 and 5.5). They replace the prototype "prepare" on the server.
- * projects.delete gets its prepare hook from track F (A2 and F2); until then it runs without one.
+ * Track F fills the bodies in server/calls/{files,feedback}.ts, never this list.
  */
 export const SERVER_HOOKS: Partial<Record<SharedCallName, ServerHooks<unknown, unknown, Deps>>> = {
   'files.upload': filesUploadHooks,
   'feedback.send': feedbackSendHooks,
+  'feedback.screenshot': feedbackScreenshotHooks,
+  'projects.delete': projectsDeleteHooks,
 };
