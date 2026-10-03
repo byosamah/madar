@@ -167,7 +167,9 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
       await userEvent.click(screen.getByRole('button', { name: 'Copy as a table' }));
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-      expect((writeText.mock.calls[0][0] as string).split('\n')).toContain(`Shore Walk Retail Kiosks\t${store.state.users.usr_001.name}\t${line}\t09:00`);
+      // The Who column holds the person of the action, the same "Who" as the meeting form, not the person who added it (audit 2026-10-03, F-18).
+      expect(lead).not.toBe(store.state.users.usr_001.name);
+      expect((writeText.mock.calls[0][0] as string).split('\n')).toContain(`Shore Walk Retail Kiosks\t${lead}\t${line}\t09:00`);
       const chat = Object.values(store.state.conversations).find((conversation) => conversation.kind === 'project' && conversation.projectId === 'prj_011')!;
       await userEvent.click(screen.getByRole('button', { name: 'Share to the project chats' }));
       await screen.findByText('The summary went to 1 chat.');
