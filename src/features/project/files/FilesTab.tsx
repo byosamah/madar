@@ -53,7 +53,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   ];
   return (
     <li className="flex flex-col">
-      <div className="flex min-h-14 items-center gap-3 px-2">
+      {/* On a phone the row is a grid, and Versions goes on its own line under the name, so the name keeps most of the row.
+          From sm up it is one line again (audit 2026-10-03, V-33). */}
+      <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
           {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
@@ -68,7 +70,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
           </p>
         </div>
         {file.versions.length > 1 && (
-          <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)}>{t('files.versions')}</Button>
+          <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)} className="col-start-2 row-start-2 -ms-5 justify-self-start sm:ms-0">
+            {t('files.versions')}
+          </Button>
         )}
         <Menu label={t('files.actions', { name: file.name })} items={items} />
       </div>
