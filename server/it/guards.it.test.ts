@@ -27,7 +27,8 @@ function localStack(): Stack {
   return {
     apiUrl,
     publishableKey: values.SUPABASE_PUBLISHABLE_KEY ?? values.PUBLISHABLE_KEY ?? values.ANON_KEY ?? '',
-    secretKey: values.SUPABASE_SECRET_KEY ?? values.SECRET_KEY ?? values.SERVICE_ROLE_KEY ?? '',
+    // The admin calls send the key as a bearer token too, so they need the service-role JWT, not an sb_secret_ key.
+    secretKey: values.SUPABASE_SERVICE_ROLE_KEY ?? values.SERVICE_ROLE_KEY ?? '',
   };
 }
 
@@ -99,7 +100,7 @@ describe('the database guards on the local stack', () => {
   it('turns RLS on for every table, and the only policy is for madar_server (the token hook may read platform_config)', async () => {
     const { rows } = await db.query(`select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'`);
     for (const row of rows) expect(row.relrowsecurity, row.relname).toBe(true);
-    const { rows: policies } = await db.query(`select tablename, policyname, roles, cmd from pg_policies where schemaname = 'public'`);
+    const { rows: policies } = await db.query(`select tablename, policyname, roles::text[] as roles, cmd from pg_policies where schemaname = 'public'`);
     for (const table of MADAR_TABLES) {
       const mine = policies.filter((policy) => policy.tablename === table);
       const expected = [{ tablename: table, policyname: 'server_all', roles: ['madar_server'], cmd: 'ALL' }];
