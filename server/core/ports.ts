@@ -14,6 +14,8 @@ export interface Db {
   savepoint<T>(q: Query, work: (q: Query) => Promise<T>): Promise<T>;
   /** One statement, with no open transaction. */
   statement<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]>;
+  /** Ends the connections of this Db. The Workers entry calls it after each request (server/entries/requestDb.ts). */
+  close?(): Promise<void>;
 }
 
 export interface Clock {
