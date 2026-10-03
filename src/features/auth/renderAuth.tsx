@@ -57,7 +57,8 @@ export const SAMPLE_ACCOUNTS = {
 
 /**
  * Renders the routes of the remote build (path links, the sign-in gate) over the sample office, with the fake API and a fake
- * sign-in port. A sign-in makes that person the current one, as the server does when it reads the person from the token.
+ * sign-in port. A sign-in makes that person the current one, as the server does when it reads the person from the token, and
+ * with no session every call fails with "unauthenticated".
  * `refuse` makes every call fail with "unauthenticated" while it returns true (or with the error it returns), as the real server
  * does after a session ends.
  */
@@ -67,14 +68,6 @@ export async function renderRemoteApp(path: string, o: { signedInAs?: keyof type
   o.prepare?.(state);
   const store = new Store(state, memoryPersister());
   const api = createApi(calls, { store, latencyMs: 0 });
-  if (o.refuse) {
-    const original = api.call.bind(api);
-    api.call = ((name: string, input: unknown, meta?: unknown) => {
-      const refused = o.refuse?.();
-      if (refused) return Promise.reject(refused === true ? new ApiError('unauthenticated', 'Sign in to continue.') : refused);
-      return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
-    }) as typeof api.call;
-  }
   const signedInAs = o.signedInAs === undefined ? 'hala' : o.signedInAs;
   if (signedInAs) state.session.currentUserId = SAMPLE_ACCOUNTS[signedInAs].userId;
   const auth = fakeAuth({
@@ -82,6 +75,13 @@ export async function renderRemoteApp(path: string, o: { signedInAs?: keyof type
     signedInAs: signedInAs ? SAMPLE_ACCOUNTS[signedInAs].email : undefined,
     onSignIn: (account) => { store.state.session.currentUserId = account.userId; },
   });
+  // As the real server: no session, no answer.
+  const original = api.call.bind(api);
+  api.call = ((name: string, input: unknown, meta?: unknown) => {
+    const refused = auth.status() === 'signed_out' || o.refuse?.();
+    if (refused) return Promise.reject(refused === true ? new ApiError('unauthenticated', 'Sign in to continue.') : refused);
+    return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+  }) as typeof api.call;
   initI18n('en');
   const router = createMemoryRouter(appRoutes(true), { initialEntries: [path] });
   onTestFinished(() => router.dispose());

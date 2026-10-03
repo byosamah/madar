@@ -13,8 +13,8 @@ export function isLeaving(): boolean {
 }
 
 /**
- * Sign out on this device (plan 5.1, client map 7.3): end the session (the Supabase port also closes the Realtime channels), drop
- * every list of the person from the cache and every unsent word in this tab, then go to Sign in with the reason. After this the
+ * Sign out on this device (plan 5.1, client map 7.3): end the session (the Supabase port also closes the Realtime channels), go to
+ * Sign in with the reason, then drop every answer of the person from the cache and every unsent word in this tab. After this the
  * next person in the tab cannot see the lists or the drafts of the person before.
  */
 export function useSignOut(): (reason?: 'signed_out' | 'expired' | 'account_off') => Promise<void> {
@@ -26,9 +26,13 @@ export function useSignOut(): (reason?: 'signed_out' | 'expired' | 'account_off'
     try {
       // The session is gone on this device even when the server does not answer.
       await auth.signOut().catch(() => undefined);
-      queryClient.clear();
-      keepDraftsOf('');
+      // Leave the screen first, so its lists do not ask the server again with no session.
       await navigate(signInPath({ reason }), { replace: true });
+      // Every answer of the person goes. A reset, not a clear: a list that stays mounted above the router (the language and
+      // theme of AppearanceSync) keeps its link to the cache, so it loads the next person's answer after their sign-in.
+      queryClient.getMutationCache().clear();
+      void queryClient.resetQueries();
+      keepDraftsOf('');
     } finally {
       leaving = false;
     }

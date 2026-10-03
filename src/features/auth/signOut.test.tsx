@@ -39,9 +39,29 @@ describe('sign out from the person menu (plan 5.1, client map 7.3)', () => {
     await signOut(app);
     expect(app.auth.status()).toBe('signed_out');
     expect(app.auth.log).toContain('signOut:local');
-    expect(app.queryClient.getQueryCache().getAll().filter((query) => query.queryKey[1] !== 'session.get')).toEqual([]);
+    await waitFor(() => expect(app.queryClient.getQueryCache().getAll().filter((query) => query.state.data !== undefined)).toEqual([]));
+    expect(app.queryClient.getMutationCache().getAll()).toEqual([]);
     expect(screen.getByText('You signed out.')).toHaveAttribute('role', 'status');
     expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
+  });
+
+  it('shows the next person their own language and theme, not those of the person before', async () => {
+    const app = await renderRemoteApp('/dashboard', {
+      prepare: (state) => {
+        state.users.usr_001.preferences = { ...state.users.usr_001.preferences, language: 'ar', theme: 'dark' };
+        state.users.usr_002.preferences = { ...state.users.usr_002.preferences, language: 'en', theme: 'light' };
+      },
+    });
+    await waitFor(() => expect(document.documentElement.lang).toBe('ar'));
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'تسجيل الخروج' }));
+    // The sign-in screen keeps the language of the tab.
+    expect(await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول إلى مدار' })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('البريد الإلكتروني'), SAMPLE_ACCOUNTS.faisal.email);
+    await userEvent.type(screen.getByLabelText('كلمة المرور'), SAMPLE_ACCOUNTS.faisal.password);
+    await userEvent.click(screen.getByRole('button', { name: 'تسجيل الدخول' }));
+    await waitFor(() => expect(document.documentElement.lang).toBe('en'));
+    expect(document.documentElement.dataset.theme).toBe('light');
   });
 
   // The twins of the four V-22 tests (test map 8.1): the next person in the tab now comes by sign-out and sign-in.
