@@ -13,7 +13,7 @@ export function StageTemplatesSection() {
   return (
     <section aria-labelledby="admin-stage-templates" className="surface flex flex-col gap-3 rounded-card p-5">
       <h2 id="admin-stage-templates" className="text-headline">{t('stageTemplates.title')}</h2>
-      {templates.error && !templates.data && <LoadFailed error={templates.error} onRetry={() => void templates.refetch()} />}
+      <LoadFailed query={templates} />
       {templates.data?.length === 0 && <p className="text-footnote text-ink-2">{t('stageTemplates.empty')}</p>}
       <ul className="flex flex-col">
         {(templates.data ?? []).map((template) => (

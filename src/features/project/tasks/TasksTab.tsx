@@ -78,7 +78,7 @@ export function TasksTab({ detail }: TabProps) {
         </FilterButton>
       </div>
       {/* A list that did not load says so and offers Retry, never an empty tab (audit 2026-10-03, PRJ-4). */}
-      {tasks.error && !tasks.data && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
+      <LoadFailed query={tasks} />
       {tasks.data && (view === 'list'
         ? <TaskList detail={detail} rows={showDone ? rows : rows.filter((row) => row.task.status !== 'done')} filtered={filter !== 'all'} onOpen={open} doneCounts={showDone ? {} : doneCounts} />
         : <TaskBoard rows={rows} reviews={detail.viewerCan.review} canLog={detail.viewerCan.post} onOpen={open} onSendBack={sendBack} />)}

@@ -15,6 +15,7 @@ import { addWorkingDays } from '../../../lib/workdays';
 import { AttachButton, PickedFiles, useAttachments } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
 import { TypeIcon } from './marks';
+import { arrowStep } from '../../../lib/keys';
 
 /**
  * One line to log an exchange with the client. Only the text is needed: the type, the direction and the date have
@@ -56,12 +57,10 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
     setWait(false);
   };
   const onTypeKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const rtl = document.documentElement.dir === 'rtl';
-    const forward = event.key === 'ArrowDown' || event.key === (rtl ? 'ArrowLeft' : 'ArrowRight');
-    const backward = event.key === 'ArrowUp' || event.key === (rtl ? 'ArrowRight' : 'ArrowLeft');
-    if (!forward && !backward) return;
+    const step = arrowStep(event.key, document.documentElement.dir === 'rtl', true);
+    if (step === 0) return;
     event.preventDefault();
-    const next = (index + (forward ? 1 : -1) + TRACKER_TYPES.length) % TRACKER_TYPES.length;
+    const next = (index + step + TRACKER_TYPES.length) % TRACKER_TYPES.length;
     pickType(TRACKER_TYPES[next]);
     typeButtons.current[next]?.focus();
   };

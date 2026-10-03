@@ -39,7 +39,7 @@ export function PeopleSection() {
           {t('admin.addPerson')}
         </Button>
       </div>
-      {users.error && !users.data && <LoadFailed error={users.error} onRetry={() => void users.refetch()} />}
+      <LoadFailed query={users} />
       <ul className="flex flex-col">
         {(users.data ?? []).map((user) => {
           // The office teams of this person, shown quietly after the discipline.

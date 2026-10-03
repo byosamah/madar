@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/entities';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
-import { readDraft, useDraftOwner, writeDraft } from '../../app/drafts';
+import { useDraftOwner, useDraftText } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
-import { useAction, useCall, useRuntime } from '../../app/runtime';
+import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Age } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
@@ -23,6 +23,7 @@ import { DateMoveLines } from '../project/tasks/DateReason';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CalendarDaysIcon } from '../../components/icons/animated/calendar-days';
 import { counted } from '../../lib/grammar';
+import { useMarkTaskRead } from './markRead';
 
 function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
@@ -146,18 +147,9 @@ function CommentThreadFor({
   const attachments = useAttachments();
   const [uploading, setUploading] = useState(false);
   const comments = useCall('comments.list', { targetType, targetId });
-  // Comments read here also count as read in the Inbox thread of the task (audit 2026-10-03, SHL-5).
-  const { api } = useRuntime();
-  const count = comments.data?.length;
-  useEffect(() => {
-    if (targetType === 'task' && count) api.call('chats.markRead', { conversationId: targetId }).catch(() => undefined);
-  }, [api, targetType, targetId, count]);
+  useMarkTaskRead(targetType === 'task' ? targetId : null, comments.data, owner);
   const draftKey = `${targetType}:${targetId}`;
-  const [body, setBodyState] = useState(() => readDraft(owner, draftKey));
-  const setBody = (next: string) => {
-    writeDraft(owner, draftKey, next);
-    setBodyState(next);
-  };
+  const [body, setBody] = useDraftText(owner, draftKey);
   const create = useAction('comments.create', {
     onSuccess: () => {
       setBody('');

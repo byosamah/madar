@@ -48,7 +48,7 @@ export function TaskTemplatesSection() {
   return (
     <section aria-labelledby="admin-task-templates" className="surface flex flex-col gap-3 rounded-card p-5">
       <h2 id="admin-task-templates" className="text-headline">{t('taskTemplates.title')}</h2>
-      {templates.error && !templates.data && <LoadFailed error={templates.error} onRetry={() => void templates.refetch()} />}
+      <LoadFailed query={templates} />
       {templates.data?.length === 0 && <p className="text-footnote text-ink-2">{t('taskTemplates.empty')}</p>}
       {[...groups].map(([stageName, rows]) => (
         <div key={stageName} role="group" aria-label={stageName} className="flex flex-col">

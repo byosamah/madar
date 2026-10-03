@@ -4,7 +4,7 @@ import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
-import { readDraft, readDraftFiles, useDraftOwner, writeDraft, writeDraftFiles } from '../../app/drafts';
+import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useToast } from '../../app/toasts';
@@ -127,11 +127,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
-  const [text, setTextState] = useState(() => readDraft(owner, draftKey));
-  const setText = (next: string) => {
-    writeDraft(owner, draftKey, next);
-    setTextState(next);
-  };
+  const [text, setText] = useDraftText(owner, draftKey);
   useEffect(() => {
     writeDraftFiles(owner, draftKey, attachments.files);
   }, [owner, draftKey, attachments.files]);

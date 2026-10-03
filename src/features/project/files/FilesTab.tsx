@@ -198,7 +198,7 @@ export function FilesTab({ detail }: TabProps) {
         </div>
       )}
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
-      {files.error && !files.data && <LoadFailed error={files.error} onRetry={() => void files.refetch()} />}
+      <LoadFailed query={files} />
       {files.data && groups.length === 0 && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} />}
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;

@@ -89,7 +89,7 @@ export function TeamsSection() {
           {t('teams.add')}
         </Button>
       </div>
-      {teams.error && !teams.data && <LoadFailed error={teams.error} onRetry={() => void teams.refetch()} />}
+      <LoadFailed query={teams} />
       {teams.data?.length === 0 && <p className="text-footnote text-ink-2">{t('teams.empty')}</p>}
       <ul className="flex flex-col">
         {(teams.data ?? []).map((team) => (

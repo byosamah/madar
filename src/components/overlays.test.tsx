@@ -319,6 +319,21 @@ describe('overlays after the audit of 2026-10-03', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
   });
 
+  it('runs the newest Undo with Ctrl+Z while the focus is on a tick box, which has no typing to undo', async () => {
+    const run = vi.fn();
+    render(
+      <ToastProvider>
+        <UndoInside run={run} />
+        <label><input type="checkbox" /> Log in the Tracker</label>
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByText('Delete'));
+    await screen.findByRole('button', { name: 'Undo' });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Log in the Tracker' }));
+    await userEvent.keyboard('{Control>}z{/Control}');
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it('does not close a blocking sheet when the person presses Undo in a toast (SHL-3)', async () => {
     const onOpenChange = vi.fn();
     const run = vi.fn();

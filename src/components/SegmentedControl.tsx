@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react';
+import { arrowStep } from '../lib/keys';
 
 /**
  * A radio group as one row of buttons. The group is one Tab stop; the arrow keys move the choice, the end-side arrow
@@ -10,12 +11,10 @@ export function SegmentedControl<T extends string>({
   const group = useRef<HTMLDivElement>(null);
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const rtl = document.documentElement.dir === 'rtl';
-    const forward = event.key === 'ArrowDown' || event.key === (rtl ? 'ArrowLeft' : 'ArrowRight');
-    const back = event.key === 'ArrowUp' || event.key === (rtl ? 'ArrowRight' : 'ArrowLeft');
-    if (!forward && !back) return;
+    const step = arrowStep(event.key, document.documentElement.dir === 'rtl', true);
+    if (step === 0) return;
     event.preventDefault();
-    const index = (Math.max(selected, 0) + (forward ? 1 : -1) + options.length) % options.length;
+    const index = (Math.max(selected, 0) + step + options.length) % options.length;
     onChange(options[index].value);
     group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[index]?.focus();
   };

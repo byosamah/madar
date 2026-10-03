@@ -65,7 +65,7 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
         </Button>
       </div>
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
-      {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
+      <LoadFailed query={list} />
       {list.data && rows.length === 0 && <p className="text-subheadline text-ink-2">{t('payments.empty')}</p>}
       {rows.length > 0 && (
         <ul className="hairline -mx-2 flex flex-col">

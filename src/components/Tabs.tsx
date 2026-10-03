@@ -1,14 +1,14 @@
 import { motion } from 'motion/react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { spring } from '../design/motion';
+import { arrowStep } from '../lib/keys';
 
 /** Tabs for the sections of one screen. The arrow keys move the selection, the end-side arrow forward. */
 export function Tabs<T extends string>({
   label, value, options, onChange, idPrefix = 'tab',
 }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void; idPrefix?: string }) {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const rtl = document.documentElement.dir === 'rtl';
-    const step = event.key === (rtl ? 'ArrowLeft' : 'ArrowRight') ? 1 : event.key === (rtl ? 'ArrowRight' : 'ArrowLeft') ? -1 : 0;
+    const step = arrowStep(event.key, document.documentElement.dir === 'rtl');
     if (step === 0) return;
     event.preventDefault();
     const index = options.findIndex((option) => option.value === value);

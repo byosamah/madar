@@ -61,10 +61,13 @@ function focusBack(opener: HTMLElement | null, holder: HTMLElement | null): void
 }
 
 /** The focus is lost when it is on the page body or still inside the sheet that closes. */
-const focusLost = (sheet: HTMLElement | null) => {
+export const focusLost = (sheet: HTMLElement | null) => {
   const active = document.activeElement;
   return !active || active === document.body || Boolean(sheet?.contains(active));
 };
+
+const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
@@ -123,14 +126,10 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      const active = document.activeElement;
-      const lost = !active || active === document.body || panel.current?.contains(active);
-      if (lost && opener.current?.isConnected) opener.current.focus();
+      if (focusLost(panel.current) && opener.current?.isConnected) opener.current.focus();
     };
   }, [open]);
-  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
-  const away = rtl ? '-110%' : '110%';
-  const width = wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]';
+  const away = isRtl() ? '-110%' : '110%';
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -144,7 +143,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
           animate={{ x: 0 }}
           exit={{ x: away }}
           transition={spring.standard}
-          className={`float fixed inset-y-3 end-3 z-50 flex flex-col rounded-sheet outline-none ${width}`}
+          className={`float fixed inset-y-3 end-3 z-50 flex flex-col rounded-sheet outline-none ${widthOf(wide)}`}
         >
           <Frame
             heading={(
@@ -173,8 +172,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
 export function Sheet(props: SheetProps) {
   const { open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, keepOnOutsidePress = false, children } = props;
   const phone = useIsPhone();
-  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
-  const direction = phone ? 'bottom' : rtl ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
+  const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
   usePanelOpen(open && modal);
   const content = useRef<HTMLDivElement>(null);
@@ -195,12 +193,12 @@ export function Sheet(props: SheetProps) {
   if (!modal) return <SidePanel {...props} />;
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
-    : `inset-y-3 end-3 rounded-sheet ${wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]'}`;
+    : `inset-y-3 end-3 rounded-sheet ${widthOf(wide)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal={modal} handleOnly={!phone}>
+    <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal handleOnly={!phone}>
       <Drawer.Portal>
-        {modal && <Drawer.Overlay className="fixed inset-0 z-40 bg-[var(--c-scrim)]" />}
+        <Drawer.Overlay className="fixed inset-0 z-40 bg-[var(--c-scrim)]" />
         <Drawer.Content
           ref={content}
           {...described}

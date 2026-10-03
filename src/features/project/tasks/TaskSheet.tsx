@@ -21,7 +21,7 @@ import { SelectField, TextArea, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { RichText } from '../../../components/RichText';
-import { Sheet } from '../../../components/Sheet';
+import { focusLost, Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
@@ -235,9 +235,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   const root = useRef<HTMLDivElement>(null);
   const reviewBlock = useRef<HTMLElement>(null);
   const keepFocus = () => {
-    const active = document.activeElement;
-    if (active && active !== document.body && !reviewBlock.current?.contains(active)) return;
-    root.current?.closest<HTMLElement>('[role="dialog"]')?.focus();
+    if (focusLost(reviewBlock.current)) root.current?.closest<HTMLElement>('[role="dialog"]')?.focus();
   };
   // Approve offers Undo, as Send to review does: a mis-press is one tap to put back (audit 2026-10-03, BRW-5).
   const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: keepFocus });

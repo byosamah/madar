@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useCall } from './runtime';
 
 /**
@@ -39,6 +39,16 @@ export function keepDraftsOf(userId: string): void {
     for (const key of keys) if (key.startsWith(PREFIX) && !key.startsWith(own)) window.sessionStorage.removeItem(key);
   } catch { /* blocked storage */ }
   for (const key of [...pickedFiles.keys()]) if (!key.startsWith(own)) pickedFiles.delete(key);
+}
+
+/** Typed text that writes through to the person's drafts, so it waits when its box unmounts. */
+export function useDraftText(owner: string, key: string): [string, (next: string) => void] {
+  const [text, setText] = useState(() => readDraft(owner, key));
+  const set = (next: string) => {
+    writeDraft(owner, key, next);
+    setText(next);
+  };
+  return [text, set];
 }
 
 /** The person whose drafts show: the current person. Undefined while the session loads. */
