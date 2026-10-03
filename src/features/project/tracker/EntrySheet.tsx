@@ -156,7 +156,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
         <div className="flex flex-col">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline text-ink-2">
             <span className="inline-flex items-center gap-1.5"><TypeIcon type={entry.type} size={16} />{t(`tracker.type.${entry.type}`)}</span>
-            {entry.direction !== 'none' && <span className="inline-flex items-center gap-1.5"><DirectionMark direction={entry.direction} />{t(`tracker.direction.${entry.direction}`)}</span>}
+            {entry.direction !== 'none' && <span className="inline-flex items-center gap-1.5"><DirectionMark direction={entry.direction} spoken={false} />{t(`tracker.direction.${entry.direction}`)}</span>}
             <span className="tabular">{formatDay(entry.date, lang, 'long')}</span>
           </p>
           {open && <p className="pt-3"><StatusSign state="active">{t(entry.waiting === 'us' ? 'tracker.waitingUs' : 'tracker.waitingClient')}</StatusSign></p>}
