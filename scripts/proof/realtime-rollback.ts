@@ -17,7 +17,11 @@ import pg from 'pg';
  * The result goes into docs/superpowers/real-build/proof.md, section N1.0.
  */
 
-export type JoinOutcome = 'refused' | 'joined' | 'timeout';
+/** The answer to a join. A refusal keeps the reason of the server, so a socket drop never reads as the policy. */
+export type JoinOutcome = { outcome: 'refused' | 'joined' | 'timeout'; reason?: string };
+
+/** The words of the Realtime server when a policy refuses a private channel ("Unauthorized: You do not have permissions to read ..."). */
+const AUTHORIZATION_REFUSAL = /Unauthorized|permission/i;
 
 export type SpikeObservation = {
   /** Marks sent with realtime.send in a transaction that committed. */
@@ -26,6 +30,8 @@ export type SpikeObservation = {
   rolledBack: string[];
   /** Marks that the signed-in member received on the private channel, in arrival order. */
   received: string[];
+  /** Rows in realtime.messages for each mark, read inside its own transaction before the commit or rollback. realtime.send turns a failed insert into a warning, so this proves each send worked. */
+  insertedInTransaction: Record<string, number>;
   /** Rows in realtime.messages for each mark, read after the run. */
   storedRows: Record<string, number>;
   /** What happened when a client with no session tried to join the private channel. */
@@ -48,6 +54,10 @@ export function judge(seen: SpikeObservation): SpikeResult {
     lines.push(`${pass ? 'ok' : 'FAIL'}: ${text}`);
   };
   const arrivals = (mark: string) => seen.received.filter((m) => m === mark).length;
+  for (const mark of [...seen.committed, ...seen.rolledBack]) {
+    const n = seen.insertedInTransaction[mark] ?? 0;
+    check(n === 1, `the send of mark ${mark} inserted ${n} row(s) before its commit or rollback; expected 1.`);
+  }
   for (const mark of seen.committed) {
     const n = arrivals(mark);
     check(n === 1, `committed mark ${mark} arrived ${n} time(s) on the channel; expected 1.`);
@@ -64,8 +74,10 @@ export function judge(seen: SpikeObservation): SpikeResult {
     const n = seen.storedRows[mark] ?? 0;
     check(n === 0, `rolled-back mark ${mark} has ${n} row(s) in realtime.messages; expected 0.`);
   }
-  const refusal = (outcome: JoinOutcome, who: string) => {
-    if (outcome === 'refused') check(true, `${who} could not join the private channel.`);
+  const refusal = ({ outcome, reason }: JoinOutcome, who: string) => {
+    const server = `(server: ${reason || 'no reason'})`;
+    if (outcome === 'refused' && AUTHORIZATION_REFUSAL.test(reason ?? '')) check(true, `${who} could not join the private channel ${server}.`);
+    else if (outcome === 'refused') check(false, `${who} was refused for a reason that is not an authorization refusal ${server}.`);
     else if (outcome === 'joined') check(false, `${who} joined the private channel; expected a refusal.`);
     else check(false, `the join of ${who} got no answer in time; expected a refusal.`);
   };
@@ -110,33 +122,45 @@ function localStack(): Local {
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-/** Joins a private channel and waits for the answer of the server. */
+/** Joins a private channel and waits for the answer of the server. A refusal keeps the error that the server sent. */
 function join(channel: RealtimeChannel, ms: number): Promise<JoinOutcome> {
   return new Promise((done) => {
-    const timer = setTimeout(() => done('timeout'), ms);
-    channel.subscribe((status) => {
+    const timer = setTimeout(() => done({ outcome: 'timeout' }), ms);
+    channel.subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
         clearTimeout(timer);
-        done('joined');
+        done({ outcome: 'joined' });
       } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
         clearTimeout(timer);
-        done('refused');
+        done({ outcome: 'refused', reason: err?.message });
       }
     });
   });
 }
 
-/** One realtime.send in its own transaction, then a commit, a rollback, or an error that forces the rollback. */
-async function sendIn(db: pg.Client, topic: string, mark: string, end: 'commit' | 'rollback' | 'error'): Promise<void> {
+const describeJoin = ({ outcome, reason }: JoinOutcome) => (reason ? `${outcome} (${reason})` : outcome);
+
+/**
+ * One realtime.send in its own transaction, then a commit, a rollback, or an error that forces the rollback.
+ * It returns the rows of the mark that the transaction saw before its end, so a send that only warned shows as 0.
+ */
+async function sendIn(db: pg.Client, topic: string, mark: string, end: 'commit' | 'rollback' | 'error'): Promise<number> {
   await db.query('begin');
+  let inserted = 0;
   try {
     await db.query(`select realtime.send(jsonb_build_object('mark', $1::text), 'changed', $2::text, true)`, [mark, topic]);
+    const seen = await db.query<{ n: string }>(
+      `select count(*) as n from realtime.messages where topic = $1 and payload->>'mark' = $2`,
+      [topic, mark],
+    );
+    inserted = Number(seen.rows[0]?.n ?? 0);
     if (end === 'error') await db.query('select 1 / 0');
     await db.query(end === 'commit' ? 'commit' : 'rollback');
   } catch (error) {
     await db.query('rollback');
     if (end !== 'error') throw error;
   }
+  return inserted;
 }
 
 export async function runSpike(log: (line: string) => void = console.log): Promise<SpikeResult> {
@@ -179,24 +203,25 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
       .channel(topic, { config: { private: true } })
       .on('broadcast', { event: 'changed' }, ({ payload }) => received.push(String(payload.mark)));
     const memberJoin = await join(memberChannel, 15000);
-    log(`member join on the private channel ${topic}: ${memberJoin}`);
-    if (memberJoin !== 'joined') throw new Error('The signed-in member could not join, so the spike cannot listen.');
+    log(`member join on the private channel ${topic}: ${describeJoin(memberJoin)}`);
+    if (memberJoin.outcome !== 'joined') throw new Error('The signed-in member could not join, so the spike cannot listen.');
 
     const outsiderJoin = await join(outsider.channel(topic, { config: { private: true } }), 15000);
-    log(`join with no session on the same private channel: ${outsiderJoin}`);
+    log(`join with no session on the same private channel: ${describeJoin(outsiderJoin)}`);
     const strangerIn = await stranger.auth.signInWithPassword({ email: strangerEmail, password });
     if (strangerIn.error || !strangerIn.data.session) throw new Error(`signIn: ${strangerIn.error?.message}`);
     await stranger.realtime.setAuth(strangerIn.data.session.access_token);
     const strangerJoin = await join(stranger.channel(topic, { config: { private: true } }), 15000);
-    log(`join of a signed-in person whom the policy does not name: ${strangerJoin}`);
+    log(`join of a signed-in person whom the policy does not name: ${describeJoin(strangerJoin)}`);
 
     const committed = [`${run}-commit-1`, `${run}-commit-2`];
     const rolledBack = [`${run}-rollback`, `${run}-error`];
     // Commit, rollback, rollback by an error, commit: the second commit proves the listener was still alive after the rollbacks.
-    await sendIn(db, topic, committed[0], 'commit');
-    await sendIn(db, topic, rolledBack[0], 'rollback');
-    await sendIn(db, topic, rolledBack[1], 'error');
-    await sendIn(db, topic, committed[1], 'commit');
+    const insertedInTransaction: Record<string, number> = {};
+    insertedInTransaction[committed[0]] = await sendIn(db, topic, committed[0], 'commit');
+    insertedInTransaction[rolledBack[0]] = await sendIn(db, topic, rolledBack[0], 'rollback');
+    insertedInTransaction[rolledBack[1]] = await sendIn(db, topic, rolledBack[1], 'error');
+    insertedInTransaction[committed[1]] = await sendIn(db, topic, committed[1], 'commit');
     await sleep(4000);
     log(`received in order: ${received.join(', ') || '(nothing)'}`);
 
@@ -205,7 +230,7 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
       [topic],
     );
     const storedRows = Object.fromEntries(rows.rows.map((row) => [row.mark, Number(row.n)]));
-    return judge({ committed, rolledBack, received, storedRows, outsiderJoin, strangerJoin });
+    return judge({ committed, rolledBack, received, insertedInTransaction, storedRows, outsiderJoin, strangerJoin });
   } finally {
     for (const client of clients) await client.removeAllChannels();
     await db.query(`drop policy if exists "${policy}" on realtime.messages`).catch(() => undefined);
