@@ -1,5 +1,6 @@
 import type { AuthPort, AuthStatus, LinkType } from '../../app/auth';
 import { AuthFailure, MIN_PASSWORD } from './authFailure';
+import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from './sessionEnd';
 
 export type FakeAccount = { email: string; password: string; userId: string; off?: boolean };
 export type FakeLink = { type: LinkType; email: string; used?: boolean };
@@ -11,6 +12,10 @@ export type FakeAuth = AuthPort & {
   current(): FakeAccount | null;
   /** The session ends without a sign-out, as when the refresh token is gone. */
   expire(): void;
+  /** Another tab of the browser signs out on purpose: Supabase tells this tab, which did not sign out itself. */
+  otherTabSignsOut(): void;
+  /** Another tab of the browser signs in as this person. */
+  otherTabSignsIn(email: string): void;
 };
 
 /**
@@ -25,17 +30,27 @@ export function fakeAuth(o: {
 }): FakeAuth {
   const accounts = new Map(o.accounts.map((account) => [account.email.toLowerCase(), { ...account }]));
   const links = new Map(Object.entries(o.links ?? {}));
-  const listeners = new Set<(status: AuthStatus) => void>();
+  const listeners = new Set<SessionListener>();
   const log: string[] = [];
   const resets: string[] = [];
   let current: FakeAccount | null = o.signedInAs ? accounts.get(o.signedInAs.toLowerCase()) ?? null : null;
 
+  // As the Supabase port: the person of the last session stays after a sign-out, and a sign-in of someone else is a change.
+  let lastUserId: string | null = current?.userId ?? null;
+
   const status = (): AuthStatus => (current ? 'signed_in' : 'signed_out');
   const become = (next: FakeAccount | null) => {
     const before = status();
+    const otherPerson = next !== null && lastUserId !== null && next.userId !== lastUserId;
     current = next;
-    if (next) o.onSignIn?.(next);
-    if (status() !== before) for (const listener of [...listeners]) listener(status());
+    if (next) {
+      lastUserId = next.userId;
+      o.onSignIn?.(next);
+    }
+    let change: SessionChange | undefined;
+    if (otherPerson) change = 'person';
+    else if (status() === 'signed_out' && leftOnPurpose()) change = 'left';
+    if (otherPerson || status() !== before) for (const listener of [...listeners]) listener(status(), change);
   };
 
   return {
@@ -46,6 +61,14 @@ export function fakeAuth(o: {
       log.push('expire');
       become(null);
     },
+    otherTabSignsOut: () => {
+      markLeaving();
+      become(null);
+    },
+    otherTabSignsIn: (email) => {
+      clearLeaving();
+      become(accounts.get(email.toLowerCase()) ?? null);
+    },
     status,
     subscribe(listener) {
       listeners.add(listener);
@@ -53,6 +76,7 @@ export function fakeAuth(o: {
     },
     async signIn(email, password) {
       log.push(`signIn:${email}`);
+      clearLeaving();
       const account = accounts.get(email.trim().toLowerCase());
       if (!account || account.password !== password) throw new AuthFailure('wrong_credentials');
       if (account.off) throw new AuthFailure('account_off');
@@ -61,13 +85,17 @@ export function fakeAuth(o: {
     async signOut(options) {
       const scope = options?.scope ?? 'local';
       log.push(`signOut:${scope}`);
-      if (scope === 'local') become(null);
+      if (scope === 'local') {
+        markLeaving();
+        become(null);
+      }
     },
     async accessToken() {
       return current ? `token-${current.userId}` : null;
     },
     async verifyLink(tokenHash, type) {
       log.push(`verifyLink:${type}`);
+      clearLeaving();
       const link = links.get(tokenHash);
       if (!link || link.used || link.type !== type) throw new AuthFailure('link_ended');
       link.used = true;

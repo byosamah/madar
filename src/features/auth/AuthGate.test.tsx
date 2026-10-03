@@ -9,10 +9,18 @@ import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
 const UPDATE = '/projects/prj_001?tab=activity';
 const MEETING = '/dashboard/meeting?mode=projects';
 const sheet = () => screen.findByRole('dialog', { name: 'Your session ended' });
+const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.'));
 
 async function typeUpdate(text: string) {
   const form = await screen.findByRole('form', { name: 'Post an update' });
   await userEvent.type(within(form).getByRole('textbox', { name: 'Post an update' }), text);
+}
+
+/** Types in the first chat, whose unsent words stay in session storage. */
+async function typeInChat(text: string) {
+  await userEvent.click(within(await screen.findByRole('list', { name: 'Chats' })).getByRole('link', { name: /Corniche Office Tower/ }));
+  await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), text);
+  await waitFor(() => expect(savedDrafts()).not.toEqual([]));
 }
 
 async function continueWith(password: string) {
@@ -131,5 +139,40 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     const open = await screen.findByRole('dialog', { name: 'انتهت جلستك' });
     expect(within(open).getByRole('button', { name: 'متابعة' })).toBeInTheDocument();
     expectCalm(open, { titleLevel: 2 });
+  });
+
+  it('drops the screen, the lists and the unsent words when the person signs out on purpose in another tab', async () => {
+    const { auth, router, queryClient } = await renderRemoteApp('/inbox');
+    await typeInChat('Only for Hala');
+    act(() => auth.otherTabSignsOut());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in to Madar' })).toBeInTheDocument();
+    expect(router.state.location.search).toBe('?reason=signed_out');
+    expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
+    expect(screen.queryByText(SAMPLE_ACCOUNTS.hala.email)).toBeNull();
+    await waitFor(() => expect(queryClient.getQueryCache().getAll().filter((query) => query.state.data !== undefined)).toEqual([]));
+    expect(queryClient.getMutationCache().getAll()).toEqual([]);
+    expect(savedDrafts()).toEqual([]);
+    expect(auth.log).not.toContain('signOut:local');
+  });
+
+  it('drops the lists and the unsent words of the person before when another person signs in in another tab', async () => {
+    const { auth, router, queryClient } = await renderRemoteApp('/inbox');
+    await typeInChat('Only for Hala');
+    act(() => auth.otherTabSignsIn(SAMPLE_ACCOUNTS.faisal.email));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in to Madar' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/sign-in');
+    expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
+    expect(savedDrafts()).toEqual([]);
+    // What loads again is Faisal's, never Hala's.
+    await waitFor(() => {
+      const sessions = queryClient.getQueryCache().getAll().filter((query) => query.queryKey.includes('session.get') && query.state.data !== undefined);
+      for (const query of sessions) expect((query.state.data as { user: { id: string } }).user.id).toBe('usr_002');
+    });
+  });
+
+  it('saves the language of the person for the next cold start', async () => {
+    window.localStorage.setItem('madar.lang', 'en');
+    await renderRemoteApp(UPDATE, { prepare: (state) => { state.users.usr_001.preferences.language = 'ar'; } });
+    await waitFor(() => expect(window.localStorage.getItem('madar.lang')).toBe('ar'));
   });
 });

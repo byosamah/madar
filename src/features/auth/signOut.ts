@@ -12,20 +12,20 @@ export function isLeaving(): boolean {
   return leaving;
 }
 
+type Reason = 'signed_out' | 'expired' | 'account_off';
+
 /**
- * Sign out on this device (plan 5.1, client map 7.3): end the session (the Supabase port also closes the Realtime channels), go to
- * Sign in with the reason, then drop every answer of the person from the cache and every unsent word in this tab. After this the
- * next person in the tab cannot see the lists or the drafts of the person before.
+ * The steps after the session of the person ends in this tab: go to Sign in with the reason, then drop every answer of the
+ * person from the cache and every unsent word in this tab. After this the next person in the tab cannot see the lists or the
+ * drafts of the person before. The gate also runs these steps when the person signs out, or another person signs in, in another
+ * tab of the browser.
  */
-export function useSignOut(): (reason?: 'signed_out' | 'expired' | 'account_off') => Promise<void> {
-  const auth = useAuth();
+export function useLeaveScreen(): (reason: Reason) => Promise<void> {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  return useCallback(async (reason = 'signed_out') => {
+  return useCallback(async (reason) => {
     leaving = true;
     try {
-      // The session is gone on this device even when the server does not answer.
-      await auth.signOut().catch(() => undefined);
       // Leave the screen first, so its lists do not ask the server again with no session.
       await navigate(signInPath({ reason }), { replace: true });
       // Every answer of the person goes. A reset, not a clear: a list that stays mounted above the router (the language and
@@ -36,5 +36,24 @@ export function useSignOut(): (reason?: 'signed_out' | 'expired' | 'account_off'
     } finally {
       leaving = false;
     }
-  }, [auth, queryClient, navigate]);
+  }, [queryClient, navigate]);
+}
+
+/**
+ * Sign out on this device (plan 5.1, client map 7.3): end the session (the Supabase port also closes the Realtime channels), then
+ * the steps of useLeaveScreen.
+ */
+export function useSignOut(): (reason?: Reason) => Promise<void> {
+  const auth = useAuth();
+  const leave = useLeaveScreen();
+  return useCallback(async (reason = 'signed_out') => {
+    leaving = true;
+    try {
+      // The session is gone on this device even when the server does not answer.
+      await auth.signOut().catch(() => undefined);
+    } finally {
+      leaving = false;
+    }
+    await leave(reason);
+  }, [auth, leave]);
 }
