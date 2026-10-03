@@ -12,6 +12,14 @@ export type ToastInput = {
 type ToastItem = ToastInput & { id: number };
 
 const ToastContext = createContext<{ show: (toast: ToastInput) => void } | null>(null);
+
+/**
+ * The presses that started on a toast. A sheet waits for the end of a press (the click) before it decides that a press was
+ * outside it, and by then the toast of an Undo is gone from the page, so the sheet cannot ask the page. It asks here, with the
+ * same pointerdown event (audit 2026-10-03, V-11).
+ */
+const toastPresses = new WeakSet<Event>();
+export const isToastPress = (event: Event | undefined): boolean => event !== undefined && toastPresses.has(event);
 let nextToastId = 1;
 const STAY_MS = 5000;
 
@@ -94,7 +102,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {/* A live region: sheets hide the rest of the page from screen readers, but never a live region, so toasts stay heard. */}
       {/* data-toasts: a press here never counts as a press outside an open sheet (audit 2026-10-03, SHL-3). */}
-      <div data-toasts aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6">
+      <div data-toasts aria-live="polite" onPointerDownCapture={(event) => toastPresses.add(event.nativeEvent)} className="pointer-events-none fixed inset-x-0 bottom-24 z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6">
         {toasts.map((toast) => (
           <div
             key={toast.id}

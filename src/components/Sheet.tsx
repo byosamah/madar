@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
 import { usePanelOpen } from '../app/panelOpen';
+import { isToastPress } from '../app/toasts';
 import { useIsPhone } from '../app/useIsPhone';
 import { spring } from '../design/motion';
 
@@ -204,8 +205,9 @@ export function Sheet(props: SheetProps) {
             if (focusLost(content.current)) focusBack(opener, holder);
           }}
           // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
+          // The toast can be gone from the page when Radix asks, so the check uses the press itself (audit 2026-10-03, V-11).
           onPointerDownOutside={(event) => {
-            if (event.target instanceof Element && event.target.closest('[data-toasts]')) event.preventDefault();
+            if (isToastPress(event.detail.originalEvent)) event.preventDefault();
           }}
           // Escape in a "…" menu inside the sheet closes the menu only (audit 2026-10-03, SHL-1).
           onEscapeKeyDown={(event) => {

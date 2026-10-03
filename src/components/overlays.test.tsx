@@ -312,6 +312,30 @@ describe('overlays after the audit of 2026-10-03', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it('does not close a blocking sheet when the toast is gone before the press ends, as in a browser (audit 2026-10-03, V-11)', async () => {
+    const onOpenChange = vi.fn();
+    const run = vi.fn();
+    render(
+      <ToastProvider>
+        <Sheet open onOpenChange={onOpenChange} title="Task"><UndoInside run={run} /></Sheet>
+      </ToastProvider>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Task' });
+    await userEvent.click(within(dialog).getByText('Delete'));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
+    // Radix waits 0 ms before it listens for presses.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    // The press starts on Undo. Radix decides at the click; in a browser React has removed the toast by then.
+    // A test cannot get that order from one click, so the toast goes first (Ctrl+Z runs the same Undo), then the click comes.
+    fireEvent.pointerDown(undo, { button: 0, pointerType: 'touch' });
+    await userEvent.keyboard('{Control>}z{/Control}');
+    await waitFor(() => expect(undo.isConnected).toBe(false));
+    fireEvent.click(document.body);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    expect(run).toHaveBeenCalledOnce();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it('keeps a toast while the pointer or the focus is on it (SHL-3)', async () => {
     vi.useFakeTimers();
     try {
