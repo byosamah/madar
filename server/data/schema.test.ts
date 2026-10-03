@@ -73,9 +73,10 @@ describe('the table registry (server/data/tables.ts)', () => {
 });
 
 /**
- * The schema check against zod (plan 4.4). It needs the local stack, so it runs with MADAR_IT=1 (npm run test:it, or
- * MADAR_IT=1 npx vitest run --project server server/data/schema.test.ts under the Docker lock). It applies the non-platform
- * migrations into a schema of its own, as the db-mode harness does for each worker.
+ * The schema check against zod (plan 4.4). It needs the local stack, so it runs only with MADAR_IT=1 and is skipped in
+ * "npm test". "npm run test:it" runs it once the merge lead adds this file to the "it" project of vite.config.ts; until then
+ * run MADAR_IT=1 npx vitest run --project server server/data/schema.test.ts under the Docker lock. It applies the
+ * non-platform migrations into a schema of its own, as the db-mode harness does for each worker.
  *
  * writeHere and loadHere are B2's own small writer and loader. Track C1 moves this test onto writeState and loadWhole of
  * server/data/whole.ts.
@@ -173,11 +174,21 @@ describe.runIf(process.env.MADAR_IT === '1')('the schema against zod, on the loc
     }
   });
 
-  it('gives the sample office back exactly, in the same order, events included', async () => {
-    await writeHere(seed);
+  it('gives the sample office back exactly, in the same order, events and one undo pair included', async () => {
+    // The sample office has no undo event, so one pair is added: Y undoes X, and the loader must fill X.undoneBy (plan 4.3).
+    const office = structuredClone(seed);
+    const events = Object.values(office.events);
+    const x = events[0];
+    const y = { ...x, id: 'evt_9001', seq: Math.max(...events.map((event) => event.seq)) + 1, verb: 'undo', undoes: x.id, undoneBy: null };
+    office.events[y.id] = y;
+    x.undoneBy = y.id;
+    await writeHere(office);
     const loaded = await loadHere();
+    expect((loaded.events as State['events'])[x.id].undoneBy).toBe(y.id);
+    const { rows: stored } = await db.query('select doc from events where id = $1', [x.id]);
+    expect(stored[0].doc.undoneBy).toBeNull();
     // What JSON can hold: a field set to undefined is absent.
-    const expected = JSON.parse(JSON.stringify(seed)) as Record<string, unknown>;
+    const expected = JSON.parse(JSON.stringify(office)) as Record<string, unknown>;
     for (const spec of TABLES) {
       const want = expected[spec.collection] ?? {};
       expect(loaded[spec.collection], spec.table).toStrictEqual(want);
