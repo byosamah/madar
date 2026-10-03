@@ -13,9 +13,9 @@ import { DateDraftField, SelectField, TextField } from '../../../components/Fiel
 import { IconButton } from '../../../components/IconButton';
 import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
-import { projectHue } from '../../../lib/projectColor';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { currentTone } from '../../dashboard/scheduleMarks';
 import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
@@ -24,13 +24,14 @@ import { DeleteIcon } from '../../../components/icons/animated/delete';
 type Edge = 'start' | 'end';
 
 function StageBar({
-  stage, span: saved, range, place, color, editable, width, onCommit,
+  stage, span: saved, range, place, tone, editable, width, onCommit,
 }: {
   stage: Stage;
   span: Span;
   range: Span;
   place: 'done' | 'current' | 'later';
-  color: string;
+  /** The classes of the current stage: the state of the project, as on the Dashboard schedule. */
+  tone: string;
   editable: boolean;
   width: () => number;
   onCommit: (span: Span, onError: () => void) => void;
@@ -100,8 +101,8 @@ function StageBar({
   return (
     <div
       title={t('project.stageDates', { start: formatDay(span.start, lang), end: formatDay(span.end, lang) })}
-      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%`, ...(place === 'current' ? { background: color } : {}) }}
-      className={`absolute top-2 h-7 rounded-full ${place === 'done' ? 'bg-ink-2/35' : place === 'later' ? 'ring-1 ring-inset ring-chart-muted' : ''}`}
+      style={{ insetInlineStart: `${offsetPct(range, span.start)}%`, width: `${widthPct(range, span.start, span.end)}%` }}
+      className={`absolute top-2 h-7 rounded-full ${place === 'done' ? 'bg-ink-2/35' : place === 'later' ? 'ring-1 ring-inset ring-chart-muted' : tone}`}
     >
       {editable && handle('start')}
       {editable && handle('end')}
@@ -119,6 +120,13 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   const overlaps = stageOverlaps(detail.stages);
+  // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
+  // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
+  const paused = detail.project.status === 'on_hold';
+  const tone = currentTone({
+    pause: paused ? { kind: detail.project.pause?.kind ?? 'internal', staleDays: detail.staleDays } : null,
+    health: detail.health?.value ?? 'on_track',
+  });
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
       {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
@@ -147,7 +155,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     span={span}
                     range={range}
                     place={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'later'}
-                    color={`var(--p-${projectHue(detail.project.id)}-fg)`}
+                    tone={tone}
                     editable={detail.viewerCan.edit}
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
