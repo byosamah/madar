@@ -29,6 +29,17 @@ describe('app shell', () => {
     expect(within(tab).getByText('لوحة المعلومات')).toHaveClass('whitespace-nowrap');
   });
 
+  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 280 and 300 px.
+  it('keeps every phone tab inside the bar below 320 px: a smaller label, less padding, tabs that can shrink (audit 2026-10-03, F-2)', async () => {
+    await renderApp('/dashboard');
+    const nav = await pill();
+    expect(nav).toHaveClass('max-[319px]:gap-0');
+    for (const name of ['Home', 'Projects', 'Dashboard']) {
+      const tab = within(nav).getByRole('link', { name });
+      for (const rule of ['max-[319px]:[--size-caption:11px]', 'max-[319px]:px-1', 'max-[319px]:flex-auto', 'max-[319px]:min-w-0']) expect(tab).toHaveClass(rule);
+    }
+  });
+
   it('moves between screens', async () => {
     await renderApp('/dashboard');
     await userEvent.click(within(await pill()).getByRole('link', { name: 'Projects' }));
