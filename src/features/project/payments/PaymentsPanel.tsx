@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { PaymentRow } from '../../../api/contract/views';
@@ -11,7 +12,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
 import { PAYMENT_PANEL, usePanelLink } from '../panelLink';
-import { PaymentSheet } from './PaymentSheet';
+import { PaymentSheet, type PaymentDraft } from './PaymentSheet';
 
 /** "SAR 120,000" in English and "120,000 ر.س" in Arabic. Madar writes Western digits in both. */
 export function amountText(t: TFunction, lang: Lang, amount: number): string {
@@ -43,6 +44,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
   const openId = params.get('payment');
   // Open adds one history step and Close goes back over it, so a sheet costs no extra Back (audit 2026-10-03, PRJ-9, V-36).
   const panel = usePanelLink(PAYMENT_PANEL);
+  // What a person typed in a payment sheet and did not save, for as long as this panel lives (audit 2026-10-03, F-17).
+  const drafts = useRef(new Map<string, PaymentDraft>());
   const setOpen = (id: string | null) => (id ? panel.open({ payment: id }) : panel.close());
   const total = rows.reduce((sum, row) => sum + row.payment.amount, 0);
   const received = rows.filter((row) => row.status === 'received').reduce((sum, row) => sum + row.payment.amount, 0);
@@ -87,8 +90,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           ))}
         </ul>
       )}
-      {openId === 'new' && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} />}
-      {open && <PaymentSheet key={open.payment.id} projectId={projectId} row={open} onClose={() => setOpen(null)} />}
+      {openId === 'new' && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} drafts={drafts.current} />}
+      {open && <PaymentSheet key={open.payment.id} projectId={projectId} row={open} onClose={() => setOpen(null)} drafts={drafts.current} />}
     </section>
   );
 }

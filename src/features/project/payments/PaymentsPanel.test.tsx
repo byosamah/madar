@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { initI18n } from '../../../i18n';
@@ -154,5 +154,85 @@ describe('the Awaiting payment group in Needs attention', () => {
     await screen.findByRole('region', { name: 'Needs attention' });
     await within(await panel()).findAllByRole('listitem');
     expect(screen.queryByRole('heading', { name: /^Awaiting payment/ })).toBeNull();
+  });
+});
+
+// A sheet closed by accident (Escape, a press outside, Close) keeps what the person typed. Only Save and Cancel start from the
+// saved values again: the same rule as the New Project sheet (audit 2026-10-03, F-17).
+describe('the payment sheet keeps what the person typed (audit 2026-10-03, F-17)', () => {
+  const sheetGone = (name: string) => waitFor(() => expect(screen.queryByRole('dialog', { name })).toBeNull());
+  async function typeNew() {
+    await userEvent.click(within(await panel()).getByRole('button', { name: 'Add payment' }));
+    const sheet = await sheetOf('Add payment');
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Concept design fee');
+    await userEvent.type(within(sheet).getByLabelText('Amount (SAR)'), '25000');
+    return sheet;
+  }
+  async function reopenNew() {
+    await userEvent.click(within(await panel()).getByRole('button', { name: 'Add payment' }));
+    return sheetOf('Add payment');
+  }
+
+  it('keeps a new payment after Escape, and Cancel empties it', async () => {
+    await renderApp(PROJECT, as('usr_011'));
+    await typeNew();
+    await userEvent.keyboard('{Escape}');
+    await sheetGone('Add payment');
+    const again = await reopenNew();
+    expect(within(again).getByLabelText('Name')).toHaveValue('Concept design fee');
+    expect(within(again).getByLabelText('Amount (SAR)')).toHaveValue('25000');
+    await userEvent.click(within(again).getByRole('button', { name: 'Cancel' }));
+    await sheetGone('Add payment');
+    const fresh = await reopenNew();
+    expect(within(fresh).getByLabelText('Name')).toHaveValue('');
+    expect(within(fresh).getByLabelText('Amount (SAR)')).toHaveValue('');
+  });
+
+  it('keeps a new payment after a press outside and after Close', async () => {
+    await renderApp(PROJECT, as('usr_011'));
+    await typeNew();
+    // Radix waits 0 ms before it listens for presses.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+    await sheetGone('Add payment');
+    const again = await reopenNew();
+    expect(within(again).getByLabelText('Name')).toHaveValue('Concept design fee');
+    await userEvent.click(within(again).getByRole('button', { name: 'Close' }));
+    await sheetGone('Add payment');
+    expect(within(await reopenNew()).getByLabelText('Amount (SAR)')).toHaveValue('25000');
+  });
+
+  it('keeps an edit of a saved payment after Escape, for that payment only', async () => {
+    const { store } = await renderApp(PROJECT, as('usr_011'));
+    const openRow = async (name: string) => {
+      await userEvent.click(await within(await panel()).findByRole('button', { name: `Open payment ${name}` }));
+      return sheetOf('Edit payment');
+    };
+    const sheet = await openRow('Construction documents fee');
+    const amount = within(sheet).getByLabelText('Amount (SAR)');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '375000');
+    await userEvent.type(within(sheet).getByLabelText('Note'), 'Client asked for a split');
+    await userEvent.keyboard('{Escape}');
+    await sheetGone('Edit payment');
+    const other = await openRow('Design development fee');
+    expect(within(other).getByLabelText('Amount (SAR)')).toHaveValue('320000');
+    await userEvent.keyboard('{Escape}');
+    await sheetGone('Edit payment');
+    const again = await openRow('Construction documents fee');
+    expect(within(again).getByLabelText('Amount (SAR)')).toHaveValue('375000');
+    expect(within(again).getByLabelText('Note')).toHaveValue('Client asked for a split');
+    expect(Object.values(store.state.payments ?? {}).find((p) => p.name === 'Construction documents fee')?.amount).toBe(360000);
+  });
+
+  it('starts the next new payment empty after Save', async () => {
+    await renderApp(PROJECT, as('usr_011'));
+    const sheet = await typeNew();
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-11-15' } });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Payment added.')).toBeInTheDocument();
+    await sheetGone('Add payment');
+    expect(within(await reopenNew()).getByLabelText('Name')).toHaveValue('');
   });
 });

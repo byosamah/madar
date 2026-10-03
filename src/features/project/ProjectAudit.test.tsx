@@ -743,7 +743,8 @@ describe('Enter, then a click on Cancel (audit 2026-10-03, BRW-3)', () => {
     fireEvent.blur(due);
     await settle();
     expect(spy.mock.calls.filter(([name]) => name === 'tasks.update')).toHaveLength(1);
-    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    // The Cancel button names what it does (audit 2026-10-03, F-16).
+    await userEvent.click(within(ask).getByRole('button', { name: 'Keep the old date' }));
     await settle();
     expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull();
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');

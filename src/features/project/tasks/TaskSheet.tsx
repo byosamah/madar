@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { XIcon } from '../../../components/icons/animated/x';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -24,8 +24,9 @@ import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
-import { BOARD_COLUMNS } from '../../../lib/board';
+import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
+import { actorContext } from '../../../lib/grammar';
 import { CommentThread } from '../../comments/CommentThread';
 import { PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
@@ -53,8 +54,12 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/** What the person typed in "Add an item", with the list it goes into, so the panel can save it when it closes. */
+type ChecklistDraft = { text: string; items: ChecklistItem[] };
+const newItemId = () => `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 /** edit: add, remove and tick. tick: a helper ticks only. Otherwise the list is plain text. */
-function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void }) {
+function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void; draft: MutableRefObject<ChecklistDraft> }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   // A local copy, so two quick ticks build on each other before the saved list comes back.
@@ -67,6 +72,9 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
     setItems(next);
     onChange(next);
   };
+  useEffect(() => {
+    draft.current = { text, items };
+  }, [draft, text, items]);
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
@@ -102,8 +110,7 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
             event.preventDefault();
             const value = text.trim();
             if (!value) return;
-            const id = `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-            change([...items, { id, text: value, done: false }]);
+            change([...items, { id: newItemId(), text: value, done: false }]);
             setText('');
           }}
         >
@@ -187,7 +194,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
   );
 }
 
-function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void }) {
+function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
@@ -199,7 +206,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const back = useStageBack(detail.viewerCan.post);
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
-  const dates = useDateReason(() => setTimingKey((key) => key + 1));
+  const dates = useDateReason(() => setTimingKey((key) => key + 1), `dateReason:${task.id}`);
   // A failed or refused save puts the dates and the checklist back to the saved values; the toast still says why (audit 2026-10-03, PRJ-7).
   const [failures, setFailures] = useState(0);
   const update = useAction('tasks.update', {
@@ -214,6 +221,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
       // The title goes back to the saved one. A description keeps the typed text, marked "Not saved", so no work is lost (audit 2026-10-03, BRW-6).
       if (input.patch.title !== undefined) setTitle(task.title);
       if (input.patch.description !== undefined) setUnsaved(true);
+      sent.current = {};
       setFailures((count) => count + 1);
       return false;
     },
@@ -222,29 +230,78 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
+  // The Review block goes away after Approve or Send back, and the pressed button goes with it. The focus then goes to the
+  // panel, so a keyboard keeps its place and the next Tab stays in the panel (audit 2026-10-03, F-8 repair).
+  const root = useRef<HTMLDivElement>(null);
+  const reviewBlock = useRef<HTMLElement>(null);
+  const keepFocus = () => {
+    const active = document.activeElement;
+    if (active && active !== document.body && !reviewBlock.current?.contains(active)) return;
+    root.current?.closest<HTMLElement>('[role="dialog"]')?.focus();
+  };
   // Approve offers Undo, as Send to review does: a mis-press is one tap to put back (audit 2026-10-03, BRW-5).
-  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved') });
+  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: keepFocus });
   const sendBack = useAction('tasks.sendBack', {
     onSuccess: () => {
       setNote('');
+      keepFocus();
       toast.show({ message: t('taskSheet.sentBack') });
     },
   });
-  const remove = useUndoable('tasks.delete', { message: () => t('taskSheet.deleted'), onSuccess: onClose });
+  const deleted = useRef(false);
+  // A new lead gets the usual Undo toast. It also says when the person joined the team, and one Undo takes back both
+  // (audit 2026-10-03, F-22).
+  const leadJoins = useRef(false);
+  const newLead = useUndoable('tasks.update', {
+    message: (output) => t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: output.owner.name, context: actorContext(output.owner) }),
+  });
+  const remove = useUndoable('tasks.delete', {
+    message: () => t('taskSheet.deleted'),
+    onSuccess: () => {
+      deleted.current = true;
+      onClose();
+    },
+  });
   const saveTemplate = useAction('taskTemplates.save', { onSuccess: (template) => toast.show({ message: t('taskSheet.templateSaved', { stage: template.stageName }) }) });
   const everyone = useCall('users.list', {});
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [unsaved, setUnsaved] = useState(false);
   const [note, setNote] = useState('');
+  // The title and the description that went to the server and did not come back yet, so a close does not send them twice.
+  const sent = useRef<{ title?: string; description?: string }>({});
+  const checklistDraft = useRef<ChecklistDraft>({ text: '', items: task.checklist });
   useEffect(() => {
     setTitle(task.title);
     setDescription(task.description);
     setUnsaved(false);
+    sent.current = {};
   }, [task.title, task.description]);
 
-  const patch = (changes: Patch) => update.mutate({ id: task.id, patch: changes });
+  const patch = (changes: Patch) => {
+    if (changes.title !== undefined) sent.current.title = changes.title;
+    if (changes.description !== undefined) sent.current.description = changes.description;
+    update.mutate({ id: task.id, patch: changes });
+  };
   const edit = viewerCan.edit;
+  // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
+  // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
+  const saveTyped = useRef<() => void>(() => undefined);
+  saveTyped.current = () => {
+    if (!edit || deleted.current) return;
+    const changes: Patch = {};
+    if (title.trim() && title.trim() !== (sent.current.title ?? task.title)) changes.title = title.trim();
+    if (description !== (sent.current.description ?? task.description)) changes.description = description;
+    const item = checklistDraft.current.text.trim();
+    if (item) changes.checklist = [...checklistDraft.current.items, { id: newItemId(), text: item, done: false }];
+    if (Object.keys(changes).length > 0) update.mutate({ id: task.id, patch: changes });
+  };
+  useEffect(() => () => saveTyped.current(), []);
+  // autoFocus works only when the panel mounts. The panel of the same task stays mounted when the person picks "Send back with
+  // a note" on its card, so an effect moves the focus each time noteFirst turns on (audit 2026-10-03, F-8 repair).
+  useEffect(() => {
+    if (noteFirst && viewerCan.review) reviewBlock.current?.querySelector<HTMLElement>('#task-note')?.focus();
+  }, [noteFirst, viewerCan.review]);
   const people = detail.members.map((member) => member.user);
   if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
@@ -265,7 +322,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   }, { replace: true, state: location.state });
 
   return (
-    <div className="flex flex-col gap-5 pt-1">
+    <div ref={root} className="flex flex-col gap-5 pt-1">
       <Tabs
         label={t('taskSheet.sections')}
         idPrefix="task-section"
@@ -285,11 +342,14 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
           <div className="flex flex-col gap-5">
             {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
             {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
+            {/* After "Send back with a note" on the board, the note takes the focus, Send back is the main button and Approve
+                steps back to the end (audit 2026-10-03, F-8). */}
             {viewerCan.review && (
-              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>
+              <section ref={reviewBlock} aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                {!noteFirst && <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
                 <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-                <Button disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+                <Button variant={noteFirst ? 'primary' : 'secondary'} disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
+                {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
               </section>
             )}
             {edit ? (
@@ -308,11 +368,21 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               {/* The reviewer finishes or returns a task in review with Approve or Send back only, so the Status menu hides (audit 2026-10-03, PRJ-2). */}
               {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
-                  {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
+                  {/* While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19). */}
+                  {BOARD_COLUMNS.filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview).includes(status))
+                    .map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
               {viewerCan.editAll ? (
-                <SelectField id="task-owner" label={t('taskSheet.owner')} value={task.ownerId} onChange={(event) => patch({ ownerId: event.target.value })}>
+                <SelectField
+                  id="task-owner"
+                  label={t('taskSheet.owner')}
+                  value={task.ownerId}
+                  onChange={(event) => {
+                    leadJoins.current = !teamIds.has(event.target.value);
+                    newLead.mutate({ id: task.id, patch: { ownerId: event.target.value } });
+                  }}
+                >
                   {(pickable.some((person) => person.id === task.ownerId) ? pickable : [...pickable, data.owner]).map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
@@ -366,7 +436,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
+            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
             <TaskFiles views={files.data ?? []} />
             <History data={data} canUndoAgent={canUndoAgent} />
@@ -390,7 +460,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
 }
 
 /** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). */
-export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail: ProjectDetail; onClose: () => void }) {
+export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { taskId: string; detail: ProjectDetail; onClose: () => void; noteFirst?: boolean }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
   const focus = useFocusLink();
@@ -414,7 +484,7 @@ export function TaskSheet({ taskId, detail, onClose }: { taskId: string; detail:
         </button>
       )}
     >
-      {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} />}
+      {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} noteFirst={noteFirst} />}
       {!task.data && task.error && !gone && <LoadFailed error={task.error} onRetry={() => void task.refetch()} />}
     </Sheet>
   );
