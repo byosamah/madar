@@ -45,7 +45,9 @@ major_version = 17
 orioledb_version = ""
 
 [db.pooler]
-enabled = false
+# Madar: on, so the local stack has the transaction pooler that E1 proves the lock through (plan 4.5, Connections).
+# The CI db job leaves Supavisor out with "supabase start -x".
+enabled = true
 # Port to use for the local connection pooler.
 port = 54329
 # Specifies when a server connection can be reused by other clients.
@@ -292,6 +294,7 @@ max_frequency = "5s"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # Madar: sets aud to the MCP URL for agent tokens (plan, change 6). Track G writes the function in its platform migration.
+# Until G merges, supabase/seed.sql makes a hook that changes nothing, so sign-in works on the local stack.
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/public/madar_access_token_hook"
