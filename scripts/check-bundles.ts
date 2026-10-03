@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Checks a finished build (plan, section 3, rule 5).
- * remote: no sample office (buildSeed) and no relative ./assets/ path in index.html, because path links need base '/'.
+ * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
+ * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * prototype: no Supabase code and no _headers file, so the artifact stays a static page with the fake API.
  * It prints every search, so a search with no match is visible.
  */
@@ -17,6 +18,9 @@ function walk(dir: string): string[] {
     return statSync(path).isDirectory() ? walk(path) : [path];
   });
 }
+
+/** Names that only the sample office holds (src/data/seed.ts). A test checks that the seed still holds each one. */
+export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office Tower'] as const;
 
 const TEXT = /\.(html|js|mjs|css|json|txt|map|svg|webmanifest)$/;
 
@@ -38,7 +42,7 @@ export function checkBundles(kind: BundleKind, dir: string): BundleCheck {
   };
 
   if (kind === 'remote') {
-    report("'buildSeed'", texts.filter((f) => f.text.includes('buildSeed')).map((f) => f.name));
+    report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, texts.filter((f) => SEED_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name));
     const index = texts.find((f) => f.name === 'index.html');
     if (!index) {
       ok = false;
