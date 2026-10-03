@@ -60,6 +60,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 ## 2026-10-03: real build, orchestration follow-ups
 
 - [ ] After wave 1: check that track E fixed the TLS fail-open in `server/core/deps.ts` (`hostedSupabase` only requires `DATABASE_CA` for `*.supabase.co/.com` hosts, so any other host, or an unparsable URL, connects without TLS). Fix if not: fail closed, require TLS for every host except loopback and the local Docker hosts, refuse an unparsable URL, with tests.
+- [ ] After wave 1: check that `WelcomeScreen.tsx` signs out the other devices after the password save (`auth.signOut({ scope: 'others' })`, as `ResetScreen.tsx` does). Commit 919ab5e made Welcome accept `type=recovery` links, so a reset link opened on Welcome sets a new password and keeps a stolen login on another device alive. Fix if not, with a test.
 - [ ] Wave 3 brief for track F: add `assertCan(ctx, 'project.view', ...)` to the fake `files.link` in `serverFakes.ts` too (plan 2b.7), so fake and real match.
 - [ ] Z0a: the Resend test send waits for the owner's Resend account address.
 - [ ] After the build: the owner rotates the 4 secrets (Supabase token, both database passwords, Resend key), which were pasted in chat and auto-saved to Supermemory.
