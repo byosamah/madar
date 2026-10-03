@@ -1,0 +1,11 @@
+# The probe Worker of server/it/workerdb.it.test.ts (task C1). Local runs only, with "wrangler dev": the Hyperdrive binding gets
+# its connection string from CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB, so no password is in this file. The id is a placeholder.
+name = "madar-c1-workerdb-probe"
+main = "index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[[hyperdrive]]
+binding = "DB"
+id = "00000000000000000000000000000000"

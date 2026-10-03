@@ -19,6 +19,8 @@ const SUPABASE = 'http://127.0.0.1:54321';
 const WORKER_PORT = 8797;
 const ORIGIN = 'http://127.0.0.1:5173';
 const MIN_BUILD = '2026.10.4';
+/** The local transaction pooler from the Mac, for the Hyperdrive binding of the Worker. Local test values only. */
+const LOCAL_POOLER = 'postgres://postgres.pooler-dev:postgres@127.0.0.1:54329/postgres?sslmode=disable';
 /** A made-up local value. It opens the database check of GET /api/health (x-madar-jobs-secret). */
 const JOBS_SECRET = 'local-jobs-secret-made-up';
 
@@ -42,8 +44,8 @@ function envFile(name: string, values: Record<string, string>): string {
   return path;
 }
 
-function start(command: string, args: string[]): void {
-  const child = spawn(command, args, { cwd: ROOT, detached: true, stdio: 'ignore', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' } });
+function start(command: string, args: string[], extra: Record<string, string> = {}): void {
+  const child = spawn(command, args, { cwd: ROOT, detached: true, stdio: 'ignore', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1', ...extra } });
   children.push(child);
 }
 
@@ -77,7 +79,10 @@ beforeAll(async () => {
   const functions = envFile('functions.env', { ...common, DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@pooler:6543/postgres', SB_REGION: 'local-deno' });
   const worker = envFile('worker.env', { ...common, SUPABASE_URL: SUPABASE, DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@127.0.0.1:54329/postgres', SB_REGION: 'local-workers' });
   start('npx', ['supabase', 'functions', 'serve', '--env-file', functions]);
-  start('npx', ['wrangler', 'dev', '-c', 'wrangler.server.toml', '--env-file', worker, '--port', String(WORKER_PORT), '--ip', '127.0.0.1', '--show-interactive-dev-session=false']);
+  // The Worker connects through its Hyperdrive binding DB (proof.md, Z0a item 7); locally Wrangler points it at the local pooler.
+  start('npx', ['wrangler', 'dev', '-c', 'wrangler.server.toml', '--env-file', worker, '--port', String(WORKER_PORT), '--ip', '127.0.0.1', '--show-interactive-dev-session=false'], {
+    CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB: LOCAL_POOLER,
+  });
   await Promise.all(HOSTS.map((host) => waitFor(`${host.base}/api/health`, 240_000)));
 }, 300_000);
 

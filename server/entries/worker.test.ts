@@ -118,6 +118,42 @@ describe('the Workers entry and the database', () => {
   });
 });
 
+describe('the Workers entry and the Hyperdrive binding (proof.md, Z0a item 7)', () => {
+  const HYPERDRIVE = 'postgresql://madar_server:pw@0123abcd.hyperdrive.local:5432/postgres?sslmode=disable';
+  /** The values of a Worker that gets its database from the binding DB: no DATABASE_URL and no DATABASE_CA. */
+  const BOUND = { ...LOCAL, DATABASE_URL: undefined, DB: { connectionString: HYPERDRIVE } };
+  /** An app that answers the database values that the entry gave the apps (the health route connects with them). */
+  const VALUES: AppMount = { name: 'api', app: (_deps, values) => new Hono().get('/values', () => Response.json(values.database)) };
+
+  it('opens the database of each request from the finished connection string of the binding, and needs no DATABASE_CA', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { opened, openDb } = workersDbs();
+    const seen: unknown[] = [];
+    const worker = workerEntry({ openDb: (database) => (seen.push(database), openDb()), mounts: [PROBE, VALUES] });
+    for (let n = 0; n < 2; n += 1) {
+      const { pending, ctx } = context();
+      const response = await worker.fetch(new Request('http://127.0.0.1/api/one'), BOUND, ctx);
+      expect(response.status).toBe(200);
+      await response.text();
+      await Promise.all(pending);
+    }
+    expect(seen).toEqual([{ connectionString: HYPERDRIVE }, { connectionString: HYPERDRIVE }]);
+    expect(opened.every((db) => db.closed)).toBe(true);
+    const values = await worker.fetch(new Request('http://127.0.0.1/api/values'), BOUND);
+    expect(await values.json()).toEqual({ writeUrl: HYPERDRIVE, readUrl: HYPERDRIVE });
+  });
+
+  it('uses DATABASE_URL when the Worker has no binding', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const seen: unknown[] = [];
+    const worker = workerEntry({ openDb: (database) => (seen.push(database), openDb()), mounts: [PROBE] });
+    const response = await worker.fetch(new Request('http://127.0.0.1/api/one'), LOCAL);
+    await response.text();
+    expect(seen).toEqual([{ writeUrl: LOCAL.DATABASE_URL, readUrl: LOCAL.DATABASE_URL }]);
+  });
+});
+
 describe('the request database', () => {
   it('refuses work outside a request, with a message that names the cause', async () => {
     const scope = requestScopedDb();
