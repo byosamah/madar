@@ -308,7 +308,7 @@ export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry
 /** The reply task of an entry. A task that was deleted counts as no task. */
 export function replyTaskOf(state: State, entry: TrackerEntry): TrackerRow['replyTask'] {
   const task = entry.replyTaskId ? state.tasks[entry.replyTaskId] : undefined;
-  return task ? { id: task.id, status: task.status, dueDate: task.dueDate, owner: cardOf(state, task.ownerId) } : null;
+  return task ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, owner: cardOf(state, task.ownerId) } : null;
 }
 
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {

@@ -196,8 +196,8 @@ export const TrackerRow = z.object({
   closedBy: UserCard.nullable(),
   people: z.array(UserCard),
   files: z.array(Attachment),
-  /** The reply task of the entry, or null when it has none (or the task was deleted). */
-  replyTask: z.object({ id: TaskId, status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
+  /** The reply task of the entry, or null when it has none (or the task was deleted). The title lets the sheet name it (audit 2026-10-03, F-11). */
+  replyTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
   canClose: z.boolean(),
   canEdit: z.boolean(),
   canDelete: z.boolean(),

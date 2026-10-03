@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import type { ProjectDetail, TrackerRow, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
@@ -162,11 +163,18 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
           {open && <p className="pt-3"><StatusSign state="active">{t(entry.waiting === 'us' ? 'tracker.waitingUs' : 'tracker.waitingClient')}</StatusSign></p>}
           {row.replyTask && (
             <Block title={t('tracker.replyTask')}>
-              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline">
-                <Person user={row.replyTask.owner} />
-                {row.replyTask.dueDate && <span className="tabular text-ink-2">{t('tracker.replyDue', { date: formatDay(row.replyTask.dueDate, lang) })}</span>}
-                {row.replyTask.status === 'done' && <StatusSign state="completed">{t('tracker.replyDone')}</StatusSign>}
-              </p>
+              {/* The block names the reply task and opens its panel, so the next step is one press (audit 2026-10-03, F-11). */}
+              <Link
+                to={`/projects/${detail.project.id}?tab=tasks&task=${row.replyTask.id}`}
+                className="pressable -mx-2 flex flex-col gap-1 rounded-xl px-2 py-1.5 hover:bg-fill"
+              >
+                <span dir="auto" className="text-subheadline font-semibold text-link">{row.replyTask.title}</span>
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline">
+                  <Person user={row.replyTask.owner} />
+                  {row.replyTask.dueDate && <span className="tabular text-ink-2">{t('tracker.replyDue', { date: formatDay(row.replyTask.dueDate, lang) })}</span>}
+                  {row.replyTask.status === 'done' && <StatusSign state="completed">{t('tracker.replyDone')}</StatusSign>}
+                </span>
+              </Link>
             </Block>
           )}
           {open && entry.waiting === 'us' && row.canEdit && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={replyPeople(detail.members)} />}
