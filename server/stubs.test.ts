@@ -12,7 +12,6 @@ import { outboxMailPort } from './mail/outboxDriver';
 import { realtimeSignalPort } from './signal/realtime';
 import { verifyBrowserToken } from './auth/verify';
 import { principalOf } from './auth/principal';
-import { readOffice } from './data/officeCache';
 import { authAdminPort } from './auth/admin';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
@@ -78,13 +77,12 @@ describe('the stubs', () => {
     }
   });
 
-  it('mail, sign-in and the Auth admin refuse', async () => {
+  it('mail, sign-in and the Auth admin refuse (the office cache is built: server/data/officeCache.test.ts)', async () => {
     const mail = { to: 'a@madar.test', subject: 's', html: '', text: '', tag: 't', idempotencyKey: 'k' };
     await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
     await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
     await refusesNotBuilt(() => verifyBrowserToken('Bearer x'));
     await refusesNotBuilt(async () => principalOf('auth-user-1', office));
-    await refusesNotBuilt(() => readOffice(deps));
     const admin = authAdminPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x' });
     await refusesNotBuilt(() => admin.generateLink('invite', 'a@madar.test'));
     await refusesNotBuilt(() => admin.createUser('a@madar.test', 'pw'));
