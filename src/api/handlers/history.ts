@@ -221,8 +221,10 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
 
 /**
  * The stage tag follows the tasks, so after an Undo it moves with them. An Undo never asks why the project moves back.
- * When the tag is back where a stage move of the story found it, that move is taken back too, so the health override and the
- * "moved back" note that it cleared come back (audit 2026-10-03, API-5).
+ * When the tag leaves the stage where a stage move of the story put the project, that move is taken back too, so the health
+ * override and the "moved back" note that it cleared come back (audit 2026-10-03, API-5).
+ * The moves of one project form a chain, newest first: a move comes back while the saved stage is still where it put the project
+ * and the tag is not there. So a story with two moves takes back both, one after the other (audit 2026-10-03, V-21).
  */
 function settle(ctx: Ctx, events: Event[], correlationId: string): void {
   const moves = Object.values(ctx.state.events)
@@ -231,8 +233,8 @@ function settle(ctx: Ctx, events: Event[], correlationId: string): void {
   for (const move of moves) {
     // Only a stage move made for this person comes back this way. Any other move keeps its own rules.
     if (move.actingForId !== ctx.authority.id) continue;
-    const from = fieldsOf(move.before).currentStageId;
-    if (typeof from !== 'string' || stageTag(ctx.state, move.targetId)?.id !== from) continue;
+    const to = fieldsOf(move.after).currentStageId;
+    if (typeof to !== 'string' || ctx.state.projects[move.targetId]?.currentStageId !== to || stageTag(ctx.state, move.targetId)?.id === to) continue;
     try {
       undoEvent(ctx, move.id, { derived: true });
     } catch {

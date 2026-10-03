@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
-import { makeTask, NOW, testApi } from '../../test/factories';
+import { makeStage, makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -121,6 +121,52 @@ describe('Undo brings back the health override that a stage move cleared (audit 
     expect(s.tasks.tsk_001.status).toBe('todo');
     expect(s.projects.prj_001.currentStageId).toBe('stg_001');
     expect(s.projects.prj_001.healthOverride).toMatchObject({ value: 'late', reason: 'Client changed the brief' });
+  });
+
+  function threeStages() {
+    const t = testApi(calls);
+    const s = t.store.state;
+    s.stages.stg_003 = makeStage({ id: 'stg_003', name: 'Design Development', order: 2, startDate: '2026-11-01', endDate: '2026-11-30' });
+    s.tasks.tsk_001 = makeTask({ id: 'tsk_001', stageId: 'stg_001', title: 'Concept sketch', ownerId: 'usr_003', needsReview: false });
+    s.tasks.tsk_002 = makeTask({ id: 'tsk_002', stageId: 'stg_002', title: 'SD plan', ownerId: 'usr_003', needsReview: false });
+    s.tasks.tsk_003 = makeTask({ id: 'tsk_003', stageId: 'stg_003', title: 'DD plan', ownerId: 'usr_002', needsReview: false });
+    s.counters.tsk = 3;
+    s.counters.stg = 3;
+    s.projects.prj_001.currentStageId = 'stg_001';
+    return t;
+  }
+
+  it('restores the override when one story holds two stage moves (audit 2026-10-03, V-21)', async () => {
+    const t = threeStages();
+    const s = t.store.state;
+    t.as('usr_002');
+    await t.api.call('projects.setHealthOverride', { id: 'prj_001', value: 'late', reason: 'Client changed the brief' });
+    // Sara's agent finishes two tasks in one request, so the tag moves twice in one story.
+    t.as('usr_005');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_agent' });
+    await t.api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_agent' });
+    expect(s.projects.prj_001.currentStageId).toBe('stg_003');
+    t.as('usr_003');
+    await t.api.call('events.undoStory', { correlationId: 'cor_agent' });
+    expect(s.projects.prj_001.currentStageId).toBe('stg_001');
+    expect(s.projects.prj_001.healthOverride).toMatchObject({ value: 'late', reason: 'Client changed the brief' });
+  });
+
+  it('takes back only the newer move when one Undo brings the tag back one stage (audit 2026-10-03, V-21)', async () => {
+    const t = threeStages();
+    const s = t.store.state;
+    t.as('usr_002');
+    await t.api.call('projects.setHealthOverride', { id: 'prj_001', value: 'late', reason: 'Client changed the brief' });
+    t.as('usr_005');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_agent' });
+    await t.api.call('tasks.complete', { id: 'tsk_002' }, { correlationId: 'cor_agent' });
+    t.as('usr_003');
+    const second = Object.values(s.events).find((e) => e.verb === 'task.status_changed' && e.targetId === 'tsk_002')!;
+    await t.api.call('events.undo', { eventId: second.id });
+    expect(s.projects.prj_001.currentStageId).toBe('stg_002');
+    expect(s.projects.prj_001.healthOverride).toBeNull();
+    const moves = Object.values(s.events).filter((e) => e.verb === 'project.stage_changed' && e.correlationId === 'cor_agent');
+    expect(moves.map((e) => e.undoneBy !== null)).toEqual([false, true]);
   });
 });
 
