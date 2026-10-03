@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { XIcon } from '../../../components/icons/animated/x';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -53,8 +53,12 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/** What the person typed in "Add an item", with the list it goes into, so the panel can save it when it closes. */
+type ChecklistDraft = { text: string; items: ChecklistItem[] };
+const newItemId = () => `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 /** edit: add, remove and tick. tick: a helper ticks only. Otherwise the list is plain text. */
-function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void }) {
+function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void; draft: MutableRefObject<ChecklistDraft> }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   // A local copy, so two quick ticks build on each other before the saved list comes back.
@@ -67,6 +71,9 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
     setItems(next);
     onChange(next);
   };
+  useEffect(() => {
+    draft.current = { text, items };
+  }, [draft, text, items]);
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
@@ -102,8 +109,7 @@ function Checklist({ task, edit, tick, onChange }: { task: Task; edit: boolean; 
             event.preventDefault();
             const value = text.trim();
             if (!value) return;
-            const id = `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-            change([...items, { id, text: value, done: false }]);
+            change([...items, { id: newItemId(), text: value, done: false }]);
             setText('');
           }}
         >
@@ -214,6 +220,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
       // The title goes back to the saved one. A description keeps the typed text, marked "Not saved", so no work is lost (audit 2026-10-03, BRW-6).
       if (input.patch.title !== undefined) setTitle(task.title);
       if (input.patch.description !== undefined) setUnsaved(true);
+      sent.current = {};
       setFailures((count) => count + 1);
       return false;
     },
@@ -230,21 +237,49 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
       toast.show({ message: t('taskSheet.sentBack') });
     },
   });
-  const remove = useUndoable('tasks.delete', { message: () => t('taskSheet.deleted'), onSuccess: onClose });
+  const deleted = useRef(false);
+  const remove = useUndoable('tasks.delete', {
+    message: () => t('taskSheet.deleted'),
+    onSuccess: () => {
+      deleted.current = true;
+      onClose();
+    },
+  });
   const saveTemplate = useAction('taskTemplates.save', { onSuccess: (template) => toast.show({ message: t('taskSheet.templateSaved', { stage: template.stageName }) }) });
   const everyone = useCall('users.list', {});
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [unsaved, setUnsaved] = useState(false);
   const [note, setNote] = useState('');
+  // The title and the description that went to the server and did not come back yet, so a close does not send them twice.
+  const sent = useRef<{ title?: string; description?: string }>({});
+  const checklistDraft = useRef<ChecklistDraft>({ text: '', items: task.checklist });
   useEffect(() => {
     setTitle(task.title);
     setDescription(task.description);
     setUnsaved(false);
+    sent.current = {};
   }, [task.title, task.description]);
 
-  const patch = (changes: Patch) => update.mutate({ id: task.id, patch: changes });
+  const patch = (changes: Patch) => {
+    if (changes.title !== undefined) sent.current.title = changes.title;
+    if (changes.description !== undefined) sent.current.description = changes.description;
+    update.mutate({ id: task.id, patch: changes });
+  };
   const edit = viewerCan.edit;
+  // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
+  // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
+  const saveTyped = useRef<() => void>(() => undefined);
+  saveTyped.current = () => {
+    if (!edit || deleted.current) return;
+    const changes: Patch = {};
+    if (title.trim() && title.trim() !== (sent.current.title ?? task.title)) changes.title = title.trim();
+    if (description !== (sent.current.description ?? task.description)) changes.description = description;
+    const item = checklistDraft.current.text.trim();
+    if (item) changes.checklist = [...checklistDraft.current.items, { id: newItemId(), text: item, done: false }];
+    if (Object.keys(changes).length > 0) update.mutate({ id: task.id, patch: changes });
+  };
+  useEffect(() => () => saveTyped.current(), []);
   const people = detail.members.map((member) => member.user);
   if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
@@ -366,7 +401,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} />
+            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
             <TaskFiles views={files.data ?? []} />
             <History data={data} canUndoAgent={canUndoAgent} />
