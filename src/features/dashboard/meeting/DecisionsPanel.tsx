@@ -57,7 +57,8 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
   const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
   // An action makes a real task for a person, so the toast says for whom, and Undo takes it back (browser audit 2026-10-03, BRW-14).
   const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner.name }), onSuccess: () => setTitle('') });
-  const who = userId || defaultUserId;
+  // A pick that left the list (the person turned inactive) gives way to the default.
+  const who = members.some((member) => member.id === userId) ? userId : defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
   return (
     <form
@@ -93,6 +94,7 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   // A paused project is in the meeting too, so its tasks count here (audit 2026-10-03, DSH-5).
   const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
   const me = useCall('session.get', {}).data?.user.id;
+  const everyone = useCall('users.list', {});
   const [picked, setPicked] = useDraft<Kind>(`kind:${projectId}`, () => 'decision');
   const canDecide = detail.data?.viewerCan.post === true;
   const canAct = detail.data?.viewerCan.createTaskForAnyone === true;
@@ -104,7 +106,12 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
       : [])),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;
-  const members = (detail.data?.members ?? []).map((member) => member.user);
+  // The API refuses a task for an inactive person (API-7), so Who leaves them out, and the default is the viewer or the first
+  // active member (audit 2026-10-03, V-4c). projects.get says who is active (V-4a); until it does, the users list (active people
+  // only) says.
+  const activeIds = everyone.data ? new Set(everyone.data.map((user) => user.id)) : null;
+  const isActive = (member: { user: { id: string }; active?: boolean }) => member.active ?? activeIds?.has(member.user.id) ?? true;
+  const members = (detail.data?.members ?? []).filter(isActive).map((member) => member.user);
   const defaultUserId = members.some((member) => member.id === me) ? me ?? '' : members[0]?.id ?? '';
   return (
     <section aria-label={t('dashboard.meeting.decisions')} className="panel flex flex-col gap-3 p-5">
