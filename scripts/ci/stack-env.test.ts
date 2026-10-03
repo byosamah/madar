@@ -50,6 +50,33 @@ describe('scripts/ci/stack-env.sh', () => {
     ]);
   });
 
+  it('writes only the fixed list of names, so a CLI name such as MCP_URL never reaches the later steps', () => {
+    const result = run(
+      [
+        'DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"',
+        'SUPABASE_URL="http://127.0.0.1:54321"',
+        'MCP_URL="http://127.0.0.1:54321/mcp"',
+        'STUDIO_URL="http://127.0.0.1:54323"',
+        'PUBLISHABLE_KEY="sb_publishable_local"',
+        'SECRET_KEY="sb_secret_local"',
+        'JWT_SECRET="local-jwt"',
+        'S3_PROTOCOL_ACCESS_KEY_ID="local-id"',
+        'S3_PROTOCOL_REGION="local"',
+        '',
+      ].join('\n'),
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().split('\n')).toEqual([
+      'DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      'SUPABASE_URL=http://127.0.0.1:54321',
+      'PUBLISHABLE_KEY=sb_publishable_local',
+      'SECRET_KEY=sb_secret_local',
+      'JWT_SECRET=local-jwt',
+      'S3_PROTOCOL_ACCESS_KEY_ID=local-id',
+      'S3_PROTOCOL_REGION=local',
+    ]);
+  });
+
   it('adds SUPABASE_URL from the api port of config.toml when the status has none (the Data API is off)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'madar-config-'));
     dirs.push(dir);

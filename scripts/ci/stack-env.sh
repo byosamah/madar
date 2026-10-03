@@ -6,7 +6,9 @@
 # DATABASE_URL is the database address (the db-mode harness reads it) and SUPABASE_URL is the API address.
 # With the Data API off (config.toml, [api] enabled = false) the status has no API address, but the gateway still serves
 # Auth, Storage, Realtime and the functions. So SUPABASE_URL then comes from the [api] port of config.toml.
-# The other names (ANON_KEY, SERVICE_ROLE_KEY, PUBLISHABLE_KEY, SECRET_KEY, JWT_SECRET and so on) keep the CLI's names.
+# The other names keep the CLI's names. The script writes only a fixed list of names: DATABASE_URL, SUPABASE_URL,
+# ANON_KEY, SERVICE_ROLE_KEY, PUBLISHABLE_KEY, SECRET_KEY, JWT_SECRET and S3_PROTOCOL_*. A name such as the CLI's MCP_URL
+# (the address of Supabase's own MCP server) would otherwise reach every later step, and test:mcp reads MCP_URL.
 # These are the public demo keys of the local stack, not secrets. The script fails, and prints nothing, when the
 # status has no database address or the address is not on this machine.
 set -euo pipefail
@@ -16,7 +18,8 @@ SUPABASE_CONFIG="${SUPABASE_CONFIG:-$(dirname "$0")/../../supabase/config.toml}"
 
 # shellcheck disable=SC2086 # SUPABASE can be a command with an argument ("npx supabase").
 raw="$($SUPABASE status -o env --override-name db.url=DATABASE_URL --override-name api.url=SUPABASE_URL)"
-lines="$(printf '%s\n' "$raw" | sed -n -E 's/^([A-Z][A-Z0-9_]*)="?([^"]*)"?$/\1=\2/p')"
+lines="$(printf '%s\n' "$raw" |
+  sed -n -E 's/^(DATABASE_URL|SUPABASE_URL|ANON_KEY|SERVICE_ROLE_KEY|PUBLISHABLE_KEY|SECRET_KEY|JWT_SECRET|S3_PROTOCOL_[A-Z0-9_]+)="?([^"]*)"?$/\1=\2/p')"
 
 db_url="$(printf '%s\n' "$lines" | sed -n 's/^DATABASE_URL=//p')"
 if [ -z "$db_url" ]; then
