@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Attachment, FeedItem, UserCard } from '../../../api/contract/views';
+import type { FeedItem, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useAction } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -18,18 +18,8 @@ import { feedText } from '../../projects/feed';
 
 type PostItem = Extract<FeedItem, { kind: 'update' }>;
 
-/**
- * The files of a post as chips that save the file; a deleted file says "File removed", never its id (audit 2026-10-03, PRJ-6).
- * The API names them in "attachments". An answer without that list gets the names from the file list of the project.
- */
-function postFiles(item: PostItem, fileNames: Map<string, string> | undefined): Attachment[] {
-  const sent = (item as PostItem & { attachments?: Attachment[] }).attachments;
-  if (sent) return sent;
-  return fileNames ? item.fileIds.map((id) => ({ id, name: fileNames.get(id) ?? null })) : [];
-}
-
-function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: PostItem; projectId: string; fileNames: Map<string, string> | undefined; people: UserCard[]; canPost: boolean; startOpen: boolean;
+function PostCard({ item, projectId, people, canPost, startOpen }: {
+  item: PostItem; projectId: string; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -99,7 +89,8 @@ function PostCard({ item, projectId, fileNames, people, canPost, startOpen }: {
           <RichText body={item.body} className="text-body" />
         </div>
       )}
-      <FileChips files={postFiles(item, fileNames)} />
+      {/* The API names the files of a post in "attachments"; a deleted file says "File removed", never its id (audit 2026-10-03, PRJ-6, V-20). */}
+      <FileChips files={item.attachments} />
       <Button variant="plain" className="self-start px-0" aria-expanded={showComments} onClick={() => setShowComments((open) => !open)}>{commentLabel}</Button>
       {showComments && <CommentThread targetType="update" targetId={item.id} projectId={projectId} people={people} canPost={canPost} />}
     </li>
@@ -130,9 +121,9 @@ function EventLine({ item }: { item: EventItem }) {
 }
 
 /** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
-export function FeedEntry({ item, projectId, fileNames, people, canPost, startOpen }: {
-  item: FeedItem; projectId: string; fileNames: Map<string, string> | undefined; people: UserCard[]; canPost: boolean; startOpen: boolean;
+export function FeedEntry({ item, projectId, people, canPost, startOpen }: {
+  item: FeedItem; projectId: string; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
-  if (item.kind === 'update') return <PostCard item={item} projectId={projectId} fileNames={fileNames} people={people} canPost={canPost} startOpen={startOpen} />;
+  if (item.kind === 'update') return <PostCard item={item} projectId={projectId} people={people} canPost={canPost} startOpen={startOpen} />;
   return <EventLine item={item} />;
 }

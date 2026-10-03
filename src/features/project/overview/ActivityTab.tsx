@@ -34,9 +34,6 @@ export function ActivityTab({ detail }: TabProps) {
   useEffect(() => {
     if (missing && more) setShown({ filter, limit: Math.min(MOST, limit + PAGE) });
   }, [missing, more, filter, limit]);
-  const files = useCall('files.list', { projectId: detail.project.id });
-  // Until the file list loads, a post shows no file chips rather than "File removed" (audit 2026-10-03, PRJ-6).
-  const fileNames = files.data ? new Map(files.data.map((view) => [view.file.id, view.file.name])) : undefined;
   return (
     <div className="mx-auto w-full max-w-3xl">
       <section aria-label={t('overview.feed')} className="flex min-w-0 flex-col gap-4">
@@ -63,7 +60,6 @@ export function ActivityTab({ detail }: TabProps) {
               key={item.id}
               item={item}
               projectId={detail.project.id}
-              fileNames={fileNames}
               people={detail.members.map((member) => member.user)}
               canPost={detail.viewerCan.post}
               startOpen={item.id === openUpdate}
