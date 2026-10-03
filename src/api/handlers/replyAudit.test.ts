@@ -74,6 +74,48 @@ describe('Reply tasks follow the task rules (audit 2026-10-03, API-9)', () => {
   });
 });
 
+describe('Ending the wait is never refused (audit 2026-10-03, V-13)', () => {
+  async function waitingReply(t: T, userId = 'usr_003') {
+    const row = await t.api.call('tracker.log', {
+      projectId: 'prj_001', type: 'message', direction: 'in', title: 'Client asks for the area table', waiting: 'us', replyBy: { userId, dueDate: '2026-10-05' },
+    });
+    const entryId = row.entry.id;
+    const taskId = t.store.state.tracker![entryId].replyTaskId!;
+    t.store.state.tasks.tsk_900 = makeTask({ id: 'tsk_900', ownerId: 'usr_003', title: 'Must come first' });
+    t.store.state.counters.tsk = 900;
+    await t.api.call('tasks.update', { id: taskId, patch: { prerequisiteIds: ['tsk_900'] } });
+    return { entryId, taskId };
+  }
+
+  for (const waiting of [null, 'client'] as const) {
+    it(`unlinks the reply task and keeps it open when the entry stops waiting for us (waiting ${waiting})`, async () => {
+      const t = world();
+      t.as('usr_002');
+      const { entryId, taskId } = await waitingReply(t);
+      await t.api.call('tracker.update', { id: entryId, waiting });
+      const s = t.store.state;
+      expect(s.tracker![entryId].waiting).toBe(waiting);
+      expect(s.tracker![entryId].replyTaskId ?? null).toBeNull();
+      expect(s.tasks[taskId].status).toBe('todo');
+      expect(s.tasks[taskId].trackerEntryId ?? null).toBeNull();
+      expect(Object.values(s.tracker!).filter((entry) => entry.auto === 'reply')).toHaveLength(0);
+    });
+  }
+
+  it('lets the team member who ended the wait undo it, and the link comes back', async () => {
+    const t = world();
+    t.as('usr_002');
+    const { entryId, taskId } = await waitingReply(t, 'usr_002');
+    t.as('usr_003');
+    await t.api.call('tracker.update', { id: entryId, waiting: null }, { correlationId: 'cor_end' });
+    await t.api.call('events.undoStory', { correlationId: 'cor_end' });
+    const s = t.store.state;
+    expect(s.tracker![entryId].waiting).toBe('us');
+    expect(s.tracker![entryId].replyTaskId).toBe(taskId);
+    expect(s.tasks[taskId].trackerEntryId).toBe(entryId);
+  });
+});
+
 describe('A deactivated leader does not stop reviews (audit 2026-10-03, API-7)', () => {
   it('sends the review request to the active Admins', async () => {
     const t = world();

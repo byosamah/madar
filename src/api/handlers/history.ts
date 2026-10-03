@@ -107,6 +107,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // A reply task belongs to the Tracker entry it answers, so the people who may post there may take back its making and its finish.
       const replyTask = ctx.state.tasks[event.targetId]?.trackerEntryId;
       if (replyTask && (event.verb === 'task.created' || event.verb === 'task.status_changed')) return need('content.post');
+      // The link of a reply task to its entry is part of the Tracker loop, so the people who may post there may bring it back (audit 2026-10-03, V-13).
+      if (event.verb === 'task.reply_unlinked') return need('content.post');
       if (event.verb === 'task.created' || event.verb === 'task.deleted') return need('task.delete');
       if (event.verb === 'task.approved') return need('task.review');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');

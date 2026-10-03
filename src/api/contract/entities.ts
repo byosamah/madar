@@ -423,8 +423,11 @@ export const TrackerEntry = z.object({
   auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
-  /** The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads. */
-  replyTaskId: TaskId.optional(),
+  /**
+   * The task of the person who answers a "waiting for our reply" entry. Optional, so an office saved before replies still loads.
+   * Null when the entry stopped waiting while its reply task could not finish yet (audit 2026-10-03, V-13).
+   */
+  replyTaskId: TaskId.nullable().optional(),
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
 
