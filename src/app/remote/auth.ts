@@ -104,8 +104,16 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
       if (error) fail(error);
     },
     async changePassword(current, next) {
-      // One call: Auth checks the current password itself. A sign-in to check it first would start a second session, and with
-      // "require current password" on, an update without current_password fails (proof.md Z0a, item 2).
+      // A sign-in checks the current password first. Auth checks current_password only with "require current password" on,
+      // and never in a recovery session (supabase/auth, user.go). That setting is off on madar-test today (proof.md Z0a,
+      // item 2), and then any text in Current password would set a new password. The sign-in starts a session beside the
+      // one of this device; the sign-out of the other devices after the change ends it.
+      const { data: kept } = await supabase.auth.getSession();
+      const email = kept.session?.user?.email;
+      if (!email) throw new AuthFailure('failed', 'The session names no email.');
+      const check = await supabase.auth.signInWithPassword({ email, password: current });
+      if (check.error) fail(check.error);
+      // With the setting on, Auth refuses a new password without the current one, so the update carries it too.
       const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
       if (!error) return;
       const code = (error as { code?: string }).code ?? '';

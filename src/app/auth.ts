@@ -19,8 +19,9 @@ export interface AuthPort {
   /** Sets a password from the session of an invitation or reset link (the Welcome and Reset screens). */
   setPassword(password: string): Promise<void>;
   /**
-   * Changes the password of the signed-in person (Settings, Password). Auth checks the current password itself, with the
-   * setting "require current password" on (proof.md Z0a, item 2). A wrong current password fails with the reason wrong_credentials.
+   * Changes the password of the signed-in person (Settings, Password). The port checks the current password with a sign-in,
+   * whether or not Auth has "require current password" on, and sends it with the new one (proof.md Z0a, item 2). A wrong
+   * current password fails with the reason wrong_credentials.
    */
   changePassword(current: string, next: string): Promise<void>;
   /**

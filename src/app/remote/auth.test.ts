@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AuthFailure } from '../../features/auth/authFailure';
 import { createSupabaseAuth } from './auth';
 
-type StubSession = { access_token: string; user?: { id: string } };
+type StubSession = { access_token: string; user?: { id: string; email?: string } };
 type Listener = (event: string, session: StubSession | null) => void;
 
 /** A Supabase client with only the auth parts that the port uses. Each method answers what the test gives it. */
@@ -25,7 +25,7 @@ function stubClient(o: { session?: StubSession | null; results?: Record<string, 
       steps.push(`signIn:${input.email}`);
       const result = answer('signIn');
       if (!result.error) {
-        session = { access_token: 'token-2', user: { id: o.session?.user?.id ?? 'usr_001' } };
+        session = { access_token: 'token-2', user: { id: o.session?.user?.id ?? 'usr_001', email: input.email } };
         listener('SIGNED_IN', session);
       }
       return { data: {}, ...result };
@@ -191,27 +191,52 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     }
   });
 
-  it('changes the password in one call that carries the current one, and signs in nowhere (proof.md Z0a, item 2)', async () => {
+  const hala = { access_token: 'token-1', user: { id: 'usr_001', email: 'hala@office.test' } };
+
+  it('checks the current password with a sign-in, then sends it with the new one (proof.md Z0a, item 2)', async () => {
+    const stub = stubClient({ session: hala });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    const seen: string[] = [];
+    auth.subscribe((status: string, change?: string) => {
+      seen.push(`${status}:${change}`);
+    });
+    await auth.changePassword('old-pass-11', 'green-field-77');
+    expect(stub.client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'hala@office.test', password: 'old-pass-11' });
+    // With "require current password" on, Auth refuses a new password without the current one, so the update carries it too.
+    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', current_password: 'old-pass-11' });
+    expect(stub.steps).toEqual(['signIn:hala@office.test', 'updateUser']);
+    // The check signs in the same person again: the screens see no change of session.
+    expect(seen).toEqual([]);
+    expect(auth.status()).toBe('signed_in');
+  });
+
+  it('refuses a wrong current password also when Auth does not check it (the setting off, or a recovery session)', async () => {
+    // As Auth with "require current password" off: the update ignores current_password and would set any new password.
+    const stub = stubClient({ session: hala, results: { signIn: { error: apiError('invalid_credentials') } } });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    await expect(auth.changePassword('not-the-password', 'green-field-77')).rejects.toMatchObject({ reason: 'wrong_credentials' });
+    expect(stub.client.auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('changes no password when the session names no email', async () => {
     const stub = stubClient({ session: { access_token: 'token-1', user: { id: 'usr_001' } } });
     const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
-    await auth.changePassword('old-pass-11', 'green-field-77');
-    // With "require current password" on, Auth refuses a new password without the current one. Auth checks it itself, so a
-    // sign-in to check it would only start a second session.
-    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', current_password: 'old-pass-11' });
-    expect(stub.client.auth.signInWithPassword).not.toHaveBeenCalled();
-    expect(stub.steps).toEqual(['updateUser']);
+    await expect(auth.changePassword('old-pass-11', 'green-field-77')).rejects.toMatchObject({ reason: 'failed' });
+    expect(stub.steps).toEqual([]);
   });
 
   it('names a wrong current password as a wrong password, and keeps the other refusals', async () => {
-    const cases: [unknown, string][] = [
-      [apiError('current_password_invalid'), 'wrong_credentials'],
-      [apiError('current_password_required'), 'wrong_credentials'],
-      [apiError('weak_password', 422), 'weak'],
-      [apiError('same_password', 422), 'same'],
-      [apiError('over_request_rate_limit', 429), 'too_many'],
+    const cases: [string, unknown, string][] = [
+      ['signIn', apiError('invalid_credentials'), 'wrong_credentials'],
+      ['signIn', apiError('over_request_rate_limit', 429), 'too_many'],
+      ['updateUser', apiError('current_password_invalid'), 'wrong_credentials'],
+      ['updateUser', apiError('current_password_required'), 'wrong_credentials'],
+      ['updateUser', apiError('weak_password', 422), 'weak'],
+      ['updateUser', apiError('same_password', 422), 'same'],
+      ['updateUser', apiError('over_request_rate_limit', 429), 'too_many'],
     ];
-    for (const [error, reason] of cases) {
-      const auth = await createSupabaseAuth(stubClient({ results: { updateUser: { error } } }).client, { apiUrl: 'https://api.test' });
+    for (const [step, error, reason] of cases) {
+      const auth = await createSupabaseAuth(stubClient({ session: hala, results: { [step]: { error } } }).client, { apiUrl: 'https://api.test' });
       await expect(auth.changePassword('old-pass-11', 'green-field-77')).rejects.toMatchObject({ reason });
     }
     // The Welcome and Reset screens set a password from a link session, with no current one: the same codes never mean a wrong password there.

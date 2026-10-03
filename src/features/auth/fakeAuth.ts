@@ -111,7 +111,7 @@ export function fakeAuth(o: {
     async changePassword(currentPassword, next) {
       log.push('changePassword');
       if (!current) throw new AuthFailure('failed');
-      // As Auth with "require current password" on: it checks the current password before it looks at the new one.
+      // As the Supabase port: its sign-in checks the current password before Auth looks at the new one.
       if (currentPassword !== current.password) throw new AuthFailure('wrong_credentials');
       if (next.length < MIN_PASSWORD) throw new AuthFailure('short');
       if (next === current.password) throw new AuthFailure('same');

@@ -10,9 +10,10 @@ import { useAuth } from '../auth/useAuth';
 import { SettingsSection as Section } from './Section';
 
 /**
- * Settings, Password (plan 5.1): the current and the new password go to Auth in one change, and Auth checks the current one
- * itself (proof.md Z0a, item 2). Then the other devices of the person sign out, as after a reset: a person may change the
- * password because someone else knows it. The prototype has no sign-in, so the section shows in the real build only.
+ * Settings, Password (plan 5.1): auth.changePassword checks the current password and sets the new one (proof.md Z0a, item 2).
+ * Then the other devices of the person sign out, as after a reset: a person may change the password because someone else
+ * knows it. That also ends the session that the check started beside this one. The prototype has no sign-in, so the section
+ * shows in the real build only.
  */
 export function PasswordSection() {
   return REMOTE ? <PasswordForm /> : null;

@@ -136,7 +136,7 @@ describe('Settings, Password (plan 5.1)', () => {
     await renderAuth('/settings', { auth, routes: only(<PasswordSection />) });
     await change(SAMPLE_ACCOUNTS.hala.password, 'green-field-77');
     expect(await screen.findByText('Password changed. Your other devices sign out.')).toBeInTheDocument();
-    // Auth checks the current password itself (proof.md Z0a, item 2), so no sign-in starts a second session first.
+    // The port checks the current password inside changePassword (proof.md Z0a, item 2), so the section signs in nowhere itself.
     // A person who changes the password because someone else may know it signs that person out of the other devices.
     expect(auth.log).toEqual(['changePassword', 'signOut:others']);
     expect(auth.status()).toBe('signed_in');
