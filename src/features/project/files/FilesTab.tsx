@@ -210,7 +210,7 @@ export function FilesTab({ detail }: TabProps) {
         );
       })}
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
-      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} onClose={() => setSharing(null)} />}
+      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} onClose={() => setSharing(null)} />}
     </div>
   );
 }

@@ -120,7 +120,7 @@ describe('the Files tab', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Share Site plan.pdf' });
     await userEvent.type(within(sheet).getByRole('textbox', { name: 'Message (optional)' }), 'Please check this.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
-    expect(await screen.findByText('File shared.')).toBeInTheDocument();
+    expect(await screen.findByText('Shared in the Corniche Office Tower chat.')).toBeInTheDocument();
     const room = Object.values(store.state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001');
     const message = Object.values(store.state.messages).find((m) => m.conversationId === room?.id && m.body === 'Please check this.');
     expect(message?.fileIds).toEqual(['fil_004']);
