@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildDeps, configFromEnv, consoleLogger, MissingConfigError } from './deps';
+import { buildDeps, configFromEnv, consoleLogger, DEFAULT_LOCK_KEY, HEALTH_LOCK_KEY, MissingConfigError, serverEnvFrom } from './deps';
 
 /** A full environment of the hosted test project. Every value here is made up. */
 const FULL: Record<string, string> = {
@@ -86,8 +86,20 @@ describe('the real Deps from the environment', () => {
 
   it('asks for the root certificate when the database is a hosted Supabase one', () => {
     expect(missingOf(without('DATABASE_CA'))).toEqual(['DATABASE_CA']);
-    const local = { ...without('DATABASE_CA'), DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@supabase_pooler_madar:6543/postgres' };
+    const local = { ...without('DATABASE_CA'), DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@pooler:6543/postgres' };
     expect(missingOf(local)).toEqual([]);
+  });
+
+  it('asks for the root certificate for every database host that is not a local name, so TLS never fails open', () => {
+    const at = (host: string) => `postgres://madar_server.ref:pw@${host}:6543/postgres`;
+    for (const host of ['3.65.151.229', 'db.madar.example', 'my-hyperdrive.proxy.example']) {
+      expect(missingOf({ ...without('DATABASE_CA'), DATABASE_URL: at(host) }), host).toEqual(['DATABASE_CA']);
+    }
+    const hostedRead = { ...without('DATABASE_CA'), DATABASE_URL: at('127.0.0.1'), DATABASE_READ_URL: FULL.DATABASE_URL };
+    expect(missingOf(hostedRead)).toEqual(['DATABASE_CA']);
+    for (const host of ['127.0.0.1', 'localhost', '[::1]', 'pooler', 'db', 'host.docker.internal']) {
+      expect(missingOf({ ...without('DATABASE_CA'), DATABASE_URL: at(host), DATABASE_READ_URL: at(host) }), host).toEqual([]);
+    }
   });
 
   it('refuses a database URL with sslmode, because the CA goes in the ssl option (plan 4.5)', () => {
@@ -113,6 +125,17 @@ describe('the real Deps from the environment', () => {
 
   it('refuses a lock key that is not a whole number', () => {
     expect(() => configFromEnv(reader({ ...FULL, MADAR_LOCK_KEY: 'office' }))).toThrow(/MADAR_LOCK_KEY/);
+  });
+
+  it('refuses the health lock key as the office lock key, and uses its own default', () => {
+    expect(() => configFromEnv(reader({ ...FULL, MADAR_LOCK_KEY: String(HEALTH_LOCK_KEY) }))).toThrow(/MADAR_LOCK_KEY/);
+    expect(configFromEnv(reader(FULL)).lockKey).toBe(DEFAULT_LOCK_KEY);
+    expect(DEFAULT_LOCK_KEY).not.toBe(HEALTH_LOCK_KEY);
+  });
+
+  it('reads the jobs secret when it is set, for the jobs app and the deep health check', () => {
+    expect(serverEnvFrom(reader(FULL)).jobsSecret).toBeUndefined();
+    expect(serverEnvFrom(reader({ ...FULL, JOBS_SECRET: 'made-up-jobs-secret' })).jobsSecret).toBe('made-up-jobs-secret');
   });
 
   it('never puts a value into its error', () => {
