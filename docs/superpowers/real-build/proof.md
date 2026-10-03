@@ -401,3 +401,33 @@ Two more facts:
 - The auth.email effect notes what it owes in the payload (`owesInvite`, or `notifyOld`) before it changes Auth, so a retry after a failed link or mail still sends it.
 - Track M: `failedEffects` of `usage.get` returns the kind, the attempts and the error of a row, never its payload. An unsent invitation row holds a live token hash.
 - The forgot route answers after the work (padded to 1.5 s). A slow Auth or Resend still makes the answer for a real account slower. Moving the work after the answer needs `after` (waitUntil) in the route handlers and a database that stays open after the answer on Workers; that is a host change for track E, not done here.
+
+## G1. The token hook and the agent token (local stack, 2026-10-03)
+
+**Result: pass.** Supabase Auth accepts a changed `aud`. The fallback of risk 4 (section 9 of the plan) is not needed.
+
+**Where:** the local stack of Supabase CLI 2.119.0, Auth (GoTrue) v2.197.0, after `supabase db reset` from the `rb/G` worktree, with the migration `supabase/migrations/20261004000400_platform_auth_hook.sql`. The test is `server/it/hook.it.test.ts` (run with `MADAR_IT=1 npx vitest run --project it server/it/hook.it.test.ts`): 6 tests, 6 passed. Without the migration the same test fails (red run first).
+
+**How:** the test runs the full OAuth 2.1 flow of an MCP client against the local Auth server: dynamic client registration (`POST /auth/v1/oauth/clients/register`, a public client with PKCE), `GET /auth/v1/oauth/authorize` (302 to `/oauth/consent?authorization_id=...`), the consent approval through the Auth API as the consent screen does it (`getAuthorizationDetails`, `approveAuthorization`), the code exchange with `code_verifier` at `/auth/v1/oauth/token`, and a refresh at the same endpoint.
+
+| Check of platform facts 6.8 | Result |
+|---|---|
+| (a) The hook sees `client_id` | Yes, in `event.claims.client_id`, at the first token and at a refresh. The top level of the event has only `authentication_method`, `claims`, `metadata`, `user_id` (no `client_id`). `authentication_method` is `oauth_provider/authorization_code` at the first token and `token_refresh` at a refresh. The claims also carry `scope` (`email` here) and `session_id`. |
+| The hook reads `platform_config.mcp_url` | Yes. A change of the row changes the `aud` of the next token, so each project gets its own value. |
+| (b) Auth accepts the changed `aud` | Yes. Auth issues the token, signs it (ES256 on the local stack), and the token passes `jose` `jwtVerify` with the JWKS of `/auth/v1/.well-known/jwks.json`, `audience` = the MCP URL and `issuer` = `<api>/auth/v1`. The same token fails a check with `audience: 'authenticated'`. Auth's own `GET /auth/v1/user` answers the agent token with 200 and the person. |
+| (c) A refresh keeps the new `aud` | Yes. The refreshed token has `aud` = the MCP URL, the same `client_id` and the same `session_id`. |
+| A browser token | Unchanged: `aud` is `["authenticated"]` (a list, not a string, on this Auth version) and there is no `client_id`. |
+| No `mcp_url` row | Auth refuses the agent token: the code exchange gets 500 with the hook's message "Madar has no MCP URL in platform_config, so it cannot issue a token for an agent." A person still signs in. So an agent token never goes out with `aud` "authenticated". |
+
+**Decisions in the migration:**
+
+- The hook is `security definer` with `search_path = ''`, so a row level policy on `platform_config` (track B turns RLS on for every table) can never hide the URL from Auth. It still grants `select` on `platform_config` to `supabase_auth_admin`, as section 4.2 says.
+- The migration has `create table if not exists public.platform_config (key text primary key, value text not null)`, so the hook works on a stack with no B migration. B's migration runs first after the merge (0100 before 0400), and then this statement does nothing. B keeps the table definition.
+- The migration holds no URL. `scripts/deploy/secrets.ts` (track O) writes `platform_config.mcp_url` for each project.
+
+**Facts for track G3 (`server/mcp/auth.ts`) and track E (the `api` token check):**
+
+- `aud` comes as a string on an agent token and as a list on a browser token. The checks use `jose` with an `audience` option, which accepts both forms. A hand-written check must accept both too.
+- `client_id` is a claim of every agent token, also after a refresh. The `api` function refuses any token with it.
+- The local issuer is `http://127.0.0.1:54321/auth/v1`; the cloud issuer is `https://<ref>.supabase.co/auth/v1` (platform facts 6.2).
+- Z0a repeats this check on `madar-test`, with the cloud URL in `platform_config`.
