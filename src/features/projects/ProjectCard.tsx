@@ -37,10 +37,12 @@ export function NextDeadlineLabel({ deadline }: { deadline: ProjectSummary['next
   if (!deadline) return <span className="text-footnote text-ink-2">{t('projects.noDeadline')}</span>;
   const word = wordForDays(deadline.daysLeft);
   const when = word.key === 'dueOn' ? formatDay(deadline.date, lang) : dueText(word, t, lang, deadline.date);
+  // On a narrow row the name gives way and the date stays whole: the date is what the line is for (audit 2026-10-03, V-32).
+  // inline-flex keeps the end alignment of a wide row; whitespace-pre keeps the space before the dot.
   return (
-    <p className={`min-w-0 truncate text-footnote ${word.tone === 'attn' ? 'text-attn' : 'text-ink-2'}`}>
-      <bdi className={`font-medium ${word.tone === 'attn' ? '' : 'text-ink'}`}>{deadline.name}</bdi>
-      <span className="tabular"> · {when}</span>
+    <p className={`inline-flex min-w-0 max-w-full items-baseline text-footnote ${word.tone === 'attn' ? 'text-attn' : 'text-ink-2'}`}>
+      <bdi className={`min-w-0 truncate font-medium ${word.tone === 'attn' ? '' : 'text-ink'}`}>{deadline.name}</bdi>
+      <span className="tabular shrink-0 whitespace-pre"> · {when}</span>
     </p>
   );
 }
