@@ -48,3 +48,11 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] Owner answered (2026-10-03): Balady box back; warn then allow on turn-off; one meeting per tab; Inbox count keeps task threads
 - [x] Built in wave 3: Balady tick box (API-14), turn-off warning (API-7); screenshots checked
 - [ ] Full suite, merge to main, publish, memory
+
+## 2026-10-03: /simplify and /code-review of the audit merge
+
+- [x] 4 cleanup reviewers (reuse, simpler code, wasted work, fix depth); about 35 cleanups applied in 3 commits (b967a44 server, 35f9b9c shared parts, 475f448 screens)
+- [x] Code review: 6 bugs fixed with tests (ae56352): story Undo after a single Undo, Tracker Close ends the wait like Edit, owner pull-back for a reviewer-owner, task panel save only as the same person and for a live task, date field resend after a refusal, save before the file-data delete; plus Ctrl+Z on a tick box (35f9b9c) and the meeting reply picker leaves out inactive people (475f448)
+- [x] Prototype v44 published; 1,640 tests pass
+- [ ] Skipped on purpose (need a contract change or a browser-checked layout change): holdsAdminRights mirror in PeopleSection, leaders list from projects.list status all, one dashboard.get for the schedule status, one ResizeObserver for the office schedule, session.get per task row, toast.undo/toast.failed API, one focus-return hook for both sheet modes, Escape ownership, DateReason draft effect, TasksTab sendBack reset effect
+- [ ] Skipped review items: the direct currentStageId write in watchStage (needs a check of every path that moves the tag), settleFuture on a real office (prototype only)
