@@ -108,6 +108,17 @@ describe('the notifications screen', () => {
     await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_review'));
   });
 
+  it('gives the notice its unread mark back when the person undoes Approve (audit 2026-10-03, V-16)', async () => {
+    const { store, api } = await renderApp('/notifications', withNotices('usr_002', [notice('ntf_904', 'review_requested', 'task', 'tsk_010', TODAY_8, 'usr_005')]));
+    const before = await api.call('notifications.count', {});
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve “Toilet details”' }));
+    await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(true));
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_review'));
+    await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(false));
+    expect((await api.call('notifications.count', {})).badge).toBe(before.badge);
+  });
+
   it('says when there is nothing', async () => {
     await renderApp('/notifications', withNotices('usr_005', []));
     expect(await screen.findByText('No notifications')).toBeInTheDocument();

@@ -34,7 +34,16 @@ function InboxItem({ view }: { view: NoticeView }) {
   };
   // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
   // Approve is a change like any other, so its toast offers Undo (audit 2026-10-03, BRW-5).
-  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: read });
+  // Undo also gives back the unread mark that Approve took, so the bell counts the review again (audit 2026-10-03, V-16).
+  const wasUnread = useRef(false);
+  const markUnread = useAction('notifications.markUnread');
+  const approve = useUndoable('tasks.approve', {
+    message: () => t('taskSheet.approved'),
+    onSuccess: read,
+    onUndo: () => {
+      if (wasUnread.current) markUnread.mutate({ ids: [n.id] });
+    },
+  });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
   // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
@@ -101,7 +110,10 @@ function InboxItem({ view }: { view: NoticeView }) {
         <Button
           className="shrink-0"
           disabled={approve.isPending}
-          onClick={() => approve.mutate({ id: n.targetId })}
+          onClick={() => {
+            wasUnread.current = !n.read;
+            approve.mutate({ id: n.targetId });
+          }}
           // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
           aria-label={t('inbox.approveTask', { target })}
         >
