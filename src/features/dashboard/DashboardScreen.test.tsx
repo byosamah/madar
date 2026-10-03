@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
 const tile = (name: RegExp) => screen.findByRole('link', { name });
@@ -92,6 +93,44 @@ describe('the Dashboard', () => {
     const cells = within(await screen.findByRole('region', { name: 'Workload' })).getAllByRole('link');
     expect(cells.length).toBeGreaterThan(0);
     for (const link of cells) expect(link.getAttribute('href')).toContain('team=tm_003');
+  });
+
+  // A person who leads no project in the status gave an empty Dashboard, so the Leader list offers only real leaders (audit 2026-10-03, F-14).
+  describe('the Leader filter (audit 2026-10-03, F-14)', () => {
+    const leaderOptions = async () => {
+      await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
+      const leader = within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Leader' });
+      await waitFor(() => expect(within(leader).getAllByRole('option').length).toBeGreaterThan(1));
+      return within(leader).getAllByRole('option').map((option) => option.textContent);
+    };
+    const leadersOf = (state: State, statuses: string[]) => [...new Set(Object.values(state.projects)
+      .filter((p) => statuses.includes(p.status) && p.leaderId !== null)
+      .map((p) => state.users[p.leaderId as string].name))].sort((a, b) => a.localeCompare(b));
+
+    it('lists only the people who lead an active project', async () => {
+      let seed: State | undefined;
+      await renderApp('/dashboard', (state) => { seed = state; });
+      const expected = leadersOf(seed as State, ['active']);
+      expect(expected.length).toBeGreaterThan(1);
+      expect(await leaderOptions()).toEqual(['Any leader', ...expected]);
+      expect(expected).not.toContain('Noura Al-Shammari');
+      expect(expected).not.toContain('Turki Al-Otaibi');
+    });
+
+    it('follows the Status of the schedule', async () => {
+      let seed: State | undefined;
+      await renderApp('/dashboard?view=schedule&status=on_hold', (state) => { seed = state; });
+      expect(await leaderOptions()).toEqual(['Any leader', ...leadersOf(seed as State, ['on_hold'])]);
+    });
+
+    it('keeps a leader from the link in the list, so the choice stays visible', async () => {
+      // Khalid (usr_008) leads no project in the sample office.
+      await renderApp('/dashboard?leader=usr_008');
+      const options = await leaderOptions();
+      const leader = within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Leader' });
+      expect(leader).toHaveValue('usr_008');
+      expect(options).toContain('Khalid Al-Mutairi');
+    });
   });
 
   it('offers only the statuses that change the numbers, and reads Completed or Archived in a link as Active (audit 2026-10-03, DSH-13)', async () => {
