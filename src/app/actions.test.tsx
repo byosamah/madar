@@ -129,13 +129,13 @@ describe('actions that change nothing', () => {
   });
 });
 
-describe('a change whose follow-up check fails', () => {
-  it('still offers Undo and reports no failure', async () => {
+describe('an Undo whose call fails', () => {
+  it('shows the error and keeps the change', async () => {
     const { store, api } = await renderWithRuntime(<Tick />, asFaisal);
     const original = api.call.bind(api);
     let failed = false;
     api.call = ((name: string, input: unknown, meta?: { correlationId?: string }) => {
-      if (name === 'events.list' && !failed) {
+      if (name === 'events.undoStory' && !failed) {
         failed = true;
         return Promise.reject(new ApiError('failed', 'The call failed. Try again.'));
       }
@@ -143,8 +143,9 @@ describe('a change whose follow-up check fails', () => {
     }) as typeof api.call;
     await userEvent.click(screen.getByText('Tick'));
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    expect(screen.queryByText('Something went wrong. Try again.')).toBeNull();
-    await waitFor(() => expect(store.state.tasks.tsk_013.status).toBe('todo'));
+    expect(await screen.findByText('Something went wrong. Try again.')).toBeInTheDocument();
+    expect(failed).toBe(true);
+    expect(store.state.tasks.tsk_013.status).toBe('done');
   });
 });
 
