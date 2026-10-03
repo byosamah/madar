@@ -230,11 +230,21 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
+  // The Review block goes away after Approve or Send back, and the pressed button goes with it. The focus then goes to the
+  // panel, so a keyboard keeps its place and the next Tab stays in the panel (audit 2026-10-03, F-8 repair).
+  const root = useRef<HTMLDivElement>(null);
+  const reviewBlock = useRef<HTMLElement>(null);
+  const keepFocus = () => {
+    const active = document.activeElement;
+    if (active && active !== document.body && !reviewBlock.current?.contains(active)) return;
+    root.current?.closest<HTMLElement>('[role="dialog"]')?.focus();
+  };
   // Approve offers Undo, as Send to review does: a mis-press is one tap to put back (audit 2026-10-03, BRW-5).
-  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved') });
+  const approve = useUndoable('tasks.approve', { message: () => t('taskSheet.approved'), onSuccess: keepFocus });
   const sendBack = useAction('tasks.sendBack', {
     onSuccess: () => {
       setNote('');
+      keepFocus();
       toast.show({ message: t('taskSheet.sentBack') });
     },
   });
@@ -287,6 +297,11 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
     if (Object.keys(changes).length > 0) update.mutate({ id: task.id, patch: changes });
   };
   useEffect(() => () => saveTyped.current(), []);
+  // autoFocus works only when the panel mounts. The panel of the same task stays mounted when the person picks "Send back with
+  // a note" on its card, so an effect moves the focus each time noteFirst turns on (audit 2026-10-03, F-8 repair).
+  useEffect(() => {
+    if (noteFirst && viewerCan.review) reviewBlock.current?.querySelector<HTMLElement>('#task-note')?.focus();
+  }, [noteFirst, viewerCan.review]);
   const people = detail.members.map((member) => member.user);
   if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
@@ -307,7 +322,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   }, { replace: true, state: location.state });
 
   return (
-    <div className="flex flex-col gap-5 pt-1">
+    <div ref={root} className="flex flex-col gap-5 pt-1">
       <Tabs
         label={t('taskSheet.sections')}
         idPrefix="task-section"
@@ -330,9 +345,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
             {/* After "Send back with a note" on the board, the note takes the focus, Send back is the main button and Approve
                 steps back to the end (audit 2026-10-03, F-8). */}
             {viewerCan.review && (
-              <section aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+              <section ref={reviewBlock} aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
                 {!noteFirst && <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
-                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" autoFocus={noteFirst} onChange={(event) => setNote(event.target.value)} />
+                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
                 <Button variant={noteFirst ? 'primary' : 'secondary'} disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
                 {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
               </section>

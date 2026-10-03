@@ -74,4 +74,40 @@ describe('Send back with a note from the board (audit 2026-10-03, F-8)', () => {
     expect(within(review).getByRole('button', { name: 'Send back' })).not.toHaveClass('signature');
     expect(within(review).getByRole('textbox', { name: 'What needs to change?' })).not.toHaveFocus();
   });
+
+  it('puts the focus in the note when the panel of the same task is already open', async () => {
+    await renderApp(TASKS, faisal);
+    await showBoard();
+    await userEvent.click(await screen.findByRole('button', { name: /^Toilet details/ }));
+    const review = await screen.findByRole('region', { name: 'Review' });
+    await userEvent.click(screen.getByRole('button', { name: 'Move Toilet details' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Send back with a note' }));
+    await waitFor(() => expect(within(review).getByRole('button', { name: 'Send back' })).toHaveClass('signature'));
+    await waitFor(() => expect(within(review).getByRole('textbox', { name: 'What needs to change?' })).toHaveFocus());
+  });
+
+  // The Review block goes away with the press, so the focus moves to the panel and not to the page body.
+  it('keeps the focus in the panel after Send back', async () => {
+    await renderApp(TASKS, faisal);
+    await showBoard();
+    await userEvent.click(await screen.findByRole('button', { name: 'Move Toilet details' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Send back with a note' }));
+    const review = await screen.findByRole('region', { name: 'Review' });
+    const note = within(review).getByRole('textbox', { name: 'What needs to change?' });
+    await waitFor(() => expect(note).toHaveFocus());
+    await userEvent.type(note, 'Fix the tile joints.');
+    await userEvent.click(within(review).getByRole('button', { name: 'Send back' }));
+    await screen.findByText('Task sent back.');
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Review' })).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Toilet details' })).toHaveFocus();
+  });
+
+  it('keeps the focus in the panel after Approve', async () => {
+    const { store } = await renderApp(`${TASKS}&task=tsk_010`, faisal);
+    const review = await screen.findByRole('region', { name: 'Review' });
+    await userEvent.click(within(review).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Review' })).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Toilet details' })).toHaveFocus();
+  });
 });
