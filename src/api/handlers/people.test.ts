@@ -312,3 +312,17 @@ describe('the language of a new person (plan 4.13, A8; spec 2, section 10)', () 
     await expect(t.api.call('users.create', { name: 'New Four', email: 'four@madar.test', discipline: 'MEP', language: 'fr' } as never)).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });
+
+describe('me.updatePreferences keeps the switches it does not name (review of A7, 2026-10-03)', () => {
+  it('keeps the email switches and the morning summary when the theme changes', async () => {
+    const t = testApi(peopleCalls);
+    t.as('usr_003');
+    const user = t.store.state.users.usr_003;
+    user.preferences = { ...user.preferences, email: { mention: false }, morningSummary: false };
+    const after = await t.api.call('me.updatePreferences', { theme: 'dark' });
+    expect(after.preferences.theme).toBe('dark');
+    expect(after.preferences.email).toEqual({ mention: false });
+    expect(after.preferences.morningSummary).toBe(false);
+    expect(t.store.state.users.usr_003.preferences.morningSummary).toBe(false);
+  });
+});

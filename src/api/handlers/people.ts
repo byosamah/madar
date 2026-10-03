@@ -244,11 +244,12 @@ export const meUpdatePreferences = defineCall({
   output: User,
   run(input, ctx) {
     const current = ctx.actor.preferences;
+    // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
+      ...current,
       language: input.language ?? current.language,
       theme: input.theme ?? current.theme,
       glass: input.glass ?? current.glass,
-      notifications: current.notifications,
     };
     applyPatch(ctx, ctx.actor, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
     return ctx.actor;
