@@ -55,10 +55,24 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     }
   });
 
-  it('says the link has ended at once when the link has no token', async () => {
-    await renderAuth('/welcome', asFaisal(invited()));
-    expect(await screen.findByText('This link has ended. Ask the Admin for a new invitation.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Accept the invitation' })).toBeNull();
+  it('says the link has ended at once when the link has no token or a type that is not an invitation or a reset', async () => {
+    for (const link of ['/welcome', '/welcome?token_hash=hash-invite&type=signup', '/welcome?token_hash=hash-invite']) {
+      const { unmount } = await renderAuth(link, asFaisal(invited()));
+      expect(await screen.findByText('This link has ended. Ask the Admin for a new invitation.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Accept the invitation' })).toBeNull();
+      unmount();
+    }
+  });
+
+  it('opens a new invitation that comes as a reset link, for a person who accepted before but set no password', async () => {
+    const auth = invited();
+    await renderAuth('/welcome?token_hash=hash-reset&type=recovery', asFaisal(auth));
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+    expect(auth.log).toEqual(['verifyLink:recovery']);
+    await userEvent.type(await screen.findByLabelText('New password'), 'green-field-77');
+    await userEvent.click(screen.getByRole('button', { name: 'Set the password' }));
+    expect(await screen.findByTestId('where')).toHaveTextContent(/^\/$/);
+    expect(auth.current()?.password).toBe('green-field-77');
   });
 
   it('passes the calm checks at phone width, in English and in Arabic right to left', async () => {

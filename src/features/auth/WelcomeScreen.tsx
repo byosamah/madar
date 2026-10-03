@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import type { LinkType } from '../../app/auth';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
@@ -10,6 +11,10 @@ import { failureText, MIN_PASSWORD, reasonOf } from './authFailure';
 import { useAuth } from './useAuth';
 
 type Step = 'open' | 'set' | 'ended';
+
+// An invitation comes as an invite link. Sent again to a person who accepted it but set no password, it comes as a reset link
+// (plan 5.1, users.resendInvite), and it still opens here.
+const WELCOME_LINKS: readonly string[] = ['invite', 'recovery'] satisfies LinkType[];
 
 /** The link has ended: one calm line and the way back to Sign in. */
 export function LinkEnded({ text, to, label }: { text: string; to: string; label: string }) {
@@ -22,7 +27,7 @@ export function LinkEnded({ text, to, label }: { text: string; to: string; label
 }
 
 /**
- * The invitation link (client map 7.1). The token is used only when the person presses the button, so a mail scanner that opens
+ * The invitation link (client map 7.1), of type invite or recovery. The token is used only when the person presses the button, so a mail scanner that opens
  * the link does not use it. Then the person sees their name and email and sets a password.
  */
 export function WelcomeScreen() {
@@ -32,7 +37,9 @@ export function WelcomeScreen() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const tokenHash = params.get('token_hash');
-  const [step, setStep] = useState<Step>(tokenHash && params.get('type') === 'invite' ? 'open' : 'ended');
+  const type = params.get('type');
+  const linkType = type && WELCOME_LINKS.includes(type) ? (type as LinkType) : null;
+  const [step, setStep] = useState<Step>(tokenHash && linkType ? 'open' : 'ended');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +50,7 @@ export function WelcomeScreen() {
     setPending(true);
     setError(null);
     try {
-      await auth.verifyLink(tokenHash ?? '', 'invite');
+      await auth.verifyLink(tokenHash ?? '', linkType ?? 'invite');
       await queryClient.invalidateQueries({ queryKey: ['api'] });
       setStep('set');
     } catch (failure) {
