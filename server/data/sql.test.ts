@@ -95,6 +95,13 @@ describe('pgDb connections', () => {
     expect(() => pgDb({ ...CLOUD, readUrl: `${CLOUD.readUrl}?application_name=x&sslmode=verify-full` })).toThrow(/sslmode/);
   });
 
+  it('refuses every other TLS setting in the URL, because pg puts it in place of the ssl options that carry the CA', () => {
+    for (const query of ['?ssl=0', '?ssl=true', '?sslrootcert=x', '?application_name=x&sslcert=x', '?SSLKEY=x', '?uselibpqcompat=true']) {
+      expect(() => pgDb({ ...CLOUD, writeUrl: `${CLOUD.writeUrl}${query}` }), query).toThrow(/TLS setting/);
+      expect(() => pgDb({ ...CLOUD, readUrl: `${CLOUD.readUrl}${query}` }), query).toThrow(/TLS setting/);
+    }
+  });
+
   it('refuses a cloud host without the root CA, and uses no TLS for a local host', async () => {
     expect(() => pgDb({ writeUrl: CLOUD.writeUrl, readUrl: CLOUD.readUrl })).toThrow(/root certificate/);
     await pgDb(LOCAL).statement('read', 'select 1');
@@ -238,6 +245,21 @@ describe('the statement guard', () => {
     }
   });
 
+  it('refuses set_config unless it is local to the transaction (its last argument the literal true)', () => {
+    for (const text of [
+      "select set_config('statement_timeout', '0', false)", 'select set_config($1, $2, $3)', "SELECT SET_CONFIG('x', '1', FALSE)",
+      "select set_config('a', '1', true), set_config('b', '2', false)", "select set_config('x', concat('a', 'b'), true)",
+    ]) {
+      expect(() => refuseUnsafeStatement(text), text).toThrow(/set local/i);
+    }
+  });
+
+  it('refuses a session advisory lock, which stays held on the pooled backend after commit', () => {
+    for (const text of ['select pg_advisory_lock(1)', 'select pg_try_advisory_lock(1, 2)', 'select pg_advisory_lock_shared(1)', 'SELECT PG_TRY_ADVISORY_LOCK_SHARED ($1)']) {
+      expect(() => refuseUnsafeStatement(text), text).toThrow(/advisory_xact_lock/);
+    }
+  });
+
   it('refuses transaction control, which belongs to db.tx and db.savepoint', () => {
     for (const text of ['begin', 'commit', 'ROLLBACK', 'start transaction', 'end', 'savepoint x', 'release savepoint x', 'rollback to savepoint x', 'abort']) {
       expect(() => refuseUnsafeStatement(text), text).toThrow(/transaction/i);
@@ -248,6 +270,8 @@ describe('the statement guard', () => {
     for (const text of [
       "set local statement_timeout = '1s'", 'SET LOCAL lock_timeout = 0', 'set constraints all immediate', 'select 1', 'insert into settings values ($1)',
       "select 'set x = 1; begin' as text", 'with x as (select 1) select * from x', 'update office_meta set version = version + 1',
+      "select set_config('x', 'y', true)", "select set_config('a', '1', true), set_config('b', '2', TRUE)", 'select pg_advisory_xact_lock(1)',
+      'select pg_try_advisory_xact_lock($1::int4, $2::int4)', "select 'pg_advisory_lock(1)' as text",
     ]) {
       expect(() => refuseUnsafeStatement(text), text).not.toThrow();
     }

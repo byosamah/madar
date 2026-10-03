@@ -12,7 +12,7 @@ import type { Db, Query } from '../core/ports';
  * (proof.md, E4). On Supabase Edge Functions one pgDb lives as long as the isolate.
  *
  * TLS (proof.md, Z0a item 3): the Supabase pooler certificate chains to a private root, so the root certificate goes into the pg
- * ssl options (ca, rejectUnauthorized, servername), never as an sslmode in the URL. A URL with sslmode is refused.
+ * ssl options (ca, rejectUnauthorized, servername), never as an sslmode in the URL. A URL with any TLS setting is refused.
  *
  * Timeouts (proof.md, Z0a item 4): Supavisor drops session settings and startup options, and a plain SET stays on the pooled
  * backend for the next client. So every timeout is a "set local" inside the transaction, and every query refuses a plain SET.
@@ -56,9 +56,16 @@ function words(text: string): string {
 
 const TRANSACTION_CONTROL = /^(begin|commit|rollback|abort|end|start\s+transaction|savepoint|release)\b/;
 
+/** Every call of set_config, and every call whose last argument is the literal true (local to the transaction). */
+const SET_CONFIG = /\bset_config\s*\(/g;
+const SET_CONFIG_LOCAL = /\bset_config\s*\([^)]*,\s*true\s*\)/g;
+/** The session forms of the advisory lock. The _xact_ forms end with the transaction and stay allowed. */
+const SESSION_ADVISORY_LOCK = /\bpg_(try_)?advisory_lock(_shared)?\s*\(/;
+
 /**
- * Refuses the statements that must never go through a query: a plain SET or RESET (it stays on the pooled backend and leaks into
- * another isolate), and transaction control (db.tx and db.savepoint own it). "set local" and "set constraints" are allowed.
+ * Refuses the statements that must never go through a query: a plain SET or RESET, a set_config that is not local, and a session
+ * advisory lock (each stays on the pooled backend and leaks into another isolate), and transaction control (db.tx and db.savepoint
+ * own it). "set local", "set constraints" and set_config(..., true) are allowed.
  */
 export function refuseUnsafeStatement(text: string): void {
   for (const part of words(text).split(';')) {
@@ -66,6 +73,12 @@ export function refuseUnsafeStatement(text: string): void {
     if (statement === '') continue;
     if (/^reset\b/.test(statement) || (/^set\b/.test(statement) && !/^set (local|constraints)\b/.test(statement))) {
       throw new Error('A plain SET stays on the pooled backend and reaches the next client. Use "set local" inside db.tx.');
+    }
+    if ((statement.match(SET_CONFIG)?.length ?? 0) !== (statement.match(SET_CONFIG_LOCAL)?.length ?? 0)) {
+      throw new Error('A set_config without true as its last argument stays on the pooled backend. Use "set local" or set_config(..., true).');
+    }
+    if (SESSION_ADVISORY_LOCK.test(statement)) {
+      throw new Error('A session advisory lock stays held on the pooled backend after commit. Use pg_advisory_xact_lock inside db.tx.');
     }
     if (TRANSACTION_CONTROL.test(statement)) {
       throw new Error('Transaction control belongs to db.tx and db.savepoint, not to a query.');
@@ -99,7 +112,11 @@ function checkConfig(database: DatabaseConfig): void {
     return;
   }
   for (const [name, url] of [['writeUrl', database.writeUrl], ['readUrl', database.readUrl]] as const) {
-    if (/[?&]sslmode=/i.test(url)) throw new Error(`The ${name} must not carry sslmode: pass the root certificate as ca (plan 4.5).`);
+    // pg reads ssl, sslmode, sslrootcert, sslcert, sslkey and uselibpqcompat from the URL, and the result replaces the ssl options
+    // that carry the CA ("?ssl=0" turns TLS off). So the URL carries no TLS setting at all.
+    if (/[?&](ssl\w*|uselibpqcompat)=/i.test(url)) {
+      throw new Error(`The ${name} must not carry a TLS setting such as ssl or sslmode: pass the root certificate as ca (plan 4.5).`);
+    }
     if (database.ca === undefined && !LOCAL_HOSTS.has(hostOf(url))) {
       throw new Error(`The ${name} names a host that is not local, so it needs the root certificate (ca).`);
     }
