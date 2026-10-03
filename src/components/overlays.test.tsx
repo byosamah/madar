@@ -359,6 +359,76 @@ describe('overlays after the audit of 2026-10-03', () => {
     }
   });
 
+  it('gives the focus back to its opener when a field inside took the focus first (audit 2026-10-03, V-10)', async () => {
+    function Demo() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>From a template</button>
+          {open && <Sheet open onOpenChange={setOpen} title="Why?"><textarea aria-label="Reason" autoFocus /></Sheet>}
+        </>
+      );
+    }
+    render(<Demo />);
+    const opener = screen.getByText('From a template');
+    opener.focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByLabelText('Reason')).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('moves the focus to the new copy of a rebuilt opener, else to its panel, else to the page title, never to the body (V-10)', async () => {
+    function Demo({ sameId }: { sameId: boolean }) {
+      const [open, setOpen] = useState(false);
+      const [round, setRound] = useState(0);
+      return (
+        <main>
+          <h1>Corniche Office Tower</h1>
+          <div role="dialog" aria-label="Stair details" tabIndex={-1}>
+            {(sameId || round === 0) && <input key={round} id="task-due" aria-label="Due date" onKeyDown={(event) => { if (event.key === 'Enter') setOpen(true); }} />}
+          </div>
+          <Sheet open={open} onOpenChange={(value) => { setOpen(value); if (!value) setRound((n) => n + 1); }} title="Why do the dates change?"><textarea aria-label="Reason" /></Sheet>
+        </main>
+      );
+    }
+    const closeFrom = async () => {
+      screen.getByLabelText('Due date').focus();
+      await userEvent.keyboard('{Enter}');
+      await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull());
+    };
+    // The field is built again with the same id: the focus goes to the new field.
+    const first = render(<Demo sameId />);
+    await closeFrom();
+    await waitFor(() => expect(screen.getByLabelText('Due date')).toHaveFocus());
+    first.unmount();
+    // The field is gone: the focus goes to the panel that held it.
+    const second = render(<Demo sameId={false} />);
+    await closeFrom();
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Stair details' })).toHaveFocus());
+    second.unmount();
+    // No panel: the focus goes to the title of the page.
+    function Plain() {
+      const [open, setOpen] = useState(false);
+      return (
+        <main>
+          <h1>Corniche Office Tower</h1>
+          {!open && <button type="button" onClick={() => setOpen(true)}>Move back</button>}
+          <Sheet open={open} onOpenChange={setOpen} title="Why?"><textarea aria-label="Reason" /></Sheet>
+        </main>
+      );
+    }
+    render(<Plain />);
+    await userEvent.click(screen.getByText('Move back'));
+    await screen.findByRole('dialog', { name: 'Why?' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
   it('moves the focus into a blocking sheet: to its first field, or to its title (BRW-2)', async () => {
     function Demo({ withField }: { withField: boolean }) {
       const [open, setOpen] = useState(false);

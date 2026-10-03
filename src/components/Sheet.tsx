@@ -1,7 +1,7 @@
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { XIcon } from './icons/animated/x';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
@@ -38,6 +38,30 @@ function focusInto(sheet: HTMLElement | null, phone: boolean): void {
   field?.focus();
   if (!field || document.activeElement !== field) sheet.querySelector<HTMLElement>('[data-sheet-title]')?.focus();
 }
+
+/**
+ * Gives the focus back when a sheet closes and the focus has nowhere to be. First the control that opened the sheet. When the
+ * screen built that control again, its new copy with the same id. Else the panel or dialog that held the control, else the
+ * page title. Never the page body, where the next Tab goes to Home (audit 2026-10-03, V-10).
+ */
+function focusBack(opener: HTMLElement | null, holder: HTMLElement | null): void {
+  const copy = opener && !opener.isConnected && opener.id ? document.getElementById(opener.id) : null;
+  for (const target of [opener, copy, holder]) {
+    if (!target?.isConnected) continue;
+    target.focus();
+    if (document.activeElement === target) return;
+  }
+  const title = document.querySelector<HTMLElement>('main h1');
+  if (!title) return;
+  if (!title.hasAttribute('tabindex')) title.setAttribute('tabindex', '-1');
+  title.focus();
+}
+
+/** The focus is lost when it is on the page body or still inside the sheet that closes. */
+const focusLost = (sheet: HTMLElement | null) => {
+  const active = document.activeElement;
+  return !active || active === document.body || Boolean(sheet?.contains(active));
+};
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
@@ -145,6 +169,17 @@ export function Sheet(props: SheetProps) {
   // The control that had the focus when the sheet opened. Radix gives the focus back to a Dialog.Trigger only, and the app
   // opens sheets from its own buttons, so the sheet gives it back itself (audit 2026-10-03, BRW-2).
   const returnTo = useRef<HTMLElement | null>(null);
+  // The panel or dialog that held the opener: a removed opener has no parents left to ask.
+  const returnHolder = useRef<HTMLElement | null>(null);
+  // The opener is noted as the sheet opens, before the focus moves. Radix skips onOpenAutoFocus when a field inside took the
+  // focus first (autoFocus), so it cannot note it there (audit 2026-10-03, V-10).
+  useLayoutEffect(() => {
+    if (!open || !modal) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || active === document.body || content.current?.contains(active)) return;
+    returnTo.current = active;
+    returnHolder.current = active.closest<HTMLElement>('[role="dialog"]');
+  }, [open, modal]);
   if (!modal) return <SidePanel {...props} />;
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
@@ -159,13 +194,14 @@ export function Sheet(props: SheetProps) {
           {...described}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
-            returnTo.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
             focusInto(content.current, phone);
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (returnTo.current?.isConnected) returnTo.current.focus();
+            const [opener, holder] = [returnTo.current, returnHolder.current];
             returnTo.current = null;
+            returnHolder.current = null;
+            if (focusLost(content.current)) focusBack(opener, holder);
           }}
           // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
           onPointerDownOutside={(event) => {
