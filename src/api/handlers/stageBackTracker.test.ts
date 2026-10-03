@@ -120,6 +120,28 @@ describe('a move back logged in the Tracker as a Balady update (owner, 2026-10-0
     expect(tag(forward)).toBe('stg_002');
   });
 
+  it('logs nothing when the project does not move back in this call, even with an earlier move-back note saved', async () => {
+    // An earlier move back without the box saves the Overview note. A later call that does not move the tag keeps that note,
+    // and the box must not log it again (audit 2026-10-03, API-14 repair).
+    const t = world();
+    await t.api.call('tasks.move', { id: 'tsk_001', status: 'todo', reason: 'First move back, not logged' });
+    expect(tag(t)).toBe('stg_001');
+    expect(t.store.state.projects.prj_001.stageBack).toMatchObject({ reason: 'First move back, not logged' });
+
+    await t.api.call('tasks.update', { id: 'tsk_002', patch: { title: 'Renamed' }, reason: 'Not a move back', logInTracker: true });
+    await t.api.call('tasks.update', { id: 'tsk_002', patch: { title: 'Renamed again' }, logInTracker: true });
+    await t.api.call('tasks.move', { id: 'tsk_002', status: 'in_progress', logInTracker: true });
+    expect(tag(t)).toBe('stg_001');
+    expect(balady(t)).toHaveLength(0);
+    await expect(t.api.call('tracker.list', { projectId: 'prj_001' })).resolves.toEqual([]);
+
+    // The same call from a person without the Tracker posting right is not refused, because nothing goes to the Tracker.
+    rights.denyPost = true;
+    await t.api.call('tasks.update', { id: 'tsk_002', patch: { title: 'Renamed by a viewer' }, logInTracker: true });
+    expect(t.store.state.tasks.tsk_002.title).toBe('Renamed by a viewer');
+    expect(balady(t)).toHaveLength(0);
+  });
+
   it('refuses nothing new: a move back with the box and no reason gets the same question as before', async () => {
     const t = world();
     await expect(t.api.call('tasks.move', { id: 'tsk_001', status: 'todo', logInTracker: true })).rejects.toMatchObject({

@@ -179,7 +179,9 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       const back = moved && order.indexOf(after.id) < order.indexOf(before.id);
       const why = reason?.trim() ?? '';
       if (back && ask && !why) throw stageBackError(after);
-      const stageBack = back && ask && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
+      // A move back made by this call. A call that does not move the tag keeps the older note, which is not logged again (audit 2026-10-03, API-14 repair).
+      const movedBack = back && ask && before !== null;
+      const stageBack = movedBack && before ? { fromStageId: before.id, toStageId: after.id, reason: why, by: ctx.actor.id, at: ctx.stamp } : moved ? null : (project.stageBack ?? null);
       // An older office can hold a saved stage behind the tag. The saved stage first takes the tag the call found, so the event
       // holds the stage the project moved from, and an Undo can bring back what this move cleared (audit 2026-10-03, API-5).
       if (moved && before) project.currentStageId = before.id;
@@ -188,7 +190,7 @@ export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { re
       if (JSON.stringify(stageBack) !== JSON.stringify(project.stageBack ?? null)) changes.stageBack = stageBack;
       if (moved) changes.healthOverride = null;
       applyPatch(ctx, project, changes, { projectId, verb: 'project.stage_changed', targetType: 'project', targetId: projectId });
-      if (stageBack && logInTracker) logStageBack(ctx, projectId, why);
+      if (movedBack && logInTracker) logStageBack(ctx, projectId, why);
       // Only a move forward tells the team. A move back follows a person's own change, which says why (audit 2026-10-03, API-15).
       if (moved && !back) notify(ctx.state, ctx.actor, ctx.stamp, { userIds: projectPeople(ctx.state, projectId), trigger: 'stage_changed', targetType: 'project', targetId: projectId, correlationId: ctx.correlationId });
     },
