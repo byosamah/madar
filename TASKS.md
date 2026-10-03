@@ -25,3 +25,26 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [ ] Independent review and fix pass (agent running)
 - [ ] Guide and report (agent running)
 - [ ] Review link, merge to main, memory
+
+## Full product audit (2026-10-03)
+
+- [x] Decisions filter in the Activity tab (main 77d087a, v42)
+- [x] Language-turn fix: page stayed hidden after leaving Settings mid-turn
+- [x] Five code auditors done: api 21, project 25, shell 23, dashboard 17, personal 19 findings
+- [x] Browser auditor: 20 findings (BRW), all assigned
+- [x] Personal fixes PER-1..19 (branch audit-fixes, 540a094)
+- [x] Parallel fixers done: api 27+, project 28, shell 29, dashboard 19 (+ my PER 19, BRW-9, BRW-16)
+- [x] All branches merged into audit-fixes with no conflicts; 1424 tests pass; build passes
+- [x] Security hardening of the story Undo relief (e97dbeb)
+- [x] Verification workflow: 123/132 verified, 6 partial (owner questions), ~38 new issues (1 HIGH Ctrl+Z after Done)
+- [x] Fix wave 2: 38/38 fixed; 9 review findings repaired (A, B, C); merged (f97eddd); 1489 tests pass twice; STATE_VERSION 8
+- [x] Wave 3: Balady box, turn-off warning, S-1..S-4, group D review (2 repaired); merged 8658de6; 1567 tests pass twice
+- [x] Final browser check: 272 screens, 0 console errors, 23 confirmed problems (1 HIGH: Escape loses typed task text)
+- [x] Wave 4: 23/23 fixed, 7 review findings repaired; merged (one board conflict resolved by hand); 1630 tests pass twice
+- [x] Targeted re-check: 22/23 at once, F-2 (Arabic phone tab bar) fixed after and measured at 320-412 px
+- [x] Audit record in docs/reviews/2026-10-03-full-audit; merged into main 773a240; 1630 tests; published v43
+- [x] Cleanup: the owner approved on 2026-10-03; removed the 17 merged temporary worktrees
+- [ ] Screenshots of changed screens (EN/AR)
+- [x] Owner answered (2026-10-03): Balady box back; warn then allow on turn-off; one meeting per tab; Inbox count keeps task threads
+- [x] Built in wave 3: Balady tick box (API-14), turn-off warning (API-7); screenshots checked
+- [ ] Full suite, merge to main, publish, memory
