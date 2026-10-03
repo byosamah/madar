@@ -68,6 +68,8 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
   it('turns off a person with no live work at once: a completed project and a done task do not count', async () => {
     const { store } = await renderApp('/admin', (state) => {
       state.projects.prj_010.leaderId = 'usr_011';
+      // tsk_028 is done on the active project prj_003. Noura helps on it, so the helper path counts too (audit 2026-10-03, warn repair).
+      state.tasks.tsk_028.helperIds = ['usr_011'];
     });
     await pressDeactivate('Noura Al-Shammari');
     await waitFor(() => expect(store.state.users.usr_011.active).toBe(false));
