@@ -817,7 +817,10 @@
     "person": "Person",
     "over": "Over the limit",
     "overShort": "Over",
-    "cell": "{{name}}, week of {{week}}: {{n}} tasks",
+    "cell": "{{name}}, week of {{week}}: {{tasks}}",
+    "cellTasks": "{{n}} tasks",
+    "cellTasks_one": "1 task",
+    "cellTasks_other": "{{count}} tasks",
     "schedule": "Office schedule",
     "zoom": "Zoom",
     "zooms": {

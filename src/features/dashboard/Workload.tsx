@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useLang } from '../../app/lang';
 import { Avatar } from '../../components/Avatar';
 import { addDays, formatDay, formatNumber } from '../../lib/dates';
+import { counted } from '../../lib/grammar';
 import { withTeam, type DashboardData } from './Tiles';
 
 /** People and the next 4 weeks: open tasks due in each week. Above the limit, the cell says "Over" in the attention color (redesign spec 2.3). */
@@ -33,7 +34,8 @@ export function Workload({ view, teamId }: { view: DashboardData; teamId?: strin
                 </th>
                 {row.counts.map((count, i) => {
                   const over = row.over[i];
-                  const label = t('dashboard.cell', { name: row.user.name, week: formatDay(weeks[i], lang), n: count });
+                  // The count has its own key, so one task reads "1 task" and Arabic gets its noun forms (audit 2026-10-03, F-10).
+                  const label = t('dashboard.cell', { name: row.user.name, week: formatDay(weeks[i], lang), tasks: counted(t, 'dashboard.cellTasks', count) });
                   return (
                     <td key={weeks[i]} className="p-1 text-center">
                       <Link
