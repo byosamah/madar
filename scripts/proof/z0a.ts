@@ -7,7 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { POOLER_HOST, poolerConfig } from './lib.ts';
+import { POOLER_HOST, poolerConfig, serverRoleSql } from './lib.ts';
 import { storageStep } from './storage.ts';
 import { PROBE_FUNCTION, REF, ROOT_CA, SUPABASE_URL, adminClient, mgmt, need, probe, report, serverClient, sleep, stateDir, stateValue } from './cloud.ts';
 
@@ -57,8 +57,8 @@ async function serverRole(): Promise<string> {
   const a = await adminClient();
   try {
     await a.query(`do $$ begin if not exists (select 1 from pg_roles where rolname = 'madar_server') then create role madar_server; end if; end $$`);
-    // The password is base64url, so it holds no quote.
-    await a.query(`alter role madar_server with login noinherit password '${password}'`);
+    // A SCRAM verifier, not the password: the hosted project logs DDL text (log_statement = ddl).
+    await a.query(serverRoleSql(password));
   } finally {
     await a.end();
   }

@@ -1,5 +1,6 @@
 // Pure helpers for the Z0a cloud probes (plan, section 6.3, track Z). No network here.
 // Every probe builds its connections through these helpers, so no probe can reach the production project.
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 
 /** madar-test: the only project that a probe may change. */
 export const TEST_REF = 'qdgwpnesxppnqsaabqzd';
@@ -87,4 +88,27 @@ export function redact(text: string, secrets: string[]): string {
   let out = text;
   for (const secret of secrets) if (secret) out = out.split(secret).join('[secret]');
   return out;
+}
+
+const SCRAM_ITERATIONS = 4096;
+
+/**
+ * The SCRAM-SHA-256 verifier that Postgres stores for a password (RFC 5802, RFC 7677), in the form
+ * `SCRAM-SHA-256$4096:<salt>$<StoredKey>:<ServerKey>`. Postgres takes this value in ALTER ROLE ... PASSWORD as it is,
+ * so the statement (and the DDL log of the hosted project) never holds the plain password. A password must be printable
+ * ASCII, because Postgres runs SASLprep on other text before it hashes it.
+ */
+export function scramSha256Verifier(password: string, salt: Buffer = randomBytes(16)): string {
+  if (!/^[\x21-\x7e]+$/.test(password)) throw new Error('a SCRAM password here must be printable ASCII with no space');
+  const salted = pbkdf2Sync(password, salt, SCRAM_ITERATIONS, 32, 'sha256');
+  const clientKey = createHmac('sha256', salted).update('Client Key').digest();
+  const storedKey = createHash('sha256').update(clientKey).digest('base64');
+  const serverKey = createHmac('sha256', salted).update('Server Key').digest('base64');
+  return `SCRAM-SHA-256$${SCRAM_ITERATIONS}:${salt.toString('base64')}$${storedKey}:${serverKey}`;
+}
+
+/** The statement that makes madar_server a login role with this password. It sends the verifier, never the password. */
+export function serverRoleSql(password: string): string {
+  // The verifier is base64 with "$" and ":", so it holds no quote.
+  return `alter role madar_server with login noinherit password '${scramSha256Verifier(password)}'`;
 }
