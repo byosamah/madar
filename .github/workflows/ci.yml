@@ -1,0 +1,70 @@
+# CI for Madar, part 1 of 2 (plan 6.3, task O1; test map, section 6): the unit and server jobs, on every push.
+# ci-stack.yml holds db and integration, which need the local Supabase stack. The jobs have no event conditions:
+# GitHub reports a job that an if: skips as Success, and that skipped run could meet a required check.
+# No job uses a secret. Minutes: the free plan gives 2,000 a month (test map 6.2). So an older run of the same branch
+# stops when a new one starts, a pull request does not run unit and server a second time (the push run already shows
+# them on the pull request), and a push that changes only docs/ runs nothing.
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.23.1'
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # No step uses git after the checkout, so the job token does not stay in .git/config for install scripts to read.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Type check (screens, scripts and server)
+        run: npm run typecheck
+      - name: Unit tests (jsdom, fake API)
+        run: npx vitest run --project unit
+      - name: Prototype build and bundle check
+        run: npm run build
+
+  server:
+    name: server
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: No literal secret in a migration
+        run: node scripts/ci/check-migration-secrets.ts
+      - name: Server and script tests (Node)
+        run: npm run test:server
+      # Track E adds vite.server.config.ts and O3 adds config/remote.test.env. Until they merge, these two steps skip.
+      - name: Server bundles
+        if: hashFiles('vite.server.config.ts') != ''
+        run: npm run build:server
+      - name: Remote build for the test deployment
+        if: hashFiles('config/remote.test.env') != ''
+        run: npm run build:remote -- test
