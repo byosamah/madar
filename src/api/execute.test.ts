@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { defineCall } from './registry';
 import { executeParsed, resolveAuthority } from './execute';
 import { makeWorld } from '../test/factories';
+import { peopleCalls } from './handlers/people';
 
 const whoami = defineCall({
   input: z.object({}),
@@ -67,5 +68,12 @@ describe('executeParsed', () => {
     expect(() => executeParsed(linked, 'test.linked', {}, makeWorld(), base, undefined)).toThrow(expect.objectContaining({ code: 'failed' }));
     expect(executeParsed(whoami, 'test.whoami', {}, makeWorld(), { ...base, wireOutput: true }, 'p')).toMatchObject({ got: 'p' });
   });
-});
 
+  it('gives session.get the file limit of the active store on the server, and none in the prototype', () => {
+    const base = { actorId: 'usr_001', authorityId: 'usr_001', correlationId: 'cor_x', now: at, persistent: true };
+    const def = peopleCalls['session.get'];
+    const server = executeParsed(def, 'session.get', {}, makeWorld(), { ...base, limits: { maxFileBytes: 50 * 1024 * 1024 } }, undefined);
+    expect(server).toMatchObject({ limits: { maxFileBytes: 50 * 1024 * 1024 } });
+    expect(executeParsed(def, 'session.get', {}, makeWorld(), base, undefined)).not.toHaveProperty('limits');
+  });
+});

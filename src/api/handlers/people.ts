@@ -56,7 +56,10 @@ export const sessionGet = defineCall({
       }));
     const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
     // "authority" is the person whose rights and notification choices apply: the user, or the person an agent acts for.
-    return { user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors };
+    return {
+      user: ctx.actor, authority: ctx.authority, actingFor, previewUsers, persistent: ctx.persistent, simulateErrors: ctx.state.session.simulateErrors,
+      ...(ctx.limits ? { limits: ctx.limits } : {}),
+    };
   },
 });
 
