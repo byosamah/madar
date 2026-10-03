@@ -1036,6 +1036,7 @@
       "discussed": "نوقش",
       "allDiscussed": "نوقشت كل المشاريع",
       "discussedToast": "نوقش {{name}}.",
+      "skippedToast": "نُقل {{name}} إلى آخر جدول الأعمال.",
       "timeLeft": "بقي {{time}}",
       "timeOver": "تجاوز الوقت {{time}}",
       "pauseTimer": "إيقاف المؤقت",

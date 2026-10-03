@@ -927,6 +927,7 @@
       "discussed": "Discussed",
       "allDiscussed": "All projects discussed",
       "discussedToast": "{{name}} marked as discussed.",
+      "skippedToast": "{{name}} moved to the end of the agenda.",
       "timeLeft": "{{time}} left",
       "timeOver": "{{time}} over",
       "pauseTimer": "Pause timer",
