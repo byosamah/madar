@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { notificationCalls } from './notifications';
 import { taskCalls } from './tasks';
 import { contentCalls } from './content';
+import { historyCalls } from './history';
 import { emailOn, morningSummaryOn, notify } from '../notify';
 import { defaultPreferences, TRIGGERS } from '../contract/entities';
 import { makeTask, NOW, STAMP, testApi } from '../../test/factories';
@@ -106,5 +107,42 @@ describe('email switches and the morning summary (plan 4.13, A7; spec 2, section
     await expect(t.api.call('notifications.updateSettings', { morningSummary: false })).rejects.toMatchObject({ code: 'forbidden' });
     expect(t.store.state.users.usr_003.preferences.email).toBeUndefined();
     expect(t.store.state.users.usr_003.preferences.morningSummary).toBeUndefined();
+  });
+
+  it('lets no agent undo the person\'s change to an email switch or the morning summary (review 2026-10-03)', async () => {
+    const changes = [{ channel: 'email' as const, trigger: 'mention' as const, on: false }, { morningSummary: false }];
+    for (const change of changes) {
+      const t = testApi({ ...notificationCalls, ...historyCalls });
+      t.as('usr_003');
+      await t.api.call('notifications.updateSettings', change);
+      const event = Object.values(t.store.state.events).at(-1)!;
+      const saved = structuredClone(t.store.state.users.usr_003.preferences);
+      t.as('usr_005');
+      await expect(t.api.call('events.undo', { eventId: event.id })).rejects.toMatchObject({ code: 'forbidden', details: { action: 'notifications.email' } });
+      expect(t.store.state.users.usr_003.preferences).toEqual(saved);
+    }
+  });
+
+  it('still lets the agent undo the person\'s change to an in-app switch, and lets the person undo an email switch', async () => {
+    const t = testApi({ ...notificationCalls, ...historyCalls });
+    t.as('usr_003');
+    await t.api.call('notifications.updateSettings', { trigger: 'mention', on: false });
+    const appEvent = Object.values(t.store.state.events).at(-1)!;
+    await t.api.call('notifications.updateSettings', { channel: 'email', trigger: 'mention', on: false });
+    const emailEvent = Object.values(t.store.state.events).at(-1)!;
+    await t.api.call('events.undo', { eventId: emailEvent.id });
+    expect(t.store.state.users.usr_003.preferences.email ?? {}).toEqual({});
+    t.as('usr_005');
+    await t.api.call('events.undo', { eventId: appEvent.id });
+    expect(t.store.state.users.usr_003.preferences.notifications.mention).toBe(true);
+  });
+
+  it('makes no notice while the in-app switch is off, even with the email switch on, so no email goes (review 2026-10-03)', () => {
+    const t = withNotices();
+    const s = t.store.state;
+    s.users.usr_003.preferences = { ...s.users.usr_003.preferences, notifications: { ...s.users.usr_003.preferences.notifications, mention: false }, email: { mention: true } };
+    const before = Object.keys(s.notifications).length;
+    notify(s, s.users.usr_002, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'task', targetId: 'tsk_001' });
+    expect(Object.keys(s.notifications)).toHaveLength(before);
   });
 });

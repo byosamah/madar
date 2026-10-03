@@ -162,6 +162,10 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'user':
       if (event.verb === 'user.profile_changed' || event.verb === 'user.preferences_changed') {
         if (principalOf(ctx.state, event.targetId) !== ctx.authority.id) throw forbidden('You can undo changes to your own profile only.');
+        // An email leaves the office, so an agent may not undo the person's change to where their email goes (review 2026-10-03).
+        if (ctx.actor.kind === 'agent' && event.verb === 'user.preferences_changed' && changesEmail(event)) {
+          throw forbidden('Only the person changes their email settings.', { action: 'notifications.email' });
+        }
         return;
       }
       // Management may undo its own changes to people, but never a change that makes or touches an Admin.
@@ -173,6 +177,16 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     default:
       return need('admin.manage');
   }
+}
+
+/** True when a preferences change touched an email switch or the morning summary. A missing switch reads as its default. */
+function changesEmail(event: Event): boolean {
+  const prefs = (side: unknown) => (side as { preferences?: { email?: Record<string, boolean>; morningSummary?: boolean } } | null)?.preferences;
+  const before = prefs(event.before);
+  const after = prefs(event.after);
+  const triggers = new Set([...Object.keys(before?.email ?? {}), ...Object.keys(after?.email ?? {})]);
+  return [...triggers].some((trigger) => before?.email?.[trigger] !== after?.email?.[trigger])
+    || (before?.morningSummary ?? true) !== (after?.morningSummary ?? true);
 }
 
 /** Who may undo this change at all: its own person (or their agent's), or the leader for an agent change. */
