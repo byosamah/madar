@@ -86,6 +86,36 @@ describe('a refused board drop', () => {
     expect(await screen.findByRole('region', { name: 'Review' })).toBeInTheDocument();
   });
 
+  // The lead of a task in review may only pull it back (F-19), so Done is closed for them. A drop there tells the lead who
+  // finishes the task, not to send it back (the merge of F-9 and F-19, audit 2026-10-03).
+  it('tells the lead that the task waits for the leader after a drop on Done', async () => {
+    await renderApp(TASKS, (state) => {
+      state.session.currentUserId = 'usr_005';
+      // A task that needs review: only then does Done wait for the leader. Without review, the lead may finish it.
+      Object.values(state.tasks).find((task) => task.title === 'Toilet details' && task.projectId === 'prj_001')!.needsReview = true;
+    });
+    await openBoard();
+    const card = screen.getByText('Toilet details').closest('li') as HTMLElement;
+    const box = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    const columns = ['todo', 'in_progress', 'in_review', 'done'];
+    const measure = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const at = columns.indexOf(this.getAttribute('data-column') ?? '');
+      if (at >= 0) return box(at * 250, 0, 240, 600);
+      if (this === card) return box(505, 60, 230, 80);
+      return box(0, 0, 0, 0);
+    });
+    try {
+      fireEvent.pointerDown(card, { clientX: 600, clientY: 100, isPrimary: true, button: 0 });
+      fireEvent.pointerMove(document, { clientX: 610, clientY: 100 });
+      fireEvent.pointerMove(document, { clientX: 860, clientY: 100 });
+      fireEvent.pointerUp(document, { clientX: 860, clientY: 100 });
+    } finally {
+      measure.mockRestore();
+    }
+    expect(await screen.findByText('This task waits for the leader to approve it.')).toBeInTheDocument();
+    expect(screen.queryByText('This task is in review. Use Send back and write a note for the lead.')).toBeNull();
+  });
+
   // On a phone the board scrolls while the card goes to the start edge. The delta of the drag end counts that scroll too,
   // so the drop point missed To do and no reason showed (audit 2026-10-03, F-9).
   it('says why after a drop on To do when the board scrolled during the drag', async () => {
