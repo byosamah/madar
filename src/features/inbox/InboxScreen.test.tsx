@@ -139,14 +139,15 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
-  it('closes a direct chat with a person who left the office (SHL-15)', async () => {
+  it('closes a direct chat with an inactive person (SHL-15)', async () => {
     await renderApp('/inbox', (state) => {
       state.users.usr_002.active = false;
     });
     await userEvent.click(await rowLink(/Faisal Al-Harbi/));
     await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' });
-    expect(await screen.findByText('Left the office')).toBeInTheDocument();
-    expect(screen.getByText('Faisal Al-Harbi left the office. This chat takes no new messages.')).toBeInTheDocument();
+    // The chat uses the same word as Admin for this state (audit 2026-10-03, V-25).
+    expect(await screen.findByText('Inactive')).toBeInTheDocument();
+    expect(screen.getByText('This person is inactive. This chat takes no new messages.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
   });
 

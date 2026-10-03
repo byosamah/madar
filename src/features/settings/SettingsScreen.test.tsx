@@ -53,6 +53,8 @@ describe('settings screen', () => {
     // One press only asks. Cancel keeps everything.
     const ask = await screen.findByRole('dialog', { name: 'Reset the sample data?' });
     expect(ask).toHaveTextContent('You cannot undo it.');
+    // It names all that goes, also the changes and the choices of the person (audit 2026-10-03, V-27).
+    expect(ask).toHaveTextContent('everything that you added or changed in this browser, also your name, language and notification choices');
     await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(store.state.projects.prj_001.name).toBe('Changed');
