@@ -697,8 +697,8 @@
     "deleteDeadline": "حذف {{name}}",
     "deadlineAdded": "تمت إضافة الموعد.",
     "deadlineDeleted": "تم حذف الموعد.",
-    "editDeadline": "تغيير {{name}}",
-    "editDeadlineTitle": "تغيير الموعد",
+    "editDeadline": "تعديل {{name}}",
+    "editDeadlineTitle": "تعديل الموعد",
     "deadlineSaved": "تم حفظ الموعد.",
     "noDeadlines": "لا توجد مواعيد بعد.",
     "overlapLegend": "المخطط بخطوط مائلة: مرحلتان تسيران في الوقت نفسه."

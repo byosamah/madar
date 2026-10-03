@@ -539,12 +539,12 @@ describe('older posts in the Activity tab (audit 2026-10-03, PRJ-5)', () => {
   }, 15_000);
 });
 
-describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
+describe('a deadline can change (audit 2026-10-03, PRJ-13; Edit word, V-23)', () => {
   it('changes the name and the date of a deadline', async () => {
     const { store } = await renderApp('/projects/prj_001?tab=schedule', as('usr_002'));
     const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
-    await userEvent.click(within(deadlines).getByRole('button', { name: 'Change Balady submission' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Change deadline' });
+    await userEvent.click(within(deadlines).getByRole('button', { name: 'Edit Balady submission' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit deadline' });
     await userEvent.clear(within(sheet).getByLabelText('Deadline name'));
     await userEvent.type(within(sheet).getByLabelText('Deadline name'), 'Balady permit submission');
     fireEvent.change(within(sheet).getByLabelText('Date'), { target: { value: '2026-12-20' } });
@@ -553,10 +553,17 @@ describe('a deadline can change (audit 2026-10-03, PRJ-13)', () => {
     expect(await screen.findByText('Deadline saved.')).toBeInTheDocument();
   });
 
-  it('gives a person who cannot edit no Change button', async () => {
+  it('says Edit in Arabic too, the word of every other edit (audit 2026-10-03, V-23)', () => {
+    const ar = initI18n('ar');
+    expect(ar.t('schedule.editDeadlineTitle')).toBe('تعديل الموعد');
+    expect(ar.t('schedule.editDeadline', { name: 'تقديم بلدي' })).toBe('تعديل تقديم بلدي');
+    initI18n('en');
+  });
+
+  it('gives a person who cannot edit no Edit button', async () => {
     await renderApp('/projects/prj_001?tab=schedule', as('usr_005'));
     const deadlines = await screen.findByRole('region', { name: 'Deadlines' });
-    expect(within(deadlines).queryByRole('button', { name: /^Change / })).toBeNull();
+    expect(within(deadlines).queryByRole('button', { name: /^Edit / })).toBeNull();
   });
 });
 

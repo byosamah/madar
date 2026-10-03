@@ -617,8 +617,8 @@
     "deleteDeadline": "Delete {{name}}",
     "deadlineAdded": "Deadline added.",
     "deadlineDeleted": "Deadline deleted.",
-    "editDeadline": "Change {{name}}",
-    "editDeadlineTitle": "Change deadline",
+    "editDeadline": "Edit {{name}}",
+    "editDeadlineTitle": "Edit deadline",
     "deadlineSaved": "Deadline saved.",
     "noDeadlines": "No deadlines yet.",
     "overlapLegend": "Hatched: two stages run at the same time."
