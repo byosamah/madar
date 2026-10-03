@@ -3,3 +3,10 @@ dist
 test-results
 playwright-report
 .DS_Store
+
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches
