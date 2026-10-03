@@ -14,7 +14,8 @@ export const EARLIER_PAGE = 200;
 /**
  * The earlier pages of a chat (plan 4.13, A5). `newest` is the page of chats.messages that the screen keeps fresh. The earlier
  * pages come one at a time, with the id of the oldest shown message, and go above it. When a new message pushes a message out
- * of the newest page, that message stays in the earlier ones, so no gap opens between them.
+ * of the newest page, that message stays in the earlier ones, so no gap opens between them. That holds also while the first
+ * earlier page is on its way: the page ends just before the oldest message that was shown, so that message must stay.
  */
 export function useEarlierMessages(conversationId: string, newest: MessageView[] | undefined) {
   const { api } = useRuntime();
@@ -26,7 +27,7 @@ export function useEarlierMessages(conversationId: string, newest: MessageView[]
   const [seen, setSeen] = useState(newest);
   if (newest !== seen) {
     setSeen(newest);
-    if (older.length > 0 && seen && newest) {
+    if ((older.length > 0 || pending) && seen && newest) {
       const kept = new Set(newest.map((view) => view.message.id));
       const left = seen.filter((view) => !kept.has(view.message.id));
       if (left.length > 0) setOlder([...older, ...left]);
@@ -37,16 +38,19 @@ export function useEarlierMessages(conversationId: string, newest: MessageView[]
   const messages = [...older.filter((view) => !inPage.has(view.message.id)), ...page];
   const more = !ended && (older.length > 0 || page.length >= EARLIER_PAGE);
 
-  const load = async () => {
+  /** True when a page arrived. False when no page was asked for, or the ask failed. */
+  const load = async (): Promise<boolean> => {
     const oldest = messages[0];
-    if (!oldest || pending) return;
+    if (!oldest || pending) return false;
     setPending(true);
     try {
       const answer = await api.call('chats.messages', { conversationId, before: oldest.message.id, limit: EARLIER_PAGE });
       setOlder((now) => [...answer.messages, ...now]);
       if (answer.messages.length < EARLIER_PAGE) setEnded(true);
+      return true;
     } catch (error) {
       toast.show({ tone: 'error', message: errorMessage(error, t) });
+      return false;
     } finally {
       setPending(false);
     }

@@ -73,7 +73,11 @@ function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
 }
 
 /** The control for the earlier messages of a chat: absent when the chat has none left to show. */
-export type EarlierControl = { load: () => Promise<void>; pending: boolean };
+export type EarlierControl = {
+  /** True when a page arrived, false when it did not (the error shows as a toast). */
+  load: () => Promise<boolean>;
+  pending: boolean;
+};
 
 /**
  * The messages by day. The region scrolls to the bottom when a message arrives. New messages rise in. With `earlier`, the top of
@@ -86,8 +90,10 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const region = useRef<HTMLDivElement>(null);
   // The distance from the bottom when the person asked for earlier messages, and whether the focus was on that control.
   const anchor = useRef<{ fromBottom: number; focused: boolean; firstId: string | undefined } | null>(null);
-  // The messages that are here when the log first shows do not animate. A message that comes later does.
+  // The messages that are here when the log first shows do not animate. A message newer than all of them does. An earlier page
+  // is older, so it shows at once: 200 bubbles that rise in together above the one the person reads are not calm.
   const [first] = useState(() => new Set(bubbles.map((b) => b.id)));
+  const [newestAtFirst] = useState(() => Math.max(-Infinity, ...bubbles.map((b) => Date.parse(b.createdAt))));
   const firstId = bubbles[0]?.id;
   const lastId = bubbles.at(-1)?.id;
   useLayoutEffect(() => {
@@ -107,7 +113,10 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const askEarlier = (control: EarlierControl, button: HTMLButtonElement) => {
     if (control.pending || !region.current) return;
     anchor.current = { fromBottom: region.current.scrollHeight - region.current.scrollTop, focused: document.activeElement === button, firstId };
-    void control.load();
+    // A page that does not arrive moves nothing, so the kept distance goes. Else the next new message scrolls back to it.
+    void control.load().then((loaded) => {
+      if (!loaded) anchor.current = null;
+    });
   };
   const today = todayISO();
   const dayLabel = (day: string) => (day === today ? t('inbox.today') : day === addDays(today, -1) ? t('inbox.yesterday') : formatDay(day, lang, 'long'));
@@ -125,7 +134,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
       <ol className="flex flex-col gap-2">
         {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
-          ...group.items.map((bubble) => <BubbleItem key={bubble.id} bubble={bubble} fresh={!first.has(bubble.id)} />),
+          ...group.items.map((bubble) => <BubbleItem key={bubble.id} bubble={bubble} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
         ])}
       </ol>
     </div>

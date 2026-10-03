@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MESSAGE_PAGE, messagesOf } from '../../api/chatState';
 import type { State } from '../../api/store';
@@ -34,6 +34,16 @@ function measure(log: HTMLElement) {
   return { at: (value: number) => { top = value; }, top: () => top };
 }
 
+/** The rows of messages in the log: a query over the bubbles only, cheaper than a text query over 650 nodes. */
+const notes = (log: HTMLElement) => [...log.querySelectorAll('li')].filter((li) => /Old note \d{3}/.test(li.textContent ?? ''));
+
+/** Sends a message from the composer: a change event and a submit, not 16 key presses over a log of 400 bubbles. */
+function send(text: string) {
+  const field = screen.getByLabelText('Message');
+  fireEvent.change(field, { target: { value: text } });
+  fireEvent.submit(field.closest('form')!);
+}
+
 async function openTower() {
   await userEvent.click(await within(await screen.findByRole('list', { name: 'Chats' })).findByRole('link', { name: /Corniche Office Tower/ }));
   return screen.findByRole('log', { name: 'Messages' });
@@ -65,7 +75,7 @@ describe('Earlier messages in a chat (plan 4.13, A5)', () => {
     expect(await within(log).findByText(secondOldest.body)).toBeInTheDocument();
     expect(call).toHaveBeenCalledWith('chats.messages', { conversationId: roomOf(store.state).id, before: shownFirst[0].id, limit: MESSAGE_PAGE });
     // The page goes above: the earlier message comes first in the log.
-    const bodies = within(log).getAllByText(/^Old note \d{3}$/).map((node) => node.textContent);
+    const bodies = notes(log).map((li) => li.textContent ?? '').map((text) => /Old note \d{3}/.exec(text)![0]);
     expect(bodies.indexOf(secondOldest.body)).toBeLessThan(bodies.indexOf(shownFirst[0].body));
     // A full page may have more before it, so the control stays.
     const again = within(log).getByRole('button', { name: 'Earlier messages' });
@@ -76,7 +86,7 @@ describe('Earlier messages in a chat (plan 4.13, A5)', () => {
     // That page was shorter than 200, so it was the first page of the chat. The focus stays in the log, not on the page body.
     await waitFor(() => expect(within(log).queryByRole('button', { name: 'Earlier messages' })).toBeNull());
     expect(log).toHaveFocus();
-    expect(within(log).getAllByText(/^Old note \d{3}$/)).toHaveLength(OLD);
+    expect(notes(log)).toHaveLength(OLD);
   });
 
   it('keeps the message the person reads in place: the scroll keeps its distance from the bottom', async () => {
@@ -102,21 +112,82 @@ describe('Earlier messages in a chat (plan 4.13, A5)', () => {
     await userEvent.click(within(log).getByRole('button', { name: 'Earlier messages' }));
     await within(log).findByText(all[all.length - 2 * MESSAGE_PAGE].body);
     // A new message: the newest page now starts one message later, and "edge" falls out of it.
-    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'A fresh message.{Enter}');
+    send('A fresh message.');
     expect(await within(log).findByText('A fresh message.')).toBeInTheDocument();
     expect(messagesOf(store.state, roomOf(store.state).id).slice(-MESSAGE_PAGE)[0].id).not.toBe(edge.id);
     expect(within(log).getByText(edge.body)).toBeInTheDocument();
-    expect(within(log).getAllByText(/^Old note \d{3}$/)).toHaveLength(2 * MESSAGE_PAGE - (all.length - OLD));
+    expect(notes(log)).toHaveLength(2 * MESSAGE_PAGE - (all.length - OLD));
   });
 
-  it('passes the calm checks in English, and reads in Arabic right to left', async () => {
-    const english = await renderApp('/inbox', longTalk);
+  it('keeps the message that leaves the newest page while the first earlier page is still on its way', async () => {
+    const { api, store } = await renderApp('/inbox', longTalk);
+    const log = await openTower();
+    const all = messagesOf(store.state, roomOf(store.state).id);
+    const edge = all[all.length - MESSAGE_PAGE];
+    await within(log).findByText(edge.body);
+    // The earlier page waits until the test lets it go.
+    let release = () => undefined as void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const original = api.call.bind(api);
+    vi.spyOn(api, 'call').mockImplementation(async (...args: Parameters<typeof api.call>) => {
+      const [name, input] = args;
+      if (name === 'chats.messages' && (input as { before?: string }).before) await gate;
+      return original(...args);
+    });
+    await userEvent.click(within(log).getByRole('button', { name: 'Earlier messages' }));
+    send('Fresh.');
+    expect(await within(log).findByText('Fresh.')).toBeInTheDocument();
+    release();
+    // The page ends just before "edge", so "edge" must stay in the log, or a gap opens with no sign.
+    await within(log).findByText(all[all.length - 2 * MESSAGE_PAGE].body);
+    expect(within(log).getByText(edge.body)).toBeInTheDocument();
+    expect(notes(log)).toHaveLength(2 * MESSAGE_PAGE - (all.length - OLD));
+  });
+
+  it('keeps the log at the bottom for a new message after an earlier page failed to load', async () => {
+    const { api } = await renderApp('/inbox', longTalk);
+    const log = await openTower();
+    await within(log).findByText(/The sprinkler riser clashes with beam B14/);
+    const scroll = measure(log);
+    scroll.at(0);
+    const original = api.call.bind(api);
+    vi.spyOn(api, 'call').mockImplementation(async (...args: Parameters<typeof api.call>) => {
+      const [name, input] = args;
+      if (name === 'chats.messages' && (input as { before?: string }).before) throw new TypeError('Failed to fetch');
+      return original(...args);
+    });
+    await userEvent.click(within(log).getByRole('button', { name: 'Earlier messages' }));
+    await waitFor(() => expect(within(log).getByRole('button', { name: 'Earlier messages' })).toHaveAttribute('aria-busy', 'false'));
+    send('Fresh.');
+    expect(await within(log).findByText('Fresh.')).toBeInTheDocument();
+    // The person's own message is in view: the failed load left no old scroll position behind.
+    await waitFor(() => expect(scroll.top()).toBe(log.scrollHeight));
+  });
+
+  it('shows an earlier page at once: only new messages rise in', async () => {
+    const { store } = await renderApp('/inbox', longTalk);
+    const log = await openTower();
+    const all = messagesOf(store.state, roomOf(store.state).id);
+    await within(log).findByText(all[all.length - MESSAGE_PAGE].body);
+    await userEvent.click(within(log).getByRole('button', { name: 'Earlier messages' }));
+    const row = (await within(log).findByText(all[all.length - 2 * MESSAGE_PAGE].body)).closest('li')!;
+    // 200 bubbles that spring in together above the message the person reads are not calm.
+    expect(row.style.opacity).toBe('1');
+    expect(notes(log).filter((li) => li.style.opacity !== '1')).toHaveLength(0);
+    send('Fresh.');
+    const fresh = (await within(log).findByText('Fresh.')).closest('li')!;
+    expect(fresh.style.opacity).not.toBe('1');
+  });
+
+  it('passes the calm checks in English', async () => {
+    await renderApp('/inbox', longTalk);
     const log = await openTower();
     const control = await within(log).findByRole('button', { name: 'Earlier messages' });
     expect(control).not.toHaveClass('signature');
     expectCalm(log.parentElement as HTMLElement, { titleLevel: 2 });
-    english.unmount();
+  });
 
+  it('reads in Arabic right to left', async () => {
     await renderApp('/inbox', (state) => {
       longTalk(state);
       state.users.usr_001.preferences.language = 'ar';
@@ -127,6 +198,6 @@ describe('Earlier messages in a chat (plan 4.13, A5)', () => {
     const arabicControl = await within(arabicLog).findByRole('button', { name: 'الرسائل السابقة' });
     expectCalm(arabicLog.parentElement as HTMLElement, { titleLevel: 2 });
     await userEvent.click(arabicControl);
-    await waitFor(() => expect(within(arabicLog).getAllByText(/^Old note \d{3}$/).length).toBeGreaterThan(MESSAGE_PAGE));
+    await waitFor(() => expect(notes(arabicLog).length).toBeGreaterThan(MESSAGE_PAGE));
   });
 });
