@@ -196,7 +196,7 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
   const files = useCall('files.list', { projectId: detail.project.id, taskId: data.task.id });
   const { task, viewerCan } = data;
   // Reopening a task, or moving it into an earlier stage, can move the project back. The server then asks why (owner, 2026-10-02).
-  const back = useStageBack();
+  const back = useStageBack(detail.viewerCan.post);
   // Moving the dates asks why, and the reason goes to the Conversation (owner, 2026-10-02). Cancel puts the date fields back.
   const [timingKey, setTimingKey] = useState(0);
   const dates = useDateReason(() => setTimingKey((key) => key + 1));

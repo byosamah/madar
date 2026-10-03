@@ -1383,7 +1383,8 @@
   "stageBack": {
     "title": "This moves the project back to {{stage}}. Why?",
     "label": "Reason",
-    "confirm": "Move back"
+    "confirm": "Move back",
+    "logInTracker": "Also log this in the Tracker as a Balady update"
   },
   "dateReason": {
     "title": "Why do the dates change?",
