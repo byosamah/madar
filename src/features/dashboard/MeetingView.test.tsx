@@ -231,16 +231,27 @@ describe('Escape and the phone width in the meeting (browser audit 2026-10-03)',
     document.removeEventListener('keydown', draw);
   });
 
-  it('opens on the project screens at phone width, and Timeline is still a choice there (BRW-18)', async () => {
-    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
-      matches: query === '(max-width: 639px)', media: query, onchange: null,
-      addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
-    }) as MediaQueryList);
+  // The timeline bars got no width on a phone, so a phone offers the project screens only, also from a timeline link
+  // (BRW-18, then audit 2026-10-03, F-5).
+  const phone = () => vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+    matches: query === '(max-width: 639px)', media: query, onchange: null,
+    addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+  }) as MediaQueryList);
+
+  it('opens on the project screens at phone width, with no Timeline choice (BRW-18, F-5)', async () => {
+    phone();
     await renderApp('/dashboard/meeting');
     expect(await screen.findByRole('article')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Project timeline' })).toBeNull();
-    await userEvent.click(screen.getByRole('radio', { name: 'Timeline' }));
-    expect(await screen.findByRole('list', { name: 'Project timeline' })).toBeInTheDocument();
-    expect(window.location.hash).toContain('mode=timeline');
+    expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Timeline' })).toBeNull();
+  });
+
+  it('opens the project screens from a timeline link at phone width (audit 2026-10-03, F-5)', async () => {
+    phone();
+    await renderApp('/dashboard/meeting?mode=timeline');
+    expect(await screen.findByRole('article')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Project timeline' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
   });
 });

@@ -51,6 +51,7 @@ export function DashboardScreen() {
   const dashboard = useCall('dashboard.get', { status: 'active', ...filters });
   const scheduled = useCall('dashboard.get', { status: statusApplies ? status : 'active', ...filters });
   const users = useCall('users.list', {});
+  const projects = useCall('projects.list', { status: 'all' });
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
   const set = (key: string, value: string, fallback: string) => setParams((current) => {
@@ -64,6 +65,16 @@ export function DashboardScreen() {
   const active = [statusApplies && status !== 'active', leader !== '', client !== '', team !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
+  // A person who leads no project in the status gave an empty Dashboard. The Leader list offers only the people who lead a
+  // project in the status the numbers count; "All statuses" shows active and paused projects (audit 2026-10-03, F-14).
+  const shown = statusApplies ? status : 'active';
+  const leaderStatuses: string[] = shown === 'all' ? ['active', 'on_hold'] : [shown];
+  const leaders = new Map<string, string>();
+  for (const summary of projects.data ?? []) if (summary.leader && leaderStatuses.includes(summary.project.status)) leaders.set(summary.leader.id, summary.leader.name);
+  // A leader from the link stays in the list, so the choice that filters the numbers stays visible.
+  const picked = (users.data ?? []).find((user) => user.id === leader);
+  if (picked) leaders.set(picked.id, picked.name);
+  const leaderOptions = [...leaders].sort(([, a], [, b]) => a.localeCompare(b));
   return (
     <div className="flex flex-col gap-5">
       <ScreenTitle title={t('screens.dashboard')} />
@@ -79,7 +90,7 @@ export function DashboardScreen() {
           <label className={LABEL}>{t('dashboard.leader')}
             <select value={leader} onChange={(event) => set('leader', event.target.value, '')} className={SELECT}>
               <option value="">{t('dashboard.anyLeader')}</option>
-              {(users.data ?? []).filter((user) => user.kind === 'human').map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              {leaderOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             </select>
           </label>
           <label className={LABEL}>{t('dashboard.team')}

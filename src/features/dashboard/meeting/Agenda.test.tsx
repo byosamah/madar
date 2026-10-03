@@ -211,6 +211,33 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     expect(agendaItems(sheet)[8]).not.toHaveTextContent('Skipped');
   });
 
+  it('says where Skip put the project, and Undo puts it back in its place (audit 2026-10-03, F-21)', async () => {
+    await renderApp(MEETING);
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    await screen.findByRole('article', { name: 'Nakhla Mall Extension' });
+    const toast = (await screen.findByText('Corniche Office Tower moved to the end of the agenda.')).closest('[role="status"]') as HTMLElement;
+    await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
+    await screen.findByRole('article', { name: 'Corniche Office Tower' });
+    expect(screen.getByRole('button', { name: /^Agenda/ })).toHaveTextContent('2 of 9');
+    const sheet = await openAgenda();
+    const items = agendaItems(sheet);
+    expect(items[1]).toHaveTextContent(/Corniche Office Tower.*Now/);
+    expect(items[2]).toHaveTextContent('Nakhla Mall Extension');
+    expect(items.filter((item) => /Skipped/.test(item.textContent ?? ''))).toHaveLength(0);
+  });
+
+  it('says where Skip put the project in Arabic (audit 2026-10-03, F-21)', async () => {
+    await renderApp(MEETING, (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await userEvent.click(screen.getByRole('button', { name: 'تخطي' }));
+    expect(await screen.findByText('نُقل Al Waha Clinic Fit-out إلى آخر جدول الأعمال.')).toBeInTheDocument();
+  });
+
   it('goes round to the first open project when Skip is pressed on the last project', async () => {
     await renderApp(MEETING);
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });

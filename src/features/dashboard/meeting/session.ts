@@ -210,6 +210,20 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
    */
   const undoDone = (id: string, wasDiscussed: boolean) => commit((s) => show(wasDiscussed ? s : { ...s, discussed: s.discussed.filter((item) => item !== id) }, id, Date.now()));
 
+  /**
+   * Takes a Skip back: the project goes back to its place in the stored order, loses the Skipped mark that Skip added, and
+   * shows again. `index` is its place in the stored order before Skip (audit 2026-10-03, F-21).
+   */
+  const undoSkip = (id: string, index: number, wasSkipped: boolean) => commit((s) => {
+    const rest = s.order.filter((item) => item !== id);
+    const at = index < 0 ? rest.length : Math.min(index, rest.length);
+    return show({
+      ...s,
+      order: [...rest.slice(0, at), id, ...rest.slice(at)],
+      skipped: wasSkipped ? s.skipped : s.skipped.filter((item) => item !== id),
+    }, id, Date.now());
+  });
+
   /** Keeps the summary lines that went to the chats, by project. */
   const markShared = (sent: Record<string, string>) => commit((s) => ({ ...s, shared: { ...s.shared, ...sent } }));
 
@@ -244,6 +258,7 @@ export function useMeetingSession(projectIds: readonly string[], onScreen = true
     done,
     undoDone,
     skip,
+    undoSkip,
     elapsedFor,
     paused: session.paused,
     /** True while the clock of the current project runs. */
