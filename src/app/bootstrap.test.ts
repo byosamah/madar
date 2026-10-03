@@ -89,4 +89,19 @@ describe('bootstrap', () => {
     expect(second.store.state.users.usr_001.gender).toBe('female');
     expect(second.store.state.users.usr_002.gender).toBe('male');
   });
+
+  it('fills the real-build parts of the runtime: always signed in, a change source that is open, the prototype mode (plan, T0.4)', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    expect(runtime.mode).toBe('prototype');
+    expect(runtime.auth?.status()).toBe('signed_in');
+    expect(runtime.changes?.status()).toBe('open');
+    const heard: unknown[] = [];
+    const stop = runtime.changes!.subscribe((signals) => heard.push(signals));
+    await runtime.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower' } });
+    stop();
+    await runtime.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower 2' } });
+    expect(heard).toEqual([[]]);
+  });
 });
+

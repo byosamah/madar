@@ -1,6 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TRIGGERS } from '../../api/contract/entities';
 import { fieldError } from '../../app/errors';
 import { useSwitchLanguage } from '../../app/languageTurn';
 import { PreviewAs } from '../../app/PreviewAs';
@@ -13,15 +12,10 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
 import { Switch } from '../../components/Switch';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="panel flex flex-col gap-3 p-5">
-      <h2 className="text-section text-ink">{title}</h2>
-      {children}
-    </section>
-  );
-}
+import { AgentsSection } from './AgentsSection';
+import { NotificationsSection } from './NotificationsSection';
+import { PasswordSection } from './PasswordSection';
+import { SettingsSection as Section } from './Section';
 
 export function SettingsScreen() {
   const { t } = useTranslation();
@@ -30,7 +24,6 @@ export function SettingsScreen() {
   const preferences = useAction('me.updatePreferences');
   const switchLanguage = useSwitchLanguage();
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
-  const trigger = useAction('notifications.updateSettings');
   const simulate = useAction('session.setSimulateErrors');
   // Reset wipes the whole office in this browser and has no Undo, so it asks first, like Delete project (audit 2026-10-03, SHL-8).
   const [askReset, setAskReset] = useState(false);
@@ -110,18 +103,11 @@ export function SettingsScreen() {
         />
       </Section>
 
-      <Section title={t('settings.notifications')}>
-        {TRIGGERS.map((name) => (
-          <Switch
-            key={name}
-            id={`trigger-${name}`}
-            label={t(`settings.triggers.${name}`)}
-            checked={session.data.authority.preferences.notifications[name]}
-            onChange={(on) => trigger.mutate({ trigger: name, on })}
-          />
-        ))}
-      </Section>
+      <NotificationsSection />
 
+      {/* The real build: the password (track U) and the person's agents (track G). Both render nothing until built. */}
+      <PasswordSection />
+      <AgentsSection />
 
       <Section title={t('settings.prototype')}>
         <PreviewAs id="preview-as-settings" />
