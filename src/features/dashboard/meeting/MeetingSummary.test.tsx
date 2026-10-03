@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
+import { formatDay } from '../../../lib/dates';
 import { renderApp } from '../../../test/render';
 import { openSummary } from './steps';
 
@@ -125,12 +126,59 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
     expect(whats).toEqual([
       'made a change to “Kiosk lighting question”',
       'made a change to “Signage drawings”',
-      'added the task “Reply: Kiosk lighting question”',
+      // A new task reads as an action, with its person and due date, as the meeting panel lists it (audit 2026-10-03, F-18).
+      'Action: Reply: Kiosk lighting question · Khalid Al-Mutairi · Mon 5 Oct',
       'asked Khalid Al-Mutairi to reply to “Kiosk lighting question”',
       'marked “Signage drawings” as received',
       'made Khalid Al-Mutairi the lead of “Progress photos”',
       'changed the flag of “Progress photos”',
     ]);
+  });
+
+  // The summary said only "added the task", so the minutes lost who does an action and by when (audit 2026-10-03, F-18).
+  describe('an action names its person and its due date (audit 2026-10-03, F-18)', () => {
+    /** Adds an action for the project's lead, as the meeting panel does, then opens the summary. */
+    async function actionThenSummary(arabic = false) {
+      const rendered = await renderApp(MEETING, (state) => {
+        waitsForReview(state);
+        if (arabic) state.users.usr_001.preferences.language = 'ar';
+      });
+      await screen.findByRole('article');
+      const project = rendered.store.state.projects.prj_011;
+      await rendered.api.call('tasks.create', { projectId: 'prj_011', stageId: project.currentStageId, title: 'Update the permit tracker', ownerId: project.leaderId!, dueDate: '2026-10-06' });
+      if (arabic) {
+        await userEvent.click(screen.getByRole('button', { name: /^جدول الأعمال/ }));
+        await userEvent.click(within(await screen.findByRole('dialog', { name: 'جدول الأعمال' })).getByRole('button', { name: 'عرض ملخص الاجتماع' }));
+      } else {
+        await openSummary();
+      }
+      const summary = await screen.findByRole('region', { name: /^(Meeting summary|ملخص الاجتماع)$/ });
+      const group = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
+      return { ...rendered, group, lead: rendered.store.state.users[project.leaderId!].name };
+    }
+
+    it('writes the action line as the panel does, in the summary, the table and the chat message', async () => {
+      const { store, group, lead } = await actionThenSummary();
+      const line = `Action: Update the permit tracker · ${lead} · Tue 6 Oct`;
+      const item = group.getByText(line).closest('li')!;
+      // The line reads as the panel shows it, so the name of the person who added it does not come first.
+      expect(item.textContent).toBe(`09:00${line}`);
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      await userEvent.click(screen.getByRole('button', { name: 'Copy as a table' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      expect((writeText.mock.calls[0][0] as string).split('\n')).toContain(`Shore Walk Retail Kiosks\t${store.state.users.usr_001.name}\t${line}\t09:00`);
+      const chat = Object.values(store.state.conversations).find((conversation) => conversation.kind === 'project' && conversation.projectId === 'prj_011')!;
+      await userEvent.click(screen.getByRole('button', { name: 'Share to the project chats' }));
+      await screen.findByText('The summary went to 1 chat.');
+      const message = Object.values(store.state.messages).filter((m) => m.conversationId === chat.id).at(-1)!;
+      expect(message.body.split('\n')).toEqual(['Meeting summary, Wed 30 Sept', line]);
+    });
+
+    it('writes the action line in Arabic', async () => {
+      const { group, lead } = await actionThenSummary(true);
+      expect(group.getByText(`إجراء: Update the permit tracker · ${lead} · ${formatDay('2026-10-06', 'ar', 'withWeekday')}`)).toBeInTheDocument();
+    });
   });
 
   it('posts once for two presses, and stays shared until the summary changes', async () => {

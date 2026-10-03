@@ -8,8 +8,9 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { addWorkingDays } from '../../../lib/workdays';
-import { formatDay, todayISO } from '../../../lib/dates';
+import { todayISO } from '../../../lib/dates';
 import { plainText } from '../../../lib/text';
+import { actionLine } from './actionLine';
 
 const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-2';
 
@@ -102,7 +103,7 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const lines = [
     ...(posts.data ?? []).flatMap((item) => (item.kind === 'update' && item.decision && item.at >= startedAt ? [{ id: item.id, at: item.at, text: plainText(item.body) }] : [])),
     ...(tasks.data ?? []).flatMap((row) => (row.task.createdAt >= startedAt
-      ? [{ id: row.task.id, at: row.task.createdAt, text: t('dashboard.meeting.actionLine', { title: row.task.title, name: row.owner.name, date: row.task.dueDate ? formatDay(row.task.dueDate, lang, 'withWeekday') : '' }) }]
+      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner.name, row.task.dueDate) }]
       : [])),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;

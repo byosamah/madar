@@ -858,6 +858,7 @@
       "actionWho": "Who",
       "actionBy": "Due date",
       "actionLine": "Action: {{title}} · {{name}} · {{date}}",
+      "actionLineNoDate": "Action: {{title}} · {{name}}",
       "decisionAdded": "Decision added.",
       "actionAdded": "Task added for {{name}}.",
       "replyLine": "Reply: {{name}} · {{date}}",

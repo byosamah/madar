@@ -964,6 +964,7 @@
       "actionWho": "من",
       "actionBy": "تاريخ الاستحقاق",
       "actionLine": "إجراء: {{title}} · {{name}} · {{date}}",
+      "actionLineNoDate": "إجراء: {{title}} · {{name}}",
       "decisionAdded": "تمت إضافة القرار.",
       "actionAdded": "أُسندت مهمة جديدة إلى {{name}}.",
       "replyLine": "الرد: {{name}} · {{date}}",

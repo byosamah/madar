@@ -11,8 +11,10 @@ import { actorContext, counted } from '../../../lib/grammar';
 import { plainText } from '../../../lib/text';
 import { toTsv } from '../../../lib/trackerExport';
 import { FEED_EVENT_VERBS, feedText } from '../../projects/feed';
+import { actionLine } from './actionLine';
 
-type Line = { id: string; who: string; what: string; time: string };
+/** `alone`: the line reads on its own, with no name before it, as an action does in the meeting panel (audit 2026-10-03, F-18). */
+type Line = { id: string; who: string; what: string; time: string; alone?: boolean };
 type Group = { projectId: string; name: string; lines: Line[] };
 
 /** The content of a project's lines, by their changes. A new change makes new content, which can go to the chat again. */
@@ -65,6 +67,11 @@ function sentenceOf({ event, actor, label, detail }: EventLineView, t: TFunction
   if (event.verb === 'task.reassigned') return t('dashboard.meeting.summary.leadChanged', { label, lead: detail.lead ?? '', context });
   if (event.verb === 'tracker.closed') return t(detail.waiting === 'client' ? 'dashboard.meeting.summary.received' : 'dashboard.meeting.summary.answered', { label, context });
   if (event.verb === 'tracker.reply_assigned') return t('dashboard.meeting.summary.replyAssigned', { label, person: detail.person ?? '', context });
+  // A new task is an action of the meeting. It names the person and the due date, as the meeting panel does (audit 2026-10-03, F-18).
+  if (event.verb === 'task.created') {
+    const dueDate = fieldsOf(event.after).dueDate;
+    return actionLine(t, lang, label, detail.lead ?? '', typeof dueDate === 'string' ? dueDate : null);
+  }
   if (FEED_EVENT_VERBS.has(event.verb)) {
     const item: FeedItem = { kind: 'event', id: event.id, at: event.createdAt, author: actor, verb: event.verb, targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: false };
     return feedText(item, t);
@@ -116,7 +123,8 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
       if (sentence === null) continue;
       const reason = view.event.verb === 'task.updated' ? reasons.get(view.event.correlationId) : undefined;
       const what = reason ? t('dashboard.meeting.summary.withReason', { line: sentence, reason }) : sentence;
-      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: view.actor.name, what, time: view.event.createdAt.slice(11, 16) }]);
+      const alone = view.event.verb === 'task.created';
+      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: view.actor.name, what, time: view.event.createdAt.slice(11, 16), alone }]);
     }
     const nameOf = (id: string) => names.get(id) ?? everyProject.data?.find((row) => row.project.id === id)?.project.name ?? id;
     return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: nameOf(id), lines: byProject.get(id)! }));
@@ -160,7 +168,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
         skipped.push(group.name);
         continue;
       }
-      const body = [t('dashboard.meeting.summary.shareTitle', { date }), ...group.lines.map((line) => `${line.who} ${line.what}`)].join('\n');
+      const body = [t('dashboard.meeting.summary.shareTitle', { date }), ...group.lines.map((line) => (line.alone ? line.what : `${line.who} ${line.what}`))].join('\n');
       try {
         await api.call('chats.send', { conversationId: chat.id, body });
         sent[group.projectId] = contentOf(group);
@@ -207,7 +215,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
             {group.lines.map((line) => (
               <li key={line.id} className="flex items-baseline gap-3 text-[18px]">
                 <bdi dir="ltr" className="tabular w-12 shrink-0 text-ink-2">{line.time}</bdi>
-                <span className="min-w-0 flex-1"><bdi className="font-semibold text-ink">{line.who}</bdi> <span className="text-ink-2">{line.what}</span></span>
+                <span className="min-w-0 flex-1">{!line.alone && <><bdi className="font-semibold text-ink">{line.who}</bdi> </>}<span className="text-ink-2">{line.what}</span></span>
               </li>
             ))}
           </ul>
