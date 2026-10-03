@@ -672,7 +672,7 @@ Built on `@modelcontextprotocol/server` 2.3.0 (PF 7.6), which implements the tra
 | M | Usage meters | 1 | `server/usage/*`, `server/calls/usage.ts`, `UsageSection.tsx` | C3, N2 | yes | no |
 | N3 | Jobs | 2 | `server/jobs/*`, `...0300_platform_cron.sql` | C3, N2, M, F | yes | no |
 | G | Agents (MCP) | 4 | `server/mcp/*`, `server/calls/agents.ts`, `...0400_platform_auth_hook.sql`, `src/features/oauth/*`, `AgentsSection.tsx`, `scripts/record-samples.ts` | T0 (G1, G2), C3 and P (G3, G4) | yes | no |
-| O | Ops | 3 | `.github/workflows/*`, `scripts/deploy/*`, `scripts/backup/*`, `scripts/restore-check.ts`, `config/*` | T0 (O1), all (O3) | yes (O2) | no |
+| O | Ops | 3 | `.github/workflows/*`, `scripts/ci/*`, `scripts/deploy/*`, `scripts/backup/*`, `scripts/restore-check.ts`, `config/*` | T0 (O1), all (O3) | yes (O2) | no |
 | X | Browser checks on the test deployment | 2 | `tests/e2e-deploy/*`, `playwright.deploy.config.ts`, `scripts/seed-test-office.ts` | D, U, R2 | no | runs in Z |
 | Z | Deploy phase | 10 | `docs/superpowers/real-build/runbook.md`, `docs/superpowers/real-build/proof.md`, `scripts/proof/*` (except the N1 spike) | accounts; all | no | yes |
 
