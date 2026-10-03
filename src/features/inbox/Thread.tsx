@@ -4,6 +4,7 @@ import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
+import { readDraft, readDraftFiles, useDraftOwner, writeDraft, writeDraftFiles } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useToast } from '../../app/toasts';
@@ -96,28 +97,7 @@ export function MessageLog({ bubbles, resetKey, emptyText }: { bubbles: Bubble[]
   );
 }
 
-/**
- * Half-written messages, by chat or task thread, for this browser tab. Opening another chat, another tab or Search unmounts
- * the box; its draft waits here until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the keys of
- * the comment box (CommentThread), so a task thread and the comments of its task share one draft. Picked files stay in memory
- * only, because session storage cannot hold a file.
- */
-const DRAFT = 'madar.draft.';
-const readDraft = (key: string) => {
-  try { return window.sessionStorage.getItem(DRAFT + key) ?? ''; } catch { return ''; }
-};
-const writeDraft = (key: string, text: string) => {
-  try {
-    if (text) window.sessionStorage.setItem(DRAFT + key, text);
-    else window.sessionStorage.removeItem(DRAFT + key);
-  } catch { /* blocked storage */ }
-};
-const pickedFiles = new Map<string, File[]>();
-
-/** The box under the messages. Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. */
-export function Composer({
-  id, people, pending, onSend, upload,
-}: {
+type ComposerProps = {
   id: string;
   people: UserCard[];
   pending: boolean;
@@ -125,21 +105,36 @@ export function Composer({
   onSend: (body: string, fileIds: string[], clear: () => void) => void;
   /** Where picked files go. A chat with no project of its own has none, so it shows no attach control. */
   upload?: UploadTarget;
-}) {
+};
+
+/**
+ * The box under the messages, for the current person. A change of person starts a new box with that person's draft, so no
+ * typed words or picked files go over to the next person (audit 2026-10-03, V-22).
+ */
+export function Composer(props: ComposerProps) {
+  const owner = useDraftOwner();
+  return owner ? <ComposerBox key={owner} owner={owner} {...props} /> : null;
+}
+
+/**
+ * Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. Opening another chat, another tab or
+ * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
+ * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
+ */
+function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
-  const attachments = useAttachments(MAX_ATTACHMENTS, pickedFiles.get(draftKey));
+  const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
-  const [text, setTextState] = useState(() => readDraft(draftKey));
+  const [text, setTextState] = useState(() => readDraft(owner, draftKey));
   const setText = (next: string) => {
-    writeDraft(draftKey, next);
+    writeDraft(owner, draftKey, next);
     setTextState(next);
   };
   useEffect(() => {
-    if (attachments.files.length > 0) pickedFiles.set(draftKey, attachments.files);
-    else pickedFiles.delete(draftKey);
-  }, [draftKey, attachments.files]);
+    writeDraftFiles(owner, draftKey, attachments.files);
+  }, [owner, draftKey, attachments.files]);
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     field.current?.focus();

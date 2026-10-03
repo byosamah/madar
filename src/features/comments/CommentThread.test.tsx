@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -30,6 +30,14 @@ describe('comments', () => {
     await router.navigate(TASK('tsk_007'));
     const again = await screen.findByRole('dialog', { name: 'Stair details' });
     expect(await within(again).findByRole('textbox', { name: 'Add a comment' })).toHaveValue('Half a thought');
+  });
+
+  it('shows the next person no half-written comment of the person before, after Preview as (audit 2026-10-03, V-22)', async () => {
+    const { api } = await renderApp(TASK('tsk_007'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Only for Hala');
+    await act(async () => { await api.call('session.previewAs', { userId: 'usr_002' }); });
+    await waitFor(() => expect(within(screen.getByRole('dialog', { name: 'Stair details' })).getByRole('textbox', { name: 'Add a comment' })).toHaveValue(''));
   });
 
   it('reads the Inbox thread of the task when its comments show in the task panel (audit 2026-10-03, SHL-5)', async () => {

@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
+import { useDraftSweep } from './drafts';
 import { projectsListLink } from './lastList';
 import { FocusMode } from '../features/focus/FocusMode';
 import { NAV, isNavActive } from './nav';
@@ -57,6 +58,8 @@ export function AppShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // A change of person drops the half-written words of the person before (audit 2026-10-03, V-22).
+  useDraftSweep();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
