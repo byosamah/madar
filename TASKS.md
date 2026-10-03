@@ -56,3 +56,10 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] Prototype v44 published; 1,640 tests pass
 - [ ] Skipped on purpose (need a contract change or a browser-checked layout change): holdsAdminRights mirror in PeopleSection, leaders list from projects.list status all, one dashboard.get for the schedule status, one ResizeObserver for the office schedule, session.get per task row, toast.undo/toast.failed API, one focus-return hook for both sheet modes, Escape ownership, DateReason draft effect, TasksTab sendBack reset effect
 - [ ] Skipped review items: the direct currentStageId write in watchStage (needs a check of every path that moves the tag), settleFuture on a real office (prototype only)
+
+## 2026-10-03: real build, orchestration follow-ups
+
+- [ ] After wave 1: check that track E fixed the TLS fail-open in `server/core/deps.ts` (`hostedSupabase` only requires `DATABASE_CA` for `*.supabase.co/.com` hosts, so any other host, or an unparsable URL, connects without TLS). Fix if not: fail closed, require TLS for every host except loopback and the local Docker hosts, refuse an unparsable URL, with tests.
+- [ ] Wave 3 brief for track F: add `assertCan(ctx, 'project.view', ...)` to the fake `files.link` in `serverFakes.ts` too (plan 2b.7), so fake and real match.
+- [ ] Z0a: the Resend test send waits for the owner's Resend account address.
+- [ ] After the build: the owner rotates the 4 secrets (Supabase token, both database passwords, Resend key), which were pasted in chat and auto-saved to Supermemory.
