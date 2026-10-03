@@ -187,6 +187,43 @@ describe('closing a panel (audit 2026-10-03, PRJ-9 and PRJ-10; no extra Back, V-
     await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
   });
 
+  // Forward brings back the panel step with its old key. Close and Escape must still close it there (audit 2026-10-03, V-36).
+  it('Close and Escape still close a task panel that Forward brought back', async () => {
+    const { router } = await fromProjects('/projects/prj_001?tab=tasks');
+    await userEvent.click(await screen.findByRole('button', { name: /^Stair details/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=tasks'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    await router.navigate(1);
+    const again = await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(router.state.location.search).toContain('task=tsk_007');
+    await userEvent.click(within(again).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.search).toBe('?tab=tasks');
+    await router.navigate(1);
+    await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(router.state.location.search).toBe('?tab=tasks');
+  });
+
+  it('Close still closes a payment sheet that Forward brought back', async () => {
+    const { router } = await fromProjects('/projects/prj_001', as('usr_011'));
+    const region = await screen.findByRole('region', { name: 'Payments' });
+    await userEvent.click(await within(region).findByRole('button', { name: /Concept stage fee/ }));
+    const sheet = await screen.findByRole('dialog');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).not.toContain('payment='));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await router.navigate(1);
+    const again = await screen.findByRole('dialog');
+    expect(router.state.location.search).toContain('payment=');
+    await userEvent.click(within(again).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(router.state.location.search).not.toContain('payment=');
+  });
+
   it('a task closed on the Overview forgets its Conversation, so the next task opens on Details', async () => {
     const { router } = await renderApp('/projects/prj_001', as('usr_002'));
     const people = await screen.findByRole('region', { name: 'Who is doing what' });

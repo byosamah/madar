@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 
 /** The parts of the link that belong to a panel. The first one says whether the panel is open. */
@@ -25,6 +25,11 @@ export function usePanelLink(keys: readonly string[]) {
   const navigate = useNavigate();
   // The step that a Close already goes back from, so a second Close before the Back lands does not leave the screen.
   const goingBack = useRef<string | null>(null);
+  // Forward brings a step back with its old key. Forget the guard when the link moves on, so Close works there again
+  // (audit 2026-10-03, V-36).
+  useEffect(() => {
+    goingBack.current = null;
+  }, [location.key]);
   const open = useCallback((values: Record<string, string | null>) => {
     const next = new URLSearchParams(location.search);
     for (const [key, value] of Object.entries(values)) {
