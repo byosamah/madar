@@ -2,7 +2,9 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { localClient } from './migrate';
 
 /**
  * The C1 proof of the Workers path (plan 6.3, C1 "done when"; proof.md, E4 and Z0a item 7): requests in a row through deps.db on
@@ -15,11 +17,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const ROOT = join(import.meta.dirname, '..', '..');
 const PORT = 8798;
 const BASE = `http://127.0.0.1:${PORT}`;
-/** The local transaction pooler from the Mac. Local test values only. */
-const LOCAL_POOLER = 'postgres://postgres.pooler-dev:postgres@127.0.0.1:54329/postgres?sslmode=disable';
+const SERVER_PASSWORD = 'madar-local-test';
+/** The local transaction pooler from the Mac, as the server role (tenant pooler-dev). Local test values only. */
+const LOCAL_POOLER = `postgres://madar_server.pooler-dev:${SERVER_PASSWORD}@127.0.0.1:54329/postgres?sslmode=disable`;
 
 let dir = '';
 let child: ChildProcess | undefined;
+let admin: pg.Client | undefined;
 
 function secretKey(): string {
   const status = JSON.parse(execFileSync('npx', ['supabase', 'status', '-o', 'json'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })) as Record<string, string>;
@@ -27,6 +31,8 @@ function secretKey(): string {
 }
 
 beforeAll(async () => {
+  admin = await localClient();
+  await admin.query(`alter role madar_server login password '${SERVER_PASSWORD}'`);
   dir = mkdtempSync(join(tmpdir(), 'madar-c1-'));
   const envFile = join(dir, 'worker.env');
   // No DATABASE_URL and no DATABASE_CA: the Worker takes its database from the binding.
@@ -52,13 +58,17 @@ beforeAll(async () => {
   throw new Error('wrangler dev did not answer in 180 s.');
 }, 200_000);
 
-afterAll(() => {
+afterAll(async () => {
   try {
     if (child?.pid) process.kill(-child.pid, 'SIGTERM');
   } catch {
     // Already gone.
   }
   if (dir) rmSync(dir, { recursive: true, force: true });
+  if (admin) {
+    await admin.query('alter role madar_server nologin password null');
+    await admin.end();
+  }
 });
 
 describe('deps.db on wrangler dev, through the Hyperdrive binding', () => {
@@ -67,12 +77,15 @@ describe('deps.db on wrangler dev, through the Hyperdrive binding', () => {
       const response = await fetch(`${BASE}/api/db`, { signal: AbortSignal.timeout(20_000) });
       const body = await response.text();
       expect(response.status, `request ${n + 1}: ${body}`).toBe(200);
-      expect(JSON.parse(body)).toEqual({ ok: true, tx: { lockHeld: true, timeouts: { lock: '5s', statement: '10s' } }, settingsRows: 1 });
+      expect(JSON.parse(body)).toEqual({ ok: true, tx: { user: 'madar_server', lockHeld: true, timeouts: { lock: '5s', statement: '10s' } }, settingsRows: 1 });
     }
   });
 
   it('answers 200 to requests at the same time, each on its own connections', async () => {
-    const answers = await Promise.all(Array.from({ length: 3 }, () => fetch(`${BASE}/api/db`, { signal: AbortSignal.timeout(20_000) })));
-    expect(answers.map((response) => response.status)).toEqual([200, 200, 200]);
+    const answers = await Promise.all(Array.from({ length: 3 }, async () => {
+      const response = await fetch(`${BASE}/api/db`, { signal: AbortSignal.timeout(20_000) });
+      return `${response.status} ${await response.text()}`;
+    }));
+    for (const answer of answers) expect(answer).toMatch(/^200 /);
   });
 });

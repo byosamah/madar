@@ -13,9 +13,8 @@ import { applyMigrations, dropSchema, localClient, localDbUrl } from './migrate'
  * own, writes the sample office as madar_server through pgDb, and checks each save rule with real commits. It needs the local
  * stack (`supabase start`) and the Docker lock. It talks only to 127.0.0.1.
  *
- * madar_server connects straight to Postgres (port 54322) with its schema in the startup options: the local pooler connects to
- * Postgres as postgres (proof.md, E1, fact 2), so only a direct connection runs as the server role. The pooler path is proved
- * by server/it/workerdb.it.test.ts.
+ * madar_server connects straight to Postgres (port 54322) with its test schema in the startup options, because Supavisor drops
+ * startup options. The pooler path, as madar_server.pooler-dev, is proved by server/it/workerdb.it.test.ts.
  */
 
 const TODAY = '2026-10-04';
@@ -200,15 +199,11 @@ describe('pgDb on the local database', () => {
     await admin?.end();
   });
 
-  it('sets the timeouts with set local, so they end with the transaction and never stay on the connection', async () => {
-    const inside = await a.tx('write', async (q) => {
-      const [lock] = await q<{ lock_timeout: string }>('show lock_timeout');
-      const [statement] = await q<{ statement_timeout: string }>('show statement_timeout');
-      return [lock.lock_timeout, statement.statement_timeout];
-    });
-    expect(inside).toEqual(['5s', '10s']);
-    const [after] = await a.statement<{ lock_timeout: string }>('write', 'show lock_timeout');
-    expect(after.lock_timeout).toBe('0');
+  it('sets the timeouts with set local: a write gets the lock and statement timeouts, a read only the statement timeout', async () => {
+    const timeouts = (q: Query) => q<{ lock: string; statement: string }>("select current_setting('lock_timeout') as lock, current_setting('statement_timeout') as statement");
+    expect(await a.tx('write', timeouts)).toEqual([{ lock: '5s', statement: '10s' }]);
+    expect(await a.tx('read', timeouts)).toEqual([{ lock: '0', statement: '10s' }]);
+    expect(await a.statement('read', "select current_setting('lock_timeout') as lock")).toEqual([{ lock: '0' }]);
   });
 
   it('runs a read in a read only transaction', async () => {
