@@ -27,8 +27,10 @@ export function TabPill() {
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
-        // On a phone the tabs share the width, but a tab never gets narrower than its label and some room for the round ends of
-        // its highlight. A long label such as "لوحة المعلومات" makes its own tab wider and stays whole (audit 2026-10-03, F-2).
+        // On a phone the tabs share the width, but a tab never gets narrower than its longest word and some room for the round
+        // ends of its highlight. A label of two words such as "لوحة المعلومات" wraps onto two short lines, so it stays whole and
+        // the five tabs still fit inside the bar at 320 to 412 px. On a phone the highlight is a rounded box, not a pill, so a
+        // second line clears its corners (audit 2026-10-03, F-2 and its re-check).
         // Below 320 px the five whole labels do not fit at full size, so the label takes 11 px (the floor), the padding gets
         // smaller and each tab starts from its own width. The tabs can also shrink, so the bar never runs off the screen (F-2).
         return (
@@ -36,11 +38,11 @@ export function TabPill() {
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-12 min-w-fit flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-caption min-[360px]:px-2.5 max-[319px]:min-w-0 max-[319px]:flex-auto max-[319px]:px-1 max-[319px]:[--size-caption:11px] font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex min-h-12 min-w-min flex-1 flex-col items-center justify-center gap-0.5 rounded-full max-sm:rounded-[18px] px-1.5 text-caption min-[360px]:px-2.5 max-[319px]:min-w-0 max-[319px]:flex-auto max-[319px]:px-1 max-[319px]:[--size-caption:11px] font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
-            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
+            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full max-sm:rounded-[18px]" />}
             <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
-            <span className="whitespace-nowrap">{t(item.key)}</span>
+            <span className="text-center leading-[1.15] sm:whitespace-nowrap">{t(item.key)}</span>
             {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
           </Link>
         );
