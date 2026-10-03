@@ -101,7 +101,7 @@ function BoardCard({ row, reviews, dragging, onOpen, onMove }: {
           <Menu
             label={t('tasks.moveTo', { title: row.task.title })}
             items={[
-              ...moveTargets(row.task.status, reviewing).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
+              ...moveTargets(row.task.status, reviewing, row.task.needsReview).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
               // Send back needs a note, so the item opens the task panel, where the review block comes first (audit 2026-10-03, V-5).
               { label: t('tasks.sendBackOpen'), onSelect: onOpen, hidden: !reviewing },
             ]}
@@ -130,7 +130,7 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
     setActiveId(null);
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
-    if (row && over && moveTargets(row.task.status, reviews).includes(over.id as TaskStatus)) move.mutate({ id: row.task.id, status: over.id as TaskStatus });
+    if (row && over && moveTargets(row.task.status, reviews, row.task.needsReview).includes(over.id as TaskStatus)) move.mutate({ id: row.task.id, status: over.id as TaskStatus });
   };
   // The click that ends a pointer drag must not open the task.
   const open = (taskId: string) => {
@@ -160,7 +160,7 @@ export function TaskBoard({ rows, reviews, canLog, onOpen }: { rows: TaskRow[]; 
         {BOARD_COLUMNS.map((status) => {
           const columnRows = rows.filter((row) => row.task.status === status);
           return (
-            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && status !== lifted.task.status && !moveTargets(lifted.task.status, reviews).includes(status)}>
+            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && status !== lifted.task.status && !moveTargets(lifted.task.status, reviews, lifted.task.needsReview).includes(status)}>
               {columnRows.map((row) => (
                 <BoardCard
                   key={row.task.id}

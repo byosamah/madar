@@ -24,7 +24,7 @@ import { RichText } from '../../../components/RichText';
 import { Sheet } from '../../../components/Sheet';
 import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
-import { BOARD_COLUMNS } from '../../../lib/board';
+import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { CommentThread } from '../../comments/CommentThread';
 import { PreviewSheet } from '../files/PreviewSheet';
@@ -343,7 +343,9 @@ function TaskBody({ detail, data, onClose }: { detail: ProjectDetail; data: Task
               {/* The reviewer finishes or returns a task in review with Approve or Send back only, so the Status menu hides (audit 2026-10-03, PRJ-2). */}
               {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
-                  {BOARD_COLUMNS.map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
+                  {/* While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19). */}
+                  {BOARD_COLUMNS.filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview).includes(status))
+                    .map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
               {viewerCan.editAll ? (

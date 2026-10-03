@@ -26,4 +26,11 @@ describe('move targets', () => {
     expect(moveTargets('in_review', true)).toEqual(['done']);
     expect(moveTargets('in_progress', true)).toEqual(['todo', 'in_review', 'done']);
   });
+
+  it('gives the lead of a task that waits for review only the pull-back columns (audit 2026-10-03, F-19)', () => {
+    expect(moveTargets('in_review', false, true)).toEqual(['todo', 'in_progress']);
+    expect(moveTargets('in_review', false, false)).toEqual(['todo', 'in_progress', 'done']);
+    expect(moveTargets('in_review', true, true)).toEqual(['done']);
+    expect(moveTargets('in_progress', false, true)).toEqual(['todo', 'in_review', 'done']);
+  });
 });
