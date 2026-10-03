@@ -30,6 +30,8 @@ export type SpikeObservation = {
   storedRows: Record<string, number>;
   /** What happened when a client with no session tried to join the private channel. */
   outsiderJoin: JoinOutcome;
+  /** What happened when a signed-in person whom the policy does not name tried to join. A refusal shows that the policy is the gate. */
+  strangerJoin: JoinOutcome;
 };
 
 export type SpikeResult = { ok: boolean; lines: string[] };
@@ -62,9 +64,13 @@ export function judge(seen: SpikeObservation): SpikeResult {
     const n = seen.storedRows[mark] ?? 0;
     check(n === 0, `rolled-back mark ${mark} has ${n} row(s) in realtime.messages; expected 0.`);
   }
-  if (seen.outsiderJoin === 'refused') check(true, 'a client with no session could not join the private channel.');
-  else if (seen.outsiderJoin === 'joined') check(false, 'a client with no session joined the private channel; expected a refusal.');
-  else check(false, 'the join of a client with no session got no answer in time; expected a refusal.');
+  const refusal = (outcome: JoinOutcome, who: string) => {
+    if (outcome === 'refused') check(true, `${who} could not join the private channel.`);
+    else if (outcome === 'joined') check(false, `${who} joined the private channel; expected a refusal.`);
+    else check(false, `the join of ${who} got no answer in time; expected a refusal.`);
+  };
+  refusal(seen.outsiderJoin, 'a client with no session');
+  refusal(seen.strangerJoin, 'a signed-in person whom the policy does not name');
   return { ok, lines };
 }
 
@@ -86,7 +92,8 @@ function localStack(): Local {
     );
   }
   const local: Local = {
-    url: process.env.SUPABASE_URL ?? env.API_URL ?? '',
+    // config.toml turns the Data API off, so "supabase status" prints no API_URL. Kong still serves Auth and Realtime on the api port.
+    url: process.env.SUPABASE_URL ?? env.API_URL ?? 'http://127.0.0.1:54321',
     anonKey: process.env.SUPABASE_ANON_KEY ?? env.ANON_KEY ?? '',
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? env.SERVICE_ROLE_KEY ?? '',
     dbUrl: process.env.DATABASE_URL ?? env.DB_URL ?? '',
@@ -138,12 +145,15 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
   const topic = `n1-spike-${run}`;
   const policy = `n1 spike ${run}`;
   const email = `n1-spike-${run}@madar.test`;
+  const strangerEmail = `n1-spike-${run}-stranger@madar.test`;
   const password = randomUUID();
   const db = new pg.Client({ connectionString: local.dbUrl });
   const admin = createClient(local.url, local.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const member = createClient(local.url, local.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const outsider = createClient(local.url, local.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const clients: SupabaseClient[] = [member, outsider];
+  const stranger = createClient(local.url, local.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const clients: SupabaseClient[] = [member, outsider, stranger];
+  const userIds: string[] = [];
   let userId = '';
   await db.connect();
   db.on('notice', (notice) => log(`notice from Postgres: ${notice.message}`));
@@ -151,6 +161,10 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (created.error || !created.data.user) throw new Error(`createUser: ${created.error?.message}`);
     userId = created.data.user.id;
+    userIds.push(userId);
+    const other = await admin.auth.admin.createUser({ email: strangerEmail, password, email_confirm: true });
+    if (other.error || !other.data.user) throw new Error(`createUser: ${other.error?.message}`);
+    userIds.push(other.data.user.id);
     // The policy reads like the one of section 5.3: only this topic, only broadcast, only this person. No insert policy.
     await db.query(
       `create policy "${policy}" on realtime.messages for select to authenticated
@@ -170,6 +184,11 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
 
     const outsiderJoin = await join(outsider.channel(topic, { config: { private: true } }), 15000);
     log(`join with no session on the same private channel: ${outsiderJoin}`);
+    const strangerIn = await stranger.auth.signInWithPassword({ email: strangerEmail, password });
+    if (strangerIn.error || !strangerIn.data.session) throw new Error(`signIn: ${strangerIn.error?.message}`);
+    await stranger.realtime.setAuth(strangerIn.data.session.access_token);
+    const strangerJoin = await join(stranger.channel(topic, { config: { private: true } }), 15000);
+    log(`join of a signed-in person whom the policy does not name: ${strangerJoin}`);
 
     const committed = [`${run}-commit-1`, `${run}-commit-2`];
     const rolledBack = [`${run}-rollback`, `${run}-error`];
@@ -186,11 +205,11 @@ export async function runSpike(log: (line: string) => void = console.log): Promi
       [topic],
     );
     const storedRows = Object.fromEntries(rows.rows.map((row) => [row.mark, Number(row.n)]));
-    return judge({ committed, rolledBack, received, storedRows, outsiderJoin });
+    return judge({ committed, rolledBack, received, storedRows, outsiderJoin, strangerJoin });
   } finally {
     for (const client of clients) await client.removeAllChannels();
     await db.query(`drop policy if exists "${policy}" on realtime.messages`).catch(() => undefined);
-    if (userId) await admin.auth.admin.deleteUser(userId);
+    for (const id of userIds) await admin.auth.admin.deleteUser(id);
     await db.end();
   }
 }

@@ -9,6 +9,7 @@ function clean(): SpikeObservation {
     received: ['c1', 'c2'],
     storedRows: { c1: 1, c2: 1, r1: 0, r2: 0 },
     outsiderJoin: 'refused',
+    strangerJoin: 'refused',
   };
 }
 
@@ -17,7 +18,7 @@ describe('judge', () => {
     const result = judge(clean());
     expect(result.ok).toBe(true);
     expect(result.lines.every((line) => line.startsWith('ok: '))).toBe(true);
-    expect(result.lines).toHaveLength(9);
+    expect(result.lines).toHaveLength(10);
   });
 
   it('fails when a rolled-back mark arrives on the channel', () => {
@@ -62,8 +63,14 @@ describe('judge', () => {
     expect(result.lines).toContain('FAIL: the join of a client with no session got no answer in time; expected a refusal.');
   });
 
+  it('fails when a signed-in person whom the policy does not name joins, so the policy is the gate', () => {
+    const result = judge({ ...clean(), strangerJoin: 'joined' });
+    expect(result.ok).toBe(false);
+    expect(result.lines).toContain('FAIL: a signed-in person whom the policy does not name joined the private channel; expected a refusal.');
+  });
+
   it('fails a run that sent nothing, so an empty run never reads as a pass', () => {
-    const result = judge({ committed: [], rolledBack: [], received: [], storedRows: {}, outsiderJoin: 'refused' });
+    const result = judge({ committed: [], rolledBack: [], received: [], storedRows: {}, outsiderJoin: 'refused', strangerJoin: 'refused' });
     expect(result.ok).toBe(false);
     expect(result.lines[0]).toBe('FAIL: the run needs at least one committed and one rolled-back mark.');
   });
