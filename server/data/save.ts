@@ -194,7 +194,7 @@ export function diffState(before: State, after: State): Diff {
       const old = was.get(id);
       if (old && same(old, rec)) continue;
       if (isEvents && old) {
-        checkUndoneBy(id, old, rec, now);
+        checkUndoneBy(id, old, rec, was, now);
         continue;
       }
       if (isEvents && rec.undoneBy != null && now.get(rec.undoneBy as string)?.undoes !== id) {
@@ -231,10 +231,10 @@ export function diffState(before: State, after: State): Diff {
 }
 
 /** An old event may change only in undoneBy, and only to the undo event that the same save inserts and that names it. */
-function checkUndoneBy(id: string, old: Rec, rec: Rec, now: Map<string, Rec>): void {
+function checkUndoneBy(id: string, old: Rec, rec: Rec, was: Map<string, Rec>, now: Map<string, Rec>): void {
   if (!same(without(old, 'undoneBy'), without(rec, 'undoneBy'))) throw historyError(`the event ${id} changed.`);
   const undo = rec.undoneBy == null ? undefined : now.get(rec.undoneBy as string);
-  if (!undo || undo.undoes !== id || old.undoneBy != null) {
+  if (!undo || undo.undoes !== id || old.undoneBy != null || was.has(rec.undoneBy as string)) {
     throw historyError(`the undoneBy of event ${id} changed, and no new undo event in this save names it.`);
   }
 }

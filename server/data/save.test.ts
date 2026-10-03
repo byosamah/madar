@@ -142,6 +142,14 @@ describe('diffState and the events', () => {
     event(wrongTarget, { id: 'evt_902', verb: 'undo', undoes: b.id });
     a.undoneBy = 'evt_902';
     expect(() => diffState(seed, wrongTarget)).toThrow(/undoneBy/);
+
+    // An old undo event (one a loader brought in without filling undoneBy on its target) does not count: the undo must be new.
+    const before = copy();
+    const target = Object.values(before.events)[0];
+    event(before, { id: 'evt_904', verb: 'undo', undoes: target.id });
+    const oldUndo = structuredClone(before);
+    oldUndo.events[target.id].undoneBy = 'evt_904';
+    expect(() => diffState(before, oldUndo)).toThrow(/undoneBy/);
   });
 
   it('fails when a new event carries an undoneBy that no undo event in the State names', () => {
