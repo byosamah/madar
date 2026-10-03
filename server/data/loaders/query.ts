@@ -1,0 +1,120 @@
+import type { State } from '../../../src/api/store';
+import { tableOf, type TableCollection, type TableSpec } from '../tables';
+
+/**
+ * The reads of the loaders (plan 4.6; task C2), as data. One Select runs two ways: as SQL on the database (sqlSource.ts), and in
+ * memory over a whole office (memorySource.ts). The loader tests run the handlers on the memory form, so the 18 places of AM 6 are
+ * checked in "npm test"; server/it/loaders.it.test.ts proves that the SQL form returns the same rows as the memory form.
+ *
+ * Text order is the order of code points ("collate C" in SQL, the < operator in memory). The stamps and the ids of Madar are
+ * ASCII text of one shape, so this order is also the order that localeCompare gives them in the handlers.
+ */
+
+type Rec = Record<string, unknown>;
+
+/** A column that a condition or an order may name. text: doc->>'field'; bool and int: the typed generated column. */
+type Column = { type: 'text' | 'bool' | 'int'; value(rec: Rec, state: State, spec: TableSpec): string | boolean | number | null };
+
+const text = (field: string): Column => ({
+  type: 'text',
+  value: (rec) => (rec[field] === undefined || rec[field] === null ? null : String(rec[field])),
+});
+const server = (column: string): Column => ({
+  type: 'text',
+  value: (rec, state, spec) => (spec.serverColumns?.[column]?.(rec, state) ?? null) as string | null,
+});
+
+/** The generated and server columns of each table (supabase/migrations/20261004000100_core.sql). Only these may be named. */
+const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
+  projects: { status: text('status'), client_id: text('clientId'), leader_id: text('leaderId'), code: text('code'), search_text: server('search_text') },
+  tasks: {
+    project_id: text('projectId'), owner_id: text('ownerId'), status: text('status'), due_date: text('dueDate'), stage_id: text('stageId'),
+    search_text: server('search_text'),
+  },
+  updates: { project_id: text('projectId'), created_at: text('createdAt') },
+  comments: { target_type: text('targetType'), target_id: text('targetId'), created_at: text('createdAt'), project_id: server('project_id') },
+  files: { project_id: text('projectId'), task_id: text('taskId'), stage_id: text('stageId'), search_text: server('search_text') },
+  tracker: {
+    project_id: text('projectId'), reply_task_id: text('replyTaskId'),
+    open: { type: 'bool', value: (rec) => rec.waiting !== null && rec.waiting !== undefined && (rec.closedAt === null || rec.closedAt === undefined) },
+  },
+  payments: { project_id: text('projectId') },
+  notifications: {
+    user_id: text('userId'), read: { type: 'bool', value: (rec) => rec.read === true }, created_at: text('createdAt'), correlation_id: text('correlationId'),
+    target_type: text('targetType'), target_id: text('targetId'), dedupe_key: text('dedupeKey'),
+  },
+  messages: { conversation_id: text('conversationId'), created_at: text('createdAt') },
+  chatReads: { conversation_id: text('conversationId'), user_id: text('userId') },
+  events: {
+    seq: { type: 'int', value: (rec) => rec.seq as number }, project_id: text('projectId'), target_type: text('targetType'), target_id: text('targetId'),
+    correlation_id: text('correlationId'), verb: text('verb'), undoes: text('undoes'), created_at: text('createdAt'),
+  },
+};
+
+export function columnOf(c: TableCollection, name: string): Column {
+  const column = name === 'id' ? ID : COLUMNS[c]?.[name];
+  if (!column) throw new Error(`The table ${tableOf(c).table} has no column ${name} for a loader.`);
+  return column;
+}
+const ID: Column = { type: 'text', value: (rec, _state, spec) => spec.key(rec) };
+
+/** A JSON field of "doc" that has no column: a scan inside the database, never an index. Only names of plain fields. */
+const FIELD = /^[a-zA-Z]+$/;
+export function fieldName(name: string): string {
+  if (!FIELD.test(name)) throw new Error(`Not a doc field: ${name}`);
+  return name;
+}
+
+/**
+ * One condition. Every condition of a Select must hold.
+ *   in            the column has one of the values
+ *   notIn         the column is null or has none of the values
+ *   eq            the column equals the value (null: the column is null)
+ *   contains      the column holds the text (strpos), for search_text
+ *   atOrAfter     the stamp of the column is at or after this time (compared as times, as events.list does)
+ *   field / in    a doc field without a column has one of the values (doc->>'field')
+ *   field / null  a doc field holds JSON null (or is absent)
+ *   has           a doc list field holds the value (doc->'field' ? value)
+ *   notUndone     an event that no undo event names (events only)
+ *   before        (created_at, id) comes before this pair in text order
+ *   bounds        per key of a column: created_at after "gt" and, when "ge" is set, at or after "ge"
+ *   or            any of the conditions holds
+ */
+export type Cond =
+  | { col: string; in: readonly string[] }
+  | { col: string; notIn: readonly string[] }
+  | { col: string; eq: string | boolean | null }
+  | { col: string; contains: string }
+  | { col: string; atOrAfter: string }
+  | { field: string; in: readonly string[] }
+  | { field: string; null: true }
+  | { has: string; value: string }
+  | { notUndone: true }
+  | { before: { at: string; id: string } }
+  | { bounds: { col: string; by: Readonly<Record<string, { gt: string; ge?: string }>> } }
+  | { or: readonly Cond[] };
+
+/**
+ * One read of one table.
+ *   order   newest first by a column, then by insertion order. Without it the rows come in insertion order.
+ *   limit   the first rows in that order; with "ties", every row that shares the value of the last one too.
+ *   per     the limit counts inside each value of this column (the newest posts of each project).
+ *   pick    only these doc fields, for a read that never saves (AM 9). A field that is absent stays absent.
+ */
+export type Select = {
+  c: TableCollection;
+  where: readonly Cond[];
+  order?: { col: string; desc: true; id?: true };
+  limit?: number;
+  ties?: boolean;
+  per?: string;
+  pick?: readonly string[];
+};
+
+/** A row as a source returns it: its insertion order and its doc. */
+export type Row = { ord: number; doc: Rec };
+
+/** True when a Select can match no row, because a list condition is empty. */
+export function matchesNothing(s: Select): boolean {
+  return s.where.some((cond) => 'in' in cond && cond.in.length === 0);
+}
