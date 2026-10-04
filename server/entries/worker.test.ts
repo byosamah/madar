@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { requestHost } from '../core/after';
 import type { Db } from '../core/ports';
 import { setEnvSource } from '../env';
 import type { AppMount } from './apps';
@@ -104,6 +105,39 @@ describe('the Workers entry and the database', () => {
     await Promise.all(pending);
     expect(opened).toHaveLength(1);
     expect(opened[0].closed).toBe(true);
+  });
+
+  it('gives the request an after on Workers, and keeps the database open until the work after the answer ends (S1)', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { opened, openDb } = workersDbs();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const later: unknown[] = [];
+    const AFTER: AppMount = {
+      name: 'api',
+      app: (deps) =>
+        new Hono().get('/later', () => {
+          const { host, after } = requestHost();
+          after?.((async () => {
+            await gate;
+            later.push(await deps.db.statement('read', 'select 1'));
+          })());
+          return Response.json({ host, after: after !== undefined });
+        }),
+    };
+    const worker = workerEntry({ openDb, mounts: [AFTER] });
+    const { pending, ctx } = context();
+    const response = await worker.fetch(new Request('http://127.0.0.1/api/later'), LOCAL, ctx);
+    expect(await response.json()).toEqual({ host: 'workers', after: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(opened[0].closed).toBe(false);
+    release();
+    await Promise.all(pending);
+    expect(later).toEqual([[{ n: 1 }]]);
+    expect(opened[0].closed).toBe(true);
+    // Without a waitUntil there is no after: the route keeps its work inline.
+    const bare = await worker.fetch(new Request('http://127.0.0.1/api/later'), LOCAL);
+    expect(await bare.json()).toEqual({ host: 'workers', after: false });
   });
 
   it('closes the database when the request has no body to stream, and without a waitUntil', async () => {

@@ -1,3 +1,4 @@
+import { runInHost, type After } from '../core/after';
 import { depsFrom, serverEnvFrom, type ServerEnv } from '../core/deps';
 import { pgDb, type DatabaseConfig } from '../data/sql';
 import { env, setEnvSource } from '../env';
@@ -20,6 +21,9 @@ import { lazyStart } from './start';
  * ignores a CA, and the Supabase pooler certificate chains to a private root. Hyperdrive makes the TLS connection with that root
  * (verify-full) and gives the Worker a finished connection string, which pgDb uses as it is. Without the binding the entry uses
  * DATABASE_URL, which works only for a local pooler without TLS.
+ *
+ * Each request runs with its host (server/core/after.ts, task S1): "workers", and ctx.waitUntil as its after. The request
+ * database closes only when the answer and every piece of work handed to after have ended.
  */
 
 type Context = { waitUntil(work: Promise<unknown>): void };
@@ -57,12 +61,16 @@ export function workerEntry(o: WorkerOptions = {}) {
       region: values.config.region,
       fetch: async (request, after) => {
         const db = openDb(database);
+        // The work that a route hands to after (task S1) still uses this database, so close waits for it.
+        const later: Promise<unknown>[] = [];
+        const keep: After | undefined = after ? (work) => void later.push(work.catch(() => undefined)) : undefined;
         const close = async () => {
+          while (later.length > 0) await Promise.all(later.splice(0));
           await db.close?.().catch((error: unknown) => deps.log.warn('The request database did not close.', { error: error instanceof Error ? error.message : String(error) }));
         };
         let response: Response;
         try {
-          response = await scope.run(db, () => host.fetch(request));
+          response = await scope.run(db, () => runInHost({ host: 'workers', after: keep }, () => host.fetch(request)));
         } catch (error) {
           const closing = close();
           after?.(closing);
