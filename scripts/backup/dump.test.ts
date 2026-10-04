@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LOCK_KEY } from '../../server/core/deps';
 import { clientConfig, makeBackup, OFFICE_LOCK_KEY } from './dump';
@@ -38,5 +41,31 @@ describe('run', () => {
 
   it('gives the output of a program that succeeds', async () => {
     expect((await run('echo', 'sh', ['-c', 'cat'], { input: 'hello' })).stdout).toBe('hello');
+  });
+
+  it('stops a program that runs past its time limit, with the children it started', async () => {
+    const started = Date.now();
+    await expect(run('the data dump', 'sh', ['-c', 'sleep 30 | cat'], { timeoutMs: 300 })).rejects.toThrow('the data dump took longer than 0.3 s and was stopped.');
+    expect(Date.now() - started).toBeLessThan(10_000);
+  });
+
+  it('shows only the error text that errorText keeps', async () => {
+    const failed = run('psql restore', 'sh', ['-c', 'printf "x.sql:1: ERROR:  bad\\nCONTEXT:  COPY users: sara@example.com\\n" >&2; exit 3'], {
+      errorText: (stderr) => stderr.split('\n')[0],
+    });
+    await expect(failed).rejects.toThrow('psql restore failed (exit 3): x.sql:1: ERROR:  bad');
+    await expect(failed).rejects.not.toThrow(/sara/);
+  });
+
+  it('writes the output to a file that only the owner can read, and keeps none of it in memory', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'madar-run-'));
+    try {
+      const file = join(dir, 'out.sql');
+      expect((await run('the dump', 'sh', ['-c', 'cat'], { input: 'COPY rows', stdoutFile: file })).stdout).toBe('');
+      expect(readFileSync(file, 'utf8')).toBe('COPY rows');
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
