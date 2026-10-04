@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../../api/errors';
 import { expectCalm } from '../auth/calmChecks';
@@ -78,6 +78,42 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.');
     expect(port.approve).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
+  });
+
+  describe('after Madar refuses Approve for an app that the person removed (TASKS.md, Wave 5 follow-ups, G calm screen)', () => {
+    const removed = () => tools({ record: () => Promise.reject(new ApiError('forbidden', 'Removed.', { reason: 'agent_removed' })) });
+
+    it('shows the refusal words and no Approve, so a second press cannot repeat the refusal; Deny is the way back to the AI app', async () => {
+      const { port, leave, steps, container } = await open({ tools: removed() });
+      await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.');
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+      expect(within(container.querySelector('.panel') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Deny']);
+      expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled();
+      expectCalm(container);
+      expect(port.recordApproval).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
+      await waitFor(() => expect(leave).toHaveBeenCalledWith('http://127.0.0.1:33418/callback?error=access_denied'));
+      expect(port.approve).not.toHaveBeenCalled();
+      expect(steps).toEqual(['details auth-1', 'record auth-1', 'deny auth-1', 'leave http://127.0.0.1:33418/callback?error=access_denied']);
+    });
+
+    it('keeps Approve after another refusal, so the person can try again', async () => {
+      await open({ tools: tools({ record: () => Promise.reject(new ApiError('invalid_input', 'Ended.', { reason: 'authorization_ended' })) }) });
+      await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+      await screen.findByRole('alert');
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+    });
+
+    it('keeps the calm rules in Arabic, right to left, after the refusal', async () => {
+      const { container } = await open({ tools: removed(), language: 'ar' });
+      await userEvent.click(await screen.findByRole('button', { name: 'موافقة' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('أزلت هذا التطبيق في مدار. في تطبيق الذكاء الاصطناعي، أزل ربط مدار ثم أضفه مرة أخرى.');
+      expect(document.documentElement.dir).toBe('rtl');
+      expect(screen.queryByRole('button', { name: 'موافقة' })).toBeNull();
+      expect(within(container.querySelector('.panel') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['رفض']);
+      expectCalm(container);
+    });
   });
 
   it('sends a person with no session to Sign in, and brings them back with the same authorization_id', async () => {
