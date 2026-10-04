@@ -57,8 +57,17 @@ function memoryMailLog() {
     }
     throw new Error(`Not a quota statement: ${text}`);
   }) as Query;
+  // A transaction that throws rolls the rows back, as Postgres does.
   const db: Db = {
-    tx: (_mode, work) => work(q),
+    tx: async (_mode, work) => {
+      const saved = rows.map((r) => ({ ...r }));
+      try {
+        return await work(q);
+      } catch (e) {
+        rows.splice(0, rows.length, ...saved);
+        throw e;
+      }
+    },
     savepoint: (_q, work) => work(q),
     statement: (_mode, text, values) => q(text, values),
   };
@@ -156,6 +165,66 @@ describe('sendCounted()', () => {
     const { deps, log } = setup();
     await sendCounted(deps, 'signin', mailFor('invite-usr_010'));
     expect(log.rows.map((r) => r.resend_id)).toEqual(['mail_1']);
+  });
+});
+
+describe('sendCounted() with onFirstRefusal (plan 4.12: the Admin warnings go into the outbox with the mark)', () => {
+  type Outbox = { kind: string; key: string }[];
+  /** The hook of a caller: it writes one warning row for each Admin, in the transaction it gets. */
+  function warningHook(outbox: Outbox, fail = { times: 0 }) {
+    const seen: Query[] = [];
+    const hook = async (q: Query) => {
+      seen.push(q);
+      if (fail.times > 0) {
+        fail.times -= 1;
+        throw new Error('The outbox write failed.');
+      }
+      outbox.push({ kind: 'mail.quotaWarning', key: 'quota-warning-usr_001' }, { kind: 'mail.quotaWarning', key: 'quota-warning-usr_005' });
+    };
+    return { hook, seen };
+  }
+
+  it('runs the hook once a day, in the transaction of the mark, and never for a later refusal or a sign-in refusal', async () => {
+    const { deps, log } = setup();
+    const outbox: Outbox = [];
+    const { hook, seen } = warningHook(outbox);
+    for (let i = 1; i <= 90; i += 1) await sendCounted(deps, 'notice', mailFor(`notice-${i}`), { onFirstRefusal: hook });
+    expect(seen).toHaveLength(0);
+    await expect(sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook })).resolves.toEqual({ status: 'over', firstRefusal: true });
+    expect(seen).toEqual([log.q]);
+    expect(log.statements.slice(-3)).toEqual([MAIL_LOCK_SQL, RESERVE_SQL, REFUSAL_MARK_SQL]);
+    await sendCounted(deps, 'notice', mailFor('notice-92'), { onFirstRefusal: hook });
+    await sendCounted(deps, 'summary', mailFor('summary-usr_002'), { onFirstRefusal: hook });
+    expect(seen).toHaveLength(1);
+    expect(outbox.map((r) => r.key)).toEqual(['quota-warning-usr_001', 'quota-warning-usr_005']);
+  });
+
+  it('rolls the mark back when the hook fails, so the retry of the notice is still the first refusal and writes the warnings', async () => {
+    const { deps, log } = setup();
+    const outbox: Outbox = [];
+    const { hook, seen } = warningHook(outbox, { times: 1 });
+    for (let i = 1; i <= 90; i += 1) await sendCounted(deps, 'notice', mailFor(`notice-${i}`));
+    await expect(sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook })).rejects.toThrow(/outbox write/);
+    expect(log.rows.some((r) => r.kind === 'refused')).toBe(false);
+    await expect(sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook })).resolves.toEqual({ status: 'over', firstRefusal: true });
+    expect(seen).toHaveLength(2);
+    expect(outbox).toHaveLength(2);
+  });
+
+  it('keeps the warning when its first send fails: the warning row retries with its own key, and the hook never runs twice', async () => {
+    const { deps, log, mail } = setup();
+    const outbox: Outbox = [];
+    const { hook, seen } = warningHook(outbox);
+    for (let i = 1; i <= 90; i += 1) await sendCounted(deps, 'notice', mailFor(`notice-${i}`));
+    await sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook });
+    const warning = mailFor(outbox[0].key);
+    mail.failNext(new Error('Resend answered 503.'));
+    await expect(sendCounted(deps, 'warning', warning)).rejects.toThrow(/503/);
+    await expect(sendCounted(deps, 'warning', warning)).resolves.toMatchObject({ status: 'sent' });
+    // The retry of the notice effect answers false, but the warning rows are already in the outbox.
+    await expect(sendCounted(deps, 'notice', mailFor('notice-91'), { onFirstRefusal: hook })).resolves.toEqual({ status: 'over', firstRefusal: false });
+    expect(seen).toHaveLength(1);
+    expect(log.rows.filter((r) => r.ref === 'quota-warning-usr_001').map((r) => r.resend_id)).toEqual([expect.any(String)]);
   });
 });
 

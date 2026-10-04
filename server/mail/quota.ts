@@ -71,6 +71,16 @@ export async function sentToday(q: Query, o: DayOption = {}): Promise<number> {
 
 export type SendCounted = { status: 'sent'; id: string } | { status: 'over'; firstRefusal: boolean };
 
+export type SendCountedOptions = {
+  userId?: string;
+  /**
+   * Runs once a day, in the transaction that writes the first-refusal mark: the caller writes the Admin warnings there as outbox
+   * rows (plan 4.12), so the mark and the warnings commit together. A warning send that fails then retries from its own row, and
+   * a hook that throws rolls the mark back, so the retry of the refused mail is again the first refusal.
+   */
+  onFirstRefusal?: (q: Query) => Promise<unknown>;
+};
+
 /**
  * One counted mail: reserve a place (ref = the idempotency key, so a retry keeps its place and Resend sends it once), send after
  * the commit, then record the Resend id. A refused notice or summary tells whether it is the first refusal of the day.
@@ -80,13 +90,15 @@ export async function sendCounted(
   deps: { db: Db; mail: MailPort; clock: Clock },
   kind: QuotaKind,
   mail: Mail,
-  o: { userId?: string } = {},
+  o: SendCountedOptions = {},
 ): Promise<SendCounted> {
   const now = deps.clock.now();
   const ref = mail.idempotencyKey;
   const placed = await deps.db.tx('write', async (q) => {
     if ((await reserve(q, kind, ref, { now, userId: o.userId })) === 'ok') return { ok: true, firstRefusal: false };
-    return { ok: false, firstRefusal: NOTICE_KINDS.has(kind) ? await markFirstRefusal(q, { now }) : false };
+    const firstRefusal = NOTICE_KINDS.has(kind) ? await markFirstRefusal(q, { now }) : false;
+    if (firstRefusal && o.onFirstRefusal) await o.onFirstRefusal(q);
+    return { ok: false, firstRefusal };
   });
   if (!placed.ok) return { status: 'over', firstRefusal: placed.firstRefusal };
   const { id } = await deps.mail.send(mail);
