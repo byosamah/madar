@@ -319,3 +319,27 @@ Two more facts:
 **Other facts found.** A reset to the same password gets 422 `same_password`. In an exploratory probe (not in the suite), `generate_link { type: 'magiclink' }` for an unknown address made a new Auth user with sign-up off: the admin API ignores `enable_signup`. So the server must call `generate_link` only for an address that a `users` row holds.
 
 **Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it server/it/tokens.it.test.ts`.
+
+## P2 and P3. Invitations, reset mail, Auth effects and the first Admin on the local stack (2026-10-04)
+
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it scripts/first-admin.test.ts server/it/auth.it.test.ts server/it/invites.it.test.ts`. All 17 tests pass (local Auth v2.197.0). Mail goes to the fake mail port; every link of a mail goes to the real local Auth.
+
+| Case | Result |
+|---|---|
+| `users.create` by the Admin | One `auth.invite` outbox row in the call's transaction. After the commit: an `invite` link, `users.auth_user_id` written with `setAuthUserId` (a warm office cache finds the person by the link), the mail with `/welcome?token_hash=...&type=invite`. |
+| The person uses the link and sets a password | Sign-in works; `verifyBrowserToken` and `principalOf` give the new person; `users.invites` turns from `invited` (with `sentAt`) to `active`. |
+| `users.resendInvite` | A new `invite` link; the old link answers 403 `otp_expired`; the new link works. |
+| A retried `auth.invite` after a failed send | The retry keeps the token hash of the first link (outbox payload), and that link works. |
+| An email change before the person accepts (`auth.email`) | Auth gets the new email, and a new invitation goes to the new email; the link at the old email fails (403). |
+| An email change after the person accepted | Auth gets the new email; no mail; sign-in with the new email works. |
+| `users.deactivate`, then `users.reactivate` | The old token gets 403 `account_off` at once. Auth bans the person: a password sign-in answers 400 `user_banned`. After the reactivation, sign-in works again. |
+| A Member token, then a role change by the Admin | The same token is refused (`forbidden`) on `users.invites`, then accepted: the role comes from `users`. |
+| `POST /api/auth/forgot` | The same 200 answer for a person and an unknown email; the reset mail in the person's language with `/reset?...&type=recovery`, which sets a new password; 429 after 3 an hour for one email; `rate_limits` holds no email. |
+| Arabic person (`language: 'ar'`, `gender: 'female'`) | The invitation and the reset mail in Arabic, `dir="rtl"`, with the feminine forms. |
+| `scripts/first-admin.ts --env local` run twice (the command line, through `tsx`) | The first run makes `usr_001` (Admin, the given language and gender), `counters.usr = 1`, the `user.created` event and story, and the sign-in link; the Admin signs in. The second run refuses ("An Admin exists") and makes no Auth user. |
+
+**Design notes for the merge.**
+
+- The effects read the person again when they run, so a late retry never undoes a newer change (a ban does nothing for a person who is on again).
+- An email change needs to know whether the person accepted, and `users.invites` needs the state of every person. Both read Auth (`getUser`, `listUsers`), which `AuthAdminPort` does not have yet: the merge lead patch of P2 adds them.
+- The forgot route takes the network address from `cf-connecting-ip`, else the first `x-forwarded-for` entry. A client can set that header on Supabase, so the address limit is weak there; the limit for each email still holds.
