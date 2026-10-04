@@ -158,6 +158,17 @@ describe('the Realtime change source (plan 5.3, client map 7.3)', () => {
     expect(source.status()).toBe('closed');
   });
 
+  it('joins one pair of channels when a listener goes and comes back before the token is set (React strict mode)', async () => {
+    const stub = stubSupabase();
+    const source = supabaseChangeSource(stub.client, 'usr_001');
+    const stop = source.subscribe(() => undefined);
+    stop();
+    source.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stub.channels.filter((c) => !c.removed).map((c) => c.topic)).toEqual(['office', 'person:usr_001']);
+    expect(stub.channels).toHaveLength(2);
+  });
+
   it('shares one pair of channels between listeners, and leaves them when the last listener goes', async () => {
     const stub = stubSupabase();
     const source = supabaseChangeSource(stub.client, 'usr_001');

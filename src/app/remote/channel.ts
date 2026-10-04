@@ -33,6 +33,8 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
   const listeners = new Set<ChangeListener>();
   const joined = new Map<string, Joined>();
   let running = false;
+  // Each start counts up, so a join that waited for the token never runs after a stop and a new start.
+  let generation = 0;
 
   const tell = (signals: ChangeSignal[]) => {
     for (const listener of [...listeners]) listener(signals, 'channel');
@@ -80,15 +82,17 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
 
   function start(): void {
     running = true;
+    const mine = ++generation;
     void (async () => {
       await supabase.realtime.setAuth().catch(() => undefined);
-      if (!running) return;
+      if (!running || mine !== generation) return;
       for (const topic of TOPICS(me)) open(topic);
     })();
   }
 
   function stop(): void {
     running = false;
+    generation += 1;
     for (const entry of joined.values()) {
       if (entry.timer !== undefined) clearTimeout(entry.timer);
       void supabase.removeChannel(entry.channel).catch(() => undefined);

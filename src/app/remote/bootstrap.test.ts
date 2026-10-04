@@ -126,6 +126,27 @@ describe('the change source of the signed-in person', () => {
     expect(seen.at(-1)).toEqual([0, undefined]);
   });
 
+  it('asks the session once when a sign-in comes while the first question still waits', async () => {
+    const stub = stubAuth();
+    const rec = recordingOpen();
+    let asked = 0;
+    let answer: (id: string) => void = () => undefined;
+    const source = personChangeSource({
+      auth: stub.auth, open: rec.open,
+      person: () => {
+        asked += 1;
+        return new Promise((resolve) => { answer = resolve; });
+      },
+    });
+    source.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    stub.set('signed_in');
+    answer('usr_001');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked).toBe(1);
+    expect(rec.log).toEqual(['join:usr_001']);
+  });
+
   it('asks the session again after a failure, while the person stays signed in', async () => {
     const stub = stubAuth();
     const rec = recordingOpen();

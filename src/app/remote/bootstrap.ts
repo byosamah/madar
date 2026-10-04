@@ -86,6 +86,8 @@ export function personChangeSource(o: {
   let attempt = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let joins = 0;
+  // True while the session is asked for the person, so a second sign-in note does not ask again.
+  let asking = false;
 
   const tell: ChangeListener = (signals, origin) => {
     for (const listener of [...listeners]) listener(signals, origin);
@@ -93,6 +95,7 @@ export function personChangeSource(o: {
 
   function disconnect(): void {
     attempt += 1;
+    asking = false;
     if (retry !== undefined) clearTimeout(retry);
     retry = undefined;
     leave?.();
@@ -103,16 +106,21 @@ export function personChangeSource(o: {
   function connect(): void {
     disconnect();
     const mine = attempt;
+    asking = true;
     o.person().then(
       (me) => {
-        if (mine !== attempt || listeners.size === 0 || o.auth.status() !== 'signed_in') return;
+        if (mine !== attempt) return;
+        asking = false;
+        if (listeners.size === 0 || o.auth.status() !== 'signed_in') return;
         current = o.open(me);
         leave = current.subscribe(tell);
         joins += 1;
         if (joins > 1) tell([]);
       },
       () => {
-        if (mine !== attempt || listeners.size === 0) return;
+        if (mine !== attempt) return;
+        asking = false;
+        if (listeners.size === 0) return;
         retry = setTimeout(() => {
           retry = undefined;
           if (mine === attempt && o.auth.status() === 'signed_in') connect();
@@ -123,7 +131,7 @@ export function personChangeSource(o: {
 
   function follow(status: AuthStatus, change?: string): void {
     if (status === 'signed_out') disconnect();
-    else if (change === 'person' || !current) connect();
+    else if (change === 'person' || (!current && !asking && retry === undefined)) connect();
   }
 
   return {
