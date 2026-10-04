@@ -123,6 +123,8 @@ describe('sendNoticeMail: the mail of one notice', () => {
     expect(mail).toMatchObject({ to: 'usr_002@madar.test', tag: 'notice', idempotencyKey: 'notice-ntf_1' });
     expect(mail.html).toContain('dir="rtl"');
     expect(mail.html).toContain('https://madar.test/notifications');
+    // The Madar mark at the app address of the server config (TASKS.md, Logo, point 4).
+    expect(mail.html).toContain('<img src="https://madar.test/icons/madar-192.png"');
     expect(mail.text).toContain('افتحي مدار');
     expect(mem.log).toEqual([{ utc_day: DAY, kind: 'notice', user_id: 'usr_002', ref: 'notice-ntf_1', resend_id: 'mail_1' }]);
   });
@@ -191,6 +193,7 @@ describe('sendNoticeMail: the mail of one notice', () => {
     await sendQuotaWarning({ userId: 'usr_001', day: DAY }, deps);
     expect(deps.mail.sent[0].text).toContain('90');
     expect(deps.mail.sent[0].html).toContain('https://madar.test/admin');
+    expect(deps.mail.sent[0].html).toContain('<img src="https://madar.test/icons/madar-192.png"');
   });
 });
 

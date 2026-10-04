@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TRIGGERS, type Gender, type Language } from '../../../src/api/contract/entities';
+import { MAIL_LOGO_PATH } from './layout';
 import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTemplate } from './index';
 
 /**
@@ -9,6 +10,7 @@ import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTempl
  */
 
 const LINK = 'https://madar.example/tasks/tsk_001?from=mail';
+const APP_URL = 'https://madar.example';
 
 const SAMPLES: { [K in MailTemplate]: MailData[K] } = {
   invite: { name: 'Sara', inviterName: 'Huda', link: 'https://madar.example/welcome?token_hash=abc&type=invite' },
@@ -33,10 +35,59 @@ describe('renderMail', () => {
 
   for (const kind of MAIL_TEMPLATES) {
     it(`renders ${kind} in English, and in Arabic with a female actor and reader`, () => {
-      expect(renderMail(kind, 'en', SAMPLES[kind] as never)).toMatchSnapshot();
-      expect(renderMail(kind, 'ar', SAMPLES[kind] as never, FEMALE)).toMatchSnapshot();
+      expect(renderMail(kind, 'en', SAMPLES[kind] as never, {}, { appUrl: APP_URL })).toMatchSnapshot();
+      expect(renderMail(kind, 'ar', SAMPLES[kind] as never, FEMALE, { appUrl: APP_URL })).toMatchSnapshot();
     });
   }
+
+  describe('the header (TASKS.md, Logo, point 4)', () => {
+    it('shows the Madar mark as the 192 px picture at the app address, with the name, in both languages', () => {
+      // The empty alt: the name sits in the next cell, so a screen reader or a mail program that blocks pictures gives it once.
+      const english = renderMail('notice', 'en', SAMPLES.notice, {}, { appUrl: APP_URL }).html;
+      expect(english).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt=""');
+      expect(english).toMatch(/>Madar<\/td>/);
+      const arabic = renderMail('notice', 'ar', SAMPLES.notice, {}, { appUrl: APP_URL }).html;
+      expect(arabic).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt=""');
+      expect(arabic).toMatch(/>مدار<\/td>/);
+      // The gap sits between the mark and the name: after the mark in English, before it (on the left) in Arabic.
+      expect(english).toContain('padding-right:10px');
+      expect(arabic).toContain('padding-left:10px');
+    });
+
+    it('never sends an SVG or a data: picture, which email programs often block', () => {
+      for (const lang of ['en', 'ar'] as Language[]) {
+        const html = renderMail('summary', lang, SAMPLES.summary, {}, { appUrl: APP_URL }).html;
+        expect(html).not.toMatch(/<svg|data:|\.svg/);
+      }
+    });
+
+    it('takes the app address from the caller, with a path and a slash at the end too, never a fixed host', () => {
+      const html = renderMail('notice', 'en', SAMPLES.notice, {}, { appUrl: 'https://office.example/madar/' }).html;
+      expect(html).toContain('src="https://office.example/madar/icons/madar-192.png"');
+      expect(html).not.toContain('madar.example/icons');
+    });
+
+    it('shows the name only when no app address is known', () => {
+      for (const lang of ['en', 'ar'] as Language[]) {
+        const html = renderMail('notice', lang, SAMPLES.notice).html;
+        expect(html).not.toContain('<img');
+        expect(html).toContain(lang === 'ar' ? '>مدار</p>' : '>Madar</p>');
+      }
+    });
+
+    it('refuses an app address that is not http or https', () => {
+      expect(() => renderMail('notice', 'en', SAMPLES.notice, {}, { appUrl: 'javascript:alert(1)' })).toThrow(/link/);
+    });
+
+    it('points to a picture that the screens build publishes', () => {
+      expect(MAIL_LOGO_PATH).toBe('icons/madar-192.png');
+      expect(existsSync(new URL(`../../../public/${MAIL_LOGO_PATH}`, import.meta.url))).toBe(true);
+    });
+
+    it('keeps the text part as it was: a plain text mail has no picture', () => {
+      expect(renderMail('notice', 'en', SAMPLES.notice, {}, { appUrl: APP_URL }).text).toBe(renderMail('notice', 'en', SAMPLES.notice).text);
+    });
+  });
 
   it('renders each notice trigger with its own subject in both languages', () => {
     for (const lang of ['en', 'ar'] as Language[]) {

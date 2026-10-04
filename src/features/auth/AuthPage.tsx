@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { LanguagesIcon } from '../../components/icons/animated/languages';
+import { MadarMark } from '../../components/MadarMark';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import type { Language } from '../../api/contract/entities';
 import { applyLanguage, initI18n } from '../../i18n';
@@ -32,11 +33,18 @@ function LanguageSwitch() {
 /**
  * The frame of a sign-in screen (client map 7.1): outside the shell, as the meeting view is, with the language switch, one title
  * and one panel. One column with a 16 px side margin, so it fits a phone.
+ * The top row holds the Madar logo (TASKS.md, Logo): one small mark with the name at the start, the language switch at the end.
+ * The mark is hidden from screen readers, because the name is next to it.
  */
 export function AuthPage({ title, children }: { title: string; children: ReactNode }) {
+  const { t } = useTranslation();
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col px-4 pb-10 pt-[max(1rem,env(safe-area-inset-top))] text-ink sm:pt-16">
-      <div className="-me-3 flex justify-end pb-6">
+      <div className="-me-3 flex items-center justify-between gap-3 pb-6">
+        <p data-madar-brand="" className="flex items-center gap-2.5 text-headline text-ink">
+          <MadarMark size={28} />
+          {t('app.name')}
+        </p>
         <LanguageSwitch />
       </div>
       <ScreenTitle title={title} />

@@ -15,7 +15,20 @@ export type MailPage = {
   button: { label: string; link: string };
   linkHelp: string;
   footer: string;
+  /** The absolute address of the Madar mark picture for the header. Without it the header shows the name only. */
+  logo?: string;
 };
+
+/**
+ * The Madar mark of the mail header (TASKS.md, Logo): the 192 px PNG of the screens build (public/icons, made by
+ * scripts/icons/make-icons.tsx), at the app address. Email programs often block SVG and data: pictures, so it is a PNG link.
+ */
+export const MAIL_LOGO_PATH = 'icons/madar-192.png';
+
+/** The address of the mark under the app address (APP_URL), which may end with a path or a slash. */
+export function logoAddress(appUrl: string): string {
+  return checkLink(`${appUrl.replace(/\/+$/, '')}/${MAIL_LOGO_PATH}`);
+}
 
 export type RenderedMail = { subject: string; html: string; text: string };
 
@@ -39,6 +52,18 @@ export function checkLink(link: string): string {
   return link;
 }
 
+/** The mark and the name in one row. A table, because mail programs do not read flex; the cells follow the direction. */
+function header(logo: string, brand: string, dir: 'ltr' | 'rtl'): string {
+  const gap = dir === 'rtl' ? 'padding-left:10px;' : 'padding-right:10px;';
+  const name = escapeHtml(brand);
+  return [
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;">',
+    `<tr><td style="padding:0;${gap}vertical-align:middle;"><img src="${escapeHtml(logo)}" width="28" height="28" alt="" style="display:block;border:0;outline:none;width:28px;height:28px;"></td>`,
+    `<td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">${name}</td></tr>`,
+    '</table>',
+  ].join('');
+}
+
 export function renderPage(page: MailPage, brand: string): RenderedMail {
   const link = checkLink(page.button.link);
   const dir = page.lang === 'ar' ? 'rtl' : 'ltr';
@@ -51,7 +76,7 @@ export function renderPage(page: MailPage, brand: string): RenderedMail {
     `<title>${escapeHtml(page.subject)}</title></head>`,
     `<body style="margin:0;padding:0;background:#ffffff;color:${INK};">`,
     `<div dir="${dir}" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:${FONT};font-size:16px;line-height:1.6;text-align:${align};">`,
-    p(brand, 'font-weight:600;font-size:18px;margin-bottom:24px;'),
+    page.logo ? header(page.logo, brand, dir) : p(brand, 'font-weight:600;font-size:18px;margin-bottom:24px;'),
     ...(page.greeting ? [p(page.greeting)] : []),
     ...page.paragraphs.map((text) => p(text)),
     `<p style="margin:24px 0;"><a href="${escapeHtml(link)}" style="display:inline-block;padding:12px 20px;background:${INK};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(page.button.label)}</a></p>`,

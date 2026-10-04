@@ -82,6 +82,8 @@ describe('sendSummary', () => {
     expect(mail).toMatchObject({ to: 'sara@madar.test', tag: 'summary', idempotencyKey: `summary-${TODAY}-usr_002` });
     expect(mail.html).toContain('dir="rtl"');
     expect(mail.html).toContain('https://madar.test/work');
+    // The Madar mark at the app address of the server config (TASKS.md, Logo, point 4).
+    expect(mail.html).toContain('<img src="https://madar.test/icons/madar-192.png"');
     expect(mem.log.map((r) => [r.kind, r.ref])).toEqual([['summary', `summary-${TODAY}-usr_002`]]);
   });
 

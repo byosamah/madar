@@ -101,7 +101,7 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   if (!notice || !mailable(notice)) return;
   const { preferences, trigger } = notice;
   if (!preferences.notifications[trigger] || !emailOn(preferences, trigger)) return;
-  const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined });
+  const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }
 
@@ -111,6 +111,6 @@ export async function sendQuotaWarning(payload: Record<string, unknown>, deps: D
   const day = String(payload.day ?? utcDay(deps.clock.now()));
   const [person] = await deps.db.statement<PersonRow>('write', USER_MAIL_SQL, [userId]);
   if (!person || !mailable(person)) return;
-  const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined });
+  const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendCounted(deps, 'warning', mailOf(person.email, rendered, 'quota-warning', `quota-warning-${day}-${userId}`), { userId });
 }
