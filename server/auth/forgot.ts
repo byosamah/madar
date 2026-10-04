@@ -22,8 +22,9 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   screen says to wait a few minutes). The keys hold only a sha256.
  * - The window of each email is no longer than the life of a reset link (otp_expiry in supabase/config.toml and in the Auth
  *   settings of the hosted projects): Auth keeps only the newest recovery token, so the newest mailed link must still work until
- *   the window ends and the person can ask again. With otp_expiry = 3600 the window is 1 hour; a test reads config.toml and
- *   fails when the window gets longer than the link life. A window of a day needs otp_expiry = 86400 first.
+ *   the window ends and the person can ask again. The window is 1 hour; a test reads config.toml and fails when the window gets
+ *   longer than the link life. config.toml has otp_expiry = 86400 since L1, so a window of a day waits only for the same value
+ *   in the Auth settings of madar-test and madar.
  * - No limit for the whole office (S1 security review): an office-wide cap lets one outsider who knows about 10 staff emails use
  *   up the reset mail of everyone for the day. A flood only sends reset mails to the mailboxes it names, which then hold a
  *   working link.
@@ -48,7 +49,7 @@ import { hashedKey, hitLimit } from './rateLimit';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const FORGOT_EMAIL_PER_WINDOW = 3;
-/** No longer than the life of a reset link (otp_expiry = 3600 s): see the comment above. */
+/** No longer than the life of a reset link (otp_expiry, in config.toml and in each hosted project): see the comment above. */
 export const FORGOT_EMAIL_WINDOW_MS = HOUR_MS;
 export const FORGOT_IP_PER_HOUR = 10;
 export const FORGOT_MIN_MS = 1500;
