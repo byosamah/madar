@@ -10,13 +10,20 @@ import type { ChangeListener, ChangeSource } from '../signals';
  * - setAuth() runs before each join, so a private channel joins with the person's token. supabase-js sets the token again after
  *   each refresh by itself.
  * - status() is open only while both channels are joined (the "No connection" banner reads it).
- * - A channel that joins again after an error, a time-out or a close may have missed signals: the listeners get an empty list,
- *   which reloads every list. The first join does not, because the screen has just loaded its lists.
+ * - Realtime keeps no message for a later join. So the listeners get an empty list, which reloads every list, when both channels
+ *   have joined for the first time (a change saved while the screen loaded its lists and joined), and each time a channel joins
+ *   again after an error, a time-out or a close.
+ * - realtime-js gives back the channel of a topic until its leave is answered, and a leaving channel never joins. So a start
+ *   waits for the leave of every channel of its topics that this client still removes (a quick stop and start, or a sign-in as
+ *   another person on the same client).
  * - Realtime joins a channel again by itself after an error or a time-out. A channel that the server closed (for example at the
  *   end of a token) does not, so this source makes a new one after a short wait, and waits longer after each try.
  */
 const TOPICS = (me: string) => ['office', `person:${me}`];
 const REJOIN_MS = [1000, 2000, 5000, 10_000, 30_000];
+
+/** The leaves that the server has not answered yet, for each client and topic. */
+const leaving = new WeakMap<SupabaseClient, Map<string, Promise<void>>>();
 
 type Joined = { channel: RealtimeChannel; subscribed: boolean; joinedBefore: boolean; tries: number; timer?: ReturnType<typeof setTimeout> };
 
@@ -35,10 +42,28 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
   let running = false;
   // Each start counts up, so a join that waited for the token never runs after a stop and a new start.
   let generation = 0;
+  // True once both channels of this start have joined.
+  let opened = false;
 
   const tell = (signals: ChangeSignal[]) => {
     for (const listener of [...listeners]) listener(signals, 'channel');
   };
+
+  /** Leaves a channel, and keeps the wait for its answer, so the next join of the topic on this client waits for it. */
+  function remove(topic: string, channel: RealtimeChannel): Promise<void> {
+    const waits = leaving.get(supabase) ?? new Map<string, Promise<void>>();
+    leaving.set(supabase, waits);
+    const done: Promise<void> = supabase.removeChannel(channel).then(
+      () => undefined,
+      () => undefined,
+    ).finally(() => {
+      if (waits.get(topic) === done) waits.delete(topic);
+    });
+    waits.set(topic, done);
+    return done;
+  }
+
+  const allJoined = () => TOPICS(me).every((topic) => joined.get(topic)?.subscribed);
 
   /** Makes the channel of one topic. before: the channel it replaces, whose join history it keeps. */
   function open(topic: string, before?: Joined): void {
@@ -57,7 +82,9 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
           entry.subscribed = true;
           entry.joinedBefore = true;
           entry.tries = 0;
-          if (again) tell([]);
+          const first = !opened && allJoined();
+          if (first) opened = true;
+          if (again || first) tell([]);
           return;
         }
         entry.subscribed = false;
@@ -73,7 +100,7 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
       entry.timer = undefined;
       if (!running || joined.get(topic) !== entry) return;
       void (async () => {
-        await supabase.removeChannel(entry.channel).catch(() => undefined);
+        await remove(topic, entry.channel);
         await supabase.realtime.setAuth().catch(() => undefined);
         if (running && joined.get(topic) === entry) open(topic, entry);
       })();
@@ -82,8 +109,11 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
 
   function start(): void {
     running = true;
+    opened = false;
     const mine = ++generation;
     void (async () => {
+      await Promise.all(TOPICS(me).map((topic) => leaving.get(supabase)?.get(topic)));
+      if (!running || mine !== generation) return;
       await supabase.realtime.setAuth().catch(() => undefined);
       if (!running || mine !== generation) return;
       for (const topic of TOPICS(me)) open(topic);
@@ -93,9 +123,9 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
   function stop(): void {
     running = false;
     generation += 1;
-    for (const entry of joined.values()) {
+    for (const [topic, entry] of joined) {
       if (entry.timer !== undefined) clearTimeout(entry.timer);
-      void supabase.removeChannel(entry.channel).catch(() => undefined);
+      void remove(topic, entry.channel);
     }
     joined.clear();
   }
@@ -111,7 +141,7 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
     },
     status() {
       if (!running) return 'closed';
-      return TOPICS(me).every((topic) => joined.get(topic)?.subscribed) ? 'open' : 'closed';
+      return allJoined() ? 'open' : 'closed';
     },
   };
 }
