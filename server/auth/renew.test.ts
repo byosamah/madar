@@ -72,7 +72,8 @@ function memoryDb(users: Record<string, Row>) {
     }
     if (text === RENEW_KEY_SQL) {
       const row = byInvite(values[0]);
-      if (row) row.payload.renewKeys = [...((row.payload.renewKeys as string[] | undefined) ?? []), String(values[1])];
+      const keys = (row?.payload.renewKeys as string[] | undefined) ?? [];
+      if (row && !keys.includes(String(values[1]))) row.payload.renewKeys = [...keys, String(values[1])];
       return [];
     }
     if (text === AUTH_LINK_SQL) {

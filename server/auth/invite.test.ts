@@ -3,6 +3,7 @@ import type { User } from '../../src/api/contract/entities';
 import { defaultPreferences } from '../../src/api/contract/entities';
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { QUOTA_LIMITS } from '../mail/quota';
+import { MailSendError } from '../mail/resend';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
 import { INVITE_KIND, inviteRow, RENEW_PARAM, renewRow, sendInvitation, type InviteStore, type Person, type SigninLink } from './invite';
@@ -47,8 +48,10 @@ function memoryStore(people: Person[]) {
       payloads.set(inviteId, { ...rest, sentAt: at.toISOString(), mailId });
     },
     async addRenewKey(inviteId, hash) {
+      // As RENEW_KEY_SQL: a hash that the row already holds is not added again.
       const before = payloads.get(inviteId) ?? {};
-      payloads.set(inviteId, { ...before, renewKeys: [...((before.renewKeys as string[] | undefined) ?? []), hash] });
+      const keys = (before.renewKeys as string[] | undefined) ?? [];
+      if (!keys.includes(hash)) payloads.set(inviteId, { ...before, renewKeys: [...keys, hash] });
     },
   };
   return { store, payloads, relinks, byId, replaced, reads };
@@ -98,17 +101,43 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(key).not.toContain('sara');
   });
 
-  it('a retry after a failed send mails a new renew key and keeps the sha256 of both, so whichever mail went out still works', async () => {
+  it('a retry after a failed send mails the same renew key and keeps one sha256', async () => {
     const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
     const row = inviteRow('usr_012');
     deps.mail.failNext(new Error('Resend is down'));
     await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
     await sendInvitation(payloadOf(row), deps, { store: mem.store });
     const key = renewIn(deps.mail.sent[0].text)!;
-    const hashes = mem.payloads.get(String(row.payload.inviteId))!.renewKeys as string[];
-    expect(hashes).toHaveLength(2);
-    expect(hashes[1]).toBe(await hashedKey('renew', key));
-    expect(hashes[0]).not.toBe(hashes[1]);
+    expect(mem.payloads.get(String(row.payload.inviteId))!.renewKeys).toEqual([await hashedKey('renew', key)]);
+  });
+
+  it('a retry after a send that went out but lost its answer sends the same mail, so Resend gives the first answer and the row is marked as sent', async () => {
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+    // The Resend rule (outboxMailPort keeps it too): the same idempotency key with another mail is refused, 409 and not retryable.
+    const bodies = new Map<string, string>();
+    let lost = true;
+    deps.mail.send = async (mail) => {
+      const body = JSON.stringify([mail.to, mail.subject, mail.html, mail.text]);
+      const seen = bodies.get(mail.idempotencyKey);
+      if (seen !== undefined && seen !== body) {
+        throw new MailSendError('The idempotency key came back with another mail.', { status: 409, code: 'invalid_idempotent_request', retryable: false });
+      }
+      bodies.set(mail.idempotencyKey, body);
+      deps.mail.sent.push(mail);
+      if (lost) {
+        lost = false;
+        throw new MailSendError('Resend did not answer in 10000 ms.', { status: null, code: 'timeout', retryable: true });
+      }
+      return { id: 'mail_1' };
+    };
+    const row = inviteRow('usr_012');
+    await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow(/did not answer/);
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    const payload = mem.payloads.get(String(row.payload.inviteId))!;
+    expect(payload).toMatchObject({ sentAt: deps.clock.now().toISOString(), mailId: 'mail_1' });
+    expect(payload).not.toHaveProperty('tokenHash');
+    expect(deps.mail.sent[1].text).toBe(deps.mail.sent[0].text);
+    expect(payload.renewKeys).toEqual([await hashedKey('renew', renewIn(deps.mail.sent[0].text)!)]);
   });
 
   it('a renewal row counts its mail against the daily mail quota as sign-in mail, and a full day keeps the row for the job', async () => {
