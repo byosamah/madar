@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { State } from '../../../api/store';
+import { onTestFinished } from 'vitest';
+import { render } from '@testing-library/react';
+import { RouterProvider } from 'react-router';
+import { calls } from '../../../api/calls';
+import { createApi } from '../../../api/client';
+import { memoryPersister } from '../../../api/persist';
+import { Store, type State } from '../../../api/store';
+import { uploadAdapter, type PutSender } from '../../../api/remote/upload';
+import { AppearanceSync } from '../../../app/AppearanceSync';
+import { createAppRouter } from '../../../app/routes';
+import { RuntimeProvider, createQueryClient } from '../../../app/runtime';
+import { ToastProvider } from '../../../app/toasts';
+import { buildSeed } from '../../../data/seed';
+import { initI18n } from '../../../i18n';
+import { setNow } from '../../../lib/dates';
+import { NOW, TODAY } from '../../../test/factories';
 import { renderApp } from '../../../test/render';
 import { ApiError } from '../../../api/errors';
 
@@ -144,5 +159,103 @@ describe('the Files tab', () => {
   it('shows a focus ring on Upload files', async () => {
     await renderApp(FILES, as('usr_005'));
     expect((await screen.findByText('Upload files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
+  });
+});
+
+const MB = 1024 * 1024;
+
+/**
+ * The app over the sample office, as the real build sees it: session.get names the limit of the active store (50 MB on Supabase
+ * Storage), and "wrap" can stand between the screen and the API (for example the upload adapter), as RemoteApi does.
+ */
+async function renderReal(o: { language?: 'en' | 'ar'; wrap?: (call: (n: string, i: unknown, m?: unknown) => Promise<unknown>) => (n: string, i: unknown, m?: unknown) => Promise<unknown> } = {}) {
+  setNow(NOW);
+  const state = await buildSeed(TODAY, async () => undefined);
+  state.session.currentUserId = 'usr_005';
+  state.users.usr_005.preferences.language = o.language ?? 'en';
+  const store = new Store(state, memoryPersister());
+  const api = createApi(calls, { store, latencyMs: 0 });
+  const original = api.call.bind(api) as (n: string, i: unknown, m?: unknown) => Promise<unknown>;
+  const withLimit = async (name: string, input: unknown, meta?: unknown) => {
+    const output = await original(name, input, meta);
+    return name === 'session.get' ? { ...(output as object), limits: { maxFileBytes: 50 * MB } } : output;
+  };
+  api.call = (o.wrap ? o.wrap(withLimit) : withLimit) as typeof api.call;
+  initI18n('en');
+  window.history.replaceState(null, '', `#${FILES}`);
+  const router = createAppRouter();
+  onTestFinished(() => router.dispose());
+  render(
+    <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+      <ToastProvider>
+        <AppearanceSync />
+        <RouterProvider router={router} />
+      </ToastProvider>
+    </RuntimeProvider>,
+  );
+  return { store, api };
+}
+
+/** A file over the 50 MB limit of the store and under the 250 MB ceiling of the contract. */
+function bigFile(): File {
+  const file = new File(['x'], 'Site model.rvt', { type: 'application/octet-stream' });
+  Object.defineProperty(file, 'size', { value: 60 * MB });
+  return file;
+}
+
+describe('the Files tab with the limit of the file store (plan 2b, point 1)', () => {
+  it('refuses a file over the store limit before any upload, and names the limit in plain words', async () => {
+    const seen: string[] = [];
+    const { store } = await renderReal({ wrap: (call) => (name, input, meta) => { seen.push(name); return call(name, input, meta); } });
+    await userEvent.upload(await screen.findByLabelText('Upload files'), bigFile());
+    expect(await screen.findByText('Site model.rvt is larger than 50 MB.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(seen).not.toContain('files.upload');
+    expect(Object.values(store.state.files).some((f) => f.name === 'Site model.rvt')).toBe(false);
+  });
+
+  it('says the same in Arabic, right to left, with no Retry for a file that can never fit', async () => {
+    await renderReal({ language: 'ar' });
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    await userEvent.upload(await screen.findByLabelText('رفع ملفات'), bigFile());
+    expect(await screen.findByText('حجم Site model.rvt أكبر من 50 ميغابايت.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'إعادة المحاولة' })).toBeNull();
+  });
+
+  it('shows one Retry when the upload to the store fails, and Retry saves the file', async () => {
+    let failures = 1;
+    const put: PutSender = async () => (failures-- > 0 ? { status: 0, body: '' } : { status: 200, body: '' });
+    const blobs = new Map<string, unknown>();
+    const { store } = await renderReal({
+      wrap: (call) => {
+        // The upload adapter of the real build, over the fake API: files.upload with the upload ID gets its file back here.
+        const adapter = uploadAdapter({ makeThumb: async () => null, put });
+        const ctx = (meta?: unknown) => ({
+          meta: (meta ?? {}) as object,
+          call: (name: string, input: unknown) => {
+            if (name !== 'files.upload') return call(name, input);
+            const { uploadId, ...rest } = input as { uploadId: string };
+            return call('files.upload', { ...rest, blob: blobs.get(uploadId) }, meta);
+          },
+        });
+        return async (name, input, meta) => {
+          if (name !== 'files.upload') return call(name, input, meta);
+          const screenInput = input as { blob: Blob };
+          const started = ctx(meta);
+          const inner = started.call;
+          started.call = async (n: string, i: unknown) => {
+            const out = await inner(n, i);
+            if (n === 'files.uploadStart') blobs.set((out as { uploadId: string }).uploadId, screenInput.blob);
+            return out;
+          };
+          return adapter(input, started);
+        };
+      },
+    });
+    await userEvent.upload(await screen.findByLabelText('Upload files'), new File(['notes'], 'Site notes.txt', { type: 'text/plain' }));
+    expect(await screen.findByText('The file did not upload. Try again.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(Object.values(store.state.files).find((f) => f.name === 'Site notes.txt')).toBeDefined());
   });
 });

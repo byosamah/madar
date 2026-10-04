@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MAX_ATTACHMENTS, MAX_FILE_BYTES } from '../../api/contract/entities';
+import { MAX_ATTACHMENTS } from '../../api/contract/entities';
 import type { Attachment } from '../../api/contract/views';
 import { errorMessage } from '../../app/errors';
-import { downloadFile } from '../../app/files';
+import { downloadFile, isRemote, tooLargeText, useFileLimit } from '../../app/files';
+import { useLang } from '../../app/lang';
 import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -20,15 +21,18 @@ export type UploadTarget = { projectId: string; stageId?: string | null; taskId?
  */
 export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = []) {
   const { t } = useTranslation();
+  const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
+  const limit = useFileLimit();
   const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
 
   const add = (list: FileList | null) => {
     const chosen = [...(list ?? [])];
-    for (const file of chosen.filter((f) => f.size > MAX_FILE_BYTES)) toast.show({ tone: 'error', message: t('files.tooBig', { name: file.name }) });
-    const accepted = chosen.filter((f) => f.size <= MAX_FILE_BYTES);
+    // The limit of the active store, checked when the person picks the file, so nothing starts that the store refuses.
+    for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
+    const accepted = chosen.filter((f) => f.size <= limit);
     const room = Math.max(0, max - files.length);
     if (accepted.length > room) toast.show({ tone: 'error', message: t('attachments.tooMany', { count: max }) });
     setFiles((current) => [...current, ...accepted.slice(0, room)]);
@@ -104,7 +108,8 @@ export function PickedFiles({ files, onRemove }: { files: File[]; onRemove: (ind
 /** The files of a comment or a message. A chip saves the file. A deleted file shows as removed. */
 export function FileChips({ files }: { files: Attachment[] }) {
   const { t } = useTranslation();
-  const { api } = useRuntime();
+  const runtime = useRuntime();
+  const { api } = runtime;
   const toast = useToast();
   if (files.length === 0) return null;
   return (
@@ -120,7 +125,7 @@ export function FileChips({ files }: { files: Attachment[] }) {
             <button
               type="button"
               aria-label={t('attachments.download', { name: file.name })}
-              onClick={() => downloadFile(api, file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }))}
+              onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }))}
               className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
             >
               <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />

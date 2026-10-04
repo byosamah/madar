@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectSummary } from '../../api/contract/views';
-import { useFileUrl } from '../../app/files';
+import { useFileLink } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { MarkForm } from '../../components/ProjectTile';
 import { spring } from '../../design/motion';
@@ -12,10 +12,10 @@ import { markGlow, markOf } from '../../lib/projectMark';
 /** The latest render at 16:9, or the project's picture large when there is no cover (owner, 2026-10-01). */
 export function ProjectCover({ summary, className = 'aspect-video', layoutId }: { summary: ProjectSummary; className?: string; layoutId?: string }) {
   const { t } = useTranslation();
-  const url = useFileUrl(summary.project.coverFileId, summary.coverLetter ?? undefined);
+  const cover = useFileLink(summary.project.coverFileId, summary.coverLetter ?? undefined, 'thumb');
   const label = t('projects.cover', { name: summary.project.name });
-  const inner = url
-    ? <img src={url} alt={label} className={`w-full object-cover ${className}`} />
+  const inner = cover.url
+    ? <img src={cover.url} alt={label} onError={cover.onError} className={`w-full object-cover ${className}`} />
     : (
       <div role="img" aria-label={label} data-project-mark={markOf(summary.project)} style={{ background: markGlow(summary.project.id, markOf(summary.project)) }} className={`relative w-full ${className}`}>
         <MarkForm mark={markOf(summary.project)} className="absolute inset-0 m-auto h-[34%] w-auto" />
