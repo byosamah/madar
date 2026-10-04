@@ -8,7 +8,7 @@ import tailwindcss from '@tailwindcss/vite';
 // No loadEnv with an empty prefix here: secrets live in .env.local and secrets/, and only VITE_ names reach the page.
 const MADAR_API = process.env.VITE_MADAR_API ?? 'fake';
 /** Script tests that need the local stack. They run in the it project, never in npm test. */
-const DOCKER_SCRIPT_TESTS = ['scripts/first-admin.test.ts', 'scripts/restore-check.test.ts'];
+const DOCKER_SCRIPT_TESTS = ['scripts/first-admin.test.ts', 'scripts/restore-check.test.ts', 'scripts/seed-test-office.test.ts'];
 
 export default defineConfig(({ mode }) => ({
   // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.

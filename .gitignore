@@ -1,6 +1,7 @@
 node_modules
 dist
 test-results
+playwright/.auth/
 playwright-report
 .DS_Store
 
