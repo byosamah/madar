@@ -9,7 +9,7 @@ import { Button } from '../../components/Button';
 import { AuthPage, FormError } from '../auth/AuthPage';
 import { signInPath } from '../auth/paths';
 import { useAuth } from '../auth/useAuth';
-import { hostOf, needsWarning } from './knownHosts';
+import { hostOf, needsWarning, safeRedirect } from './knownHosts';
 import { OAuthFailure, useOAuth, type ConsentRequest } from './oauthPort';
 
 /**
@@ -24,6 +24,8 @@ import { OAuthFailure, useOAuth, type ConsentRequest } from './oauthPort';
  *   and Approve is then not the main button.
  * - Approve: the approval is recorded in Madar first (the api function, the person's browser token), then Auth approves. When
  *   Madar refuses, Auth is never asked. Deny: Auth denies, and Madar records nothing.
+ * - The return address (security review of G4): the screen leaves only for a safe address (knownHosts.ts, safeRedirect), and
+ *   after Approve or Deny only for the request's own address. A request whose address is not safe has no Approve.
  */
 export function ConsentScreen() {
   const { t } = useTranslation();
@@ -62,10 +64,11 @@ function Consent({ authorizationId }: { authorizationId: string }) {
     gcTime: 0,
   });
   const done = details.data?.kind === 'done' ? details.data.redirectUrl : null;
+  const doneSafe = done !== null && safeRedirect(done);
 
   useEffect(() => {
-    if (done) leave(done);
-  }, [done, leave]);
+    if (done && doneSafe) leave(done);
+  }, [done, doneSafe, leave]);
 
   if (details.isPending) {
     return (
@@ -85,7 +88,7 @@ function Consent({ authorizationId }: { authorizationId: string }) {
   if (details.data.kind === 'done') {
     return (
       <AuthPage title={t('consent.generic')}>
-        <p className="text-body text-ink-2" aria-live="polite">{t('consent.leaving')}</p>
+        {doneSafe ? <p className="text-body text-ink-2" aria-live="polite">{t('consent.leaving')}</p> : <FormError text={t('consent.badAddress')} />}
       </AuthPage>
     );
   }
@@ -102,6 +105,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   // The host is Latin text inside an Arabic sentence too: the isolate marks keep it one unit, apart from the words around it.
   const host = `\u2068${hostOf(request.redirectUri) ?? request.redirectUri}\u2069`;
   const warn = needsWarning(request.redirectUri);
+  const unsafe = !safeRedirect(request.redirectUri);
 
   const answer = async (choice: 'approve' | 'deny') => {
     setPending(choice);
@@ -109,6 +113,12 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
     try {
       if (choice === 'approve') await port.recordApproval(request.authorizationId);
       const redirect = choice === 'approve' ? await port.approve(request.authorizationId) : await port.deny(request.authorizationId);
+      // Only back to the request's own address, and only to a safe one (security review of G4).
+      if (!safeRedirect(redirect) || !redirect.startsWith(request.redirectUri)) {
+        setError(t('consent.badAddress'));
+        setPending(null);
+        return;
+      }
       leave(redirect);
     } catch (failure) {
       setError(failureText(failure, t));
@@ -119,7 +129,8 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   return (
     <AuthPage title={request.clientName ? t('consent.title', { name: request.clientName }) : t('consent.generic')}>
       {person && <p className="text-footnote text-ink-2">{t('consent.signedInAs', { name: person })}</p>}
-      {warn && (
+      {/* An address that Madar would never leave for gets the plain error in place of the warning, and no Approve. */}
+      {unsafe ? <FormError text={t('consent.badAddress')} /> : warn && (
         <p className="rounded-xl bg-late-bg p-3 text-subheadline text-late">
           {t('consent.unknownHost', { host })}
         </p>
@@ -136,10 +147,10 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
       <p className="text-footnote text-ink-2">
         {t('consent.returnsTo', { host })}
       </p>
-      <FormError text={error} />
+      {!unsafe && <FormError text={error} />}
       <div className="flex flex-col gap-2 sm:flex-row">
         {/* An unknown host takes away the main button, so the warning stays the one colored highlight. */}
-        <Button variant={warn ? 'secondary' : 'primary'} className="flex-1" disabled={pending !== null} onClick={() => void answer('approve')}>{t('consent.approve')}</Button>
+        <Button variant={warn ? 'secondary' : 'primary'} className="flex-1" disabled={pending !== null || unsafe} onClick={() => void answer('approve')}>{t('consent.approve')}</Button>
         <Button className="flex-1" disabled={pending !== null} onClick={() => void answer('deny')}>{t('consent.deny')}</Button>
       </div>
     </AuthPage>

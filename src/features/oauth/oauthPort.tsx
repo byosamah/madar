@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { ApiError, type ApiErrorCode } from '../../api/errors';
 import { REMOTE } from '../../app/mode';
 import { useAuth } from '../auth/useAuth';
+import { safeRedirect } from './knownHosts';
 
 /**
  * The OAuth steps of the consent screen and of Settings, Agents (plan 5.6; task G4), over plain HTTP with the person's token:
@@ -163,6 +164,9 @@ export function useOAuth(): OAuthTools {
   const auth = useAuth();
   return useMemo(() => given ?? {
     port: REMOTE ? remotePort(() => auth.accessToken()) : NO_OAUTH,
-    leave: (url: string) => window.location.assign(url),
+    // The screen checks the address first; this check stays as the last guard before the page goes (security review of G4).
+    leave: (url: string) => {
+      if (safeRedirect(url)) window.location.assign(url);
+    },
   }, [given, auth]);
 }

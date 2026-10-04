@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/errors';
-import { hostOf, needsWarning } from './knownHosts';
+import { hostOf, needsWarning, safeRedirect } from './knownHosts';
 import { httpOAuthPort } from './oauthPort';
 
 describe('the redirect host of an AI app (knownHosts)', () => {
@@ -16,6 +16,21 @@ describe('the redirect host of an AI app (knownHosts)', () => {
       expect(needsWarning(uri), uri).toBe(false);
     }
     for (const uri of ['https://evil.example/callback', 'https://claude.ai.evil.example/cb', 'https://evil-claude.ai/cb', 'not a url']) expect(needsWarning(uri), uri).toBe(true);
+  });
+});
+
+describe('the return address of an AI app (safeRedirect, security review of G4)', () => {
+  it('accepts https, http on a loopback host only, and an app scheme', () => {
+    for (const url of ['https://claude.ai/api/mcp/auth_callback?code=x', 'http://127.0.0.1:33418/callback?code=x', 'http://localhost:9/cb', 'cursor://anysphere.cursor-retrieval/oauth/callback?code=x']) {
+      expect(safeRedirect(url), url).toBe(true);
+    }
+  });
+
+  it('refuses script and local schemes, http to another host, and an address that does not parse; each one gets the warning', () => {
+    for (const url of ['javascript://claude.ai/%0aalert(1)', 'JavaScript:alert(1)', 'data:text/html,hi', 'vbscript:msgbox', 'blob:https://claude.ai/x', 'file:///etc/passwd', 'filesystem:https://claude.ai/temporary/x', 'about:blank', 'http://evil.example/cb', 'not a url']) {
+      expect(safeRedirect(url), url).toBe(false);
+      expect(needsWarning(url), url).toBe(true);
+    }
   });
 });
 

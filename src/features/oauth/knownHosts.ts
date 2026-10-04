@@ -32,8 +32,34 @@ export function isLoopback(host: string): boolean {
   return LOOPBACK.has(host.toLowerCase());
 }
 
-/** True when the consent screen must warn: the host is not loopback and not a known AI app, or the address does not parse. */
+/** Schemes that run script or read local data in the Madar page. An AI app registers its own redirect addresses (DCR). */
+const REFUSED_SCHEMES = new Set(['javascript:', 'data:', 'vbscript:', 'blob:', 'file:', 'filesystem:', 'about:']);
+
+/**
+ * True when Madar may send the browser to this return address of an AI app (security review of G4): https, http on a loopback
+ * host only, or an app scheme (for example cursor:). Never a script or local scheme, whatever its host reads as
+ * ("javascript://claude.ai/%0a..." has the host claude.ai), and never an address that does not parse.
+ */
+export function safeRedirect(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const scheme = parsed.protocol.toLowerCase();
+  if (REFUSED_SCHEMES.has(scheme)) return false;
+  if (scheme === 'https:') return parsed.hostname !== '';
+  if (scheme === 'http:') return isLoopback(parsed.hostname);
+  return true;
+}
+
+/**
+ * True when the consent screen must warn: an address that Madar would not leave for, or a host that is not loopback and not a
+ * known AI app.
+ */
 export function needsWarning(redirectUri: string): boolean {
+  if (!safeRedirect(redirectUri)) return true;
   const host = hostOf(redirectUri)?.toLowerCase();
   if (!host) return true;
   return !isLoopback(host) && !KNOWN_AI_HOSTS.includes(host);

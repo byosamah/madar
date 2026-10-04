@@ -14,7 +14,8 @@
     "deny": "Deny",
     "missing": "This link is not complete. Start the connection again in your AI app.",
     "leaving": "Madar is sending you back to your AI app.",
-    "loading": "Madar is loading the request."
+    "loading": "Madar is loading the request.",
+    "badAddress": "Madar cannot send you to the address of this AI app, because it is not safe."
   },
   "agents": {
     "title": "Agents",

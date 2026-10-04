@@ -14,7 +14,7 @@ vi.mock('../../app/mode', () => ({ REMOTE: true, PROTOTYPE: false }));
 const LOOPBACK = 'http://127.0.0.1:33418/callback';
 const UNKNOWN = 'https://evil.example/callback';
 
-function tools(o: { redirectUri?: string; details?: ConsentDetails; record?: () => Promise<void> } = {}) {
+function tools(o: { redirectUri?: string; details?: ConsentDetails; record?: () => Promise<void>; approved?: string } = {}) {
   const steps: string[] = [];
   const port: OAuthPort = {
     details: vi.fn(async (id: string) => {
@@ -27,7 +27,7 @@ function tools(o: { redirectUri?: string; details?: ConsentDetails; record?: () 
     }),
     approve: vi.fn(async (id: string) => {
       steps.push(`approve ${id}`);
-      return 'http://127.0.0.1:33418/callback?code=yes';
+      return o.approved ?? 'http://127.0.0.1:33418/callback?code=yes';
     }),
     deny: vi.fn(async (id: string) => {
       steps.push(`deny ${id}`);
@@ -126,6 +126,34 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     const { port } = await open({ path: '/oauth/consent' });
     expect(await screen.findByText('This link is not complete. Start the connection again in your AI app.')).toBeInTheDocument();
     expect(port.details).not.toHaveBeenCalled();
+  });
+
+  it('never leaves for a script address, also when its host reads as a known AI app, and offers no Approve (security review of G4)', async () => {
+    const { leave, port } = await open({ tools: tools({ redirectUri: 'javascript://claude.ai/%0aalert(1)' }) });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Madar cannot send you to the address of this AI app, because it is not safe.');
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
+    await waitFor(() => expect(port.deny).toHaveBeenCalled());
+    expect(leave).not.toHaveBeenCalled();
+  });
+
+  it('never leaves for a script address that Auth gives at once, or for a redirect that is not the request\'s own address', async () => {
+    const done = await open({ tools: tools({ details: { kind: 'done', redirectUrl: 'javascript:alert(1)' } }) });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Madar cannot send you to the address of this AI app');
+    expect(done.leave).not.toHaveBeenCalled();
+    done.unmount();
+    const other = await open({ tools: tools({ approved: 'https://evil.example/cb?code=stolen' }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Madar cannot send you to the address of this AI app');
+    expect(other.leave).not.toHaveBeenCalled();
+  });
+
+  it('still leaves for https, loopback http and an app scheme', async () => {
+    for (const redirectUrl of ['https://claude.ai/api/mcp/auth_callback?code=a', 'http://127.0.0.1:33418/callback?code=b', 'cursor://anysphere.cursor-retrieval/oauth/callback?code=c']) {
+      const { leave, unmount } = await open({ tools: tools({ details: { kind: 'done', redirectUrl } }) });
+      await waitFor(() => expect(leave).toHaveBeenCalledWith(redirectUrl));
+      unmount();
+    }
   });
 
   it('keeps the calm rules in Arabic, right to left, with the warning', async () => {
