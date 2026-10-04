@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FILE_STORE_LIMITS } from '../core/ports';
 import { depsFrom, serverEnvFrom } from '../core/deps';
-import { DOWNLOAD_LINK_SECONDS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, downloadOnly, effectiveDisposition, intentLifeSeconds, safeFileName } from './links';
+import { DOWNLOAD_LINK_SECONDS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, downloadOnly, effectiveDisposition, intentLifeSeconds, safeFileName, storedMimeType } from './links';
 import { r2FilesPort } from './r2';
 import { supabaseStorageFilesPort } from './supabaseStorage';
 
@@ -13,16 +13,36 @@ describe('the type rule (proof.md, Z0a item 6)', () => {
     expect(baseMimeType('')).toBe('');
   });
 
-  it('signs HTML, SVG, XHTML and every XML type as download only, in any case and with any parameters', () => {
-    for (const type of ['text/html', 'TEXT/HTML', 'text/html; charset=utf-8', 'image/svg+xml', 'Image/SVG+XML; q=1', 'application/xhtml+xml', 'text/xml', 'application/xml', 'application/atom+xml', 'application/rss+xml', 'application/vnd.foo+xml']) {
+  it('keeps a value with a comma whole, because a browser takes the last of two joined types (Fetch standard)', () => {
+    expect(baseMimeType('image/png;x=1, text/html')).toBe('image/png;x=1, text/html');
+    expect(baseMimeType('Text/Plain, TEXT/HTML')).toBe('text/plain, text/html');
+  });
+
+  it('signs HTML, SVG, XHTML, XSL and every XML type as download only, in any case and with any parameters', () => {
+    for (const type of ['text/html', 'TEXT/HTML', 'text/html; charset=utf-8', 'image/svg+xml', 'Image/SVG+XML; q=1', 'application/xhtml+xml', 'text/xml', 'application/xml', 'application/atom+xml', 'application/rss+xml', 'application/vnd.foo+xml', 'text/xsl', 'TEXT/XSL; charset=utf-8']) {
       expect(downloadOnly(type), type).toBe(true);
       expect(effectiveDisposition('inline', type), type).toBe('attachment');
     }
-    for (const type of ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']) {
+    expect(effectiveDisposition('attachment', 'application/pdf')).toBe('attachment');
+  });
+
+  it('lets only a short safe list be inline: every other type, and every value that is not one clean type, is a download', () => {
+    for (const type of ['application/pdf', 'Application/PDF', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'text/plain', 'text/plain; charset=utf-8', 'video/mp4', 'video/webm', 'audio/mpeg']) {
       expect(downloadOnly(type), type).toBe(false);
       expect(effectiveDisposition('inline', type), type).toBe('inline');
     }
-    expect(effectiveDisposition('attachment', 'application/pdf')).toBe('attachment');
+    for (const type of ['x', 'text', '', 'application/octet-stream', 'image/png;x=1, text/html', 'text/plain, text/html', 'image/x-unknown', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png/x']) {
+      expect(downloadOnly(type), type).toBe(true);
+      expect(effectiveDisposition('inline', type), type).toBe('attachment');
+    }
+  });
+
+  it('stores every download-only type as application/octet-stream, and a safe type in its clean form', () => {
+    for (const type of ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'text/xsl', 'x', '', 'image/png;x=1, text/html', 'application/zip']) {
+      expect(storedMimeType(type), type).toBe('application/octet-stream');
+    }
+    expect(storedMimeType('application/pdf')).toBe('application/pdf');
+    expect(storedMimeType('Image/PNG; q=1')).toBe('image/png');
   });
 });
 

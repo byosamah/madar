@@ -21,21 +21,45 @@ export function intentLifeSeconds(kind: FileStoreKind): number {
   return UPLOAD_LINK_SECONDS[kind] + UPLOAD_TRANSFER_SECONDS[kind];
 }
 
-/** A type in lower case without its parameters: "TEXT/HTML; charset=utf-8" becomes "text/html". Every type check uses this form. */
+/**
+ * A type in lower case without its parameters: "TEXT/HTML; charset=utf-8" becomes "text/html". Every type check uses this form.
+ * A value with a comma stays whole: a browser takes the last of two joined types (Fetch standard), so "image/png;x=1, text/html"
+ * must never read as image/png. The whole value never equals a clean type, so the preflight refuses it.
+ */
 export function baseMimeType(type: string): string {
-  return type.split(';')[0].trim().toLowerCase();
+  const lower = type.trim().toLowerCase();
+  if (lower.includes(',')) return lower;
+  return lower.split(';')[0].trim();
 }
 
-const DOWNLOAD_ONLY = new Set(['text/html', 'image/svg+xml', 'application/xhtml+xml']);
+/**
+ * The only types that a link may show inline. Each one is a clean type that no browser renders as a page or sniffs into one.
+ * Every other value is a download: HTML, SVG, XHTML, XSL, every XML type, a type that a browser may sniff, and every value
+ * that is not one clean type.
+ */
+const INLINE_SAFE = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif',
+  'application/pdf', 'text/plain',
+  'video/mp4', 'video/webm', 'video/quicktime',
+  'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm',
+]);
 
-/** HTML, SVG, XHTML and every XML type: a link to one of these is always a download, so an uploaded page never runs a script. */
+/** True for every type outside the inline safe list: a link to it is always a download, so an uploaded page never runs a script. */
 export function downloadOnly(type: string): boolean {
-  const base = baseMimeType(type);
-  return DOWNLOAD_ONLY.has(base) || base.endsWith('/xml') || base.endsWith('+xml');
+  return !INLINE_SAFE.has(baseMimeType(type));
 }
 
 export function effectiveDisposition(disposition: 'inline' | 'attachment', type: string): 'inline' | 'attachment' {
   return downloadOnly(type) ? 'attachment' : disposition;
+}
+
+/**
+ * The type that the store keeps for an upload: application/octet-stream for every download-only type, else the clean type.
+ * This is the guard on both stores, because Storage does not sign download= (anyone with a link can remove it), and a
+ * browser renders application/octet-stream as a download. The file record keeps the declared type.
+ */
+export function storedMimeType(type: string): string {
+  return downloadOnly(type) ? 'application/octet-stream' : baseMimeType(type);
 }
 
 const NAME_LIMIT = 200;
