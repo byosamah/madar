@@ -301,4 +301,31 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
     expect(await visible(agent, 'office')).toBe(0);
     expect(await visible(agent, `person:${me}`)).toBe(0);
   });
+
+  it('keeps an active person from sending on the office topic and on the own person topic: no insert policy for the screens', async () => {
+    // The local stack grants insert on realtime.messages to anon and authenticated, so only the missing insert policy keeps a
+    // screen from sending a false signal (any seq) that makes every screen reload.
+    const authId = (await pgAdmin.query<{ auth_user_id: string }>('select auth_user_id from public.users where id = $1', [me])).rows[0].auth_user_id;
+    const browser = { sub: authId, role: 'authenticated', aud: 'authenticated' };
+    const send = async (role: string, topic: string): Promise<string> => {
+      await pgAdmin.query('begin');
+      try {
+        await pgAdmin.query(`set local role ${role}`);
+        await pgAdmin.query("select set_config('request.jwt.claims', $1, true), set_config('realtime.topic', $2, true)", [JSON.stringify(browser), topic]);
+        await pgAdmin.query(
+          "insert into realtime.messages (topic, extension, event, payload, private) values ($1, 'broadcast', 'changed', '{\"seq\":999999}'::jsonb, true)",
+          [topic],
+        );
+        return 'inserted';
+      } catch (error) {
+        return (error as Error).message;
+      } finally {
+        await pgAdmin.query('rollback');
+      }
+    };
+    for (const topic of ['office', `person:${me}`]) {
+      expect(await send('authenticated', topic), topic).toMatch(/new row violates row-level security policy/);
+      expect(await send('anon', topic), topic).toMatch(/new row violates row-level security policy|permission denied/);
+    }
+  });
 });
