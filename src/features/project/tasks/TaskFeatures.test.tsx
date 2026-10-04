@@ -11,11 +11,21 @@ const as = (userId: string, more?: (state: State) => void) => (state: State) => 
 const TASKS = '/projects/prj_001?tab=tasks';
 const TASK = (id: string) => `${TASKS}&task=${id}`;
 const rowOf = async (title: string) => (await screen.findByText(title)).closest('li') as HTMLElement;
+/**
+ * The Tasks tab is a large page, and a role query checks the style of each element on it: about 100 ms a run in jsdom, more under
+ * load. findByRole runs that query again on each change of the page while the tab loads, so it held up the screen it waited for,
+ * and the first test of this file ran out of time in full runs (track Q, item 4). The wait uses the label, then the role is checked once.
+ */
+async function templateButton(stage: string): Promise<HTMLElement> {
+  const name = `From a template in ${stage}`;
+  await screen.findByLabelText(name);
+  return screen.getByRole('button', { name });
+}
 
 describe('"From a template" on the Tasks tab', () => {
   it('lists only the templates saved for that stage, and makes the task with its checklist unticked', async () => {
     const { store } = await renderApp(TASKS, as('usr_002'));
-    await userEvent.click(await screen.findByRole('button', { name: 'From a template in Construction Documents' }));
+    await userEvent.click(await templateButton('Construction Documents'));
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Floor plans set', 'Sections and elevations set', 'Wall sections and details']);
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'Floor plans set' }));
@@ -29,7 +39,7 @@ describe('"From a template" on the Tasks tab', () => {
 
   it("never shows another stage's templates, and no button for a stage with none", async () => {
     await renderApp(TASKS, as('usr_002'));
-    await userEvent.click(await screen.findByRole('button', { name: 'From a template in Permits' }));
+    await userEvent.click(await templateButton('Permits'));
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Balady submission pack']);
     expect(screen.queryByRole('button', { name: 'From a template in Tender' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'From a template in Concept' })).toBeNull();
@@ -37,7 +47,7 @@ describe('"From a template" on the Tasks tab', () => {
 
   it('is there for a team member too, who becomes the lead of the new task', async () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
-    await userEvent.click(await screen.findByRole('button', { name: 'From a template in Design Development' }));
+    await userEvent.click(await templateButton('Design Development'));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Material board' }));
     // Design Development is before the stage the project is in (Construction Documents), so the new task moves the project back and the server asks why.
     const ask = await screen.findByRole('dialog', { name: 'This moves the project back to Design Development. Why?' });

@@ -25,6 +25,9 @@ function reasonFor(error: unknown, link = false): AuthFailureReason {
   return 'failed';
 }
 
+// Auth refuses a password change with no current password, or a wrong one, with these codes (supabase/auth, user.go).
+const CURRENT_PASSWORD_CODES = new Set(['current_password_invalid', 'current_password_required']);
+
 function fail(error: unknown, link = false): never {
   const message = error instanceof Error ? error.message : String(error);
   throw new AuthFailure(reasonFor(error, link), message);
@@ -99,6 +102,23 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
     async setPassword(password) {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) fail(error);
+    },
+    async changePassword(current, next) {
+      // A sign-in checks the current password first. Auth checks current_password only with "require current password" on,
+      // and never in a recovery session (supabase/auth, user.go). That setting is off on madar-test today (proof.md Z0a,
+      // item 2), and then any text in Current password would set a new password. The sign-in starts a session beside the
+      // one of this device; the sign-out of the other devices after the change ends it.
+      const { data: kept } = await supabase.auth.getSession();
+      const email = kept.session?.user?.email;
+      if (!email) throw new AuthFailure('failed', 'The session names no email.');
+      const check = await supabase.auth.signInWithPassword({ email, password: current });
+      if (check.error) fail(check.error);
+      // With the setting on, Auth refuses a new password without the current one, so the update carries it too.
+      const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
+      if (!error) return;
+      const code = (error as { code?: string }).code ?? '';
+      if (CURRENT_PASSWORD_CODES.has(code)) throw new AuthFailure('wrong_credentials', error.message);
+      fail(error);
     },
     async requestReset(email) {
       let response: Response;

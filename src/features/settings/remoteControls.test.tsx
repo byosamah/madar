@@ -131,13 +131,14 @@ describe('Settings, Password (plan 5.1)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Change the password' }));
   }
 
-  it('checks the current password, then sets the new one', async () => {
+  it('sends the current and the new password in one change, then signs out the other devices', async () => {
     const auth = signedIn();
     await renderAuth('/settings', { auth, routes: only(<PasswordSection />) });
     await change(SAMPLE_ACCOUNTS.hala.password, 'green-field-77');
     expect(await screen.findByText('Password changed. Your other devices sign out.')).toBeInTheDocument();
+    // The port checks the current password inside changePassword (proof.md Z0a, item 2), so the section signs in nowhere itself.
     // A person who changes the password because someone else may know it signs that person out of the other devices.
-    expect(auth.log).toEqual([`signIn:${SAMPLE_ACCOUNTS.hala.email}`, 'setPassword', 'signOut:others']);
+    expect(auth.log).toEqual(['changePassword', 'signOut:others']);
     expect(auth.status()).toBe('signed_in');
     expect(auth.current()?.password).toBe('green-field-77');
     expect(screen.getByLabelText('Current password')).toHaveValue('');
@@ -149,7 +150,20 @@ describe('Settings, Password (plan 5.1)', () => {
     await renderAuth('/settings', { auth, routes: only(<PasswordSection />) });
     await change('not-the-password', 'green-field-77');
     expect(await screen.findByText('The password is not right.')).toBeInTheDocument();
-    expect(auth.log).not.toContain('setPassword');
+    expect(screen.getByLabelText('Current password')).toHaveAccessibleDescription('The password is not right.');
+    expect(auth.log).toEqual(['changePassword']);
+    expect(auth.current()?.password).toBe(SAMPLE_ACCOUNTS.hala.password);
+    expect(screen.getByLabelText('New password')).toHaveValue('green-field-77');
+  });
+
+  it('says a wrong current password in Arabic under its field', async () => {
+    const auth = signedIn();
+    await renderAuth('/settings', { auth, routes: only(<PasswordSection />), language: 'ar' });
+    await userEvent.type(await screen.findByLabelText('كلمة المرور الحالية'), 'not-the-password');
+    await userEvent.type(screen.getByLabelText('كلمة المرور الجديدة'), 'green-field-77');
+    await userEvent.click(screen.getByRole('button', { name: 'تغيير كلمة المرور' }));
+    expect(await screen.findByText('كلمة المرور غير صحيحة.')).toBeInTheDocument();
+    expect(document.documentElement.dir).toBe('rtl');
     expect(auth.current()?.password).toBe(SAMPLE_ACCOUNTS.hala.password);
   });
 

@@ -1,4 +1,5 @@
-// Source: https://lucide-animated.com/r/folder-kanban.json (MIT, lucide-animated). Local edits: class-join import.
+// Source: https://lucide-animated.com/r/folder-kanban.json (MIT, lucide-animated). Local edits: class-join import; the columns
+// pulse once, not for ever: the Projects tab plays this icon when it becomes active, and nothing stops it after that.
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
@@ -29,7 +30,6 @@ const COLUMN_VARIANTS: Variants = {
     opacity: [1, 0.2, 1],
     transition: {
       duration: 1,
-      repeat: Number.POSITIVE_INFINITY,
       ease: "easeInOut",
     },
   },

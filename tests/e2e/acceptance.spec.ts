@@ -13,6 +13,13 @@ async function tabTo(page: Page, matches: (text: string, role: string | null) =>
   throw new Error('The keyboard did not reach the control.');
 }
 
+/** Picks a person in Preview as and waits until the app shows that person: the open screen starts again when the person changes (V-22). */
+async function previewAs(page: Page, label: string): Promise<void> {
+  await page.goto('/#/settings');
+  await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label });
+  await expect(page.getByRole('button', { name: label.split(' · ')[0], exact: true })).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
 });
@@ -39,13 +46,11 @@ test("Member daily work: today's tasks with one step from any screen", async ({ 
 
 test('Leader review: approve from Notifications with two steps', async ({ page }) => {
   // Setup: Sara sends a task to review, which puts a review notice in Faisal's Inbox.
-  await page.goto('/#/settings');
-  await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label: 'Sara Al-Qahtani · Member' });
+  await previewAs(page, 'Sara Al-Qahtani · Member');
   await page.goto('/#/projects/prj_001?tab=tasks');
   await page.getByRole('checkbox', { name: 'Complete Civil Defense drawings' }).click();
   await expect(page.getByText('Sent to review. The leader checks it next.')).toBeVisible();
-  await page.goto('/#/settings');
-  await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label: 'Faisal Al-Harbi · Leader' });
+  await previewAs(page, 'Faisal Al-Harbi · Leader');
   // The two steps: reach Approve, press Enter.
   await page.goto('/#/notifications');
   await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible();
@@ -53,7 +58,8 @@ test('Leader review: approve from Notifications with two steps', async ({ page }
   await expect(page.getByRole('button', { name: 'Approve' }).first()).toBeVisible();
   const before = await page.getByRole('button', { name: 'Approve' }).count();
   expect(before).toBeGreaterThan(0);
-  await tabTo(page, (text) => text === 'Approve');
+  // Each Approve button names its task, for example Approve “Civil Defense drawings” (audit 2026-10-03, BRW-5).
+  await tabTo(page, (text, role) => role === 'button' && text.startsWith('Approve'));
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(before - 1);
 });
