@@ -102,9 +102,9 @@ export function authRowsOf(name: string, output: unknown): OutboxRow[] {
 }
 
 /**
- * users.update: the auth.email row only when the save wrote a user.updated event that changed the email. A query that is
- * refused writes the row as before (the handler then finds the email equal and does nothing): the memory data of the unit
- * tests (server/core/memoryData.ts) answers no SQL, and on Postgres a failed statement fails the whole call anyway.
+ * users.update: the auth.email row only when the save wrote a user.updated event that changed the email. The memory data of
+ * the unit tests (server/core/memoryData.ts) answers the same question. A query that is refused writes the row as before (the
+ * handler then finds the email equal and does nothing); on Postgres a failed statement fails the whole call anyway.
  */
 const emailProducer: OutboxProducer = async (output, saved, q) => {
   const rows = authRowsOf('users.update', output);

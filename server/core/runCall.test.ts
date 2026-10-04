@@ -454,6 +454,18 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
     expect(ran).toHaveLength(1);
   });
 
+  it('answers USER_EMAIL_CHANGED_SQL from memory, so users.update writes the auth.email row only for an email change (P2)', async () => {
+    const { call, mem } = setup();
+    const emailRows = () => mem.tables.outbox.filter((row) => row.kind === 'auth.email' && row.payload.userId === 'usr_005');
+    expect(okOutput(await call(ADMIN, 'users.update', { id: 'usr_005', patch: { name: 'A new name' } })).name).toBe('A new name');
+    expect(emailRows()).toEqual([]);
+    okOutput(await call(ADMIN, 'users.update', { id: 'usr_005', patch: { email: 'new.address@madar.test' } }));
+    expect(emailRows()).toHaveLength(1);
+    // The last user.updated event of the person counts: a name change after the email change writes no second row.
+    okOutput(await call(ADMIN, 'users.update', { id: 'usr_005', patch: { name: 'Another name' } }));
+    expect(emailRows()).toHaveLength(1);
+  });
+
   it('keeps the answer of a committed call when the effects after the commit fail, and logs a warning', async () => {
     undo.push(registerOutbox('clients.create', async () => [{ kind: 'test.client', payload: {} }]));
     const { call, deps } = setup({ afterCommit: async () => {

@@ -14,8 +14,6 @@ import type { AuthAdminPort } from '../core/ports';
  *   users.invites still says "invited" and the next invite link to the new email works (a confirmed one answers 422).
  * - listUsers: every Auth user and whether the email is confirmed (users.invites).
  * - getUser: one Auth user, or null (the auth.email effect: did the email change, and did the person accept yet).
- *   listUsers, getUser and the confirm option of updateEmail are not in AuthAdminPort yet: the merge lead patch of P2 adds them
- *   there and to the fake.
  */
 
 export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };

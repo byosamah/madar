@@ -1,4 +1,5 @@
 import type { State } from '../../src/api/store';
+import { USER_EMAIL_CHANGED_SQL } from '../auth/effects';
 import { snapshotOf } from '../data/officeCache';
 import { memorySource } from '../data/loaders/index';
 import { diffState, writeDiff } from '../data/save';
@@ -25,7 +26,8 @@ import { OFFICE_COLLECTIONS, type OfficeSnapshot } from './types';
  *   that answers its office_meta, person_seq and comment target statements from memory.
  *
  * The file hooks of track F read their records with single statements and the project delete lists its stored keys with one
- * query; the memory data answers those from the office too, and holds no upload intents.
+ * query; the memory data answers those from the office too, and holds no upload intents. It also answers the question of the
+ * users.update producer (USER_EMAIL_CHANGED_SQL), so a name change writes no auth.email row here either.
  *
  * The database form of the same steps is tested on the local stack (server/it/runCall.it.test.ts, server/it/lock.it.test.ts).
  */
@@ -118,6 +120,13 @@ export function memoryData(office: State): MemoryData {
   function txOf(draft: MemoryTables): CallTx {
     return {
       q: (async (text: string, values: unknown[] = []) => {
+        if (text === USER_EMAIL_CHANGED_SQL) {
+          // The last user.updated event of the person, as the producer of users.update reads it after the save (P2).
+          const [last] = Object.values(draft.state.events)
+            .filter((e) => e.targetType === 'user' && e.targetId === values[0] && e.verb === 'user.updated')
+            .slice(-1);
+          return last ? [{ changed: last.after !== null && typeof last.after === 'object' && 'email' in last.after }] : [];
+        }
         if (text !== PROJECT_KEYS_SQL) return refuse(text);
         const projectId = String(values[0]);
         const events = Object.values(draft.state.events).filter((e) => e.projectId === projectId && e.targetType === 'file');
