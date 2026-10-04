@@ -1,10 +1,14 @@
 import { expect, test as setup } from '@playwright/test';
-import { DEPLOY_ACCOUNTS, DEPLOY_ROLES, storageStateOf } from './accounts';
+import { DEPLOY_ACCOUNTS, DEPLOY_ROLES, prepareAuthDir, storageStateOf } from './accounts';
 
 /**
  * Signs in once for each office role on the Sign in screen and keeps the session for the specs (task X1). The password comes
  * from the secret that accounts.ts names; scripts/seed-test-office.ts set the same password on the test project.
+ * The setup project of playwright.deploy.config.ts records no trace: a trace keeps the typed password and the token answer in
+ * clear text. The sessions go to playwright/.auth, which prepareAuthDir makes with a .gitignore of its own.
  */
+
+prepareAuthDir();
 
 for (const role of DEPLOY_ROLES) {
   setup(`sign in as ${role}`, async ({ page }) => {
