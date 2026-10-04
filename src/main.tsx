@@ -14,7 +14,7 @@ import { REMOTE } from './app/mode';
 import { createAppRouter } from './app/routes';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { ToastProvider } from './app/toasts';
-import { initI18n } from './i18n';
+import { applyLanguage, initI18n } from './i18n';
 
 /**
  * The runtime of this build (client map 8). The flag is fixed at build time, so each build keeps only its own branch: the
@@ -38,6 +38,7 @@ async function start(): Promise<{ runtime: Runtime; language: Language }> {
 async function main(): Promise<void> {
   const { runtime, language } = await start();
   initI18n(language);
+  applyLanguage(document.documentElement, language);
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <RuntimeProvider runtime={runtime} queryClient={createQueryClient({ remote: REMOTE })}>

@@ -18,9 +18,10 @@ export function AppearanceSync() {
   }, []);
 
   useEffect(() => {
-    if (!prefs) return;
     const root = document.documentElement;
-    applyAppearance(root, resolveAppearance(prefs, env));
+    // Before sign-in (the remote build) there is no session: the page follows the device, as the System theme does.
+    applyAppearance(root, resolveAppearance(prefs ?? { theme: 'system', glass: 'frosted' }, env));
+    if (!prefs) return;
     applyLanguage(root, prefs.language);
     initI18n(prefs.language);
   }, [prefs, env]);
