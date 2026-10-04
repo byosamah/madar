@@ -95,8 +95,9 @@ describe('security fix 7: a new link for an invitation that is out of date', () 
       expect(row.payload).not.toContain(keyOf(first));
       expect(row.payload).not.toContain(keyOf(second));
     }
+    // The first invitation and the renewal each hold one place as sign-in mail (wave 6, V: every invitation counts).
     const counted = await office.sql<{ kind: string }>('select kind from mail_log where user_id = $1', [user.id]);
-    expect(counted.map((row) => row.kind)).toEqual(['signin']);
+    expect(counted.map((row) => row.kind)).toEqual(['signin', 'signin']);
   });
 
   it('a used key, an unknown key, the key of a person who accepted and the key of a removed person get the same answer and send nothing', async () => {
@@ -130,8 +131,8 @@ describe('security fix 7: a new link for an invitation that is out of date', () 
     const answers = await Promise.all([renew(key), renew(key)]);
     expect(answers).toEqual([`200 ${OK}`, `200 ${OK}`]);
     expect(mailsTo(email)).toHaveLength(2);
-    // The press that found the key used holds no place in the daily mail quota.
+    // The press that found the key used holds no place in the daily mail quota: one place for the first invitation, one for the renewal.
     const counted = await office.sql<{ kind: string }>("select kind from mail_log where user_id = $1 and kind = 'signin'", [user.id]);
-    expect(counted).toHaveLength(1);
+    expect(counted).toHaveLength(2);
   });
 });
