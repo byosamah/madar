@@ -7,7 +7,9 @@ import { checkRemoteConfig } from './config-check.ts';
  * a push needs a [remotes.<env>] block for the project, or the local values would reach the hosted Auth.
  */
 const TEST = 'qdgwpnesxppnqsaabqzd';
-const base = readFileSync(new URL('../../supabase/config.toml', import.meta.url), 'utf8');
+const today = readFileSync(new URL('../../supabase/config.toml', import.meta.url), 'utf8');
+/** config.toml without its [remotes.*] blocks, which start at the Madar comment above [remotes.test]. */
+const base = today.slice(0, today.indexOf('\n# Madar: the hosted projects') === -1 ? undefined : today.indexOf('\n# Madar: the hosted projects'));
 const HOOK = 'create or replace function public.madar_access_token_hook(event jsonb) returns jsonb language plpgsql as $$ begin return event; end $$;';
 
 const remote = (env: string, ref: string, site = 'https://preview.madar.pages.dev', redirects = '["https://preview.madar.pages.dev"]') =>
@@ -18,7 +20,12 @@ describe('checkRemoteConfig', () => {
     expect(checkRemoteConfig(base + remote('test', TEST), 'test', TEST, [HOOK])).toEqual([]);
   });
 
-  it('refuses the config of today, which has no block for the project, so the local site_url would reach the hosted Auth', () => {
+  it('passes the config of today for both projects (the free Pages address, 2026-10-04)', () => {
+    expect(checkRemoteConfig(today, 'test', TEST, [HOOK])).toEqual([]);
+    expect(checkRemoteConfig(today, 'production', 'oprkvdjudjxxhvodkzgs', [HOOK])).toEqual([]);
+  });
+
+  it('refuses a config with no block for the project, so the local site_url would reach the hosted Auth', () => {
     expect(checkRemoteConfig(base, 'test', TEST, [HOOK]).join('\n')).toMatch(/\[remotes\.test\]/);
   });
 

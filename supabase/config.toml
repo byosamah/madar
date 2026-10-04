@@ -440,3 +440,19 @@ verify_jwt = false
 
 [functions.jobs]
 verify_jwt = false
+
+# Madar: the hosted projects (plan 5.9). A push takes the values above and these blocks replace the local ones. The screens
+# live on the Cloudflare Pages project madar: production on the branch main, the test copy on the branch preview.
+[remotes.test]
+project_id = "qdgwpnesxppnqsaabqzd"
+
+[remotes.test.auth]
+site_url = "https://preview.madar-46r.pages.dev"
+additional_redirect_urls = ["https://preview.madar-46r.pages.dev"]
+
+[remotes.production]
+project_id = "oprkvdjudjxxhvodkzgs"
+
+[remotes.production.auth]
+site_url = "https://madar-46r.pages.dev"
+additional_redirect_urls = ["https://madar-46r.pages.dev"]

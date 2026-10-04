@@ -75,8 +75,15 @@ function run(script: string, args: string[], o: { input?: string; env?: Record<s
 
 const TOKENS = { SUPABASE_ACCESS_TOKEN: 'sbp_token', MADAR_TEST_DB_PASSWORD: 'pg-test-secret', MADAR_DB_PASSWORD: 'pg-prod-secret' };
 
+/** The copied config.toml without its [remotes.*] blocks (they start at the Madar comment above [remotes.test]). */
+function withoutRemotes(): string {
+  const text = readFileSync(join(root, 'supabase/config.toml'), 'utf8');
+  const at = text.indexOf('\n# Madar: the hosted projects');
+  return at === -1 ? text : `${text.slice(0, at)}\n`;
+}
+
 function readyForConfigPush(): void {
-  writeFileSync(join(root, 'supabase/config.toml'), readFileSync(join(root, 'supabase/config.toml'), 'utf8') + REMOTES('test', TEST) + REMOTES('production', PRODUCTION));
+  writeFileSync(join(root, 'supabase/config.toml'), withoutRemotes() + REMOTES('test', TEST) + REMOTES('production', PRODUCTION));
   writeFileSync(join(root, 'supabase/migrations/20261004000400_platform_auth_hook.sql'), HOOK_MIGRATION);
 }
 
@@ -198,7 +205,8 @@ describe('db.sh', () => {
 });
 
 describe('config.sh', () => {
-  it('refuses the config of today, which has no [remotes.test] block, and pushes nothing', () => {
+  it('refuses a config with no [remotes.test] block, and pushes nothing', () => {
+    writeFileSync(join(root, 'supabase/config.toml'), withoutRemotes());
     const result = run('config.sh', ['test'], { env: TOKENS });
     expect(result.code).toBe(1);
     expect(result.out).toContain('[remotes.test]');
