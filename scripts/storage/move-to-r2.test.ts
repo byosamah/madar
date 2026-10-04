@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveToR2, type MoveSource, type MoveTarget, type SourceObject } from './move-to-r2';
+import { assertBeforeSwitch, moveToR2, type MoveSource, type MoveTarget, type SourceObject } from './move-to-r2';
 
 type Stored = { body: string; mimeType: string; etag: string };
 
@@ -33,6 +33,9 @@ function memoryTarget(): MoveTarget & { objects: Map<string, { body: string; mim
     async remove(keys) {
       for (const key of keys) objects.delete(key);
     },
+    async list() {
+      return [...objects.keys()];
+    },
   };
 }
 
@@ -52,13 +55,45 @@ describe('move-to-r2 (plan 2b, point 1)', () => {
     expect(report).toEqual({ objects: 3, bytes: 15, firstPass: 3, secondPass: 0, removedFromTarget: 0, mismatched: [] });
   });
 
-  it('keeps the stored type from the object list, not the type of the download answer (Storage serves HTML as text/plain)', async () => {
-    const source = new Map<string, Stored>([['a/b/1/file', { body: '<p>x</p>', mimeType: 'text/html', etag: '1' }]]);
+  it('keeps the stored type from the object list, not the type of the download answer', async () => {
+    const source = new Map<string, Stored>([['a/b/1/file', { body: 'png', mimeType: 'image/png', etag: '1' }]]);
     const listed = memorySource(source);
     const served: MoveSource = { list: listed.list, read: async (key) => ({ ...(await listed.read(key))!, mimeType: 'text/plain' }) };
     const target = memoryTarget();
     await moveToR2(served, target, quiet);
-    expect(target.objects.get('a/b/1/file')?.mimeType).toBe('text/html');
+    expect(target.objects.get('a/b/1/file')?.mimeType).toBe('image/png');
+  });
+
+  it('writes every download-only type as application/octet-stream, the same rule as an upload (storedMimeType)', async () => {
+    const source = new Map<string, Stored>([
+      ['a/b/1/file', { body: '<p>x</p>', mimeType: 'text/html', etag: '1' }],
+      ['a/b/2/file', { body: '<svg/>', mimeType: 'image/svg+xml', etag: '2' }],
+      ['a/b/3/file', { body: '%PDF', mimeType: 'application/pdf', etag: '3' }],
+    ]);
+    const target = memoryTarget();
+    await moveToR2(memorySource(source), target, quiet);
+    expect([...target.objects].map(([key, v]) => [key, v.mimeType])).toEqual([
+      ['a/b/1/file', 'application/octet-stream'],
+      ['a/b/2/file', 'application/octet-stream'],
+      ['a/b/3/file', 'application/pdf'],
+    ]);
+  });
+
+  it('removes from the target every key that the source no longer has, also one from an earlier run', async () => {
+    const source = new Map<string, Stored>([['a/b/1/file', { body: 'one', mimeType: 'text/plain', etag: '1' }]]);
+    const target = memoryTarget();
+    // An earlier run copied a/b/9/file; a project delete then removed it from Storage.
+    target.objects.set('a/b/9/file', { body: 'gone', mimeType: 'text/plain' });
+    const report = await moveToR2(memorySource(source), target, quiet);
+    expect([...target.objects.keys()]).toEqual(['a/b/1/file']);
+    expect(report).toMatchObject({ objects: 1, removedFromTarget: 1, mismatched: [] });
+  });
+
+  it('refuses to run after the switch, when R2 is the store of the screens', () => {
+    expect(() => assertBeforeSwitch({ MADAR_FILE_STORE: 'r2' })).toThrow(/after the switch/);
+    expect(() => assertBeforeSwitch({ MADAR_FILE_STORE: ' R2 ' })).toThrow(/after the switch/);
+    expect(() => assertBeforeSwitch({})).not.toThrow();
+    expect(() => assertBeforeSwitch({ MADAR_FILE_STORE: 'supabase' })).not.toThrow();
   });
 
   it('copies again in the second pass the objects that changed or came during the first, and removes the ones that went', async () => {

@@ -1,12 +1,17 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AwsClient } from 'aws4fetch';
+import { storedMimeType } from '../../server/files/links';
 import { r2Endpoint, r2FilesPort, type R2Env } from '../../server/files/r2';
 
 /**
- * The move of the files from Supabase Storage to R2 (plan 2b, point 1): every object goes to R2 with the same key and type.
- * A full copy first, then a second pass for the objects that changed, came or went during the first. Last, a size check of each
+ * The move of the files from Supabase Storage to R2 (plan 2b, point 1): every object goes to R2 with the same key, and with
+ * the type that an upload gets (storedMimeType, so a download-only type lands as application/octet-stream).
+ * A full copy first, then a second pass for the objects that changed or came during the first. Then every key on R2 that the
+ * source no longer has goes, also one from an earlier run (a project delete between two runs). Last, a size check of each
  * object on R2. The source stays as it is. After a clean run the switch is one setting: MADAR_FILE_STORE=r2 plus the R2 secrets.
+ * The run refuses to start after the switch (MADAR_FILE_STORE=r2): R2 then holds files that Storage never had, and the
+ * clean-up step would remove them.
  *
  * Run (the screens keep working during the run, so run it once more right before the switch):
  *   set -a; . <secrets file>; set +a; npx tsx scripts/storage/move-to-r2.ts
@@ -27,6 +32,8 @@ export interface MoveTarget {
   write(key: string, body: ArrayBuffer, mimeType: string): Promise<void>;
   head(key: string): Promise<{ size: number } | null>;
   remove(keys: string[]): Promise<void>;
+  /** Every key in the target bucket. */
+  list(): Promise<string[]>;
 }
 
 export type MoveReport = {
@@ -35,7 +42,7 @@ export type MoveReport = {
   bytes: number;
   firstPass: number;
   secondPass: number;
-  /** Objects that the first pass copied and that went from the source before the second pass. */
+  /** Keys on the target that the source no longer has: from this run or from an earlier one. */
   removedFromTarget: number;
   /** Keys whose size on R2 differs from the source. The switch must wait until this is empty. */
   mismatched: string[];
@@ -47,7 +54,8 @@ async function copyAll(source: MoveSource, target: MoveTarget, objects: SourceOb
     const read = await source.read(object.key);
     if (!read) continue;
     // The type from the object list is the stored type. The download answer can differ: Storage serves HTML as text/plain.
-    await target.write(object.key, read.body, object.mimeType || read.mimeType);
+    // storedMimeType then gives it the same type as an upload, so R2 never keeps a type that a browser renders as a page.
+    await target.write(object.key, read.body, storedMimeType(object.mimeType || read.mimeType));
     copied.set(object.key, object);
     if (copied.size % 100 === 0) log(`copied ${copied.size} of ${objects.length}`);
   }
@@ -67,7 +75,7 @@ export async function moveToR2(source: MoveSource, target: MoveTarget, o: { log?
   });
   const second = await copyAll(source, target, changed, log);
   const present = new Set(now.map((object) => object.key));
-  const gone = [...first.keys()].filter((key) => !present.has(key));
+  const gone = (await target.list()).filter((key) => !present.has(key));
   if (gone.length > 0) await target.remove(gone);
   log(`second pass: ${second.size} objects, ${gone.length} removed`);
 
@@ -131,6 +139,14 @@ export function storageSource(env: { supabaseUrl: string; secretKey: string; buc
   };
 }
 
+/** The text of an XML element value: the five XML entities and the number forms. */
+function xmlText(value: string): string {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, name: string) => {
+    if (name[0] === '#') return String.fromCodePoint(name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : Number(name.slice(1)));
+    return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as Record<string, string>)[name.toLowerCase()];
+  });
+}
+
 /** The R2 bucket (or a test S3 server) as the target. */
 export function r2Target(env: R2Env): MoveTarget {
   const port = r2FilesPort(env);
@@ -144,7 +160,30 @@ export function r2Target(env: R2Env): MoveTarget {
     },
     head: (key) => port.head(key, { timeoutMs: 30_000 }),
     remove: (keys) => port.remove(keys),
+    async list() {
+      const keys: string[] = [];
+      let token: string | undefined;
+      do {
+        const url = new URL(`${endpoint}/${env.bucket}`);
+        url.searchParams.set('list-type', '2');
+        if (token) url.searchParams.set('continuation-token', token);
+        const response = await client.fetch(url.toString());
+        const body = await response.text();
+        if (!response.ok) throw new Error(`R2 list failed with ${response.status}.`);
+        for (const match of body.matchAll(/<Key>([^<]*)<\/Key>/g)) keys.push(xmlText(match[1]));
+        const next = /<NextContinuationToken>([^<]*)<\/NextContinuationToken>/.exec(body)?.[1];
+        token = /<IsTruncated>true<\/IsTruncated>/.test(body) && next ? xmlText(next) : undefined;
+      } while (token);
+      return keys;
+    },
   };
+}
+
+/** Stops the run after the switch: R2 is then the store of the screens, and the clean-up step would remove its new files. */
+export function assertBeforeSwitch(values: Record<string, string | undefined>): void {
+  if ((values.MADAR_FILE_STORE ?? '').trim().toLowerCase() === 'r2') {
+    throw new Error('MADAR_FILE_STORE is r2: the move runs only before the switch, never after the switch.');
+  }
 }
 
 function need(name: string): string {
@@ -155,6 +194,7 @@ function need(name: string): string {
 
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
+  assertBeforeSwitch(process.env);
   const source = storageSource({ supabaseUrl: need('SUPABASE_URL'), secretKey: need('MADAR_SECRET_KEY'), bucket: process.env.FILES_BUCKET || 'madar-files' });
   const target = r2Target({
     accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET'),
