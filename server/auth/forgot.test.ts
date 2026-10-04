@@ -97,6 +97,13 @@ describe('POST /auth/forgot', () => {
     expect(deps.mail.sent[0].text).toContain('افتحي الرابط');
   });
 
+  it('starts the reset mail with the Madar mark at the app address and the name, as the N2 mails do (wave 6, V)', async () => {
+    const { deps, post } = await setup();
+    expect((await post({ email: 'sara.al.qahtani@madar.test' })).status).toBe(200);
+    expect(deps.mail.sent[0].html).toContain('<img src="https://madar.test/icons/madar-192.png" width="28" height="28" alt=""');
+    expect(deps.mail.sent[0].html).toMatch(/>مدار<\/td>/);
+  });
+
   it(`answers 429 after ${FORGOT_EMAIL_PER_WINDOW} requests in one window for one email, known or not, and keeps no email in the table`, async () => {
     const { deps, mem, post } = await setup();
     for (const email of ['faisal.al.harbi@madar.test', 'nobody@madar.test']) {

@@ -229,7 +229,7 @@ export async function sendInvitation(
     to: user.email,
     ...renderSigninMail('invite', user.preferences.language, {
       name: user.name, link: signinLink(deps.config.appUrl, 'welcome', link.tokenHash, link.type, renew),
-    }, user.gender),
+    }, user.gender, { appUrl: deps.config.appUrl }),
     tag: 'invite',
     idempotencyKey: mailKey(payload.inviteId),
   };

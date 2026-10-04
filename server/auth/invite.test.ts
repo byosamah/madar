@@ -90,6 +90,13 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(mem.payloads.get(String(row.payload.inviteId))).toMatchObject({ linkType: 'invite', sentAt: deps.clock.now().toISOString(), mailId: 'mail_1' });
   });
 
+  it('starts the invitation with the Madar mark at the app address and the name, as the N2 mails do (wave 6, V)', async () => {
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+    await sendInvitation(payloadOf(inviteRow('usr_012')), deps, { store: mem.store });
+    expect(deps.mail.sent[0].html).toContain('<img src="https://madar.test/icons/madar-192.png" width="28" height="28" alt=""');
+    expect(deps.mail.sent[0].html).toMatch(/>Madar<\/td>/);
+  });
+
   it('puts an opaque random renew key in the Welcome link, and keeps only its sha256 (security fix 7)', async () => {
     const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
     const row = inviteRow('usr_012');

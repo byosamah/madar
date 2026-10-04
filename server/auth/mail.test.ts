@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { brandHeader, logoAddress } from '../mail/templates/layout';
 import { renderEmailChangedMail, renderSigninMail, signinLink } from './mail';
 
 const LINK = 'https://madar.test/welcome?token_hash=abc&type=invite';
@@ -48,6 +49,59 @@ describe('renderSigninMail: the invitation and reset mail in the person\'s langu
         const mail = renderSigninMail(kind, lang, { name: 'N', link: LINK }, 'female');
         expect(`${mail.subject}${mail.text}${mail.html}`).not.toContain(String.fromCharCode(0x2014));
       }
+    }
+  });
+});
+
+describe('the header of the invitation and the reset mail: the Madar mark of the N2 templates (wave 6, V)', () => {
+  const APP = 'https://madar.test';
+  const KINDS = ['invite', 'reset'] as const;
+  const LANGS = ['en', 'ar'] as const;
+  const headerOf = (html: string) => html.slice(html.indexOf('<body'), html.indexOf('<h1'));
+
+  it('shows the 192 px mark at the app address with the name, before the title, in both languages, as the N2 header does', () => {
+    for (const kind of KINDS) {
+      for (const lang of LANGS) {
+        const html = renderSigninMail(kind, lang, { name: 'N', link: LINK }, undefined, { appUrl: APP }).html;
+        // The same header as the N2 templates, from the same function, and the empty alt for the same reason: the name sits in the next cell.
+        expect(headerOf(html)).toContain(brandHeader(lang === 'ar' ? 'مدار' : 'Madar', lang === 'ar' ? 'rtl' : 'ltr', logoAddress(APP)));
+        expect(headerOf(html)).toContain('<img src="https://madar.test/icons/madar-192.png" width="28" height="28" alt=""');
+        expect(headerOf(html)).toMatch(lang === 'ar' ? />مدار<\/td>/ : />Madar<\/td>/);
+        expect(html).not.toMatch(/<svg|data:|\.svg/);
+      }
+    }
+  });
+
+  it('takes the app address with a path and a slash at the end too', () => {
+    const html = renderSigninMail('invite', 'en', { name: 'N', link: LINK }, undefined, { appUrl: 'https://office.example/madar/' }).html;
+    expect(html).toContain('src="https://office.example/madar/icons/madar-192.png"');
+  });
+
+  it('shows the name only when no app address is known', () => {
+    for (const kind of KINDS) {
+      for (const lang of LANGS) {
+        const html = renderSigninMail(kind, lang, { name: 'N', link: LINK }).html;
+        expect(html).not.toContain('<img');
+        expect(headerOf(html)).toContain(lang === 'ar' ? '>مدار</p>' : '>Madar</p>');
+      }
+    }
+  });
+
+  it('keeps the words, the link and the text part as they were', () => {
+    for (const kind of KINDS) {
+      for (const lang of LANGS) {
+        const plain = renderSigninMail(kind, lang, { name: 'N', link: LINK }, 'female');
+        const marked = renderSigninMail(kind, lang, { name: 'N', link: LINK }, 'female', { appUrl: APP });
+        expect([marked.subject, marked.text]).toEqual([plain.subject, plain.text]);
+        expect(marked.html.slice(marked.html.indexOf('<h1'))).toBe(plain.html.slice(plain.html.indexOf('<h1')));
+      }
+    }
+  });
+
+  it('matches the snapshot of each mail, in English and in Arabic for a woman', () => {
+    for (const kind of KINDS) {
+      expect(renderSigninMail(kind, 'en', { name: 'Sara', link: LINK }, undefined, { appUrl: APP })).toMatchSnapshot(`${kind} en`);
+      expect(renderSigninMail(kind, 'ar', { name: 'سارة', link: LINK }, 'female', { appUrl: APP })).toMatchSnapshot(`${kind} ar`);
     }
   });
 });

@@ -64,6 +64,14 @@ function header(logo: string, brand: string, dir: 'ltr' | 'rtl'): string {
   ].join('');
 }
 
+/**
+ * The top of every Madar mail: the mark and the name, or the name only when no picture address is known (logo undefined). The
+ * sign-in mails of server/auth/mail.ts use it too, so every mail has the same header.
+ */
+export function brandHeader(brand: string, dir: 'ltr' | 'rtl', logo?: string): string {
+  return logo ? header(logo, brand, dir) : `<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">${escapeHtml(brand)}</p>`;
+}
+
 export function renderPage(page: MailPage, brand: string): RenderedMail {
   const link = checkLink(page.button.link);
   const dir = page.lang === 'ar' ? 'rtl' : 'ltr';
@@ -76,7 +84,7 @@ export function renderPage(page: MailPage, brand: string): RenderedMail {
     `<title>${escapeHtml(page.subject)}</title></head>`,
     `<body style="margin:0;padding:0;background:#ffffff;color:${INK};">`,
     `<div dir="${dir}" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:${FONT};font-size:16px;line-height:1.6;text-align:${align};">`,
-    page.logo ? header(page.logo, brand, dir) : p(brand, 'font-weight:600;font-size:18px;margin-bottom:24px;'),
+    brandHeader(brand, dir, page.logo),
     ...(page.greeting ? [p(page.greeting)] : []),
     ...page.paragraphs.map((text) => p(text)),
     `<p style="margin:24px 0;"><a href="${escapeHtml(link)}" style="display:inline-block;padding:12px 20px;background:${INK};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(page.button.label)}</a></p>`,
