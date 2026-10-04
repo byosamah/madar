@@ -44,6 +44,15 @@ const INLINE_SAFE = new Set([
   'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm',
 ]);
 
+/**
+ * True for an inline-safe picture: the only types a small picture (thumb) may have (task F2). files.uploadStart and the preflight
+ * check it, so the link of a thumb may always follow the screen's choice of inline or attachment.
+ */
+export function isPictureType(type: string): boolean {
+  const base = baseMimeType(type);
+  return base.startsWith('image/') && INLINE_SAFE.has(base);
+}
+
 /** True for every type outside the inline safe list: a link to it is always a download, so an uploaded page never runs a script. */
 export function downloadOnly(type: string): boolean {
   return !INLINE_SAFE.has(baseMimeType(type));

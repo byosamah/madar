@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertObjectKey, isStagingKey, objectKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey } from './keys';
+import { assertObjectKey, isObjectKey, isStagingKey, objectKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
 
 const KEY_FORM = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
@@ -45,5 +45,17 @@ describe('the object keys (plan 5.2)', () => {
   it('check a whole key before a store uses it', () => {
     expect(() => assertObjectKey('prj-001/fil-001/1/file')).not.toThrow();
     for (const bad of ['', '/a', 'a/', 'a//b', '../a', 'a/../b', 'A/b', 'a b', 'a?b', 'a#b', 'a.b']) expect(() => assertObjectKey(bad)).toThrow(/not a valid object key/);
+  });
+
+  it('name the final key of an upload by the project and the upload intent, because the file id comes later, inside the lock (task F2)', () => {
+    expect(uploadKey('prj_001', 'upl_9f3a')).toBe('prj-001/upl-9f3a/file');
+    expect(uploadThumbKey('prj_001', 'upl_9f3a')).toBe('prj-001/upl-9f3a/thumb');
+    expect(isStagingKey(uploadKey('prj_001', 'upl_9f3a'))).toBe(false);
+    expect(() => uploadKey('prj_001', '../x')).toThrow(/not a valid id/);
+  });
+
+  it('tell a key of the key form from any other value, without a throw', () => {
+    expect(isObjectKey('prj-001/upl-9f3a/file')).toBe(true);
+    for (const bad of ['', 'blob_abc', 'a//b', '../a', 'A/b']) expect(isObjectKey(bad)).toBe(false);
   });
 });

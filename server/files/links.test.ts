@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FILE_STORE_LIMITS } from '../core/ports';
 import { depsFrom, serverEnvFrom } from '../core/deps';
-import { DOWNLOAD_LINK_SECONDS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, downloadOnly, effectiveDisposition, intentLifeSeconds, safeFileName, storedMimeType } from './links';
+import { linkType } from '../../src/api/handlers/serverFakes';
+import { DOWNLOAD_LINK_SECONDS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, downloadOnly, effectiveDisposition, intentLifeSeconds, isPictureType, safeFileName, storedMimeType } from './links';
 import { r2FilesPort } from './r2';
 import { supabaseStorageFilesPort } from './supabaseStorage';
 
@@ -43,6 +44,26 @@ describe('the type rule (proof.md, Z0a item 6)', () => {
     }
     expect(storedMimeType('application/pdf')).toBe('application/pdf');
     expect(storedMimeType('Image/PNG; q=1')).toBe('image/png');
+  });
+});
+
+describe('the pictures and the fake links (task F2)', () => {
+  it('takes only an inline-safe picture type as a small picture (thumb), so its link may always show inline', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'IMAGE/WEBP; q=1', 'image/avif']) expect(isPictureType(type), type).toBe(true);
+    for (const type of ['image/svg+xml', 'image/x-unknown', 'application/pdf', 'text/plain', 'application/octet-stream', 'image/png, text/html', '']) expect(isPictureType(type), type).toBe(false);
+  });
+
+  it('gives the fake files.link the same rule as the real stores: an inline link only for the safe list, every other link is plain data', () => {
+    const types = [
+      'application/pdf', 'image/png', 'Image/PNG; q=1', 'text/plain', 'video/mp4', 'audio/mpeg', 'text/html', 'TEXT/HTML; charset=utf-8', 'image/svg+xml',
+      'application/xhtml+xml', 'text/xml', 'text/xsl', 'application/atom+xml', 'x', '', 'image/x-unknown', 'application/zip', 'image/png;x=1, text/html',
+    ];
+    for (const type of types) {
+      for (const disposition of ['inline', 'attachment'] as const) {
+        const real = effectiveDisposition(disposition, type) === 'inline' ? storedMimeType(type) : 'application/octet-stream';
+        expect(linkType(type, disposition), `${type} ${disposition}`).toBe(real);
+      }
+    }
   });
 });
 
