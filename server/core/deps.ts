@@ -5,6 +5,8 @@ import '../auth/effects';
 import '../files/effects';
 // Registers the agent effect (agents.revokeAll) in every entry, also one that runs only jobs (plan 4.12).
 import '../mcp/revokeAll';
+// Registers the mail effects (mail.notice, mail.quotaWarning) and the notice producers in every entry (task N2.2).
+import '../mail/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';
@@ -25,6 +27,8 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   DATABASE_READ_URL      the pool for reads (default DATABASE_URL)
  *   DATABASE_CA            the root certificate (required unless every database host, write and read, is a local name)
  *   SUPABASE_URL           the project URL (Supabase injects it)
+ *   AUTH_ISSUER            the issuer of the browser tokens (default SUPABASE_URL/auth/v1), where the function sees another
+ *                          address for Auth than the browser does (server/auth/verify.ts)
  *   SUPABASE_SECRET_KEYS   the secret keys as JSON (Supabase injects it), or MADAR_SECRET_KEY on a host that does not
  *   APP_URL                the screens (required); API_URL and MCP_URL default to the function URLs of SUPABASE_URL
  *   MAIL_FROM              the sender (required); MAIL_DRIVER resend (default, needs RESEND_API_KEY) or outbox
