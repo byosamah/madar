@@ -1,15 +1,17 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { serverContracts } from '../../src/api/contract/server';
 import { ApiError } from '../../src/api/errors';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import type { Db, Query } from '../core/ports';
 import type { ServerCallCtx } from '../core/types';
+import { registerEffect } from '../core/effects';
 import { snapshotOf } from '../data/officeCache';
+import { memoryMailDb } from '../mail/memoryMailDb';
 import { SENT_TODAY_SQL } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import { FAILED_EFFECTS_SQL, JOBS_LAST_RUN_SQL, METERS_SQL, SIGNALS_SQL, STORAGE_PRESENT_SQL } from '../usage/meters';
-import { usageGet } from './usage';
+import { RETRY_EFFECT_SQL, usageGet, usageRetryEffect } from './usage';
 
 /** usage.get (plan 4.11, 5.8; task M1), with the meter statements answered in memory. server/it/usage.it.test.ts runs the SQL. */
 
@@ -76,5 +78,69 @@ describe('usage.get (plan 5.8)', () => {
     expect(refused).toBeInstanceOf(ApiError);
     expect((refused as ApiError).code).toBe('forbidden');
     expect(db.modes).toEqual([]);
+  });
+});
+
+describe('usage.retryEffect (plan 4.12: one Retry for each failed effect)', () => {
+  const undo: (() => void)[] = [];
+  afterEach(() => {
+    while (undo.length > 0) undo.pop()!();
+  });
+
+  /** An outbox in memory with one row of each state, and the reset statement of the Retry. */
+  function outbox(o: { fails?: boolean } = {}) {
+    const ran: Record<string, unknown>[] = [];
+    undo.push(registerEffect('test.retry', async (payload) => {
+      ran.push(payload);
+      if (o.fails) throw new Error('Still away.');
+    }));
+    const mem = memoryMailDb((text, values) => {
+      if (text !== RETRY_EFFECT_SQL) return undefined;
+      const row = mem.outbox.find((r) => String(r.id) === values[0] && !r.done && r.error !== null);
+      if (!row) return [];
+      Object.assign(row, { attempts: 0, error: null, claimed: false });
+      return [{ id: row.id }];
+    });
+    mem.outbox.push(
+      { id: 1, kind: 'test.retry', payload: { n: 1 }, done: false, claimed: true, attempts: 5, error: 'Resend is away.' },
+      { id: 2, kind: 'test.retry', payload: { n: 2 }, done: true, claimed: true, attempts: 1, error: null },
+    );
+    return { mem, ran };
+  }
+
+  it('sets the attempts of a failed row back to zero and runs it again after the commit', async () => {
+    const { mem, ran } = outbox();
+    const { output, changed } = await usageRetryEffect({ id: '1' }, ctxOf('usr_001', mem.db));
+    expect([output, changed]).toEqual([{ retried: true }, false]);
+    expect(ran).toEqual([{ n: 1 }]);
+    expect(mem.outbox[0]).toMatchObject({ done: true, attempts: 1, error: null });
+    expect(mem.statements.indexOf(RETRY_EFFECT_SQL)).toBeLessThan(mem.statements.findIndex((t) => t.startsWith('update outbox set claimed_until')));
+  });
+
+  it('keeps the new error when the effect fails again, so the line shows again with one try', async () => {
+    const { mem } = outbox({ fails: true });
+    expect((await usageRetryEffect({ id: '1' }, ctxOf('usr_001', mem.db))).output).toEqual({ retried: true });
+    expect(mem.outbox[0]).toMatchObject({ done: false, attempts: 1, error: 'Still away.' });
+  });
+
+  it('changes nothing for a row that is done or not there, and says not_found', async () => {
+    const { mem, ran } = outbox();
+    for (const id of ['2', '99']) {
+      const refused = await usageRetryEffect({ id }, ctxOf('usr_001', mem.db)).then(() => null, (error: unknown) => error);
+      expect((refused as ApiError).code).toBe('not_found');
+    }
+    expect(mem.outbox[1]).toMatchObject({ done: true, attempts: 1 });
+    expect(ran).toEqual([]);
+  });
+
+  it('refuses a Member, Management and every agent with forbidden, before any statement', async () => {
+    for (const userId of ['usr_002', 'usr_010', 'usr_009']) {
+      const { mem } = outbox();
+      const refused = await usageRetryEffect({ id: '1' }, ctxOf(userId, mem.db)).then(() => null, (error: unknown) => error);
+      expect((refused as ApiError).code).toBe('forbidden');
+      expect(mem.statements).toEqual([]);
+      expect(mem.outbox[0]).toMatchObject({ attempts: 5, error: 'Resend is away.' });
+      undo.pop()!();
+    }
   });
 });

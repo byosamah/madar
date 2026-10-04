@@ -111,6 +111,25 @@ describe('suite 13: the usage meters on the local database', () => {
     expect(deps.mail.sent).toHaveLength(admins.length * 2);
   });
 
+  it('usage.retryEffect runs a row that used its 5 attempts again for the Admin, refuses a Member, and leaves a done row alone', async () => {
+    const payload = JSON.stringify({ userId: 'usr_001', meter: 'calls', percent: 85, month: '2026-10' });
+    const [failed] = await office.sql<{ id: string }>("insert into outbox (kind, payload, attempts, error, claimed_until) values ($1, $2, 5, 'Resend is away.', now() + interval '1 minute') returning id::text as id", [LIMIT_WARNING_EFFECT, payload]);
+    const [done] = await office.sql<{ id: string }>("insert into outbox (kind, payload, attempts, done_at) values ($1, $2, 1, now()) returning id::text as id", [LIMIT_WARNING_EFFECT, payload]);
+    const retry = (userId: string, id: string) => runCall(deps, { principal: { userId }, name: 'usage.retryEffect', input: { id }, batch: newBatch() });
+    const rowOf = async (id: string) => (await office.sql<{ attempts: number; error: string | null; done: boolean }>('select attempts, error, done_at is not null as done from outbox where id = $1', [id]))[0];
+
+    expect(await retry('usr_002', failed.id)).toMatchObject({ ok: false, error: { code: 'forbidden' } });
+    expect(await rowOf(failed.id)).toEqual({ attempts: 5, error: 'Resend is away.', done: false });
+
+    expect(await retry('usr_001', failed.id)).toMatchObject({ ok: true, output: { retried: true }, changed: false });
+    expect(await rowOf(failed.id)).toEqual({ attempts: 1, error: null, done: true });
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['limit-warning-2026-10-calls-usr_001']);
+
+    const before = await rowOf(done.id);
+    expect(await retry('usr_001', done.id)).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    expect(await rowOf(done.id)).toEqual(before);
+  });
+
   it('marks a meter once when two runs overlap', async () => {
     await office.sql("insert into usage_month (month, bytes_read) values ('2026-10', $1)", [Math.round(4.5 * GB)]);
     const other = office.isolate();
