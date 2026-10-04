@@ -17,6 +17,14 @@ describe('the redirect host of an AI app (knownHosts)', () => {
     }
     for (const uri of ['https://evil.example/callback', 'https://claude.ai.evil.example/cb', 'https://evil-claude.ai/cb', 'not a url']) expect(needsWarning(uri), uri).toBe(true);
   });
+
+  it('counts a known host only under its own scheme: https for the web apps, cursor: for Cursor (review of G4)', () => {
+    for (const uri of ['cursor://anysphere.cursor-retrieval/oauth/callback', 'https://claude.com/cb', 'https://insiders.vscode.dev/redirect']) expect(needsWarning(uri), uri).toBe(false);
+    for (const uri of ['foo://claude.ai/cb', 'evil://claude.ai/cb', 'intent://claude.ai/cb', 'mailto://claude.ai/x', 'evil://anysphere.cursor-retrieval/cb', 'https://anysphere.cursor-retrieval/cb', 'cursor://claude.ai/cb', 'evil://127.0.0.1/cb']) {
+      expect(safeRedirect(uri), uri).toBe(true);
+      expect(needsWarning(uri), uri).toBe(true);
+    }
+  });
 });
 
 describe('the return address of an AI app (safeRedirect, security review of G4)', () => {
@@ -78,6 +86,15 @@ describe('httpOAuthPort: the OAuth calls of Supabase Auth and the Madar approval
     await port.revokeGrant('c1');
     expect(sent(0)).toMatchObject({ url: 'https://ref.supabase.co/auth/v1/user/oauth/grants', method: 'GET' });
     expect(sent(1)).toMatchObject({ url: 'https://ref.supabase.co/auth/v1/user/oauth/grants?client_id=c1', method: 'DELETE' });
+  });
+
+  it('takes a revoke of a grant that Auth no longer has (404 oauth_consent_not_found) as done, and keeps every other refusal (review of G4)', async () => {
+    answers.push(Response.json({ code: 404, error_code: 'oauth_consent_not_found', msg: 'No active grant found for this client' }, { status: 404 }));
+    await expect(port.revokeGrant('c-gone')).resolves.toBeUndefined();
+    answers.push(Response.json({ code: 404, error_code: 'not_found', msg: 'Not found' }, { status: 404 }));
+    await expect(port.revokeGrant('c-1')).rejects.toMatchObject({ status: 404, code: 'not_found' });
+    answers.push(Response.json({ code: 500, msg: 'down' }, { status: 500 }));
+    await expect(port.revokeGrant('c-1')).rejects.toMatchObject({ status: 500 });
   });
 
   it('asks for a sign-in when there is no session', async () => {

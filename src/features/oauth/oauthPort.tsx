@@ -122,7 +122,14 @@ export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; 
       })).filter((grant) => grant.clientId !== '');
     },
     async revokeGrant(clientId) {
-      await auth('DELETE', `/user/oauth/grants?client_id=${encodeURIComponent(clientId)}`);
+      try {
+        await auth('DELETE', `/user/oauth/grants?client_id=${encodeURIComponent(clientId)}`);
+      } catch (error) {
+        // Auth has no active grant of this client (UserRevokeOAuthGrant of Supabase Auth): an earlier revoke whose answer was
+        // lost, another tab, or an agent token that revoked it (proof.md G1). The access is gone, so the revoke is done.
+        if (error instanceof OAuthFailure && error.status === 404 && error.code === 'oauth_consent_not_found') return;
+        throw error;
+      }
     },
   };
 }
