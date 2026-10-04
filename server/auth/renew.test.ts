@@ -158,6 +158,16 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
     expect(db.mem.outbox[0].payload).toHaveProperty('renewedAt');
   });
 
+  it('a person who opened the link but saved no password gets a working link: a recovery link, because Auth confirmed the email', async () => {
+    const { auth, deps, invite, post, users } = await setup();
+    const first = await invite('usr_002');
+    auth.open(users.usr_002.auth!);
+    expect((await post({ key: keyIn(first) })).status).toBe(200);
+    expect(deps.mail.sent).toHaveLength(2);
+    expect(deps.mail.sent[1]).toMatchObject({ to: 'faisal.al.harbi@madar.test', tag: 'invite' });
+    expect(auth.links.map((link) => link.type)).toEqual(['invite', 'recovery']);
+  });
+
   it('gives the same answer and sends nothing for an unknown key, a used key, a removed person, an accepted person, a key that a newer invitation replaced, and a key whose mail did not go out', async () => {
     type Case = (o: Awaited<ReturnType<typeof setup>>) => Promise<string>;
     const cases: Record<string, Case> = {

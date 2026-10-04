@@ -29,7 +29,8 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   rate_limits hold only a sha256.
  * - A good key: the mail of the key went out (security fix 8); the row of the key (auth.invite or auth.email) is not renewed
  *   yet; no later row of the person made a newer link (an Admin resend, an email change, an earlier renewal); the person is a
- *   human who is on and has a sign-in link; and Auth says the person did not accept yet. Then, after the answer, one
+ *   human who is on and has a sign-in link; and the person did not accept yet (no confirmed email with a saved password, as
+ *   users.invites). Then, after the answer, one
  *   transaction under the office lock:
  *   1. The row of the key is read again. A second press at the same moment finds the mark of the first (below) and stops here,
  *      so it counts nothing.
@@ -87,7 +88,9 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
   if (user.kind !== 'human' || !user.active) return 'none';
   if ((await deps.db.statement('read', NEWER_LINK_SQL, [row.user_id, row.invite_id])).length > 0) return 'none';
   const signIn = await authAdminOf(deps.authAdmin).getUser(person.auth);
-  if (!signIn || signIn.confirmed) return 'none';
+  // Accepted means a confirmed email AND a saved password (PASSWORD_SET_MARK), as users.invites says. A person who opened the
+  // link and left still gets a new link: a recovery link, because Auth refuses an invite link for a confirmed email.
+  if (!signIn || (signIn.confirmed && signIn.passwordSet)) return 'none';
 
   const now = deps.clock.now();
   const next = renewRow(user.id);

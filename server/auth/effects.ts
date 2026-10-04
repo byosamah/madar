@@ -208,13 +208,14 @@ async function syncEmail(payload: Rec, deps: Deps, store: AuthStore, user: User,
   const owed: Rec = { ...payload };
   if (now.email !== email) {
     if (!inviteId) throw new Error('The auth.email payload has no invite id.');
-    // Note what this row owes before Auth changes: a retry then finds the email equal and still sends it.
-    const owes = now.confirmed ? { notifyOld: now.email } : { owesInvite: true };
+    // Note what this row owes before Auth changes: a retry then finds the email equal and still sends it. A person who opened
+    // the link but saved no password (no PASSWORD_SET_MARK) gets the notice at the old email and a working link at the new one.
+    const owes = now.confirmed ? { notifyOld: now.email, ...(now.passwordSet ? {} : { owesInvite: true }) } : { owesInvite: true };
     await store.note(inviteId, owes);
     Object.assign(owed, owes);
     await admin.updateEmail(authUserId, user.email, { confirm: now.confirmed });
   }
-  if (owed.owesInvite === true && !now.confirmed) await sendInvitation(owed, deps, { store });
+  if (owed.owesInvite === true && !(now.confirmed && now.passwordSet)) await sendInvitation(owed, deps, { store });
   const owesNotice = owed.noticeQueued === undefined && owed.noticeSentAt === undefined;
   if (typeof owed.notifyOld === 'string' && owed.notifyOld !== email && owesNotice && inviteId) {
     const by = typeof owed.byId === 'string' ? (await store.person(owed.byId))?.user.name : undefined;

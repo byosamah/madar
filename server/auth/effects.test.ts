@@ -202,6 +202,18 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(mem.log.map((row) => [row.kind, row.user_id, row.ref, row.resend_id])).toEqual([['signin', 'usr_012', 'email-changed:inv_a', 'mail_1']]);
   });
 
+  it('auth.email for a person who opened the link but saved no password: the notice at the old email and a working link at the new one', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const opened = await linkedPerson(auth, person(), false);
+    auth.open(opened.authUserId!);
+    const store = memoryPeople([{ ...opened, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_o', byId: 'usr_001' }, deps, store);
+    expect(auth.users.get(opened.authUserId!)!.email).toBe('sara.new@madar.test');
+    // Auth refuses an invite link for a confirmed email, so the new address gets a recovery link, which Welcome accepts.
+    expect(auth.links.map((link) => [link.type, link.email])).toEqual([['invite', 'sara@madar.test'], ['recovery', 'sara.new@madar.test']]);
+    expect(deps.mail.sent.map((m) => [m.to, m.tag])).toEqual([['sara.new@madar.test', 'invite'], ['sara@madar.test', 'notice']]);
+  });
+
   it('writes the notice in the person\'s language, with the feminine Arabic forms for a woman', async () => {
     const { deps, auth, mem } = setup(person(), true);
     const ar = { ...defaultPreferences(), language: 'ar' as const };
