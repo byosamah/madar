@@ -36,6 +36,7 @@ function fail(error: unknown, link = false): never {
 export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: string; fetch?: typeof fetch }): Promise<AuthPort> {
   const send = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
   const forgotUrl = `${o.apiUrl.replace(/\/+$/, '')}/auth/forgot?forceFunctionRegion=eu-central-1`;
+  const renewUrl = `${o.apiUrl.replace(/\/+$/, '')}/auth/renew-invite?forceFunctionRegion=eu-central-1`;
   const listeners = new Set<SessionListener>();
   const { data } = await supabase.auth.getSession();
   let status: AuthStatus = data.session ? 'signed_in' : 'signed_out';
@@ -133,6 +134,16 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
         throw new AuthFailure(body?.error?.details?.reason === 'too_many_resets_email' ? 'too_many_resets' : 'too_many');
       }
       if (!response.ok) throw new AuthFailure('failed', `The reset request failed with ${response.status}.`);
+    },
+    async renewInvite(key) {
+      let response: Response;
+      try {
+        response = await send(renewUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+      } catch (error) {
+        throw new AuthFailure('offline', error instanceof Error ? error.message : 'The request did not reach Madar.');
+      }
+      if (response.status === 429) throw new AuthFailure('too_many');
+      if (!response.ok) throw new AuthFailure('failed', `The request for a new invitation link failed with ${response.status}.`);
     },
   };
 }

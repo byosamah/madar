@@ -27,6 +27,54 @@ export function LinkEnded({ text, to, label }: { text: string; to: string; label
 }
 
 /**
+ * An invitation link that is out of date, with the renew key of its mail (security fix 7; server/auth/renew.ts): one short
+ * sentence and one main button. The button sends only the key, so the new link goes to the address that Madar holds, never to
+ * a typed one. The server gives the same answer for every key, so the screen then says the same calm words in every case.
+ * Both states keep the quiet way back to Sign in: Auth also says a used link is out of date, so a person who already accepted
+ * and opens the old mail again lands here, and the server sends that person nothing.
+ */
+function RenewLink({ renewKey }: { renewKey: string }) {
+  const { t } = useTranslation();
+  const auth = useAuth();
+  const [sent, setSent] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      await auth.renewInvite(renewKey);
+      setSent(true);
+    } catch (failure) {
+      setError(failureText(failure, t));
+    }
+    setPending(false);
+  };
+
+  const back = <Link to="/sign-in" className={QUIET_LINK}>{t('auth.backToSignIn')}</Link>;
+  if (sent) {
+    return (
+      <>
+        <div role="status" className="flex flex-col gap-1">
+          <p className="text-headline text-ink">{t('auth.welcome.renew.sentTitle')}</p>
+          <p className="text-body text-ink-2">{t('auth.welcome.renew.sentBody')}</p>
+        </div>
+        {back}
+      </>
+    );
+  }
+  return (
+    <>
+      <p role="alert" className="text-body text-ink">{t('auth.welcome.renew.body')}</p>
+      <FormError text={error} />
+      <Button variant="primary" className="w-full" disabled={pending} onClick={() => void send()}>{t('auth.welcome.renew.send')}</Button>
+      {back}
+    </>
+  );
+}
+
+/**
  * The invitation link (client map 7.1), of type invite or recovery. The token is used only when the person presses the button, so a mail scanner that opens
  * the link does not use it. Then the person sees their name and email and sets a password.
  */
@@ -38,6 +86,8 @@ export function WelcomeScreen() {
   const [params] = useSearchParams();
   const tokenHash = params.get('token_hash');
   const type = params.get('type');
+  // The renew key of an invitation mail (security fix 7). An older mail, or a link sent as a reset link, has none.
+  const renewKey = params.get('renew');
   const linkType = type && WELCOME_LINKS.includes(type) ? (type as LinkType) : null;
   const [step, setStep] = useState<Step>(tokenHash && linkType ? 'open' : 'ended');
   const [password, setPassword] = useState('');
@@ -81,7 +131,9 @@ export function WelcomeScreen() {
 
   return (
     <AuthPage title={t('auth.welcome.title')}>
-      {step === 'ended' && <LinkEnded text={t('auth.welcome.ended')} to="/sign-in" label={t('auth.backToSignIn')} />}
+      {step === 'ended' && (renewKey
+        ? <RenewLink renewKey={renewKey} />
+        : <LinkEnded text={t('auth.welcome.ended')} to="/sign-in" label={t('auth.backToSignIn')} />)}
       {step === 'open' && (
         <>
           <p className="text-body text-ink-2">{t('auth.welcome.body')}</p>

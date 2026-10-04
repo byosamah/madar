@@ -63,6 +63,11 @@ describe('agents.revokeAll', () => {
     expect(REVOKE_ALL_SQL).not.toMatch(/\busers\b/);
     await expect(runRevokeAll({}, { ...fakeDeps(), db })).rejects.toThrow(/user id/);
   });
+  it('also removes every approval that the person recorded in Madar, in the same statement, so an approval of an app that never called Madar links nothing after the turn-off (track H)', () => {
+    expect(REVOKE_ALL_SQL).toMatch(/update agent_links set revoked_at = now\(\) where revoked_at is null and \(owner_user_id = \$1 or agent_user_id = \$1\)/);
+    expect(REVOKE_ALL_SQL).toMatch(/delete from agent_approvals where owner_user_id = \$1/);
+  });
+
   it('is registered by server/core/deps alone, so an entry that runs only jobs runs it (plan 4.12)', async () => {
     vi.resetModules();
     await import('../core/deps');

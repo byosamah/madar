@@ -48,9 +48,13 @@ export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** The link of a sign-in mail. The screen sends "type" to verifyOtp, so it must be the type of the link that Auth made. */
-export function signinLink(appUrl: string, screen: 'welcome' | 'reset', tokenHash: string, type: 'invite' | 'recovery'): string {
-  const query = new URLSearchParams({ token_hash: tokenHash, type });
+/**
+ * The link of a sign-in mail. The screen sends "type" to verifyOtp, so it must be the type of the link that Auth made.
+ * renew: the renew key of an invitation (server/auth/invite.ts, security fix 7), which the Welcome screen sends when the link
+ * is out of date.
+ */
+export function signinLink(appUrl: string, screen: 'welcome' | 'reset', tokenHash: string, type: 'invite' | 'recovery', renew?: string): string {
+  const query = new URLSearchParams({ token_hash: tokenHash, type, ...(renew ? { renew } : {}) });
   return `${appUrl.replace(/\/+$/, '')}/${screen}?${query.toString()}`;
 }
 
