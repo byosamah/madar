@@ -40,6 +40,29 @@ const BEGIN = { read: 'begin isolation level repeatable read, read only', write:
 /** The hosts that may go without TLS: the Mac and the names inside the local Docker network (the same list as server/core/deps.ts). */
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1', 'pooler', 'db', 'host.docker.internal']);
 
+/** A message that the database sends beside an answer: RAISE NOTICE, RAISE WARNING. */
+export type DbNotice = { severity?: string; code?: string; message: string };
+
+/** The client behind each query of a transaction, so onNotice can listen on its connection. */
+const clientOfQuery = new WeakMap<Query, PoolClient>();
+
+/**
+ * Calls listener with each notice that the database sends on the connection of q, until the returned stop runs. A notice of a
+ * statement arrives before the answer of that statement, so a stop after the await of the statement misses none of its notices.
+ * Undefined for a query that is not of pgDb (the memory data of the unit tests). The Realtime sender uses it: realtime.send
+ * turns a failed send into a WARNING and never fails its statement (proof.md, Z0a item 5).
+ */
+export function onNotice(q: Query, listener: (notice: DbNotice) => void): (() => void) | undefined {
+  const client = clientOfQuery.get(q);
+  if (!client) return undefined;
+  const handler = (notice: { severity?: string; code?: string; message?: string }) =>
+    listener({ severity: notice.severity, code: notice.code, message: notice.message ?? '' });
+  client.on('notice', handler);
+  return () => {
+    client.off('notice', handler);
+  };
+}
+
 /** The transaction of the current async context. One for the whole module, so a transaction on another pgDb counts as nested too. */
 type Open = { client: PoolClient; q: Query; savepoints: number };
 const current = new AsyncLocalStorage<Open>();
@@ -141,12 +164,14 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
 
   /** The query of one transaction. It refuses unsafe statements, and every use after the transaction has ended. */
   function queryOf(client: PoolClient, open: { ended: boolean }): Query {
-    return async <R = Record<string, unknown>>(text: string, values?: unknown[]): Promise<R[]> => {
+    const q: Query = async <R = Record<string, unknown>>(text: string, values?: unknown[]): Promise<R[]> => {
       if (open.ended) throw new Error('This query belongs to a transaction that has ended.');
       refuseUnsafeStatement(text);
       const result = await client.query(text, values as unknown[] | undefined);
       return result.rows as R[];
     };
+    clientOfQuery.set(q, client);
+    return q;
   }
 
   async function run<T>(mode: 'read' | 'write', work: (q: Query) => Promise<T>): Promise<T> {
