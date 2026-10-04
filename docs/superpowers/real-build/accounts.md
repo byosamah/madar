@@ -8,6 +8,8 @@ Secrets live only in `~/dev/madar/.env.local` (git ignores it) and in each host'
 | Supabase | madar-test (test copy) | `qdgwpnesxppnqsaabqzd` | Central EU (Frankfurt), confirmed 2026-10-03 |
 | GitHub | byosamah/madar | private repository | |
 | Cloudflare | O.khalil@mazj.org's Account | `d76d34779c63849f5acdf3d6af3751cd` | R2 not turned on yet (2026-10-03) |
+| Cloudflare Pages | madar | https://madar-46r.pages.dev (production, branch main); https://preview.madar-46r.pages.dev (test, branch preview) | made 2026-10-04 on the classic Pages path (`wrangler pages project create --force` once); madar.pages.dev belongs to someone else |
+| Resend | the owner's account | sender `Madar <madar@vado.sa>` (production); verified domains vado.sa, mazj.sa (ap-northeast-1), mazj.org (eu-west-1) | the owner chose vado.sa on 2026-10-04 |
 
 The Supabase command line on this Mac is signed in to another account (Halulu). Madar commands use the Madar account token from `.env.local` (`SUPABASE_ACCESS_TOKEN`), so the Halulu sign-in stays as it is.
 

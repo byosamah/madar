@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LOCK_KEY } from '../server/core/deps';
-import { cloudTarget, OFFICE_LOCK_KEY, parseArgs, secretKeyFromApi } from './first-admin';
+import { cloudTarget, OFFICE_LOCK_KEY, parseArgs, secretKeyFromApi, stdinAnswers } from './first-admin';
 
 /** The parts of scripts/first-admin.ts that need no stack (task P3). scripts/first-admin.test.ts runs it on the local stack. */
 
@@ -23,6 +23,16 @@ describe('first-admin: the arguments', () => {
   it('takes --schema only with --env local (the test harness)', () => {
     expect(parseArgs(['--env', 'local', '--schema', 'madar_p3_1', ...BASE.slice(2)])).toMatchObject({ env: 'local', schema: 'madar_p3_1' });
     expect(() => parseArgs([...BASE, '--schema', 'x'])).toThrow(/--schema/);
+  });
+});
+
+describe('first-admin: --password-stdin', () => {
+  // A readline question pauses stdin, so a second read waited on a paused stream and Node left with exit 0 and no Admin
+  // (production, 2026-10-04). One read of stdin now gives both answers.
+  it('takes the typed word and the password from one read in production, and only the password elsewhere', () => {
+    expect(stdinAnswers('production\npw-12345678\n', true)).toEqual({ word: 'production', password: 'pw-12345678' });
+    expect(stdinAnswers('pw-12345678\r\n', false)).toEqual({ word: undefined, password: 'pw-12345678' });
+    expect(stdinAnswers('production\n', true)).toEqual({ word: 'production', password: '' });
   });
 });
 

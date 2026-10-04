@@ -4,7 +4,9 @@ The project management system of Osama's architecture office in Al Khobar (about
 "Madar" is a temporary name until a trademark check. Two products live in this repo:
 - **The prototype**: the full app in the browser over a fake API (zod contract, IndexedDB). Published as a private
   artifact (https://claude.ai/artifact/QRj6nZQKmu6tBcCRMxtjrY).
-- **The real build**: the same screens over a TypeScript server on Supabase. Built in waves since 2026-10-03.
+- **The real build**: the same screens over a TypeScript server on Supabase. Built in waves since 2026-10-03. Live since
+  2026-10-04: production https://madar-46r.pages.dev (empty office, first Admin o.khalil@mazj.org), test copy
+  https://preview.madar-46r.pages.dev (the sample office, `secrets/test-accounts.env`). Record: proof.md section "Deploy".
 
 Live status and open items: `TASKS.md` (keep it current: tick what is done, add what you find).
 
@@ -40,7 +42,9 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
   `oprkvdjudjxxhvodkzgs`. Before the deploy phase, change only madar-test, never production.
 - The Supabase CLI login on this Mac belongs to another account (Halulu). Always pass `SUPABASE_ACCESS_TOKEN` from
   `.env.local` and `--project-ref`. Never log the CLI out.
-- Cloudflare: wrangler signed in as o.khalil@mazj.org (R2 is not on). GitHub: private `byosamah/madar`, backups repo
+- Cloudflare: wrangler signed in as o.khalil@mazj.org (R2 is not on). Pages project `madar` = `madar-46r.pages.dev`
+  (`madar.pages.dev` belongs to someone else). Mail sender: `Madar <madar@vado.sa>` (verified in Resend).
+  GitHub: private `byosamah/madar`, backups repo
   `byosamah/madar-backups`. A push that touches `.github/workflows` needs `gh auth refresh -h github.com -s workflow`,
   which the owner runs in his own terminal.
 
@@ -264,9 +268,13 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
 - Deploy scripts `scripts/deploy/`: `all.sh <env>` runs `db.sh`, `config.sh`, `secrets.ts`, `functions.sh`,
   `pages.sh`. Production deploys only from the Mac and asks for the typed word `production`. `config.sh` refuses until
   `supabase/config.toml` has `[remotes.test]` and `[remotes.production]` (they wait for the domain).
-- `scripts/seed-test-office.ts` seeds madar-test only. The Z steps (plan Track Z): Z0a and Z0b done; Z1 settings,
-  Z2 R2, Z3 Resend domain, Z4 Pages and domain, Z5 backups, Z6 seed and the deploy suite, Z7 security review,
-  Z8 the first Admin and a 2-week pilot.
+- `scripts/seed-test-office.ts` seeds madar-test only (load `.env.local` and `secrets/test-accounts.env`). The Z steps
+  (plan Track Z): Z0a, Z0b done; Z1 mostly done (open: legacy keys and HS256 revoke by the owner, "require current
+  password"); Z2 R2 waits; Z3 sender vado.sa chosen; Z4 Pages done (own domain later); Z5 backups wait; Z6 seed done;
+  Z7 security review; Z8 first Admin done, then a 2-week pilot.
+- Server secrets of each project: `secrets/<env>.env` (git-ignored). `all.sh production` asks for the typed word; the
+  auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat.
+- wrangler 4.147+ sends `pages project create` to the new Workers path; the project exists now, so `pages deploy` works.
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,

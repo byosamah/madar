@@ -191,10 +191,19 @@ function localTarget(): { supabaseUrl: string; secretKey: string; dbUrl: string 
   return { supabaseUrl, secretKey: values.SECRET_KEY ?? values.SERVICE_ROLE_KEY ?? '', dbUrl };
 }
 
-async function readStdinLine(): Promise<string> {
+async function readStdin(): Promise<string> {
   let text = '';
   for await (const chunk of process.stdin) text += String(chunk);
-  return text.split(/\r?\n/)[0] ?? '';
+  return text;
+}
+
+/**
+ * The answers of --password-stdin from ONE read of stdin: in production the typed word, then the password; elsewhere only the
+ * password. A readline question before a second read paused stdin, so Node left with exit 0 and no Admin (2026-10-04).
+ */
+export function stdinAnswers(text: string, production: boolean): { word: string | undefined; password: string } {
+  const lines = text.split(/\r?\n/);
+  return production ? { word: lines[0] ?? '', password: lines[1] ?? '' } : { word: undefined, password: lines[0] ?? '' };
 }
 
 /** Reads a line from the terminal with no echo. */
@@ -238,6 +247,8 @@ async function main(): Promise<void> {
   loadSecretsFile(args.env);
   let supabaseUrl: string;
   let secretKey: string;
+  /** The answers of --password-stdin, when production already read them. */
+  let piped: { word: string | undefined; password: string } | undefined;
   let client: pg.Client;
   if (args.env === 'local') {
     const local = localTarget();
@@ -252,16 +263,24 @@ async function main(): Promise<void> {
     if (!secretKey) throw new Error('MADAR_SECRET_KEY and SUPABASE_ACCESS_TOKEN are missing: load ~/dev/madar/.env.local first.');
     client = new pg.Client(cloud.pg);
     if (args.env === 'production') {
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      const word = await rl.question(`This makes the first Admin of the PRODUCTION office (${cloud.ref}). Type production to go on: `);
-      rl.close();
+      const prompt = `This makes the first Admin of the PRODUCTION office (${cloud.ref}). Type production to go on: `;
+      let word: string;
+      if (args.passwordStdin) {
+        process.stdout.write(prompt);
+        piped = stdinAnswers(await readStdin(), true);
+        word = piped.word ?? '';
+      } else {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        word = await rl.question(prompt);
+        rl.close();
+      }
       if (word.trim() !== 'production') throw new FirstAdminRefused('Stopped: the typed word was not production.');
     }
   }
 
   let password: string;
   if (args.passwordStdin) {
-    password = await readStdinLine();
+    password = (piped ?? stdinAnswers(await readStdin(), false)).password;
   } else {
     password = await askHidden(`Password for ${args.email}: `);
     if ((await askHidden('The same password again: ')) !== password) throw new FirstAdminRefused('The two passwords are not the same.');
