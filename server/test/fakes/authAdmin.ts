@@ -42,5 +42,13 @@ export function fakeAuthAdmin(): FakeAuthAdmin {
     async updateEmail(authUserId, email) {
       existing(authUserId).email = email.toLowerCase();
     },
+    // A user with a password counts as confirmed; server/auth/fakeAuth.ts adds acceptance for the P suites.
+    async listUsers() {
+      return [...users.entries()].map(([authUserId, user]) => ({ authUserId, email: user.email, confirmed: user.password !== null }));
+    },
+    async getUser(authUserId) {
+      const user = users.get(authUserId);
+      return user ? { authUserId, email: user.email, confirmed: user.password !== null } : null;
+    },
   };
 }

@@ -1,4 +1,6 @@
 import { authAdminPort } from '../auth/admin';
+// Registers the Auth effects (auth.invite, auth.ban, auth.unban, auth.email) in every entry (plan 4.12).
+import '../auth/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';

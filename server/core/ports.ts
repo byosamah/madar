@@ -63,11 +63,17 @@ export interface SignalPort {
   send(q: Query, signals: ChangeSignal[]): Promise<void>;
 }
 
+export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };
 export interface AuthAdminPort {
   generateLink(type: 'invite' | 'recovery', email: string): Promise<{ authUserId: string; tokenHash: string }>;
   createUser(email: string, password: string): Promise<{ authUserId: string }>;
   setBanned(authUserId: string, banned: boolean): Promise<void>;
-  updateEmail(authUserId: string, email: string): Promise<void>;
+  /** confirm: true only for a person who already accepted (server/auth/admin.ts). */
+  updateEmail(authUserId: string, email: string, o?: { confirm?: boolean }): Promise<void>;
+  /** Every Auth user, and whether the email is confirmed (users.invites). */
+  listUsers(): Promise<AuthUserInfo[]>;
+  /** One Auth user, or null (the auth.email effect). */
+  getUser(authUserId: string): Promise<AuthUserInfo | null>;
 }
 
 /** The usage meter. The default does nothing (server/usage/meter.ts) until track M fills it. */
