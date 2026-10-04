@@ -46,7 +46,7 @@ describe('renderSigninMail: the invitation and reset mail in the person\'s langu
     for (const kind of ['invite', 'reset'] as const) {
       for (const lang of ['en', 'ar'] as const) {
         const mail = renderSigninMail(kind, lang, { name: 'N', link: LINK }, 'female');
-        expect(`${mail.subject}${mail.text}${mail.html}`).not.toContain('—');
+        expect(`${mail.subject}${mail.text}${mail.html}`).not.toContain(String.fromCharCode(0x2014));
       }
     }
   });
