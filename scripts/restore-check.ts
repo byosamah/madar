@@ -10,11 +10,15 @@
 //
 // Steps: decrypt with the key, check the archive entries, unpack into a private temporary folder, start a Postgres container
 // (the Supabase image, on 127.0.0.1 only), restore the roles, the schema and the data of the Madar schemas, compare the row counts
-// with the manifest and the dump, check that UPDATE on events fails for madar_server and for the owner, run dashboard.get through
-// runCall as madar_server for an active Admin, and look up 5 random file keys in the file copy with their sizes.
-// It prints one JSON report with no client data, removes the container and the plain dump, and exits 1 when a step fails.
+// with the manifest and the dump, check that madar_server has no right to change events and that UPDATE on events fails for it
+// and for the owner, run dashboard.get through runCall as madar_server for an active Admin, and look up 5 random file keys in
+// the file copy with their sizes. The file step samples only versions older than the backup minus 8 days, because the weekly
+// copy (Friday) cannot hold newer uploads yet.
+// It prints one JSON report with no client data (a failed restore shows only the psql ERROR line, never the row), removes the
+// container and the plain dump, also on Ctrl-C, and exits 1 when a step fails. At the start it removes what a stopped run left.
+import { spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,8 +35,10 @@ import {
   parseCheckArgs,
   parseManifest,
   pickKeys,
+  restoreErrorLine,
   rolesSql,
   rolesToMake,
+  staleNames,
 } from './backup/check';
 import { run } from './backup/run';
 
@@ -56,6 +62,30 @@ export type CheckOptions = {
 
 /** Stops the check at a step that the later steps need. */
 class Stop extends Error {}
+
+/** The weekly file copy runs every 7 days; one more day covers a late run. A version this much older than the backup is in it. */
+const COPY_LAG_MS = 8 * 24 * 3600_000;
+
+/** What a running check must remove when the process gets SIGINT or SIGTERM: Node skips the finally blocks then. */
+const cleanups = new Set<() => void>();
+
+const isAlive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/** Removes the private folders and the containers of earlier checks whose process is gone (a stopped run, a crash). */
+function removeLeftovers(docker: string): void {
+  for (const name of staleNames(readdirSync(tmpdir()), 'madar-restore-', isAlive)) rmSync(join(tmpdir(), name), { recursive: true, force: true });
+  const listed = spawnSync(docker, ['ps', '-a', '--filter', 'name=madar-restore-check-', '--format', '{{.Names}}'], { encoding: 'utf8', timeout: 30_000 });
+  if (listed.status !== 0) return;
+  const names = listed.stdout.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+  for (const name of staleNames(names, 'madar-restore-check-', isAlive)) spawnSync(docker, ['rm', '-f', '-v', name], { stdio: 'ignore', timeout: 60_000 });
+}
 
 /** The office lock key of the server; a read does not take it, but the config needs one. */
 const LOCK_KEY = 7_310_001;
@@ -118,12 +148,18 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
   const rclone = o.rclone ?? 'rclone';
   const docker = o.docker ?? 'docker';
   const random = o.random ?? ((below: number) => randomInt(below));
-  const work = mkdtempSync(join(tmpdir(), 'madar-restore-'));
+  removeLeftovers(docker);
+  const work = mkdtempSync(join(tmpdir(), `madar-restore-${process.pid}-`));
   const container = `madar-restore-check-${process.pid}-${randomBytes(3).toString('hex')}`;
   const adminPassword = randomBytes(18).toString('hex');
   const serverPassword = randomBytes(18).toString('hex');
   let started = false;
   let admin: pg.Client | undefined;
+  const cleanNow = () => {
+    if (started) spawnSync(docker, ['rm', '-f', '-v', container], { stdio: 'ignore', timeout: 60_000 });
+    rmSync(work, { recursive: true, force: true });
+  };
+  cleanups.add(cleanNow);
 
   const attempt = async (step: string, job: () => Promise<string>, how: { stop?: boolean } = {}) => {
     try {
@@ -157,9 +193,12 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
     const schema = readFileSync(join(folder, 'schema.sql'), 'utf8');
     const data = readFileSync(join(folder, 'data.sql'), 'utf8');
     let manifest: Record<string, number> = {};
+    let madeAt = new Date(Number.NaN);
     let dump: Record<string, number> = {};
     await attempt('manifest', async () => {
-      manifest = parseManifest(readFileSync(join(folder, 'manifest.json'), 'utf8')).tables;
+      const parsed = parseManifest(readFileSync(join(folder, 'manifest.json'), 'utf8'));
+      manifest = parsed.tables;
+      madeAt = new Date(parsed.madeAt);
       const madar = new Set<string>(BACKUP_SCHEMAS);
       dump = Object.fromEntries(Object.entries(dumpRowCounts(data)).filter(([name]) => madar.has(name.split('.')[0])));
       return `${Object.keys(manifest).length} tables in the manifest.`;
@@ -168,8 +207,9 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
     // 3. A Postgres container on 127.0.0.1 only, then the restore in one transaction as the superuser of the image.
     let port = 0;
     await attempt('container', async () => {
-      await run('docker run', docker, ['run', '-d', '--name', container, '-e', `POSTGRES_PASSWORD=${adminPassword}`, '-p', '127.0.0.1::5432', o.image], { redact: [adminPassword] });
+      // Before the run, so a stop during docker run still removes the container.
       started = true;
+      await run('docker run', docker, ['run', '-d', '--name', container, '-e', `POSTGRES_PASSWORD=${adminPassword}`, '-p', '127.0.0.1::5432', o.image], { redact: [adminPassword] });
       port = Number((await run('docker port', docker, ['port', container, '5432/tcp'])).stdout.trim().split('\n')[0].split(':').pop());
       const deadline = Date.now() + 90_000;
       for (;;) {
@@ -199,7 +239,7 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
         'exec', '-e', `PGPASSWORD=${adminPassword}`, container,
         'psql', '-X', '-q', '-h', '127.0.0.1', '-U', 'supabase_admin', '-d', 'postgres', '--single-transaction', '-v', 'ON_ERROR_STOP=1',
         '-f', '/restore/roles-first.sql', '-f', '/restore/roles.sql', '-f', '/restore/schema.sql', '-f', '/restore/data-madar.sql',
-      ], { redact: [adminPassword] });
+      ], { redact: [adminPassword], errorText: restoreErrorLine });
       return 'The roles, the schema and the data of the Madar schemas restored in one transaction.';
     }, { stop: true });
 
@@ -212,14 +252,19 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
         const exists = (await sql<{ t: string | null }>('select to_regclass($1)::text as t', [quote(name)]))[0].t;
         if (exists !== null) restored[name] = Number((await sql<{ n: string }>(`select count(*) as n from ${quote(name)}`))[0].n);
       }
-      const problems = compareCounts({ manifest, dump, restored });
-      if (problems.length > 0) throw new Error(problems.join(' '));
+      const { problems, notes } = compareCounts({ manifest, dump, restored });
+      if (problems.length > 0) throw new Error([...problems, ...notes].join(' '));
       const rows = Object.values(restored).reduce((sum, n) => sum + n, 0);
-      return `${Object.keys(restored).length} tables and ${rows} rows match the manifest.`;
+      return [`${Object.keys(restored).length} tables and ${rows} rows match the manifest.`, ...notes].join(' ');
     });
 
-    // 5. The History only grows: madar_server has no UPDATE right on events, and the trigger refuses even the owner.
+    // 5. The History only grows: madar_server has no right to change events, and the trigger refuses even the owner. The
+    // rights come first: the trigger answers with the same code 42501, and it cannot stop TRUNCATE.
     await attempt('events guard', async () => {
+      const rights = await sql<{ name: string }>(
+        "select name from unnest(array['UPDATE', 'DELETE', 'TRUNCATE']) as name where has_table_privilege('madar_server', 'public.events', name)",
+      );
+      if (rights.length > 0) throw new Error(`madar_server has the right ${rights.map((r) => r.name).join(', ')} on events.`);
       const refusal = async (asServer: boolean) => {
         await admin!.query('begin');
         try {
@@ -264,27 +309,42 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
       return 'dashboard.get ran on the restored data for an active Admin.';
     });
 
-    // 7. Five random file keys of the restored office are in the file copy, with the same size.
+    // 7. Five random file keys of the restored office are in the file copy, with the same size. Only versions that the last weekly
+    // copy can hold: older than the backup minus 8 days.
     await attempt('files', async () => {
       if (o.filesRemote === null) return 'Skipped on purpose (--skip-files).';
-      const versions = await sql<{ key: string; size: string }>(
-        "select v->>'blobKey' as key, v->>'size' as size from public.files f, jsonb_array_elements(f.doc->'versions') v where v->>'blobKey' is not null",
+      if (Number.isNaN(madeAt.getTime())) throw new Error('The manifest has no valid time, so the check cannot tell which files the copy holds.');
+      // The remote must answer first, so a wrong remote name or a missing rclone never looks like lost files.
+      const remote = o.filesRemote.replace(/\/$/, '');
+      const remoteRoot = remote.includes(':') ? remote.slice(0, remote.indexOf(':') + 1) : remote;
+      try {
+        await run('rclone lsf', rclone, ['lsf', '--max-depth', '1', remoteRoot]);
+      } catch (error) {
+        throw new Error(`The file copy cannot be read: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      const cutoff = new Date(madeAt.getTime() - COPY_LAG_MS);
+      const versions = await sql<{ key: string; size: string; newer: boolean | null }>(
+        "select v->>'blobKey' as key, v->>'size' as size, (v->>'uploadedAt')::timestamptz >= $1 as newer from public.files f, jsonb_array_elements(f.doc->'versions') v where v->>'blobKey' is not null",
+        [cutoff.toISOString()],
       );
+      const newer = versions.filter((v) => v.newer === true).length;
+      const skipped = newer === 0 ? '' : ` ${newer} newer file versions were skipped: the weekly copy cannot hold them yet.`;
       if (versions.length === 0) return 'The restored office has no file yet.';
-      const sizes = new Map(versions.map((v) => [v.key, Number(v.size)]));
+      const sizes = new Map(versions.filter((v) => v.newer !== true).map((v) => [v.key, Number(v.size)]));
+      if (sizes.size === 0) return `No file version is old enough for the weekly copy yet.${skipped}`;
       const picked = pickKeys([...sizes.keys()], o.fileSample ?? 5, random);
       const problems: string[] = [];
       for (const key of picked) {
-        const path = `${o.filesRemote.replace(/\/$/, '')}/${key}`;
         try {
-          const found = JSON.parse((await run('rclone lsjson', rclone, ['lsjson', '--stat', path])).stdout) as { Size?: number };
+          const found = JSON.parse((await run('rclone lsjson', rclone, ['lsjson', '--stat', `${remote}/${key}`])).stdout) as { Size?: number };
           if (found.Size !== sizes.get(key)) problems.push(`${key}: ${found.Size ?? 'no'} bytes in the copy, ${sizes.get(key)} in the office.`);
-        } catch {
-          problems.push(`${key}: not in the copy.`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          problems.push(/not found|doesn't exist|no such file/i.test(message) ? `${key}: not in the copy.` : `${key}: rclone could not read it (${message}).`);
         }
       }
       if (problems.length > 0) throw new Error(problems.join(' '));
-      return `${picked.length} of ${sizes.size} file keys are in the copy with their sizes.`;
+      return `${picked.length} of ${sizes.size} file keys are in the copy with their sizes.${skipped}`;
     });
   } catch (error) {
     if (!(error instanceof Stop)) fail('check', error instanceof Error ? error.message : String(error));
@@ -292,12 +352,27 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
     await admin?.end().catch(() => undefined);
     if (started) await run('docker rm', docker, ['rm', '-f', '-v', container]).catch(() => undefined);
     rmSync(work, { recursive: true, force: true });
+    cleanups.delete(cleanNow);
   }
   return { ok: steps.length > 0 && steps.every((s) => s.ok), steps };
 }
 
 async function main(argv: string[]): Promise<void> {
   const args = parseCheckArgs(argv);
+  // Ctrl-C (130) or SIGTERM (143): remove the container and the plain dump before the process ends.
+  for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
+    process.once(signal, () => {
+      for (const clean of cleanups) {
+        try {
+          clean();
+        } catch {
+          // Remove what can be removed; the next run removes the rest.
+        }
+      }
+      console.error('Stopped. The container and the plain dump are removed.');
+      process.exit(code);
+    });
+  }
   const report = await restoreCheck(args);
   console.log(JSON.stringify(report, null, 2));
   if (!report.ok) process.exit(1);
