@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { storedMimeType } from '../files/links';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { localClient } from './migrate';
 
@@ -47,9 +49,29 @@ afterAll(async () => {
 });
 
 describe('the bucket madar-files on the local stack', () => {
-  it('is private with a 50 MB file limit (migration 20261004000500)', async () => {
+  it('is private with a 50 MB file limit', async () => {
     const { rows } = await admin.query('select public, file_size_limit from storage.buckets where id = $1', [BUCKET]);
     expect(rows).toEqual([{ public: false, file_size_limit: '52428800' }]);
+  });
+
+  it('the SQL of migration 20261004000500 makes a private 50 MB bucket, runs twice, and turns a public bucket private', async () => {
+    // supabase/config.toml also makes madar-files on the local stack, so the check runs the SQL on a bucket id of its own.
+    const sql = readFileSync(join(ROOT, 'supabase', 'migrations', '20261004000500_platform_files_bucket.sql'), 'utf8').replaceAll("'madar-files'", "'madar-files-mcheck'");
+    expect(sql).toContain("'madar-files-mcheck'");
+    const bucket = () => admin.query('select public, file_size_limit from storage.buckets where id = $1', ['madar-files-mcheck']).then((r) => r.rows);
+    await admin.query('begin');
+    try {
+      await admin.query(sql);
+      await admin.query(sql);
+      expect(await bucket()).toEqual([{ public: false, file_size_limit: '52428800' }]);
+      // A bucket made public on the dashboard, with its own size limit.
+      await admin.query("update storage.buckets set public = true, file_size_limit = 1000 where id = 'madar-files-mcheck'");
+      await admin.query(sql);
+      expect(await bucket()).toEqual([{ public: false, file_size_limit: '1000' }]);
+    } finally {
+      await admin.query('rollback');
+    }
+    expect(await bucket()).toEqual([]);
   });
 });
 
@@ -132,13 +154,45 @@ describe('the Supabase Storage store on the local stack', () => {
     for (const [key, type, name] of [[`up/${RUN}-4/file`, 'TEXT/HTML; charset=utf-8', 'page.html'], [`${RUN}/fil-5/1/file`, 'image/svg+xml', 'pic.svg']] as const) {
       if (key.endsWith('fil-5/1/file')) {
         const up = await port.presignPut(key, { mimeType: type });
-        expect((await put(up.url, type, '<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>')).status).toBe(200);
+        expect((await put(up.url, up.headers['Content-Type'], '<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>')).status).toBe(200);
       }
       const link = await port.presignGet(key, { disposition: 'inline', filename: name, mimeType: type });
       expect(new URL(link.url).searchParams.get('download')).toBe(name);
       const response = await fetch(link.url);
       await response.arrayBuffer();
       expect(response.headers.get('content-disposition'), type).toMatch(/^attachment;/);
+    }
+  });
+
+  it('serves every download-only type as application/octet-stream, also when someone removes download= from the link', async () => {
+    // Storage does not sign download=: the token covers only the bucket and the key. The stored type is the guard.
+    const types = ['text/html', 'TEXT/HTML; charset=utf-8', 'application/xhtml+xml', 'text/xml', 'text/xsl', 'image/svg+xml', 'image/png;x=1, text/html', 'x'];
+    for (const [i, type] of types.entries()) {
+      const key = `${RUN}/fil-6/${i + 1}/file`;
+      const up = await port.presignPut(key, { mimeType: type });
+      expect(up.headers, type).toEqual({ 'Content-Type': 'application/octet-stream' });
+      const body = '<html xmlns="http://www.w3.org/1999/xhtml"><script>document.title = "ran"</script></html>';
+      expect((await put(up.url, up.headers['Content-Type'], body)).status, type).toBe(200);
+      // The preflight of files.upload compares these two.
+      expect((await port.head(key))?.mimeType, type).toBe(storedMimeType(type));
+      const link = new URL((await port.presignGet(key, { disposition: 'inline', filename: 'page.xhtml', mimeType: type })).url);
+      expect(link.searchParams.has('download'), type).toBe(true);
+      link.searchParams.delete('download');
+      const response = await fetch(link);
+      expect(await response.text(), type).toBe(body);
+      expect(response.status, type).toBe(200);
+      expect(response.headers.get('content-type')?.split(';')[0].trim(), type).toBe('application/octet-stream');
+    }
+  });
+
+  it('keeps the type that a PUT sends, so the preflight sees a PUT that differs from the intent', async () => {
+    // The upload link does not fix the type (proof.md, Z0a item 6): an intent for image/png can receive XHTML or a comma type.
+    for (const [i, sent] of ['application/xhtml+xml', 'image/png;x=1, text/html'].entries()) {
+      const key = `up/${RUN}-7${i}/file`;
+      const up = await port.presignPut(key, { mimeType: 'image/png' });
+      expect((await put(up.url, sent, '<p>x</p>')).status, sent).toBe(200);
+      const seen = (await port.head(key))?.mimeType;
+      expect(seen, sent).not.toBe(storedMimeType('image/png'));
     }
   });
 

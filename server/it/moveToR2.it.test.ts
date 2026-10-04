@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { moveToR2, r2Target, storageSource } from '../../scripts/storage/move-to-r2';
+import { storedMimeType } from '../files/links';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { minioClient, minioEnv, minioUrl, startMinio, stopMinio } from './minio';
 
@@ -63,7 +64,7 @@ afterAll(async () => {
 });
 
 describe('move-to-r2 from the local Storage to MinIO', () => {
-  it('copies every object with the same key, bytes and type, and finds no difference', async () => {
+  it('copies every object with the same key, bytes and stored type, and finds no difference', async () => {
     const report = await moveToR2(storageSource({ supabaseUrl: SUPABASE_URL, secretKey: secret, bucket: SOURCE_BUCKET }), r2Target(minioEnv(TARGET_BUCKET)), { log: () => {} });
     expect(report).toEqual({ objects: 4, bytes: OBJECTS.reduce((n, [, , body]) => n + body.length, 0), firstPass: 4, secondPass: 0, removedFromTarget: 0, mismatched: [] });
     const client = minioClient();
@@ -71,12 +72,24 @@ describe('move-to-r2 from the local Storage to MinIO', () => {
       const response = await client.fetch(minioUrl(TARGET_BUCKET, key));
       expect(response.status, key).toBe(200);
       expect(await response.text(), key).toBe(body);
-      expect(response.headers.get('content-type')?.split(';')[0], key).toBe(type);
+      expect(response.headers.get('content-type')?.split(';')[0], key).toBe(storedMimeType(type));
     }
   });
 
   it('a second run copies nothing new and still finds no difference', async () => {
     const report = await moveToR2(storageSource({ supabaseUrl: SUPABASE_URL, secretKey: secret, bucket: SOURCE_BUCKET }), r2Target(minioEnv(TARGET_BUCKET)), { log: () => {} });
     expect(report).toMatchObject({ objects: 4, firstPass: 4, secondPass: 0, mismatched: [] });
+  });
+
+  it('a run after a delete on the source removes that object from the target', async () => {
+    const [key] = OBJECTS[1];
+    const removed = await storage(`/object/${SOURCE_BUCKET}`, { method: 'DELETE', body: JSON.stringify({ prefixes: [key] }) });
+    expect(removed.status, await removed.text()).toBe(200);
+    const report = await moveToR2(storageSource({ supabaseUrl: SUPABASE_URL, secretKey: secret, bucket: SOURCE_BUCKET }), r2Target(minioEnv(TARGET_BUCKET)), { log: () => {} });
+    expect(report).toMatchObject({ objects: 3, removedFromTarget: 1, mismatched: [] });
+    const gone = await minioClient().fetch(minioUrl(TARGET_BUCKET, key));
+    await gone.arrayBuffer();
+    expect(gone.status).toBe(404);
+    expect((await r2Target(minioEnv(TARGET_BUCKET)).list()).sort()).toEqual(OBJECTS.map(([k]) => k).filter((k) => k !== key).sort());
   });
 });

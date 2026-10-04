@@ -73,11 +73,21 @@ describe('the R2 store on MinIO', () => {
 
   it('serves an HTML file as attachment even when the screen asks for inline', async () => {
     const link = await port().presignPut('prj-001/fil-002/1/file', { mimeType: 'text/html' });
-    expect(await put(link.url, 'text/html', '<script>document.title = "ran"</script>')).toBe(200);
+    expect(link.headers).toEqual({ 'Content-Type': 'application/octet-stream' });
+    // The signed type is the stored type: a PUT that sends text/html fails.
+    expect(await put(link.url, 'text/html', '<script>document.title = "ran"</script>')).toBe(403);
+    expect(await put(link.url, link.headers['Content-Type'], '<script>document.title = "ran"</script>')).toBe(200);
     const download = await port().presignGet('prj-001/fil-002/1/file', { disposition: 'inline', filename: 'page.html', mimeType: 'TEXT/HTML; charset=utf-8' });
     const response = await fetch(download.url);
     await response.arrayBuffer();
     expect(response.headers.get('content-disposition')).toMatch(/^attachment; /);
+    expect(response.headers.get('content-type')).toBe('application/octet-stream');
+    // response-content-disposition is inside the signature: a link without it fails.
+    const stripped = new URL(download.url);
+    stripped.searchParams.delete('response-content-disposition');
+    const refused = await fetch(stripped);
+    await refused.arrayBuffer();
+    expect(refused.status).toBe(403);
   });
 
   it('removes objects, takes a missing key as removed, and head then returns null', async () => {
