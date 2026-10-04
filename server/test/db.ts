@@ -1,6 +1,6 @@
 import pg from 'pg';
 import type { PoolClient } from 'pg';
-import { afterAll, afterEach, beforeEach, inject, type TestContext } from 'vitest';
+import { afterAll, afterEach, beforeEach, inject, vi, type TestContext } from 'vitest';
 import type { State } from '../../src/api/store';
 import { setNow } from '../../src/lib/dates';
 import { useDbTestApi } from '../../src/test/factories';
@@ -119,6 +119,48 @@ export async function writeDown(q: Query, before: State, after: State): Promise<
   return true;
 }
 
+/**
+ * The test gate. A test that times out leaves its calls running; after the ROLLBACK they would run with no test transaction, so
+ * they would commit for real and break the next test. So each backend binds to the test that first uses it, a call after that
+ * test ended fails at once, and the end of a test waits for the database step that still runs before the ROLLBACK.
+ */
+export type Gate = {
+  start(testId: string): void;
+  end(): Promise<void>;
+  /** A wrapper for the database steps of one backend. */
+  binding(): <T>(work: () => Promise<T>) => Promise<T>;
+};
+
+export function createGate(): Gate {
+  let current: string | undefined;
+  const inflight = new Set<Promise<unknown>>();
+  return {
+    start(testId) {
+      current = testId;
+    },
+    async end() {
+      current = undefined;
+      while (inflight.size > 0) await Promise.allSettled([...inflight]);
+    },
+    binding() {
+      let bound: string | undefined;
+      return async <T>(work: () => Promise<T>): Promise<T> => {
+        if (current === undefined || (bound !== undefined && bound !== current)) {
+          throw new Error('db mode: this call came after its test ended, so it does not touch the database.');
+        }
+        bound ??= current;
+        const running = work();
+        inflight.add(running);
+        try {
+          return await running;
+        } finally {
+          inflight.delete(running);
+        }
+      };
+    },
+  };
+}
+
 /** One worker's connection, transaction and backend. */
 class Worker {
   readonly schema = workerSchema(process.env.VITEST_POOL_ID);
@@ -162,6 +204,31 @@ class Worker {
       },
       get clock() {
         return deps().clock;
+      },
+    };
+  }
+
+  /** A backend for one mirror, behind the test gate. The owner mark stays one for the worker. */
+  backendFor(gate: Gate): MirrorBackend {
+    const bind = gate.binding();
+    const base = this.backend;
+    return {
+      get owner() {
+        return base.owner;
+      },
+      set owner(value) {
+        base.owner = value;
+      },
+      begin: () => bind(() => base.begin()),
+      writeDown: (before, after) => bind(() => base.writeDown(before, after)),
+      run: (req, calls) => bind(() => base.run(req, calls)),
+      readBack: () => bind(() => base.readBack()),
+      checksum: () => bind(() => base.checksum()),
+      get signals() {
+        return base.signals;
+      },
+      get clock() {
+        return base.clock;
       },
     };
   }
@@ -267,15 +334,21 @@ function fullName(task: TestContext['task']): string {
 }
 
 if (process.env.MADAR_DB === '1') {
+  // A call on the database takes far longer than in memory, and the sample-office tests make many. D2 brings the run under the
+  // gate of TM 4.1 (120 s, 25 ms a call); this limit only keeps a slow machine from failing a test that is right.
+  vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
   const worker = new Worker();
-  useDbTestApi((calls, state) => createDbApi(calls, state, worker.backend));
+  const gate = createGate();
+  useDbTestApi((calls, state) => createDbApi(calls, state, worker.backendFor(gate)));
 
   beforeEach((ctx) => {
     const reason = skipReason(ctx.task.file.filepath, fullName(ctx.task));
     if (reason) ctx.skip(`db mode: ${reason}`);
+    gate.start(ctx.task.id);
   });
 
   afterEach(async () => {
+    await gate.end();
     await worker.rollback();
   });
 

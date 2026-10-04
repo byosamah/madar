@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Event } from '../../src/api/contract/entities';
 import { makeTask, makeWorld, STAMP } from '../../src/test/factories';
-import { downChanges } from './db';
+import { createGate, downChanges } from './db';
 
 const event = (id: string, over: Partial<Event> = {}): Event => ({
   id, seq: 1, projectId: 'prj_001', actorId: 'usr_001', actorKind: 'human', actingForId: 'usr_001', correlationId: 'cor_a', verb: 'created',
@@ -50,5 +50,40 @@ describe('the write-down of the test edits (TM 3.3, step 2)', () => {
     const added = structuredClone(image);
     added.events.evt_002 = event('evt_002', { seq: 2 });
     expect(downChanges(image, added).tables[0]).toMatchObject({ touchesOld: false });
+  });
+});
+
+describe('the test gate of the db harness', () => {
+  it('lets the calls of the running test through, and refuses a call that comes after its test ended', async () => {
+    const gate = createGate();
+    gate.start('t1');
+    const bind = gate.binding();
+    expect(await bind(async () => 'ok')).toBe('ok');
+    await gate.end();
+    await expect(bind(async () => 'late')).rejects.toThrow(/db mode: this call came after its test ended/);
+    gate.start('t2');
+    // A backend made in one test never serves the next one.
+    await expect(bind(async () => 'late')).rejects.toThrow(/after its test ended/);
+    expect(await gate.binding()(async () => 'fresh')).toBe('fresh');
+  });
+
+  it('binds a backend made outside a test to the first test that uses it', async () => {
+    const gate = createGate();
+    const bind = gate.binding();
+    gate.start('t1');
+    expect(await bind(async () => 1)).toBe(1);
+  });
+
+  it('waits at the end of a test for the database step that still runs', async () => {
+    const gate = createGate();
+    gate.start('t1');
+    const steps: string[] = [];
+    let finish!: () => void;
+    const running = gate.binding()(() => new Promise<void>((resolve) => { finish = resolve; }).then(() => { steps.push('step'); }));
+    const ended = gate.end().then(() => steps.push('end'));
+    await Promise.resolve();
+    finish();
+    await Promise.all([running, ended]);
+    expect(steps).toEqual(['step', 'end']);
   });
 });

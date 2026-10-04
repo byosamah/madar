@@ -98,11 +98,15 @@ export default async function setup(project: TestProject): Promise<() => Promise
   project.provide('madarDb', { url: prepared.url, baselines: prepared.baselines });
   return async () => {
     const { client } = prepared;
+    const left: string[] = [];
     try {
-      for (const schema of prepared.schemas) await dropSchema(client, schema);
       if (prepared.granted) await client.query('revoke madar_server from current_user');
+      // A connection that a broken test left open may hold a lock on its schema: wait a little, then name the schema.
+      await client.query("set lock_timeout = '10s'");
+      for (const schema of prepared.schemas) await dropSchema(client, schema).catch(() => left.push(schema));
     } finally {
       await client.end();
     }
+    if (left.length > 0) throw new Error(`db mode: the teardown could not drop ${left.join(', ')}. The next run drops them again.`);
   };
 }
