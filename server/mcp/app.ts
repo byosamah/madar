@@ -13,9 +13,9 @@ import { readBody } from '../http/limits';
 import { ensureAgentUser } from './agentUser';
 import { agentPrincipalResolver, agentTokenCheckerOf, authIssuerOf, type AgentPrincipal, type AgentToken, type AgentTokenChecker } from './auth';
 import { INSTRUCTIONS } from './docs';
-import { forwardOnce, HOP_HEADER } from './forward';
+import { forwardOnce, HOP_HEADER, hopKeyFrom, hopTagOk } from './forward';
 import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
-import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonState } from './reasons';
+import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
 import { mcpTools, type ToolDef } from './tools';
 
@@ -29,11 +29,13 @@ import { mcpTools, type ToolDef } from './tools';
  *   4. Only POST reaches the MCP endpoint: GET and DELETE get 405 (no sessions, no GET stream).
  *   5. The token (auth.ts): aud = MCP_URL, client_id required. Any refusal is 401 with WWW-Authenticate.
  *   6. The agent: the agent link with one statement, ensureAgentUser on the first call of a new approval, the session check.
- *   7. The body (256 KB at most). A tools/call counts against 60 tool calls a minute for each person, over all the person's
- *      agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the agent link was last used.
+ *   7. The body (256 KB at most). A 2025-era batch with more than one tools/call gets 400 (-32600): the limit counts one hit for
+ *      each request, and 2025-06-18 and 2026-07-28 have no batches. A tools/call counts against 60 tool calls a minute for each
+ *      person, over all the person's agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the
+ *      agent link was last used.
  *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (36 tools, fixed order,
  *      5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era client gets the stateless legacy answer.
- *   9. The usage meter counts the request, and the extra invocation of a hop.
+ *   9. The usage meter counts the request, and the extra invocation of a hop whose header carries the server's tag (forward.ts).
  */
 
 export const SERVER_INFO = { name: 'madar', title: 'Madar', version: '1.0.0' } as const;
@@ -52,7 +54,7 @@ export type McpAppOptions = {
   readOffice?: (deps: Deps) => Promise<OfficeSnapshot>;
   limit?: McpLimit;
   fetch?: typeof fetch;
-  /** The server secret key: the requestState key comes from it (reasons.ts). */
+  /** The server secret key: the requestState key (reasons.ts) and the hop key (forward.ts) come from it. */
   secretKey?: string;
   /** A fixed requestState key, for tests. */
   stateKey?: Uint8Array | string;
@@ -109,31 +111,35 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
   const extra = ctx.http?.authInfo?.extra as RequestExtra | undefined;
   if (!extra) throw new ProtocolError(ProtocolErrorCode.InternalError, 'The request has no agent.');
   const input: Record<string, unknown> = { ...args };
+  // The answers of earlier rounds of this call. The digest always comes from the client's own arguments, never from these.
+  let answers: ReasonAnswers = {};
 
   // The retry of an input_required answer: the SDK verified the signature, the expiry and the agent of the state already.
   const state = ctx.mcpReq.requestState<ReasonState>();
   if (state !== undefined) {
-    if (state.tool !== tool.name || state.digest !== (await argsDigest(tool.name, input, state.field))) {
+    if (state.tool !== tool.name || state.digest !== (await argsDigest(tool.name, args))) {
       throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'This requestState belongs to another call. Call the tool again without it.');
     }
+    answers = { ...state.answers };
     const answer = acceptedContent(ctx.mcpReq.inputResponses, state.field, ReasonAnswer);
     if (answer) {
-      input[state.field] = answer.text;
+      answers[state.field] = answer.text;
     } else {
       const view = inputResponse(ctx.mcpReq.inputResponses, state.field);
       if (view.kind === 'elicit' && view.action !== 'accept') {
         return errorResult({ code: 'invalid_input', message: 'The person gave no reason, so nothing changed.', details: { fields: [state.field], reason: 'reason_declined' } });
       }
       const ask = { field: state.field, question: reasonFor({ code: 'invalid_input', message: '', details: { reason: state.field === 'reason' ? 'stage_back_reason' : 'date_reason_needed' } })!.question };
-      return askFor(tool.name, input, ask, codec, ctx);
+      return askFor(tool.name, args, ask, codec, ctx, answers);
     }
+    Object.assign(input, answers);
   }
 
   const result = await runTool(tool, input, { deps, principal: extra.principal, office: extra.office, runCall: run });
   if (!result.ok) {
     const ask = reasonFor(result.error);
     if (ask && !hasText(input[ask.field])) {
-      if (canElicit(ctx)) return askFor(tool.name, input, ask, codec, ctx);
+      if (canElicit(ctx)) return askFor(tool.name, args, ask, codec, ctx, answers);
       return errorResult(result.error, retryText(tool.name, ask));
     }
   }
@@ -191,6 +197,8 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     return reasonCodec(crypto.getRandomValues(new Uint8Array(32)));
   })();
   const handler = handlerOf(deps, o.runCall ?? realRunCall, codec);
+  // No secret: no hop key, so a hop goes with the region alone and Frankfurt counts it once.
+  const hopKey = o.secretKey !== undefined ? hopKeyFrom(o.secretKey) : Promise.resolve(undefined);
 
   const unauthorized = (error: ApiError, tokenCame: boolean) => jsonRpcError(401, error.message, {
     ...(typeof error.details.reason === 'string' ? { reason: error.details.reason } : {}),
@@ -210,7 +218,7 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
   const app = new Hono();
 
   app.use('*', async (c, next) => {
-    const hopped = await forwardOnce(c.req.raw, { config, fetch: o.fetch, log: deps.log });
+    const hopped = await forwardOnce(c.req.raw, { config, fetch: o.fetch, log: deps.log, hopKey: await hopKey });
     if (hopped) return hopped;
     const origin = c.req.header('Origin');
     if (origin !== undefined && !config.allowedOrigins.includes(origin)) return jsonRpcError(403, 'This origin may not call Madar\'s MCP server.');
@@ -251,6 +259,9 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
       // The SDK answers a body that is not JSON with its own parse error.
     }
     const calls = toolCallsIn(body);
+    if (calls.count > 1) {
+      return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Send one tool call in each request.' } }, { status: 400 });
+    }
     if (calls.count > 0) {
       const hit = await limit(deps, { ownerId: agent.ownerId, clientId: token.clientId, now: deps.clock.now() });
       if (!hit.ok) {
@@ -272,7 +283,7 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     // The usage meter: this request, and the invocation of the first region when it hopped (plan 5.6, Region hop).
     try {
       await deps.meter.countRequest(deps.db);
-      if (request.headers.has(HOP_HEADER)) await deps.meter.countRequest(deps.db);
+      if (await hopTagOk(request.headers.get(HOP_HEADER), await hopKey)) await deps.meter.countRequest(deps.db);
     } catch (error) {
       deps.log.warn('The usage meter did not count the MCP request.', { error: error instanceof Error ? error.message : String(error) });
     }

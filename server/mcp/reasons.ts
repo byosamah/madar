@@ -14,11 +14,14 @@ import type { RunError } from '../core/types';
  *   elicitation/create request to a client that did not declare it.
  * - The requestState is signed (HMAC-SHA256, 10 minutes), bound to the agent (its client and its user), and holds the tool and a
  *   digest of its arguments, so it never answers another call. The key comes from the server secret key, so no new secret exists.
+ * - One call can need both reasons (tasks.update asks for dateReason, then reason). The state keeps the answers given so far, and
+ *   the digest comes from the client's own arguments without either reason field, so each round matches the first call.
  */
 
 export type ReasonField = 'reason' | 'dateReason';
 export type ReasonAsk = { field: ReasonField; question: string };
-export type ReasonState = { tool: string; field: ReasonField; digest: string };
+export type ReasonAnswers = Partial<Record<ReasonField, string>>;
+export type ReasonState = { tool: string; field: ReasonField; digest: string; answers?: ReasonAnswers };
 
 export const REASON_TTL_SECONDS = 600;
 export const REASON_MAX = 280;
@@ -58,9 +61,9 @@ function canonical(value: unknown): string {
 
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-/** sha256 of the tool and its arguments, without the asked field and storyId (the retry may add or change those). */
-export async function argsDigest(tool: string, args: Record<string, unknown>, field: ReasonField): Promise<string> {
-  const { [field]: _asked, storyId: _story, ...rest } = args;
+/** sha256 of the tool and its arguments, without both reason fields and storyId (the server and the retry may add or change those). */
+export async function argsDigest(tool: string, args: Record<string, unknown>): Promise<string> {
+  const { reason: _reason, dateReason: _dateReason, storyId: _story, ...rest } = args;
   return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${tool}\n${canonical(rest)}`)));
 }
 
@@ -80,16 +83,23 @@ export function reasonCodec(key: Uint8Array | string): RequestStateCodec<ReasonS
   return createRequestStateCodec<ReasonState>({ key, ttlSeconds: REASON_TTL_SECONDS, bind: bindingOf });
 }
 
-/** True when the client of this request declared the elicitation capability (2026-07-28 envelope). */
+const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * True when the client of this request declared form elicitation (2026-07-28 envelope): "elicitation" with "form", or a bare
+ * "elicitation": {} (the 2025 meaning). A client with only URL elicitation gets the retry instruction, never the -32021 refusal.
+ */
 export function canElicit(ctx: ServerContext): boolean {
   const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
-  const caps = envelope?.['io.modelcontextprotocol/clientCapabilities'] as Record<string, unknown> | undefined;
-  return caps !== undefined && caps !== null && typeof caps === 'object' && 'elicitation' in caps;
+  const caps = envelope?.['io.modelcontextprotocol/clientCapabilities'];
+  if (!isObject(caps) || !isObject(caps.elicitation)) return false;
+  const modes = caps.elicitation;
+  return Object.keys(modes).length === 0 || isObject(modes.form);
 }
 
-/** The input_required answer: one form question, and the signed state of this call. */
-export async function askFor(tool: string, args: Record<string, unknown>, ask: ReasonAsk, codec: RequestStateCodec<ReasonState>, ctx: ServerContext): Promise<InputRequiredResult> {
-  const state: ReasonState = { tool, field: ask.field, digest: await argsDigest(tool, args, ask.field) };
+/** The input_required answer: one form question, and the signed state of this call with the answers given so far. */
+export async function askFor(tool: string, args: Record<string, unknown>, ask: ReasonAsk, codec: RequestStateCodec<ReasonState>, ctx: ServerContext, answers: ReasonAnswers = {}): Promise<InputRequiredResult> {
+  const state: ReasonState = { tool, field: ask.field, digest: await argsDigest(tool, args), ...(Object.keys(answers).length > 0 ? { answers } : {}) };
   return inputRequired({
     inputRequests: {
       [ask.field]: inputRequired.elicit({

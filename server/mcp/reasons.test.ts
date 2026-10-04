@@ -29,12 +29,12 @@ describe('the reasons an agent must ask its person for (plan 5.6, change 7)', ()
     expect(text).toMatch(/never invent/i);
   });
 
-  it('binds a digest to the tool and the arguments, whatever the key order, and leaves out the asked field and storyId', async () => {
-    const a = await argsDigest('tasks.move', { id: 'tsk_001', status: 'done' }, 'reason');
-    expect(await argsDigest('tasks.move', { status: 'done', id: 'tsk_001' }, 'reason')).toBe(a);
-    expect(await argsDigest('tasks.move', { status: 'done', id: 'tsk_001', reason: 'x', storyId: 'sty_1' }, 'reason')).toBe(a);
-    expect(await argsDigest('tasks.move', { id: 'tsk_002', status: 'done' }, 'reason')).not.toBe(a);
-    expect(await argsDigest('tasks.update', { id: 'tsk_001', status: 'done' }, 'reason')).not.toBe(a);
+  it('binds a digest to the tool and the client\'s arguments, whatever the key order, and leaves out both reason fields and storyId', async () => {
+    const a = await argsDigest('tasks.move', { id: 'tsk_001', status: 'done' });
+    expect(await argsDigest('tasks.move', { status: 'done', id: 'tsk_001' })).toBe(a);
+    expect(await argsDigest('tasks.move', { status: 'done', id: 'tsk_001', reason: 'x', dateReason: 'y', storyId: 'sty_1' })).toBe(a);
+    expect(await argsDigest('tasks.move', { id: 'tsk_002', status: 'done' })).not.toBe(a);
+    expect(await argsDigest('tasks.update', { id: 'tsk_001', status: 'done' })).not.toBe(a);
   });
 
   it('derives a 32-byte state key from the server secret key, the same for the same secret', async () => {

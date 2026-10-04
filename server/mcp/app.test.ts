@@ -5,6 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { stageTag } from '../../src/api/flow';
 import { memoryData, type MemoryData } from '../core/memoryData';
 import { createRunCall } from '../core/runCall';
 import type { OfficeSnapshot } from '../core/types';
@@ -12,7 +13,7 @@ import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { mcpApp, TOOL_CALLS_PER_MINUTE, type McpAppOptions, type McpLimit } from './app';
 import { agentTokenChecker, type AgentPrincipal, type AgentToken } from './auth';
 import { INSTRUCTIONS } from './docs';
-import { HOP_HEADER } from './forward';
+import { HOP_HEADER, hopHeaderOf, hopKeyFrom } from './forward';
 import { mcpTools } from './tools';
 
 /**
@@ -127,6 +128,21 @@ function backTask(state: State): { id: string; stageName: string } {
     if (task.status === 'done' && stage && current && stage.order < current.order && project.status === 'active') return { id: task.id, stageName: stage.name };
   }
   throw new Error('The sample office has no done task in an earlier stage.');
+}
+
+/** An open task with a due date, and an earlier stage of its project: moving the task there and its due date asks for both reasons. */
+function dateAndBackTask(state: State): { id: string; stageId: string; dueDate: string } {
+  for (const task of Object.values(state.tasks)) {
+    const project = state.projects[task.projectId];
+    if (!project || project.status !== 'active' || task.status === 'done' || task.status === 'in_review' || !task.dueDate) continue;
+    const stages = Object.values(state.stages).filter((s) => s.projectId === task.projectId).sort((a, b) => a.order - b.order);
+    const tag = stageTag(state, task.projectId);
+    if (stages.length < 2 || !tag || tag.id === stages[0].id || task.stageId === stages[0].id) continue;
+    const due = new Date(`${task.dueDate}T00:00:00Z`);
+    due.setUTCDate(due.getUTCDate() + 7);
+    return { id: task.id, stageId: stages[0].id, dueDate: due.toISOString().slice(0, 10) };
+  }
+  throw new Error('The sample office has no open task with a due date in a project past its first stage.');
 }
 
 describe('suite 12: the MCP server in process', () => {
@@ -254,6 +270,51 @@ describe('suite 12: the MCP server in process', () => {
       expect(stolen.body.error.code).toBe(-32602);
     });
 
+    it('asks for both reasons of one tasks.update in turn, and the third round records the date comment and the stage-back reason', async () => {
+      const target = dateAndBackTask(w.mem.tables.state);
+      const args = { id: target.id, patch: { stageId: target.stageId, dueDate: target.dueDate } };
+      const caps = { elicitation: {} };
+      const accept = (text: string) => ({ action: 'accept', content: { text } });
+      const one = await call(w, 'tasks.update', args, { caps });
+      expect(one.body.result.resultType, JSON.stringify(one.body)).toBe('input_required');
+      expect(Object.keys(one.body.result.inputRequests)).toEqual(['dateReason']);
+      const two = await call(w, 'tasks.update', args, { caps, extra: { requestState: one.body.result.requestState, inputResponses: { dateReason: accept('The survey came late.') } } });
+      expect(two.body.result.resultType, JSON.stringify(two.body)).toBe('input_required');
+      expect(Object.keys(two.body.result.inputRequests)).toEqual(['reason']);
+      expect(w.mem.tables.state.tasks[target.id].stageId).not.toBe(target.stageId);
+      const three = await call(w, 'tasks.update', args, { caps, extra: { requestState: two.body.result.requestState, inputResponses: { reason: accept('The client changed the brief.') } } });
+      expect(three.body.result.isError, JSON.stringify(three.body)).toBeUndefined();
+      const state = w.mem.tables.state;
+      expect(state.tasks[target.id]).toMatchObject({ stageId: target.stageId, dueDate: target.dueDate });
+      expect(state.projects[state.tasks[target.id].projectId].stageBack?.reason).toBe('The client changed the brief.');
+      expect(Object.values(state.comments).some((c) => c.targetId === target.id && c.body === 'The survey came late.')).toBe(true);
+    });
+
+    it('never lets a state carry an answer into a call with other arguments', async () => {
+      const target = dateAndBackTask(w.mem.tables.state);
+      const args = { id: target.id, patch: { stageId: target.stageId, dueDate: target.dueDate } };
+      const one = await call(w, 'tasks.update', args, { caps: { elicitation: {} } });
+      const two = await call(w, 'tasks.update', args, {
+        caps: { elicitation: {} }, extra: { requestState: one.body.result.requestState, inputResponses: { dateReason: { action: 'accept', content: { text: 'Late survey.' } } } },
+      });
+      const other = await call(w, 'tasks.update', { id: target.id, patch: { stageId: target.stageId } }, {
+        caps: { elicitation: {} }, extra: { requestState: two.body.result.requestState, inputResponses: { reason: { action: 'accept', content: { text: 'x' } } } },
+      });
+      expect(other.body.result.isError).toBe(true);
+      expect(other.body.result.content[0].text).toContain('requestState belongs to another call');
+      expect(w.mem.tables.state.tasks[target.id].stageId).not.toBe(target.stageId);
+    });
+
+    it('gives the retry instruction, never -32021, to a client that declared only URL elicitation (checklist point 12)', async () => {
+      const task = backTask(w.mem.tables.state);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: { url: {} } } });
+      expect(first.status, JSON.stringify(first.body)).toBe(200);
+      expect(first.body.result.isError).toBe(true);
+      expect(first.body.result.content[0].text).toContain('"reason"');
+      const form = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: { form: {} } } });
+      expect(form.body.result.resultType).toBe('input_required');
+    });
+
     it('changes nothing when the person declines', async () => {
       const task = backTask(w.mem.tables.state);
       const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: {} } });
@@ -305,6 +366,65 @@ describe('suite 12: the MCP server in process', () => {
       const two = await call(w, 'projects.get', { id: 'prj_001' });
       for (const answer of [one, two]) expect(answer.headers.get('Mcp-Session-Id')).toBeNull();
       expect(two.body.result.structuredContent.output.project.id).toBe('prj_001');
+    });
+
+    it('answers a notification with 202 and no body (checklist point 3)', async () => {
+      const response = await w.app.fetch(new Request('http://127.0.0.1/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${await tokenOf()}`, 'MCP-Protocol-Version': VERSION, 'Mcp-Method': 'notifications/cancelled' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 7, _meta: meta() } }),
+      }));
+      expect(response.status).toBe(202);
+      expect(await response.text()).toBe('');
+    });
+
+    it('answers 400 with -32020 when Mcp-Method is missing, or Mcp-Name is missing on tools/call (checklist point 6)', async () => {
+      const token = `Bearer ${await tokenOf()}`;
+      const noMethod = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: meta() } }, { Authorization: token, 'MCP-Protocol-Version': VERSION });
+      expect(noMethod.status).toBe(400);
+      expect(noMethod.body.error.code).toBe(-32020);
+      const noName = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' }, _meta: meta() } }, {
+        Authorization: token, 'MCP-Protocol-Version': VERSION, 'Mcp-Method': 'tools/call',
+      });
+      expect(noName.status).toBe(400);
+      expect(noName.body.error.code).toBe(-32020);
+    });
+
+    it('answers an unknown method with 404 and -32601 (checklist point 8)', async () => {
+      const { status, body } = await rpc(w, 'tools/unknown');
+      expect(status).toBe(404);
+      expect(body.error.code).toBe(-32601);
+    });
+
+    it('answers 400 with -32602 when _meta has no protocolVersion or no clientCapabilities (checklist point 10)', async () => {
+      const token = `Bearer ${await tokenOf()}`;
+      const headers = { Authorization: token, 'MCP-Protocol-Version': VERSION, 'Mcp-Method': 'tools/list' };
+      const { 'io.modelcontextprotocol/protocolVersion': _version, ...noVersion } = meta();
+      const { 'io.modelcontextprotocol/clientCapabilities': _caps, ...noCaps } = meta();
+      for (const [label, m] of [['no protocolVersion', noVersion], ['no clientCapabilities', noCaps]] as const) {
+        const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: m } }, headers);
+        expect(status, label).toBe(400);
+        expect(body.error.code, label).toBe(-32602);
+      }
+    });
+
+    it('answers an unsupported version with 400, -32022 and the supported versions (checklist point 11)', async () => {
+      const version = '2099-01-01';
+      const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { ...meta(), 'io.modelcontextprotocol/protocolVersion': version } } }, {
+        Authorization: `Bearer ${await tokenOf()}`, 'MCP-Protocol-Version': version, 'Mcp-Method': 'tools/list',
+      });
+      expect(status).toBe(400);
+      expect(body.error.code).toBe(-32022);
+      expect(body.error.data.supported).toEqual(expect.arrayContaining([VERSION]));
+    });
+
+    it('never takes a token from the query string: 401 with WWW-Authenticate (checklist point 27)', async () => {
+      const valid = await tokenOf();
+      const { status, headers } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: meta() } }, {
+        'MCP-Protocol-Version': VERSION, 'Mcp-Method': 'tools/list',
+      }, `/?access_token=${encodeURIComponent(valid)}`);
+      expect(status).toBe(401);
+      expect(headers.get('WWW-Authenticate')).not.toBeNull();
     });
 
     it('refuses an Origin that is not allowed with 403, and serves the Madar screens\' origin', async () => {
@@ -366,11 +486,32 @@ describe('suite 12: the MCP server in process', () => {
     expect((await rpc(w, 'tools/list', {}, { token: one })).status).toBe(200);
   }, 30_000);
 
-  it('counts each request on the usage meter, and a hopped request twice', async () => {
-    await rpc(w, 'tools/list');
-    expect(w.deps.meter.requests).toBe(1);
-    await rpc(w, 'tools/list', {}, { headers: { [HOP_HEADER]: 'us-east-1' } });
-    expect(w.deps.meter.requests).toBe(3);
+  it('refuses a 2025-era batch with more than one tools/call with 400 and -32600, and runs and counts none of them', async () => {
+    const auth = { Authorization: `Bearer ${await tokenOf()}` };
+    const batch = [1, 2].map((id) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }));
+    for (const headers of [auth, { ...auth, 'MCP-Protocol-Version': '2025-03-26' }, { ...auth, 'MCP-Protocol-Version': '2025-06-18' }]) {
+      const { status, body } = await post(w, batch, headers);
+      expect(status, JSON.stringify(headers)).toBe(400);
+      expect(body.error.code).toBe(-32600);
+    }
+    expect(w.limit.hits.size).toBe(0);
+    // One tool call in a batch is still one tool call: it runs and counts once.
+    const one = await post(w, [batch[0], { jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} }], auth);
+    expect(one.status).toBe(200);
+    expect([...w.limit.hits.values()]).toEqual([1]);
+  });
+
+  it('counts each request on the usage meter, and a hopped request twice only when its hop header carries the server\'s tag', async () => {
+    const secretKey = 'sb_secret_meter_test';
+    const keyed = world({ secretKey });
+    await rpc(keyed, 'tools/list');
+    expect(keyed.deps.meter.requests).toBe(1);
+    // A client can send the header itself: a bare region, or a tag made with another key, counts once.
+    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: 'us-east-1' } });
+    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: await hopHeaderOf('us-east-1', await hopKeyFrom('another-secret')) } });
+    expect(keyed.deps.meter.requests).toBe(3);
+    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: await hopHeaderOf('us-east-1', await hopKeyFrom(secretKey)) } });
+    expect(keyed.deps.meter.requests).toBe(5);
   });
 
   it('forwards a request in a region other than Frankfurt once, before the token check', async () => {
