@@ -4,12 +4,13 @@ import pg from 'pg';
 import { buildSeed } from '../../src/data/seed';
 import { pgDb, type PgDb } from '../data/sql';
 import { writeState } from '../data/whole';
+import { recordApproval } from '../mcp/approval';
 import { localClient, localDbUrl } from './migrate';
 
 /**
  * The agent side of the MCP suites on the local stack (task G3): the OAuth 2.1 flow of an MCP client against the local Auth
- * server (dynamic client registration, the authorize step with PKCE, the approval through the Auth API as the consent screen
- * does it, the code exchange), and the office in the public schema, where the platform migrations put the madar_private
+ * server (dynamic client registration, the authorize step with PKCE, the approval in Madar and through the Auth API as the
+ * consent screen does it, the code exchange), and the office in the public schema, where the platform migrations put the madar_private
  * functions that the MCP token check uses. It talks only to 127.0.0.1.
  */
 
@@ -33,8 +34,19 @@ export async function registerClient(name: string, redirectUris: string | string
   return body.client_id;
 }
 
-/** The authorize step, the approval by the signed-in person, and the code exchange. */
-export async function connectAgent(person: SupabaseClient, clientId: string, o: { redirectUri?: string; resource?: string } = {}): Promise<AgentTokens> {
+/** The Madar step of the consent screen: the approval that the person records before Auth approves (server/mcp/approval.ts). */
+export type RecordApproval = (authorizationId: string) => Promise<void>;
+
+/** recordApproval on the office as madar_server, for a driver with no api app (server/mcp/conformance.ts). */
+export function recordOn(db: PgDb, o: { authUserId: string; ownerId: string }): RecordApproval {
+  return (authorizationId) => db.tx('write', (q) => recordApproval(q, { authorizationId, ...o })).then(() => undefined);
+}
+
+/**
+ * The authorize step, the approval by the signed-in person, and the code exchange. `record` is the Madar step of the consent
+ * screen, before Auth approves (task G4); without it, Auth approves alone, as an agent token can, and Madar links nothing.
+ */
+export async function connectAgent(person: SupabaseClient, clientId: string, o: { redirectUri?: string; resource?: string; record?: RecordApproval } = {}): Promise<AgentTokens> {
   const redirectUri = o.redirectUri ?? REDIRECT_URI;
   const resource = o.resource ?? LOCAL_MCP_URL;
   const verifier = base64url(randomBytes(32));
@@ -55,6 +67,7 @@ export async function connectAgent(person: SupabaseClient, clientId: string, o: 
   if (details.data && !('authorization_id' in details.data)) {
     redirect = (details.data as { redirect_url: string }).redirect_url;
   } else {
+    await o.record?.(authorizationId);
     const approved = await person.auth.oauth.approveAuthorization(authorizationId, { skipBrowserRedirect: true });
     if (approved.error) throw approved.error;
     redirect = approved.data!.redirect_url;

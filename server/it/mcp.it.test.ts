@@ -10,6 +10,8 @@ import { runRevokeAll } from '../mcp/revokeAll';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { authOf, localStack, PASSWORD } from './authStack';
 import { connectAgent, LOCAL_API, LOCAL_MCP_URL, publicOffice, registerClient, RELINK_SQL, type PublicOffice } from './oauthAgent';
+import { ROUTES } from '../http/routes';
+import { APPROVE_PATH, withApproveRoute } from '../mcp/approval';
 
 /**
  * Suite 12 of TM 7 on the local stack (plan 5.6; task G3) [Docker]: the real MCP app (token check against the local JWKS, the
@@ -61,6 +63,15 @@ async function batch(token: string, calls: { name: string; input: unknown }[]) {
   return { status: response.status, body: (await response.json()) as WireResponse & { error?: { code: string; details?: Record<string, unknown> } } };
 }
 
+/** The Madar step of the consent screen for this person: POST /agents/approve on the api app with the browser token. */
+const approveAs = (userId: string) => async (authorizationId: string) => {
+  const response = await api.fetch(new Request(`http://127.0.0.1${APPROVE_PATH}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${people[userId].token}` }, body: JSON.stringify({ authorizationId }),
+  }));
+  expect(response.status, await response.clone().text()).toBe(200);
+};
+const connect = (userId: string, clientId: string, o: { redirectUri?: string } = {}) => connectAgent(people[userId].client, clientId, { ...o, record: approveAs(userId) });
+
 const linkOf = async (clientId: string) =>
   (await office.admin.query<{ owner_user_id: string; agent_user_id: string; client_name: string; redirect_host: string; revoked_at: Date | null; last_used_at: Date | null }>(
     'select * from public.agent_links where client_id = $1', [clientId])).rows[0];
@@ -73,7 +84,8 @@ beforeAll(async () => {
   deps = fakeDeps({ db: office.db, config: { lockKey: LOCK_KEY, supabaseUrl: LOCAL_API, mcpUrl: LOCAL_MCP_URL } });
   deps.clock.set(new Date());
   mcp = mcpApp(deps, { stateKey: 'g3-it-state-key-of-at-least-32-bytes' });
-  api = apiApp(deps);
+  // The approval route of G4, as the merge lead mounts it in server/http/routes.ts.
+  api = apiApp(deps, { routes: withApproveRoute(ROUTES) });
   await signIn('usr_001', 'admin');
   await signIn('usr_005', 'sara');
 }, 60_000);
@@ -93,7 +105,7 @@ describe('suite 12: MCP on the local stack', () => {
   it('runs the full OAuth 2.1 flow with PKCE, and the first call makes the agent user, its link and its user.created event', async () => {
     appName = `Claude Code ${randomUUID().slice(0, 6)}`;
     firstClient = await registerClient(appName);
-    firstToken = (await connectAgent(people.usr_001.client, firstClient)).access_token;
+    firstToken = (await connect('usr_001', firstClient)).access_token;
     const { status, body } = await tool(firstToken, 'madar.readFirst');
     expect(status, JSON.stringify(body)).toBe(200);
     expect(body.result.content[0].text).toContain('You act for Hala Nasser, whose role in Madar is Admin.');
@@ -107,7 +119,7 @@ describe('suite 12: MCP on the local stack', () => {
 
   it('reuses the agent user when the same person registers the same app again (Supabase makes a new client each time)', async () => {
     const second = await registerClient(appName);
-    const token = (await connectAgent(people.usr_001.client, second)).access_token;
+    const token = (await connect('usr_001', second)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).body.result.structuredContent.output.project.id).toBe('prj_001');
     expect((await linkOf(second)).agent_user_id).toBe(agentId);
   });
@@ -144,7 +156,7 @@ describe('suite 12: MCP on the local stack', () => {
 
   it('stops the next call at once when the link is removed, and never links that client again (security review of G3)', async () => {
     const client = await registerClient(`Removable ${randomUUID().slice(0, 6)}`);
-    const token = (await connectAgent(people.usr_001.client, client)).access_token;
+    const token = (await connect('usr_001', client)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
     // What agents.remove (G4) does to the link.
     await office.admin.query('update public.agent_links set revoked_at = now() where client_id = $1', [client]);
@@ -152,14 +164,14 @@ describe('suite 12: MCP on the local stack', () => {
     expect(refused.status).toBe(401);
     expect(refused.headers.get('WWW-Authenticate')).toContain('error="invalid_token"');
     // Auth remembers the consent and gives a new session at once; that is no new approval in Madar.
-    const again = (await connectAgent(people.usr_001.client, client)).access_token;
+    const again = (await connect('usr_001', client)).access_token;
     expect((await tool(again, 'projects.get', { id: 'prj_001' })).status).toBe(401);
     expect((await linkOf(client)).revoked_at).not.toBeNull();
   });
 
   it('gives a client with the same name and first host but one more redirect address a new agent user', async () => {
     const other = await registerClient(appName, ['http://127.0.0.1:33418/callback', 'https://other.example/cb']);
-    const token = (await connectAgent(people.usr_001.client, other)).access_token;
+    const token = (await connect('usr_001', other)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
     const link = await linkOf(other);
     expect(link.redirect_host).toBe('127.0.0.1');
@@ -168,7 +180,7 @@ describe('suite 12: MCP on the local stack', () => {
 
   it('turning the person off refuses the agent at once and removes its links (agents.revokeAll); the old token stays refused after the person is on again', async () => {
     const client = await registerClient(`Sara's app ${randomUUID().slice(0, 6)}`);
-    const token = (await connectAgent(people.usr_005.client, client)).access_token;
+    const token = (await connect('usr_005', client)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
     expect((await batch(people.usr_001.token, [{ name: 'users.deactivate', input: { id: 'usr_005' } }])).body.results[0]).toMatchObject({ ok: true });
     expect((await linkOf(client)).revoked_at).not.toBeNull();
@@ -179,7 +191,7 @@ describe('suite 12: MCP on the local stack', () => {
 
   it('a retry of agents.revokeAll by the job after the person is on again still removes the links (security review of G3)', async () => {
     const client = await registerClient(`Sara's second app ${randomUUID().slice(0, 6)}`);
-    const token = (await connectAgent(people.usr_005.client, client)).access_token;
+    const token = (await connect('usr_005', client)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
     expect((await userDoc('usr_005'))?.active).toBe(true);
     await runRevokeAll({ userId: 'usr_005' }, deps);

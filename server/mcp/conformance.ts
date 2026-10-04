@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { authOf, localStack, PASSWORD } from '../it/authStack';
-import { connectAgent, LOCAL_API, LOCAL_MCP_URL, publicOffice, registerClient, RELINK_SQL } from '../it/oauthAgent';
+import { connectAgent, LOCAL_API, LOCAL_MCP_URL, publicOffice, recordOn, registerClient, RELINK_SQL } from '../it/oauthAgent';
 
 /**
  * The official MCP conformance runner against the mcp function (plan 7.4; task G3), the second half of `npm run test:mcp`.
@@ -125,7 +125,7 @@ async function main(): Promise<number> {
     const person = createClient(stack.apiUrl, stack.publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const signedIn = await person.auth.signInWithPassword({ email, password: PASSWORD });
     if (signedIn.error) throw signedIn.error;
-    const token = (await connectAgent(person, await registerClient('MCP conformance runner'))).access_token;
+    const token = (await connectAgent(person, await registerClient('MCP conformance runner'), { record: recordOn(office.db, { authUserId, ownerId: 'usr_001' }) })).access_token;
 
     execFileSync('npm', ['run', 'build:server'], { cwd: ROOT, stdio: 'ignore' });
     const env = join(dir, 'mcp.env');
