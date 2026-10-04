@@ -52,7 +52,7 @@ export function run(label: string, command: string, args: string[], o: RunOption
             setTimeout(() => signal('SIGKILL'), KILL_GRACE_MS).unref();
           }, o.timeoutMs);
     child.stdout?.on('data', (chunk: Buffer) => out.push(chunk));
-    child.stderr.on('data', (chunk: Buffer) => err.push(chunk));
+    child.stderr!.on('data', (chunk: Buffer) => err.push(chunk));
     child.on('error', (error) => {
       clearTimeout(timer);
       reject(new Error(`${label}: cannot start ${command} (${error.message}).`));
@@ -69,7 +69,7 @@ export function run(label: string, command: string, args: string[], o: RunOption
         reject(new Error(`${label} failed (exit ${code}): ${tail}`));
       }
     });
-    child.stdin.on('error', () => undefined);
-    child.stdin.end(o.input);
+    child.stdin!.on('error', () => undefined);
+    child.stdin!.end(o.input);
   });
 }
