@@ -50,6 +50,12 @@ describe('buildSummary', () => {
     expect(SUMMARY_COUNTS_SQL).toContain("doc->'helperIds' ? $1");
     expect(SUMMARY_COUNTS_SQL).toMatch(/'in_review'/);
   });
+
+  it('counts a review only in an active project, as the review list of Work and Home does', () => {
+    const reviews = SUMMARY_COUNTS_SQL.split('as due_today')[1];
+    expect(reviews).toMatch(/'in_review'/);
+    expect(reviews).toMatch(/p\.status = 'active'/);
+  });
 });
 
 describe('summaryPeople', () => {

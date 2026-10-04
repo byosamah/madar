@@ -146,16 +146,31 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
   });
 
   it('counts the summary as the screens do, for every active person, and sends it once', async () => {
-    const tasks = (await office.sql<{ doc: Task }>('select doc from tasks')).map((r) => r.doc);
-    const projects = Object.fromEntries((await office.sql<{ doc: Project }>('select doc from projects')).map((r) => [r.doc.id, r.doc]));
-    const users = Object.fromEntries((await office.sql<{ doc: User }>('select doc from users')).map((r) => [r.doc.id, r.doc]));
+    const load = async () => ({
+      tasks: (await office.sql<{ doc: Task }>('select doc from tasks')).map((r) => r.doc),
+      projects: Object.fromEntries((await office.sql<{ doc: Project }>('select doc from projects')).map((r) => [r.doc.id, r.doc])),
+      users: Object.fromEntries((await office.sql<{ doc: User }>('select doc from users')).map((r) => [r.doc.id, r.doc])),
+    });
+    // Pausing a project keeps its tasks in review, and the review list of the screens hides them: the summary must hide them too.
+    const before = await load();
+    const reviewed = before.tasks.find((t) => t.status === 'in_review' && before.projects[t.projectId]?.status === 'active'
+      && reviewersOf({ projects: before.projects, users: before.users } as unknown as State, t.projectId).length > 0)!;
+    const admin = Object.values(before.users).find((u) => u.active && u.kind === 'human' && u.systemRole === 'admin')!;
+    okOf(await call(admin.id, 'projects.pause', { id: reviewed.projectId, reason: 'Wait for the client.' }));
+    await office.sql('truncate mail_log, mail_outbox, outbox');
+    const { tasks, projects, users } = await load();
+    expect(projects[reviewed.projectId].status).toBe('on_hold');
     const state = { projects, users } as unknown as State;
     const people = Object.values(users).filter((u) => u.active && u.kind === 'human');
     let withSomething = 0;
     for (const person of people) {
       const dueToday = tasks.filter((t) => projects[t.projectId]?.status === 'active' && t.dueDate === TODAY
         && (t.status === 'todo' || t.status === 'in_progress') && peopleOfTask(t).includes(person.id)).length;
-      const reviewsWaiting = tasks.filter((t) => t.status === 'in_review' && reviewersOf(state, t.projectId).includes(person.id)).length;
+      const reviewsWaiting = tasks.filter((t) => projects[t.projectId]?.status === 'active' && t.status === 'in_review'
+        && reviewersOf(state, t.projectId).includes(person.id)).length;
+      // The review list that Work and Home show this person.
+      expect({ id: person.id, reviews: okOf<unknown[]>(await call(person.id, 'tasks.list', { filter: 'review_for_me' })).length })
+        .toEqual({ id: person.id, reviews: reviewsWaiting });
       const expected = dueToday + reviewsWaiting > 0 ? { dueToday, reviewsWaiting } : null;
       if (expected) withSomething += 1;
       expect({ id: person.id, summary: await deps.db.tx('read', (q) => buildSummary(q, person, TODAY)) }).toEqual({ id: person.id, summary: expected });
@@ -166,7 +181,7 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     );
     // One person with something to say: two runs of the job give one mail.
     const someone = people.find((p) => tasks.some((t) => t.dueDate === TODAY && peopleOfTask(t).includes(p.id) && projects[t.projectId]?.status === 'active' && (t.status === 'todo' || t.status === 'in_progress')))
-      ?? people.find((p) => tasks.some((t) => t.status === 'in_review' && reviewersOf(state, t.projectId).includes(p.id)))!;
+      ?? people.find((p) => tasks.some((t) => t.status === 'in_review' && projects[t.projectId]?.status === 'active' && reviewersOf(state, t.projectId).includes(p.id)))!;
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect((await mails()).map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[someone.email, 'summary', `summary-${TODAY}-${someone.id}`]]);

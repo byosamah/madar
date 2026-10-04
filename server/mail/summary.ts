@@ -11,7 +11,8 @@ import { renderMail } from './templates';
  *
  * The counts follow the screens: a task due today is open (to do or in progress), in an active project, and the person leads it
  * or helps with it (the rule of the due reminders, src/api/notify.ts). A review waits for the person when the task is in review
- * and the person reviews its project: the active leader, or every active Admin when the project has none (reviewersOf).
+ * in an active project (the review list of tasks.list keeps only active projects) and the person reviews its project: the active
+ * leader, or every active Admin when the project has none (reviewersOf).
  */
 
 /** $1 the person, $2 the day "YYYY-MM-DD". */
@@ -21,7 +22,7 @@ export const SUMMARY_COUNTS_SQL = `select
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
     left join users l on l.id = p.leader_id and l.active
-    where t.status = 'in_review'
+    where p.status = 'active' and t.status = 'in_review'
       and case when l.id is not null then l.id = $1
         else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end) as reviews_waiting`;
 
