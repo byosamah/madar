@@ -38,7 +38,7 @@ exports[`renderMail > renders invite in English, and in Arabic with a female act
 <title>Huda invited you to Madar</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">Hello Sara,</p>
 <p style="margin:0 0 16px;">Huda added you to the office on Madar.</p>
 <p style="margin:0 0 16px;">Set your password to sign in.</p>
@@ -74,7 +74,7 @@ exports[`renderMail > renders invite in English, and in Arabic with a female act
 <title>Huda دعتك إلى مدار</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">مرحبًا Sara،</p>
 <p style="margin:0 0 16px;">أضافتك Huda إلى المكتب في مدار.</p>
 <p style="margin:0 0 16px;">عيّني كلمة المرور لتسجيل الدخول.</p>
@@ -110,7 +110,7 @@ exports[`renderMail > renders limitWarning in English, and in Arabic with a fema
 <title>Madar is near a free plan limit</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">File storage: 85% of the free plan limit.</p>
 <p style="margin:0 0 16px;">Next step: move the files to Cloudflare R2, or remove old file versions.</p>
 <p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
@@ -140,7 +140,7 @@ exports[`renderMail > renders limitWarning in English, and in Arabic with a fema
 <title>اقترب مدار من أحد حدود الخطة المجانية</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">مساحة الملفات: 85% من حد الخطة المجانية.</p>
 <p style="margin:0 0 16px;">الخطوة التالية: نقل الملفات إلى تخزين كلاودفلير، أو حذف النسخ القديمة من الملفات.</p>
 <p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
@@ -170,7 +170,7 @@ exports[`renderMail > renders notice in English, and in Arabic with a female act
 <title>A task is assigned to you</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">A task is assigned to you.</p>
 <p style="margin:0 0 16px;">Open Madar to see the details.</p>
 <p style="margin:24px 0;"><a href="https://madar.example/tasks/tsk_001?from=mail" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
@@ -200,7 +200,7 @@ exports[`renderMail > renders notice in English, and in Arabic with a female act
 <title>أُسندت إليك مهمة</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">أُسندت إليك مهمة.</p>
 <p style="margin:0 0 16px;">افتحي مدار لرؤية التفاصيل.</p>
 <p style="margin:24px 0;"><a href="https://madar.example/tasks/tsk_001?from=mail" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
@@ -230,7 +230,7 @@ exports[`renderMail > renders quotaWarning in English, and in Arabic with a fema
 <title>Notice emails stopped for today</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">Madar sent 90 emails today. That is the daily limit for notice emails on the free plan.</p>
 <p style="margin:0 0 16px;">New notices stay in the app. Emails start again at 03:00 Riyadh time.</p>
 <p style="margin:0 0 16px;">Invitations and password resets still go by email.</p>
@@ -266,7 +266,7 @@ exports[`renderMail > renders quotaWarning in English, and in Arabic with a fema
 <title>توقفت رسائل الإشعارات لهذا اليوم</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">أرسل مدار 90 رسالة اليوم، وهذا هو الحد اليومي لرسائل الإشعارات في الخطة المجانية.</p>
 <p style="margin:0 0 16px;">تبقى الإشعارات الجديدة في التطبيق. تعود الرسائل الساعة 03:00 بتوقيت الرياض.</p>
 <p style="margin:0 0 16px;">ما زالت رسائل الدعوة وإعادة تعيين كلمة المرور تُرسل بالبريد.</p>
@@ -302,7 +302,7 @@ exports[`renderMail > renders reset in English, and in Arabic with a female acto
 <title>Reset your Madar password</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">Hello Sara,</p>
 <p style="margin:0 0 16px;">Someone asked to reset the password of your Madar account.</p>
 <p style="margin:0 0 16px;">Choose a new password with the button below.</p>
@@ -338,7 +338,7 @@ exports[`renderMail > renders reset in English, and in Arabic with a female acto
 <title>إعادة تعيين كلمة المرور في مدار</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">مرحبًا Sara،</p>
 <p style="margin:0 0 16px;">طلب أحدهم إعادة تعيين كلمة مرور حسابك في مدار.</p>
 <p style="margin:0 0 16px;">اختاري كلمة مرور جديدة من الزر أدناه.</p>
@@ -374,7 +374,7 @@ exports[`renderMail > renders summary in English, and in Arabic with a female ac
 <title>Your morning summary from Madar</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-right:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">Madar</td></tr></table>
 <p style="margin:0 0 16px;">Here is what waits for you today.</p>
 <p style="margin:0 0 16px;">3 tasks are due today.</p>
 <p style="margin:0 0 16px;">1 review waits for you.</p>
@@ -407,7 +407,7 @@ exports[`renderMail > renders summary in English, and in Arabic with a female ac
 <title>ملخص الصباح من مدار</title></head>
 <body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
 <div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
-<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <p style="margin:0 0 16px;">إليك ما ينتظرك اليوم.</p>
 <p style="margin:0 0 16px;">3 مهام موعدها اليوم.</p>
 <p style="margin:0 0 16px;">مراجعة واحدة بانتظارك.</p>

@@ -1,6 +1,6 @@
 import type { Gender, Language, Trigger } from '../../../src/api/contract/entities';
 import { actorContext } from '../../../src/lib/grammar';
-import { renderPage, type RenderedMail } from './layout';
+import { logoAddress, renderPage, type RenderedMail } from './layout';
 import { mailWords } from './words';
 
 export type { RenderedMail } from './layout';
@@ -32,6 +32,9 @@ export type MailData = {
 
 /** actor: the person who did the thing (the inviter); reader: the person who gets the mail. */
 export type MailGenders = { actor?: Gender; reader?: Gender };
+
+/** appUrl: the screens (APP_URL of the server config), for the Madar mark in the header. Without it the header shows the name only. */
+export type MailOptions = { appUrl?: string };
 
 type Parts = { subject: string; greeting?: string; paragraphs: string[]; button: string; footer: 'footerNotice' | 'footerSummary' | 'footerAuto' };
 
@@ -95,7 +98,7 @@ function partsOf<K extends MailTemplate>(kind: K, data: MailData[K], t: ReturnTy
   }
 }
 
-export function renderMail<K extends MailTemplate>(kind: K, lang: Language, data: MailData[K], g: MailGenders = {}): RenderedMail {
+export function renderMail<K extends MailTemplate>(kind: K, lang: Language, data: MailData[K], g: MailGenders = {}, o: MailOptions = {}): RenderedMail {
   const t = mailWords(lang);
   const reader = { context: actorContext({ gender: g.reader }) };
   const parts = partsOf(kind, data, t, g);
@@ -108,6 +111,7 @@ export function renderMail<K extends MailTemplate>(kind: K, lang: Language, data
       button: { label: parts.button, link: data.link },
       linkHelp: t('mail.common.linkHelp', reader),
       footer: t(`mail.common.${parts.footer}`, reader),
+      logo: o.appUrl ? logoAddress(o.appUrl) : undefined,
     },
     t('mail.common.brand'),
   );

@@ -53,7 +53,7 @@ export async function sendSummary(deps: Deps, userId: string, today: string): Pr
   if (!person || !mailable(person) || !morningSummaryOn(person.preferences)) return 'skipped';
   const summary = await deps.db.tx('read', (q) => buildSummary(q, { id: userId }, today));
   if (!summary) return 'empty';
-  const rendered = renderMail('summary', person.preferences.language, { ...summary, link: appLink(deps.config.appUrl, '/work') }, { reader: person.gender ?? undefined });
+  const rendered = renderMail('summary', person.preferences.language, { ...summary, link: appLink(deps.config.appUrl, '/work') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
   const result = await sendWarned(deps, 'summary', mailOf(person.email, rendered, 'summary', `summary-${today}-${userId}`), userId);
   return result.status;
 }

@@ -152,7 +152,9 @@ describe('sendLimitWarning (the usage.limitWarning effect)', () => {
     prefs.language = 'ar';
     const { deps } = setup({ people: [person('usr_001', { preferences: prefs, gender: 'female' })] });
     await sendLimitWarning(payload, deps);
-    const expected = renderMail('limitWarning', 'ar', { meter: 'files', percent: 85, link: 'https://madar.test/admin' }, { reader: 'female' });
+    const expected = renderMail('limitWarning', 'ar', { meter: 'files', percent: 85, link: 'https://madar.test/admin' }, { reader: 'female' }, { appUrl: 'https://madar.test' });
+    // The Madar mark at the app address of the server config (TASKS.md, Logo, point 4).
+    expect(expected.html).toContain('<img src="https://madar.test/icons/madar-192.png"');
     expect(deps.mail.sent[0]).toMatchObject({ subject: expected.subject, html: expected.html });
   });
 
