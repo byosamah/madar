@@ -119,7 +119,7 @@ madar/
   Dockerfile                   the Node image for Railway                          (E)
 ```
 
-There is no `public/` folder. Vite copies `public/` into every build, so a `_headers` file there would put the Supabase host into the prototype build.
+`public/` holds only the app icons and the web manifest (track K, made by scripts/icons/make-icons.tsx). Vite copies it into every build, so `scripts/check-bundles.ts` still fails a prototype build that holds a `_headers` file.
 
 **Rules that keep the fake API alive:**
 
