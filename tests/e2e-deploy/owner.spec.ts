@@ -50,7 +50,7 @@ test('a phone opens a chat on its own page and goes back to the list', async ({ 
   const list = page.getByRole('list', { name: 'Chats' });
   await expect(list.getByRole('link').first()).toBeVisible();
   await list.getByRole('link').first().click();
-  await expect(page).toHaveURL(urlPattern('/inbox/'));
+  await expect(page).toHaveURL(urlPattern('/inbox/cnv_'));
   await expect(page.getByRole('log', { name: 'Messages' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to chats' }).click();
   await expect(page).toHaveURL(urlPattern('/inbox', { end: true }));
