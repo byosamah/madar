@@ -1,6 +1,6 @@
 import { defaultPreferences, type Project, type Stage, type Task, type User } from '../api/contract/entities';
 import { emptyState, memberKey, type State } from '../api/store';
-import { createApi, type CallMap } from '../api/client';
+import { createApi, type Api, type CallMap } from '../api/client';
 import { Store } from '../api/store';
 import { memoryPersister } from '../api/persist';
 
@@ -58,8 +58,22 @@ export function makeWorld(): State {
   return state;
 }
 
-/** An API over a test world with no latency. "as" changes the current user. */
-export function testApi<M extends CallMap>(calls: M, state: State = makeWorld()) {
+export type TestApi<M extends CallMap> = { store: Store; api: Api<M>; as(userId: string): void };
+type TestApiFactory = (calls: CallMap, state: State) => TestApi<CallMap>;
+
+let dbTestApi: TestApiFactory | undefined;
+
+/**
+ * Db mode (plan 7.2, TM 3.3): the db setup file (server/test/db.ts) registers the mirror store here, so src never imports server
+ * code. testApi uses it only when MADAR_DB=1.
+ */
+export function useDbTestApi(factory: TestApiFactory | undefined): void {
+  dbTestApi = factory;
+}
+
+/** An API over a test world with no latency. "as" changes the current user. With MADAR_DB=1, the same API on the local database. */
+export function testApi<M extends CallMap>(calls: M, state: State = makeWorld()): TestApi<M> {
+  if (dbTestApi && process.env.MADAR_DB === '1') return dbTestApi(calls, state) as unknown as TestApi<M>;
   const store = new Store(state, memoryPersister());
   const api = createApi(calls, { store, latencyMs: 0 });
   return {

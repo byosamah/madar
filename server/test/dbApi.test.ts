@@ -22,6 +22,7 @@ function memoryBackend(o: { lie?: (result: RunResult, mem: ReturnType<typeof mem
   let runs = 0;
   const backend: MirrorBackend & { runs(): number; mem: typeof mem } = {
     mem,
+    owner: undefined,
     runs: () => runs,
     async begin() {},
     async writeDown(before, after) {
@@ -133,6 +134,19 @@ describe('the db-mode mirror store (TM 3.3)', () => {
     const t = createDbApi(CALLS, world(), memoryBackend());
     t.as('usr_005');
     expect((await t.api.call('session.get', {})).user.id).toBe('usr_005');
+  });
+
+  it('reads the database again when another mirror of the same test wrote in between', async () => {
+    const backend = memoryBackend();
+    const first = createDbApi(CALLS, world(), backend);
+    await first.api.call('tasks.update', { id: 'tsk_001', patch: { title: 'First' } });
+    const other = world();
+    other.tasks.tsk_001.title = 'Other';
+    const second = createDbApi(CALLS, other, backend);
+    await second.api.call('tasks.get', { id: 'tsk_001' });
+    expect(backend.mem.tables.state.tasks.tsk_001.title).toBe('Other');
+    // The first mirror still holds "First", so its write-down puts it back before its next call.
+    expect((await first.api.call('tasks.get', { id: 'tsk_001' })).task.title).toBe('First');
   });
 
   it('runs the calls of one test one at a time', async () => {

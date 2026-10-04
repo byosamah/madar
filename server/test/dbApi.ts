@@ -32,6 +32,11 @@ import { shadowProblems } from './shadow';
 
 /** What the mirror needs from a database: server/test/db.ts gives the local stack, the unit test the memory data of runCall. */
 export interface MirrorBackend {
+  /**
+   * The mirror that wrote last. A mirror whose mark is not here reads the database again before its write-down: another mirror of
+   * the same test wrote in between, or the test transaction rolled back (the backend clears the mark then).
+   */
+  owner: unknown;
   /** Opens the transaction of the test, once. */
   begin(): Promise<void>;
   /** Writes every difference from before to after (both in the server form), as the setup role. True when it wrote something. */
@@ -125,6 +130,7 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
   /** The made-up story IDs of this test and their real stories: the batch scope's placeholder map, kept for every call. */
   const refs = new Map<string, string>();
   const back = () => new Map([...refs].map(([madeUp, real]) => [real, madeUp]));
+  const mark = {};
   let image: State | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -138,7 +144,10 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
     if (!entry) return memoryApi.run(name, input as never, meta);
 
     await backend.begin();
-    image ??= await backend.readBack();
+    if (backend.owner !== mark || !image) {
+      image = await backend.readBack();
+      backend.owner = mark;
+    }
     const wanted = renamed(store.state, refs);
     if (await backend.writeDown(image, wanted)) image = await backend.readBack();
 
