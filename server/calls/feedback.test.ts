@@ -93,6 +93,21 @@ describe('the server hooks of feedback.send', () => {
     await expect(feedbackSendHooks.prepare!(SEND, { ...hook('usr_002'), q: db.q }, shots)).rejects.toMatchObject({ code: 'conflict' });
   });
 
+  it('let used intents of the same actor pass with no store call, so runCall replays the stored answer; prepare refuses them', async () => {
+    const { db, deps, hook } = setup();
+    await insertIntents(db, [shotIntent('upl_a'), shotIntent('upl_b', { mimeType: 'image/jpeg', size: 70 })]);
+    // The insert writes no used_at: the two intents were used by an earlier feedback.send.
+    for (const id of ['upl_a', 'upl_b']) db.intents.get(id)!.usedAt = NOW;
+    deps.files.objects.set('up/upl-a/file', { size: 50, mimeType: 'image/png' });
+    const shots = await feedbackSendHooks.preflight!(SEND, hook('usr_002'));
+    expect(shots).toEqual({ shots: [{ blobKey: 'feedback/upl-a/file', type: 'image/png' }, { blobKey: 'feedback/upl-b/file', type: 'image/jpeg' }] });
+    expect(deps.files.calls).toEqual([]);
+    expect(deps.files.objects.size).toBe(1);
+    await expect(feedbackSendHooks.prepare!(SEND, { ...hook('usr_002'), q: db.q }, shots)).rejects.toMatchObject({ code: 'conflict' });
+    // Another actor's used intent still reads as missing.
+    await expect(feedbackSendHooks.preflight!(SEND, hook('usr_001'))).rejects.toMatchObject({ code: 'not_found' });
+  });
+
   it('refuse a file intent, an upload sent twice, and a picture that differs from its intent', async () => {
     const { db, deps, hook } = setup();
     await insertIntents(db, [shotIntent('upl_a'), shotIntent('upl_f', { projectId: 'prj_001', key: 'prj-001/upl-f/file' })]);

@@ -5,6 +5,7 @@ import { intentLifeSeconds } from './links';
 /**
  * The upload intents (plan 5.2; proof.md, Z0a item 6; task F2). files.uploadStart and feedback.uploadStart write one row for each
  * signed upload; the preflight of files.upload and feedback.send reads it, and their prepare marks it used inside the lock.
+ * A used intent passes their preflight with no store call, so a retry with the same idempotency key gets the stored answer.
  *
  * expires_at is the link life plus the transfer time of the store: 2 hours after the start on Storage, the 10-minute link plus
  * 60 minutes on R2. A call refuses an intent past expires_at. A file intent has a project; a screenshot intent has none.
@@ -87,13 +88,20 @@ export async function readIntents(db: Db, ids: string[]): Promise<Map<string, In
 /**
  * The checks of an intent before any store call. projectId is the project of the upload, or null for a screenshot.
  * Another actor's intent reads as missing, so an id never tells whether it exists.
+ *
+ * allowUsed lets a used intent pass every other check. The preflight runs before runCall looks up the idempotency key, so a
+ * retry with the key of a call that committed must reach that step and get the stored answer (plan section 2, change 17).
+ * Without a stored answer, useIntents in prepare refuses the used intent, so it never makes a second version.
  */
-export function checkIntent(intent: Intent | undefined, o: { id: string; actorId: string; now: Date; field: string; projectId: string | null }): Intent {
+export function checkIntent(
+  intent: Intent | undefined,
+  o: { id: string; actorId: string; now: Date; field: string; projectId: string | null; allowUsed?: boolean },
+): Intent {
   if (!intent || intent.actorId !== o.actorId) throw notFound('Upload', o.id);
   const screenshot = intent.projectId === null && intent.key.startsWith('feedback/');
   if (o.projectId === null && !screenshot) throw invalid(o.field, 'This upload is not a screenshot.');
   if (o.projectId !== null && intent.projectId !== o.projectId) throw invalid(o.field, 'This upload belongs to another project.');
-  if (intent.usedAt !== null) throw new ApiError('conflict', 'This upload is already used.');
+  if (intent.usedAt !== null && !o.allowUsed) throw new ApiError('conflict', 'This upload is already used.');
   if (intent.expiresAt.getTime() <= o.now.getTime()) throw invalid(o.field, 'This upload has ended. Upload the file again.');
   return intent;
 }

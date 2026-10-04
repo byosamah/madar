@@ -79,13 +79,16 @@ type UploadInput = { projectId: string; uploadId: string };
 
 /**
  * files.upload on the server. The preflight (before the lock) checks the intent, then the object and its copy on the final key
- * (server/files/confirm.ts); a mismatch refuses and removes the object. prepare (inside the lock) marks the intent used, once, and
+ * (server/files/confirm.ts); a mismatch refuses and removes the object. A used intent skips the store, for the key replay. prepare (inside the lock) marks the intent used, once, and
  * gives run() the final key, the size, the declared type and the small picture.
  */
 export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
   async preflight(input, { actorId, now, deps }): Promise<UploadPrepared> {
     const { projectId, uploadId } = input as UploadInput;
-    const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', projectId });
+    const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', projectId, allowUsed: true });
+    // A used intent: a retry of a call that committed. No store call, because a late second PUT may sit on the staging key; runCall
+    // replays the stored answer of the key, and without one prepare refuses with conflict.
+    if (intent.usedAt !== null) return { blobKey: intent.key, size: intent.size, mimeType: intent.mimeType, ...(intent.thumbKey ? { thumbKey: intent.thumbKey } : {}) };
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
     await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadId', want: intent, maxBytes: fileLimit(deps), remove });
     const thumb = intent.thumbKey !== null && (await confirmThumb(deps.files, { staging: stagingThumbKey(intent.id), final: intent.thumbKey, field: 'uploadId', remove }));

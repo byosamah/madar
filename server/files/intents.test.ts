@@ -70,6 +70,16 @@ describe('an upload intent', () => {
     expect(codeOf(() => checkIntent(intent({ expiresAt: new Date(NOW.getTime() - 1) }), file))).toBe('invalid_input');
   });
 
+  it('with allowUsed, lets a used intent of the same actor pass, for the replay of a stored answer, and keeps every other check', () => {
+    const file = { id: 'upl_aaaaaaaaaaaaaaaaaaaaaa', actorId: 'usr_002', now: NOW, field: 'uploadId', projectId: 'prj_001' as string | null, allowUsed: true };
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW }), file))).toBe('ok');
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW, projectId: null, key: 'feedback/upl-a/file' }), { ...file, projectId: null }))).toBe('ok');
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW, actorId: 'usr_005' }), file))).toBe('not_found');
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW, projectId: 'prj_002' }), file))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW }), { ...file, projectId: null }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ usedAt: NOW, expiresAt: NOW }), file))).toBe('invalid_input');
+  });
+
   it('is marked used once, inside the lock: a second use, an expired intent or another actor gives conflict', async () => {
     const db = fakeFilesDb();
     await insertIntents(db, [intent(), intent({ id: 'upl_old', expiresAt: NOW }), intent({ id: 'upl_other', actorId: 'usr_005' })]);

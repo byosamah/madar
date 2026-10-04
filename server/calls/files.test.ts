@@ -194,12 +194,14 @@ describe('the server hooks of files.upload', () => {
     expect([...deps.files.objects.keys()].sort()).toEqual(['prj-001/upl-a/file', 'prj-001/upl-a/thumb']);
   });
 
-  it('the preflight refuses another actor, another project, a used intent and an intent past expires_at, before any store call', async () => {
+  it('the preflight refuses another actor, another project and an intent past expires_at, used or not, before any store call', async () => {
     const cases: [Partial<Intent>, string, string][] = [
       [{}, 'usr_004', 'not_found'],
       [{ projectId: 'prj_002' }, 'usr_002', 'invalid_input'],
-      [{ usedAt: NOW }, 'usr_002', 'conflict'],
       [{ expiresAt: NOW }, 'usr_002', 'invalid_input'],
+      [{ usedAt: NOW }, 'usr_004', 'not_found'],
+      [{ usedAt: NOW, projectId: 'prj_002' }, 'usr_002', 'invalid_input'],
+      [{ usedAt: NOW, expiresAt: NOW }, 'usr_002', 'invalid_input'],
     ];
     for (const [o, actorId, code] of cases) {
       const { deps } = await withIntent(o);
@@ -214,6 +216,19 @@ describe('the server hooks of files.upload', () => {
     deps.files.objects.set('up/upl-a/file', { size: 12, mimeType: 'application/octet-stream' });
     await expect(filesUploadHooks.preflight!(UPLOAD, hookCtx(deps))).rejects.toMatchObject({ code: 'invalid_input' });
     expect(deps.files.objects.size).toBe(0);
+  });
+
+  it('the preflight lets a used intent of the same actor pass with no store call, so runCall replays the stored answer; prepare refuses it', async () => {
+    const { db, deps } = await withIntent({ usedAt: NOW, thumbKey: 'prj-001/upl-a/thumb' });
+    // A late second PUT sits on the staging key: the preflight must not head, copy or remove anything.
+    deps.files.objects.set('up/upl-a/file', { size: 12, mimeType: 'application/pdf' });
+    deps.files.objects.set('prj-001/upl-a/file', { size: 12, mimeType: 'application/pdf' });
+    const prepared = await filesUploadHooks.preflight!(UPLOAD, hookCtx(deps));
+    expect(prepared).toEqual({ blobKey: 'prj-001/upl-a/file', size: 12, mimeType: 'application/pdf', thumbKey: 'prj-001/upl-a/thumb' });
+    expect(deps.files.calls).toEqual([]);
+    expect(deps.files.objects.size).toBe(2);
+    // With no stored answer for the key, the call never makes a second version.
+    await expect(filesUploadHooks.prepare!(UPLOAD, { ...hookCtx(deps), q: db.q }, prepared)).rejects.toMatchObject({ code: 'conflict' });
   });
 
   it('prepare marks the intent used inside the lock, once', async () => {

@@ -49,9 +49,11 @@ export const feedbackSendHooks: ServerHooks<unknown, FeedbackPrepared, Deps> = {
     if (ids.length === 0) return { shots: [] };
     if (new Set(ids).size !== ids.length) throw invalid('uploadIds', 'Send each screenshot once.');
     const found = await readIntents(deps.db, ids);
-    const intents = ids.map((id) => checkIntent(found.get(id), { id, actorId, now, field: 'uploadIds', projectId: null }));
+    const intents = ids.map((id) => checkIntent(found.get(id), { id, actorId, now, field: 'uploadIds', projectId: null, allowUsed: true }));
     const remove = (keys: string[]) => removeNowOrLater(deps, keys);
-    for (const intent of intents) {
+    // A used intent: a retry of a call that committed. No store call (as in files.upload); runCall replays the stored answer of the
+    // key, and without one prepare refuses with conflict.
+    for (const intent of intents.filter((i) => i.usedAt === null)) {
       await confirmUpload(deps.files, { staging: intent.stagingKey, final: intent.key, field: 'uploadIds', want: intent, maxBytes: MAX_SHOT_BYTES, remove });
     }
     return { shots: intents.map((intent) => ({ blobKey: intent.key, type: intent.mimeType })) };
