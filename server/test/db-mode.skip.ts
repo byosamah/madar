@@ -69,6 +69,20 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
       'The stored data of a deleted project goes with the effect of track F (server/files/effects.ts). Until F merges, the prepare '
       + 'hook of projects.delete is the T0 stub that lists no data key, so the data stays.',
   },
+  {
+    file: 'src/api/handlers/files.test.ts',
+    test: 'files takes exactly one of a blob and an upload ID; the prototype has no uploads, so it refuses the ID',
+    reason:
+      'Its last part sends an upload ID to the prototype, which has no uploads and refuses the ID as invalid_input. The server keeps '
+      + 'upload records and answers not_found for an unknown ID (server/files/intents.ts; server/calls/files.test.ts).',
+  },
+  {
+    file: 'src/api/handlers/feedback.test.ts',
+    test: 'feature requests and bug reports (owner, 2026-10-01) takes screenshots or upload IDs, not both; the prototype has no uploads, so it refuses the IDs',
+    reason:
+      'Its last part sends upload IDs to the prototype, which has no uploads and refuses them as invalid_input. The server keeps '
+      + 'upload records and answers not_found for an unknown ID (server/files/intents.ts; server/calls/feedback.test.ts).',
+  },
   ...[
     'gives the numbers of a full scan when the counts stand in for the unread rows',
     'reads the count before the rows',

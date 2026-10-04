@@ -26,6 +26,15 @@ describe('the file data of db mode (task D2)', () => {
   });
 });
 
+describe('the browser upload of the mirror', () => {
+  it('puts the file with the Content-Type of the signed link, as the screens do (src/api/remote/upload.ts)', () => {
+    const files = fakeFiles();
+    // Track F stores a type that may not show in the browser as application/octet-stream (server/files/links.ts, storedMimeType).
+    browserPut(files, { url: 'https://files.test/put/up/upl_2', headers: { 'Content-Type': 'application/octet-stream' } }, new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+    expect(files.objects.get('up/upl_2')).toEqual({ size: 6, mimeType: 'application/octet-stream' });
+  });
+});
+
 describe('the stand-ins for the upload steps of track F', () => {
   const ctx = () => {
     const deps = fakeDeps();

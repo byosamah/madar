@@ -59,9 +59,11 @@ export function keyOfLink(link: string): string {
 }
 
 /** What the browser does with a signed upload link: the object arrives at its key, with its type and size. */
-export function browserPut(files: FakeFiles, link: string, blob: Blob): void {
+export function browserPut(files: FakeFiles, put: string | { url: string; headers?: Record<string, string> }, blob: Blob): void {
+  // The screens send the Content-Type header of the signed link (src/api/remote/upload.ts), which may differ from the blob's type.
+  const [link, sent] = typeof put === 'string' ? [put, undefined] : [put.url, put.headers?.['Content-Type']];
   const key = keyOfLink(link);
-  files.objects.set(key, { size: blob.size, mimeType: blob.type || 'application/octet-stream' });
+  files.objects.set(key, { size: blob.size, mimeType: sent ?? (blob.type || 'application/octet-stream') });
   storedContent(files).set(key, blob);
 }
 

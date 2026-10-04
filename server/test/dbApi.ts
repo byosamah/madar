@@ -213,8 +213,8 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
     const start = await step('files.uploadStart', {
       ...without(fields, 'blob', 'asCover', 'receivedFromClient'), size: blob.size, mimeType: blob.type || 'application/octet-stream',
     }, meta);
-    const { uploadId, put } = start.output as { uploadId: string; put: { url: string } };
-    browserPut(backend.files, put.url, blob);
+    const { uploadId, put } = start.output as { uploadId: string; put: { url: string; headers?: Record<string, string> } };
+    browserPut(backend.files, put, blob);
     const done = await step('files.upload', { ...without(fields, 'blob'), uploadId }, meta);
     return { ...done, changed: start.changed || done.changed };
   }
@@ -225,8 +225,8 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
     const shots = (fields.screenshots ?? []) as Blob[];
     if (shots.length === 0) return step('feedback.send', without(fields, 'screenshots'), meta);
     const start = await step('feedback.uploadStart', { screenshots: shots.map((shot) => ({ size: shot.size, mimeType: shot.type })) }, meta);
-    const { uploads } = start.output as { uploads: { uploadId: string; put: { url: string } }[] };
-    uploads.forEach((upload, i) => browserPut(backend.files, upload.put.url, shots[i]));
+    const { uploads } = start.output as { uploads: { uploadId: string; put: { url: string; headers?: Record<string, string> } }[] };
+    uploads.forEach((upload, i) => browserPut(backend.files, upload.put, shots[i]));
     const done = await step('feedback.send', { ...without(fields, 'screenshots'), uploadIds: uploads.map((upload) => upload.uploadId) }, meta);
     return { ...done, changed: start.changed || done.changed };
   }

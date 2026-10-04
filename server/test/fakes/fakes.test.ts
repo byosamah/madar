@@ -53,6 +53,12 @@ describe('the test fakes of the server ports', () => {
     expect(await files.head('prj-001/a/file')).toEqual({ size: 1, mimeType: 'application/pdf' });
   });
 
+  it('fakeFiles signs an upload with the stored type, as both stores do (server/files/links.ts, storedMimeType)', async () => {
+    const files = fakeFiles();
+    expect((await files.presignPut('up/a', { mimeType: 'image/svg+xml', size: 1 })).headers['Content-Type']).toBe('application/octet-stream');
+    expect((await files.presignPut('up/b', { mimeType: 'image/png', size: 1 })).headers['Content-Type']).toBe('image/png');
+  });
+
   it('fakeMail records the mail and fails on request', async () => {
     const mail = fakeMail();
     const sent = await mail.send({ to: 'a@madar.test', subject: 'Hi', html: '<p>Hi</p>', text: 'Hi', tag: 'invite', idempotencyKey: 'k1' });

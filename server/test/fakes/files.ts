@@ -1,4 +1,5 @@
 import { FILE_STORE_LIMITS, type FileStoreKind, type FilesPort } from '../../core/ports';
+import { storedMimeType } from '../../files/links';
 
 export type FakeFiles = FilesPort & {
   /** The stored objects by key. A test puts an object here to stand for a browser upload. */
@@ -19,7 +20,8 @@ export function fakeFiles(o: { kind?: FileStoreKind; headDelayMs?: number; maxFi
     calls,
     async presignPut(key, put) {
       calls.push({ op: 'presignPut', key });
-      return { url: `https://files.test/put/${key}`, headers: { 'Content-Type': put.mimeType }, expiresAt };
+      // Both stores sign the stored type: a type that may not show in the browser becomes application/octet-stream.
+      return { url: `https://files.test/put/${key}`, headers: { 'Content-Type': storedMimeType(put.mimeType) }, expiresAt };
     },
     async presignGet(key, get) {
       calls.push({ op: 'presignGet', key });
