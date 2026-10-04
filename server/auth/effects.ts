@@ -30,7 +30,7 @@ import { renderEmailChangedMail } from './mail';
  *   processOutbox runs the row at once; a failed send stays for the job. The row holds what the mail needs: the old and the new
  *   email, the person's name, language and gender, and the name of the person on whose authority the email changed (byId of
  *   the auth.email row: the actingForId of the event, so the person an agent acts for). The mail counts against the daily mail
- *   quota as sign-in mail (sendCounted, N2); a full day sends no notice and logs a warning. A payload of the P2 version that
+ *   quota as sign-in mail (sendCounted, N2); a full day leaves the row not done, for the job. A payload of the P2 version that
  *   has noticeSentAt already sent its notice.
  * - A person with no sign-in link (no auth_user_id yet) needs nothing: the invitation reads the email when it runs.
  * - Not handled here: agents.revokeAll after users.deactivate is track G's effect (plan 4.12); G registers its own producer.
@@ -148,14 +148,18 @@ const NoticePayload = z.object({
   key: z.string().min(1),
 });
 
-/** The auth.emailNotice effect: the notice at the old email, counted against the daily mail quota as sign-in mail. */
+/**
+ * The auth.emailNotice effect: the notice at the old email, counted against the daily mail quota as sign-in mail. A security
+ * notice never counts as done unless the mail went out (S1 review): a full day throws, so the row stays in the outbox and the
+ * job tries it again (up to 5 attempts); after that the Admin sees it as a failed effect in Usage (track M).
+ */
 export async function sendEmailNotice(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const parsed = NoticePayload.safeParse(payload);
   if (!parsed.success) throw new Error('The auth.emailNotice payload is not complete.');
   const notice = parsed.data;
   const mail = renderEmailChangedMail(notice.language, { name: notice.name, email: notice.email, by: notice.by }, notice.gender ?? undefined);
   const sent = await sendCounted(deps, 'signin', { to: notice.to, ...mail, tag: 'notice', idempotencyKey: notice.key }, { userId: notice.userId });
-  if (sent.status === 'over') deps.log.warn('The email change notice did not go out: the daily mail quota is full.', { userId: notice.userId });
+  if (sent.status === 'over') throw new Error('The email change notice did not go out: the daily mail quota is full. The job tries it again.');
 }
 
 function userIdOf(payload: Rec): string {

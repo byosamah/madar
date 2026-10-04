@@ -243,18 +243,30 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(mem.outbox).toHaveLength(1);
   });
 
-  it('a full mail day sends no notice, and the row is done with a warning in the log; an older row that sent its notice sends none', async () => {
+  it('a full mail day keeps the notice in the outbox, not done, with its error; a later run sends it when the quota has room', async () => {
     const { deps, auth, mem } = setup(person(), true);
-    mem.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    const today = deps.clock.now().toISOString().slice(0, 10);
+    mem.fill('notice', QUOTA_LIMITS.signin, today);
     const accepted = await linkedPerson(auth, person(), true);
     const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
     await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_f', byId: 'usr_001' }, deps, store);
     expect(deps.mail.sent).toEqual([]);
-    expect(mem.outbox.map((row) => row.done)).toEqual([true]);
-    expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_012')).toBe(true);
-    // A row of the P2 version marked its notice with noticeSentAt: nothing more goes out.
+    // A security notice never counts as done unless the mail went out: the job tries it again, and after 5 attempts the Admin
+    // sees it as a failed effect in Usage (track M).
+    expect(mem.outbox.map((row) => [row.kind, row.done, row.error])).toEqual([[AUTH_KINDS.emailNotice, false, expect.stringMatching(/quota/)]]);
+    // The next UTC day has room again.
+    deps.clock.set(new Date(deps.clock.now().getTime() + 24 * 60 * 60 * 1000));
+    mem.outbox[0].claimed = false;
+    expect(await processOutbox(deps, ['1'])).toEqual({ done: ['1'], failed: [] });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
+  });
+
+  it('an older row that sent its notice (noticeSentAt, the P2 version) queues none', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const accepted = await linkedPerson(auth, person(), true);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
     await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_old', notifyOld: 'sara@madar.test', noticeSentAt: '2026-10-04T06:00:00.000Z' }, deps, store);
-    expect(mem.outbox).toHaveLength(1);
+    expect([mem.outbox.length, deps.mail.sent.length]).toEqual([0, 0]);
   });
 
   it('the database store queues the notice row and the mark in one transaction: a failed mark leaves no notice row', async () => {

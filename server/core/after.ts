@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  *   until the work ends. The database pools live as long as the isolate there.
  * - Anything else (unit tests, local runs with no host): no after, so a route keeps its work inline.
  *
- * A route that needs no sign-in reads the host to choose the header that holds the client address (server/auth/forgot.ts).
+ * The forgot route (server/auth/forgot.ts) hands its lookup and its send to after, so the time of its answer tells nothing.
  */
 
 export type After = (work: Promise<unknown>) => void;
