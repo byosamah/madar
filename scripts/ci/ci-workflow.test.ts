@@ -159,10 +159,11 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     expect(build).toBeLessThan(at(integration, 'npx supabase start'));
   });
 
-  it('runs the MCP conformance check against the served functions, once G3 adds server/mcp/run.ts', () => {
+  it('runs the MCP conformance check, once G3 adds server/mcp/run.ts, before the step that serves every function', () => {
     const integration = job('integration');
     expect(integration).toMatch(/- name: MCP conformance\n {8}if: hashFiles\('server\/mcp\/run\.ts'\) != ''\n {8}run: npm run test:mcp\n/);
-    expect(at(integration, 'npm run test:mcp')).toBeGreaterThan(at(integration, 'supabase functions serve'));
+    // The runner serves its own mcp function (server/mcp/conformance.ts). A serve that already runs would answer its requests.
+    expect(at(integration, 'npm run test:mcp')).toBeLessThan(at(integration, 'supabase functions serve'));
   });
 
   it('uses the Supabase CLI version that package.json pins', () => {

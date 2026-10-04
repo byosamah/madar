@@ -94,6 +94,12 @@ jobs:
         run: npx supabase start -x edge-runtime
       - name: Local addresses and keys
         run: scripts/ci/stack-env.sh >> "$GITHUB_ENV"
+      # Plan 6.5: test:mcp passes in CI. The runner serves its own mcp function with its own settings (server/mcp/conformance.ts),
+      # so it runs BEFORE the step that serves every function: a second serve would answer its requests (first push, 2026-10-04).
+      # G3 adds server/mcp/run.ts (app.ts is already a T0 stub, so it cannot be the condition). Until G3 merges, this step skips.
+      - name: MCP conformance
+        if: hashFiles('server/mcp/run.ts') != ''
+        run: npm run test:mcp
       # Track E adds the function folders. Until it merges, this step skips.
       - name: Serve the functions
         if: hashFiles('supabase/functions/*/index.ts') != ''
@@ -115,11 +121,6 @@ jobs:
           cat "$RUNNER_TEMP/functions.log"
           echo "The functions did not start." >&2
           exit 1
-      # Plan 6.5: test:mcp passes in CI. It runs the conformance runner against the served mcp function.
-      # G3 adds server/mcp/run.ts (app.ts is already a T0 stub, so it cannot be the condition). Until G3 merges, this step skips.
-      - name: MCP conformance
-        if: hashFiles('server/mcp/run.ts') != ''
-        run: npm run test:mcp
       # scripts/restore-check.test.ts (task O2) makes and opens a backup with age and looks up files in an rclone crypt copy.
       - name: Install age and rclone
         run: sudo apt-get update -q && sudo apt-get install -y -q age rclone
