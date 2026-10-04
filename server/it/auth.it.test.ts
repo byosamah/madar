@@ -125,6 +125,8 @@ describe('suite 3: sign-in on the local stack', () => {
     const mail = deps.mail.sent[sent];
     expect(deps.mail.sent).toHaveLength(sent + 1);
     expect(mail.subject).toBe('Reset your Madar password');
+    // S1: the reset mail counts against the daily mail quota as sign-in mail.
+    expect(await office.sql<{ kind: string }>('select kind from mail_log where ref = $1', [mail.idempotencyKey])).toEqual([{ kind: 'signin' }]);
     const resetLink = linkIn(mail.text);
     expect(resetLink.pathname).toBe('/reset');
     const used = await auth.useLink('recovery', resetLink.searchParams.get('token_hash')!);

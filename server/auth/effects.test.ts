@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Event, User } from '../../src/api/contract/entities';
 import { defaultPreferences } from '../../src/api/contract/entities';
-import { EFFECTS_OF } from '../core/effects';
-import type { Query } from '../core/ports';
+import { EFFECTS_OF, processOutbox, writeOutbox } from '../core/effects';
+import type { Db, Query } from '../core/ports';
 import type { SaveResult } from '../data/save';
+import { memoryMailDb } from '../mail/memoryMailDb';
+import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
-import { AUTH_CALLS, AUTH_KINDS, authRowsOf, runAuthEffect, USER_EMAIL_CHANGED_SQL } from './effects';
+import { AUTH_CALLS, AUTH_KINDS, authRowsOf, runAuthEffect, sqlAuthStore, USER_EMAIL_CHANGED_SQL, type AuthStore } from './effects';
 import { fakeAuth } from './fakeAuth';
-import type { InviteStore, Person } from './invite';
+import { PAYLOAD_MERGE_SQL, type Person } from './invite';
 
 function person(over: Partial<User> = {}): User {
   return {
@@ -57,15 +59,23 @@ describe('authRowsOf: the outbox rows of the people calls (plan 4.12)', () => {
     expect(kindsOf(authRowsOf('events.undoStory', story))).toEqual([[AUTH_KINDS.unban, 'usr_012'], [AUTH_KINDS.email, 'usr_012']]);
   });
 
+  it('the auth.email row of an Undo names the person on whose authority it ran (S1): the person an agent acts for', () => {
+    const [row] = authRowsOf('events.undo', event({ actorId: 'usr_020', actorKind: 'agent', actingForId: 'usr_001', before: { email: 'b@madar.test' }, after: { email: 'a@madar.test' } }));
+    expect(row.payload.byId).toBe('usr_001');
+  });
+
   it('the users.update producer writes auth.email only when the save changed the email (the event it just wrote)', async () => {
     const asked: unknown[][] = [];
     const q = (after: Record<string, unknown> | undefined) => (async (text: string, values: unknown[] = []) => {
       asked.push([text, values]);
-      return after === undefined ? [] : [{ changed: 'email' in after }];
+      return after === undefined ? [] : [{ changed: 'email' in after, actor: 'usr_001' }];
     }) as Query;
     const saved = (changed: boolean) => ({ changed }) as SaveResult;
     const [producer] = EFFECTS_OF['users.update']!;
-    expect(kindsOf(await producer(person(), saved(true), q({ email: 'sara.new@madar.test' })))).toEqual([[AUTH_KINDS.email, 'usr_012']]);
+    const changed = await producer(person(), saved(true), q({ email: 'sara.new@madar.test' }));
+    expect(kindsOf(changed)).toEqual([[AUTH_KINDS.email, 'usr_012']]);
+    // S1: the row names the person on whose authority the email changed, for the notice at the old email.
+    expect(changed[0].payload.byId).toBe('usr_001');
     expect(await producer(person(), saved(true), q({ name: 'Sara B' }))).toEqual([]);
     expect(await producer(person(), saved(true), q(undefined))).toEqual([]);
     expect(asked.map(([text, values]) => [text, values])).toEqual(Array(3).fill([USER_EMAIL_CHANGED_SQL, ['usr_012']]));
@@ -85,7 +95,7 @@ describe('authRowsOf: the outbox rows of the people calls (plan 4.12)', () => {
 });
 
 /** One person row in memory, as the users table holds it, and the outbox payloads as the earlier attempts left them. */
-function memoryPeople(people: Person[]): InviteStore & { byId: Map<string, Person>; payloads: Map<string, Record<string, unknown>> } {
+function memoryPeople(people: Person[], db?: Db): AuthStore & { byId: Map<string, Person>; payloads: Map<string, Record<string, unknown>> } {
   const byId = new Map(people.map((p) => [p.user.id, p]));
   const payloads = new Map<string, Record<string, unknown>>();
   const merge = (inviteId: string, fields: Record<string, unknown>) => payloads.set(inviteId, { ...payloads.get(inviteId), ...fields });
@@ -108,6 +118,14 @@ function memoryPeople(people: Person[]): InviteStore & { byId: Map<string, Perso
     async markSent(inviteId, at, mailId) {
       merge(inviteId, { sentAt: at.toISOString(), mailId });
     },
+    async queueNotice(inviteId, rows) {
+      if (!db) throw new Error('This test has no outbox.');
+      return db.tx('write', async (q) => {
+        const ids = await writeOutbox(q, rows);
+        merge(inviteId, { noticeQueued: true });
+        return ids;
+      });
+    },
   };
 }
 
@@ -115,11 +133,14 @@ function memoryPeople(people: Person[]): InviteStore & { byId: Map<string, Perso
 const again = (store: ReturnType<typeof memoryPeople>, payload: Record<string, unknown>) => ({ ...payload, ...store.payloads.get(String(payload.inviteId)) });
 
 function setup(user: User, linked: boolean) {
-  const deps = fakeDeps({ config: { appUrl: 'https://madar.test' } });
+  const mem = memoryMailDb();
+  const deps = fakeDeps({ db: mem.db, config: { appUrl: 'https://madar.test' } });
   const auth = fakeAuth(deps.authAdmin);
   deps.authAdmin = auth;
-  return { deps, auth, user, linked };
+  return { deps, auth, user, linked, mem };
 }
+
+const ADMIN: Person = { user: person({ id: 'usr_001', name: 'Faisal Al Harbi', email: 'faisal@madar.test', systemRole: 'admin' }), authUserId: null };
 
 async function linkedPerson(auth: ReturnType<typeof fakeAuth>, user: User, accepted: boolean): Promise<Person> {
   const { authUserId } = await auth.generateLink('invite', user.email);
@@ -153,31 +174,106 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(auth.users.get(on.authUserId!)!.banned).toBe(false);
   });
 
-  it('auth.email gives Auth the new email, confirmed; a person who accepted gets only a notice at the old email', async () => {
-    const { deps, auth } = setup(person(), true);
+  it('auth.email gives Auth the new email, confirmed; a person who accepted gets only a notice at the old email, through the outbox (S1)', async () => {
+    const { deps, auth, mem } = setup(person(), true);
     const accepted = await linkedPerson(auth, person(), true);
-    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }]);
-    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_a' }, deps, store);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_a', byId: 'usr_001' }, deps, store);
     expect(auth.users.get(accepted.authUserId!)!.email).toBe('sara.new@madar.test');
     expect(auth.confirmed.has(accepted.authUserId!)).toBe(true);
     expect(auth.links).toHaveLength(1);
+    // The notice is an outbox row of its own, queued in one transaction with the mark on the auth.email row, and run at once.
+    expect(mem.outbox.map((row) => [row.kind, row.done])).toEqual([[AUTH_KINDS.emailNotice, true]]);
+    expect(mem.outbox[0].payload).toMatchObject({ userId: 'usr_012', to: 'sara@madar.test', email: 'sara.new@madar.test', by: 'Faisal Al Harbi', key: 'email-changed:inv_a' });
+    expect(store.payloads.get('inv_a')).toMatchObject({ notifyOld: 'sara@madar.test', noticeQueued: true });
     expect(deps.mail.sent.map((m) => [m.to, m.subject, m.tag, m.idempotencyKey])).toEqual([
       ['sara@madar.test', 'Your Madar sign-in email changed', 'notice', 'email-changed:inv_a'],
     ]);
     expect(deps.mail.sent[0].text).toContain('sara.new@madar.test');
+    expect(deps.mail.sent[0].text).toContain('The change came from Faisal Al Harbi.');
     expect(deps.mail.sent[0].text).not.toMatch(/token_hash|https?:/);
+    // It counts against the daily mail quota as sign-in mail.
+    expect(mem.log.map((row) => [row.kind, row.user_id, row.ref, row.resend_id])).toEqual([['signin', 'usr_012', 'email-changed:inv_a', 'mail_1']]);
   });
 
-  it('a retry of auth.email still sends the notice when the mail failed after Auth took the new email', async () => {
-    const { deps, auth } = setup(person(), true);
+  it('writes the notice in the person\'s language, with the feminine Arabic forms for a woman', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const ar = { ...defaultPreferences(), language: 'ar' as const };
     const accepted = await linkedPerson(auth, person(), true);
-    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }]);
-    const payload = { userId: 'usr_012', inviteId: 'inv_n' };
+    const store = memoryPeople([{ ...accepted, user: person({ name: 'سارة', email: 'sara.new@madar.test', gender: 'female', preferences: ar }) }, { ...ADMIN, user: { ...ADMIN.user, name: 'فيصل الحربي' } }], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_ar', byId: 'usr_001' }, deps, store);
+    expect(deps.mail.sent[0].subject).toBe('تغيّر بريد تسجيل الدخول إلى مدار');
+    expect(deps.mail.sent[0].text).toContain('جاء التغيير من فيصل الحربي.');
+    expect(deps.mail.sent[0].text).toContain('أخبري مدير النظام');
+  });
+
+  it('a notice whose send failed stays in the outbox for the job; a retry of auth.email queues no second notice', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const accepted = await linkedPerson(auth, person(), true);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    const payload = { userId: 'usr_012', inviteId: 'inv_n', byId: 'usr_001' };
     deps.mail.failNext(new Error('Resend is down'));
-    await expect(runAuthEffect(AUTH_KINDS.email, payload, deps, store)).rejects.toThrow('Resend is down');
+    await runAuthEffect(AUTH_KINDS.email, payload, deps, store);
+    expect(auth.users.get(accepted.authUserId!)!.email).toBe('sara.new@madar.test');
+    expect(mem.outbox.map((row) => [row.kind, row.done, row.error])).toEqual([[AUTH_KINDS.emailNotice, false, 'Resend is down']]);
+    await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
+    expect(mem.outbox).toHaveLength(1);
+    // The job, after the claim of the failed row ran out.
+    mem.outbox[0].claimed = false;
+    expect(await processOutbox(deps, ['1'])).toEqual({ done: ['1'], failed: [] });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
+    expect(mem.log).toHaveLength(1);
+  });
+
+  it('a retry of auth.email queues the notice when the effect stopped after Auth took the new email', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const accepted = await linkedPerson(auth, person(), true);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    const payload = { userId: 'usr_012', inviteId: 'inv_q', byId: 'usr_001' };
+    const queue = store.queueNotice;
+    store.queueNotice = async () => {
+      store.queueNotice = queue;
+      throw new Error('The database is gone');
+    };
+    await expect(runAuthEffect(AUTH_KINDS.email, payload, deps, store)).rejects.toThrow('The database is gone');
+    expect([auth.users.get(accepted.authUserId!)!.email, mem.outbox.length]).toEqual(['sara.new@madar.test', 0]);
     await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
     await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
+    expect(mem.outbox).toHaveLength(1);
+  });
+
+  it('a full mail day sends no notice, and the row is done with a warning in the log; an older row that sent its notice sends none', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    mem.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    const accepted = await linkedPerson(auth, person(), true);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_f', byId: 'usr_001' }, deps, store);
+    expect(deps.mail.sent).toEqual([]);
+    expect(mem.outbox.map((row) => row.done)).toEqual([true]);
+    expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_012')).toBe(true);
+    // A row of the P2 version marked its notice with noticeSentAt: nothing more goes out.
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_old', notifyOld: 'sara@madar.test', noticeSentAt: '2026-10-04T06:00:00.000Z' }, deps, store);
+    expect(mem.outbox).toHaveLength(1);
+  });
+
+  it('the database store queues the notice row and the mark in one transaction: a failed mark leaves no notice row', async () => {
+    let fail = true;
+    const marks: unknown[][] = [];
+    const mem = memoryMailDb((text, values) => {
+      if (text !== PAYLOAD_MERGE_SQL) return undefined;
+      if (fail) throw new Error('The mark failed');
+      marks.push(values);
+      return [];
+    });
+    const deps = fakeDeps({ db: mem.db });
+    const rows = [{ kind: AUTH_KINDS.emailNotice, payload: { userId: 'usr_012' } }];
+    await expect(sqlAuthStore(deps).queueNotice('inv_t', rows)).rejects.toThrow('The mark failed');
+    expect(mem.outbox).toEqual([]);
+    fail = false;
+    expect(await sqlAuthStore(deps).queueNotice('inv_t', rows)).toEqual(['1']);
+    expect(mem.outbox.map((row) => row.kind)).toEqual([AUTH_KINDS.emailNotice]);
+    expect(marks).toEqual([['inv_t', JSON.stringify({ noticeQueued: true })]]);
   });
 
   it('auth.email for a person who did not accept yet sends a new invitation to the new email, and the person stays unconfirmed', async () => {
