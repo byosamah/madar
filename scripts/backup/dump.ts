@@ -3,10 +3,17 @@
 //
 //   BACKUP_DB_URL=<session pooler address, as postgres> BACKUP_AGE_RECIPIENT=<age1...> npx tsx scripts/backup/dump.ts --out <dir>
 //
-// Three dumps with the Supabase CLI (platform facts 11.4): the roles, the schema, and the data with COPY. Before the data dump it
-// takes the office lock (the key of pg_advisory_xact_lock that every write of the server takes) as a session lock and counts the
-// rows of every Madar table with manifest.sql, so no office write lands between the counts and the dump. It holds the lock only
-// for the count and the data dump (seconds); a write waits for it. Then tar, and age to the owner's public key: the file
+// Three dumps of the Supabase CLI (platform facts 11.4): the roles, the schema, and the data with COPY. For a remote database the
+// CLI only prints its pg_dump script (--dry-run), and this script runs it with the local pg_dump 17 under verify-full and the
+// Supabase root certificate: the CLI itself starts pg_dump with PGHOST and PGPASSWORD but no TLS mode, so libpq would use
+// "prefer" and check no certificate. On this machine (the tests) the CLI runs the dump itself.
+//
+// Before the data dump it opens a transaction, takes the office lock (pg_advisory_xact_lock, the key that every office write of
+// the server takes) and counts the rows of every Madar table with manifest.sql, so no office write lands between the counts and
+// the dump. The transaction ends after the data dump, which has a time limit of DATA_DUMP_TIMEOUT_MS. An office write in that
+// window waits for its lock_timeout (5 s, server/data/sql.ts), then fails as busy and the person tries again. If this client is
+// lost, idle_in_transaction_session_timeout ends its session and Postgres frees the lock by itself; a transaction lock never
+// stays on a pooled backend the way a session lock can. Then tar, and age to the owner's public key: the file
 // madar-db-<stamp>.tar.gz.age in --out. The plain dump lives only in a private temporary folder, which it removes.
 // It prints one JSON line with the file, the name and the number of tables and rows. It never prints the address.
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -24,6 +31,12 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const SUPABASE_CA = new URL('../proof/supabase-root-2021-ca.crt', import.meta.url);
 const MANIFEST_SQL = new URL('./manifest.sql', import.meta.url);
 const AGE_RECIPIENT = /^age1[02-9ac-hj-np-z]{58}$/;
+/** The time limit of the data dump. The office lock is held for it, so office writes fail as busy until it ends. */
+export const DATA_DUMP_TIMEOUT_MS = 5 * 60_000;
+/** The idle cap of the lock transaction: longer than the data dump, so only a lost client meets it. */
+export const IDLE_CAP_MS = 6 * 60_000;
+/** How long the backup waits for the office lock while an office write holds it. */
+const LOCK_WAIT = '60s';
 
 export type BackupOptions = {
   dbUrl: string;
@@ -35,6 +48,8 @@ export type BackupOptions = {
   supabase?: string[];
   /** The age program (default: MADAR_AGE or age). */
   age?: string;
+  /** The shell that runs the pg_dump script for a remote database, from stdin (default: bash -s). */
+  shell?: string[];
 };
 
 export type BackupResult = { file: string; name: string; tables: number; rows: number };
@@ -54,17 +69,42 @@ export function clientConfig(dbUrl: string): pg.ClientConfig {
   return config;
 }
 
+/**
+ * One dump into file. A remote database: the CLI prints its pg_dump script, and shell runs it with PGSSLMODE=verify-full and
+ * PGSSLROOTCERT, which the script does not set, so pg_dump checks the certificate and the host name. This machine: the CLI runs
+ * the dump itself.
+ */
+export async function dumpOne(o: {
+  dbUrl: string;
+  label: string;
+  file: string;
+  flags: string[];
+  supabase?: string[];
+  shell?: string[];
+  timeoutMs?: number;
+}): Promise<void> {
+  const supabase = o.supabase ?? ['npx', 'supabase'];
+  const redact = [o.dbUrl, decodeURIComponent(new URL(o.dbUrl).password)];
+  const cli = [...supabase.slice(1), 'db', 'dump', '--db-url', o.dbUrl];
+  if (LOCAL_HOSTS.has(new URL(o.dbUrl).hostname)) {
+    await run(o.label, supabase[0], [...cli, '-f', o.file, ...o.flags], { redact, timeoutMs: o.timeoutMs });
+    return;
+  }
+  const script = (await run(`${o.label} (the script of the CLI)`, supabase[0], [...cli, '--dry-run', ...o.flags], { redact })).stdout;
+  const shell = o.shell ?? ['bash', '-s'];
+  const env = { ...process.env, PGSSLMODE: 'verify-full', PGSSLROOTCERT: fileURLToPath(SUPABASE_CA), PGCONNECT_TIMEOUT: '15' };
+  await run(o.label, shell[0], shell.slice(1), { input: script, env, stdoutFile: o.file, redact, timeoutMs: o.timeoutMs });
+}
+
 export async function makeBackup(o: BackupOptions): Promise<BackupResult> {
   if (!AGE_RECIPIENT.test(o.recipient)) throw new Error('The age recipient must be a public key that starts with age1.');
-  const supabase = o.supabase ?? ['npx', 'supabase'];
   const age = o.age ?? process.env.MADAR_AGE ?? 'age';
   const lockKey = o.lockKey ?? OFFICE_LOCK_KEY;
   const name = `madar-db-${stampOf(o.now ?? new Date())}`;
   const work = mkdtempSync(join(tmpdir(), 'madar-backup-'));
   const folder = join(work, name);
-  const secret = [o.dbUrl, decodeURIComponent(new URL(o.dbUrl).password)];
-  const dump = (label: string, file: string, more: string[]) =>
-    run(label, supabase[0], [...supabase.slice(1), 'db', 'dump', '--db-url', o.dbUrl, '-f', join(folder, file), ...more], { redact: secret });
+  const dump = (label: string, file: string, flags: string[], timeoutMs?: number) =>
+    dumpOne({ dbUrl: o.dbUrl, label, file: join(folder, file), flags, supabase: o.supabase, shell: o.shell, timeoutMs });
   try {
     await run('make the backup folder', 'mkdir', ['-m', '700', folder]);
     await dump('the role dump', 'roles.sql', ['--role-only']);
@@ -74,16 +114,23 @@ export async function makeBackup(o: BackupOptions): Promise<BackupResult> {
     await client.connect();
     let tables: Record<string, number>;
     try {
-      await client.query('select pg_advisory_lock($1::bigint)', [lockKey]);
+      await client.query('begin');
+      let committed = false;
       try {
+        await client.query(`set local idle_in_transaction_session_timeout = '${IDLE_CAP_MS / 1000}s'`);
+        await client.query(`set local lock_timeout = '${LOCK_WAIT}'`);
+        await client.query('select pg_advisory_xact_lock($1::bigint)', [lockKey]);
         const rows = (await client.query<{ manifest: Record<string, string | number> }>(readFileSync(MANIFEST_SQL, 'utf8'))).rows;
         tables = Object.fromEntries(Object.entries(rows[0].manifest).map(([table, n]) => [table, Number(n)]));
-        await dump('the data dump', 'data.sql', ['--use-copy', '--data-only', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes']);
+        await dump('the data dump', 'data.sql', ['--use-copy', '--data-only', '-x', 'storage.buckets_vectors', '-x', 'storage.vector_indexes'], DATA_DUMP_TIMEOUT_MS);
+        // A commit that fails (the idle cap ended the session) fails the backup: the counts may not match the dump.
+        await client.query('commit');
+        committed = true;
       } finally {
-        await client.query('select pg_advisory_unlock($1::bigint)', [lockKey]);
+        if (!committed) await client.query('rollback').catch(() => undefined);
       }
     } finally {
-      await client.end();
+      await client.end().catch(() => undefined);
     }
 
     const manifest: Manifest = { format: 1, madeAt: (o.now ?? new Date()).toISOString(), lockKey, tables };

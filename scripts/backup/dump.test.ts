@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LOCK_KEY } from '../../server/core/deps';
-import { clientConfig, makeBackup, OFFICE_LOCK_KEY } from './dump';
+import { clientConfig, DATA_DUMP_TIMEOUT_MS, dumpOne, IDLE_CAP_MS, makeBackup, OFFICE_LOCK_KEY } from './dump';
 import { run } from './run';
 
 /** The parts of the backup that need no database (plan 5.7; task O2). scripts/restore-check.test.ts runs a whole backup [Docker]. */
@@ -21,6 +21,41 @@ describe('dump.ts', () => {
     expect(pooler).toMatchObject({ user: 'postgres.abc', password: 'p@ss/word', port: 5432 });
     expect(pooler.ssl).toMatchObject({ rejectUnauthorized: true, servername: 'aws-1-eu-central-1.pooler.supabase.com' });
     expect(String((pooler.ssl as { ca: string }).ca)).toContain('BEGIN CERTIFICATE');
+  });
+
+  it('holds the office lock in the transaction form, so a lost client can never leave it on a pooled backend', () => {
+    const source = readFileSync(new URL('./dump.ts', import.meta.url), 'utf8');
+    expect(source).toContain('pg_advisory_xact_lock');
+    expect(source).not.toContain('pg_advisory_lock(');
+    expect(source).not.toContain('pg_advisory_unlock');
+    expect(source).toMatch(/set local idle_in_transaction_session_timeout/);
+    expect(source).toMatch(/set local lock_timeout/);
+    // A healthy data dump ends before the idle cap ends the session, and a lost client frees the lock within minutes.
+    expect(IDLE_CAP_MS).toBeGreaterThan(DATA_DUMP_TIMEOUT_MS);
+    expect(IDLE_CAP_MS).toBeLessThanOrEqual(10 * 60_000);
+  });
+
+  it('runs the pg_dump script of the CLI with verify-full and the Supabase root certificate for a remote database', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'madar-dump-'));
+    try {
+      const file = join(dir, 'data.sql');
+      await dumpOne({
+        dbUrl: 'postgresql://postgres.abc:pw@aws-1-eu-central-1.pooler.supabase.com:5432/postgres',
+        label: 'the data dump',
+        file,
+        flags: ['--data-only'],
+        // The CLI prints its script; the shell gets it on stdin and shows what pg_dump would see.
+        supabase: ['sh', '-c', 'printf "script %s\\n" "$*"', 'supabase'],
+        shell: ['sh', '-c', 'cat; printf "%s\\n" "$PGSSLMODE" "$PGSSLROOTCERT"'],
+      });
+      const [script, mode, root] = readFileSync(file, 'utf8').trim().split('\n');
+      expect(script).toBe('script db dump --db-url postgresql://postgres.abc:pw@aws-1-eu-central-1.pooler.supabase.com:5432/postgres --dry-run --data-only');
+      expect(mode).toBe('verify-full');
+      expect(readFileSync(root, 'utf8')).toContain('BEGIN CERTIFICATE');
+      expect(root.endsWith('scripts/proof/supabase-root-2021-ca.crt')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('refuses a recipient that is not an age public key before it runs anything', async () => {
