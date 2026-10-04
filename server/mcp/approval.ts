@@ -86,3 +86,8 @@ export function approveRoute(o: Partial<ApproveOptions> = {}): RouteDef {
 }
 
 export const APPROVE_ROUTE: RouteDef = approveRoute();
+
+/** The routes of the api app with this approval route once, also before and after server/http/routes.ts mounts it (tests). */
+export function withApproveRoute(routes: readonly RouteDef[], route: RouteDef = APPROVE_ROUTE): RouteDef[] {
+  return [...routes.filter((r) => !(r.method === route.method && r.path === route.path)), route];
+}

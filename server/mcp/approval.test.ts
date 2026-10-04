@@ -10,7 +10,7 @@ import { apiApp } from '../http/app';
 import { ROUTES } from '../http/routes';
 import { fakeDeps } from '../test/fakes/deps';
 import { CLIENT_SQL, ensureAgentUser, LINK_SQL } from './agentUser';
-import { APPROVAL_INSERT_SQL, APPROVAL_SQL, APPROVE_PATH, approveRoute, AUTHORIZATION_SQL } from './approval';
+import { APPROVAL_INSERT_SQL, APPROVAL_SQL, APPROVE_PATH, approveRoute, AUTHORIZATION_SQL, withApproveRoute } from './approval';
 
 /**
  * The approval that a person records in Madar for an AI app (plan 5.6; task G4; proof.md G4). The route runs in the api app with
@@ -58,7 +58,7 @@ function setup(o: { pending?: Record<string, { clientId: string; authUserId: str
   for (const id of o.off ?? []) lists.users[id].active = false;
   const office = snapshotOf(lists, 1, new Map([[HALA_AUTH, 'usr_001'], [SARA_AUTH, 'usr_005']]));
   const route = approveRoute({ verifyToken: browserTokenChecker({ issuer: ISSUER, jwks }), readOffice: async () => office });
-  const app = apiApp(deps, { routes: [...ROUTES, route] });
+  const app = apiApp(deps, { routes: withApproveRoute(ROUTES, route) });
   const approve = async (token: string | null, body: unknown = { authorizationId: 'auth-1' }) => {
     const response = await app.fetch(new Request(`http://127.0.0.1${APPROVE_PATH}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
