@@ -51,6 +51,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const errorFor = (field: string, fallback: string) => fieldError(error, field, t, fallback);
   // An agent has no role of its own (spec 17.1), so the Role field shows for people only.
   const isAgent = person ? person.kind === 'agent' : form.kind === 'agent';
+  const emailLocked = person !== null && !viewerIsAdmin;
   const submit = () => {
     const common = {
       name: form.name.trim(), email: form.email.trim(), systemRole: isAgent ? 'member' as const : form.systemRole,
@@ -73,7 +74,12 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     >
       <div className="flex flex-col gap-4 pt-1">
         <TextField id="person-name" label={t('admin.name')} value={form.name} dir="auto" error={errorFor('name', t('admin.errors.name'))} onChange={(event) => set('name', event.target.value)} />
-        <TextField id="person-email" type="email" dir="ltr" label={t('admin.email')} value={form.email} error={errorFor('email', t('admin.errors.email'))} onChange={(event) => set('email', event.target.value)} />
+        {/* The sign-in email is the key to the account, so only an Admin changes it (security review of P2). The API refuses it too. */}
+        <TextField
+          id="person-email" type="email" dir="ltr" label={t('admin.email')} value={form.email} readOnly={emailLocked}
+          hint={emailLocked ? t('admin.emailAdminOnly') : undefined} error={errorFor('email', t('admin.errors.email'))}
+          onChange={(event) => set('email', event.target.value)}
+        />
         {!isAgent && (
           <SelectField id="person-role" label={t('admin.role')} value={form.systemRole} error={errorFor('systemRole', t('errors.invalid_input'))} onChange={(event) => set('systemRole', event.target.value as Form['systemRole'])}>
             <option value="member">{t('admin.roles.member')}</option>

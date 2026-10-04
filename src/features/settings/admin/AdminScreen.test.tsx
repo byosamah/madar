@@ -266,6 +266,22 @@ describe('the Admin page for Management and Accounting', () => {
     await waitFor(() => expect(store.state.users.usr_004.systemRole).toBe('accounting'));
   });
 
+  it('shows Management the email of a person as read-only, and says why (security review of P2)', async () => {
+    await renderApp('/admin', as('usr_010'));
+    const people = await region('People');
+    await userEvent.click(await within(people).findByRole('button', { name: 'Actions for Omar Haddad' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Edit' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
+    const email = within(sheet).getByLabelText('Email');
+    expect(email).toHaveAttribute('readonly');
+    expect(email).toHaveAccessibleDescription('Only an Admin can change the email. It is the key to the account.');
+    // A new person still gets an email from Management.
+    await userEvent.click(within(sheet).getByRole('button', { name: /close/i }));
+    await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
+    const add = await screen.findByRole('dialog', { name: 'Add person' });
+    expect(within(add).getByLabelText('Email')).not.toHaveAttribute('readonly');
+  });
+
   it('hides from Management the person actions only an Admin may take (audit 2026-10-03, SHL-9)', async () => {
     const { store } = await renderApp('/admin', as('usr_010'));
     const agent = Object.values(store.state.users).find((u) => u.kind === 'agent' && u.ownerId === 'usr_001')!;

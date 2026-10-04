@@ -1033,6 +1033,7 @@
     "addPerson": "Add person",
     "name": "Name",
     "email": "Email",
+    "emailAdminOnly": "Only an Admin can change the email. It is the key to the account.",
     "role": "Role",
     "roles": {
       "admin": "Admin",

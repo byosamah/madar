@@ -204,6 +204,26 @@ describe('Management and people', () => {
     expect(t.store.state.users.usr_003.systemRole).toBe('member');
   });
 
+  // The sign-in email is the key to the account: a new email goes to Auth confirmed at once (server/auth/admin.ts), so a
+  // person who can change it can sign in as that person with "Forgot password" (security review of P2, 2026-10-04).
+  it('lets only an Admin change the email of a person, never Management and never an agent', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { email: 'mine@madar.test' } }))
+      .rejects.toMatchObject({ code: 'forbidden', details: { action: 'people.email' } });
+    await expect(t.api.call('users.update', { id: 'usr_007', patch: { email: 'mine@madar.test' } }))
+      .rejects.toMatchObject({ code: 'forbidden', details: { action: 'people.email' } });
+    // The same email is no change, so the other fields of a full form still save.
+    const same = t.store.state.users.usr_003.email;
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { email: same, name: 'Renamed' } })).name).toBe('Renamed');
+    t.as('usr_008');
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { email: 'agent@madar.test' } }))
+      .rejects.toMatchObject({ code: 'forbidden', details: { action: 'people.email' } });
+    expect(t.store.state.users.usr_003.email).toBe(same);
+    t.as('usr_001');
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { email: 'new-address@madar.test' } })).email).toBe('new-address@madar.test');
+  });
+
   it('refuses Management every new agent and every call about an agent of an Admin', async () => {
     const t = roleWorld();
     t.as('usr_006');

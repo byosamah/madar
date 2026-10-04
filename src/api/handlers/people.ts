@@ -187,7 +187,14 @@ export const usersUpdate = defineCall({
     assertCan(ctx, 'people.manage');
     const user = requireUser(ctx, input.id);
     assertMayTouch(ctx, user, input.patch.systemRole);
-    if (input.patch.email) assertEmailFree(ctx, input.patch.email, user.id);
+    if (input.patch.email !== undefined && input.patch.email.toLowerCase() !== user.email.toLowerCase()) {
+      // The sign-in email is the key to the account: Auth takes the new email as confirmed, and "Forgot password" goes there.
+      // So only an Admin changes it, and never through an agent (security review of P2, 2026-10-04).
+      if (ctx.authority.systemRole !== 'admin' || ctx.actor.kind === 'agent') {
+        throw forbidden('Only an Admin can change the email of a person.', { action: 'people.email' });
+      }
+      assertEmailFree(ctx, input.patch.email, user.id);
+    }
     if (user.kind === 'agent') assertAgentRole(input.patch.systemRole);
     if (input.patch.systemRole !== undefined && input.patch.systemRole !== 'admin' && user.systemRole === 'admin') {
       // Only people count: an agent acts with its person's rights, so an agent can never keep the office's Admin work going.
