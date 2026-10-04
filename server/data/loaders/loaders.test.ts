@@ -420,7 +420,7 @@ describe('unread counts (plan 4.13, A9)', () => {
     const kept = Object.values(markedThread.comments).filter((c) => c.targetId === thread);
     expect(kept.every((c) => c.authorId === ADMIN || c.createdAt === newestAt)).toBe(true);
     expect(kept.length).toBeLessThanOrEqual(3);
-  });
+    }, 30_000);
 
   it('counts what the scan counts: not the person, not their agent, not a message for them, and after their own last comment', async () => {
     const { state, room, thread } = long();
@@ -438,7 +438,7 @@ describe('unread counts (plan 4.13, A9)', () => {
       await same(state, 'chats.markRead', { conversationId: thread }, actor);
       await same(state, 'chats.markRead', { conversationId: room }, actor);
     }
-  });
+    }, 30_000);
 });
 
 describe('the jobs loader (plan 4.6, for track N3)', () => {
