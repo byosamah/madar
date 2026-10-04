@@ -127,7 +127,7 @@ describe('renderMail', () => {
     for (const kind of MAIL_TEMPLATES) {
       for (const lang of ['en', 'ar'] as Language[]) {
         const m = renderMail(kind, lang, SAMPLES[kind] as never, FEMALE);
-        expect(allOutput(m)).not.toContain('—');
+        expect(allOutput(m)).not.toContain('\u2014');
         expect(m.text).not.toMatch(/undefined|\{\{|(^|\s)mail\.\w/);
         if (lang === 'ar') {
           // Latin letters may appear only in the link, the names of the sample, the CSS and the HTML tags.
