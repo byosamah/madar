@@ -1,0 +1,60 @@
+# Deploy of the test project madar-test (plan 5.9, task O3): migrations and functions, by hand only.
+# Production never deploys from GitHub. scripts/deploy/all.sh production runs on the Mac after the typed word (plan, section 10,
+# decision 9), and every deploy script refuses production when CI or GITHUB_ACTIONS is set.
+# Settings (config.sh) and secrets (secrets.ts) also run only from the Mac: they need secrets/test.env, which never goes to GitHub.
+# The screens (pages.sh test) deploy from the Mac only too: a Cloudflare Pages token can deploy every Pages project of its account,
+# and the Pages project madar serves production (branch main) as well as test (branch preview).
+#
+# Repository secrets, each only in the step that needs it, never in a step that runs npm:
+#   TEST_SUPABASE_ACCESS_TOKEN  a Supabase token that cannot reach production. A classic personal token reaches every project of
+#                               its account, production too, so it must never go here. Use a scoped token limited to madar-test
+#                               (with only the permissions of db push and functions deploy), or the token of a second Supabase
+#                               user who is a member of a madar-test organization only (Z1 item: move madar-test into its own
+#                               organization). Until one of these exists, do not add this secret: run scripts/deploy/all.sh test
+#                               from the Mac. The first step (token-scope.sh) stops the job when the token can read production.
+#   TEST_DB_PASSWORD            the postgres password of madar-test
+name: Deploy test
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.23.1'
+
+jobs:
+  deploy-test:
+    name: deploy test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Token scope
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}
+        run: scripts/deploy/token-scope.sh
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build:server
+      - name: Migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}
+          MADAR_TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+        run: scripts/deploy/db.sh test
+      - name: Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}
+        run: scripts/deploy/functions.sh test --prebuilt

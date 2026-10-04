@@ -1,0 +1,51 @@
+# The monthly reminder for the restore check (plan 5.7, change 12, section 10 decision 4; task O2). The check needs the owner's
+# offline age key, so it runs on the Mac, not here. On the first day of each month at 09:07 Riyadh this workflow opens one issue
+# with the steps. It opens no second issue while one is still open. It uses only the job token, with the right to write issues.
+name: Restore reminder
+
+on:
+  schedule:
+    - cron: '7 9 1 * *'
+      timezone: 'Asia/Riyadh'
+  workflow_dispatch:
+
+concurrency:
+  group: restore-reminder
+  cancel-in-progress: false
+
+permissions:
+  issues: write
+
+jobs:
+  remind:
+    name: remind
+    if: github.repository == 'byosamah/madar'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Open the issue "Run the restore check"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          title="Run the restore check ($(TZ=Asia/Riyadh date +%Y-%m))"
+          open="$(gh issue list --repo "$REPO" --state open --search 'in:title "Run the restore check"' --json number --jq 'length')"
+          if [ "$open" != "0" ]; then
+            echo "An issue for the restore check is still open. No new issue."
+            exit 0
+          fi
+          body="$(cat <<'BODY'
+          The monthly restore check proves that the newest backup opens and restores. It takes about 10 minutes on the Mac.
+
+          Before you start: Docker must run. You need age, rclone, the offline age key, and the rclone config of the file copy.
+
+          1. Download the newest backup:
+             `gh release download --repo byosamah/madar-backups --pattern '*.age' --dir ~/Downloads/madar-backup`
+          2. Put the age key in a file, for example `~/madar-backup.key`.
+          3. In the madar folder, run:
+             `npx tsx scripts/restore-check.ts --file ~/Downloads/madar-backup/<file>.age --key ~/madar-backup.key --files-remote madar-copy:current`
+          4. Delete the key file and the downloaded backup.
+          5. Paste the "ok" line of the report here, then close this issue. If a step failed, paste only its name and the first line of its detail (for the restore step, the psql ERROR line), and keep the issue open. Never paste more of the report: this issue is stored in the US.
+          BODY
+          )"
+          gh issue create --repo "$REPO" --title "$title" --body "$body"

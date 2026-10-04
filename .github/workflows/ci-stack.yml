@@ -117,6 +117,9 @@ jobs:
       - name: MCP conformance
         if: hashFiles('server/mcp/run.ts') != ''
         run: npm run test:mcp
+      # scripts/restore-check.test.ts (task O2) makes and opens a backup with age and looks up files in an rclone crypt copy.
+      - name: Install age and rclone
+        run: sudo apt-get update -q && sudo apt-get install -y -q age rclone
       - name: Integration tests
         run: npm run test:it
       - name: Function log

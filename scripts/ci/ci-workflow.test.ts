@@ -134,6 +134,15 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     expect(integration).toContain('npm run test:it');
   });
 
+  it('takes MinIO from Chainguard, pinned by digest, because Docker Hub no longer serves minio/minio (F1)', () => {
+    const images = [...job('integration').matchAll(/(\S*minio\S*@sha256:[0-9a-f]{64})/g)].map((match) => match[1]);
+    expect(images).toHaveLength(1);
+    expect(images[0]).toMatch(/^cgr\.dev\/chainguard\/minio@sha256:[0-9a-f]{64}$/);
+    expect(both).not.toMatch(/(^|[\s/])minio\/minio\b/m);
+    // The integration tests start the same image on the Mac (server/it/minio.ts).
+    expect(readFileSync(new URL('server/it/minio.ts', root), 'utf8')).toContain(images[0]);
+  });
+
   it('starts the stack without the edge runtime while the function folders are missing, because config.toml names them', () => {
     // supabase start fails with "open supabase/functions/api/index.ts: no such file" until track E adds the folders.
     const integration = job('integration');
