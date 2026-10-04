@@ -81,6 +81,8 @@ export interface MeterPort {
   addBytes(n: number): void;
   /** One statement of its own after a batch, never inside the transaction of a call. */
   countRequest(db: Db): Promise<void>;
+  /** The change signals that realtime.send did not send (server/signal/realtime.ts). */
+  signalsFailed(count: number): void;
 }
 
 export type LogFields = Record<string, unknown>;

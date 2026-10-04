@@ -1,4 +1,4 @@
-import type { Logger, LogFields, MeterPort, Query, SignalPort } from '../core/ports';
+import type { Logger, MeterPort, Query, SignalPort } from '../core/ports';
 import type { ChangeSignal } from '../core/types';
 import { onNotice, type DbNotice } from '../data/sql';
 
@@ -30,12 +30,9 @@ const SEND_WARNING = 'WarnSendingBroadcastMessage:';
 /** Starts to hear the notices on the connection of q; returns the stop, or undefined when q has no connection to hear. */
 export type NoticeListen = (q: Query, listener: (notice: DbNotice) => void) => (() => void) | undefined;
 
-/** A meter that counts the failed signals. MeterPort gains signalsFailed in the merge of track N1; track M fills it. */
-export type SignalMeter = MeterPort & { signalsFailed?(count: number): void };
-
 export type RealtimeSenderOptions = {
   log: Logger;
-  meter?: SignalMeter;
+  meter?: MeterPort;
   /** onNotice of pgDb by default. Unit tests pass their own. */
   listen?: NoticeListen;
 };
@@ -61,20 +58,7 @@ export function realtimeSender(o: RealtimeSenderOptions): SignalPort {
         seqs: signals.map((signal) => signal.seq),
         warnings,
       });
-      o.meter?.signalsFailed?.(warnings.length);
+      o.meter?.signalsFailed(warnings.length);
     },
   };
 }
-
-/** One JSON line for each message, as consoleLogger of server/core/deps.ts writes them. */
-const jsonLog: Logger = {
-  info: (message: string, fields?: LogFields) => console.log(JSON.stringify({ level: 'info', message, ...fields })),
-  warn: (message: string, fields?: LogFields) => console.warn(JSON.stringify({ level: 'warn', message, ...fields })),
-  error: (message: string, fields?: LogFields) => console.error(JSON.stringify({ level: 'error', message, ...fields })),
-};
-
-/**
- * The sender of the server's Deps. It logs a failed signal as a JSON line. server/core/deps.ts builds realtimeSender with its
- * own logger and meter once the merge lead patch of track N1 is in.
- */
-export const realtimeSignalPort: SignalPort = realtimeSender({ log: jsonLog });

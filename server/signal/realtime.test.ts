@@ -3,7 +3,7 @@ import type { Logger, LogFields, MeterPort, Query } from '../core/ports';
 import type { ChangeSignal } from '../core/types';
 import { onNotice, type DbNotice } from '../data/sql';
 import { recordingMeter } from '../test/fakes/meter';
-import { realtimeSender, realtimeSignalPort, SIGNAL_EVENT, type NoticeListen } from './realtime';
+import { realtimeSender, SIGNAL_EVENT, type NoticeListen } from './realtime';
 
 /**
  * The Realtime sender (plan 5.3; proof.md, Z0a item 5) on a recording query. realtime.send turns every failure into a WARNING
@@ -135,17 +135,20 @@ describe('the Realtime sender', () => {
     expect(listening()).toBe(0);
   });
 
-  it('logs a failed signal also without a meter that counts them', async () => {
+  it('logs a failed signal also without a meter, and counts it on the meter of the Deps', async () => {
     const { q, listen } = recordingQuery({ during: (fire) => fire({ severity: 'WARNING', message: 'WarnSendingBroadcastMessage: x' }) });
     const { log, lines } = recordingLog();
-    await realtimeSender({ log, meter: recordingMeter(), listen }).send(q, [signal('office', 1)]);
+    await realtimeSender({ log, listen }).send(q, [signal('office', 1)]);
     expect(lines.map((line) => line.level)).toEqual(['error']);
+    const meter = recordingMeter();
+    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
+    expect(meter.failedSignals).toBe(1);
   });
 
   it('listens through onNotice of pgDb by default, which hears nothing on a query that is not of pgDb', async () => {
     expect(onNotice((async () => []) as Query, () => undefined)).toBeUndefined();
     const { q, sent } = recordingQuery();
-    await realtimeSignalPort.send(q, [signal('office', 1)]);
+    await realtimeSender({ log: recordingLog().log }).send(q, [signal('office', 1)]);
     expect(sent).toHaveLength(1);
   });
 });

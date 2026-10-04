@@ -8,5 +8,6 @@ export function meterPort(): MeterPort {
   return {
     addBytes: () => undefined,
     countRequest: async () => undefined,
+    signalsFailed: () => undefined,
   };
 }

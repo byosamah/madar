@@ -9,7 +9,7 @@ import { r2FilesPort } from '../files/r2';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { resendMailPort } from '../mail/resend';
-import { realtimeSignalPort } from '../signal/realtime';
+import { realtimeSender } from '../signal/realtime';
 import { meterPort } from '../usage/meter';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
 
@@ -178,6 +178,8 @@ export function buildDeps(read: ReadEnv = env): Deps {
 export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
   const { config } = values;
   const db = o.db ?? pgDb(values.database);
+  const log = consoleLogger();
+  const meter = meterPort();
   return {
     db,
     clock: { now: () => new Date() },
@@ -185,10 +187,10 @@ export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
       ? r2FilesPort(values.files.r2)
       : supabaseStorageFilesPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey, bucket: values.files.bucket }),
     mail: values.mail.driver === 'resend' ? resendMailPort({ apiKey: values.mail.apiKey, from: config.mailFrom }) : outboxMailPort(db),
-    signal: realtimeSignalPort,
+    signal: realtimeSender({ log, meter }),
     authAdmin: authAdminPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey }),
-    meter: meterPort(),
+    meter,
     config,
-    log: consoleLogger(),
+    log,
   };
 }
