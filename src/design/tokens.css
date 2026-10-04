@@ -382,6 +382,14 @@
   .field[aria-invalid="true"] {
     border-color: var(--c-late-text);
   }
+  /* A field that cannot change looks like plain text in a thin frame, not like a box to type in. Its hint says why. */
+  .field[readonly],
+  .field[readonly]:hover {
+    background-color: transparent;
+    border-color: var(--c-hairline);
+    color: var(--c-ink-2);
+    cursor: default;
+  }
   .field-label {
     font-size: calc(var(--size-footnote) * var(--boost));
     font-weight: 500;
