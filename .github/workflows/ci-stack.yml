@@ -97,8 +97,11 @@ jobs:
       # Track E adds the function folders. Until it merges, this step skips.
       - name: Serve the functions
         if: hashFiles('supabase/functions/*/index.ts') != ''
+        # The server stops at start without its settings (DATABASE_URL, APP_URL, MAIL_FROM and the rest), so the functions get the
+        # same local env file as a run on the Mac (tests/e2e-deploy/local.ts, MAIL_DRIVER=outbox: no mail leaves the runner).
         run: |
-          nohup npx supabase functions serve > "$RUNNER_TEMP/functions.log" 2>&1 &
+          npx tsx tests/e2e-deploy/local.ts functions-env "$RUNNER_TEMP/functions.env"
+          nohup npx supabase functions serve --env-file "$RUNNER_TEMP/functions.env" > "$RUNNER_TEMP/functions.log" 2>&1 &
           for _ in $(seq 1 90); do
             if grep -q 'Serving functions on' "$RUNNER_TEMP/functions.log"; then
               code="$(curl -s -o /dev/null -w '%{http_code}' "$SUPABASE_URL/functions/v1/api" || true)"
