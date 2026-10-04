@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import type { Task } from '../contract/entities';
-import { makeStage, makeTask, NOW, testApi } from '../../test/factories';
+import { makeProject, makeStage, makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -206,6 +206,7 @@ describe('stage prerequisites', () => {
     await expect(t.api.call('stages.setPrerequisites', { stageId: 'stg_001', prerequisiteIds: ['stg_003'] })).rejects.toMatchObject({ details: { reason: 'dependency_cycle' } });
     await expect(t.api.call('stages.setPrerequisites', { stageId: 'stg_001', prerequisiteIds: ['stg_001'] })).rejects.toMatchObject({ details: { reason: 'dependency_cycle' } });
     await expect(t.api.call('stages.setPrerequisites', { stageId: 'stg_003', prerequisiteIds: ['stg_001', 'stg_001'] })).rejects.toMatchObject({ details: { reason: 'duplicate_prerequisite' } });
+    t.store.state.projects.prj_099 = makeProject({ id: 'prj_099', name: 'Other project' });
     t.store.state.stages.stg_099 = makeStage({ id: 'stg_099', projectId: 'prj_099' });
     await expect(t.api.call('stages.setPrerequisites', { stageId: 'stg_003', prerequisiteIds: ['stg_099'] })).rejects.toMatchObject({ details: { reason: 'prerequisite_not_in_project' } });
     t.as('usr_003');

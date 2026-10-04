@@ -49,11 +49,10 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
   },
   {
     file: 'src/api/handlers/chats.test.ts',
-    test: 'task threads follow the comment read rule shows a thread to a removed member exactly when comments.list lets them read it',
+    test: 'task threads follow the comment read rule gives a deactivated removed member neither the comments nor the thread',
     reason:
-      'Its last part turns the person off and expects forbidden from comments.list and an answer from chats.list. The server refuses '
-      + 'both with unauthenticated and the reason account_off (plan 4.5, the actor). The D2 report gives the merge lead a patch that '
-      + 'splits the test, so its removed-member part runs in db mode.',
+      'It turns the person off and expects forbidden from comments.list and an answer from chats.list. The server refuses both with '
+      + 'unauthenticated and the reason account_off (plan 4.5, the actor). The removed-member part is its own test and runs in db mode.',
   },
   {
     file: 'src/api/handlers/projectsAudit.test.ts',
@@ -69,13 +68,6 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
     reason:
       'The stored data of a deleted project goes with the effect of track F (server/files/effects.ts). Until F merges, the prepare '
       + 'hook of projects.delete is the T0 stub that lists no data key, so the data stays.',
-  },
-  {
-    file: 'src/api/handlers/flow.test.ts',
-    test: 'stage prerequisites refuses cycles, other projects and repeats, and only the leader and the Admin set them',
-    reason:
-      'Test data: it adds stg_099 in prj_099, a project that does not exist, and the database refuses that stage (TM 3.6). The D2 '
-      + 'report gives the merge lead a patch that adds prj_099 to the test and removes this line.',
   },
 ];
 

@@ -149,7 +149,14 @@ describe('task threads follow the comment read rule', () => {
     const thread = (await t.api.call('chats.list', {})).some((row) => row.kind === 'task');
     expect(comments).toBe(1);
     expect(thread).toBe(true);
-    // A deactivated person gets neither the comments nor the thread.
+  });
+
+  it('gives a deactivated removed member neither the comments nor the thread', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_001 = makeTask({ ownerId: 'usr_002' });
+    t.as('usr_003');
+    await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'My note.' });
+    delete t.store.state.members[memberKey('prj_001', 'usr_003')];
     t.store.state.users.usr_003.active = false;
     await expect(t.api.call('comments.list', { targetType: 'task', targetId: 'tsk_001' })).rejects.toMatchObject({ code: 'forbidden' });
     expect((await t.api.call('chats.list', {})).some((row) => row.kind === 'task')).toBe(false);
