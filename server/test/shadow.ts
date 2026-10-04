@@ -126,7 +126,7 @@ export async function shadowProblems(c: ShadowCase): Promise<string[]> {
   if (!def.readOnly) {
     const saved = firstDifference(changeMap(changesOf(c.office, c.after)), changeMap(whole.changes));
     if (saved) problems.push(`${c.name}: the database saved another change than the whole office in memory (database | memory): ${saved}.${hint}`);
-    const counters = firstDifference(changedCounters(c.office, c.after), whole.counters ?? {});
+    const counters = firstDifference(normal(changedCounters(c.office, c.after)), normal(whole.counters ?? {}));
     if (counters) problems.push(`${c.name}: the database counted other numbers than the whole office in memory (database | memory): ${counters}.${hint}`);
   }
   return problems;

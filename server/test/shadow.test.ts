@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { makeWorld, NOW } from '../../src/test/factories';
 import type { RunResult } from '../core/types';
+import { sharedCalls } from '../../src/api/sharedCalls';
 import { runOn } from '../data/loaders/compare';
 import { shadowProblems } from './shadow';
 
@@ -42,6 +43,17 @@ describe('the shadow run (TM 3.5, check 1)', () => {
     const refused: RunResult = { ok: false, error: { code: 'forbidden', message: 'No.' } };
     const [refusal] = await shadowProblems({ name: 'settings.update', input: INPUT, actorId: 'usr_001', now: NOW, office, result: refused, after: office });
     expect(refusal).toMatch(/the database refused with forbidden, the whole office in memory answered/);
+  });
+
+  it('compares the counters by value, not by the order of their keys', async () => {
+    const office = makeWorld();
+    const input = { name: 'New Person', email: 'new@madar.test', discipline: 'MEP' };
+    const after = structuredClone(office);
+    const outcome = runOn(after, 'users.create', sharedCalls['users.create'].input.parse(input), 'usr_001', { now: NOW, correlationId: 'sty_real' });
+    const result: RunResult = { ok: true, output: outcome.output, storyId: 'sty_real', changed: true };
+    // users.create counts a person and an event; the database reads the counters back in its own order.
+    after.counters = Object.fromEntries(Object.entries(after.counters).reverse());
+    expect(await shadowProblems({ name: 'users.create', input, actorId: 'usr_001', now: NOW, office, result, after })).toEqual([]);
   });
 
   it('says whether the memory loader agrees with the whole office, to point at the loader or the save step', async () => {

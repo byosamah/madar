@@ -131,6 +131,8 @@ class Worker {
   #sumSql?: string;
   #ownBaseline?: string;
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
+  /** How many calls ran on the database in this file, and their time in ms, for the gate of TM 4.1 (25 ms a call). */
+  #calls = { n: 0, ms: 0 };
   readonly backend: MirrorBackend;
   #deps?: ReturnType<typeof fakeDeps>;
 
@@ -209,9 +211,12 @@ class Worker {
       this.#runs.set(calls, run);
     }
     await this.q(AS_SERVER);
+    const started = performance.now();
     try {
       return await run(this.#deps!, req);
     } finally {
+      this.#calls.n += 1;
+      this.#calls.ms += performance.now() - started;
       await this.q(AS_SETUP);
       await this.q(DEFERRED);
     }
@@ -237,6 +242,8 @@ class Worker {
   /** The leak guard (TM 5, point 4): no row of any test is left. Then the connection closes. */
   async close(): Promise<void> {
     if (!this.#client) return;
+    const { n, ms } = this.#calls;
+    console.info(`db mode: ${n} calls on the database in ${this.schema}, ${n > 0 ? (ms / n).toFixed(1) : 0} ms a call in runCall.`);
     try {
       await this.rollback();
       const expected = this.#ownBaseline ?? this.baseline;
