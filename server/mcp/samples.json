@@ -1,0 +1,167 @@
+{
+  "comments.create": {
+    "targetType": "task",
+    "targetId": "tsk_145",
+    "body": "The levels match the survey.",
+    "storyId": "cor_sample_015"
+  },
+  "comments.list": {
+    "targetType": "task",
+    "targetId": "tsk_007"
+  },
+  "dashboard.get": {
+    "status": "active"
+  },
+  "deadlines.create": {
+    "projectId": "prj_001",
+    "name": "Municipality submission",
+    "date": "2026-10-21",
+    "stageId": "stg_004",
+    "storyId": "cor_sample_015"
+  },
+  "deadlines.list": {
+    "from": "2026-09-30",
+    "to": "2026-12-29"
+  },
+  "deadlines.update": {
+    "id": "ddl_037",
+    "patch": {
+      "date": "2026-10-28"
+    },
+    "storyId": "cor_sample_015"
+  },
+  "events.list": {
+    "projectId": "prj_001",
+    "limit": 10
+  },
+  "events.undo": {
+    "eventId": "evt_359"
+  },
+  "events.undoStory": {
+    "correlationId": "cor_sample_015"
+  },
+  "files.list": {
+    "projectId": "prj_001"
+  },
+  "madar.readFirst": {},
+  "payments.create": {
+    "projectId": "prj_001",
+    "name": "Design development fee",
+    "amount": 25000,
+    "dueDate": "2026-10-30",
+    "storyId": "cor_sample_015"
+  },
+  "payments.list": {
+    "projectId": "prj_001"
+  },
+  "payments.markReceived": {
+    "id": "pay_012",
+    "receivedOn": "2026-09-30",
+    "storyId": "cor_sample_015"
+  },
+  "payments.update": {
+    "id": "pay_012",
+    "patch": {
+      "note": "Invoice 2026-118"
+    },
+    "storyId": "cor_sample_015"
+  },
+  "projects.get": {
+    "id": "prj_001"
+  },
+  "projects.list": {
+    "filter": "all",
+    "sort": "deadline"
+  },
+  "projects.setStatus": {
+    "id": "prj_002",
+    "status": "completed"
+  },
+  "projects.update": {
+    "id": "prj_001",
+    "patch": {
+      "description": "A four-storey office building with a basement car park."
+    },
+    "storyId": "cor_sample_015"
+  },
+  "search.query": {
+    "text": "Corniche"
+  },
+  "story.start": {},
+  "tasks.approve": {
+    "id": "tsk_010",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.complete": {
+    "id": "tsk_145",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.create": {
+    "projectId": "prj_001",
+    "title": "Check the site drainage levels",
+    "stageId": "stg_004",
+    "ownerId": "usr_002",
+    "dueDate": "2026-10-07",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.get": {
+    "id": "tsk_001"
+  },
+  "tasks.list": {
+    "projectId": "prj_001",
+    "includeDone": true
+  },
+  "tasks.move": {
+    "id": "tsk_145",
+    "status": "in_progress",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.sendBack": {
+    "id": "tsk_023",
+    "note": "Add the section through the stair, then send it again.",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.update": {
+    "id": "tsk_145",
+    "patch": {
+      "description": "Compare the levels with the survey of August.",
+      "flagged": true
+    },
+    "storyId": "cor_sample_015"
+  },
+  "tracker.close": {
+    "id": "trk_022",
+    "storyId": "cor_sample_015"
+  },
+  "tracker.list": {
+    "projectId": "prj_001",
+    "openOnly": false
+  },
+  "tracker.log": {
+    "projectId": "prj_001",
+    "type": "message",
+    "direction": "out",
+    "title": "Sent the drainage report to the client",
+    "waiting": "client",
+    "date": "2026-09-30",
+    "storyId": "cor_sample_015"
+  },
+  "tracker.update": {
+    "id": "trk_022",
+    "note": "The client asked for one week to reply.",
+    "storyId": "cor_sample_015"
+  },
+  "updates.create": {
+    "projectId": "prj_001",
+    "body": "The drainage check is done. The levels match the survey.",
+    "storyId": "cor_sample_015"
+  },
+  "updates.list": {
+    "projectId": "prj_001",
+    "filter": "all",
+    "limit": 20
+  },
+  "users.list": {
+    "includeInactive": false
+  }
+}

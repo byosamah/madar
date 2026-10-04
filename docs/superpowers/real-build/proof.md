@@ -401,3 +401,120 @@ Two more facts:
 - The auth.email effect notes what it owes in the payload (`owesInvite`, or `notifyOld`) before it changes Auth, so a retry after a failed link or mail still sends it.
 - Track M: `failedEffects` of `usage.get` returns the kind, the attempts and the error of a row, never its payload. An unsent invitation row holds a live token hash.
 - The forgot route answers after the work (padded to 1.5 s). A slow Auth or Resend still makes the answer for a real account slower. Moving the work after the answer needs `after` (waitUntil) in the route handlers and a database that stays open after the answer on Workers; that is a host change for track E, not done here.
+
+## G1. The token hook and the agent token (local stack, 2026-10-03)
+
+**Result: pass.** Supabase Auth accepts a changed `aud`. The fallback of risk 4 (section 9 of the plan) is not needed.
+
+**Where:** the local stack of Supabase CLI 2.119.0, Auth (GoTrue) v2.197.0, after `supabase db reset` from the `rb/G` worktree, with the migration `supabase/migrations/20261004000400_platform_auth_hook.sql`. The test is `server/it/hook.it.test.ts` (run with `MADAR_IT=1 npx vitest run --project it server/it/hook.it.test.ts`): 8 tests, 8 passed (6 at first, plus 2 probes of the G repair). Without the migration the same test fails (red run first).
+
+**How:** the test runs the full OAuth 2.1 flow of an MCP client against the local Auth server: dynamic client registration (`POST /auth/v1/oauth/clients/register`, a public client with PKCE), `GET /auth/v1/oauth/authorize` (302 to `/oauth/consent?authorization_id=...`), the consent approval through the Auth API as the consent screen does it (`getAuthorizationDetails`, `approveAuthorization`), the code exchange with `code_verifier` at `/auth/v1/oauth/token`, and a refresh at the same endpoint.
+
+| Check of platform facts 6.8 | Result |
+|---|---|
+| (a) The hook sees `client_id` | Yes, in `event.claims.client_id`, at the first token and at a refresh. The top level of the event has only `authentication_method`, `claims`, `metadata`, `user_id` (no `client_id`). `authentication_method` is `oauth_provider/authorization_code` at the first token and `token_refresh` at a refresh. The claims also carry `scope` (`email` here) and `session_id`. |
+| The hook reads `platform_config.mcp_url` | Yes. A change of the row changes the `aud` of the next token, so each project gets its own value. |
+| (b) Auth accepts the changed `aud` | Yes. Auth issues the token, signs it (ES256 on the local stack), and the token passes `jose` `jwtVerify` with the JWKS of `/auth/v1/.well-known/jwks.json`, `audience` = the MCP URL and `issuer` = `<api>/auth/v1`. The same token fails a check with `audience: 'authenticated'`. Auth's own `GET /auth/v1/user` answers the agent token with 200 and the person. This is not only a pass: Auth treats an agent token as a full session of the person (next row; Z0a, item 2; the Z7 password-change check). |
+| Auth's own endpoints with an agent token (G repair probe) | The agent token has the full rights of the person there. `PUT /auth/v1/user {password}` gives 200, and the person then signs in to the Madar screens with the new password. `GET /auth/v1/user/oauth/grants` gives 200 and lists the grants of other agents. `DELETE /auth/v1/user/oauth/grants?client_id=<another agent>` gives 204, and the other agent's next refresh gets 400. Auth has no `client_id` or `aud` check on these routes (it uses only `requireAuthentication` for `/user`, `/user/oauth/grants`, `/logout` and `/factors`), and `config.toml` has `secure_password_change = false`. |
+| (c) A refresh keeps the new `aud` | Yes. The refreshed token has `aud` = the MCP URL, the same `client_id` and the same `session_id`. |
+| A browser token | Unchanged: `aud` is `["authenticated"]` (a list) at sign-in and there is no `client_id`. A refreshed browser token carries the string `"authenticated"` (G repair probe; Z0a, item 2 found the same on `madar-test`). |
+| No `mcp_url` row | Auth refuses the agent token: the code exchange gets 500 with the hook's message "Madar has no MCP URL in platform_config, so it cannot issue a token for an agent." A person still signs in. So an agent token never goes out with `aud` "authenticated". |
+
+**Decisions in the migration:**
+
+- The hook is `security definer` with `search_path = ''`, so a row level policy on `platform_config` (track B turns RLS on for every table) can never hide the URL from Auth. It still grants `select` on `platform_config` to `supabase_auth_admin`, as section 4.2 says.
+- The migration has `create table if not exists public.platform_config (key text primary key, value text not null)`, so the hook works on a stack with no B migration. B's migration runs first after the merge (0100 before 0400), and then this statement does nothing. B keeps the table definition.
+- The migration holds no URL. `scripts/deploy/secrets.ts` (track O) writes `platform_config.mcp_url` for each project.
+
+**Facts for track G3 (`server/mcp/auth.ts`) and track E (the `api` token check):**
+
+- `aud` comes as a string on an agent token, as a list on a browser token at sign-in, and as a string on a refreshed browser token. So the form of `aud` never tells the two token kinds apart: only `client_id` does. Never test `Array.isArray(aud)`. The checks use `jose` with an `audience` option, which accepts both forms. A hand-written check must accept both too.
+- `client_id` is a claim of every agent token, also after a refresh. The `api` function refuses any token with it.
+- The local issuer is `http://127.0.0.1:54321/auth/v1`; the cloud issuer is `https://<ref>.supabase.co/auth/v1` (platform facts 6.2).
+- Supabase Auth gives an agent token the full rights of the person on its own endpoints (`/user`, `/user/oauth/grants`, `/logout`, `/factors`). It has no `client_id` check there. So an agent can change the person's password or email outside the `mcp` function and the 36-tool allowlist, then sign in to the screens as that person (an Admin too). Removing the agent in Settings, Agents revokes the grant but does not undo the new password.
+- An agent token keeps `role` `authenticated` and `sub` = the person. So a Realtime policy on `realtime.messages` (N1) lets it join the office and person channels unless the policy checks `client_id`.
+- Z0a repeats this check on `madar-test`, with the cloud URL in `platform_config`.
+
+**Mitigations (G repair; each owner track does its own):**
+
+1. `supabase/config.toml` (T0, merge lead patch): `secure_password_change = true`. A password change then needs a sign-in in the last 24 hours. This only narrows the gap: an agent session is new at consent, so the agent passes the check on its first day. The stronger fix is Z0a's (rb/Z proof, Z7 and G bullet): Z1 turns on `security_update_password_require_current_password` in both cloud projects, so an agent token alone cannot set a new password. The local stack cannot turn it on, so no local test proves it.
+2. N1: every policy on `realtime.messages` adds `and (auth.jwt()->>'client_id') is null`.
+3. G4: the consent screen says in plain words that the agent can act as the person's account.
+
+**For the security review (Z7), risk 4 of the plan, an owner decision:** the remaining gap is that an approved agent can take over its person's account through Auth's own endpoints, with no Madar code in the path. Options: refuse agent tokens for Admin people in the hook (the hook can raise for `client_id` plus an Admin row), or accept the risk and say it on the consent screen. Default until the owner decides: mitigations 1 to 3 only.
+
+## G3. The MCP server on the local stack (2026-10-04)
+
+**Result: pass.** An MCP client gets a token through the real OAuth 2.1 flow of the local Auth server, and the MCP app serves it on Node (in process) and on Deno (`supabase functions serve mcp`). Supabase CLI 2.119.0, Auth v2.197.0, edge runtime 1.77.1, after `supabase db reset` from the `rb/G` worktree.
+
+**Re-run.** Take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/mcp.it.test.ts server/it/hook.it.test.ts` (16 of 16 pass) and `npx tsx server/mcp/conformance.ts` (the second half of `npm run test:mcp`).
+
+| Check | Result |
+|---|---|
+| DCR, authorize with PKCE, the approval through the Auth API, the code exchange; the first call | 200. The first call makes the agent user (`kind: agent`, owner = the person, the app name, `<id>@agents.madar.invalid`), its `agent_links` row and the `user.created` event with the person as actor. |
+| The same app registered again by the same person | Supabase makes a new `client_id`; Madar links it to the same agent user. |
+| A browser token on `mcp` | 401 with `WWW-Authenticate: Bearer resource_metadata=".../mcp/oauth-protected-resource", error="invalid_token"` (aud check). |
+| An agent token on `api` | 403 `forbidden`, `agent_token` (P's check holds; proof.md Z0a item 2). |
+| A write by the agent | The event names the agent (`actorKind: agent`) and its person (`actingForId`); the person undoes it through `api`. |
+| A removed link (`agent_links.revoked_at`) | The next call gets 401 at once. Auth remembers the consent and gives the same client a new token at once; Madar still refuses it (401) and keeps the link removed (security review of G3: a new session is no new approval; G4 adds the approval the person records in Madar). |
+| A client with the same name and first redirect host, plus one more redirect address | A new agent user: an agent user is reused only for the same whole set of redirect addresses (security review of G3). |
+| The person turned off (`users.deactivate`) | `agents.revokeAll` removes the links in the same request's effects; the agent is refused; after `users.reactivate` the old token stays refused (401). A retry of the effect by the job after the person is on again still removes the links (the statement never asks whether the person is still off). |
+| 61 tool calls in one minute for one person, over two clients | The 61st counts 61 and is refused; `last_used_at` is set in the same statement. A 2025-era batch with more than one `tools/call` gets 400 (-32600) before the limit, so one request is never more than one tool call (in process, `server/mcp/app.test.ts`). |
+
+**Facts found:**
+
+- A client that the person approved before needs no new approval: `getAuthorizationDetails` gives `redirect_url` at once, and `approveAuthorization` then fails with "authorization request is no longer pending" (platform facts 6.3, step 3). G4's consent screen must take that path.
+- Auth keeps `auth.oauth_clients.redirect_uris` as one text, the addresses separated by commas. `auth.sessions.oauth_client_id` names the client of an agent session. `madar_private.agent_client` and `madar_private.agent_session_at` (`20261004000401_platform_agents.sql`) read them as their owner, for `madar_server` only.
+- On Supabase, `postgres` is no superuser and may not take the role `madar_server` (`permission denied to set role`). The local `supabase_admin` may, so the public-schema suites run as `madar_server` through the startup option `-c role=madar_server` and never change the role's login.
+- **Deno did not boot the mcp bundle** until the bundle lost its JSDoc comments: the Deno module graph reads a JSDoc `@param {import('../types/index').X}` in a JS file (a URI library under the SDK's Ajv) as a module and fails with "Module not found ... supabase/functions/types/index". The merge lead patch of G3 for `vite.server.config.ts` sets `output.comments: { legal: true, annotation: true, jsdoc: false }`. With it, `server/it/worker.it.test.ts` passes 12 of 12 (both hosts answer `/mcp` with the same 401).
+
+**Conformance (`@modelcontextprotocol/conformance` 0.1.16).** The runner covers the 2025-era protocol only and cannot send a token. `server/mcp/conformance.ts` gets an agent token through the OAuth flow, serves the mcp function, puts a proxy that adds the token in front, and runs each server scenario on its own with a 45-second limit (the runner has none, and a fixture scenario never ends). 5 of 32 pass: `server-initialize`, `ping`, `tools-list`, `server-sse-polling`, `server-sse-multiple-streams`. The other 27 need the runner's fixture tools, prompts or resources, or (`dns-rebinding-protection`) expect a localhost Origin to pass; `server/mcp/conformance-baseline.yml` lists each with its reason, and a new failure or a stale entry fails the run. The 2026-07-28 points are in `server/mcp/app.test.ts` (34 tests, in process): each point of platform facts 7.2 that the SDK or Madar does has a test there, among them 3 (a notification gets 202 with no body), 6 (no `Mcp-Method`, or no `Mcp-Name` on `tools/call`: 400, -32020), 8 (an unknown method: 404, -32601), 10 (no protocolVersion or clientCapabilities in `_meta`: 400, -32602), 11 (an unsupported version: 400, -32022, `data.supported`), 12 (Madar never sends a request that needs an undeclared capability: a client with only URL elicitation gets the retry instruction, never -32021) and 27 (a valid token in the query string gets 401 with `WWW-Authenticate`).
+
+## G4. The approval in Madar, the consent screen and Settings, Agents (local stack, 2026-10-04)
+
+**Result: the gap of Z0a item 2 ("Z7 and G (consent)") is real, and G4 closes it.** An agent token can approve, at Auth, a new OAuth client that the agent registered itself. So Madar now links a client only when the person recorded an approval in Madar, and only a browser token can record one.
+
+**Where:** the local stack of Supabase CLI 2.119.0, Auth v2.197.0, after `supabase db reset` from the `rb/G` worktree, with `supabase/migrations/20261004000402_platform_agent_approvals.sql`.
+**Re-run:** take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/consent.it.test.ts server/it/mcp.it.test.ts server/it/hook.it.test.ts` (22 of 22 pass: 5 in `consent.it.test.ts`, 9 in `mcp.it.test.ts`, 8 in `hook.it.test.ts`). After the review fixes of G4, `consent.it.test.ts` has 6 tests; the run of `consent.it.test.ts` with `mcp.it.test.ts` passes 15 of 15.
+
+### The probe (the `oauth-flow` steps of `scripts/proof/function/index.ts`, with an agent token)
+
+| Step | Result |
+|---|---|
+| The person connects app A (DCR, authorize with PKCE, consent, code exchange) | An agent token with `client_id` = A. |
+| The agent registers client B (`https://evil.example/callback`) and starts the authorize step | 302 to `/oauth/consent?authorization_id=...`; the row in `auth.oauth_authorizations` is `pending` with no `user_id`. |
+| `GET /auth/v1/oauth/authorizations/{id}` with the agent token | 200 with the client and the person. Auth writes the person into `user_id`. |
+| `POST /auth/v1/oauth/authorizations/{id}/consent {action: approve}` with the agent token | **200 with a `redirect_url` and a code.** The row becomes `approved`. |
+| The code exchange for B | 200. A token for B, `aud` = the MCP URL. |
+| The person's `GET /auth/v1/user/oauth/grants` | Lists A and B. Auth cannot tell the two consents apart. |
+| Before G4: the first MCP call with B's token | `ensureAgentUser` would make a new agent link for B: Madar's consent screen and its warning were skipped. |
+
+### The design as built
+
+- **`agent_approvals`** (`client_id`, `owner_user_id`, `approved_at`), RLS on, `select` and `insert` for `madar_server` only. **`madar_private.agent_authorization(authorization_id, auth_user_id)`** gives the client of a `pending`, unexpired authorization of that Auth user, else null; only `madar_server` may run it.
+- **`POST /agents/approve`** on the api function (`server/mcp/approval.ts`): the browser token check (an agent token gets 403 `agent_token`), the person through `principalOf` (a turned-off person gets 403 `account_off`), and the client read from Auth's pending authorization, never from the browser. An answered, expired or foreign authorization gets 400 `authorization_ended`.
+- **The consent screen** calls `getAuthorizationDetails`, then `POST /agents/approve`, and only then `approveAuthorization`. When Madar refuses, Auth is never asked. Deny records nothing. A client that Auth already knows gets its redirect at once, and the screen records nothing for it.
+- **The return address** (security review of G4, main's TASKS.md): an AI app registers its own redirect addresses, so the screen leaves only for a safe one (`safeRedirect` in `src/features/oauth/knownHosts.ts`: https, http on loopback, an app scheme; never `javascript:`, `data:`, `vbscript:`, `blob:`, `file:`, `filesystem:`, `about:`), and after Approve or Deny only for the request's own address. A request with an unsafe address gets the plain error and no Approve.
+- **`ensureAgentUser`** links a client only with an approval of the same person; else 403 with the reason `agent_not_approved` and no link, no agent user, no event.
+- **Settings, Agents** lists the active agents (`agents.list`) and every grant of Auth whose client no active agent has, with "Has access to your account, but you did not approve it in Madar". So a self-approved client shows, and Remove revokes it at Auth.
+- **Remove** calls `agents.remove` first (every live link removed, the agent user off with `user.deactivated` by the person), then `revokeGrant` for each client. When a revoke fails, the agent stays off and one Retry revokes what is left.
+- **A grant that is already gone** (review of G4): Auth answers a revoke of a client with no active grant with 404 `oauth_consent_not_found` (checked on the local stack). The port takes that answer as done, so a lost answer, a second tab or an agent token that revoked the grant (G1) never leaves a Retry that cannot finish. A failed list of grants shows the load error with Retry, never "No AI app is connected".
+- **A removed app that connects again with its cached client** (review of G4): Auth asks again (the grant is gone), and `POST /agents/approve` refuses with 403 `agent_removed` ("You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again."), so Auth never approves a client whose link can never link again. Not covered: after `agents.revokeAll` Auth still holds the grant, so the screen gets the redirect at once and Madar records nothing; that AI app gets 401 until the person removes its grant in Settings, Agents.
+
+### Checks on the local stack (`server/it/consent.it.test.ts`)
+
+| Check | Result |
+|---|---|
+| The agent token records an approval through the consent port | 403 `agent_token`; no row. |
+| The agent token approves its own client B at Auth, and B calls `mcp` | Auth: 200 and a token. Madar: 403 "You did not approve this AI app in Madar."; no `agent_links` row, no `agent_approvals` row. |
+| The person's grants after that | B is listed, so Settings, Agents shows it for removal. |
+| The consent port of the screens (`httpOAuthPort`) against the real Auth and the api app | `details` gives the client and redirect; `recordApproval` writes the row for the person; `approve` gives the code; the first MCP call links. A second `recordApproval` of the answered request gets 400 `authorization_ended`. |
+| Deny | The redirect carries `error=access_denied`; no approval row. |
+| `agents.list` and `agents.remove` through the batch | The list names the client, host `127.0.0.1` and the last use. Remove: `changed: true`, the link removed, the next MCP call 401, the `user.deactivated` event by the person; the list then shows the agent off with no clients. `revokeGrant` removes the grant. |
+| A second revoke after Remove, then the same client again | The second `revokeGrant` gets 404 `oauth_consent_not_found` from Auth and resolves. A new authorize of the same client asks again (`details` gives `ask`); `recordApproval` gets 403 `agent_removed`; no new approval row; the link stays removed. |
+
+**Conformance on Deno:** `npx tsx server/mcp/conformance.ts` records the approval of its runner client (`recordOn` in `server/it/oauthAgent.ts`) and gives 5 of 32, the same as G3, with no failure outside `conformance-baseline.yml`. Deno boots the mcp bundle only with the G3 merge lead patch of `vite.server.config.ts` (`comments.jsdoc: false`), which is not on `rb/G`: without it the function does not answer in 240 s. The run applied the patch for its time only.
+
+**What stays as G3 built it:** a removed link never links again, also after a new approval of the same client: the AI app registers a new client, and the person approves that one on the Madar screen.
+
+**Still open for Z7 and the owner (unchanged from G1):** an approved agent token keeps the full rights of the person on Auth's own endpoints (`/user`, `/user/oauth/grants`). The consent screen says so in plain words ("can also use your account outside the Madar screens, for example to change your password"). Z1's `security_update_password_require_current_password` narrows it on the cloud projects.

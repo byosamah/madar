@@ -1,0 +1,39 @@
+{
+  "consent": {
+    "title": "Connect {{name}} to Madar?",
+    "generic": "Connect an AI app",
+    "signedInAs": "Signed in as {{name}}",
+    "returnsTo": "After you answer, Madar sends you back to {{host}}.",
+    "unknownHost": "Madar does not know {{host}}. Approve only if you started this connection yourself, in an AI app you trust.",
+    "mayTitle": "If you approve, {{name}}:",
+    "rights": "acts with your rights, so it can see and change what you can",
+    "history": "shows its name and yours on each change, and you can undo its changes",
+    "account": "can also use your account outside the Madar screens, for example to change your password",
+    "remove": "keeps this access until you remove it in Settings, Agents",
+    "approve": "Approve",
+    "deny": "Deny",
+    "missing": "This link is not complete. Start the connection again in your AI app.",
+    "leaving": "Madar is sending you back to your AI app.",
+    "loading": "Madar is loading the request.",
+    "badAddress": "Madar cannot send you to the address of this AI app, because it is not safe."
+  },
+  "agents": {
+    "title": "Agents",
+    "intro": "AI apps that act for you in Madar.",
+    "none": "No AI app is connected.",
+    "lastUsed": "Last used {{date}}",
+    "notUsed": "Not used yet",
+    "noApproval": "Has access to your account, but you did not approve it in Madar",
+    "remove": "Remove",
+    "removeName": "Remove {{name}}",
+    "removed": "{{name}} is removed.",
+    "revokeFailed": "Madar turned {{name}} off. The removal of its access to your account did not finish."
+  },
+  "errors": {
+    "reasons": {
+      "authorization_ended": "This request ended. Start the connection again in your AI app.",
+      "agent_not_approved": "You did not approve this AI app in Madar. Remove it in Settings, Agents, then connect it again.",
+      "agent_removed": "You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again."
+    }
+  }
+}
