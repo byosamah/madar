@@ -3,6 +3,9 @@ import { snapshotOf } from '../data/officeCache';
 import { memorySource } from '../data/loaders/index';
 import { diffState, writeDiff } from '../data/save';
 import { tableOf } from '../data/tables';
+import { PROJECT_KEYS_SQL } from '../files/effects';
+import { INTENTS_SELECT_SQL } from '../files/intents';
+import { FEEDBACK_DOC_SQL, USERS_SQL } from '../files/records';
 import type { OutboxRow } from './effects';
 import type { KeyRow } from './idempotency';
 import type { Db, Query } from './ports';
@@ -21,6 +24,9 @@ import { OFFICE_COLLECTIONS, type OfficeSnapshot } from './types';
  * - The save step is diffState of the real diff writer, applied to the copy; the signals come from writeDiff itself, over a query
  *   that answers its office_meta, person_seq and comment target statements from memory.
  *
+ * The file hooks of track F read their records with single statements and the project delete lists its stored keys with one
+ * query; the memory data answers those from the office too, and holds no upload intents.
+ *
  * The database form of the same steps is tested on the local stack (server/it/runCall.it.test.ts, server/it/lock.it.test.ts).
  */
 
@@ -38,7 +44,7 @@ export type MemoryTables = {
 
 export type MemoryData = {
   data: () => CallData;
-  /** A Db for deps.db: it answers the story statements of story.start, and refuses every other statement. */
+  /** A Db for deps.db: it answers the story statements of story.start and the read statements of the file hooks, and refuses every other statement. */
   db: Db;
   /** The committed tables. Tests read them, and may change them between calls. */
   readonly tables: MemoryTables;
@@ -111,7 +117,17 @@ export function memoryData(office: State): MemoryData {
 
   function txOf(draft: MemoryTables): CallTx {
     return {
-      q: ((text: string) => refuse(text)) as Query,
+      q: (async (text: string, values: unknown[] = []) => {
+        if (text !== PROJECT_KEYS_SQL) return refuse(text);
+        const projectId = String(values[0]);
+        const events = Object.values(draft.state.events).filter((e) => e.projectId === projectId && e.targetType === 'file');
+        const versions = (value: unknown) => ({ versions: (value as { versions?: unknown } | null)?.versions ?? null });
+        return [
+          ...Object.values(draft.state.files).filter((f) => f.projectId === projectId).map((f) => ({ versions: f.versions })),
+          ...events.map((e) => versions(e.before)),
+          ...events.map((e) => versions(e.after)),
+        ];
+      }) as Query,
       lock: async () => undefined,
       office: async () => officeOf(),
       source: () => memorySource(draft.state),
@@ -171,6 +187,12 @@ export function memoryData(office: State): MemoryData {
         const row = tables.stories.get(String(values[0]));
         return (row ? [{ actor_id: row.actorId, created_at: row.createdAt }] : []) as R[];
       }
+      if (text === USERS_SQL) return (values[0] as string[]).flatMap((id) => (tables.state.users[id] ? [{ doc: tables.state.users[id] }] : [])) as R[];
+      if (text === FEEDBACK_DOC_SQL) {
+        const doc = (tables.state.feedback ?? {})[String(values[0])];
+        return (doc ? [{ doc }] : []) as R[];
+      }
+      if (text === INTENTS_SELECT_SQL) return [];
       return refuse(text);
     },
   };

@@ -20,12 +20,10 @@ export type EveryCall = { name: SharedCallName | 'story.start'; input: unknown; 
 
 /** The calls that refuse on this list, with their code. Every other call must answer ok. */
 export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
-  // The 3 server hooks that track F builds (plan 4.11): not_built until then.
-  'files.upload': 'failed',
-  'feedback.send': 'failed',
-  'feedback.screenshot': 'failed',
-  // No report exists: the sample office has none, and feedback.send (above) is not built yet.
-  'feedback.setStatus': 'not_found',
+  // The file hooks of track F: the sweep's upload ID names no upload intent, and the report that feedback.send makes on the
+  // list has no screenshot.
+  'files.upload': 'not_found',
+  'feedback.screenshot': 'not_found',
   // Rules of the office after the earlier entries of the list (the sweep inputs of task C2).
   'tasks.update': 'forbidden',
   'tasks.sendBack': 'invalid_input',
