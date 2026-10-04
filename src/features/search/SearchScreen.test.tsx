@@ -44,9 +44,10 @@ describe('search', () => {
     await userEvent.type(await box(), 'ground floor plan.pdf');
     const files = await screen.findByRole('group', { name: 'Files' });
     await userEvent.click(within(files).getAllByRole('option', { name: /Ground floor plan\.pdf/ })[0]);
-    // The project, its file list and the preview load one after the other, so this step may take longer than one second.
-    expect(await screen.findByRole('dialog', { name: /Ground floor plan\.pdf/ }, { timeout: 4000 })).toBeInTheDocument();
-  });
+    // The project, its file list and the preview load one after the other, so this step may take longer than one second. Under
+    // the load of the full suite it took 4.7 s twice (wave 4 merge, whole-product check), so it waits 10 s in a 15 s test.
+    expect(await screen.findByRole('dialog', { name: /Ground floor plan\.pdf/ }, { timeout: 10_000 })).toBeInTheDocument();
+  }, 15_000);
 
   it('runs a command', async () => {
     await renderApp('/search');
