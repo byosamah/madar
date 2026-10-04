@@ -14,7 +14,7 @@
       "added": "{{actor}} added you to the office on Madar.",
       "setPassword": "Set your password to sign in.",
       "button": "Set your password",
-      "expired": "If the link no longer works, ask the Admin to send the invitation again."
+      "expired": "If the link no longer works, open it and press Send me a new link."
     },
     "reset": {
       "subject": "Reset your Madar password",

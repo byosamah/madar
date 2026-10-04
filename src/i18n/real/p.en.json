@@ -11,7 +11,7 @@
       "title": "Welcome to Madar, {{name}}",
       "body": "Your office invites you to Madar. Open the link to set your password.",
       "button": "Accept the invitation",
-      "note": "The link works one time. If it ended, ask the Admin for a new invitation."
+      "note": "The link works one time, for 1 hour. If it ended, open it anyway and press \"Send me a new link\"."
     },
     "reset": {
       "subject": "Reset your Madar password",

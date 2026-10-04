@@ -42,7 +42,7 @@ exports[`renderMail > renders invite in English, and in Arabic with a female act
 <p style="margin:0 0 16px;">Hello Sara,</p>
 <p style="margin:0 0 16px;">Huda added you to the office on Madar.</p>
 <p style="margin:0 0 16px;">Set your password to sign in.</p>
-<p style="margin:0 0 16px;">If the link no longer works, ask the Admin to send the invitation again.</p>
+<p style="margin:0 0 16px;">If the link no longer works, open it and press Send me a new link.</p>
 <p style="margin:24px 0;"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set your password</a></p>
 <p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
 <p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="color:#1c1b19;">https://madar.example/welcome?token_hash=abc&amp;type=invite</a></p>
@@ -57,7 +57,7 @@ Huda added you to the office on Madar.
 
 Set your password to sign in.
 
-If the link no longer works, ask the Admin to send the invitation again.
+If the link no longer works, open it and press Send me a new link.
 
 Set your password: https://madar.example/welcome?token_hash=abc&type=invite
 
@@ -78,7 +78,7 @@ exports[`renderMail > renders invite in English, and in Arabic with a female act
 <p style="margin:0 0 16px;">مرحبًا Sara،</p>
 <p style="margin:0 0 16px;">أضافتك Huda إلى المكتب في مدار.</p>
 <p style="margin:0 0 16px;">عيّني كلمة المرور لتسجيل الدخول.</p>
-<p style="margin:0 0 16px;">إذا توقف الرابط عن العمل، اطلبي من مدير النظام إرسال الدعوة مرة أخرى.</p>
+<p style="margin:0 0 16px;">إذا توقف الرابط عن العمل، افتحيه واضغطي «أرسل لي رابطًا جديدًا».</p>
 <p style="margin:24px 0;"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">تعيين كلمة المرور</a></p>
 <p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
 <p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="color:#1c1b19;">https://madar.example/welcome?token_hash=abc&amp;type=invite</a></p>
@@ -93,7 +93,7 @@ exports[`renderMail > renders invite in English, and in Arabic with a female act
 
 عيّني كلمة المرور لتسجيل الدخول.
 
-إذا توقف الرابط عن العمل، اطلبي من مدير النظام إرسال الدعوة مرة أخرى.
+إذا توقف الرابط عن العمل، افتحيه واضغطي «أرسل لي رابطًا جديدًا».
 
 تعيين كلمة المرور: https://madar.example/welcome?token_hash=abc&type=invite
 
