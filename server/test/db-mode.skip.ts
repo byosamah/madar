@@ -69,6 +69,18 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
       'The stored data of a deleted project goes with the effect of track F (server/files/effects.ts). Until F merges, the prepare '
       + 'hook of projects.delete is the T0 stub that lists no data key, so the data stays.',
   },
+  ...[
+    'gives the numbers of a full scan when the counts stand in for the unread rows',
+    'reads the count before the rows',
+    'chats.markRead sets the count of the marked chat or task thread to 0, and the total counts the rest',
+  ].map((name) => ({
+    file: 'src/api/handlers/chatsUnread.test.ts',
+    test: `unread counts (plan 4.13, A9) ${name}`,
+    reason:
+      'It writes State.counts by hand, or leaves rows out, to test the rule half of A9 in memory. The server never stores counts: '
+      + 'its chat loader counts in SQL (server/data/loaders/chat.ts), and loaders.test.ts and server/it/loaders.it.test.ts check that '
+      + 'those counts give the answers of a full scan.',
+  })),
 ];
 
 /** The reason to skip a test, or undefined. filepath: the absolute path of the test file. */
