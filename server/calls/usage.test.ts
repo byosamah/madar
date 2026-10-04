@@ -69,8 +69,11 @@ describe('usage.get (plan 5.8)', () => {
     }
   });
 
-  it('lets an agent read with the rights of its person: the Admin\'s agent sees the meters', async () => {
-    const { output } = await usageGet({}, ctxOf('usr_009', readOnlyDb()));
-    expect(output.month).toBe('2026-10');
+  it('refuses every agent, also the Admin\'s agent, before any read (plan 5.6: usage.get is on the MCP deny list)', async () => {
+    const db = readOnlyDb();
+    const refused = await usageGet({}, ctxOf('usr_009', db)).then(() => null, (error: unknown) => error);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect((refused as ApiError).code).toBe('forbidden');
+    expect(db.modes).toEqual([]);
   });
 });
