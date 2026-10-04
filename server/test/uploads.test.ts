@@ -42,7 +42,7 @@ describe('the stand-ins for the upload steps of track F', () => {
       throw new ApiError('failed', 'files.uploadStart is not built yet.', { reason: 'not_built' });
     });
     const before = standInUses();
-    const entry = withStandIns(new Map([['files.uploadStart', stub]])).get('files.uploadStart') as ServerEntry;
+    const entry = withStandIns(new Map([['files.uploadStart', stub]]), { trackFMerged: false }).get('files.uploadStart') as ServerEntry;
     const result = await entry.call(input, ctx());
     expect(result.output).toMatchObject({ uploadId: expect.stringMatching(/^upl_dbmode_/), put: { url: expect.stringMatching(/^https:\/\/files\.test\/put\/up\//) } });
     expect(standInUses()).toBe(before + 1);
@@ -78,7 +78,7 @@ describe('the stand-ins for the upload steps of track F', () => {
     const stub = start(async () => {
       throw new ApiError('failed', 'not built', { reason: 'not_built' });
     });
-    const call = (withStandIns(new Map([['files.uploadStart', stub]])).get('files.uploadStart') as ServerEntry).call;
+    const call = (withStandIns(new Map([['files.uploadStart', stub]]), { trackFMerged: false }).get('files.uploadStart') as ServerEntry).call;
     const c = ctx();
     const { output } = await call(input, c);
     const { uploadId, put } = output as { uploadId: string; put: { url: string } };
@@ -89,7 +89,7 @@ describe('the stand-ins for the upload steps of track F', () => {
         prepare: async () => { throw new ApiError('failed', 'not built', { reason: 'not_built' }); },
       },
     };
-    const hooks = (withStandIns(new Map([['files.upload', hooksEntry]])).get('files.upload') as Extract<CallEntry, { kind: 'shared' }>).hooks!;
+    const hooks = (withStandIns(new Map([['files.upload', hooksEntry]]), { trackFMerged: false }).get('files.upload') as Extract<CallEntry, { kind: 'shared' }>).hooks!;
     const hookCtx = { actorId: 'usr_002', now: new Date(), deps: c.deps };
     await expect(hooks.preflight!({ uploadId }, hookCtx)).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['uploadId'] } });
     browserPut(c.deps.files as FakeFiles, put.url, new Blob(['abc'], { type: 'application/pdf' }));
