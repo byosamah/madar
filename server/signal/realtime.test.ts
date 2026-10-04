@@ -98,6 +98,27 @@ describe('the Realtime sender', () => {
     expect(lines[0].fields?.warnings).toEqual(['WarnSendingBroadcastMessage: a', 'WarnSendingBroadcastMessage: b']);
   });
 
+  it('counts the warning of realtime.send by its message, also when the server translates the severity (lc_messages)', async () => {
+    const { q, listen } = recordingQuery({
+      during: (fire) => fire({ severity: 'WARNUNG', code: '01000', message: 'WarnSendingBroadcastMessage: Keine Berechtigung für Tabelle messages' }),
+    });
+    const { log, lines } = recordingLog();
+    const { meter, failed } = recordingFailures();
+    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
+    expect(failed).toEqual([1]);
+    expect(lines.map((line) => line.level)).toEqual(['error']);
+  });
+
+  it('ignores a WARNING that does not come from realtime.send', async () => {
+    const { q, listen } = recordingQuery({
+      during: (fire) => fire({ severity: 'WARNING', code: '01000', message: 'there is no transaction in progress' }),
+    });
+    const { log, lines } = recordingLog();
+    const { meter, failed } = recordingFailures();
+    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
+    expect([failed, lines]).toEqual([[], []]);
+  });
+
   it('reports nothing for a send with no warning, and stops listening after its statement', async () => {
     const { q, listen, fire, listening } = recordingQuery();
     const { log, lines } = recordingLog();
