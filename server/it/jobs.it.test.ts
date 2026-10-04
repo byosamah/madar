@@ -76,9 +76,9 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
 
     deps.signal.sent.length = 0;
     expect(await triggers(deps, NOW)).toEqual({ notices: count, mails: expect.any(Number) });
-    const rows = (await notices()).filter((n) => !office.seed.notifications[n.id]);
-    const shape = (n: Pick<Notification, 'id' | 'userId' | 'trigger' | 'targetId' | 'dedupeKey'>) => [n.id, n.userId, n.trigger, n.targetId, n.dedupeKey];
-    expect(rows.map((n) => [n.id, n.user_id, n.trigger, n.target_id, n.dedupe_key])).toEqual(made.map(shape));
+    const rows = (await office.sql<{ id: string; doc: Notification }>('select id, doc from notifications order by ord')).filter((n) => !office.seed.notifications[n.id]);
+    // The whole record, as the prototype writes it: the due day (API-11), the time, the actor and the read flag too.
+    expect(rows.map((n) => n.doc)).toEqual(made);
     // Notices are personal: one signal on each person channel, none on the office channel.
     expect(deps.signal.sent.length).toBeGreaterThan(0);
     expect(deps.signal.sent.every((s) => s.channel.startsWith('person:') && s.kinds.includes('notifications'))).toBe(true);
@@ -106,6 +106,28 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     await triggers(deps, at('2026-10-31')); // Saturday: already sent
     expect(await of(task.id, 'due_tomorrow')).toHaveLength(due.length);
     expect(await of(paused.id, 'resume_due')).toHaveLength(1);
+  });
+
+  it('tells the active Admins of the restart day when the leader of the paused project is inactive (notifyAudit, API-18)', async () => {
+    const leaders = new Set([project.leaderId, ...tasks.map((t) => t.ownerId)]);
+    // The paused project of the test above may come back here: its restart day differs, so the dedupe key tells the notices apart.
+    const paused = Object.values(office.seed.projects).find(
+      (p) => p.status === 'active' && p.leaderId && !leaders.has(p.leaderId) && office.seed.users[p.leaderId]?.active && office.seed.users[p.leaderId].systemRole !== 'admin',
+    )!;
+    expect(paused).toBeDefined();
+    const admins = Object.values(office.seed.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id).sort();
+    expect(admins.length).toBeGreaterThan(0);
+    await setDoc('projects', paused.id, ['status'], 'on_hold');
+    await setDoc('projects', paused.id, ['pause'], { reason: 'Client', resumeOn: '2026-10-31', by: paused.leaderId, at: '2026-10-20T09:00:00.000+03:00' });
+    await setDoc('users', paused.leaderId!, ['active'], false);
+    try {
+      // The same moment as the last run above, so only this restart notice is new.
+      expect(await triggers(deps, at('2026-10-31'))).toMatchObject({ notices: admins.length });
+      const rows = (await notices()).filter((n) => n.dedupe_key?.startsWith(`resume_due:${paused.id}:2026-10-31:`));
+      expect(rows.map((n) => n.user_id).sort()).toEqual(admins);
+    } finally {
+      await setDoc('users', paused.leaderId!, ['active'], true);
+    }
   });
 
   it('writes one mail.notice row for a person whose email switch of the trigger is on, and the mail goes out once', async () => {
@@ -249,12 +271,14 @@ describe('suite 10: the upload leftovers on the local Supabase Storage (proof.md
     expect(response.status, key).toBe(200);
   }
 
-  it('deletes every up/ object older than 2 hours 10 minutes for used and unused intents, the copy of an unused intent past its end, and the rows after 24 hours', async () => {
+  it('deletes every up/ object older than 2 hours 10 minutes for used and unused intents, the copy of an unused intent past its end, and the rows 24 hours after their use', async () => {
     const intents = [
       { n: 'used', used: true, age: 3 * HOUR },
       { n: 'unused', used: false, age: 3 * HOUR },
       { n: 'young', used: false, age: HOUR },
       { n: 'day', used: true, age: 25 * HOUR },
+      // Used 23 hours ago: the stored answer of its call is still there, so the row stays.
+      { n: 'late', used: true, age: 25 * HOUR, usedAge: 23 * HOUR },
     ];
     for (const i of intents) {
       const k = keysOf(i.n);
@@ -262,14 +286,14 @@ describe('suite 10: the upload leftovers on the local Supabase Storage (proof.md
       await office.sql(
         'insert into upload_intents (id, actor_id, project_id, staging_key, key, thumb_key, size, mime_type, expires_at, used_at, created_at) '
         + "values ($1, 'usr_001', 'prj_n3', $2, $3, null, 10, 'text/plain', $4, $5, $6)",
-        [`upl_n3${i.n}`, k.staging, k.final, new Date(created.getTime() + 2 * HOUR), i.used ? new Date(created.getTime() + 60_000) : null, created],
+        [`upl_n3${i.n}`, k.staging, k.final, new Date(created.getTime() + 2 * HOUR), i.used ? (i.usedAge ? new Date(NOW.getTime() - i.usedAge) : new Date(created.getTime() + 60_000)) : null, created],
       );
       for (const key of [k.staging, k.stagingThumb, k.final]) await put(key);
     }
     try {
-      expect(await uploads(fdeps, NOW)).toEqual({ intents: 3, removed: 7, deleted: 1 });
+      expect(await uploads(fdeps, NOW)).toEqual({ intents: 4, removed: 9, deleted: 1 });
       const left = async (key: string) => (await store.head(key)) !== null;
-      for (const n of ['used', 'unused', 'day']) {
+      for (const n of ['used', 'unused', 'day', 'late']) {
         expect(await left(keysOf(n).staging), n).toBe(false);
         expect(await left(keysOf(n).stagingThumb), n).toBe(false);
       }
@@ -277,7 +301,7 @@ describe('suite 10: the upload leftovers on the local Supabase Storage (proof.md
       expect(await left(keysOf('unused').final)).toBe(false);
       expect(await left(keysOf('used').final)).toBe(true);
       expect(await left(keysOf('day').final)).toBe(true);
-      expect((await office.sql<{ id: string }>("select id from upload_intents where id like 'upl_n3%' order by id")).map((r) => r.id)).toEqual(['upl_n3unused', 'upl_n3used', 'upl_n3young']);
+      expect((await office.sql<{ id: string }>("select id from upload_intents where id like 'upl_n3%' order by id")).map((r) => r.id)).toEqual(['upl_n3late', 'upl_n3unused', 'upl_n3used', 'upl_n3young']);
     } finally {
       await store.remove(intents.flatMap((i) => Object.values(keysOf(i.n))));
     }
