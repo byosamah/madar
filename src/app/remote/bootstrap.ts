@@ -69,8 +69,8 @@ export type PersonChangeSource = ChangeSource & { own(signals: ChangeSignal[]): 
 /**
  * The change signals of whoever is signed in. The channels of a person need the person's id, which only the session names, so
  * this source asks for it after each sign-in and joins that person's channels. It leaves them at the sign-out, and joins the
- * next person's channels at a sign-in as someone else. Each join after the first asks for a reload of every list (an empty
- * list), because signals of the time between were lost.
+ * next person's channels at a sign-in as someone else. The channels of each join ask for a reload of every list once they
+ * have joined (channel.ts), so the signals of the time between are not lost.
  */
 export function personChangeSource(o: {
   auth: AuthPort;
@@ -85,7 +85,6 @@ export function personChangeSource(o: {
   let stopAuth: (() => void) | undefined;
   let attempt = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
-  let joins = 0;
   // True while the session is asked for the person, so a second sign-in note does not ask again.
   let asking = false;
 
@@ -114,8 +113,6 @@ export function personChangeSource(o: {
         if (listeners.size === 0 || o.auth.status() !== 'signed_in') return;
         current = o.open(me);
         leave = current.subscribe(tell);
-        joins += 1;
-        if (joins > 1) tell([]);
       },
       () => {
         if (mine !== attempt) return;
@@ -165,7 +162,13 @@ export async function bootstrapRemote(o: {
   auth?: AuthPort;
   fetch?: typeof fetch;
 } = {}): Promise<RemoteRuntime> {
-  const config = o.config ?? remoteConfig(import.meta.env);
+  // Each name on its own: the bundler then puts only these four values in the page, never every VITE_ value of the build shell.
+  const config = o.config ?? remoteConfig({
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    VITE_API_URL: import.meta.env.VITE_API_URL,
+    VITE_MADAR_BUILD: import.meta.env.VITE_MADAR_BUILD,
+  });
   const supabase = o.supabase ?? createSupabase({ url: config.supabaseUrl, publishableKey: config.publishableKey });
   const auth = o.auth ?? (await createSupabaseAuth(supabase, { apiUrl: config.apiUrl, fetch: o.fetch }));
   const adapters: Partial<Record<CallName, Adapter>> = {

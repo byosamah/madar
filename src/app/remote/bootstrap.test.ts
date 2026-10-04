@@ -109,7 +109,7 @@ describe('the change source of the signed-in person', () => {
     expect(rec.log).toEqual(['join:usr_001', 'leave:usr_001', 'join:usr_003']);
   });
 
-  it('hands over the signals of the channels and of own answers, and asks for a reload of all after it joins again', async () => {
+  it('hands over the signals of the channels and of own answers, and the reload of all that a new join asks for', async () => {
     const stub = stubAuth();
     const rec = recordingOpen();
     const source = personChangeSource({ auth: stub.auth, person: async () => 'usr_001', open: rec.open });
@@ -119,11 +119,14 @@ describe('the change source of the signed-in person', () => {
     rec.emit.get('usr_001')?.([signal()], 'channel');
     source.own([signal({ id: 'sig-2' })]);
     expect(seen).toEqual([[1, 'channel'], [1, 'own']]);
-    // The session ended and the same person signed in again: signals may have been lost meanwhile.
+    // The session ended and the same person signed in again: signals may have been lost meanwhile. The new channels ask for the
+    // reload of all once they have joined (channel.ts); a reload before the join would miss a change saved during the join.
     stub.set('signed_out');
     stub.set('signed_in');
     await vi.advanceTimersByTimeAsync(0);
-    expect(seen.at(-1)).toEqual([0, undefined]);
+    expect(seen).toHaveLength(2);
+    rec.emit.get('usr_001')?.([], 'channel');
+    expect(seen.at(-1)).toEqual([0, 'channel']);
   });
 
   it('asks the session once when a sign-in comes while the first question still waits', async () => {
