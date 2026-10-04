@@ -1,0 +1,392 @@
+import { readFileSync } from 'node:fs';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK, type JWTPayload } from 'jose';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ApiError } from '../../src/api/errors';
+import type { State } from '../../src/api/store';
+import { buildSeed } from '../../src/data/seed';
+import { memoryData, type MemoryData } from '../core/memoryData';
+import { createRunCall } from '../core/runCall';
+import type { OfficeSnapshot } from '../core/types';
+import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
+import { mcpApp, TOOL_CALLS_PER_MINUTE, type McpAppOptions, type McpLimit } from './app';
+import { agentTokenChecker, type AgentPrincipal, type AgentToken } from './auth';
+import { INSTRUCTIONS } from './docs';
+import { HOP_HEADER } from './forward';
+import { mcpTools } from './tools';
+
+/**
+ * Suite 12 of TM 7, in process (plan 5.6; task G3): the MCP app with a real token check (local ES256 keys), the real runCall on
+ * the memory office (server/core/memoryData.ts), and fakes for the agent link and the rate limit. The OAuth flow and the SQL
+ * steps run on the local stack in server/it/mcp.it.test.ts.
+ */
+
+const MCP_URL = 'http://127.0.0.1:54321/functions/v1/mcp';
+const ISSUER = 'http://127.0.0.1:54321/auth/v1';
+const VERSION = '2026-07-28';
+const AUTH = { a: '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f', b: '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e60' };
+const CLIENT = { one: '907ef9d7-7bfc-4e2b-ac19-e027f13226fa', two: '907ef9d7-7bfc-4e2b-ac19-e027f13226fb', gone: '907ef9d7-7bfc-4e2b-ac19-e027f13226fc' };
+const SESSION = '1b2c3d4e-5f60-4718-9a0b-1c2d3e4f5a6b';
+const samples = JSON.parse(readFileSync(new URL('./samples.json', import.meta.url), 'utf8')) as Record<string, Record<string, unknown>>;
+
+let key: { privateKey: CryptoKey; jwk: JWK };
+let seed: State;
+
+beforeAll(async () => {
+  const pair = await generateKeyPair('ES256', { extractable: true });
+  key = { privateKey: pair.privateKey, jwk: { ...(await exportJWK(pair.publicKey)), kid: 'k1', alg: 'ES256', use: 'sig' } };
+  seed = await buildSeed('2026-10-04', async () => undefined);
+  // A second agent of the Admin (usr_001), for the limit over all of one person's agents.
+  seed.users.usr_012 = { ...seed.users.usr_009, id: 'usr_012', name: 'Second Agent', email: 'usr_012@agents.madar.invalid' };
+  seed.counters.usr = 12;
+});
+
+async function tokenOf(claims: JWTPayload = {}): Promise<string> {
+  return new SignJWT({ sub: AUTH.a, role: 'authenticated', aud: MCP_URL, client_id: CLIENT.one, session_id: SESSION, ...claims })
+    .setProtectedHeader({ alg: 'ES256', kid: 'k1' }).setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(key.privateKey);
+}
+
+/** The agent links of the fake: client one is usr_009, client two is usr_012, both of usr_001; client gone was removed. */
+async function fakeAgentOf(_deps: unknown, token: AgentToken): Promise<AgentPrincipal> {
+  if (token.clientId === CLIENT.gone) throw new ApiError('unauthenticated', 'This agent was removed in Madar. Connect it again in your AI app.');
+  const userId = token.clientId === CLIENT.two ? 'usr_012' : 'usr_009';
+  return { principal: { userId, agent: { clientId: token.clientId } }, ownerId: 'usr_001', linked: false };
+}
+
+/** The fixed-window limit in memory, keyed like the SQL one: by person, over all of the person's agents. */
+function memoryLimit(): McpLimit & { hits: Map<string, number> } {
+  const hits = new Map<string, number>();
+  const limit = (async (_deps, o) => {
+    const window = `mcp:${o.ownerId}:${Math.floor(o.now.getTime() / 60_000)}`;
+    const count = (hits.get(window) ?? 0) + 1;
+    hits.set(window, count);
+    return { ok: count <= TOOL_CALLS_PER_MINUTE, count, retryAfterMs: 30_000 };
+  }) as McpLimit & { hits: Map<string, number> };
+  limit.hits = hits;
+  return limit;
+}
+
+type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData; limit: ReturnType<typeof memoryLimit> };
+
+function world(o: Partial<McpAppOptions> & { region?: string } = {}): World {
+  const mem = memoryData(seed);
+  const deps = fakeDeps({ db: mem.db, config: { mcpUrl: MCP_URL, ...(o.region ? { region: o.region } : {}) } });
+  deps.clock.set(new Date('2026-10-04T06:00:00Z'));
+  const limit = memoryLimit();
+  const app = mcpApp(deps, {
+    checkToken: agentTokenChecker({ issuer: ISSUER, audience: MCP_URL, jwks: createLocalJWKSet({ keys: [key.jwk] }) }),
+    agentOf: fakeAgentOf,
+    runCall: createRunCall({ data: () => mem.data() }),
+    readOffice: async (): Promise<OfficeSnapshot> => mem.data().office(),
+    limit,
+    stateKey: 'k'.repeat(40),
+    issuer: ISSUER,
+    ...o,
+  });
+  return { app, deps, mem, limit };
+}
+
+const meta = (caps: Record<string, unknown> = {}) => ({
+  'io.modelcontextprotocol/protocolVersion': VERSION,
+  'io.modelcontextprotocol/clientCapabilities': caps,
+  'io.modelcontextprotocol/clientInfo': { name: 'test-agent', version: '1.0.0' },
+});
+
+let nextId = 1;
+
+type Rpc = { status: number; headers: Headers; body: Record<string, any> };
+
+async function post(w: World, body: unknown, headers: Record<string, string>, path = '/'): Promise<Rpc> {
+  const response = await w.app.fetch(new Request(`http://127.0.0.1${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body),
+  }));
+  const text = await response.text();
+  // A 2025-era answer may come as one SSE event.
+  const json = text.startsWith('event:') ? text.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : text;
+  return { status: response.status, headers: response.headers, body: json ? JSON.parse(json) : {} };
+}
+
+/** One 2026-07-28 request, with the headers and the _meta envelope of the version. */
+async function rpc(w: World, method: string, params: Record<string, unknown> = {}, o: { token?: string | null; caps?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<Rpc> {
+  const token = o.token === undefined ? await tokenOf() : o.token;
+  const name: Record<string, string> = method === 'tools/call' ? { 'Mcp-Name': String(params.name) } : {};
+  return post(w, { jsonrpc: '2.0', id: nextId++, method, params: { ...params, _meta: meta(o.caps) } }, {
+    'MCP-Protocol-Version': VERSION, 'Mcp-Method': method, ...name, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...o.headers,
+  });
+}
+
+const call = (w: World, name: string, args: Record<string, unknown> = {}, o: Parameters<typeof rpc>[3] & { extra?: Record<string, unknown> } = {}) =>
+  rpc(w, 'tools/call', { name, arguments: args, ...o.extra }, o);
+
+/** A done task in a stage before its project's current stage: reopening it moves the project back (stage_back_reason). */
+function backTask(state: State): { id: string; stageName: string } {
+  for (const task of Object.values(state.tasks)) {
+    const project = state.projects[task.projectId];
+    const stage = state.stages[task.stageId ?? ''];
+    const current = state.stages[project?.currentStageId ?? ''];
+    if (task.status === 'done' && stage && current && stage.order < current.order && project.status === 'active') return { id: task.id, stageName: stage.name };
+  }
+  throw new Error('The sample office has no done task in an earlier stage.');
+}
+
+describe('suite 12: the MCP server in process', () => {
+  let w: World;
+  beforeEach(() => {
+    w = world();
+  });
+
+  it('answers server/discover with the version, the tools capability, serverInfo and the instructions', async () => {
+    const { status, body } = await rpc(w, 'server/discover');
+    expect(status).toBe(200);
+    expect(body.result).toMatchObject({
+      resultType: 'complete', supportedVersions: expect.arrayContaining([VERSION]), capabilities: { tools: expect.any(Object) },
+      instructions: INSTRUCTIONS, _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'madar', version: '1.0.0' } },
+    });
+  });
+
+  it('lists the 36 tools in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+    const { body } = await rpc(w, 'tools/list');
+    const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
+    expect(tools.map((t) => t.name)).toEqual(mcpTools().map((t) => t.name));
+    expect(tools).toHaveLength(36);
+    expect(body.result.ttlMs).toBe(300_000);
+    expect(body.result.cacheScope).toBe('private');
+    const ajv = new Ajv2020({ strict: true, allErrors: true });
+    ajv.addFormat('date', /^\d{4}-\d{2}-\d{2}$/);
+    ajv.addFormat('date-time', { validate: (value: string) => !Number.isNaN(Date.parse(value)) });
+    for (const [i, tool] of tools.entries()) {
+      expect(tool.inputSchema, tool.name).toEqual(mcpTools()[i].inputSchema);
+      expect(tool.annotations, tool.name).toEqual(mcpTools()[i].annotations);
+      const validate = ajv.compile(tool.inputSchema);
+      expect(validate(samples[tool.name]), `${tool.name}: ${JSON.stringify(validate.errors)}`).toBe(true);
+    }
+  });
+
+  it('runs a read as the agent: structuredContent and the same JSON as text', async () => {
+    const { body } = await call(w, 'projects.get', { id: 'prj_001' });
+    expect(body.result.isError).toBeUndefined();
+    expect(body.result.structuredContent.output.project.id).toBe('prj_001');
+    expect(JSON.parse(body.result.content[0].text)).toEqual(body.result.structuredContent);
+  });
+
+  it('gives madar.readFirst the rules and the person the agent acts for', async () => {
+    const { body } = await call(w, 'madar.readFirst');
+    const text = body.result.content[0].text as string;
+    expect(text.startsWith(INSTRUCTIONS)).toBe(true);
+    expect(text).toContain(`You act for ${seed.users.usr_001.name}, whose role in Madar is Admin.`);
+  });
+
+  it('runs a write with a story from story.start: the History names the agent and its person', async () => {
+    const started = await call(w, 'story.start');
+    const storyId = started.body.result.structuredContent.output.storyId as string;
+    expect(storyId).toBeTruthy();
+    const { body } = await call(w, 'comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Checked the drawings.', storyId });
+    expect(body.result.isError, JSON.stringify(body.result)).toBeUndefined();
+    expect(body.result.structuredContent.storyId).toBe(storyId);
+    const event = Object.values(w.mem.tables.state.events).find((e) => e.correlationId === storyId)!;
+    expect(event).toMatchObject({ actorId: 'usr_009', actorKind: 'agent', actingForId: 'usr_001' });
+  });
+
+  it('turns an ApiError into isError with its code, so the model can correct itself', async () => {
+    const { body } = await call(w, 'projects.get', { id: 'prj_999' });
+    expect(body.result.isError).toBe(true);
+    expect(body.result.structuredContent.error.code).toBe('not_found');
+  });
+
+  it('refuses a call that is not on the allowlist as an unknown tool', async () => {
+    const { body } = await call(w, 'users.create', { name: 'X', email: 'x@madar.test', systemRole: 'member', discipline: 'Design' });
+    expect(body.error.code).toBe(-32602);
+    expect(Object.keys(w.mem.tables.state.users)).toHaveLength(Object.keys(seed.users).length);
+  });
+
+  describe('reasons (change 7)', () => {
+    it('returns input_required to a client with elicitation, and the retry with the answer moves the task', async () => {
+      const task = backTask(w.mem.tables.state);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: {} } });
+      expect(first.body.result.resultType).toBe('input_required');
+      const request = first.body.result.inputRequests.reason;
+      expect(request.method).toBe('elicitation/create');
+      expect(request.params.message).toContain(task.stageName);
+      expect(w.mem.tables.state.tasks[task.id].status).toBe('done');
+
+      const retry = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, {
+        caps: { elicitation: {} },
+        extra: { requestState: first.body.result.requestState, inputResponses: { reason: { action: 'accept', content: { text: 'The client changed the brief.' } } } },
+      });
+      expect(retry.body.result.isError, JSON.stringify(retry.body.result)).toBeUndefined();
+      expect(w.mem.tables.state.tasks[task.id].status).toBe('todo');
+    });
+
+    it('gives isError with the retry instruction to a client without elicitation, and a call with "reason" works', async () => {
+      const task = backTask(w.mem.tables.state);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' });
+      expect(first.body.result.isError).toBe(true);
+      expect(first.body.result.content[0].text).toContain('"reason"');
+      expect(first.body.result.inputRequests).toBeUndefined();
+      const again = await call(w, 'tasks.move', { id: task.id, status: 'todo', reason: 'The client changed the brief.' });
+      expect(again.body.result.isError).toBeUndefined();
+      expect(w.mem.tables.state.tasks[task.id].status).toBe('todo');
+    });
+
+    it('refuses a forged requestState, and a state of another call', async () => {
+      const task = backTask(w.mem.tables.state);
+      const forged = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, {
+        caps: { elicitation: {} }, extra: { requestState: 'v1.eyJwIjp7fX0.forged', inputResponses: { reason: { action: 'accept', content: { text: 'x' } } } },
+      });
+      expect(forged.body.error.code).toBe(-32602);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: {} } });
+      const other = await call(w, 'tasks.move', { id: task.id, status: 'in_progress' }, {
+        caps: { elicitation: {} }, extra: { requestState: first.body.result.requestState, inputResponses: { reason: { action: 'accept', content: { text: 'x' } } } },
+      });
+      // A good signature on the state of another call: the SDK gives the throw of the tool back as a tool error.
+      expect(other.body.result.isError).toBe(true);
+      expect(other.body.result.content[0].text).toContain('requestState belongs to another call');
+      expect(w.mem.tables.state.tasks[task.id].status).toBe('done');
+    });
+
+    it('refuses the state of another agent (the state is bound to the agent)', async () => {
+      const task = backTask(w.mem.tables.state);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: {} } });
+      const stolen = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, {
+        token: await tokenOf({ client_id: CLIENT.two }),
+        caps: { elicitation: {} }, extra: { requestState: first.body.result.requestState, inputResponses: { reason: { action: 'accept', content: { text: 'x' } } } },
+      });
+      expect(stolen.body.error.code).toBe(-32602);
+    });
+
+    it('changes nothing when the person declines', async () => {
+      const task = backTask(w.mem.tables.state);
+      const first = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, { caps: { elicitation: {} } });
+      const declined = await call(w, 'tasks.move', { id: task.id, status: 'todo' }, {
+        caps: { elicitation: {} }, extra: { requestState: first.body.result.requestState, inputResponses: { reason: { action: 'decline' } } },
+      });
+      expect(declined.body.result.isError).toBe(true);
+      expect(w.mem.tables.state.tasks[task.id].status).toBe('done');
+    });
+  });
+
+  describe('the transport', () => {
+    it('answers 400 with -32020 when MCP-Protocol-Version differs from _meta', async () => {
+      const { status, body } = await rpc(w, 'tools/list', {}, { headers: { 'MCP-Protocol-Version': '2025-11-25' } });
+      expect(status).toBe(400);
+      expect(body.error.code).toBe(-32020);
+    });
+
+    it('gives the legacy answer to a request with no version header', async () => {
+      const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
+      expect(status).toBe(200);
+      expect(body.result.tools).toHaveLength(36);
+      expect(body.result.resultType).toBeUndefined();
+    });
+
+    it('serves a 2025-11-25 client: initialize, then tools/list and tools/call, each request on its own', async () => {
+      const auth = { Authorization: `Bearer ${await tokenOf()}`, 'MCP-Protocol-Version': '2025-11-25' };
+      const init = await post(w, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'old', version: '1' } } }, { Authorization: auth.Authorization });
+      expect(init.body.result.protocolVersion).toBe('2025-11-25');
+      expect(init.headers.get('Mcp-Session-Id')).toBeNull();
+      const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
+      expect(list.body.result.tools).toHaveLength(36);
+      const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
+      expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
+      // A legacy client cannot answer a question, so a reason comes back as the retry instruction.
+      const task = backTask(w.mem.tables.state);
+      const back = await post(w, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'tasks.move', arguments: { id: task.id, status: 'todo' } } }, auth);
+      expect(back.body.result.isError).toBe(true);
+      expect(back.body.result.content[0].text).toContain('"reason"');
+    });
+
+    it('answers GET and DELETE with 405, and needs no session between requests', async () => {
+      for (const method of ['GET', 'DELETE']) {
+        const response = await w.app.fetch(new Request('http://127.0.0.1/', { method, headers: { Authorization: `Bearer ${await tokenOf()}` } }));
+        expect(response.status, method).toBe(405);
+        expect(response.headers.get('Allow')).toBe('POST');
+      }
+      const one = await rpc(w, 'tools/list');
+      const two = await call(w, 'projects.get', { id: 'prj_001' });
+      for (const answer of [one, two]) expect(answer.headers.get('Mcp-Session-Id')).toBeNull();
+      expect(two.body.result.structuredContent.output.project.id).toBe('prj_001');
+    });
+
+    it('refuses an Origin that is not allowed with 403, and serves the Madar screens\' origin', async () => {
+      expect((await rpc(w, 'tools/list', {}, { headers: { Origin: 'https://evil.example' } })).status).toBe(403);
+      expect((await rpc(w, 'tools/list', {}, { headers: { Origin: w.deps.config.allowedOrigins[0] } })).status).toBe(200);
+    });
+  });
+
+  describe('sign-in', () => {
+    const challenge = `Bearer resource_metadata="${MCP_URL}/oauth-protected-resource"`;
+
+    it('gives every 401 a WWW-Authenticate header that names the metadata', async () => {
+      const browser = await tokenOf({ aud: ['authenticated'], client_id: undefined });
+      const cases: [string, string | null][] = [
+        ['no token', null], ['not a token', 'not-a-token'], ['a browser token', browser],
+        ['a removed agent', await tokenOf({ client_id: CLIENT.gone })], ['no client_id', await tokenOf({ client_id: undefined })],
+      ];
+      for (const [label, token] of cases) {
+        const { status, headers } = await rpc(w, 'tools/list', {}, { token: token === 'not-a-token' ? null : token, headers: token === 'not-a-token' ? { Authorization: 'Bearer not-a-token' } : {} });
+        expect(status, label).toBe(401);
+        const header = headers.get('WWW-Authenticate');
+        expect(header, label).not.toBeNull();
+        expect(header!.startsWith(challenge), label).toBe(true);
+      }
+    });
+
+    it('answers 403 account_off when the person or the agent is off', async () => {
+      const off = world({ agentOf: async () => { throw new ApiError('unauthenticated', 'This account or this agent is turned off in Madar.', { reason: 'account_off' }); } });
+      const { status, body } = await rpc(off, 'tools/list');
+      expect(status).toBe(403);
+      expect(body.error.data.reason).toBe('account_off');
+    });
+
+    it('answers a hidden 500 when the key set cannot load, never a sign-out', async () => {
+      const broken = world({ checkToken: async () => { throw new Error('fetch failed'); } });
+      const { status, headers } = await rpc(broken, 'tools/list');
+      expect(status).toBe(500);
+      expect(headers.get('WWW-Authenticate')).toBeNull();
+    });
+
+    it('serves the protected resource metadata with no token', async () => {
+      const response = await w.app.fetch(new Request('http://127.0.0.1/oauth-protected-resource'));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ resource: MCP_URL, authorization_servers: [ISSUER], bearer_methods_supported: ['header'], resource_name: 'Madar' });
+    });
+  });
+
+  it('gives the 61st tool call in a minute from two agents of one person 429 with Retry-After', async () => {
+    const one = await tokenOf();
+    const two = await tokenOf({ client_id: CLIENT.two });
+    for (let n = 0; n < TOOL_CALLS_PER_MINUTE; n += 1) {
+      const answer = await call(w, 'projects.get', { id: 'prj_001' }, { token: n % 2 === 0 ? one : two });
+      expect(answer.status, `call ${n + 1}`).toBe(200);
+    }
+    const over = await call(w, 'projects.get', { id: 'prj_001' }, { token: two });
+    expect(over.status).toBe(429);
+    expect(over.headers.get('Retry-After')).toBe('30');
+    // tools/list is not a tool call: it still works.
+    expect((await rpc(w, 'tools/list', {}, { token: one })).status).toBe(200);
+  }, 30_000);
+
+  it('counts each request on the usage meter, and a hopped request twice', async () => {
+    await rpc(w, 'tools/list');
+    expect(w.deps.meter.requests).toBe(1);
+    await rpc(w, 'tools/list', {}, { headers: { [HOP_HEADER]: 'us-east-1' } });
+    expect(w.deps.meter.requests).toBe(3);
+  });
+
+  it('forwards a request in a region other than Frankfurt once, before the token check', async () => {
+    const seen: Request[] = [];
+    const far = world({
+      region: 'us-east-1',
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push(new Request(input, init));
+        return Response.json({ jsonrpc: '2.0', id: 1, result: { from: 'frankfurt' } });
+      }) as typeof fetch,
+      checkToken: async () => { throw new Error('The token check must not run before the hop.'); },
+    });
+    const { status, body } = await rpc(far, 'tools/list', {}, { token: null });
+    expect(status).toBe(200);
+    expect(body.result).toEqual({ from: 'frankfurt' });
+    expect(seen).toHaveLength(1);
+    expect(new URL(seen[0].url).searchParams.get('forceFunctionRegion')).toBe('eu-central-1');
+  });
+});
