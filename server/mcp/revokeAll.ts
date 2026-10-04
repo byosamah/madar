@@ -6,7 +6,7 @@ import type { Deps } from '../core/ports';
  * user is removed (agent_links.revoked_at). The MCP token check already refuses an agent whose person is off
  * (madar_private.agent_session_ok); the removal keeps the agents off after the person is turned on again. A removed link never
  * links again (server/mcp/auth.ts): to connect again, each AI app must register a new client (a new DCR client_id), and the person
- * must approve it again (G4 adds the approval that the person records in Madar).
+ * must approve it again on the Madar consent screen (server/mcp/approval.ts).
  *
  * - The producers: users.deactivate, and an Undo (events.undo, events.undoStory) whose event turns a user off.
  * - The handler never asks whether the user is still off: the outbox row exists only because a turn-off committed, so a retry by

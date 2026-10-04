@@ -20,10 +20,11 @@ import type { OfficeSnapshot, Principal } from '../core/types';
  * The agent behind a checked token, with one statement (AGENT_SQL): the agent link of the client, whether its session lives, and
  * madar_private.agent_session_ok (the Auth session still exists and belongs to the person who approved the link, the link is
  * not removed, the person and the agent are both on).
- * - No link: the first call of a new approval. ensureAgentUser (agentUser.ts) makes the link, then the statement runs again.
+ * - No link: the first call of a new approval. ensureAgentUser (agentUser.ts) makes the link only when the person recorded an
+ *   approval of this client on the Madar consent screen (approval.ts, task G4), then the statement runs again.
  * - A removed link: 401, also for a session that started after the removal. A new session alone does not prove that the person
- *   approved again (Auth can remember an earlier consent). G4 adds the approval that the person records in Madar; until then a
- *   removed client never links again (security review of G3, 2026-10-04).
+ *   approved again (Auth can remember an earlier consent, and an agent token can approve at Auth). A removed client never links
+ *   again (security review of G3, 2026-10-04): the AI app registers a new client, and the person approves that one in Madar.
  * - A session that is gone: 401, so the agent signs in again.
  * - A live link whose check fails: the person or the agent is off (unauthenticated with the reason account_off, 403), or the
  *   session belongs to another person than the one who approved the client (401).

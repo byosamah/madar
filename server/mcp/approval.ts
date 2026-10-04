@@ -1,0 +1,88 @@
+import { z } from 'zod';
+import { ApiError, invalid } from '../../src/api/errors';
+import { principalOf as realPrincipalOf } from '../auth/principal';
+import { verifyBrowserToken } from '../auth/verify';
+import type { Deps, Query } from '../core/ports';
+import type { OfficeSnapshot, Principal } from '../core/types';
+import { readOffice as realReadOffice } from '../data/officeCache';
+import { errorResponse, runErrorOf } from '../http/errors';
+import { readBody } from '../http/limits';
+import type { RouteDef } from '../http/routes';
+
+/**
+ * The approval that a person records in Madar for an AI app (plan 5.6; task G4; proof.md Z0a item 2 and section G4).
+ *
+ * Supabase Auth lets an agent token approve an OAuth client that the agent registered itself, so an approval at Auth alone proves
+ * nothing about the person. The consent screen (src/features/oauth/ConsentScreen.tsx) first sends POST /agents/approve to the api
+ * function with the person's browser token, and only then asks Auth to approve. ensureAgentUser (agentUser.ts) makes an agent
+ * link only for a client with an approval of the same person.
+ *
+ * - The token: the browser token check of the api function, which refuses every agent token (403 agent_token). So an agent cannot
+ *   record an approval, also not with a token of the same person.
+ * - The person: principalOf, so a turned-off person or a sign-in with no Madar account records nothing.
+ * - The client: never from the browser. The route reads it from Auth's pending authorization of this person
+ *   (madar_private.agent_authorization, 20261004000402_platform_agent_approvals.sql). An authorization that Auth already approved,
+ *   denied or let expire, or that belongs to someone else, gives invalid_input with the reason authorization_ended.
+ *
+ * This module holds no MCP code, so the api bundle carries it. server/http/routes.ts mounts APPROVE_ROUTE (merge lead patch of G4).
+ */
+
+export const APPROVE_PATH = '/agents/approve';
+
+export const AUTHORIZATION_SQL = 'select madar_private.agent_authorization($1::text, $2::uuid)::text as client_id';
+/** A second approval of the same client by the same person keeps the first one. */
+export const APPROVAL_INSERT_SQL = 'insert into agent_approvals (client_id, owner_user_id) values ($1::uuid, $2) on conflict (client_id, owner_user_id) do nothing';
+/** The approval that ensureAgentUser needs before it links a client to the person. */
+export const APPROVAL_SQL = 'select 1 as approved from agent_approvals where client_id = $1::uuid and owner_user_id = $2';
+
+const Body = z.object({ authorizationId: z.string().trim().min(1).max(200) });
+
+export type ApproveOptions = {
+  verifyToken: (header: string | null) => Promise<{ authUserId: string }>;
+  principalOf: (authUserId: string, office: OfficeSnapshot) => Principal;
+  readOffice: (deps: Deps) => Promise<OfficeSnapshot>;
+};
+
+/** Records the approval of the client of one pending authorization for the signed-in person. */
+export async function recordApproval(q: Query, o: { authorizationId: string; authUserId: string; ownerId: string }): Promise<{ clientId: string }> {
+  const [row] = await q<{ client_id: string | null }>(AUTHORIZATION_SQL, [o.authorizationId, o.authUserId]);
+  const clientId = row?.client_id ?? null;
+  if (clientId === null) {
+    throw invalid('authorizationId', 'This approval request ended. Start the connection again in your AI app.', 'authorization_ended');
+  }
+  await q(APPROVAL_INSERT_SQL, [clientId, o.ownerId]);
+  return { clientId };
+}
+
+export async function handleApprove(request: Request, deps: Deps, o: ApproveOptions): Promise<Response> {
+  try {
+    const { authUserId } = await o.verifyToken(request.headers.get('Authorization'));
+    let body: unknown;
+    try {
+      body = JSON.parse(await readBody(request));
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw invalid('authorizationId', 'Send the approval as JSON.');
+    }
+    const parsed = Body.safeParse(body);
+    if (!parsed.success) throw invalid('authorizationId', 'Send the authorization id of the consent screen.');
+    const office = await o.readOffice(deps);
+    const principal = o.principalOf(authUserId, office);
+    await deps.db.tx('write', (q) => recordApproval(q, { authorizationId: parsed.data.authorizationId, authUserId, ownerId: principal.userId }));
+    return Response.json({ approved: true });
+  } catch (error) {
+    if (!(error instanceof ApiError)) deps.log.error('The agent approval failed.', { error: error instanceof Error ? error.message : String(error) });
+    return errorResponse(runErrorOf(error));
+  }
+}
+
+export function approveRoute(o: Partial<ApproveOptions> = {}): RouteDef {
+  const options: ApproveOptions = {
+    verifyToken: o.verifyToken ?? verifyBrowserToken,
+    principalOf: o.principalOf ?? realPrincipalOf,
+    readOffice: o.readOffice ?? ((d) => realReadOffice(d)),
+  };
+  return { method: 'POST', path: APPROVE_PATH, handler: (request, deps) => handleApprove(request, deps, options) };
+}
+
+export const APPROVE_ROUTE: RouteDef = approveRoute();

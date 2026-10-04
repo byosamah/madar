@@ -9,13 +9,17 @@ import type { Deps } from '../core/ports';
 import { sqlData, type CallData } from '../core/runCall';
 import { resolveStory } from '../core/story';
 import { loadFor } from '../data/loaders/index';
+import { APPROVAL_SQL } from './approval';
 import { signInAgain } from './auth';
 
 /**
  * The agent user of an approval (plan 5.6; task G3). Only the first MCP call of a client_id with no agent link runs ensureAgentUser,
  * under the office lock, in one transaction. A removed link stays removed: the AI app must register a new client (a new DCR
- * client_id) to connect again, and G4 adds the approval that the person records in Madar.
+ * client_id) to connect again.
  *
+ * - The approval: the person must have approved this client on the Madar consent screen (agent_approvals, approval.ts; task G4).
+ *   Else forbidden with the reason agent_not_approved, and no link: Auth lets an agent token approve a client that the agent
+ *   registered itself (proof.md G4), but the api function refuses agent tokens, so only the person records an approval.
  * - The AI app: its name and the host of its first redirect address, from Auth (madar_private.agent_client,
  *   20261004000401_platform_agents.sql).
  * - The agent user of (person, app name, set of redirect addresses): an active agent of the person that an earlier link of the
@@ -85,6 +89,10 @@ export const AGENT_USER_CREATE = defineCall({
   },
 });
 
+export function notApproved(): ApiError {
+  return new ApiError('forbidden', 'You did not approve this AI app in Madar. Remove it in Madar under Settings, Agents, then connect it again and approve it on the Madar screen.', { reason: 'agent_not_approved' });
+}
+
 export const LINK_SQL = 'select agent_user_id, revoked_at from agent_links where client_id = $1::uuid';
 export const CLIENT_SQL = 'select client_name, redirect_uris from madar_private.agent_client($1::uuid)';
 /** The earlier links of the same person, app name and host, with the redirect addresses of their clients in Auth. */
@@ -103,6 +111,10 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
     const [link] = await t.q<{ agent_user_id: string; revoked_at: Date | string | null }>(LINK_SQL, [o.clientId]);
     // Another request of the same approval made the link while this one waited for the lock. A removed link stays removed.
     if (link) return { agentUserId: link.agent_user_id, created: false };
+    // Only a client that the person approved on the Madar consent screen links (task G4, approval.ts). An agent token can
+    // approve a client of its own at Auth (proof.md G4), but the api function refuses it, so it cannot record an approval.
+    const [approval] = await t.q(APPROVAL_SQL, [o.clientId, o.ownerId]);
+    if (!approval) throw notApproved();
 
     const [client] = await t.q<{ client_name: string | null; redirect_uris: string }>(CLIENT_SQL, [o.clientId]);
     if (!client) throw signInAgain('Madar does not know this AI app. Connect it again in your AI app.');
