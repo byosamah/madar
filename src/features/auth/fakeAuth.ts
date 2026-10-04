@@ -1,5 +1,5 @@
 import type { AuthPort, AuthStatus, LinkType } from '../../app/auth';
-import { AuthFailure, MIN_PASSWORD } from './authFailure';
+import { AuthFailure, MIN_PASSWORD, type AuthFailureReason } from './authFailure';
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from './sessionEnd';
 
 export type FakeAccount = { email: string; password: string; userId: string; off?: boolean };
@@ -9,6 +9,10 @@ export type FakeLink = { type: LinkType; email: string; used?: boolean };
 export type FakeAuth = AuthPort & {
   readonly log: string[];
   readonly resets: string[];
+  /** The renew keys that the Welcome screen sent (security fix 7). */
+  readonly renewals: string[];
+  /** The next request for a new invitation link fails with this reason. */
+  failNextRenew(reason: AuthFailureReason): void;
   current(): FakeAccount | null;
   /** The session ends without a sign-out, as when the refresh token is gone. */
   expire(): void;
@@ -33,6 +37,8 @@ export function fakeAuth(o: {
   const listeners = new Set<SessionListener>();
   const log: string[] = [];
   const resets: string[] = [];
+  const renewals: string[] = [];
+  let renewFailure: AuthFailureReason | null = null;
   let current: FakeAccount | null = o.signedInAs ? accounts.get(o.signedInAs.toLowerCase()) ?? null : null;
 
   // As the Supabase port: the person of the last session stays after a sign-out, and a sign-in of someone else is a change.
@@ -56,6 +62,10 @@ export function fakeAuth(o: {
   return {
     log,
     resets,
+    renewals,
+    failNextRenew: (reason) => {
+      renewFailure = reason;
+    },
     current: () => current,
     expire: () => {
       log.push('expire');
@@ -120,6 +130,15 @@ export function fakeAuth(o: {
     async requestReset(email) {
       log.push('requestReset');
       resets.push(email);
+    },
+    async renewInvite(key) {
+      log.push('renewInvite');
+      if (renewFailure) {
+        const reason = renewFailure;
+        renewFailure = null;
+        throw new AuthFailure(reason);
+      }
+      renewals.push(key);
     },
   };
 }

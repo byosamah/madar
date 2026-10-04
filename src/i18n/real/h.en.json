@@ -1,0 +1,12 @@
+{
+  "auth": {
+    "welcome": {
+      "renew": {
+        "body": "This invitation link is out of date.",
+        "send": "Send me a new link",
+        "sentTitle": "Check your email",
+        "sentBody": "If your invitation is still open, a new link is on its way."
+      }
+    }
+  }
+}

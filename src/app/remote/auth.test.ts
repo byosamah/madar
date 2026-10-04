@@ -253,6 +253,27 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     });
   });
 
+  it('asks the Madar server for a new invitation link in Frankfurt, with the key of the link and nothing else (security fix 7)', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ v: 1, ok: true }), { status: 200 }));
+    const auth = await createSupabaseAuth(stubClient().client, { apiUrl: 'https://api.test/functions/v1/api/', fetch });
+    await auth.renewInvite('abc234');
+    expect(fetch).toHaveBeenCalledWith('https://api.test/functions/v1/api/auth/renew-invite?forceFunctionRegion=eu-central-1', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'abc234' }),
+    });
+  });
+
+  it('names a refused or a lost request for a new invitation link', async () => {
+    const cases: [() => Promise<Response>, string][] = [
+      [async () => Response.json({ v: 1, error: { code: 'conflict', details: { reason: 'too_many' } } }, { status: 429 }), 'too_many'],
+      [async () => new Response('', { status: 500 }), 'failed'],
+      [async () => { throw new TypeError('Failed to fetch'); }, 'offline'],
+    ];
+    for (const [answer, reason] of cases) {
+      const auth = await createSupabaseAuth(stubClient().client, { apiUrl: 'https://api.test', fetch: vi.fn(answer) });
+      await expect(auth.renewInvite('abc234')).rejects.toMatchObject({ reason });
+    }
+  });
+
   it('names a refused or a lost reset request', async () => {
     const cases: [() => Promise<Response>, string][] = [
       [async () => new Response('', { status: 429 }), 'too_many'],

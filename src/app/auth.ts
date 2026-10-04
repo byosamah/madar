@@ -29,6 +29,12 @@ export interface AuthPort {
    * `${VITE_API_URL}/auth/forgot?forceFunctionRegion=eu-central-1`. It gives the same answer for every address and never throws for an unknown one.
    */
   requestReset(email: string): Promise<void>;
+  /**
+   * Asks for a new invitation link (the Welcome screen, when the link is out of date; security fix 7). It sends only the renew
+   * key of the invitation link: a POST with { key } to `${VITE_API_URL}/auth/renew-invite?forceFunctionRegion=eu-central-1`.
+   * The server sends the new link to the address it holds, and gives the same answer for every key.
+   */
+  renewInvite(key: string): Promise<void>;
 }
 
 export function alwaysSignedIn(): AuthPort {
@@ -42,5 +48,6 @@ export function alwaysSignedIn(): AuthPort {
     setPassword: async () => undefined,
     changePassword: async () => undefined,
     requestReset: async () => undefined,
+    renewInvite: async () => undefined,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expectCalm } from './calmChecks';
 import { fakeAuth } from './fakeAuth';
@@ -95,5 +95,76 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     await userEvent.click(screen.getByRole('button', { name: 'قبول الدعوة' }));
     expect(await screen.findByLabelText('كلمة المرور الجديدة')).toBeInTheDocument();
     expectCalm(arabic.container);
+  });
+
+  describe('an invitation link that is out of date, with its renew key (security fix 7)', () => {
+    const OLD = '/welcome?token_hash=hash-old&type=invite&renew=key-of-the-mail';
+    const panel = (root: HTMLElement) => root.querySelector('.panel') as HTMLElement;
+
+    it('says what happened in one short sentence, with one main button "Send me a new link" and nothing else to press', async () => {
+      const auth = invited();
+      const view = await renderAuth(OLD, asFaisal(auth));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      expect(await screen.findByText('This invitation link is out of date.')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Welcome to Madar' })).toBeInTheDocument();
+      expect(within(panel(view.container)).getAllByRole('button').map((b) => b.textContent)).toEqual(['Send me a new link']);
+      expect(within(panel(view.container)).queryAllByRole('link')).toEqual([]);
+      expect(screen.queryByText('This link has ended. Ask the Admin for a new invitation.')).toBeNull();
+      // Nothing goes to Madar until the person presses the button.
+      expect(auth.log).toEqual(['verifyLink:invite']);
+    });
+
+    it('sends only the key of the link, then shows a calm "Check your email" with no second button', async () => {
+      const auth = invited();
+      const view = await renderAuth(OLD, asFaisal(auth));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Send me a new link' }));
+      expect(await screen.findByText('Check your email')).toBeInTheDocument();
+      expect(screen.getByText('If your invitation is still open, a new link is on its way.')).toBeInTheDocument();
+      expect(auth.renewals).toEqual(['key-of-the-mail']);
+      expect(within(panel(view.container)).queryAllByRole('button')).toEqual([]);
+      expect(within(panel(view.container)).queryAllByRole('link')).toEqual([]);
+    });
+
+    it('opens the same state at once for a link with the key but no token or no invitation type', async () => {
+      for (const link of ['/welcome?renew=key-of-the-mail', '/welcome?token_hash=x&type=signup&renew=key-of-the-mail']) {
+        const auth = invited();
+        const { unmount } = await renderAuth(link, asFaisal(auth));
+        expect(await screen.findByText('This invitation link is out of date.')).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Send me a new link' }));
+        expect(await screen.findByText('Check your email')).toBeInTheDocument();
+        expect(auth.renewals).toEqual(['key-of-the-mail']);
+        unmount();
+      }
+    });
+
+    it('keeps the button after a failed request and says why in one line', async () => {
+      const auth = invited();
+      auth.failNextRenew('offline');
+      await renderAuth('/welcome?renew=key-of-the-mail', asFaisal(auth));
+      await userEvent.click(await screen.findByRole('button', { name: 'Send me a new link' }));
+      expect(await screen.findByText('Madar cannot connect. Check your connection, then try again.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Send me a new link' }));
+      expect(await screen.findByText('Check your email')).toBeInTheDocument();
+      expect(auth.renewals).toEqual(['key-of-the-mail']);
+    });
+
+    it('passes the calm checks at phone width before and after the button, in English and in Arabic right to left', async () => {
+      atPhoneWidth();
+      const english = await renderAuth('/welcome?renew=key-of-the-mail', asFaisal(invited()));
+      await screen.findByRole('button', { name: 'Send me a new link' });
+      expectCalm(english.container);
+      await userEvent.click(screen.getByRole('button', { name: 'Send me a new link' }));
+      await screen.findByText('Check your email');
+      expectCalm(english.container);
+      english.unmount();
+      const arabic = await renderAuth('/welcome?renew=key-of-the-mail', { ...asFaisal(invited()), language: 'ar' });
+      expect(await screen.findByText('رابط الدعوة هذا لم يعد صالحًا.')).toBeInTheDocument();
+      expect(document.documentElement.dir).toBe('rtl');
+      expectCalm(arabic.container);
+      await userEvent.click(screen.getByRole('button', { name: 'أرسل لي رابطًا جديدًا' }));
+      expect(await screen.findByText('تفقّد بريدك')).toBeInTheDocument();
+      expectCalm(arabic.container);
+    });
   });
 });
