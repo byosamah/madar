@@ -83,6 +83,15 @@ describe('playwright.deploy.config', () => {
     expect(deployed.webServer).toBeUndefined();
   });
 
+  it('runs one spec at a time, because the specs share the 4 accounts, their preferences and the one office', () => {
+    for (const c of [config, deployConfig({ MADAR_DEPLOY_URL: 'https://preview.madar-test.pages.dev' })]) {
+      expect(c.workers).toBe(1);
+      expect(c.fullyParallel).toBe(false);
+      // Each answer comes from the server, not from the fake API in the page, so a check waits longer for it.
+      expect(c.expect?.timeout).toBe(10_000);
+    }
+  });
+
   it('refuses a deployment URL that is not https, except on this Mac', () => {
     expect(() => deployConfig({ MADAR_DEPLOY_URL: 'http://preview.madar-test.pages.dev' })).toThrow(/https/);
     expect(deployConfig({ MADAR_DEPLOY_URL: 'http://127.0.0.1:5173' }).use?.baseURL).toBe('http://127.0.0.1:5173');

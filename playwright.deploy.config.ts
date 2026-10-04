@@ -11,6 +11,9 @@ import { DEPLOY_ACCOUNTS, storageStateOf } from './tests/e2e-deploy/accounts';
  *   4174. It never reuses a server on that port. It needs MADAR_LOCAL_PUBLISHABLE_KEY, the PUBLISHABLE_KEY line of
  *   "supabase status -o env". The local stack must serve the api function (supabase functions serve api) with
  *   http://127.0.0.1:4174 in ALLOWED_ORIGINS (or APP_URL), and hold the seeded office and the 4 accounts.
+ *   tests/e2e-deploy/local.ts writes the env file of the function, seeds the local office and prints the values of the run.
+ * - The specs change the office (a new project, a moved card, a sent message), so each run starts from a fresh seed
+ *   (scripts/seed-test-office.ts on madar-test, tests/e2e-deploy/local.ts seed on the local stack).
  * - The setup project (tests/e2e-deploy/auth.setup.ts) signs in once for each office role and keeps the session (storageState)
  *   in playwright/.auth, outside the run output. It records no trace, because a trace keeps the typed password. The 4 accounts
  *   and their password secrets are in tests/e2e-deploy/accounts.ts; scripts/seed-test-office.ts makes them.
@@ -61,6 +64,11 @@ export function deployConfig(env: Record<string, string | undefined> = process.e
     testDir: 'tests/e2e-deploy',
     outputDir: 'test-results/e2e-deploy',
     timeout: 120_000,
+    // One spec at a time: the specs share the 4 accounts, the language and theme of each, and the one office (task X2).
+    workers: 1,
+    fullyParallel: false,
+    // Each answer comes from the server, not from the fake API in the page.
+    expect: { timeout: 10_000 },
     retries: env.CI ? 1 : 0,
     use: { baseURL, trace: 'retain-on-failure' },
     projects: [
