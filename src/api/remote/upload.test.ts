@@ -1,0 +1,139 @@
+import { describe, expect, it } from 'vitest';
+import { MAX_FILE_BYTES } from '../contract/entities';
+import { ApiError } from '../errors';
+import { putFailure, uploadAdapter, type PutResult, type PutSender } from './upload';
+import type { AdapterCtx } from './wire';
+
+const MB = 1024 * 1024;
+const PUT = { url: 'https://store.test/up/upl_1', headers: { 'Content-Type': 'image/png' }, expiresAt: '2026-10-04T12:00:00+03:00' };
+const THUMB_PUT = { url: 'https://store.test/up/upl_1/thumb', headers: { 'Content-Type': 'image/webp' }, expiresAt: PUT.expiresAt };
+
+/** A wire stub: it records each call in order and answers like the server. */
+function wire(o: { limit?: number; start?: unknown } = {}) {
+  const steps: string[] = [];
+  const inputs: Record<string, unknown> = {};
+  const ctx: AdapterCtx = {
+    meta: {},
+    call: async (name, input) => {
+      steps.push(name);
+      inputs[name] = input;
+      if (name === 'files.uploadStart') return o.start ?? { uploadId: 'upl_1', put: PUT, thumbPut: THUMB_PUT };
+      if (name === 'files.upload') return { file: { id: 'fil_9' } };
+      if (name === 'session.get') return { limits: o.limit === undefined ? undefined : { maxFileBytes: o.limit } };
+      throw new Error(`unexpected ${name}`);
+    },
+  };
+  return { ctx, steps, inputs };
+}
+
+/** A PUT stub: it records each upload in the step list of the wire, so the test sees one order for both. */
+function sender(steps: string[], answer: (url: string) => PutResult = () => ({ status: 200, body: '' })): { put: PutSender; bodies: Blob[]; headers: Record<string, string>[] } {
+  const bodies: Blob[] = [];
+  const headers: Record<string, string>[] = [];
+  return {
+    bodies,
+    headers,
+    put: async (put, body) => {
+      steps.push(`PUT ${put.url}`);
+      bodies.push(body);
+      headers.push(put.headers);
+      return answer(put.url);
+    },
+  };
+}
+
+const picture = () => new File(['png-bytes'], 'Site photo.png', { type: 'image/png' });
+const SCREEN_INPUT = { projectId: 'prj_001', name: 'Site photo.png', stageId: 'stg_002', taskId: null, asCover: true, receivedFromClient: false };
+
+describe('the upload adapter (plan 5.2)', () => {
+  it('runs files.uploadStart, the uploads and files.upload in order, and passes the small picture', async () => {
+    const { ctx, steps, inputs } = wire();
+    const thumb = new Blob(['webp'], { type: 'image/webp' });
+    const { put, bodies, headers } = sender(steps);
+    const file = picture();
+    const output = await uploadAdapter({ makeThumb: async () => thumb, put })({ ...SCREEN_INPUT, blob: file }, ctx);
+    expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, `PUT ${THUMB_PUT.url}`, 'files.upload']);
+    expect(inputs['files.uploadStart']).toEqual({
+      projectId: 'prj_001', name: 'Site photo.png', size: file.size, mimeType: 'image/png', stageId: 'stg_002', taskId: null,
+      thumb: { size: thumb.size, mimeType: 'image/webp' },
+    });
+    expect(bodies).toEqual([file, thumb]);
+    expect(headers).toEqual([PUT.headers, THUMB_PUT.headers]);
+    // The wire form is strict: the upload ID and the shared fields, never the blob.
+    expect(inputs['files.upload']).toEqual({ projectId: 'prj_001', name: 'Site photo.png', stageId: 'stg_002', taskId: null, asCover: true, receivedFromClient: false, uploadId: 'upl_1' });
+    expect(output).toEqual({ file: { id: 'fil_9' } });
+  });
+
+  it('makes no small picture for a file that is not a picture, and sends a file with no type as plain data', async () => {
+    const { ctx, steps, inputs } = wire({ start: { uploadId: 'upl_2', put: PUT } });
+    let asked = 0;
+    const { put } = sender(steps);
+    await uploadAdapter({ makeThumb: async () => { asked += 1; return null; }, put })({ projectId: 'prj_001', name: 'Model.rvt', blob: new Blob(['x']) }, ctx);
+    expect(asked).toBe(0);
+    expect(inputs['files.uploadStart']).toEqual({ projectId: 'prj_001', name: 'Model.rvt', size: 1, mimeType: 'application/octet-stream' });
+    expect(inputs['files.upload']).toEqual({ projectId: 'prj_001', name: 'Model.rvt', uploadId: 'upl_2' });
+    expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, 'files.upload']);
+  });
+
+  it('leaves the small picture out when the browser cannot make one, or when it is over 10 MB', async () => {
+    for (const thumb of [null, Object.defineProperty(new Blob(['x'], { type: 'image/webp' }), 'size', { value: 10 * MB + 1 })]) {
+      const { ctx, steps, inputs } = wire({ start: { uploadId: 'upl_3', put: PUT } });
+      await uploadAdapter({ makeThumb: async () => thumb, put: sender(steps).put })({ ...SCREEN_INPUT, blob: picture() }, ctx);
+      expect(inputs['files.uploadStart']).not.toHaveProperty('thumb');
+      expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, 'files.upload']);
+    }
+  });
+
+  it('still saves the file when only the small picture fails to upload or cannot be made', async () => {
+    const { ctx, steps } = wire();
+    const { put } = sender(steps, (url) => (url === THUMB_PUT.url ? { status: 0, body: '' } : { status: 200, body: '' }));
+    await uploadAdapter({ makeThumb: async () => new Blob(['w'], { type: 'image/webp' }), put })({ ...SCREEN_INPUT, blob: picture() }, ctx);
+    expect(steps.at(-1)).toBe('files.upload');
+    const broken = wire();
+    await uploadAdapter({ makeThumb: async () => { throw new Error('decode'); }, put: sender(broken.steps).put })({ ...SCREEN_INPUT, blob: picture() }, broken.ctx);
+    expect(broken.steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, 'files.upload']);
+  });
+
+  it('turns a failed upload of the file into failed, so the screen offers Retry, and never calls files.upload', async () => {
+    for (const answer of [{ status: 0, body: '' }, { status: 500, body: 'oops' }, { status: 400, body: '{"statusCode":"403","code":"InvalidJWT"}' }]) {
+      const { ctx, steps } = wire();
+      const error = await uploadAdapter({ makeThumb: async () => null, put: sender(steps, () => answer).put })({ ...SCREEN_INPUT, blob: picture() }, ctx)
+        .then(() => null, (e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ code: 'failed', details: { reason: 'upload_failed' } });
+      expect(steps).not.toContain('files.upload');
+    }
+  });
+
+  it('turns the Storage size refusal into file_too_large with the limit that session.get gives (proof Z0a, item 6)', async () => {
+    const refusal = { status: 400, body: JSON.stringify({ statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }) };
+    const { ctx, steps } = wire({ limit: 50 * MB });
+    const error = await uploadAdapter({ makeThumb: async () => null, put: sender(steps, () => refusal).put })({ ...SCREEN_INPUT, blob: picture() }, ctx)
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: 'invalid_input', details: { fields: ['blob'], reason: 'file_too_large', limit: 50 * MB } });
+    expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, 'session.get']);
+  });
+
+  it('uses the ceiling of the contract when session.get names no limit, and reads the code form of the refusal', async () => {
+    const { ctx, steps } = wire();
+    const error = await uploadAdapter({ makeThumb: async () => null, put: sender(steps, () => ({ status: 400, body: '{"code":"EntityTooLarge"}' })).put })({ ...SCREEN_INPUT, blob: picture() }, ctx)
+      .then(() => null, (e: unknown) => e);
+    expect(error).toMatchObject({ code: 'invalid_input', details: { reason: 'file_too_large', limit: MAX_FILE_BYTES } });
+  });
+});
+
+describe('putFailure', () => {
+  it('reads each form of the size refusal, and nothing else', () => {
+    expect(putFailure({ status: 400, body: '{"statusCode":"413","code":"EntityTooLarge"}' })).toBe('too_large');
+    expect(putFailure({ status: 400, body: '{"statusCode":413}' })).toBe('too_large');
+    expect(putFailure({ status: 413, body: '' })).toBe('too_large');
+    // R2 and MinIO answer in S3 XML.
+    expect(putFailure({ status: 400, body: '<?xml version="1.0"?><Error><Code>EntityTooLarge</Code></Error>' })).toBe('too_large');
+    expect(putFailure({ status: 400, body: '{"statusCode":"400","code":"InvalidKey"}' })).toBe('failed');
+    expect(putFailure({ status: 400, body: 'not json' })).toBe('failed');
+    expect(putFailure({ status: 0, body: '' })).toBe('failed');
+    expect(putFailure({ status: 200, body: '' })).toBeNull();
+    expect(putFailure({ status: 204, body: '' })).toBeNull();
+  });
+});
