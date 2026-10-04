@@ -1,12 +1,12 @@
 import type { FakeAuthAdmin } from '../test/fakes/authAdmin';
 import { fakeAuthAdmin } from '../test/fakes/authAdmin';
-import { AuthAdminError, type AuthAdmin, type AuthUserInfo } from './admin';
+import { AuthAdminError, type AuthAdmin, type AuthUserInfo, type UpdateEmailOptions } from './admin';
 
 /**
  * For tests only: the T0 fake of Supabase Auth with the parts of the real Auth that track P relies on (proof.md, section P1).
  * - accept(authUserId): the person used the link and set a password, so the email is confirmed.
  * - An "invite" link for a person who accepted is refused with 422 email_exists, as the real Auth does.
- * - listUsers and getUser, which the merge lead patch of P2 adds to AuthAdminPort and to the T0 fake.
+ * - listUsers, getUser and updateEmail { confirm }, which the merge lead patch of P2 adds to AuthAdminPort and to the T0 fake.
  * - failNext(error): the next Auth call fails once.
  */
 export type FakeAuth = FakeAuthAdmin & AuthAdmin & {
@@ -58,9 +58,11 @@ export function fakeAuth(base: FakeAuthAdmin = fakeAuthAdmin()): FakeAuth {
       check();
       return base.setBanned(authUserId, banned);
     },
-    async updateEmail(authUserId, email) {
+    async updateEmail(authUserId: string, email: string, o: UpdateEmailOptions = {}) {
       check();
-      return base.updateEmail(authUserId, email);
+      await base.updateEmail(authUserId, email);
+      // As the real Auth: email_confirm confirms the person; the email alone leaves the confirm state as it was.
+      if (o.confirm === true) confirmed.add(authUserId);
     },
     async listUsers() {
       check();

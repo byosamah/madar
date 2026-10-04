@@ -9,14 +9,22 @@ import type { AuthAdminPort } from '../core/ports';
  *   An "invite" for a person who already accepted answers 422 email_exists: the caller then sends a "recovery" link.
  * - createUser: a confirmed user with a password (the first Admin, P3).
  * - setBanned: a ban of 100 years, or "none". A banned person cannot sign in or refresh; principalOf refuses the person anyway.
- * - updateEmail: the new email, confirmed at once, so Auth sends no mail of its own.
+ * - updateEmail: the new email. The admin API sends no mail of its own. { confirm: true } only for a person who already
+ *   accepted: it confirms the email at once. A person who did not accept yet gets the email alone and stays unconfirmed, so
+ *   users.invites still says "invited" and the next invite link to the new email works (a confirmed one answers 422).
  * - listUsers: every Auth user and whether the email is confirmed (users.invites).
  * - getUser: one Auth user, or null (the auth.email effect: did the email change, and did the person accept yet).
- *   listUsers and getUser are not in AuthAdminPort yet: the merge lead patch of P2 adds them there and to the fake.
+ *   listUsers, getUser and the confirm option of updateEmail are not in AuthAdminPort yet: the merge lead patch of P2 adds them
+ *   there and to the fake.
  */
 
 export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };
-export type AuthAdmin = AuthAdminPort & { listUsers(): Promise<AuthUserInfo[]>; getUser(authUserId: string): Promise<AuthUserInfo | null> };
+export type UpdateEmailOptions = { confirm?: boolean };
+export type AuthAdmin = AuthAdminPort & {
+  listUsers(): Promise<AuthUserInfo[]>;
+  getUser(authUserId: string): Promise<AuthUserInfo | null>;
+  updateEmail(authUserId: string, email: string, o?: UpdateEmailOptions): Promise<void>;
+};
 
 /** A refusal of the Auth admin API: the HTTP status and Auth's error code (for example email_exists). */
 export class AuthAdminError extends Error {
@@ -98,8 +106,8 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
     async setBanned(authUserId, banned) {
       await call('PUT', `/users/${idPath(authUserId)}`, { ban_duration: banned ? BAN_FOREVER : 'none' });
     },
-    async updateEmail(authUserId, email) {
-      await call('PUT', `/users/${idPath(authUserId)}`, { email: email.toLowerCase(), email_confirm: true });
+    async updateEmail(authUserId: string, email: string, u: UpdateEmailOptions = {}) {
+      await call('PUT', `/users/${idPath(authUserId)}`, { email: email.toLowerCase(), ...(u.confirm === true ? { email_confirm: true } : {}) });
     },
     async getUser(authUserId) {
       try {

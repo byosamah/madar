@@ -55,16 +55,19 @@ describe('authAdminPort over the GoTrue admin API (plan 5.1)', () => {
     expect(seen[0]).toMatchObject({ method: 'POST', url: 'http://127.0.0.1:54321/auth/v1/admin/users', body: { email: 'd@madar.test', password: 'pw-12345678', email_confirm: true } });
   });
 
-  it('setBanned bans for 100 years and unbans with "none"; updateEmail changes the email with no confirmation mail', async () => {
-    const { seen, fetch } = stubFetch([{ status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: {} }]);
+  it('setBanned bans for 100 years and unbans with "none"; updateEmail confirms the new email only when asked', async () => {
+    const { seen, fetch } = stubFetch([{ status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: {} }, { status: 200, body: {} }]);
     const admin = authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch });
     await admin.setBanned(ID, true);
     await admin.setBanned(ID, false);
-    await admin.updateEmail(ID, 'New@madar.test');
+    await admin.updateEmail(ID, 'New@madar.test', { confirm: true });
+    // A person who did not accept yet: the email alone, so Auth does not confirm a person who has no password.
+    await admin.updateEmail(ID, 'Other@madar.test');
     expect(seen.map((s) => [s.method, s.url, s.body])).toEqual([
       ['PUT', `http://127.0.0.1:54321/auth/v1/admin/users/${ID}`, { ban_duration: '876000h' }],
       ['PUT', `http://127.0.0.1:54321/auth/v1/admin/users/${ID}`, { ban_duration: 'none' }],
       ['PUT', `http://127.0.0.1:54321/auth/v1/admin/users/${ID}`, { email: 'new@madar.test', email_confirm: true }],
+      ['PUT', `http://127.0.0.1:54321/auth/v1/admin/users/${ID}`, { email: 'other@madar.test' }],
     ]);
   });
 
