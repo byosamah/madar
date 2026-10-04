@@ -50,6 +50,8 @@ function functionsEnv(file: string): void {
     MADAR_SECRET_KEY: values.SECRET_KEY ?? values.SERVICE_ROLE_KEY,
     // A local function sees SUPABASE_URL=http://kong:8000, but its tokens name the address of the Mac (proof.md P1).
     AUTH_ISSUER: `${SUPABASE_URL}/auth/v1`,
+    // The audience of an agent token is the MCP URL of the Mac (the token hook's mcp_url), not http://kong:8000/functions/v1/mcp.
+    MCP_URL: `${SUPABASE_URL}/functions/v1/mcp`,
     APP_URL,
     ALLOWED_ORIGINS: APP_URL,
     MAIL_FROM: 'Madar <notices@madar.test>',
@@ -71,6 +73,9 @@ async function seed(): Promise<void> {
       db: clientDb(client), auth: seedAuthPort({ supabaseUrl: values.API_URL ?? SUPABASE_URL, secretKey: values.SECRET_KEY ?? values.SERVICE_ROLE_KEY }),
       seed: office, ref: TEST_REF, env: { ...localPasswords(), ...process.env }, dryRun: false, lockKey: OFFICE_LOCK_KEY, log: (line) => console.log(line),
     });
+    // The token hook copies mcp_url into the aud of each agent token, and refuses an agent token without it (agents.spec.ts).
+    // On madar-test the deploy sets it; on the local stack it is the local mcp function, as server/it/oauthAgent.ts sets it.
+    await client.query("insert into public.platform_config (key, value) values ('mcp_url', $1) on conflict (key) do update set value = excluded.value", [`${SUPABASE_URL}/functions/v1/mcp`]);
   } finally {
     await client.end();
   }

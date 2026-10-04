@@ -96,7 +96,7 @@ for (const lang of LANGS) {
         const label = `consent ${width}px ${lang} ${theme}`;
         await page.setViewportSize({ width, height: 900 });
         await goto(page, flow.consentRoute);
-        await expect(page.getByText(name)).toBeVisible();
+        await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
         await expect(page.locator('html')).toHaveAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         // The host of the redirect address shows, so a person sees where the agent sends the code.
@@ -115,7 +115,7 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   const name = `X2 agent ${runId()}`;
   const flow = await startFlow(await registerClient(name));
   await goto(page, flow.consentRoute);
-  await expect(page.getByText(name)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
   const token = await exchange(flow, await approve(page));
   // The first MCP call makes the agent link (ensureAgentUser).
   const listed = await fetch(target().mcpUrl, {
