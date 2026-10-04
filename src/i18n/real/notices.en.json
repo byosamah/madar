@@ -1,0 +1,11 @@
+{
+  "notices": {
+    "inApp": "In app",
+    "email": "Email",
+    "switchInApp": "{{trigger}}, in the app",
+    "switchEmail": "{{trigger}}, by email",
+    "emailNeedsApp": "No email while the in-app notice is off.",
+    "summary": "Morning summary",
+    "summaryHint": "An email on working days at 07:30 with your tasks due today and the reviews that wait for you."
+  }
+}

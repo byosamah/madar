@@ -1,0 +1,83 @@
+{
+  "mail": {
+    "common": {
+      "brand": "Madar",
+      "greeting": "Hello {{name}},",
+      "open": "Open Madar",
+      "linkHelp": "If the button does not work, copy this link into your browser:",
+      "footerNotice": "You get this email because the Email switch of this notice is on. You can change it in Settings, Notifications.",
+      "footerSummary": "You get this summary on working days at 07:30 Riyadh time. You can turn it off in Settings, Notifications.",
+      "footerAuto": "Madar sent this email. Do not reply to it."
+    },
+    "invite": {
+      "subject": "{{actor}} invited you to Madar",
+      "added": "{{actor}} added you to the office on Madar.",
+      "setPassword": "Set your password to sign in.",
+      "button": "Set your password",
+      "expired": "If the link no longer works, ask the Admin to send the invitation again."
+    },
+    "reset": {
+      "subject": "Reset your Madar password",
+      "asked": "Someone asked to reset the password of your Madar account.",
+      "choose": "Choose a new password with the button below.",
+      "button": "Choose a new password",
+      "ignore": "If you did not ask for this, ignore this email. Your password stays the same."
+    },
+    "notice": {
+      "details": "Open Madar to see the details.",
+      "subject": {
+        "task_assigned": "A task is assigned to you",
+        "mention": "Someone mentioned you",
+        "due_tomorrow": "Your task is due the next working day",
+        "overdue": "Your task is past due",
+        "review_requested": "A task waits for your review",
+        "task_approved": "Your task is approved",
+        "task_sent_back": "Your task is sent back",
+        "stage_changed": "The stage of your project changed",
+        "added_to_project": "You are added to a project",
+        "resume_due": "A paused project reached its restart date"
+      }
+    },
+    "summary": {
+      "subject": "Your morning summary from Madar",
+      "intro": "Here is what waits for you today.",
+      "dueToday": "{{count}} tasks are due today.",
+      "dueToday_one": "1 task is due today.",
+      "dueToday_other": "{{count}} tasks are due today.",
+      "reviewsWaiting": "{{count}} reviews wait for you.",
+      "reviewsWaiting_one": "1 review waits for you.",
+      "reviewsWaiting_other": "{{count}} reviews wait for you."
+    },
+    "limit": {
+      "subject": "Madar is near a free plan limit",
+      "line": "{{meter}}: {{percent}}% of the free plan limit.",
+      "meter": {
+        "calls": "Server calls this month",
+        "database": "The database size",
+        "files": "File storage",
+        "filesR2": "File storage",
+        "backup": "The backup copy of the files",
+        "emailsToday": "Emails today",
+        "emailsMonth": "Emails this month",
+        "egress": "Data sent this month"
+      },
+      "next": {
+        "calls": "Next step: move Madar to the paid database plan before the month ends.",
+        "database": "Next step: remove old data that the office does not need, or move to the paid database plan.",
+        "files": "Next step: move the files to Cloudflare R2, or remove old file versions.",
+        "filesR2": "Above 10 GB, R2 charges about $0.015 for each GB a month. No action is needed.",
+        "backup": "Next step: remove old copies from the backup storage, or pay for more space there.",
+        "emailsToday": "Notice emails stop at the daily limit and stay in the app. No action is needed.",
+        "emailsMonth": "Next step: ask people to turn off the email notices that they do not need.",
+        "egress": "Next step: move Madar to the paid database plan before the month ends."
+      }
+    },
+    "quota": {
+      "subject": "Notice emails stopped for today",
+      "stopped": "Madar sent {{limit}} emails today. That is the daily limit for notice emails on the free plan.",
+      "stayInApp": "New notices stay in the app. Emails start again at 03:00 Riyadh time.",
+      "signinStill": "Invitations and password resets still go by email.",
+      "noAction": "No action is needed."
+    }
+  }
+}
