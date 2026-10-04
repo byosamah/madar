@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildDeps } from '../core/deps';
 import type { Db } from '../core/ports';
 import { COUNT_REQUEST_SQL, meterPort } from './meter';
+import { registerUsageEffects } from './register';
 
 /**
  * The usage meter (plan 5.8; task M1). It keeps the bytes that the loaders read and the change signals that were not sent in
@@ -102,5 +103,9 @@ describe('meterPort (plan 5.8)', () => {
     deps.meter.addBytes(42);
     await deps.meter.countRequest(db);
     expect(db.statements).toEqual([{ mode: 'write', text: COUNT_REQUEST_SQL, values: [42, 0] }]);
+  });
+
+  it('registers the usage.limitWarning handler once for the entries, so the job can run and retry the warning rows', () => {
+    expect(() => registerUsageEffects()).toThrow(/usage.limitWarning is already registered/);
   });
 });

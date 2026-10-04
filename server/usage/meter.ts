@@ -1,4 +1,5 @@
 import type { MeterPort } from '../core/ports';
+import './effects';
 
 /**
  * The usage meter (plan 5.8; task M1). The loaders and the office cache report the bytes they read (the egress estimate,
@@ -6,6 +7,8 @@ import type { MeterPort } from '../core/ports';
  * Both stay in memory until countRequest, which the batch route runs once for each request, after its calls: one statement of
  * its own adds the request, the bytes and the failed signals to the row of the UTC month in usage_month. A statement that fails
  * keeps the numbers for the next request, and the batch route logs the error.
+ *
+ * The import of ./effects registers the usage.limitWarning handler for every entry, since deps.ts imports this file.
  *
  * The numbers live in the isolate, so an isolate that stops before its next request loses a few bytes. The egress meter is an
  * estimate, and that is good enough for an 80% warning.
