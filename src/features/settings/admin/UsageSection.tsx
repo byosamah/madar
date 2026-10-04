@@ -1,9 +1,10 @@
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CallOutput } from '../../../api/calls';
 import { FREE_PLAN_LIMITS } from '../../../api/contract/server';
 import { useLang } from '../../../app/lang';
 import { REMOTE } from '../../../app/mode';
-import { useCall } from '../../../app/runtime';
+import { useAction, useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { formatNumber, localeFor, now, OFFICE_TZ, type Lang } from '../../../lib/dates';
@@ -41,9 +42,9 @@ function jobTime(stamp: string, lang: Lang): string {
 
 /**
  * Admin, Usage (plan 5.8; task M1): the free plan meters, the failed effects and the 15-minute job. Calm by default: one line
- * when all is well. A meter at 80% or more opens as one bar with its one next step; a failed effect is one line; a job that has
- * not run for 30 minutes is one line. One Check again loads the usage again. The prototype has no server, so the section
- * shows in the real build only.
+ * when all is well. A meter at 80% or more opens as one bar with its one next step; a failed effect is one line with one Retry
+ * (usage.retryEffect, plan 4.12), and the line of the live updates needs none; a job that has not run for 30 minutes is one
+ * line with one Check again. The prototype has no server, so the section shows in the real build only.
  */
 export function UsageSection() {
   return REMOTE ? <UsagePanel /> : null;
@@ -96,15 +97,32 @@ function UsageBody({ usage, checking, onCheck }: { usage: Usage; checking: boole
       )}
       {failed.length > 0 && (
         <ul className="flex flex-col gap-1">
-          {failed.map((effect, i) => <li key={effect.id ?? `${effect.kind}-${i}`} className="text-body text-ink">{lineOf(effect)}</li>)}
+          {failed.map((effect, i) => <FailedLine key={effect.id ?? `${effect.kind}-${i}`} id={effect.id} text={lineOf(effect)} onDone={onCheck} />)}
         </ul>
       )}
       {jobLate && <p className="text-body text-ink">{lastRun === null ? t('usage.jobNever') : t('usage.jobLate', { time: jobTime(lastRun, lang) })}</p>}
-      {(failed.length > 0 || jobLate) && (
+      {jobLate && (
         <div>
           <Button onClick={onCheck} disabled={checking}>{t('usage.checkAgain')}</Button>
         </div>
       )}
     </>
+  );
+}
+
+/** One failed effect: its plain words, and one Retry when it has a row id. After the Retry the usage loads again. */
+function FailedLine({ id, text, onDone }: { id?: string; text: string; onDone: () => void }) {
+  const { t } = useTranslation();
+  const lineId = useId();
+  const retry = useAction('usage.retryEffect');
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <span id={lineId} className="text-body text-ink">{text}</span>
+      {id !== undefined && (
+        <Button variant="plain" className="shrink-0" aria-describedby={lineId} disabled={retry.isPending} onClick={() => retry.mutate({ id }, { onSettled: onDone })}>
+          {t('common.retry')}
+        </Button>
+      )}
+    </li>
   );
 }

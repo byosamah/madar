@@ -46,11 +46,16 @@ async function renderUsage(given: Usage, o: { lang?: 'en' | 'ar' } = {}) {
   const store = new Store(await buildSeed(TODAY, async () => undefined), memoryPersister());
   const api = createApi(calls, { store, latencyMs: 0 });
   const asked: string[] = [];
+  const retried: unknown[] = [];
   const original = api.call.bind(api);
   api.call = ((name: string, input: unknown, meta?: unknown) => {
     if (name === 'usage.get') {
       asked.push(name);
       return Promise.resolve(given);
+    }
+    if (name === 'usage.retryEffect') {
+      retried.push(input);
+      return Promise.resolve({ retried: true });
     }
     return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
   }) as typeof api.call;
@@ -66,7 +71,7 @@ async function renderUsage(given: Usage, o: { lang?: 'en' | 'ar' } = {}) {
   );
   const t = i18n.t.bind(i18n);
   const section = (await screen.findByRole('heading', { level: 2, name: t('usage.title') })).closest('section')!;
-  return { ...view, section, asked, t };
+  return { ...view, section, asked, retried, t };
 }
 
 afterEach(() => {
@@ -100,17 +105,19 @@ describe('Admin, Usage (plan 5.8; task M1)', () => {
     expect(await within(section).findByText('Above 10 GB, R2 charges about $0.015 for each GB a month. No action is needed.')).toBeInTheDocument();
   });
 
-  it('shows a failed effect as one line, with one Check again that loads the usage again', async () => {
+  it('shows a failed effect as one line with one Retry, which sends usage.retryEffect with the row id and loads the usage again', async () => {
     const failed = { id: '17', kind: 'auth.invite', error: 'Auth said no.', attempts: 5, createdAt: '2026-09-30T08:00:00.000+03:00' };
-    const { section, asked } = await renderUsage(usage({ failedEffects: [failed] }));
-    expect(await within(section).findByText('Could not send an invitation email. Tries: 5.')).toBeInTheDocument();
+    const { section, asked, retried } = await renderUsage(usage({ failedEffects: [failed] }));
+    const line = await within(section).findByText('Could not send an invitation email. Tries: 5.');
     // The raw error stays on the server log: the Admin reads plain words.
     expect(within(section).queryByText(/Auth said no/)).toBeNull();
     const buttons = within(section).getAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual(['Check again']);
+    expect(buttons.map((b) => b.textContent)).toEqual(['Retry']);
+    expect(buttons[0]).toHaveAccessibleDescription(line.textContent!);
     expectCalm(section, { titleLevel: 2 });
     const before = asked.length;
     await userEvent.click(buttons[0]);
+    await waitFor(() => expect(retried).toEqual([{ id: '17' }]));
     await waitFor(() => expect(asked.length).toBe(before + 1));
   });
 
@@ -124,7 +131,10 @@ describe('Admin, Usage (plan 5.8; task M1)', () => {
       expect(within(section).getByText(`Could not ${what}. Tries: 1.`)).toBeInTheDocument();
     }
     expect(within(section).getAllByText('Could not send a warning email to an Admin. Tries: 1.')).toHaveLength(2);
-    expect(within(section).getAllByRole('button')).toHaveLength(1);
+    // One Retry for each effect with an id. The line of the live updates has no id and no button: the screens catch up alone.
+    expect(within(section).getAllByRole('button', { name: 'Retry' })).toHaveLength(effects.length);
+    expect(within(section).getAllByRole('button')).toHaveLength(effects.length);
+    expectCalm(section, { titleLevel: 2 });
   });
 
   it('shows one error line when the job has not run for 30 minutes, and when it never ran', async () => {
@@ -133,6 +143,8 @@ describe('Admin, Usage (plan 5.8; task M1)', () => {
     // The office clock: 08:20 in Riyadh.
     expect(within(late.section).getByText(/^The 15-minute job has not run since /)).toHaveTextContent(/08:20/);
     expect(within(late.section).queryByText('All within the free plan.')).toBeNull();
+    // The late job has no Retry here: one Check again loads the usage again.
+    expect(within(late.section).getAllByRole('button').map((b) => b.textContent)).toEqual(['Check again']);
     expectCalm(late.section, { titleLevel: 2 });
     late.unmount();
     const never = await renderUsage(usage({ jobsLastRun: null }));
@@ -152,13 +164,16 @@ describe('Admin, Usage (plan 5.8; task M1)', () => {
     calm.unmount();
 
     const failed = { id: '3', kind: 'mail.notice', error: null, attempts: 2, createdAt: '2026-09-30T08:00:00.000+03:00' };
-    const { section, t } = await renderUsage(usage({ files: { used: 0.85 * GB, limit: GB }, failedEffects: [failed] }), { lang: 'ar' });
+    const { section, t, retried } = await renderUsage(usage({ files: { used: 0.85 * GB, limit: GB }, failedEffects: [failed] }), { lang: 'ar' });
     expect(section.closest('[dir]')).toHaveAttribute('dir', 'rtl');
     expect(await within(section).findByRole('progressbar', { name: t('usage.meters.files') })).toHaveAttribute('aria-valuenow', '85');
     expect(within(section).getByText(t('usage.next.files'))).toBeInTheDocument();
     expect(within(section).getByText(t('usage.failed', { what: t('usage.effects.notice'), count: 2 }))).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: t('usage.checkAgain') })).toBeInTheDocument();
+    const retry = within(section).getByRole('button', { name: t('common.retry') });
+    expect(within(section).getAllByRole('button')).toEqual([retry]);
     expectCalm(section, { titleLevel: 2 });
+    await userEvent.click(retry);
+    await waitFor(() => expect(retried).toEqual([{ id: '3' }]));
   });
 
   it('shows nothing in the prototype build', async () => {
