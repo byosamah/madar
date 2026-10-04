@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HOP_HEADER, forwardOnce, needsHop } from './forward';
+import { HOP_HEADER, forwardOnce, hopHeaderOf, hopKeyFrom, hopTagOk, needsHop } from './forward';
 
 const MCP_URL = 'https://ref.supabase.co/functions/v1/mcp';
 const config = (region: string, forwardRegion = 'eu-central-1') => ({ region, forwardRegion, mcpUrl: MCP_URL });
@@ -58,6 +58,22 @@ describe('the region hop (plan 5.6, change 5)', () => {
     expect(response!.headers.get('content-length')).toBeNull();
     expect(response!.headers.get('x-sb-edge-region')).toBe('eu-central-1');
     expect(await response!.json()).toEqual({ ok: true });
+  });
+
+  it('signs the hop header with a key from the server secret key, so Frankfurt can tell a real hop from a client header', async () => {
+    const key = await hopKeyFrom('sb_secret_one');
+    const net = recorder();
+    await forwardOnce(post('http://internal/mcp'), { config: config('us-east-1'), fetch: net.fetchImpl, log, hopKey: key });
+    const header = net.seen[0].headers.get(HOP_HEADER)!;
+    expect(header).toMatch(/^us-east-1\.[0-9a-f]{64}$/);
+    expect(header).toBe(await hopHeaderOf('us-east-1', key));
+    expect(await hopTagOk(header, key)).toBe(true);
+    // A bare region, a tag of another key, a tag of another region, and no key at all never pass.
+    expect(await hopTagOk('us-east-1', key)).toBe(false);
+    expect(await hopTagOk(await hopHeaderOf('us-east-1', await hopKeyFrom('sb_secret_two')), key)).toBe(false);
+    expect(await hopTagOk(header.replace('us-east-1', 'ap-southeast-1'), key)).toBe(false);
+    expect(await hopTagOk(header, undefined)).toBe(false);
+    expect(await hopTagOk(null, key)).toBe(false);
   });
 
   it('keeps the path after /mcp, so the metadata document hops too', async () => {

@@ -12,6 +12,8 @@ import type { Config, Logger } from '../core/ports';
  * - Only a real region hops. A local host (SB_REGION local-deno, local-workers) or a host with no SB_REGION (unknown, the Workers
  *   fallback) has no regional copy to hop to, so it serves the request itself.
  * - A request that already hopped and still runs in the wrong region gets 503, so a hop never loops.
+ * - The hop header is "<region>.<tag>": an HMAC-SHA256 of the region under a key from the server secret key. Frankfurt counts the
+ *   extra invocation of a hop on the usage meter only when the tag checks out, because a client can send the header itself.
  */
 
 export const HOP_HEADER = 'x-madar-hop';
@@ -25,7 +27,33 @@ const REQUEST_SKIP = new Set(['host', 'connection', 'content-length', 'accept-en
 const RESPONSE_SKIP = new Set(['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'keep-alive']);
 
 export type HopConfig = Pick<Config, 'region' | 'forwardRegion' | 'mcpUrl'>;
-export type ForwardOptions = { config: HopConfig; fetch?: typeof fetch; log: Logger };
+export type ForwardOptions = { config: HopConfig; fetch?: typeof fetch; log: Logger; hopKey?: Uint8Array<ArrayBuffer> };
+
+const encoder = new TextEncoder();
+const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+const hmacKey = (key: Uint8Array<ArrayBuffer>, usage: 'sign' | 'verify') => crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, [usage]);
+const hopLabel = (region: string) => encoder.encode(`madar.mcp.hop\n${region}`);
+
+/** The hop key: HMAC-SHA256 of a fixed label under the server secret key (as stateKeyFrom in reasons.ts, with its own label). */
+export async function hopKeyFrom(secretKey: string): Promise<Uint8Array<ArrayBuffer>> {
+  const key = await hmacKey(encoder.encode(secretKey), 'sign');
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode('madar.mcp.hop.v1')));
+}
+
+/** The hop header of a region: "<region>.<tag>", or the region alone when no key exists. */
+export async function hopHeaderOf(region: string, key: Uint8Array<ArrayBuffer> | undefined): Promise<string> {
+  if (!key) return region;
+  return `${region}.${hex(await crypto.subtle.sign('HMAC', await hmacKey(key, 'sign'), hopLabel(region)))}`;
+}
+
+/** True only when the header carries a tag of its region under this key. */
+export async function hopTagOk(header: string | null, key: Uint8Array<ArrayBuffer> | undefined): Promise<boolean> {
+  if (!header || !key) return false;
+  const match = /^(.+)\.([0-9a-f]{64})$/.exec(header);
+  if (!match) return false;
+  const tag = new Uint8Array(match[2].match(/../g)!.map((pair) => parseInt(pair, 16)));
+  return crypto.subtle.verify('HMAC', await hmacKey(key, 'verify'), tag, hopLabel(match[1]));
+}
 
 export function needsHop(config: Pick<Config, 'region' | 'forwardRegion'>): boolean {
   return REGION.test(config.region) && config.region !== config.forwardRegion;
@@ -54,7 +82,7 @@ export async function forwardOnce(request: Request, o: ForwardOptions): Promise<
   }
   const headers = new Headers();
   for (const [name, value] of request.headers) if (!REQUEST_SKIP.has(name.toLowerCase())) headers.append(name, value);
-  headers.set(HOP_HEADER, o.config.region);
+  headers.set(HOP_HEADER, await hopHeaderOf(o.config.region, o.hopKey));
   const target = hopUrl(request, o.config);
   const withBody = request.method !== 'GET' && request.method !== 'HEAD' && request.body !== null;
   let upstream: Response;
