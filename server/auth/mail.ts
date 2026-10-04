@@ -1,11 +1,13 @@
 import type { Gender, Language } from '../../src/api/contract/entities';
-import { ar, en } from '../../src/i18n/trees';
+import ar from '../../src/i18n/real/p.ar.json';
+import en from '../../src/i18n/real/p.en.json';
 
 /**
  * The sign-in mail of Madar (plan 5.1, change 8): the invitation, the reset link, and the notice at the old email after an
  * email change (renderEmailChangedMail, with no link), in the person's language, with the
  * feminine Arabic forms for a woman (the "_female" keys, as actorContext() picks them on the screens). The words live in
- * src/i18n/real/p.{en,ar}.json, so the word tests check them like every screen text.
+ * src/i18n/real/p.{en,ar}.json, so the word tests check them like every screen text. The server imports those two files and not
+ * src/i18n/trees.ts, whose import.meta.glob works only in a Vite build (server/workerGraph.test.ts).
  *
  * Track N2 builds renderMail for every mail kind (plan 5.4). When it merges, it can take these two kinds over; until then, the
  * effects of track P use this module. The mail holds no client data: only the person's own name and the link.
