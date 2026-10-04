@@ -30,6 +30,8 @@ export function LinkEnded({ text, to, label }: { text: string; to: string; label
  * An invitation link that is out of date, with the renew key of its mail (security fix 7; server/auth/renew.ts): one short
  * sentence and one main button. The button sends only the key, so the new link goes to the address that Madar holds, never to
  * a typed one. The server gives the same answer for every key, so the screen then says the same calm words in every case.
+ * Both states keep the quiet way back to Sign in: Auth also says a used link is out of date, so a person who already accepted
+ * and opens the old mail again lands here, and the server sends that person nothing.
  */
 function RenewLink({ renewKey }: { renewKey: string }) {
   const { t } = useTranslation();
@@ -50,12 +52,16 @@ function RenewLink({ renewKey }: { renewKey: string }) {
     setPending(false);
   };
 
+  const back = <Link to="/sign-in" className={QUIET_LINK}>{t('auth.backToSignIn')}</Link>;
   if (sent) {
     return (
-      <div role="status" className="flex flex-col gap-1">
-        <p className="text-headline text-ink">{t('auth.welcome.renew.sentTitle')}</p>
-        <p className="text-body text-ink-2">{t('auth.welcome.renew.sentBody')}</p>
-      </div>
+      <>
+        <div role="status" className="flex flex-col gap-1">
+          <p className="text-headline text-ink">{t('auth.welcome.renew.sentTitle')}</p>
+          <p className="text-body text-ink-2">{t('auth.welcome.renew.sentBody')}</p>
+        </div>
+        {back}
+      </>
     );
   }
   return (
@@ -63,6 +69,7 @@ function RenewLink({ renewKey }: { renewKey: string }) {
       <p role="alert" className="text-body text-ink">{t('auth.welcome.renew.body')}</p>
       <FormError text={error} />
       <Button variant="primary" className="w-full" disabled={pending} onClick={() => void send()}>{t('auth.welcome.renew.send')}</Button>
+      {back}
     </>
   );
 }
