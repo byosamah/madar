@@ -381,6 +381,24 @@ describe('unread counts (plan 4.13, A9)', () => {
         id, conversationId: room.id, authorId, actingForId: leader, body: `Message ${i}`, mentions: [], fileIds: [], createdAt: minute(Math.min(i, LONG - 2)), editedAt: null,
       };
     }
+    // Two messages where the two rules of "not the leader's own" disagree. The office holds one agent, so the test adds an agent
+    // of the leader and an agent of a third person.
+    const third = Object.values(state.users).find((u) => u.kind === 'human' && u.active && u.id !== leader && u.id !== ADMIN)!;
+    const agentOf = (id: string, ownerId: string) => {
+      state.users[id] = { ...Object.values(state.users).find((u) => u.kind === 'agent')!, id, email: `${id}@madar.test`, ownerId };
+      return id;
+    };
+    const leaderAgent = agent?.id ?? agentOf('usr_090', leader);
+    const thirdAgent = agentOf('usr_091', third.id);
+    const edge = (id: string, authorId: string, actingForId: string) => {
+      state.messages[id] = {
+        id, conversationId: room.id, authorId, actingForId, body: id, mentions: [], fileIds: [], createdAt: minute(LONG - 3), editedAt: null,
+      };
+    };
+    // Only "acting for the leader" leaves this one out for the leader.
+    edge('msg_09001', thirdAgent, leader);
+    // Only "by the leader's agent" leaves this one out for the leader.
+    edge('msg_09002', leaderAgent, third.id);
     const task = todo(state, 'prj_001')[0];
     const comment = (id: string, authorId: string, at: string) => {
       state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
