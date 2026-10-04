@@ -115,7 +115,7 @@ describe('suite 3: sign-in on the local stack', () => {
     expect((await auth.signIn(auth.email('sara'))).status).toBe(200);
   });
 
-  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 a day for one email', async () => {
+  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 in one window for one email', async () => {
     const member = auth.email('member');
     const sent = deps.mail.sent.length;
     const known = await forgot(member, '198.51.100.1');
@@ -138,6 +138,7 @@ describe('suite 3: sign-in on the local stack', () => {
     const over = await forgot(member, '198.51.100.20');
     expect(over.status).toBe(429);
     expect(Number(over.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect((await over.json()).error.details.reason).toBe('too_many_resets_email');
     const keys = await office.sql<{ key: string }>('select key from rate_limits');
     expect(keys.some((row) => row.key.includes('@'))).toBe(false);
   });

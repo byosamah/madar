@@ -1,7 +1,7 @@
 import type { Query } from '../core/ports';
 
 /**
- * Fixed-window rate limits in the rate_limits table (plan 4.2 and 5.1; task P2): the forgot route (3 a day for each email,
+ * Fixed-window rate limits in the rate_limits table (plan 4.2 and 5.1; task P2): the forgot route (3 an hour for each email,
  * 10 an hour for each address) and users.resendInvite (5 a day for each person). One upsert counts a hit and gives the new
  * count, so two parallel hits never both pass the last place. The job deletes windows older than 1 day (plan 5.5).
  * A key that names a person's email or network address holds only a sha256 of it (hashedKey).

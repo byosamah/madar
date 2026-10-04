@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import type { State } from '../../src/api/store';
@@ -11,7 +12,7 @@ import { memoryMailDb } from '../mail/memoryMailDb';
 import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
-import { clientAddress, createForgotRoute, FORGOT_EMAIL_PER_DAY, FORGOT_IP_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
+import { clientAddress, createForgotRoute, FORGOT_EMAIL_PER_WINDOW, FORGOT_EMAIL_WINDOW_MS, FORGOT_IP_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
 import { RATE_SQL } from './rateLimit';
 
 /** POST /api/auth/forgot (plan 5.1; task P2). server/it/auth.it.test.ts runs it on the local stack. */
@@ -96,22 +97,26 @@ describe('POST /auth/forgot', () => {
     expect(deps.mail.sent[0].text).toContain('افتحي الرابط');
   });
 
-  it(`answers 429 after ${FORGOT_EMAIL_PER_DAY} requests a day for one email, known or not, and keeps no email in the table`, async () => {
+  it(`answers 429 after ${FORGOT_EMAIL_PER_WINDOW} requests in one window for one email, known or not, and keeps no email in the table`, async () => {
     const { deps, mem, post } = await setup();
     for (const email of ['faisal.al.harbi@madar.test', 'nobody@madar.test']) {
-      for (let i = 0; i < FORGOT_EMAIL_PER_DAY; i += 1) expect((await post({ email }, `198.51.100.${i}`)).status).toBe(200);
+      for (let i = 0; i < FORGOT_EMAIL_PER_WINDOW; i += 1) expect((await post({ email }, `198.51.100.${i}`)).status).toBe(200);
       const over = await post({ email }, '198.51.100.99');
       expect(over.status).toBe(429);
       expect(Number(over.headers.get('Retry-After'))).toBeGreaterThan(0);
+      // Its own reason: the person already holds reset mails, so the screen says to use the newest one (S1 review).
+      expect((await over.json()).error.details.reason).toBe('too_many_resets_email');
     }
-    expect(deps.mail.sent).toHaveLength(FORGOT_EMAIL_PER_DAY);
+    expect(deps.mail.sent).toHaveLength(FORGOT_EMAIL_PER_WINDOW);
     expect([...mem.rates.keys()].some((key) => key.includes('@') || key.includes('198.51'))).toBe(false);
   });
 
   it(`answers 429 after ${FORGOT_IP_PER_HOUR} requests an hour from one address`, async () => {
     const { post } = await setup();
     for (let i = 0; i < FORGOT_IP_PER_HOUR; i += 1) expect((await post({ email: `p${i}@madar.test` })).status).toBe(200);
-    expect((await post({ email: 'p99@madar.test' })).status).toBe(429);
+    const over = await post({ email: 'p99@madar.test' });
+    expect(over.status).toBe(429);
+    expect((await over.json()).error).toMatchObject({ message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many_resets' } });
     expect((await post({ email: 'p99@madar.test' }, '192.0.2.1')).status).toBe(200);
   });
 
@@ -173,7 +178,7 @@ describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail 
     expect((await forged(77, 'p77@madar.test')).status).toBe(429);
   });
 
-  it(`has no office-wide cap: 31 reset requests for 11 people in one day all send, and request ${FORGOT_EMAIL_PER_DAY + 1} for one email that day gets 429`, async () => {
+  it(`has no office-wide cap: 31 reset requests for 11 people in one window all send, and request ${FORGOT_EMAIL_PER_WINDOW + 1} for one email in that window gets 429`, async () => {
     const { auth, deps, mem, post, users } = await setup();
     for (let i = 0; i < 11; i += 1) {
       const email = `p${i}@madar.test`;
@@ -184,10 +189,10 @@ describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail 
     expect(deps.mail.sent).toHaveLength(31);
     expect(mem.mem.log.filter((row) => row.kind === 'signin')).toHaveLength(31);
     expect([...mem.rates.keys()].some((key) => key.startsWith('forgot:all') || key.startsWith('forgot:day'))).toBe(false);
-    // p0 got 3 that day (requests 1, 12 and 23); the 4th is refused, whatever the address.
+    // p0 got 3 in this window (requests 1, 12 and 23); the 4th is refused, whatever the address.
     expect((await post({ email: 'p0@madar.test' }, '192.0.2.250')).status).toBe(429);
-    // A new UTC day: one window of 24 hours for each email.
-    deps.clock.set(new Date(deps.clock.now().getTime() + 24 * 60 * 60 * 1000));
+    // The next window.
+    deps.clock.set(new Date(deps.clock.now().getTime() + FORGOT_EMAIL_WINDOW_MS));
     expect((await post({ email: 'p0@madar.test' }, '192.0.2.251')).status).toBe(200);
   });
 
@@ -200,6 +205,42 @@ describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail 
     expect([full.status, await full.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
     expect(deps.mail.sent).toHaveLength(1);
     expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_005')).toBe(true);
+  });
+
+  it('checks the mail quota before Auth: a full day makes no recovery link, so the link that the person got earlier still works (same answer)', async () => {
+    const { auth, deps, mem, post } = await setup();
+    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
+    expect(auth.links).toHaveLength(1);
+    mem.mem.fill('notice', QUOTA_LIMITS.signin - 1, deps.clock.now().toISOString().slice(0, 10));
+    const full = await post({ email: 'faisal.al.harbi@madar.test' }, '192.0.2.6');
+    expect([full.status, await full.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    // Auth keeps one recovery token for each person: a new link on a full day would end the link of the first mail.
+    expect(auth.links).toHaveLength(1);
+    expect(deps.mail.sent).toHaveLength(1);
+    expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_002')).toBe(true);
+  });
+
+  it('keeps the window of each email no longer than the life of a reset link (otp_expiry), so the newest mailed link still works when the 429 ends', async () => {
+    const config = readFileSync(new URL('../../supabase/config.toml', import.meta.url), 'utf8');
+    const email = config.slice(config.indexOf('[auth.email]'), config.indexOf('[auth.sms]'));
+    const linkLifeMs = Number(/^otp_expiry\s*=\s*(\d+)/m.exec(email)?.[1]) * 1000;
+    expect(linkLifeMs).toBeGreaterThan(0);
+    expect(FORGOT_EMAIL_WINDOW_MS).toBeLessThanOrEqual(linkLifeMs);
+    // The worst case: the 3 requests come at the start of a window, the 4th at its last moment.
+    const { auth, deps, post } = await setup();
+    const start = Math.floor(deps.clock.now().getTime() / FORGOT_EMAIL_WINDOW_MS) * FORGOT_EMAIL_WINDOW_MS;
+    deps.clock.set(new Date(start));
+    for (let i = 0; i < FORGOT_EMAIL_PER_WINDOW; i += 1) expect((await post({ email: 'faisal.al.harbi@madar.test' }, `198.51.100.${i}`)).status).toBe(200);
+    const newestSentAt = deps.clock.now().getTime();
+    expect(auth.links).toHaveLength(FORGOT_EMAIL_PER_WINDOW);
+    deps.clock.set(new Date(start + FORGOT_EMAIL_WINDOW_MS - 1));
+    const over = await post({ email: 'faisal.al.harbi@madar.test' }, '198.51.100.99');
+    expect(over.status).toBe(429);
+    // The newest link (the last one mailed) still works until the window ends and a new request goes through.
+    const retryAt = deps.clock.now().getTime() + Number((await over.json()).error.details.retryAfterMs);
+    expect(newestSentAt + linkLifeMs).toBeGreaterThanOrEqual(retryAt);
+    deps.clock.set(new Date(start + FORGOT_EMAIL_WINDOW_MS));
+    expect((await post({ email: 'faisal.al.harbi@madar.test' }, '198.51.100.98')).status).toBe(200);
   });
 
   it('with an after, answers before the lookup and the send: a send that takes 3 s does not show that the email has an account', async () => {
