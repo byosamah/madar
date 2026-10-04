@@ -110,7 +110,7 @@ describe('every deploy script', () => {
 
   it('has no em dash', () => {
     for (const file of [...SCRIPTS, 'headers.ts', 'config-check.ts', 'secrets.ts']) {
-      expect(readFileSync(join(repo, 'scripts/deploy', file), 'utf8'), file).not.toContain('—');
+      expect(readFileSync(join(repo, 'scripts/deploy', file), 'utf8'), file).not.toContain('\u2014');
     }
   });
 });

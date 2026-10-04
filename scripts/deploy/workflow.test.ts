@@ -65,6 +65,6 @@ describe('.github/workflows/deploy.yml', () => {
   });
 
   it('has no em dash', () => {
-    expect(text).not.toContain('—');
+    expect(text).not.toContain('\u2014');
   });
 });
