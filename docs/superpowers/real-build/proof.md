@@ -475,7 +475,7 @@ Two more facts:
 **Result: the gap of Z0a item 2 ("Z7 and G (consent)") is real, and G4 closes it.** An agent token can approve, at Auth, a new OAuth client that the agent registered itself. So Madar now links a client only when the person recorded an approval in Madar, and only a browser token can record one.
 
 **Where:** the local stack of Supabase CLI 2.119.0, Auth v2.197.0, after `supabase db reset` from the `rb/G` worktree, with `supabase/migrations/20261004000402_platform_agent_approvals.sql`.
-**Re-run:** take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/consent.it.test.ts server/it/mcp.it.test.ts server/it/hook.it.test.ts` (22 of 22 pass: 5 in `consent.it.test.ts`, 9 in `mcp.it.test.ts`, 8 in `hook.it.test.ts`).
+**Re-run:** take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/consent.it.test.ts server/it/mcp.it.test.ts server/it/hook.it.test.ts` (22 of 22 pass: 5 in `consent.it.test.ts`, 9 in `mcp.it.test.ts`, 8 in `hook.it.test.ts`). After the review fixes of G4, `consent.it.test.ts` has 6 tests; the run of `consent.it.test.ts` with `mcp.it.test.ts` passes 15 of 15.
 
 ### The probe (the `oauth-flow` steps of `scripts/proof/function/index.ts`, with an agent token)
 
@@ -498,6 +498,8 @@ Two more facts:
 - **`ensureAgentUser`** links a client only with an approval of the same person; else 403 with the reason `agent_not_approved` and no link, no agent user, no event.
 - **Settings, Agents** lists the active agents (`agents.list`) and every grant of Auth whose client no active agent has, with "Has access to your account, but you did not approve it in Madar". So a self-approved client shows, and Remove revokes it at Auth.
 - **Remove** calls `agents.remove` first (every live link removed, the agent user off with `user.deactivated` by the person), then `revokeGrant` for each client. When a revoke fails, the agent stays off and one Retry revokes what is left.
+- **A grant that is already gone** (review of G4): Auth answers a revoke of a client with no active grant with 404 `oauth_consent_not_found` (checked on the local stack). The port takes that answer as done, so a lost answer, a second tab or an agent token that revoked the grant (G1) never leaves a Retry that cannot finish. A failed list of grants shows the load error with Retry, never "No AI app is connected".
+- **A removed app that connects again with its cached client** (review of G4): Auth asks again (the grant is gone), and `POST /agents/approve` refuses with 403 `agent_removed` ("You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again."), so Auth never approves a client whose link can never link again. Not covered: after `agents.revokeAll` Auth still holds the grant, so the screen gets the redirect at once and Madar records nothing; that AI app gets 401 until the person removes its grant in Settings, Agents.
 
 ### Checks on the local stack (`server/it/consent.it.test.ts`)
 
@@ -509,6 +511,7 @@ Two more facts:
 | The consent port of the screens (`httpOAuthPort`) against the real Auth and the api app | `details` gives the client and redirect; `recordApproval` writes the row for the person; `approve` gives the code; the first MCP call links. A second `recordApproval` of the answered request gets 400 `authorization_ended`. |
 | Deny | The redirect carries `error=access_denied`; no approval row. |
 | `agents.list` and `agents.remove` through the batch | The list names the client, host `127.0.0.1` and the last use. Remove: `changed: true`, the link removed, the next MCP call 401, the `user.deactivated` event by the person; the list then shows the agent off with no clients. `revokeGrant` removes the grant. |
+| A second revoke after Remove, then the same client again | The second `revokeGrant` gets 404 `oauth_consent_not_found` from Auth and resolves. A new authorize of the same client asks again (`details` gives `ask`); `recordApproval` gets 403 `agent_removed`; no new approval row; the link stays removed. |
 
 **Conformance on Deno:** `npx tsx server/mcp/conformance.ts` records the approval of its runner client (`recordOn` in `server/it/oauthAgent.ts`) and gives 5 of 32, the same as G3, with no failure outside `conformance-baseline.yml`. Deno boots the mcp bundle only with the G3 merge lead patch of `vite.server.config.ts` (`comments.jsdoc: false`), which is not on `rb/G`: without it the function does not answer in 240 s. The run applied the patch for its time only.
 

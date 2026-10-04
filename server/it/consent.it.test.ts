@@ -186,6 +186,26 @@ describe('G4: the approval that the person records in Madar', () => {
     expect((await port.listGrants()).map((grant) => grant.clientId)).not.toContain(client);
   });
 
+  it('after Remove, a second revoke finds no grant (404) and resolves, and the same client gets 403 agent_removed on the consent screen (review of G4)', async () => {
+    const client = await registerClient(`Back again app ${randomUUID().slice(0, 6)}`);
+    const port = portFor(person.token);
+    const token = (await connectAgent(person.client, client, { record: (id) => port.recordApproval(id) })).access_token;
+    expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
+    const agentId = (await linkOf(client)).agent_user_id;
+    const removed = await batch(person.token, [{ name: 'agents.remove', input: { agentId } }]);
+    expect(removed.results[0], JSON.stringify(removed)).toMatchObject({ ok: true });
+    await port.revokeGrant(client);
+    // The real Auth answers 404 oauth_consent_not_found now; the port takes it as done, so a Retry never sticks.
+    await expect(port.revokeGrant(client)).resolves.toBeUndefined();
+
+    // The AI app connects again with its cached client_id: Auth asks again (the grant is gone), and Madar refuses the approval.
+    const { authorizationId } = await authorize(client, 'http://127.0.0.1:33418/callback');
+    expect(await port.details(authorizationId)).toMatchObject({ kind: 'ask', request: { clientId: client } });
+    await expect(port.recordApproval(authorizationId)).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'agent_removed' } });
+    expect(await approvalOf(client)).toEqual([{ owner_user_id: 'usr_001' }]);
+    expect((await linkOf(client)).revoked_at).not.toBeNull();
+  });
+
   it('the api route refuses an agent token with 403, whatever the authorization', async () => {
     const response = await api.fetch(new Request(`http://127.0.0.1${APPROVE_PATH}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${agentToken}` }, body: JSON.stringify({ authorizationId: 'anything' }),
