@@ -102,9 +102,11 @@ export type BatchCall = { name: string; input: unknown };
  * headers that the page's own last batch carried. `open` is the route whose first batch gives those headers.
  */
 export async function batchAs(page: Page, open: string, calls: BatchCall[]): Promise<{ ok: boolean; error?: { code: string } }[]> {
-  const sent = page.waitForRequest((request) => /\/functions\/v1\/api\/batch/.test(request.url()) && request.method() === 'POST');
+  // The first batch that gets an ANSWER: on the live copy the old page sent one more batch as the new load started, the load
+  // cancelled it, and the headers of a cancelled request never come (deploy suite on the test copy, 2026-10-04).
+  const answered = page.waitForResponse((response) => /\/functions\/v1\/api\/batch/.test(response.url()) && response.request().method() === 'POST');
   await goto(page, open);
-  const request = await sent;
+  const request = (await answered).request();
   const all = await request.allHeaders();
   const headers = Object.fromEntries(['authorization', 'apikey', 'x-madar-build', 'content-type'].filter((name) => all[name]).map((name) => [name, all[name]]));
   const body = JSON.stringify({ v: 1, calls: calls.map((call, i) => ({ i, name: call.name, input: call.input })) });

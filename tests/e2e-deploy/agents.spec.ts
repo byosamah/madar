@@ -149,12 +149,21 @@ test('Z0a case 3: an agent token cannot set a new password without the current o
   const flow = await startFlow(await registerClient(`X2 password check ${runId()}`));
   await goto(page, flow.consentRoute);
   const token = await exchange(flow, await approve(page));
-  const answer = await fetch(`${target().supabaseUrl}/auth/v1/user`, {
-    method: 'PUT',
-    headers: { apikey: publishable, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: `Agent-set-${runId()}-pass` }),
-  });
-  const body = (await answer.json().catch(() => ({}))) as { code?: string; error_code?: string };
-  expect(answer.status, 'Auth refuses the new password').toBeGreaterThanOrEqual(400);
-  expect(body.error_code ?? body.code).toBe('current_password_required');
+  try {
+    const answer = await fetch(`${target().supabaseUrl}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { apikey: publishable, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: `Agent-set-${runId()}-pass` }),
+    });
+    const body = (await answer.json().catch(() => ({}))) as { code?: string; error_code?: string };
+    expect(answer.status, 'Auth refuses the new password').toBeGreaterThanOrEqual(400);
+    expect(body.error_code ?? body.code).toBe('current_password_required');
+  } finally {
+    // The grant of this client stays in Auth (auth.oauth_consents), which the seed does not clear, so the walk's Member found
+    // "Has access to your account" on Settings, Agents (deploy suite on the test copy, 2026-10-04). Remove it, as the screen does.
+    await fetch(`${target().supabaseUrl}/auth/v1/user/oauth/grants?client_id=${encodeURIComponent(flow.clientId)}`, {
+      method: 'DELETE',
+      headers: { apikey: publishable, Authorization: `Bearer ${token}` },
+    }).catch(() => undefined);
+  }
 });

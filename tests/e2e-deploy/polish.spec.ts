@@ -12,12 +12,13 @@ test('the project name grows from its row into the header and the row returns on
   await rows.first().getByRole('link').click();
   const name = page.locator('header h1 > span');
   await expect(name).toBeVisible();
-  const early = await name.boundingBox();
   await page.waitForTimeout(700);
   const settled = await name.boundingBox();
-  expect(rowName && early && settled).toBeTruthy();
-  // Mid-move, the name is still smaller than its settled size: it grew out of the row.
-  expect(early!.width).toBeLessThan(settled!.width);
+  expect(rowName && settled).toBeTruthy();
+  // The name ends larger than in its row: it grew out of the row. On the live copy the project loads in about 0.6 s, so the
+  // growth ends in the loading header before the h1 shows, and a mid-move sample is not possible here (deploy suite,
+  // 2026-10-04). tests/e2e/polish.spec.ts keeps the mid-move check on the prototype.
+  expect(rowName!.width).toBeLessThan(settled!.width);
   await page.goBack();
   await expect(rows.first()).toBeVisible();
 });
