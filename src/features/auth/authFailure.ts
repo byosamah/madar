@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
  * each Supabase error into one of these. A wrong email and a wrong password give the same reason, so a screen never tells an
  * outsider which emails have an account.
  */
-export const AUTH_FAILURE_REASONS = ['wrong_credentials', 'account_off', 'link_ended', 'short', 'weak', 'same', 'too_many', 'offline', 'failed'] as const;
+export const AUTH_FAILURE_REASONS = ['wrong_credentials', 'account_off', 'link_ended', 'short', 'weak', 'same', 'too_many', 'too_many_resets', 'offline', 'failed'] as const;
 export type AuthFailureReason = (typeof AUTH_FAILURE_REASONS)[number];
 
 export class AuthFailure extends Error {
@@ -35,6 +35,7 @@ export function failureText(error: unknown, t: TFunction, o: { ended?: string } 
     case 'weak': return t('auth.errors.weak');
     case 'same': return t('auth.errors.same');
     case 'too_many': return t('auth.errors.tooMany');
+    case 'too_many_resets': return t('auth.errors.tooManyResets');
     case 'offline': return t('auth.errors.offline');
     default: return t('auth.errors.failed');
   }

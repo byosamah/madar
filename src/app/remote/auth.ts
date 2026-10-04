@@ -127,7 +127,11 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
       } catch (error) {
         throw new AuthFailure('offline', error instanceof Error ? error.message : 'The request did not reach Madar.');
       }
-      if (response.status === 429) throw new AuthFailure('too_many');
+      if (response.status === 429) {
+        // The limit of one email (server/auth/forgot.ts) has its own words: reset mails already went to it.
+        const body = (await response.json().catch(() => null)) as { error?: { details?: { reason?: unknown } } } | null;
+        throw new AuthFailure(body?.error?.details?.reason === 'too_many_resets_email' ? 'too_many_resets' : 'too_many');
+      }
       if (!response.ok) throw new AuthFailure('failed', `The reset request failed with ${response.status}.`);
     },
   };

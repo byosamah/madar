@@ -256,6 +256,9 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
   it('names a refused or a lost reset request', async () => {
     const cases: [() => Promise<Response>, string][] = [
       [async () => new Response('', { status: 429 }), 'too_many'],
+      [async () => Response.json({ v: 1, error: { code: 'conflict', details: { reason: 'too_many_resets' } } }, { status: 429 }), 'too_many'],
+      // The limit of one email (S1): reset mails already went to it, so the screen says to use the newest one.
+      [async () => Response.json({ v: 1, error: { code: 'conflict', details: { reason: 'too_many_resets_email' } } }, { status: 429 }), 'too_many_resets'],
       [async () => new Response('', { status: 500 }), 'failed'],
       [async () => { throw new TypeError('Failed to fetch'); }, 'offline'],
     ];

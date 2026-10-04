@@ -38,6 +38,15 @@ describe('the Forgot password screen (plan 5.1, client map 7.1)', () => {
     expect(screen.getByRole('button', { name: 'Send the link' })).toBeInTheDocument();
   });
 
+  it('tells a person who asked too often for one email to use the newest reset email, not to wait a few minutes (S1)', async () => {
+    const port: AuthPort = { ...auth(), requestReset: async () => { throw new AuthFailure('too_many_resets'); } };
+    await renderAuth('/forgot', { auth: port as ReturnType<typeof auth> });
+    await ask('hala.nasser@madar.test');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('You already asked for reset links for this email. Use the newest reset email, or try again later.');
+    expect(alert.textContent).not.toMatch(/few minutes/);
+  });
+
   it('passes the calm checks at phone width, in English and in Arabic right to left', async () => {
     atPhoneWidth();
     const english = await renderAuth('/forgot', { auth: auth() });
