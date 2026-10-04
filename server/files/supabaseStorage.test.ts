@@ -42,6 +42,14 @@ describe('the Supabase Storage store: signed upload links (plan 2b, point 1; pro
     expect(put.headers).toEqual({ 'Content-Type': 'application/pdf' });
   });
 
+  it('asks the upload for application/octet-stream for every download-only type, and the clean type for a safe one', async () => {
+    const signed = () => store(() => Response.json({ url: `/object/upload/sign/madar-files/up/upl-1/file?token=${token({ exp, iat: exp - 7200 })}` }));
+    for (const mimeType of ['text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/xml', 'text/xsl', 'image/png;x=1, text/html', 'x']) {
+      expect((await signed().port.presignPut('up/upl-1/file', { mimeType })).headers, mimeType).toEqual({ 'Content-Type': 'application/octet-stream' });
+    }
+    expect((await signed().port.presignPut('up/upl-1/file', { mimeType: 'Image/PNG' })).headers).toEqual({ 'Content-Type': 'image/png' });
+  });
+
   it('reports the real life of the upload link: 2 hours, from the token', async () => {
     const { port } = store(() => Response.json({ url: `/object/upload/sign/madar-files/up/upl-1/file?token=${token({ exp, iat: exp - 7200 })}` }));
     expect((await port.presignPut('up/upl-1/file', { mimeType: 'image/png' })).expiresAt).toBe('2026-10-04T11:30:00.000Z');
@@ -78,8 +86,8 @@ describe('the Supabase Storage store: signed download links', () => {
     expect(new URL(get.url).searchParams.has('download')).toBe(false);
   });
 
-  it('always signs HTML, SVG, XHTML and every XML type with download, in any case and with parameters', async () => {
-    for (const mimeType of ['text/html', 'TEXT/HTML; charset=utf-8', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/atom+xml']) {
+  it('always signs HTML, SVG, XHTML, XSL, every XML type and every comma type with download, in any case and with parameters', async () => {
+    for (const mimeType of ['text/html', 'TEXT/HTML; charset=utf-8', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/atom+xml', 'text/xsl', 'TEXT/XSL; charset=utf-8', 'image/png;x=1, text/html', 'text/plain, text/html', 'x']) {
       const { port } = signed();
       const get = await port.presignGet('prj-001/fil-001/1/file', { disposition: 'inline', filename: 'page.html', mimeType });
       expect(new URL(get.url).searchParams.get('download'), mimeType).toBe('page.html');
@@ -98,6 +106,13 @@ describe('the Supabase Storage store: object checks', () => {
     const { seen, port } = store(() => Response.json({ name: 'up/upl-1/file', size: 2048, content_type: 'TEXT/HTML; charset=utf-8', etag: '"e"' }));
     expect(await port.head('up/upl-1/file')).toEqual({ size: 2048, mimeType: 'text/html' });
     expect(seen[0]).toMatchObject({ method: 'GET', url: `${BASE}/storage/v1/object/info/madar-files/up/upl-1/file` });
+  });
+
+  it('head keeps a comma type whole, so it never equals the clean type of the intent', async () => {
+    for (const type of ['image/png;x=1, text/html', 'text/plain, text/html']) {
+      const { port } = store(() => Response.json({ size: 5, content_type: type }));
+      expect(await port.head('up/upl-1/file'), type).toEqual({ size: 5, mimeType: type });
+    }
   });
 
   it('head also reads the metadata form of object/info', async () => {

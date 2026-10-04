@@ -47,6 +47,18 @@ describe('the R2 store: signed upload links (plan 5.2)', () => {
     expect(sigV4Valid('PUT', put.url, { 'content-type': 'application/pdf' }, ENV.secretAccessKey)).toBe(true);
   });
 
+  it('signs application/octet-stream as the upload type for every download-only type, and the clean type for a safe one', async () => {
+    for (const mimeType of ['text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/xsl', 'image/png;x=1, text/html', 'x']) {
+      const put = await port().presignPut('up/upl-1/file', { mimeType });
+      expect(put.headers, mimeType).toEqual({ 'Content-Type': 'application/octet-stream' });
+      expect(sigV4Valid('PUT', put.url, { 'content-type': 'application/octet-stream' }, ENV.secretAccessKey), mimeType).toBe(true);
+      expect(sigV4Valid('PUT', put.url, { 'content-type': 'text/html' }, ENV.secretAccessKey), mimeType).toBe(false);
+    }
+    const png = await port().presignPut('up/upl-1/file', { mimeType: 'Image/PNG' });
+    expect(png.headers).toEqual({ 'Content-Type': 'image/png' });
+    expect(sigV4Valid('PUT', png.url, { 'content-type': 'image/png' }, ENV.secretAccessKey)).toBe(true);
+  });
+
   it('makes a signature that fails for another Content-Type, another key or another secret', async () => {
     const put = await port().presignPut('up/upl-1/file', { mimeType: 'application/pdf' });
     expect(sigV4Valid('PUT', put.url, { 'content-type': 'text/html' }, ENV.secretAccessKey)).toBe(false);
@@ -85,8 +97,8 @@ describe('the R2 store: signed download links (plan 5.2)', () => {
     expect(new URL(get.url).searchParams.get('response-content-disposition')).toBe(`inline; filename="plan.pdf"; filename*=UTF-8''plan.pdf`);
   });
 
-  it('gives attachment only to HTML, SVG, XHTML and every XML type, also when the screen asks for inline', async () => {
-    for (const mimeType of ['text/html', 'TEXT/HTML; charset=utf-8', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/rss+xml']) {
+  it('gives attachment to HTML, SVG, XHTML, XSL, every XML type and every comma type, also when the screen asks for inline', async () => {
+    for (const mimeType of ['text/html', 'TEXT/HTML; charset=utf-8', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/rss+xml', 'text/xsl', 'TEXT/XSL; charset=utf-8', 'image/png;x=1, text/html', 'text/plain, text/html']) {
       const get = await port().presignGet('prj-001/fil-001/1/file', { disposition: 'inline', filename: 'page.html', mimeType });
       expect(new URL(get.url).searchParams.get('response-content-disposition'), mimeType).toMatch(/^attachment; /);
       expect(sigV4Valid('GET', get.url, {}, ENV.secretAccessKey)).toBe(true);
@@ -115,6 +127,11 @@ describe('the R2 store: object checks', () => {
     expect(await port(fetchImpl).head('up/missing/file')).toBeNull();
     expect(seen[0]).toMatchObject({ method: 'HEAD', url: 'https://acc123.eu.r2.cloudflarestorage.com/madar-files/up/upl-1/file' });
     expect(seen[0].headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 /);
+  });
+
+  it('head keeps a comma type whole, so it never equals the clean type of the intent', async () => {
+    const { fetchImpl } = recording(() => new Response(null, { status: 200, headers: { 'content-length': '5', 'content-type': 'image/png;x=1, text/html' } }));
+    expect(await port(fetchImpl).head('up/upl-1/file')).toEqual({ size: 5, mimeType: 'image/png;x=1, text/html' });
   });
 
   it('head gives up after its timeout (3 s by default), so a slow store fails the preflight and never the lock', async () => {

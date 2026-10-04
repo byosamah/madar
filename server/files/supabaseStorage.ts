@@ -1,6 +1,6 @@
 import { FILE_STORE_LIMITS, type FilesPort } from '../core/ports';
 import { assertObjectKey } from './keys';
-import { DOWNLOAD_LINK_SECONDS, HEAD_TIMEOUT_MS, UPLOAD_LINK_SECONDS, baseMimeType, effectiveDisposition, safeFileName, withTimeout } from './links';
+import { DOWNLOAD_LINK_SECONDS, HEAD_TIMEOUT_MS, UPLOAD_LINK_SECONDS, baseMimeType, effectiveDisposition, safeFileName, storedMimeType, withTimeout } from './links';
 
 export type SupabaseStorageEnv = {
   supabaseUrl: string;
@@ -33,9 +33,10 @@ function tokenExpiry(link: string): Date | null {
  *
  * - Upload links (object/upload/sign) live 2 hours: Storage takes no shorter life, and expiresAt reports the real one
  *   (proof.md, Z0a item 6). They are signed WITHOUT upsert, never x-upsert: true, so nobody can replace a staging object
- *   between the check and the copy.
- * - Download links (object/sign) live 10 minutes. An attachment adds download=<file name>; HTML, SVG, XHTML and every XML type
- *   are always a download, because Storage serves files from the project origin.
+ *   between the check and the copy. The upload asks for storedMimeType: application/octet-stream for every download-only type.
+ * - Download links (object/sign) live 10 minutes. An attachment adds download=<file name>. download= is a convenience, not a
+ *   guard: the token does not cover it, so anyone with a link can remove it. The guard is the stored type, because Storage
+ *   serves files from the project origin (the origin of /auth/v1 and /functions/v1/mcp).
  * - head reads object/info; the type comes back in lower case without parameters.
  */
 export function supabaseStorageFilesPort(env: SupabaseStorageEnv): FilesPort {
@@ -97,7 +98,7 @@ export function supabaseStorageFilesPort(env: SupabaseStorageEnv): FilesPort {
       // No x-upsert header and no body: the default is no upsert.
       const signed = await json<{ url: string }>('upload sign', `/object/upload/sign/${env.bucket}/${key}`, { method: 'POST' });
       const expires = tokenExpiry(signed.url) ?? new Date(at.getTime() + UPLOAD_LINK_SECONDS.supabase * 1000);
-      return { url: `${storage}${signed.url}`, headers: { 'Content-Type': o.mimeType }, expiresAt: expires.toISOString() };
+      return { url: `${storage}${signed.url}`, headers: { 'Content-Type': storedMimeType(o.mimeType) }, expiresAt: expires.toISOString() };
     },
 
     async presignGet(key, o) {

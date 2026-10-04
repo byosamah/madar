@@ -1,7 +1,7 @@
 import { AwsClient } from 'aws4fetch';
 import { FILE_STORE_LIMITS, type FilesPort } from '../core/ports';
 import { assertObjectKey } from './keys';
-import { DOWNLOAD_LINK_SECONDS, HEAD_TIMEOUT_MS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, effectiveDisposition, withTimeout } from './links';
+import { DOWNLOAD_LINK_SECONDS, HEAD_TIMEOUT_MS, UPLOAD_LINK_SECONDS, baseMimeType, contentDisposition, effectiveDisposition, storedMimeType, withTimeout } from './links';
 
 export type R2Env = {
   accountId: string;
@@ -22,17 +22,18 @@ function amzDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-/**
- * The R2 store with aws4fetch on the EU endpoint (plan 5.2), ready for the switch MADAR_FILE_STORE=r2.
- * Signed links live 10 minutes. An upload link signs only Content-Type beside the host, so the browser sends one header that
- * the CORS rule allows, and a PUT with another type fails. A download link carries response-content-disposition in the
- * RFC 6266 form; HTML, SVG, XHTML and every XML type are always attachment.
- */
 /** The S3 endpoint of the bucket: the R2 EU endpoint of the account, or the endpoint that the env names. */
 export function r2Endpoint(env: Pick<R2Env, 'accountId' | 'endpoint'>): string {
   return (env.endpoint ?? `https://${env.accountId}.eu.r2.cloudflarestorage.com`).replace(/\/+$/, '');
 }
 
+/**
+ * The R2 store with aws4fetch on the EU endpoint (plan 5.2), ready for the switch MADAR_FILE_STORE=r2.
+ * Signed links live 10 minutes. An upload link signs only Content-Type beside the host, so the browser sends one header that
+ * the CORS rule allows, and a PUT with another type fails. The signed type is storedMimeType: application/octet-stream for
+ * every download-only type. A download link carries response-content-disposition in the RFC 6266 form; every type outside
+ * the inline safe list is always attachment.
+ */
 export function r2FilesPort(env: R2Env): FilesPort {
   const endpoint = r2Endpoint(env);
   const now = env.now ?? (() => new Date());
@@ -81,8 +82,9 @@ export function r2FilesPort(env: R2Env): FilesPort {
     maxFileBytes: FILE_STORE_LIMITS.r2.maxFileBytes,
 
     async presignPut(key, o) {
-      const { url, expiresAt } = await presign('PUT', key, UPLOAD_LINK_SECONDS.r2, { headers: { 'content-type': o.mimeType } });
-      return { url, headers: { 'Content-Type': o.mimeType }, expiresAt };
+      const type = storedMimeType(o.mimeType);
+      const { url, expiresAt } = await presign('PUT', key, UPLOAD_LINK_SECONDS.r2, { headers: { 'content-type': type } });
+      return { url, headers: { 'Content-Type': type }, expiresAt };
     },
 
     async presignGet(key, o) {
