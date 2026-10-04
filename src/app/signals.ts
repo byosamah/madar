@@ -6,7 +6,8 @@ import { PERSONAL_KINDS, READS } from './readMap';
  * The reload after a change (plan 5.3, client map 3.3). A change signal names what a saved change touched; this file reloads only
  * the lists that read it, in its project or for its person.
  *
- * - Own writes: RemoteApi hands over the signals of the answer, and they apply at once.
+ * - Own writes: RemoteApi hands over the signals of the answer, and they apply at once, before any timer. The answers of one
+ *   batch come in one loop, so they apply in one pass (on a microtask), and a list loads once for them.
  * - Other people's writes come from Realtime. They merge for 1 second (at most 2 seconds from the first) into one pass, and so
  *   into one batch request.
  * - All signals of one save share one id: the office signal and one signal on each person channel. The first one with an id
@@ -95,6 +96,8 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   let pending: MergedSignal | null = null;
   let firstAt = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // True while a pass for own answers waits for its microtask.
+  let ownQueued = false;
   let hiddenAt: number | null = isHidden() ? now() : null;
   let stopped = false;
 
@@ -178,8 +181,14 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
       take(merged, signal);
     }
     // An own write shows at once, with whatever else waits. Others wait for the merge window.
-    if (origin === 'own') flush();
-    else schedule();
+    if (origin !== 'own') schedule();
+    else if (!ownQueued) {
+      ownQueued = true;
+      queueMicrotask(() => {
+        ownQueued = false;
+        flush();
+      });
+    }
   });
 
   const onVisibility = () => {

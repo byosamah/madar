@@ -144,6 +144,22 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('applies the own answers of one batch in one pass, so a list loads once for them', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', {});
+    const clients = app.show('clients.list');
+    await settle();
+    // RemoteApi hands over the signals of each answer of a batch in one loop.
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'], actorId: ME })], 'own');
+    app.send([sig({ kinds: ['tasks', 'clients'], projects: ['prj_002'], office: true, actorId: ME })], 'own');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    app.stop();
+  });
+
   it('merges the changes of other people for 1 second, and for at most 2 seconds, into one pass', async () => {
     const app = setup();
     const list = app.show('tasks.list', {});
