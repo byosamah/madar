@@ -469,3 +469,48 @@ Two more facts:
 - **Deno did not boot the mcp bundle** until the bundle lost its JSDoc comments: the Deno module graph reads a JSDoc `@param {import('../types/index').X}` in a JS file (a URI library under the SDK's Ajv) as a module and fails with "Module not found ... supabase/functions/types/index". The merge lead patch of G3 for `vite.server.config.ts` sets `output.comments: { legal: true, annotation: true, jsdoc: false }`. With it, `server/it/worker.it.test.ts` passes 12 of 12 (both hosts answer `/mcp` with the same 401).
 
 **Conformance (`@modelcontextprotocol/conformance` 0.1.16).** The runner covers the 2025-era protocol only and cannot send a token. `server/mcp/conformance.ts` gets an agent token through the OAuth flow, serves the mcp function, puts a proxy that adds the token in front, and runs each server scenario on its own with a 45-second limit (the runner has none, and a fixture scenario never ends). 5 of 32 pass: `server-initialize`, `ping`, `tools-list`, `server-sse-polling`, `server-sse-multiple-streams`. The other 27 need the runner's fixture tools, prompts or resources, or (`dns-rebinding-protection`) expect a localhost Origin to pass; `server/mcp/conformance-baseline.yml` lists each with its reason, and a new failure or a stale entry fails the run. The 2026-07-28 points are in `server/mcp/app.test.ts` (34 tests, in process): each point of platform facts 7.2 that the SDK or Madar does has a test there, among them 3 (a notification gets 202 with no body), 6 (no `Mcp-Method`, or no `Mcp-Name` on `tools/call`: 400, -32020), 8 (an unknown method: 404, -32601), 10 (no protocolVersion or clientCapabilities in `_meta`: 400, -32602), 11 (an unsupported version: 400, -32022, `data.supported`), 12 (Madar never sends a request that needs an undeclared capability: a client with only URL elicitation gets the retry instruction, never -32021) and 27 (a valid token in the query string gets 401 with `WWW-Authenticate`).
+
+## G4. The approval in Madar, the consent screen and Settings, Agents (local stack, 2026-10-04)
+
+**Result: the gap of Z0a item 2 ("Z7 and G (consent)") is real, and G4 closes it.** An agent token can approve, at Auth, a new OAuth client that the agent registered itself. So Madar now links a client only when the person recorded an approval in Madar, and only a browser token can record one.
+
+**Where:** the local stack of Supabase CLI 2.119.0, Auth v2.197.0, after `supabase db reset` from the `rb/G` worktree, with `supabase/migrations/20261004000402_platform_agent_approvals.sql`.
+**Re-run:** take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/consent.it.test.ts server/it/mcp.it.test.ts server/it/hook.it.test.ts` (22 of 22 pass: 5 in `consent.it.test.ts`, 9 in `mcp.it.test.ts`, 8 in `hook.it.test.ts`).
+
+### The probe (the `oauth-flow` steps of `scripts/proof/function/index.ts`, with an agent token)
+
+| Step | Result |
+|---|---|
+| The person connects app A (DCR, authorize with PKCE, consent, code exchange) | An agent token with `client_id` = A. |
+| The agent registers client B (`https://evil.example/callback`) and starts the authorize step | 302 to `/oauth/consent?authorization_id=...`; the row in `auth.oauth_authorizations` is `pending` with no `user_id`. |
+| `GET /auth/v1/oauth/authorizations/{id}` with the agent token | 200 with the client and the person. Auth writes the person into `user_id`. |
+| `POST /auth/v1/oauth/authorizations/{id}/consent {action: approve}` with the agent token | **200 with a `redirect_url` and a code.** The row becomes `approved`. |
+| The code exchange for B | 200. A token for B, `aud` = the MCP URL. |
+| The person's `GET /auth/v1/user/oauth/grants` | Lists A and B. Auth cannot tell the two consents apart. |
+| Before G4: the first MCP call with B's token | `ensureAgentUser` would make a new agent link for B: Madar's consent screen and its warning were skipped. |
+
+### The design as built
+
+- **`agent_approvals`** (`client_id`, `owner_user_id`, `approved_at`), RLS on, `select` and `insert` for `madar_server` only. **`madar_private.agent_authorization(authorization_id, auth_user_id)`** gives the client of a `pending`, unexpired authorization of that Auth user, else null; only `madar_server` may run it.
+- **`POST /agents/approve`** on the api function (`server/mcp/approval.ts`): the browser token check (an agent token gets 403 `agent_token`), the person through `principalOf` (a turned-off person gets 403 `account_off`), and the client read from Auth's pending authorization, never from the browser. An answered, expired or foreign authorization gets 400 `authorization_ended`.
+- **The consent screen** calls `getAuthorizationDetails`, then `POST /agents/approve`, and only then `approveAuthorization`. When Madar refuses, Auth is never asked. Deny records nothing. A client that Auth already knows gets its redirect at once, and the screen records nothing for it.
+- **`ensureAgentUser`** links a client only with an approval of the same person; else 403 with the reason `agent_not_approved` and no link, no agent user, no event.
+- **Settings, Agents** lists the active agents (`agents.list`) and every grant of Auth whose client no active agent has, with "Has access to your account, but you did not approve it in Madar". So a self-approved client shows, and Remove revokes it at Auth.
+- **Remove** calls `agents.remove` first (every live link removed, the agent user off with `user.deactivated` by the person), then `revokeGrant` for each client. When a revoke fails, the agent stays off and one Retry revokes what is left.
+
+### Checks on the local stack (`server/it/consent.it.test.ts`)
+
+| Check | Result |
+|---|---|
+| The agent token records an approval through the consent port | 403 `agent_token`; no row. |
+| The agent token approves its own client B at Auth, and B calls `mcp` | Auth: 200 and a token. Madar: 403 "You did not approve this AI app in Madar."; no `agent_links` row, no `agent_approvals` row. |
+| The person's grants after that | B is listed, so Settings, Agents shows it for removal. |
+| The consent port of the screens (`httpOAuthPort`) against the real Auth and the api app | `details` gives the client and redirect; `recordApproval` writes the row for the person; `approve` gives the code; the first MCP call links. A second `recordApproval` of the answered request gets 400 `authorization_ended`. |
+| Deny | The redirect carries `error=access_denied`; no approval row. |
+| `agents.list` and `agents.remove` through the batch | The list names the client, host `127.0.0.1` and the last use. Remove: `changed: true`, the link removed, the next MCP call 401, the `user.deactivated` event by the person; the list then shows the agent off with no clients. `revokeGrant` removes the grant. |
+
+**Conformance on Deno:** `npx tsx server/mcp/conformance.ts` records the approval of its runner client (`recordOn` in `server/it/oauthAgent.ts`) and gives 5 of 32, the same as G3, with no failure outside `conformance-baseline.yml`. Deno boots the mcp bundle only with the G3 merge lead patch of `vite.server.config.ts` (`comments.jsdoc: false`), which is not on `rb/G`: without it the function does not answer in 240 s. The run applied the patch for its time only.
+
+**What stays as G3 built it:** a removed link never links again, also after a new approval of the same client: the AI app registers a new client, and the person approves that one on the Madar screen.
+
+**Still open for Z7 and the owner (unchanged from G1):** an approved agent token keeps the full rights of the person on Auth's own endpoints (`/user`, `/user/oauth/grants`). The consent screen says so in plain words ("can also use your account outside the Madar screens, for example to change your password"). Z1's `security_update_password_require_current_password` narrows it on the cloud projects.
