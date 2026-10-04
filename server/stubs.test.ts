@@ -58,8 +58,6 @@ describe('the stubs', () => {
     expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 250 * 1024 * 1024]);
   });
 
-  });
-
   it('the MCP app, the jobs app and the Workers entry answer 501 until built, so a mounted stub never crashes a host', async () => {
     for (const app of [mcpApp(deps), jobsApp(deps)]) {
       const response = await app.fetch(new Request('http://127.0.0.1/run', { method: 'POST' }));
