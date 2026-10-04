@@ -3,37 +3,64 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousDa
 import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import { AttemptKeys } from '../api/remote/keys';
-import type { ChangeSignal } from '../api/remote/wire';
 import type { Store } from '../api/store';
 import type { AuthPort } from './auth';
 import { canRetry, errorMessage } from './errors';
+import { READS } from './readMap';
+import { connectChanges, type ChangeSource } from './signals';
 import { useToast } from './toasts';
 
 /**
  * Where change signals come from (plan 5.3): Realtime in the real build, the store in the prototype. An empty list means
- * "something changed, reload all". Track R2 adds the reload rules in src/app/signals.ts.
+ * "something changed, reload all". src/app/signals.ts holds the reload rules.
  */
-export type ChangeSource = { subscribe(listener: (signals: ChangeSignal[]) => void): () => void; status(): 'open' | 'closed' };
+export type { ChangeListener, ChangeOrigin, ChangeSource } from './signals';
 
-/** The prototype fills every part. The real build has no store; track R2 fills the rest from src/app/remote/bootstrap.ts. */
+/**
+ * The prototype fills every part. The real build has no store (src/app/remote/bootstrap.ts). A test may pass only { store, api }:
+ * the store then sends the change signals, as in the prototype.
+ */
 export type Runtime = { store?: Store; api: MadarApi; auth?: AuthPort; changes?: ChangeSource; mode?: 'prototype' | 'remote' };
 
 const RuntimeContext = createContext<Runtime | null>(null);
 
-export function createQueryClient(): QueryClient {
-  return new QueryClient({
+/**
+ * remote: a read keeps its answer until a change signal names it (plan R2), so a screen that opens again shows the cached list
+ * at once and asks the server nothing. A read that never reloads on a signal (a signed link, a screenshot, the usage meters)
+ * still loads each time a screen opens it. The prototype reloads every list after each change and on each mount, as before.
+ */
+export function createQueryClient(o: { remote?: boolean } = {}): QueryClient {
+  const client = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 0 }, mutations: { retry: false } },
   });
+  if (o.remote) {
+    client.setQueryDefaults(['api'], { staleTime: Infinity });
+    for (const [name, rule] of Object.entries(READS)) if (rule.scope === 'none') client.setQueryDefaults(['api', name], { staleTime: 0 });
+  }
+  return client;
 }
 
-/** Refreshes every screen query after any change in the store, also after a scheduled notification. */
+/** The change signals of a runtime: its own source, or for a runtime with only a store, one "reload all" for each store change. */
+function changesOf(runtime: Runtime): ChangeSource | undefined {
+  if (runtime.changes) return runtime.changes;
+  const { store } = runtime;
+  if (!store) return undefined;
+  return { subscribe: (listener) => store.subscribe(() => listener([])), status: () => 'open' };
+}
+
+/** The person on this screen, from the cached session ('' before it loads). Only personal changes need it. */
+function personOf(queryClient: QueryClient): string {
+  const session = queryClient.getQueryData<{ user?: { id?: string } }>(['api', 'session.get', {}]);
+  return session?.user?.id ?? '';
+}
+
+/** Reloads the screen queries that a change touches (src/app/signals.ts): all of them for each change of the prototype store. */
 export function RuntimeProvider({ runtime, queryClient, children }: { runtime: Runtime; queryClient: QueryClient; children: ReactNode }) {
-  useEffect(
-    () => runtime.store?.subscribe(() => {
-      void queryClient.invalidateQueries({ queryKey: ['api'] });
-    }),
-    [runtime, queryClient],
-  );
+  useEffect(() => {
+    const source = changesOf(runtime);
+    if (!source) return undefined;
+    return connectChanges(queryClient, source, () => personOf(queryClient));
+  }, [runtime, queryClient]);
   return (
     <RuntimeContext.Provider value={runtime}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
