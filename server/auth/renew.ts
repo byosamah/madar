@@ -28,13 +28,15 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   rate_limits hold only a sha256.
  * - A good key: the row of the key (auth.invite or auth.email) is not renewed yet; no later row of the person made a newer link
  *   (an Admin resend, an email change, an earlier renewal); the person is a human who is on and has a sign-in link; and Auth
- *   says the person did not accept yet. Then, after the answer:
- *   1. A limit for each person, counted after the lookup and silent (same answer): 3 renewals a day, so a person who opens the
- *      mail again and again cannot use up the daily mail quota.
- *   2. The place in the daily mail quota as sign-in mail (N2), before any link: a full day makes no link, sends nothing, logs a
+ *   says the person did not accept yet. Then, after the answer, one transaction under the office lock:
+ *   1. The row of the key is read again. A second press at the same moment finds the mark of the first (below) and stops here,
+ *      so it counts nothing.
+ *   2. A limit for each person, silent (same answer): 3 renewals a day, so a person who opens the mail again and again cannot
+ *      use up the daily mail quota.
+ *   3. The place in the daily mail quota as sign-in mail (N2), before any link: a full day makes no link, sends nothing, logs a
  *      warning, and leaves the key unused for a day with room.
- *   3. One transaction under the office lock: the row of the key is read again, marked renewedAt (a key works once; a second
- *      press at the same moment finds the mark), and a new auth.invite row (renewRow, counted) goes into the outbox.
+ *   A refusal of 2 or 3 rolls the whole transaction back. Else the row of the key is marked renewedAt (a key works once), and a
+ *   new auth.invite row (renewRow, counted) goes into the outbox.
  *   4. processOutbox runs the row: a new invite link (which ends the old one), and the invitation mail with a new renew key.
  *      A failure leaves the row for the 15-minute job.
  * - A failure of the database, of Auth or of the mail is logged and gives the same answer.
@@ -54,6 +56,9 @@ export const RENEW_ROW_SQL =
   "select id::text as id, payload->>'userId' as user_id, payload->>'inviteId' as invite_id, payload ? 'renewedAt' as renewed from outbox " +
   "where kind in ('auth.invite', 'auth.email') and payload->'renewKeys' ? $1 order by id desc limit 1";
 
+/** A limit or the quota refused the renewal: the transaction rolls back, and the key stays unused. */
+class Refused extends Error {}
+
 const Body = z.object({ key: z.string().trim().min(1).max(200) });
 
 type KeyRow = { id: string; user_id: string; invite_id: string; renewed: boolean };
@@ -72,23 +77,29 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
   if (!signIn || signIn.confirmed) return 'none';
 
   const now = deps.clock.now();
-  const q: Query = (text, values) => deps.db.statement('write', text, values);
-  if (!(await hitLimit(q, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
-    deps.log.warn('A renewed invitation did not go out: the person asked too often today.', { userId: user.id });
-    return 'none';
-  }
   const next = renewRow(user.id);
-  if ((await deps.db.tx('write', (t) => reserve(t, 'signin', `invite:${String(next.payload.inviteId)}`, { now, userId: user.id }))) === 'over') {
-    deps.log.warn('A renewed invitation did not go out: the daily mail quota is full.', { userId: user.id });
+  // One transaction under the office lock: a press that finds the key used counts nothing, and a refusal rolls back the hit of
+  // the person and the place in the quota. The mail lock of reserve comes after the office lock; no code takes them the other way.
+  let ids: string[];
+  try {
+    ids = await deps.db.tx('write', async (t) => {
+      await takeOfficeLock(t, deps.config.lockKey);
+      const [again] = await t<KeyRow>(RENEW_ROW_SQL, [hash]);
+      if (!again || again.renewed || again.id !== row.id) return [] as string[];
+      if (!(await hitLimit(t, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
+        throw new Refused('A renewed invitation did not go out: the person asked too often today.');
+      }
+      if ((await reserve(t, 'signin', `invite:${String(next.payload.inviteId)}`, { now, userId: user.id })) === 'over') {
+        throw new Refused('A renewed invitation did not go out: the daily mail quota is full.');
+      }
+      await t(PAYLOAD_MERGE_SQL, [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);
+      return writeOutbox(t, [next]);
+    });
+  } catch (error) {
+    if (!(error instanceof Refused)) throw error;
+    deps.log.warn(error.message, { userId: user.id });
     return 'none';
   }
-  const ids = await deps.db.tx('write', async (t) => {
-    await takeOfficeLock(t, deps.config.lockKey);
-    const [again] = await t<KeyRow>(RENEW_ROW_SQL, [hash]);
-    if (!again || again.renewed || again.id !== row.id) return [] as string[];
-    await t(PAYLOAD_MERGE_SQL, [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);
-    return writeOutbox(t, [next]);
-  });
   if (ids.length === 0) return 'none';
   try {
     await (o.afterCommit ?? processOutbox)(deps, ids);

@@ -130,5 +130,8 @@ describe('security fix 7: a new link for an invitation that is out of date', () 
     const answers = await Promise.all([renew(key), renew(key)]);
     expect(answers).toEqual([`200 ${OK}`, `200 ${OK}`]);
     expect(mailsTo(email)).toHaveLength(2);
+    // The press that found the key used holds no place in the daily mail quota.
+    const counted = await office.sql<{ kind: string }>("select kind from mail_log where user_id = $1 and kind = 'signin'", [user.id]);
+    expect(counted).toHaveLength(1);
   });
 });

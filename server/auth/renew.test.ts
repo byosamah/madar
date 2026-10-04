@@ -5,7 +5,7 @@ import { buildSeed } from '../../src/data/seed';
 import type { After, RequestHost } from '../core/after';
 import { processOutbox, writeOutbox } from '../core/effects';
 import { LOCK_SQL } from '../core/lock';
-import type { Mail } from '../core/ports';
+import type { Db, Mail } from '../core/ports';
 import { AUTH_LINK_SQL } from '../data/officeCache';
 import { apiApp } from '../http/app';
 import { ROUTES } from '../http/routes';
@@ -16,7 +16,7 @@ import './effects';
 import { fakeAuth } from './fakeAuth';
 import { inviteRow, NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, RENEW_KEY_SQL, RENEW_PARAM, SENT_SQL } from './invite';
 import { RATE_SQL } from './rateLimit';
-import { createRenewRoute, RENEW_IP_PER_HOUR, RENEW_KEY_PER_HOUR, RENEW_PATH, RENEW_PERSON_PER_DAY, RENEW_ROW_SQL } from './renew';
+import { createRenewRoute, renewInvitation, RENEW_IP_PER_HOUR, RENEW_KEY_PER_HOUR, RENEW_PATH, RENEW_PERSON_PER_DAY, RENEW_ROW_SQL } from './renew';
 
 /** POST /api/auth/renew-invite (security fix 7). server/it/renew.it.test.ts runs it on the local stack with the real Auth. */
 
@@ -89,6 +89,19 @@ const keyIn = (mail: Mail) => new URL(/https:\/\/madar\.test\/\S+/.exec(mail.tex
 const tokenIn = (mail: Mail) => new URL(/https:\/\/madar\.test\/\S+/.exec(mail.text)![0]).searchParams.get('token_hash')!;
 const OK = JSON.stringify({ v: 1, ok: true });
 
+/** Runs one transaction at a time, as the office lock orders them in Postgres. */
+function oneAtATime(db: Db): Db {
+  let chain: Promise<unknown> = Promise.resolve();
+  return {
+    ...db,
+    tx(mode, work) {
+      const run = chain.then(() => db.tx(mode, work));
+      chain = run.catch(() => undefined);
+      return run;
+    },
+  };
+}
+
 async function setup(o: { host?: () => RequestHost } = {}) {
   const auth = fakeAuth();
   const users: Record<string, Row> = {
@@ -96,7 +109,7 @@ async function setup(o: { host?: () => RequestHost } = {}) {
     usr_005: { doc: { ...seed.users.usr_005, preferences: { ...seed.users.usr_005.preferences, language: 'ar' } }, auth: null },
   };
   const db = memoryDb(users);
-  const deps = fakeDeps({ db: db.mem.db, config: { appUrl: 'https://madar.test' } });
+  const deps = fakeDeps({ db: oneAtATime(db.mem.db), config: { appUrl: 'https://madar.test' } });
   deps.authAdmin = auth;
   const slept: number[] = [];
   const route = createRenewRoute({ minMs: 0, sleep: async (ms) => void slept.push(ms), host: o.host });
@@ -237,6 +250,26 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
     deps.clock.set(new Date(deps.clock.now().getTime() + 24 * 60 * 60 * 1000));
     expect((await post({ key })).status).toBe(200);
     expect(deps.mail.sent).toHaveLength(2);
+  });
+
+  it('two presses at the same moment send one invitation and hold one place in the daily mail quota', async () => {
+    const { auth, db, deps, invite } = await setup();
+    const key = keyIn(await invite('usr_002'));
+    // Both presses pass the checks before the office lock before either one takes it.
+    const getUser = auth.getUser.bind(auth);
+    let arrived = 0;
+    let both!: () => void;
+    const barrier = new Promise<void>((resolve) => (both = resolve));
+    auth.getUser = async (id) => {
+      arrived += 1;
+      if (arrived === 2) both();
+      await barrier;
+      return getUser(id);
+    };
+    const results = await Promise.all([renewInvitation(key, deps), renewInvitation(key, deps)]);
+    expect(results.sort()).toEqual(['none', 'sent']);
+    expect(deps.mail.sent).toHaveLength(2);
+    expect(db.mem.log.filter((row) => row.kind === 'signin' && row.user_id === 'usr_002')).toHaveLength(1);
   });
 
   it('refuses a body with no key with 400', async () => {
