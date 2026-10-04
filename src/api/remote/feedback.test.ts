@@ -79,4 +79,75 @@ describe('the feedback adapter (plan 5.2)', () => {
       .then(() => null, (e: unknown) => e);
     expect(error).toMatchObject({ code: 'invalid_input', details: { fields: ['screenshots'], reason: 'file_too_large', limit: MAX_SHOT_BYTES } });
   });
+  it('a Retry after a lost answer of feedback.send sends the same upload IDs with the same key, and uploads nothing again (plan 4.10)', async () => {
+    const steps: string[] = [];
+    const sends: { input: unknown; key?: string }[] = [];
+    let n = 0;
+    let lose = true;
+    const ctx: AdapterCtx = {
+      meta: { key: 'fb-retry-1' },
+      call: async (name, input, meta) => {
+        steps.push(name);
+        if (name === 'feedback.uploadStart') {
+          n += 1;
+          return { uploads: [{ uploadId: `upl_${n}`, put: put(n) }] };
+        }
+        sends.push({ input, key: meta?.key });
+        // The server saved the report, but the answer did not come back.
+        if (lose) {
+          lose = false;
+          throw new ApiError('failed', 'The server did not answer.');
+        }
+        return { id: 'fbk_001' };
+      },
+    };
+    const shot = new Blob(['a'], { type: 'image/png' });
+    const raw = { ...REPORT, screenshots: [shot] };
+    const adapter = feedbackAdapter({ put: sender(steps).put });
+    await expect(adapter(raw, ctx)).rejects.toMatchObject({ code: 'failed' });
+    const output = await adapter(raw, ctx);
+    expect(output).toEqual({ id: 'fbk_001' });
+    expect(steps).toEqual(['feedback.uploadStart', `PUT ${put(1).url}`, 'feedback.send', 'feedback.send']);
+    expect(sends).toEqual([
+      { input: { ...REPORT, uploadIds: ['upl_1'] }, key: 'fb-retry-1.send' },
+      { input: { ...REPORT, uploadIds: ['upl_1'] }, key: 'fb-retry-1.send' },
+    ]);
+    // After the success, the same key starts again from the start.
+    steps.length = 0;
+    await adapter(raw, ctx);
+    expect(steps[0]).toBe('feedback.uploadStart');
+  });
+
+  it('uploads again on the next Retry when the server refuses feedback.send with no Retry (an ended upload)', async () => {
+    const steps: string[] = [];
+    let n = 0;
+    let refuse = true;
+    const ctx: AdapterCtx = {
+      meta: { key: 'fb-retry-2' },
+      call: async (name) => {
+        steps.push(name);
+        if (name === 'feedback.uploadStart') {
+          n += 1;
+          return { uploads: [{ uploadId: `upl_${n}`, put: put(n) }] };
+        }
+        if (refuse) {
+          refuse = false;
+          throw new ApiError('invalid_input', 'This upload has ended. Upload the file again.', { fields: ['uploadIds'] });
+        }
+        return { id: 'fbk_002' };
+      },
+    };
+    const raw = { ...REPORT, screenshots: [new Blob(['a'], { type: 'image/png' })] };
+    const adapter = feedbackAdapter({ put: sender(steps).put });
+    await expect(adapter(raw, ctx)).rejects.toMatchObject({ code: 'invalid_input' });
+    await adapter(raw, ctx);
+    expect(steps.filter((step) => step === 'feedback.uploadStart')).toHaveLength(2);
+  });
+
+  it('sends the report with no fixed key when the call has no Retry key', async () => {
+    const keys: (string | undefined)[] = [];
+    const ctx: AdapterCtx = { meta: {}, call: async (_name, _input, meta) => { keys.push(meta?.key); return { id: 'fbk_003' }; } };
+    await feedbackAdapter({ put: sender([]).put })({ ...REPORT }, ctx);
+    expect(keys).toEqual([undefined]);
+  });
 });

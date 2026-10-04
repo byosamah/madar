@@ -62,6 +62,42 @@ export function tooLarge(field: string, limit: number | undefined): ApiError {
   return new ApiError('invalid_input', 'This file is larger than the limit.', { fields: [field], reason: 'file_too_large', ...(limit ? { limit } : {}) });
 }
 
+/**
+ * The uploads of an attempt whose files all arrived in the store, by the Retry key of the screen call (plan 4.10). The start calls
+ * make new upload IDs on each call, so a Retry after a lost answer of the final call must send the same IDs with the same key:
+ * the server then replays its stored answer and saves nothing twice.
+ */
+const arrived = new Map<string, { blobs: readonly Blob[]; ids: string[] }>();
+
+/** The upload IDs of an earlier attempt with this Retry key and the same files, or undefined. */
+export function arrivedUploads(key: string | undefined, blobs: readonly Blob[]): string[] | undefined {
+  const found = key ? arrived.get(key) : undefined;
+  if (!found || found.blobs.length !== blobs.length || found.blobs.some((blob, i) => blob !== blobs[i])) return undefined;
+  return found.ids;
+}
+
+/** Keeps the upload IDs of an attempt whose files all arrived, for a Retry with the same key. */
+export function keepUploads(key: string | undefined, blobs: readonly Blob[], ids: string[]): void {
+  if (key) arrived.set(key, { blobs, ids });
+}
+
+/**
+ * The final call of an adapter. With a Retry key it has a fixed key in every attempt, also when the attempt skips the start call.
+ * A success, or a refusal that offers no Retry, ends the attempts of the key, so the kept uploads go.
+ */
+export async function finalCall(ctx: AdapterCtx, name: string, input: unknown, suffix: string): Promise<unknown> {
+  const key = ctx.meta.key;
+  if (!key) return ctx.call(name, input);
+  try {
+    const output = await ctx.call(name, input, { key: `${key}.${suffix}` });
+    arrived.delete(key);
+    return output;
+  } catch (error) {
+    if (error instanceof ApiError && error.code !== 'failed' && error.code !== 'unauthenticated') arrived.delete(key);
+    throw error;
+  }
+}
+
 /** The file limit of the active store from session.get. Without one, the ceiling of the contract; when the call fails, none. */
 async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
   try {
@@ -107,9 +143,12 @@ export function uploadAdapter(o: {
   return async (raw, ctx) => {
     const input = raw as ScreenUpload;
     const blob = input.blob;
-    const thumb = await thumbOf(blob, o.makeThumb);
     const fields: Record<string, unknown> = {};
     for (const name of SHARED_FIELDS) if (input[name] !== undefined) fields[name] = input[name];
+    // A Retry after a lost answer: the file is already in the store, so only the save goes again.
+    const [kept] = arrivedUploads(ctx.meta.key, [blob]) ?? [];
+    if (kept) return finalCall(ctx, 'files.upload', { ...fields, uploadId: kept }, 'upload');
+    const thumb = await thumbOf(blob, o.makeThumb);
 
     // Step 1: the server checks the rights and the size, and signs the uploads.
     const start = (await ctx.call('files.uploadStart', {
@@ -129,8 +168,9 @@ export function uploadAdapter(o: {
     if (failure) throw uploadFailed(result.status);
     // The small picture is extra: when it does not arrive, the server saves the version without one.
     if (thumb && start.thumbPut) await send(start.thumbPut, thumb);
+    keepUploads(ctx.meta.key, [blob], [start.uploadId]);
 
     // Step 3: the server checks the stored object and saves the version.
-    return ctx.call('files.upload', { ...fields, uploadId: start.uploadId });
+    return finalCall(ctx, 'files.upload', { ...fields, uploadId: start.uploadId }, 'upload');
   };
 }

@@ -121,6 +121,65 @@ describe('the upload adapter (plan 5.2)', () => {
       .then(() => null, (e: unknown) => e);
     expect(error).toMatchObject({ code: 'invalid_input', details: { reason: 'file_too_large', limit: MAX_FILE_BYTES } });
   });
+  it('a Retry after a lost answer of files.upload sends the same upload ID with the same key, and uploads nothing again (plan 4.10)', async () => {
+    const steps: string[] = [];
+    const saves: { input: unknown; key?: string }[] = [];
+    let n = 0;
+    let lose = true;
+    let thumbs = 0;
+    const ctx: AdapterCtx = {
+      meta: { key: 'up-retry-1' },
+      call: async (name, input, meta) => {
+        steps.push(name);
+        if (name === 'files.uploadStart') {
+          n += 1;
+          return { uploadId: `upl_${n}`, put: PUT, thumbPut: THUMB_PUT };
+        }
+        saves.push({ input, key: meta?.key });
+        if (lose) {
+          lose = false;
+          throw new ApiError('failed', 'The server did not answer.');
+        }
+        return { file: { id: 'fil_9' } };
+      },
+    };
+    const raw = { ...SCREEN_INPUT, blob: picture() };
+    const adapter = uploadAdapter({ makeThumb: async () => { thumbs += 1; return new Blob(['w'], { type: 'image/webp' }); }, put: sender(steps).put });
+    await expect(adapter(raw, ctx)).rejects.toMatchObject({ code: 'failed' });
+    expect(await adapter(raw, ctx)).toEqual({ file: { id: 'fil_9' } });
+    expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, `PUT ${THUMB_PUT.url}`, 'files.upload', 'files.upload']);
+    expect(thumbs).toBe(1);
+    const saved = { projectId: 'prj_001', name: 'Site photo.png', stageId: 'stg_002', taskId: null, asCover: true, receivedFromClient: false, uploadId: 'upl_1' };
+    expect(saves).toEqual([{ input: saved, key: 'up-retry-1.upload' }, { input: saved, key: 'up-retry-1.upload' }]);
+  });
+
+  it('uploads again on the next Retry when files.upload is refused with no Retry, or when the file is another one', async () => {
+    const steps: string[] = [];
+    let n = 0;
+    let refuse = true;
+    const ctx: AdapterCtx = {
+      meta: { key: 'up-retry-2' },
+      call: async (name) => {
+        steps.push(name);
+        if (name === 'files.uploadStart') {
+          n += 1;
+          return { uploadId: `upl_${n}`, put: PUT };
+        }
+        if (refuse) {
+          refuse = false;
+          throw new ApiError('conflict', 'This upload is already used, or it has ended. Upload the file again.');
+        }
+        throw new ApiError('failed', 'The server did not answer.');
+      },
+    };
+    const adapter = uploadAdapter({ makeThumb: async () => null, put: sender(steps).put });
+    const raw = { ...SCREEN_INPUT, blob: picture() };
+    await expect(adapter(raw, ctx)).rejects.toMatchObject({ code: 'conflict' });
+    await expect(adapter(raw, ctx)).rejects.toMatchObject({ code: 'failed' });
+    // The stored upload belongs to the first file: another file with the same key uploads again.
+    await expect(adapter({ ...raw, blob: picture() }, ctx)).rejects.toMatchObject({ code: 'failed' });
+    expect(steps.filter((step) => step === 'files.uploadStart')).toHaveLength(3);
+  });
 });
 
 describe('putFailure', () => {

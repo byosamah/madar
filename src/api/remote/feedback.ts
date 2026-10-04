@@ -1,5 +1,5 @@
 import { MAX_SHOT_BYTES, type SignedPut } from '../contract/server';
-import { putFailure, tooLarge, uploadFailed, xhrPut, type PutSender } from './upload';
+import { arrivedUploads, finalCall, keepUploads, putFailure, tooLarge, uploadFailed, xhrPut, type PutSender } from './upload';
 import type { Adapter } from './wire';
 
 type ScreenReport = { kind: string; message: string; page?: string; screenshots?: Blob[] };
@@ -9,6 +9,9 @@ export function feedbackAdapter(o: { put?: PutSender } = {}): Adapter {
   const send = o.put ?? xhrPut;
   return async (raw, ctx) => {
     const { screenshots = [], ...report } = raw as ScreenReport;
+    // A Retry after a lost answer: the screenshots are already in the store, so only the report goes again.
+    const kept = arrivedUploads(ctx.meta.key, screenshots);
+    if (kept) return finalCall(ctx, 'feedback.send', { ...report, uploadIds: kept }, 'send');
     const uploadIds: string[] = [];
     if (screenshots.length > 0) {
       const start = (await ctx.call('feedback.uploadStart', {
@@ -22,7 +25,8 @@ export function feedbackAdapter(o: { put?: PutSender } = {}): Adapter {
         if (failure) throw uploadFailed(result.status);
         uploadIds.push(upload.uploadId);
       }
+      keepUploads(ctx.meta.key, screenshots, uploadIds);
     }
-    return ctx.call('feedback.send', { ...report, uploadIds });
+    return finalCall(ctx, 'feedback.send', { ...report, uploadIds }, 'send');
   };
 }
