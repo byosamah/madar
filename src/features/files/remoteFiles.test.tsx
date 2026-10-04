@@ -36,9 +36,9 @@ function remote(o: { files?: FileView[] } = {}) {
   return { links, wrapper };
 }
 
-const view = (id: string, name: string): FileView => ({
+const view = (id: string, name: string, mimeType = 'image/png'): FileView => ({
   file: { id, projectId: 'prj_001', stageId: null, taskId: null, name, versions: [] },
-  latest: { letter: 'C', blobKey: 'k', mimeType: 'image/png', size: 10, uploadedBy: 'usr_001', uploadedAt: '2026-09-29T10:00:00.000+03:00' },
+  latest: { letter: 'C', blobKey: 'k', mimeType, size: 10, uploadedBy: 'usr_001', uploadedAt: '2026-09-29T10:00:00.000+03:00' },
 } as unknown as FileView);
 
 describe('the picture lines in the real build (plan 5.2)', () => {
@@ -61,6 +61,33 @@ describe('the picture lines in the real build (plan 5.2)', () => {
     const { container } = render(<DrawingsStrip projectId="prj_001" />, { wrapper });
     await waitFor(() => expect(container.querySelector('img')).toHaveAttribute('src', 'https://store.test/link-1'));
     expect(links).toEqual([{ id: 'fil_901', letter: 'C', variant: 'thumb', disposition: 'inline' }]);
+  });
+});
+
+describe('pictures that never show inline in the real build', () => {
+  it('the project cover shows the project mark when the picture breaks again after the new link', async () => {
+    initI18n('en');
+    const { links, wrapper } = remote();
+    const summary = { project: { id: 'prj_001', name: 'Corniche Office Tower', coverFileId: 'fil_002' }, coverLetter: 'B' } as unknown as ProjectSummary;
+    const { container } = render(<ProjectCover summary={summary} />, { wrapper });
+    await waitFor(() => expect(container.querySelector('img')).toHaveAttribute('src', 'https://store.test/link-1'));
+    fireEvent.error(container.querySelector('img') as HTMLImageElement);
+    await waitFor(() => expect(container.querySelector('img')).toHaveAttribute('src', 'https://store.test/link-2'));
+    fireEvent.error(container.querySelector('img') as HTMLImageElement);
+    await waitFor(() => expect(container.querySelector('img')).toBeNull());
+    expect(container.querySelector('[data-project-mark]')).not.toBeNull();
+    expect(links).toHaveLength(2);
+  });
+
+  it('the meeting drawings show the file icon for an SVG drawing and ask for no link (the store keeps it as a download)', async () => {
+    initI18n('en');
+    const { links, wrapper } = remote({ files: [view('fil_902', 'Site plan.svg', 'image/svg+xml')] });
+    const { container } = render(<DrawingsStrip projectId="prj_001" />, { wrapper });
+    await screen.findByText('Site plan.svg');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
+    expect(links).toEqual([]);
   });
 });
 

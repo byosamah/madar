@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
 import { canRetry, errorMessage } from '../../../app/errors';
-import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink } from '../../../app/files';
+import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -29,7 +29,8 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const toast = useToast();
   const [showVersions, setShowVersions] = useState(false);
   const { file, latest } = view;
-  const image = latest.mimeType.startsWith('image/');
+  const isPicture = usePictureTest();
+  const image = isPicture(latest.mimeType);
   const thumb = useFileLink(image ? file.id : null, latest.letter, 'thumb');
   const remove = useUndoable('files.delete', { message: () => t('files.deleted') });
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });

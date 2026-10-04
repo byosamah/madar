@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileView } from '../../../api/contract/views';
-import { useFileLink } from '../../../app/files';
+import { useFileLink, usePictureTest } from '../../../app/files';
 import { useCall } from '../../../app/runtime';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
@@ -10,7 +10,8 @@ import { PreviewSheet } from '../../project/files/PreviewSheet';
 const SHOWN = 6;
 
 function Drawing({ view, onOpen }: { view: FileView; onOpen: () => void }) {
-  const image = view.latest.mimeType.startsWith('image/');
+  const isPicture = usePictureTest();
+  const image = isPicture(view.latest.mimeType);
   const thumb = useFileLink(image ? view.file.id : null, view.latest.letter, 'thumb');
   return (
     <li className="w-44 shrink-0">

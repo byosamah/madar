@@ -58,16 +58,39 @@ export function useFileLink(fileId: string | null, letter?: string, variant: 'fu
     return () => URL.revokeObjectURL(next);
   }, [blob]);
 
-  // One new link for each file and variant: a link that breaks again is not asked for a third time.
+  // One new link for each file and variant. A picture that breaks again gives no URL, so the screen shows its fallback.
   const asked = useRef<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const key = `${fileId}|${letter ?? ''}|${variant}`;
   const onError = () => {
-    if (!remote || fileId === null || asked.current === key) return;
+    if (!remote || fileId === null) return;
+    if (asked.current === key) {
+      setFailed(key);
+      return;
+    }
     asked.current = key;
     void query.refetch();
   };
   const url = data && 'url' in data ? data.url : blobUrl;
-  return { url: fileId === null ? null : url, onError };
+  return { url: fileId === null || failed === key ? null : url, onError };
+}
+
+/** The pictures that the server shows inline (isPictureType in server/files/links.ts). It keeps every other type as a download. */
+const INLINE_PICTURES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']);
+
+/** True for a picture that an img tag shows in the real build. A type with a parameter counts by its base; a list never does. */
+export function isInlinePicture(mimeType: string): boolean {
+  const lower = mimeType.trim().toLowerCase();
+  return !lower.includes(',') && INLINE_PICTURES.has(lower.split(';')[0].trim());
+}
+
+/**
+ * The picture test of the screens: in the real build only an inline picture (an SVG comes as a download, so an img never shows
+ * it); in the prototype every picture, because the browser reads the stored data with its own type.
+ */
+export function usePictureTest(): (mimeType: string) => boolean {
+  const remote = isRemote(useRuntime());
+  return remote ? isInlinePicture : (mimeType) => mimeType.startsWith('image/');
 }
 
 /** The URL alone, for a frame or a picture that does not need a new link on error. */

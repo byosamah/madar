@@ -6,7 +6,7 @@ import type { MadarApi } from '../api/calls';
 import { ApiError } from '../api/errors';
 import { initI18n } from '../i18n';
 import { renderWithRuntime } from '../test/render';
-import { downloadFile, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl } from './files';
+import { downloadFile, isInlinePicture, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl } from './files';
 import { RuntimeProvider, createQueryClient, useRuntime, type Runtime } from './runtime';
 import { ToastProvider } from './toasts';
 
@@ -65,6 +65,22 @@ describe('file links in the real build (plan 5.2)', () => {
     fireEvent.error(screen.getByRole('img', { name: 'Plan' }));
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(calls.filter((c) => c.name === 'files.link')).toHaveLength(2);
+  });
+
+  it('gives up on a picture that breaks again after the new link, so the screen shows its fallback', async () => {
+    const { api, calls } = remoteApi();
+    renderRemote(<Picture variant="thumb" />, api);
+    fireEvent.error(await screen.findByRole('img', { name: 'Plan' }));
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Plan' })).toHaveAttribute('src', 'https://store.test/link-2'));
+    fireEvent.error(screen.getByRole('img', { name: 'Plan' }));
+    expect(await screen.findByText('Loading')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Plan' })).toBeNull();
+    expect(calls.filter((c) => c.name === 'files.link')).toHaveLength(2);
+  });
+
+  it('isInlinePicture takes only the pictures that the server shows inline (isPictureType in server/files/links.ts)', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'IMAGE/PNG', ' image/png; charset=x ']) expect(isInlinePicture(type), type).toBe(true);
+    for (const type of ['image/svg+xml', 'image/x-icon', 'image/heic', 'image/bmp', 'image/png, image/svg+xml', 'application/pdf', '']) expect(isInlinePicture(type), type).toBe(false);
   });
 
   it('downloadFile asks for a download link (attachment) and opens it', async () => {
