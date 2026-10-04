@@ -46,6 +46,20 @@ describe('the shadow run (TM 3.5, check 1)', () => {
     expect(refusal).toMatch(/the database refused with forbidden, the whole office in memory answered/);
   });
 
+  it('takes the account_off refusal of the server for a person who is off, and for nobody else (plan 4.5, the actor; D2)', async () => {
+    // The server refuses a turned-off person before any rule, so the screens get unauthenticated where the rules say forbidden.
+    const office = makeWorld();
+    office.users.usr_003.active = false;
+    const off: RunResult = { ok: false, error: { code: 'unauthenticated', message: 'This account is turned off.', details: { reason: 'account_off' } } };
+    const read = { name: 'tasks.list', input: { projectId: 'prj_001' }, now: NOW, office, result: off, after: office };
+    expect(await shadowProblems({ ...read, actorId: 'usr_003' })).toEqual([]);
+    // An agent whose person is off is off too.
+    office.users.usr_005.ownerId = 'usr_003';
+    expect(await shadowProblems({ ...read, actorId: 'usr_005' })).toEqual([]);
+    const [wrong] = await shadowProblems({ ...read, actorId: 'usr_002' });
+    expect(wrong).toMatch(/tasks\.list: the database refused with unauthenticated/);
+  });
+
   it('compares the counters by value, not by the order of their keys', async () => {
     const office = makeWorld();
     const input = { name: 'New Person', email: 'new@madar.test', discipline: 'MEP' };

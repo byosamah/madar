@@ -13,6 +13,7 @@ import { changesOf, runBoth, type Change, type Run } from '../data/loaders/compa
  * office, the SQL side (sqlSource or the save step) differs; when it does not, the loader of the call leaves something out.
  *
  * It ignores only what TM 3.5 allows: the story ID (the whole run takes the story of the database call) and random blob keys.
+ * It also takes the one refusal that the server gives on purpose before any rule: account_off for a person who is off.
  * A call whose run reads the prepared value of a server hook (files.upload, feedback.send, feedback.screenshot) is not shadowed:
  * that value comes from storage work that the memory run does not repeat. The harness passes readsPrepared: true for those. A
  * hook that only feeds the step after the commit (projects.delete) changes nothing in the run, so that call is shadowed.
@@ -101,9 +102,25 @@ function changedCounters(before: State, after: State): Record<string, number> {
   return Object.fromEntries(Object.entries(after.counters).filter(([prefix, n]) => before.counters[prefix] !== n));
 }
 
+/**
+ * True when the server's actor check turns this person away (server/core/actor.ts): a missing or turned-off person, or an agent
+ * whose person is off. The server refuses them before any rule with unauthenticated and the reason account_off (plan 4.5, the
+ * actor), and the screens show the sign-in message. The rules in memory answer forbidden there, or even answer.
+ */
+function actorIsOff(office: State, actorId: string): boolean {
+  const user = office.users[actorId];
+  if (!user || !user.active) return true;
+  if (user.kind !== 'agent') return false;
+  const owner = user.ownerId ? office.users[user.ownerId] : undefined;
+  return !owner || owner.kind !== 'human' || !owner.active;
+}
+
 export async function shadowProblems(c: ShadowCase): Promise<string[]> {
   const def = (sharedCalls as Record<string, (typeof sharedCalls)[SharedCallName]>)[c.name];
   if (!def || c.readsPrepared) return [];
+  if (!c.result.ok && c.result.error.code === 'unauthenticated' && (c.result.error.details as { reason?: unknown } | undefined)?.reason === 'account_off') {
+    return actorIsOff(c.office, c.actorId) ? [] : [`${c.name}: the database refused with unauthenticated (account_off), but ${c.actorId} is on.`];
+  }
   if (!def.input.safeParse(c.input).success) {
     if (c.result.ok) return [`${c.name}: the input does not parse, and the database still answered.`];
     return c.result.error.code === 'invalid_input' ? [] : [`${c.name}: the input does not parse, and the database refused with ${c.result.error.code}.`];
