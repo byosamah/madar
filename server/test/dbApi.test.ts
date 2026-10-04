@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
+import { feedbackCalls } from '../../src/api/handlers/feedback';
+import { fileCalls } from '../../src/api/handlers/files';
 import { historyCalls } from '../../src/api/handlers/history';
 import { peopleCalls } from '../../src/api/handlers/people';
 import { taskCalls } from '../../src/api/handlers/tasks';
@@ -49,6 +51,7 @@ function memoryBackend(o: { lie?: (result: RunResult, mem: ReturnType<typeof mem
     },
     signals: deps.signal.sent,
     clock: deps.clock,
+    files: deps.files,
   };
   return backend;
 }
@@ -168,5 +171,44 @@ describe('the db-mode mirror store (TM 3.3)', () => {
   it('fails the call with the free checks when a read changes the database', async () => {
     const t = createDbApi(CALLS, world(), memoryBackend({ lie: (_result, mem) => { mem.tables.state.tasks.tsk_001.flagged = true; } }));
     await expect(t.api.call('tasks.get', { id: 'tsk_001' })).rejects.toThrow(/db mode: tasks\.get is a read, and it changed the database/);
+  });
+
+  it('sends a file as the screens do: the upload start, the file into the store, then files.upload with the ID (plan 5.2)', async () => {
+    const backend = memoryBackend();
+    const t = createDbApi({ ...CALLS, ...fileCalls }, world(), backend);
+    t.as('usr_002');
+    const view = await t.api.call('files.upload', { projectId: 'prj_001', name: 'plan.pdf', blob: new Blob(['abc'], { type: 'application/pdf' }) });
+    expect(backend.runs()).toBe(2);
+    expect(view.file.name).toBe('plan.pdf');
+    const [version] = t.store.state.files[view.file.id].versions;
+    expect(version).toMatchObject({ mimeType: 'application/pdf', size: 3 });
+    expect(await (await t.store.persister.getBlob(version.blobKey))?.text()).toBe('abc');
+    expect(backend.files.calls.map((call) => call.op)).toEqual(['presignPut', 'head', 'copy', 'remove']);
+    await t.store.persister.deleteBlob(version.blobKey);
+    expect(await t.store.persister.getBlob(version.blobKey)).toBeNull();
+  });
+
+  it('checks the whole input of an upload first, as the fake API does, and sends nothing when it is wrong', async () => {
+    const backend = memoryBackend();
+    const t = createDbApi({ ...CALLS, ...fileCalls, ...feedbackCalls }, world(), backend);
+    t.as('usr_002');
+    const pdf = new Blob(['x'], { type: 'application/pdf' });
+    await expect(t.api.call('files.upload', { projectId: 'prj_001', name: 'a.pdf', blob: pdf, uploadId: 'upl_001' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', screenshots: [pdf] })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(backend.runs()).toBe(0);
+  });
+
+  it('sends feedback pictures as upload IDs, and the report keeps each stored picture', async () => {
+    const backend = memoryBackend();
+    const t = createDbApi({ ...CALLS, ...feedbackCalls }, world(), backend);
+    t.as('usr_003');
+    const png = (text: string) => new Blob([text], { type: 'image/png' });
+    const sent = await t.api.call('feedback.send', { kind: 'bug', message: 'Broken', page: '/', screenshots: [png('a'), png('b')] });
+    expect(backend.runs()).toBe(2);
+    const keys = t.store.state.feedback![sent.id].screenshots.map((shot) => shot.blobKey);
+    expect(await Promise.all(keys.map(async (key) => (await t.store.persister.getBlob(key))?.text()))).toEqual(['a', 'b']);
+    // Without pictures, only feedback.send goes, with no upload ID.
+    await t.api.call('feedback.send', { kind: 'feature', message: 'More', page: '/', screenshots: [] });
+    expect(backend.runs()).toBe(3);
   });
 });

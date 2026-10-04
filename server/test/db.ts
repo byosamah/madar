@@ -18,6 +18,7 @@ import { createDbApi, type MirrorBackend } from './dbApi';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
 import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb } from './global-setup';
 import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
+import { standInUses } from './uploads';
 
 /**
  * The setup file of the db project (plan 7.2; TM 3.3 and 5; task D1). It registers the mirror store of dbApi.ts with testApi(),
@@ -216,6 +217,8 @@ export class Worker {
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
   /** How many calls ran on the database in this file, and their time in ms, for the gate of TM 4.1 (25 ms a call). */
   #calls = { n: 0, ms: 0 };
+  /** The stand-in count of the worker when this file started, so the report counts this file only. */
+  readonly #standInsAtStart = standInUses();
   readonly backend: MirrorBackend;
   #deps?: FakeDeps;
 
@@ -241,6 +244,9 @@ export class Worker {
       },
       get clock() {
         return worker.deps.clock;
+      },
+      get files() {
+        return worker.deps.files;
       },
     };
   }
@@ -272,6 +278,9 @@ export class Worker {
       },
       get clock() {
         return base.clock;
+      },
+      get files() {
+        return base.files;
       },
     };
   }
@@ -352,7 +361,11 @@ export class Worker {
     const session = this.#session;
     if (!session) return;
     const { n, ms } = this.#calls;
-    console.info(`db mode: ${n} calls on the database in ${this.schema}, ${n > 0 ? (ms / n).toFixed(1) : 0} ms a call in runCall.`);
+    const standIns = standInUses() - this.#standInsAtStart;
+    console.info(
+      `db mode: ${n} calls on the database in ${this.schema}, ${n > 0 ? (ms / n).toFixed(1) : 0} ms a call in runCall.`
+        + (standIns > 0 ? ` ${standIns} upload steps ran on the stand-ins of server/test/uploads.ts, until track F merges.` : ''),
+    );
     try {
       await this.rollback();
       if ((await this.checksum()) !== session.baseline) {
