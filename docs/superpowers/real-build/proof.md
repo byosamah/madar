@@ -442,3 +442,29 @@ Two more facts:
 3. G4: the consent screen says in plain words that the agent can act as the person's account.
 
 **For the security review (Z7), risk 4 of the plan, an owner decision:** the remaining gap is that an approved agent can take over its person's account through Auth's own endpoints, with no Madar code in the path. Options: refuse agent tokens for Admin people in the hook (the hook can raise for `client_id` plus an Admin row), or accept the risk and say it on the consent screen. Default until the owner decides: mitigations 1 to 3 only.
+
+## G3. The MCP server on the local stack (2026-10-04)
+
+**Result: pass.** An MCP client gets a token through the real OAuth 2.1 flow of the local Auth server, and the MCP app serves it on Node (in process) and on Deno (`supabase functions serve mcp`). Supabase CLI 2.119.0, Auth v2.197.0, edge runtime 1.77.1, after `supabase db reset` from the `rb/G` worktree.
+
+**Re-run.** Take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/mcp.it.test.ts server/it/hook.it.test.ts` (15 of 15 pass) and `npx tsx server/mcp/conformance.ts` (the second half of `npm run test:mcp`).
+
+| Check | Result |
+|---|---|
+| DCR, authorize with PKCE, the approval through the Auth API, the code exchange; the first call | 200. The first call makes the agent user (`kind: agent`, owner = the person, the app name, `<id>@agents.madar.invalid`), its `agent_links` row and the `user.created` event with the person as actor. |
+| The same app registered again by the same person | Supabase makes a new `client_id`; Madar links it to the same agent user. |
+| A browser token on `mcp` | 401 with `WWW-Authenticate: Bearer resource_metadata=".../mcp/oauth-protected-resource", error="invalid_token"` (aud check). |
+| An agent token on `api` | 403 `forbidden`, `agent_token` (P's check holds; proof.md Z0a item 2). |
+| A write by the agent | The event names the agent (`actorKind: agent`) and its person (`actingForId`); the person undoes it through `api`. |
+| A removed link (`agent_links.revoked_at`) | The next call gets 401 at once. A new approval of the same client (a session that started after the removal) links again. |
+| The person turned off (`users.deactivate`) | `agents.revokeAll` removes the links in the same request's effects; the agent is refused; after `users.reactivate` the old token stays refused (401). |
+| 61 tool calls in one minute for one person, over two clients | The 61st counts 61 and is refused; `last_used_at` is set in the same statement. |
+
+**Facts found:**
+
+- A client that the person approved before needs no new approval: `getAuthorizationDetails` gives `redirect_url` at once, and `approveAuthorization` then fails with "authorization request is no longer pending" (platform facts 6.3, step 3). G4's consent screen must take that path.
+- Auth keeps `auth.oauth_clients.redirect_uris` as one text, the addresses separated by commas. `auth.sessions.oauth_client_id` names the client of an agent session. `madar_private.agent_client` and `madar_private.agent_session_at` (`20261004000401_platform_agents.sql`) read them as their owner, for `madar_server` only.
+- On Supabase, `postgres` is no superuser and may not take the role `madar_server` (`permission denied to set role`). The local `supabase_admin` may, so the public-schema suites run as `madar_server` through the startup option `-c role=madar_server` and never change the role's login.
+- **Deno did not boot the mcp bundle** until the bundle lost its JSDoc comments: the Deno module graph reads a JSDoc `@param {import('../types/index').X}` in a JS file (a URI library under the SDK's Ajv) as a module and fails with "Module not found ... supabase/functions/types/index". The merge lead patch of G3 for `vite.server.config.ts` sets `output.comments: { legal: true, annotation: true, jsdoc: false }`. With it, `server/it/worker.it.test.ts` passes 12 of 12 (both hosts answer `/mcp` with the same 401).
+
+**Conformance (`@modelcontextprotocol/conformance` 0.1.16).** The runner covers the 2025-era protocol only and cannot send a token. `server/mcp/conformance.ts` gets an agent token through the OAuth flow, serves the mcp function, puts a proxy that adds the token in front, and runs each server scenario on its own with a 45-second limit (the runner has none, and a fixture scenario never ends). 5 of 32 pass: `server-initialize`, `ping`, `tools-list`, `server-sse-polling`, `server-sse-multiple-streams`. The other 27 need the runner's fixture tools, prompts or resources, or (`dns-rebinding-protection`) expect a localhost Origin to pass; `server/mcp/conformance-baseline.yml` lists each with its reason, and a new failure or a stale entry fails the run. The 2026-07-28 points are in `server/mcp/app.test.ts` (24 tests, in process).
