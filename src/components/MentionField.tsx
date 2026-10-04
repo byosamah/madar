@@ -37,7 +37,8 @@ export function MentionField({
     const before = value.slice(0, mention.start);
     const insert = `@${person.name} `;
     const position = before.length + insert.length;
-    onChange(before + insert + value.slice(caret));
+    const next = before + insert + value.slice(caret);
+    onChange(next);
     setCaret(position);
     setActive(0);
     // The picked name still matches its own text, so the list stays closed for this mention until the person types again.
@@ -45,7 +46,9 @@ export function MentionField({
     onPick?.(person);
     requestAnimationFrame(() => {
       ref.current?.focus();
-      ref.current?.setSelectionRange(position, position);
+      // A letter typed before this frame already stands after the name: the caret stays where the typing left it, so the
+      // next letters do not land before it (whole-product check after wave 4).
+      if (ref.current?.value === next) ref.current.setSelectionRange(position, position);
     });
   };
 
