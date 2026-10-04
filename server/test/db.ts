@@ -21,7 +21,6 @@ import { createDbApi, type MirrorBackend } from './dbApi';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
 import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb, type WorkerStats } from './global-setup';
 import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
-import { standInUses } from './uploads';
 
 /**
  * The setup file of the db project (plan 7.2; TM 3.3 and 5; task D1). It registers the mirror store of dbApi.ts with testApi(),
@@ -220,8 +219,6 @@ export class Worker {
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
   /** How many calls ran on the database in this file, and their time in ms, for the speed gate of TM 4.1 (25 ms a call). */
   #calls = { n: 0, ms: 0 };
-  /** The stand-in count of the worker when this file started, so the report counts this file only. */
-  readonly #standInsAtStart = standInUses();
   readonly backend: MirrorBackend;
   #deps?: FakeDeps;
 
@@ -366,7 +363,7 @@ export class Worker {
   async close(): Promise<void> {
     const session = this.#session;
     if (!session) return;
-    const stats: WorkerStats = { ...this.#calls, standIns: standInUses() - this.#standInsAtStart };
+    const stats: WorkerStats = { ...this.#calls };
     try {
       await this.rollback();
       if ((await this.checksum()) !== session.baseline) {

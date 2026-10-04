@@ -1,11 +1,6 @@
-import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../src/api/errors';
-import type { CallEntry, ServerEntry } from '../core/serverCallMap';
-import type { ServerCallCtx } from '../core/types';
-import { fakeDeps } from './fakes/deps';
-import { fakeFiles, type FakeFiles } from './fakes/files';
-import { browserPut, keyOfLink, standInUses, storedContent, withStandIns } from './uploads';
+import { fakeFiles } from './fakes/files';
+import { browserPut, keyOfLink, storedContent } from './uploads';
 
 describe('the file data of db mode (task D2)', () => {
   it('reads the object key of a link of the fake file store, and refuses any other link', () => {
@@ -32,79 +27,5 @@ describe('the browser upload of the mirror', () => {
     // Track F stores a type that may not show in the browser as application/octet-stream (server/files/links.ts, storedMimeType).
     browserPut(files, { url: 'https://files.test/put/up/upl_2', headers: { 'Content-Type': 'application/octet-stream' } }, new Blob(['<svg/>'], { type: 'image/svg+xml' }));
     expect(files.objects.get('up/upl_2')).toEqual({ size: 6, mimeType: 'application/octet-stream' });
-  });
-});
-
-describe('the stand-ins for the upload steps of track F', () => {
-  const ctx = () => {
-    const deps = fakeDeps();
-    const office = { lists: { projects: { prj_001: { id: 'prj_001' } } } } as unknown as ServerCallCtx['office'];
-    return { deps, office, principal: { userId: 'usr_002' }, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() } as ServerCallCtx;
-  };
-  const start = (call: ServerEntry['call']): CallEntry => ({
-    kind: 'server', name: 'files.uploadStart', call, input: {} as never, output: {} as never, readOnly: false,
-  });
-  const input = { projectId: 'prj_001', name: 'a.pdf', size: 3, mimeType: 'application/pdf' };
-
-  it('runs a stand-in only while the real step answers not_built, and counts it', async () => {
-    const stub = start(async () => {
-      throw new ApiError('failed', 'files.uploadStart is not built yet.', { reason: 'not_built' });
-    });
-    const before = standInUses();
-    const entry = withStandIns(new Map([['files.uploadStart', stub]]), { trackFMerged: false }).get('files.uploadStart') as ServerEntry;
-    const result = await entry.call(input, ctx());
-    expect(result.output).toMatchObject({ uploadId: expect.stringMatching(/^upl_dbmode_/), put: { url: expect.stringMatching(/^https:\/\/files\.test\/put\/up\//) } });
-    expect(standInUses()).toBe(before + 1);
-  });
-
-  it('adds no stand-in once track F has merged (server/files/effects.ts exists), so a not_built step then fails the call', async () => {
-    const stub = start(async () => {
-      throw new ApiError('failed', 'files.uploadStart is not built yet.', { reason: 'not_built' });
-    });
-    const map = new Map([['files.uploadStart', stub]]);
-    const before = standInUses();
-    const merged = withStandIns(map, { trackFMerged: true });
-    expect(merged.get('files.uploadStart')).toBe(stub);
-    await expect((merged.get('files.uploadStart') as ServerEntry).call(input, ctx())).rejects.toMatchObject({ details: { reason: 'not_built' } });
-    expect(standInUses()).toBe(before);
-    // The default reads the same marker as the "until" lines of db-mode.skip.ts.
-    const effects = existsSync(new URL('../files/effects.ts', import.meta.url));
-    expect(withStandIns(map).get('files.uploadStart') === stub).toBe(effects);
-  });
-
-  it('keeps the answer and every other refusal of a real step', async () => {
-    const real = withStandIns(new Map([['files.uploadStart', start(async () => ({ output: { real: true }, changed: false }))]])).get('files.uploadStart') as ServerEntry;
-    expect((await real.call(input, ctx())).output).toEqual({ real: true });
-    const refusing = withStandIns(new Map([['files.uploadStart', start(async () => {
-      throw new ApiError('forbidden', 'No.');
-    })]])).get('files.uploadStart') as ServerEntry;
-    const before = standInUses();
-    await expect(refusing.call(input, ctx())).rejects.toMatchObject({ code: 'forbidden' });
-    expect(standInUses()).toBe(before);
-  });
-
-  it('confirms only an upload of the same person whose file arrived whole', async () => {
-    const stub = start(async () => {
-      throw new ApiError('failed', 'not built', { reason: 'not_built' });
-    });
-    const call = (withStandIns(new Map([['files.uploadStart', stub]]), { trackFMerged: false }).get('files.uploadStart') as ServerEntry).call;
-    const c = ctx();
-    const { output } = await call(input, c);
-    const { uploadId, put } = output as { uploadId: string; put: { url: string } };
-    const hooksEntry: CallEntry = {
-      kind: 'shared', name: 'files.upload', def: {} as never, input: {} as never, readOnly: false,
-      hooks: {
-        preflight: async () => { throw new ApiError('failed', 'not built', { reason: 'not_built' }); },
-        prepare: async () => { throw new ApiError('failed', 'not built', { reason: 'not_built' }); },
-      },
-    };
-    const hooks = (withStandIns(new Map([['files.upload', hooksEntry]]), { trackFMerged: false }).get('files.upload') as Extract<CallEntry, { kind: 'shared' }>).hooks!;
-    const hookCtx = { actorId: 'usr_002', now: new Date(), deps: c.deps };
-    await expect(hooks.preflight!({ uploadId }, hookCtx)).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['uploadId'] } });
-    browserPut(c.deps.files as FakeFiles, put.url, new Blob(['abc'], { type: 'application/pdf' }));
-    await expect(hooks.preflight!({ uploadId }, { ...hookCtx, actorId: 'usr_003' })).rejects.toMatchObject({ code: 'invalid_input' });
-    const prepared = await hooks.preflight!({ uploadId }, hookCtx);
-    expect(prepared).toMatchObject({ size: 3, mimeType: 'application/pdf' });
-    expect(await hooks.prepare!({ uploadId }, { ...hookCtx, q: (async () => []) as never }, prepared)).toBe(prepared);
   });
 });

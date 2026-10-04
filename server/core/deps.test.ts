@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildDeps, configFromEnv, consoleLogger, DEFAULT_LOCK_KEY, HEALTH_LOCK_KEY, MissingConfigError, serverEnvFrom } from './deps';
 
@@ -187,5 +188,19 @@ describe('the real Deps from the environment', () => {
       { level: 'warn', message: 'slow lock', ms: 600 },
       { level: 'error', message: 'call failed' },
     ]);
+  });
+});
+
+describe('the entry modules of deps.ts (P1, N2 follow-ups)', () => {
+  const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+  it('loads the effect modules of every entry itself: auth, files and mail, and the mail driver loads none', () => {
+    const deps = source('./deps.ts');
+    for (const module of ['../auth/effects', '../files/effects', '../mail/effects']) expect(deps).toContain(`import '${module}';`);
+    expect(source('../mail/outboxDriver.ts')).not.toMatch(/^import '\.\/effects';/m);
+  });
+
+  it('names AUTH_ISSUER in the list of values of its header comment (server/auth/verify.ts reads it)', () => {
+    expect(source('./deps.ts')).toMatch(/^ \*   AUTH_ISSUER {2,}\S/m);
   });
 });

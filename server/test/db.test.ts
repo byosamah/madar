@@ -170,7 +170,7 @@ describe('the worker of the db harness', () => {
       const files = readdirSync(stats);
       expect(files).toHaveLength(1);
       expect(files[0]).toMatch(/^madar_w\d+-[0-9a-f-]+\.json$/);
-      expect(JSON.parse(readFileSync(join(stats, files[0]), 'utf8'))).toEqual({ n: 0, ms: 0, standIns: 0 });
+      expect(JSON.parse(readFileSync(join(stats, files[0]), 'utf8'))).toEqual({ n: 0, ms: 0 });
       const without = new Worker({ provided, open: async (w) => fakeSession({ schema: w.schema }) });
       await without.begin();
       await without.close();

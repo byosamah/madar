@@ -97,12 +97,14 @@ describe('the schemas of the db-mode workers', () => {
 
 describe('the speed gate of the db job (TM 4.1, plan 7.2: 120 s, 25 ms a call)', () => {
   it('adds up the calls of every file into one line with the average and the run time', () => {
-    const verdict = speedGate([{ n: 100, ms: 1_000 }, { n: 300, ms: 3_000, standIns: 2 }], 60_000, { ci: true });
+    const verdict = speedGate([{ n: 100, ms: 1_000 }, { n: 300, ms: 3_000 }], 60_000, { ci: true });
     expect(verdict.failure).toBeUndefined();
     expect(verdict.line).toMatch(/400 calls/);
     expect(verdict.line).toMatch(/10\.0 ms a call/);
     expect(verdict.line).toMatch(/60 s/);
-    expect(verdict.line).toMatch(/2 upload steps ran on the stand-ins/);
+    // Track F has merged, so every upload step runs for real and the line names no stand-in (task D, follow-up of the F merge).
+    expect(verdict.line).not.toMatch(/stand-in/);
+    expect(verdict.line).toBe('db mode: 400 calls, 10.0 ms a call in runCall, the run took 60 s.');
   });
 
   it('fails in CI when a call takes more than 25 ms on average, or the run more than 120 s', () => {
@@ -128,9 +130,9 @@ describe('the speed gate of the db job (TM 4.1, plan 7.2: 120 s, 25 ms a call)',
     const dir = mkdtempSync(join(tmpdir(), 'madar-stats-test-'));
     try {
       writeFileSync(join(dir, 'madar_w1-a.json'), JSON.stringify({ n: 3, ms: 30 }));
-      writeFileSync(join(dir, 'madar_w2-b.json'), JSON.stringify({ n: 1, ms: 5, standIns: 1 }));
+      writeFileSync(join(dir, 'madar_w2-b.json'), JSON.stringify({ n: 1, ms: 5 }));
       writeFileSync(join(dir, 'notes.txt'), 'not a stats file');
-      expect(readWorkerStats(dir).sort((a, b) => a.n - b.n)).toEqual([{ n: 1, ms: 5, standIns: 1 }, { n: 3, ms: 30 }]);
+      expect(readWorkerStats(dir).sort((a, b) => a.n - b.n)).toEqual([{ n: 1, ms: 5 }, { n: 3, ms: 30 }]);
       expect(() => writeFileSync(join(dir, 'madar_w3-c.json'), '{"n":"x"}')).not.toThrow();
       expect(() => readWorkerStats(dir)).toThrow(/madar_w3-c\.json/);
     } finally {

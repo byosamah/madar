@@ -7,7 +7,8 @@ import { processOutbox } from '../core/effects';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
 import { NOTICE_EFFECT, QUOTA_WARNING_EFFECT, sendNoticeMail } from '../mail/notices';
-// The outbox driver loads the mail effects for its side effect, as server/core/deps.ts does for the entries.
+// It registers the mail effects (the mail.notice producers and handlers), as server/core/deps.ts does for the entries.
+import '../mail/effects';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { buildSummary, sendSummary, summaryPeople } from '../mail/summary';
 import { NOW, TODAY, newBatch, startOffice, type ItOffice } from './runCallOffice';
