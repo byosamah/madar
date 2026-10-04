@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import pg from 'pg';
 import type { PoolClient } from 'pg';
 import { afterAll, afterEach, beforeEach, inject, vi, type TestContext } from 'vitest';
@@ -16,7 +19,7 @@ import { localClient } from '../it/migrate';
 import { skipReason } from './db-mode.skip';
 import { createDbApi, type MirrorBackend } from './dbApi';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
-import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb } from './global-setup';
+import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb, type WorkerStats } from './global-setup';
 import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
 import { standInUses } from './uploads';
 
@@ -215,7 +218,7 @@ export class Worker {
   #open = false;
   #sumSql?: string;
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
-  /** How many calls ran on the database in this file, and their time in ms, for the gate of TM 4.1 (25 ms a call). */
+  /** How many calls ran on the database in this file, and their time in ms, for the speed gate of TM 4.1 (25 ms a call). */
   #calls = { n: 0, ms: 0 };
   /** The stand-in count of the worker when this file started, so the report counts this file only. */
   readonly #standInsAtStart = standInUses();
@@ -356,16 +359,14 @@ export class Worker {
     }
   }
 
-  /** The leak guard (TM 5, point 4): no row of any test is left. Then the connection closes. */
+  /**
+   * The leak guard (TM 5, point 4): no row of any test is left. Then the connection closes, and the file's call count and time go
+   * into the run folder, where the global teardown adds them up for the speed gate (speedGate of global-setup.ts).
+   */
   async close(): Promise<void> {
     const session = this.#session;
     if (!session) return;
-    const { n, ms } = this.#calls;
-    const standIns = standInUses() - this.#standInsAtStart;
-    console.info(
-      `db mode: ${n} calls on the database in ${this.schema}, ${n > 0 ? (ms / n).toFixed(1) : 0} ms a call in runCall.`
-        + (standIns > 0 ? ` ${standIns} upload steps ran on the stand-ins of server/test/uploads.ts, until track F merges.` : ''),
-    );
+    const stats: WorkerStats = { ...this.#calls, standIns: standInUses() - this.#standInsAtStart };
     try {
       await this.rollback();
       if ((await this.checksum()) !== session.baseline) {
@@ -374,6 +375,7 @@ export class Worker {
     } finally {
       this.#session = undefined;
       await session.close();
+      if (this.provided?.stats) writeFileSync(join(this.provided.stats, `${this.schema}-${randomUUID()}.json`), JSON.stringify(stats));
     }
   }
 }
@@ -386,8 +388,8 @@ function fullName(task: TestContext['task']): string {
 }
 
 if (process.env.MADAR_DB === '1') {
-  // A call on the database takes far longer than in memory, and the sample-office tests make many. D2 brings the run under the
-  // gate of TM 4.1 (120 s, 25 ms a call); this limit only keeps a slow machine from failing a test that is right.
+  // A call on the database takes far longer than in memory, and the sample-office tests make many. The speed gate of TM 4.1
+  // (120 s, 25 ms a call) is in the global teardown (speedGate); this limit only keeps a slow machine from failing a test that is right.
   vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
   const worker = new Worker();
   const gate = createGate();

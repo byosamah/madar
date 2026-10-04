@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { harnessDbUrl, prepareSchemas, workerBaseline, workerLockKey, workerSchema } from './global-setup';
+import { harnessDbUrl, prepareSchemas, readWorkerStats, speedGate, workerBaseline, workerLockKey, workerSchema } from './global-setup';
 
 const SUPABASE = 'postgresql://postgres.qdgwpnesxppnqsaabqzd:secret@aws-0-eu-central-1.pooler.supabase.com:6543/postgres';
 
@@ -88,6 +91,50 @@ describe('the schemas of the db-mode workers', () => {
       expect(client.sql).toContain('drop schema if exists madar_w3 cascade');
       expect(client.sql.find((text) => text.includes('md5('))).toContain('from madar_w3.office_meta t');
       expect(client.sql.at(-1)).toBe(`comment on schema madar_w3 is 'madar run abc baseline ${sum}'`);
+    }
+  });
+});
+
+describe('the speed gate of the db job (TM 4.1, plan 7.2: 120 s, 25 ms a call)', () => {
+  it('adds up the calls of every file into one line with the average and the run time', () => {
+    const verdict = speedGate([{ n: 100, ms: 1_000 }, { n: 300, ms: 3_000, standIns: 2 }], 60_000, { ci: true });
+    expect(verdict.failure).toBeUndefined();
+    expect(verdict.line).toMatch(/400 calls/);
+    expect(verdict.line).toMatch(/10\.0 ms a call/);
+    expect(verdict.line).toMatch(/60 s/);
+    expect(verdict.line).toMatch(/2 upload steps ran on the stand-ins/);
+  });
+
+  it('fails in CI when a call takes more than 25 ms on average, or the run more than 120 s', () => {
+    expect(speedGate([{ n: 10, ms: 260 }], 1_000, { ci: true }).failure).toMatch(/26\.0 ms a call.*25 ms/);
+    expect(speedGate([{ n: 10, ms: 250 }], 1_000, { ci: true }).failure).toBeUndefined();
+    expect(speedGate([{ n: 10, ms: 10 }], 121_000, { ci: true }).failure).toMatch(/121 s.*120 s/);
+    expect(speedGate([{ n: 10, ms: 10 }], 120_000, { ci: true }).failure).toBeUndefined();
+  });
+
+  it('only warns off CI, where the load of other work on the Mac can slow a run that is right', () => {
+    const verdict = speedGate([{ n: 10, ms: 400 }], 200_000, { ci: false });
+    expect(verdict.failure).toBeUndefined();
+    expect(verdict.line).toMatch(/over the gate/);
+  });
+
+  it('passes a run with no call', () => {
+    const verdict = speedGate([], 5_000, { ci: true });
+    expect(verdict.failure).toBeUndefined();
+    expect(verdict.line).toMatch(/0 calls, 0\.0 ms a call/);
+  });
+
+  it('reads the stats file of each worker file in the run folder, and nothing else', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'madar-stats-test-'));
+    try {
+      writeFileSync(join(dir, 'madar_w1-a.json'), JSON.stringify({ n: 3, ms: 30 }));
+      writeFileSync(join(dir, 'madar_w2-b.json'), JSON.stringify({ n: 1, ms: 5, standIns: 1 }));
+      writeFileSync(join(dir, 'notes.txt'), 'not a stats file');
+      expect(readWorkerStats(dir).sort((a, b) => a.n - b.n)).toEqual([{ n: 1, ms: 5, standIns: 1 }, { n: 3, ms: 30 }]);
+      expect(() => writeFileSync(join(dir, 'madar_w3-c.json'), '{"n":"x"}')).not.toThrow();
+      expect(() => readWorkerStats(dir)).toThrow(/madar_w3-c\.json/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

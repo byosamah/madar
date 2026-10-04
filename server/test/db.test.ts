@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Event } from '../../src/api/contract/entities';
 import { makeTask, makeWorld, STAMP } from '../../src/test/factories';
@@ -157,6 +159,25 @@ describe('the worker of the db harness', () => {
     expect(worker.deps.files.objects.size).toBe(0);
     expect(worker.deps.mail.sent).toEqual([]);
     await worker.close();
+  });
+
+  it('writes its call count and time into the run folder of the global setup when it closes, for the speed gate', async () => {
+    const stats = mkdtempSync(join(tmpdir(), 'madar-worker-stats-'));
+    try {
+      const worker = new Worker({ provided: { ...provided, stats }, open: async (w) => fakeSession({ schema: w.schema }) });
+      await worker.begin();
+      await worker.close();
+      const files = readdirSync(stats);
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatch(/^madar_w\d+-[0-9a-f-]+\.json$/);
+      expect(JSON.parse(readFileSync(join(stats, files[0]), 'utf8'))).toEqual({ n: 0, ms: 0, standIns: 0 });
+      const without = new Worker({ provided, open: async (w) => fakeSession({ schema: w.schema }) });
+      await without.begin();
+      await without.close();
+      expect(readdirSync(stats)).toHaveLength(1);
+    } finally {
+      rmSync(stats, { recursive: true, force: true });
+    }
   });
 
   it('refuses a connection whose search_path did not take, as through the pooler, and names the direct port', async () => {

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import { LOCAL_DB_URL, applyMigrations, localClient } from '../it/migrate';
 import { checksumOf } from './invariants';
@@ -17,8 +20,11 @@ import { checksumOf } from './invariants';
  * right on madar_server; the setup grants it and the teardown takes it back.
  */
 
-/** run: the id of this test run, so a worker can tell a schema an earlier file of the same run made from a schema of another run. */
-export type ProvidedDb = { url: string; baselines: Record<string, string>; run: string };
+/**
+ * run: the id of this test run, so a worker can tell a schema an earlier file of the same run made from a schema of another run.
+ * stats: the run folder, where each test file writes its call count and time for the speed gate (WorkerStats).
+ */
+export type ProvidedDb = { url: string; baselines: Record<string, string>; run: string; stats?: string };
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -108,6 +114,45 @@ export async function workerBaseline(client: SqlClient, schema: string, provided
   return sum;
 }
 
+/** What one test file of a worker writes into the run folder when it closes (server/test/db.ts). */
+export type WorkerStats = { n: number; ms: number; standIns?: number };
+
+/** The gate of TM 4.1 and plan 7.2: the db job fails when the run takes more than 120 s, or a call more than 25 ms on average. */
+const GATE_RUN_MS = 120_000;
+const GATE_CALL_MS = 25;
+
+/** Every stats file of the run folder. A file that does not hold the numbers fails the run, so the gate never reads a partial sum. */
+export function readWorkerStats(dir: string): WorkerStats[] {
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => {
+      const stats = JSON.parse(readFileSync(join(dir, name), 'utf8')) as WorkerStats;
+      if (typeof stats.n !== 'number' || typeof stats.ms !== 'number') throw new Error(`db mode: the stats file ${name} does not hold the numbers n and ms.`);
+      return stats;
+    });
+}
+
+/**
+ * The one line of the speed gate, from the stats of every test file and the time of the whole run. In CI a run over the gate
+ * fails. On the shared Mac it only warns: the load of the other tracks' work there can slow a run that is right.
+ */
+export function speedGate(stats: readonly WorkerStats[], runMs: number, o: { ci: boolean }): { line: string; failure?: string } {
+  const n = stats.reduce((sum, one) => sum + one.n, 0);
+  const ms = stats.reduce((sum, one) => sum + one.ms, 0);
+  const standIns = stats.reduce((sum, one) => sum + (one.standIns ?? 0), 0);
+  const perCall = n > 0 ? ms / n : 0;
+  const seconds = Math.round(runMs / 1000);
+  const over = [
+    perCall > GATE_CALL_MS ? `${perCall.toFixed(1)} ms a call is over the gate of ${GATE_CALL_MS} ms` : '',
+    runMs > GATE_RUN_MS ? `the run of ${seconds} s is over the gate of ${GATE_RUN_MS / 1000} s` : '',
+  ].filter(Boolean);
+  let line = `db mode: ${n} calls, ${perCall.toFixed(1)} ms a call in runCall, the run took ${seconds} s.`;
+  if (standIns > 0) line += ` ${standIns} upload steps ran on the stand-ins of server/test/uploads.ts, until track F merges.`;
+  if (over.length === 0) return { line };
+  const failure = `db mode, speed gate (TM 4.1): ${over.join('; ')}.`;
+  return o.ci ? { line, failure } : { line: `${line} Warning, over the gate (only CI fails on it): ${over.join('; ')}.` };
+}
+
 export async function prepareSchemas(o: {
   env: Env;
   workers: number;
@@ -137,11 +182,25 @@ export async function prepareSchemas(o: {
 }
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+  const started = performance.now();
   const workers = Number(project.config.maxWorkers) || 1;
   const prepared = await prepareSchemas({ env: process.env, workers, connect: (url) => localClient(url) });
-  project.provide('madarDb', { url: prepared.url, baselines: prepared.baselines, run: prepared.run });
+  const stats = mkdtempSync(join(tmpdir(), 'madar-db-stats-'));
+  project.provide('madarDb', { url: prepared.url, baselines: prepared.baselines, run: prepared.run, stats });
   return async () => {
     const { client } = prepared;
+    // Vitest shows the output of the global setup also in a plain run, so the line of the speed gate shows in CI.
+    // A stats file that does not read fails the run, but only after the schemas went.
+    let gate: ReturnType<typeof speedGate> | undefined;
+    let unread: unknown;
+    try {
+      gate = speedGate(readWorkerStats(stats), performance.now() - started, { ci: Boolean(process.env.CI) });
+      console.info(gate.line);
+    } catch (error) {
+      unread = error;
+    } finally {
+      rmSync(stats, { recursive: true, force: true });
+    }
     try {
       if (prepared.granted) await client.query('revoke madar_server from current_user');
       // A connection that a broken test left open may hold a lock on its schema: wait a little, then say so.
@@ -154,5 +213,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
     } finally {
       await client.end();
     }
+    if (unread) throw unread;
+    if (gate?.failure) throw new Error(gate.failure);
   };
 }
