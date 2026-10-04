@@ -41,6 +41,9 @@ on conflict (utc_day, ref) do nothing returning id`;
 /** $1 day. The emails of the day, as Resend counts them (the usage meter reads this too). */
 export const SENT_TODAY_SQL = `select count(*)::integer as n from mail_log where utc_day = ${DAY} and ${SENDING}`;
 
+/** $1 ref. The place of a mail that has no Resend id. */
+export const RELEASE_SQL = `delete from mail_log where ref = $1 and resend_id is null and ${SENDING}`;
+
 /** $1 day, $2 ref, $3 Resend id. */
 export const RECORD_SENT_SQL = 'update mail_log set resend_id = $3 where utc_day = $1::date and ref = $2';
 
@@ -57,6 +60,14 @@ export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOpti
   await q(MAIL_LOCK_SQL, [...MAIL_LOCK_KEY]);
   const [row] = await q<{ ok: boolean }>(RESERVE_SQL, [dayOf(o), kind, o.userId ?? null, ref, QUOTA_LIMITS[kind]]);
   return row?.ok ? 'ok' : 'over';
+}
+
+/**
+ * Gives back the place of a mail that never went out. Only a caller that knows that no attempt sent the mail calls it: a mail
+ * that went out but whose Resend id is not recorded yet also has no Resend id, and its place must stay.
+ */
+export async function release(q: Query, ref: string): Promise<void> {
+  await q(RELEASE_SQL, [ref]);
 }
 
 /** True only for the first call of a day: the caller then sends the one quota warning to each Admin. */

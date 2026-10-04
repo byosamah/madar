@@ -1,6 +1,6 @@
 import type { Db, Query } from '../core/ports';
 import { CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, WAIT_SQL } from '../core/effects';
-import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RESERVE_SQL } from './quota';
+import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RELEASE_SQL, RESERVE_SQL } from './quota';
 
 /**
  * A small database in memory for the mail unit tests (task N2.2): the quota statements of quota.ts, the outbox statements of
@@ -35,6 +35,11 @@ export function memoryMailDb(answer: Answer = () => undefined) {
       if (log.some((r) => r.utc_day === day && r.ref === 'quota-refused')) return [];
       log.push({ utc_day: day, kind: 'refused', user_id: null, ref: 'quota-refused', resend_id: null });
       return [{ id: log.length }];
+    }
+    if (text === RELEASE_SQL) {
+      const ref = values[0] as string;
+      log = log.filter((r) => !(r.ref === ref && r.resend_id === null && SENDING.includes(r.kind)));
+      return [];
     }
     if (text === RECORD_SENT_SQL) {
       const [day, ref, id] = values as [string, string, string];

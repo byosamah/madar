@@ -4,7 +4,7 @@ import type { OutboxRow } from '../core/effects';
 import { takeOfficeLock } from '../core/lock';
 import type { AuthAdminPort, Deps } from '../core/ports';
 import { setAuthUserId } from '../data/officeCache';
-import { QuotaFull, reserve, sendCounted } from '../mail/quota';
+import { QuotaFull, release, reserve, sendCounted } from '../mail/quota';
 import { isEmailExists } from './admin';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey } from './rateLimit';
@@ -49,7 +49,9 @@ import { hashedKey } from './rateLimit';
  * reserves the place of its row under the office lock before it writes the row (renewRow, counted: true marks a renewal);
  * the reserve here takes only the mail lock, in a transaction of its own, so the lock order stays office lock, then mail lock.
  * A row with no link gives way to a later auth.invite row of the same person (laterInvite): on a full day the Admin can
- * resend up to 5 times, and on the next day only the last row takes a place and sends.
+ * resend up to 5 times, and on the next day only the last row takes a place and sends. A row that never made a link and sends
+ * nothing gives its place back (release), so a renewal that gives way frees the place that the renew route reserved for it. A
+ * row with a stored link keeps its place: an earlier attempt may have sent its mail.
  */
 
 export const INVITE_KIND = 'auth.invite';
@@ -202,10 +204,15 @@ export async function sendInvitation(
   const payload = parsed.data;
   const store = o.store ?? sqlInviteStore(deps);
   if (payload.sentAt) return 'already';
+  /** A row that ends with no mail: with no stored link, no attempt sent a mail, so its place goes back to the day. */
+  const skip = async (): Promise<'skipped'> => {
+    if (!payload.tokenHash) await release((text, values) => deps.db.statement('write', text, values), mailKey(payload.inviteId));
+    return 'skipped';
+  };
   const person = await store.person(payload.userId);
   if (!person || person.user.kind !== 'human' || !person.user.active) {
     deps.log.info('An invitation was not sent: the person is turned off, an agent, or gone.', { userId: payload.userId });
-    return 'skipped';
+    return skip();
   }
   let link: SigninLink;
   /** The renew key that an earlier attempt kept with the stored link. */
@@ -222,7 +229,7 @@ export async function sendInvitation(
     // this one would take a place for a link that the later one kills (on the day after a full day, when places are tight).
     if (await store.laterInvite(payload.userId, payload.inviteId)) {
       deps.log.info('An invitation was not sent: a later invitation of the person sends the newest mail.', { userId: payload.userId });
-      return 'skipped';
+      return skip();
     }
     // The place in today's quota first: a full day makes no link (above).
     const now = deps.clock.now();
@@ -235,7 +242,7 @@ export async function sendInvitation(
     if (!again || !again.user.active) {
       await deps.authAdmin.setBanned(link.authUserId, true);
       deps.log.info('An invitation was not sent: the person was turned off while the link was made.', { userId: payload.userId });
-      return 'skipped';
+      return skip();
     }
   }
   const { user } = person;

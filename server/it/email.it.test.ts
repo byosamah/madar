@@ -7,6 +7,7 @@ import { processOutbox } from '../core/effects';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
 import { NOTICE_EFFECT, QUOTA_WARNING_EFFECT, sendNoticeMail } from '../mail/notices';
+import { release } from '../mail/quota';
 // It registers the mail effects (the mail.notice producers and handlers), as server/core/deps.ts does for the entries.
 import '../mail/effects';
 import { outboxMailPort } from '../mail/outboxDriver';
@@ -126,6 +127,20 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     expect(await mails()).toEqual([]);
     // Lina's in-app switch goes back on for the next tests.
     okOf(await call(lina.id, 'notifications.updateSettings', { trigger: 'task_assigned', on: true }));
+  });
+
+  it('gives back only the place of a mail with no Resend id, as madar_server (wave 6 follow-up, release)', async () => {
+    const day = NOW.toISOString().slice(0, 10);
+    await office.sql(
+      "insert into mail_log (utc_day, kind, ref, resend_id) values ($1::date, 'signin', 'invite:inv_free', null), " +
+      "($1::date, 'signin', 'invite:inv_sent', 're_1'), ($1::date, 'signin', 'invite:inv_other', null), ($1::date, 'refused', 'quota-refused', null)",
+      [day],
+    );
+    await release((text, values) => deps.db.statement('write', text, values), 'invite:inv_free');
+    await release((text, values) => deps.db.statement('write', text, values), 'invite:inv_sent');
+    await release((text, values) => deps.db.statement('write', text, values), 'quota-refused');
+    expect((await office.sql<{ ref: string }>('select ref from mail_log order by ref')).map((r) => r.ref))
+      .toEqual(['invite:inv_other', 'invite:inv_sent', 'quota-refused']);
   });
 
   it('keeps notice 91 of the UTC day in the app and sends one warning to each Admin, once', async () => {

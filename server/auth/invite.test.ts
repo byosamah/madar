@@ -265,6 +265,39 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`)).toHaveLength(1);
   });
 
+  it('a row with no link that sends nothing gives back the place that the renew route reserved for it (wave 6 follow-up)', async () => {
+    const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    const day = deps.clock.now().toISOString().slice(0, 10);
+    const place = (row: { payload: Record<string, unknown> }) => {
+      db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `invite:${row.payload.inviteId}`, resend_id: null });
+    };
+    const places = () => db.log.filter((r) => r.ref.startsWith('invite:')).map((r) => r.ref);
+    // A renewal waits; then the Admin sends the invitation again. The renewal gives way and frees its place for the later row.
+    const renewal = mem.queue(renewRow('usr_012'));
+    place(renewal);
+    const later = mem.queue(inviteRow('usr_012'));
+    expect(await sendInvitation(payloadOf(renewal), deps, { store: mem.store })).toBe('skipped');
+    expect(places()).toEqual([]);
+    expect(await sendInvitation(payloadOf(later), deps, { store: mem.store })).toBe('sent');
+    expect(places()).toEqual([`invite:${later.payload.inviteId}`]);
+    // A renewal of a person who was turned off also frees its place.
+    const off = mem.queue(renewRow('usr_012'));
+    place(off);
+    mem.byId.get('usr_012')!.user.active = false;
+    expect(await sendInvitation(payloadOf(off), deps, { store: mem.store })).toBe('skipped');
+    expect(places()).toEqual([`invite:${later.payload.inviteId}`]);
+  });
+
+  it('a row with a stored link that sends nothing keeps its place, because an earlier attempt may have sent its mail', async () => {
+    const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    const row = mem.queue(inviteRow('usr_012'));
+    deps.mail.failNext(new Error('Resend is down'));
+    await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
+    mem.replaced.add(String(row.payload.inviteId));
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('skipped');
+    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`)).toHaveLength(1);
+  });
+
   it('writes the mail in Arabic, with the feminine forms, for an Arabic woman', async () => {
     const { deps, mem, payloadOf } = setup([{ user: person({ name: 'سارة', gender: 'female', preferences: { ...defaultPreferences(), language: 'ar' } }), authUserId: null }]);
     await sendInvitation(payloadOf(inviteRow('usr_012')), deps, { store: mem.store });
