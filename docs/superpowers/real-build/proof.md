@@ -230,6 +230,59 @@ Pending the owner address. Resend sends only to the account owner's address unti
 
 Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files on Supabase Storage now. `scripts/storage/move-to-r2.ts` and the R2 smoke run when R2 is on.
 
+## N1.0 Realtime rollback spike (local stack)
+
+**Result: PASS.** A `realtime.send` inside a transaction that rolls back sends nothing. A `realtime.send` inside a transaction that commits arrives once on a private channel. The design of plan section 5.3 (send from SQL inside the save transaction) stands. No design change.
+
+**Where and when.** 2026-10-03, branch `rb/N1`, local stack from `supabase start -x edge-runtime` (until track E merges; see fact 7) (CLI 2.119.0, image `supabase/realtime:v2.140.3`, `supabase/postgres:17.11.0.002`), after `supabase db reset`, under the Docker lock (holder `N1.0`). Rerun after the review fixes under the lock holder `N1-repair`, with the same images; the output below is that rerun.
+
+**Script.** `scripts/proof/realtime-rollback.ts`, run with `npx tsx scripts/proof/realtime-rollback.ts`. Its verdict step `judge()` has 15 unit tests in `scripts/proof/realtime-rollback.test.ts` (in `npm test`). The script:
+
+1. Creates two confirmed people through the Auth admin API: a member and a stranger.
+2. Adds a select policy on `realtime.messages` for the run's own topic, for `extension = 'broadcast'`, and only for the member (`auth.uid()`). No insert policy. This is the shape of the section 5.3 policies.
+3. Signs the member in, calls `realtime.setAuth(token)`, and joins the topic with `{ private: true }`.
+4. Sends four marks from `pg` as `postgres`, each in its own transaction, in this order: commit, rollback, an error (`select 1 / 0`) that forces the rollback, commit. The last commit proves that the listener was still alive after the two rollbacks. Inside each transaction, before its end, it counts the row of the mark in `realtime.messages`. `realtime.send` turns a failed insert into a warning (fact 1), so this count proves that each send worked, also the sends that rolled back.
+5. Waits 4 seconds, then counts the arrivals of each mark and the rows of each mark in `realtime.messages`.
+6. Removes the policy, the two people and the channels.
+
+**Output of the run** (the run id is random):
+
+```
+member join on the private channel n1-spike-b914fd71: joined
+join with no session on the same private channel: refused (Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71)
+join of a signed-in person whom the policy does not name: refused (Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71)
+received in order: b914fd71-commit-1, b914fd71-commit-2
+ok: the send of mark b914fd71-commit-1 inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-commit-2 inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-rollback inserted 1 row(s) before its commit or rollback; expected 1.
+ok: the send of mark b914fd71-error inserted 1 row(s) before its commit or rollback; expected 1.
+ok: committed mark b914fd71-commit-1 arrived 1 time(s) on the channel; expected 1.
+ok: committed mark b914fd71-commit-2 arrived 1 time(s) on the channel; expected 1.
+ok: rolled-back mark b914fd71-rollback arrived 0 time(s) on the channel; expected 0.
+ok: rolled-back mark b914fd71-error arrived 0 time(s) on the channel; expected 0.
+ok: committed mark b914fd71-commit-1 has 1 row(s) in realtime.messages; expected 1.
+ok: committed mark b914fd71-commit-2 has 1 row(s) in realtime.messages; expected 1.
+ok: rolled-back mark b914fd71-rollback has 0 row(s) in realtime.messages; expected 0.
+ok: rolled-back mark b914fd71-error has 0 row(s) in realtime.messages; expected 0.
+ok: a client with no session could not join the private channel (server: Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71).
+ok: a signed-in person whom the policy does not name could not join the private channel (server: Unauthorized: You do not have permissions to read from this Channel topic: n1-spike-b914fd71).
+PASS
+```
+
+The two refusals are the control. `judge()` counts a refusal only when the server reason is an authorization refusal (`Unauthorized` or `permission`), so a socket drop or a bad token cannot pass for the policy. They show that the policy, not chance, lets the member join. So the member's arrivals are a valid measure.
+
+**Facts for N1.1 and R2** (read from the local stack, `realtime.send` source and `pg_inherits`):
+
+1. `realtime.send` wraps its insert in `BEGIN ... EXCEPTION WHEN OTHERS THEN RAISE WARNING 'WarnSendingBroadcastMessage: %'`. A failed send never fails the save transaction; it gives only a warning. This confirms risk 12 of section 9. The sender in N1.1 should read the Postgres notices (or check the inserted row) if it must count failed sends.
+2. The exception block makes a subtransaction for each call. One save sends 1 office signal plus 1 signal per person channel, so the cost stays small.
+3. `realtime.send` keeps a payload `id` when the payload has one, and adds a random one when it has none. Madar's signal carries its own `id` (change 13), so the client can drop a signal it already applied by that `id`.
+4. `realtime.send` runs `SET LOCAL realtime.topic` for the rest of the transaction. This has no effect on the Madar tables.
+5. The Realtime service made the daily partitions of `realtime.messages` ahead of time (2026-10-02 to 2026-10-06 on 2026-10-03 UTC), before any client joined. A send with no listener stored its row. On the hosted project, Z0a checks the same thing (PF 4.1 says a WebSocket client makes the partition).
+6. `config.toml` turns the Data API off, so `supabase status -o env` prints no `API_URL`. Kong still serves Auth and Realtime at `http://127.0.0.1:54321`. The script falls back to that address. The D and it harnesses need the same fallback.
+7. `supabase start` stops with `failed to read file: open supabase/functions/api/index.ts` until track E writes the function entries, because `config.toml` declares `[functions.api|mcp|jobs]`. Until E merges, start the stack with `supabase start -x edge-runtime`.
+
+**Not covered here.** The hosted project (`madar-test`) runs the same check by SQL in Z0a. The `office` and `person:<id>` policies with `madar_private.current_madar_user_id()` come in N1.1, after B and C3.
+
 ## C1. Diff writer, whole read and write, and `pgDb` on both hosts (2026-10-04)
 
 **Result: PASS.** The save step and `pgDb` work on the local stack as `madar_server`, and the Workers entry runs `deps.db` through the Hyperdrive binding `DB` on `wrangler dev`: requests in a row and at the same time all answer 200.

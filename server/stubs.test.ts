@@ -8,7 +8,6 @@ import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
 import { outboxMailPort } from './mail/outboxDriver';
-import { realtimeSignalPort } from './signal/realtime';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
 import { meterPort } from './usage/meter';
@@ -54,10 +53,6 @@ describe('the registries', () => {
 });
 
 describe('the stubs', () => {
-  it('the signal sender refuses (the database is built: server/data/sql.test.ts; runCall is built: server/core/runCall.test.ts)', async () => {
-    await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
-  });
-
   it('the two file stores name their kind and limit (they are built: server/files/*.test.ts)', () => {
     const supabase = supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x', bucket: 'madar-files' });
     expect([supabase.kind, supabase.maxFileBytes]).toEqual(['supabase', 50 * 1024 * 1024]);
