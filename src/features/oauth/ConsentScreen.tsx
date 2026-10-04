@@ -99,7 +99,8 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   const [pending, setPending] = useState<'approve' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = request.clientName || t('consent.generic');
-  const host = hostOf(request.redirectUri) ?? request.redirectUri;
+  // The host is Latin text inside an Arabic sentence too: the isolate marks keep it one unit, apart from the words around it.
+  const host = `\u2068${hostOf(request.redirectUri) ?? request.redirectUri}\u2069`;
   const warn = needsWarning(request.redirectUri);
 
   const answer = async (choice: 'approve' | 'deny') => {

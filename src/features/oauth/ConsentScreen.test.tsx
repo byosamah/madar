@@ -88,7 +88,7 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
 
   it('warns about a redirect host that is not loopback and not a known AI app, and then offers no main button', async () => {
     const { container } = await open({ tools: tools({ redirectUri: UNKNOWN }) });
-    expect(await screen.findByText('Madar does not know evil.example. Approve only if you started this connection yourself, in an AI app you trust.')).toBeInTheDocument();
+    expect(await screen.findByText('Madar does not know \u2068evil.example\u2069. Approve only if you started this connection yourself, in an AI app you trust.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).not.toHaveClass('signature');
     expectCalm(container);
   });
@@ -106,7 +106,7 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
   it('says in plain words what the agent may do, who is signed in, and where the answer goes', async () => {
     await open({ tools: tools({ redirectUri: 'https://claude.ai/api/mcp/auth_callback' }) });
     expect(await screen.findByText('Signed in as Hala Nasser')).toBeInTheDocument();
-    expect(screen.getByText('After you answer, Madar sends you back to claude.ai.')).toBeInTheDocument();
+    expect(screen.getByText('After you answer, Madar sends you back to \u2068claude.ai\u2069.')).toBeInTheDocument();
     for (const line of [
       'acts with your rights, so it can see and change what you can',
       'shows its name and yours on each change, and you can undo its changes',
