@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { FileView } from '../../src/api/contract/views';
+import { LOCK_SQL } from '../core/lock';
 import type { FilesPort } from '../core/ports';
 import { runCall } from '../core/runCall';
-import type { Principal, RunResult } from '../core/types';
+import type { Principal, RunRequest, RunResult } from '../core/types';
 import { stagingKey } from '../files/keys';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { fakeFiles } from '../test/fakes/files';
@@ -52,7 +53,8 @@ let store: FilesPort;
 const signed: string[] = [];
 let leader = '';
 
-const call = (userId: string, name: string, input: unknown) => runCall(deps, { principal: principal(userId), name, input, batch: newBatch() });
+const call = (userId: string, name: string, input: unknown, more: Partial<RunRequest> = {}) =>
+  runCall(deps, { principal: principal(userId), name, input, batch: newBatch(), ...more });
 
 beforeAll(async () => {
   office = await startOffice('files');
@@ -145,6 +147,45 @@ describe('files on the local Supabase Storage, through runCall', () => {
     await expect(call(leader, 'files.upload', { projectId: 'prj_001', name: 'late-put.pdf', uploadId: begin.uploadId })).resolves.toMatchObject({ ok: false, error: { code: 'conflict' } });
   });
 
+  it('a retry after a busy lock and a second PUT confirms the first object: the check never copies onto the final key', async () => {
+    const begin = await start(leader, {});
+    expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 first')).status).toBe(200);
+    const holder = await office.client();
+    await holder.query('begin');
+    await holder.query(LOCK_SQL, [office.lockKey]);
+    try {
+      const busy = await call(leader, 'files.upload', { projectId: 'prj_001', name: 'busy.pdf', uploadId: begin.uploadId });
+      expect(busy).toMatchObject({ ok: false, error: { code: 'failed', details: { reason: 'busy' } } });
+    } finally {
+      await holder.query('rollback');
+      await holder.end();
+    }
+    const intent = await intentOf(begin.uploadId);
+    expect([await store.head(intent.staging_key), intent.used_at]).toEqual([null, null]);
+    // The staging key is empty again, so the same 2-hour link takes a second PUT; the final key holds the first object.
+    expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 other')).status).toBe(200);
+    const file = okOf<FileView>(await call(leader, 'files.upload', { projectId: 'prj_001', name: 'busy.pdf', uploadId: begin.uploadId }));
+    const link = okOf<{ url: string }>(await call(leader, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' }));
+    expect(await (await fetch(link.url)).text()).toBe('%PDF-1.4 first');
+    expect(await store.head(intent.staging_key)).toBeNull();
+  }, 60_000);
+
+  it('a retry of files.upload with the same key gets the stored answer and makes no second version; a new key gives conflict', async () => {
+    const begin = await start(leader, {});
+    await put(begin.put.url, begin.put.headers, '%PDF-1.4 first');
+    const input = { projectId: 'prj_001', name: 'keyed.pdf', uploadId: begin.uploadId };
+    const first = await call(leader, 'files.upload', input, { key: 'it-files-upload-1' });
+    const file = okOf<FileView>(first);
+    // The answer got lost: the Retry button sends the same entry with the same key, and a late PUT sits on the staging key.
+    expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 late!')).status).toBe(200);
+    const again = await call(leader, 'files.upload', input, { key: 'it-files-upload-1' });
+    expect(again).toEqual({ ok: true, output: file, storyId: first.ok ? first.storyId : '', changed: true });
+    const [row] = await office.sql<{ doc: { versions: unknown[] } }>('select doc from files where id = $1', [file.file.id]);
+    expect(row.doc.versions).toHaveLength(1);
+    expect(await call(leader, 'files.upload', input, { key: 'it-files-upload-2' })).toMatchObject({ ok: false, error: { code: 'conflict' } });
+    expect(await call(leader, 'files.upload', input)).toMatchObject({ ok: false, error: { code: 'conflict' } });
+  });
+
   it('refuses a PUT of text/html under an application/pdf intent, removes the object, and makes no version, so it never gets a link', async () => {
     const begin = await start(leader, {});
     expect((await put(begin.put.url, { 'Content-Type': 'text/html' }, '<html>x</html>')).status).toBe(200);
@@ -231,6 +272,19 @@ describe('feedback screenshots on the local Storage', () => {
     expect(await call('usr_005', 'feedback.screenshot', { id: report.id, index: 0 })).toMatchObject({ ok: false, error: { code: 'forbidden' } });
     expect(signed.length).toBe(before);
   });
+
+  it('a retry of feedback.send with the same key gets the stored answer and makes no second report; a new key gives conflict', async () => {
+    const begin = okOf<{ uploads: Start[] }>(await call('usr_005', 'feedback.uploadStart', { screenshots: [{ size: 8, mimeType: 'image/png' }] }));
+    const [upload] = begin.uploads;
+    await put(upload.put.url, upload.put.headers, 'png-shot');
+    const input = { kind: 'bug', message: 'A keyed report', uploadIds: [upload.uploadId] };
+    const first = await call('usr_005', 'feedback.send', input, { key: 'it-feedback-send-1' });
+    const report = okOf(first);
+    const reports = Number((await office.sql<{ n: string }>('select count(*) as n from feedback'))[0].n);
+    expect(await call('usr_005', 'feedback.send', input, { key: 'it-feedback-send-1' })).toEqual({ ok: true, output: report, storyId: first.ok ? first.storyId : '', changed: true });
+    expect(Number((await office.sql<{ n: string }>('select count(*) as n from feedback'))[0].n)).toBe(reports);
+    expect(await call('usr_005', 'feedback.send', input, { key: 'it-feedback-send-2' })).toMatchObject({ ok: false, error: { code: 'conflict' } });
+  });
 });
 
 describe('a project delete and its stored data', () => {
@@ -289,7 +343,7 @@ describe('a slow store never holds the office lock', () => {
     const task = await call(projectLeader, 'tasks.create', { projectId: 'prj_002', title: 'Made while a file waits' });
     const created = Date.now();
     expect(task.ok).toBe(true);
-    // The preflight waits in head twice (the staging object and its copy) before it asks for the lock.
+    // The preflight waits in head three times (the final key, the staging object and its copy) before it asks for the lock.
     expect(okOf<FileView>(await uploading).file.name).toBe('slow.pdf');
     expect(created).toBeLessThan(uploaded);
   }, 90_000);
