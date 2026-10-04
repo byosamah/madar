@@ -1,0 +1,433 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderMail > renders each notice trigger with its own subject in both languages > notice subjects ar 1`] = `
+{
+  "added_to_project": "أُضفت إلى مشروع",
+  "due_tomorrow": "موعد مهمتك في يوم العمل التالي",
+  "mention": "أشار إليك أحد الزملاء",
+  "overdue": "تجاوزت مهمتك موعدها",
+  "resume_due": "حلّ موعد استئناف مشروع متوقف",
+  "review_requested": "مهمة بانتظار مراجعتك",
+  "stage_changed": "تغيّرت مرحلة مشروعك",
+  "task_approved": "اعتُمدت مهمتك",
+  "task_assigned": "أُسندت إليك مهمة",
+  "task_sent_back": "أُعيدت مهمتك للتعديل",
+}
+`;
+
+exports[`renderMail > renders each notice trigger with its own subject in both languages > notice subjects en 1`] = `
+{
+  "added_to_project": "You are added to a project",
+  "due_tomorrow": "Your task is due the next working day",
+  "mention": "Someone mentioned you",
+  "overdue": "Your task is past due",
+  "resume_due": "A paused project reached its restart date",
+  "review_requested": "A task waits for your review",
+  "stage_changed": "The stage of your project changed",
+  "task_approved": "Your task is approved",
+  "task_assigned": "A task is assigned to you",
+  "task_sent_back": "Your task is sent back",
+}
+`;
+
+exports[`renderMail > renders invite in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huda invited you to Madar</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">Hello Sara,</p>
+<p style="margin:0 0 16px;">Huda added you to the office on Madar.</p>
+<p style="margin:0 0 16px;">Set your password to sign in.</p>
+<p style="margin:0 0 16px;">If the link no longer works, ask the Admin to send the invitation again.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set your password</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="color:#1c1b19;">https://madar.example/welcome?token_hash=abc&amp;type=invite</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">Madar sent this email. Do not reply to it.</p>
+</div>
+</body>
+</html>",
+  "subject": "Huda invited you to Madar",
+  "text": "Hello Sara,
+
+Huda added you to the office on Madar.
+
+Set your password to sign in.
+
+If the link no longer works, ask the Admin to send the invitation again.
+
+Set your password: https://madar.example/welcome?token_hash=abc&type=invite
+
+Madar sent this email. Do not reply to it.
+",
+}
+`;
+
+exports[`renderMail > renders invite in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huda دعتك إلى مدار</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">مرحبًا Sara،</p>
+<p style="margin:0 0 16px;">أضافتك Huda إلى المكتب في مدار.</p>
+<p style="margin:0 0 16px;">عيّني كلمة المرور لتسجيل الدخول.</p>
+<p style="margin:0 0 16px;">إذا توقف الرابط عن العمل، اطلبي من مدير النظام إرسال الدعوة مرة أخرى.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">تعيين كلمة المرور</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/welcome?token_hash=abc&amp;type=invite" style="color:#1c1b19;">https://madar.example/welcome?token_hash=abc&amp;type=invite</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">أرسل مدار هذه الرسالة. لا تردي عليها.</p>
+</div>
+</body>
+</html>",
+  "subject": "Huda دعتك إلى مدار",
+  "text": "مرحبًا Sara،
+
+أضافتك Huda إلى المكتب في مدار.
+
+عيّني كلمة المرور لتسجيل الدخول.
+
+إذا توقف الرابط عن العمل، اطلبي من مدير النظام إرسال الدعوة مرة أخرى.
+
+تعيين كلمة المرور: https://madar.example/welcome?token_hash=abc&type=invite
+
+أرسل مدار هذه الرسالة. لا تردي عليها.
+",
+}
+`;
+
+exports[`renderMail > renders limitWarning in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madar is near a free plan limit</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">File storage: 85% of the free plan limit.</p>
+<p style="margin:0 0 16px;">Next step: move the files to Cloudflare R2, or remove old file versions.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/admin" style="color:#1c1b19;">https://madar.example/admin</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">Madar sent this email. Do not reply to it.</p>
+</div>
+</body>
+</html>",
+  "subject": "Madar is near a free plan limit",
+  "text": "File storage: 85% of the free plan limit.
+
+Next step: move the files to Cloudflare R2, or remove old file versions.
+
+Open Madar: https://madar.example/admin
+
+Madar sent this email. Do not reply to it.
+",
+}
+`;
+
+exports[`renderMail > renders limitWarning in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اقترب مدار من أحد حدود الخطة المجانية</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">مساحة الملفات: 85% من حد الخطة المجانية.</p>
+<p style="margin:0 0 16px;">الخطوة التالية: نقل الملفات إلى تخزين كلاودفلير، أو حذف النسخ القديمة من الملفات.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/admin" style="color:#1c1b19;">https://madar.example/admin</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">أرسل مدار هذه الرسالة. لا تردي عليها.</p>
+</div>
+</body>
+</html>",
+  "subject": "اقترب مدار من أحد حدود الخطة المجانية",
+  "text": "مساحة الملفات: 85% من حد الخطة المجانية.
+
+الخطوة التالية: نقل الملفات إلى تخزين كلاودفلير، أو حذف النسخ القديمة من الملفات.
+
+فتح مدار: https://madar.example/admin
+
+أرسل مدار هذه الرسالة. لا تردي عليها.
+",
+}
+`;
+
+exports[`renderMail > renders notice in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A task is assigned to you</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">A task is assigned to you.</p>
+<p style="margin:0 0 16px;">Open Madar to see the details.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/tasks/tsk_001?from=mail" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/tasks/tsk_001?from=mail" style="color:#1c1b19;">https://madar.example/tasks/tsk_001?from=mail</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">You get this email because the Email switch of this notice is on. You can change it in Settings, Notifications.</p>
+</div>
+</body>
+</html>",
+  "subject": "A task is assigned to you",
+  "text": "A task is assigned to you.
+
+Open Madar to see the details.
+
+Open Madar: https://madar.example/tasks/tsk_001?from=mail
+
+You get this email because the Email switch of this notice is on. You can change it in Settings, Notifications.
+",
+}
+`;
+
+exports[`renderMail > renders notice in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>أُسندت إليك مهمة</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">أُسندت إليك مهمة.</p>
+<p style="margin:0 0 16px;">افتحي مدار لرؤية التفاصيل.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/tasks/tsk_001?from=mail" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/tasks/tsk_001?from=mail" style="color:#1c1b19;">https://madar.example/tasks/tsk_001?from=mail</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">تصلك هذه الرسالة لأن مفتاح البريد لهذا الإشعار مفعّل. يمكنك تغييره من الإعدادات، الإشعارات.</p>
+</div>
+</body>
+</html>",
+  "subject": "أُسندت إليك مهمة",
+  "text": "أُسندت إليك مهمة.
+
+افتحي مدار لرؤية التفاصيل.
+
+فتح مدار: https://madar.example/tasks/tsk_001?from=mail
+
+تصلك هذه الرسالة لأن مفتاح البريد لهذا الإشعار مفعّل. يمكنك تغييره من الإعدادات، الإشعارات.
+",
+}
+`;
+
+exports[`renderMail > renders quotaWarning in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notice emails stopped for today</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">Madar sent 90 notice emails today. That is the daily limit of the free plan.</p>
+<p style="margin:0 0 16px;">New notices stay in the app. Emails start again at 03:00 Riyadh time.</p>
+<p style="margin:0 0 16px;">Invitations and password resets still go by email.</p>
+<p style="margin:0 0 16px;">No action is needed.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/admin" style="color:#1c1b19;">https://madar.example/admin</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">Madar sent this email. Do not reply to it.</p>
+</div>
+</body>
+</html>",
+  "subject": "Notice emails stopped for today",
+  "text": "Madar sent 90 notice emails today. That is the daily limit of the free plan.
+
+New notices stay in the app. Emails start again at 03:00 Riyadh time.
+
+Invitations and password resets still go by email.
+
+No action is needed.
+
+Open Madar: https://madar.example/admin
+
+Madar sent this email. Do not reply to it.
+",
+}
+`;
+
+exports[`renderMail > renders quotaWarning in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>توقفت رسائل الإشعارات لهذا اليوم</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">أرسل مدار 90 رسالة إشعار اليوم، وهذا هو الحد اليومي للخطة المجانية.</p>
+<p style="margin:0 0 16px;">تبقى الإشعارات الجديدة في التطبيق. تعود الرسائل الساعة 03:00 بتوقيت الرياض.</p>
+<p style="margin:0 0 16px;">ما زالت رسائل الدعوة وإعادة تعيين كلمة المرور تُرسل بالبريد.</p>
+<p style="margin:0 0 16px;">لا يلزم أي إجراء.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/admin" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/admin" style="color:#1c1b19;">https://madar.example/admin</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">أرسل مدار هذه الرسالة. لا تردي عليها.</p>
+</div>
+</body>
+</html>",
+  "subject": "توقفت رسائل الإشعارات لهذا اليوم",
+  "text": "أرسل مدار 90 رسالة إشعار اليوم، وهذا هو الحد اليومي للخطة المجانية.
+
+تبقى الإشعارات الجديدة في التطبيق. تعود الرسائل الساعة 03:00 بتوقيت الرياض.
+
+ما زالت رسائل الدعوة وإعادة تعيين كلمة المرور تُرسل بالبريد.
+
+لا يلزم أي إجراء.
+
+فتح مدار: https://madar.example/admin
+
+أرسل مدار هذه الرسالة. لا تردي عليها.
+",
+}
+`;
+
+exports[`renderMail > renders reset in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reset your Madar password</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">Hello Sara,</p>
+<p style="margin:0 0 16px;">Someone asked to reset the password of your Madar account.</p>
+<p style="margin:0 0 16px;">Choose a new password with the button below.</p>
+<p style="margin:0 0 16px;">If you did not ask for this, ignore this email. Your password stays the same.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/reset?token_hash=abc&amp;type=recovery" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Choose a new password</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/reset?token_hash=abc&amp;type=recovery" style="color:#1c1b19;">https://madar.example/reset?token_hash=abc&amp;type=recovery</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">Madar sent this email. Do not reply to it.</p>
+</div>
+</body>
+</html>",
+  "subject": "Reset your Madar password",
+  "text": "Hello Sara,
+
+Someone asked to reset the password of your Madar account.
+
+Choose a new password with the button below.
+
+If you did not ask for this, ignore this email. Your password stays the same.
+
+Choose a new password: https://madar.example/reset?token_hash=abc&type=recovery
+
+Madar sent this email. Do not reply to it.
+",
+}
+`;
+
+exports[`renderMail > renders reset in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إعادة تعيين كلمة المرور في مدار</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">مرحبًا Sara،</p>
+<p style="margin:0 0 16px;">طلب أحدهم إعادة تعيين كلمة مرور حسابك في مدار.</p>
+<p style="margin:0 0 16px;">اختاري كلمة مرور جديدة من الزر أدناه.</p>
+<p style="margin:0 0 16px;">إذا لم تطلبي ذلك، تجاهلي هذه الرسالة. تبقى كلمة المرور كما هي.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/reset?token_hash=abc&amp;type=recovery" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">اختيار كلمة مرور جديدة</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/reset?token_hash=abc&amp;type=recovery" style="color:#1c1b19;">https://madar.example/reset?token_hash=abc&amp;type=recovery</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">أرسل مدار هذه الرسالة. لا تردي عليها.</p>
+</div>
+</body>
+</html>",
+  "subject": "إعادة تعيين كلمة المرور في مدار",
+  "text": "مرحبًا Sara،
+
+طلب أحدهم إعادة تعيين كلمة مرور حسابك في مدار.
+
+اختاري كلمة مرور جديدة من الزر أدناه.
+
+إذا لم تطلبي ذلك، تجاهلي هذه الرسالة. تبقى كلمة المرور كما هي.
+
+اختيار كلمة مرور جديدة: https://madar.example/reset?token_hash=abc&type=recovery
+
+أرسل مدار هذه الرسالة. لا تردي عليها.
+",
+}
+`;
+
+exports[`renderMail > renders summary in English, and in Arabic with a female actor and reader 1`] = `
+{
+  "html": "<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your morning summary from Madar</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="ltr" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:left;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">Madar</p>
+<p style="margin:0 0 16px;">Here is what waits for you today.</p>
+<p style="margin:0 0 16px;">3 tasks are due today.</p>
+<p style="margin:0 0 16px;">1 review waits for you.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/" style="color:#1c1b19;">https://madar.example/</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">You get this summary on working days at 07:30 Riyadh time. You can turn it off in Settings, Notifications.</p>
+</div>
+</body>
+</html>",
+  "subject": "Your morning summary from Madar",
+  "text": "Here is what waits for you today.
+
+3 tasks are due today.
+
+1 review waits for you.
+
+Open Madar: https://madar.example/
+
+You get this summary on working days at 07:30 Riyadh time. You can turn it off in Settings, Notifications.
+",
+}
+`;
+
+exports[`renderMail > renders summary in English, and in Arabic with a female actor and reader 2`] = `
+{
+  "html": "<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ملخص الصباح من مدار</title></head>
+<body style="margin:0;padding:0;background:#ffffff;color:#1c1b19;">
+<div dir="rtl" style="max-width:560px;margin:0 auto;padding:32px 24px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Arial, sans-serif;font-size:16px;line-height:1.6;text-align:right;">
+<p style="margin:0 0 16px;font-weight:600;font-size:18px;margin-bottom:24px;">مدار</p>
+<p style="margin:0 0 16px;">إليك ما ينتظرك اليوم.</p>
+<p style="margin:0 0 16px;">3 مهام موعدها اليوم.</p>
+<p style="margin:0 0 16px;">مراجعة واحدة بانتظارك.</p>
+<p style="margin:24px 0;"><a href="https://madar.example/" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">فتح مدار</a></p>
+<p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
+<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/" style="color:#1c1b19;">https://madar.example/</a></p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">يصلك هذا الملخص في أيام العمل الساعة 07:30 بتوقيت الرياض. يمكنك إيقافه من الإعدادات، الإشعارات.</p>
+</div>
+</body>
+</html>",
+  "subject": "ملخص الصباح من مدار",
+  "text": "إليك ما ينتظرك اليوم.
+
+3 مهام موعدها اليوم.
+
+مراجعة واحدة بانتظارك.
+
+فتح مدار: https://madar.example/
+
+يصلك هذا الملخص في أيام العمل الساعة 07:30 بتوقيت الرياض. يمكنك إيقافه من الإعدادات، الإشعارات.
+",
+}
+`;
