@@ -1,6 +1,6 @@
 import type { Conversation, Message, User } from './contract/entities';
 import { can, principalOf, projectRoleOf } from './permissions';
-import { chatReadKey, nextId, type State } from './store';
+import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
 /** Makes the chat room of a project. A project has one. */
 export function addProjectConversation(state: State, projectId: string, createdAt: string): Conversation {
@@ -51,8 +51,13 @@ export function messagesOf(state: State, conversationId: string): Message[] {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
-/** Messages that other people wrote after the person last read the room. A person's own agent counts as the person. */
+/**
+ * Messages that other people wrote after the person last read the room. A person's own agent counts as the person.
+ * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
+ */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
+  const counted = state.counts?.[unreadCountKey(conversationId, userId)];
+  if (counted !== undefined) return counted;
   const lastRead = state.chatReads[chatReadKey(conversationId, userId)]?.lastReadAt ?? '';
   return Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,

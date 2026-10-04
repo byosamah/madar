@@ -6,7 +6,7 @@ import { addDirectConversation, canSeeConversation, MESSAGE_PAGE, MESSAGE_PAGE_M
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, principalOf } from '../permissions';
-import { chatReadKey, nextId, type State } from '../store';
+import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { mentionedUserIds, plainText } from '../../lib/text';
@@ -65,8 +65,11 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
 /**
  * The new comments of a task thread for one person: by other people, after their own last comment and after they last read
  * the thread. A thread counts as unread the same way a chat does, so feedback on my task never goes unseen (audit 2026-10-03, SHL-5).
+ * A count that a server loader put in the state comes first, as unreadIn (plan 4.13, A9).
  */
 function taskUnread(state: State, taskId: string, comments: Comment[], viewerId: string): number {
+  const counted = state.counts?.[unreadCountKey(taskId, viewerId)];
+  if (counted !== undefined) return counted;
   const lastRead = state.chatReads[chatReadKey(taskId, viewerId)]?.lastReadAt ?? '';
   const mine = comments.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
   return comments.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
@@ -130,10 +133,14 @@ function totalUnread(state: State, viewer: User): number {
   return chats + taskThreads(state, viewer).reduce((sum, t) => sum + taskUnread(state, t.task.id, t.comments, viewer.id), 0);
 }
 
-/** Marks a chat or a task thread read up to now, or up to its last item when that is later. */
+/**
+ * Marks a chat or a task thread read up to now, or up to its last item when that is later. Nothing in it is unread after that,
+ * so a count that a server loader put in the state becomes 0 (plan 4.13, A9). Without counts, the state gets none.
+ */
 function writeReadMark(ctx: Ctx, conversationId: string, lastAt: string | undefined): void {
   const lastReadAt = lastAt && lastAt > ctx.stamp ? lastAt : ctx.stamp;
   ctx.state.chatReads[chatReadKey(conversationId, ctx.authority.id)] = { conversationId, userId: ctx.authority.id, lastReadAt };
+  if (ctx.state.counts) ctx.state.counts[unreadCountKey(conversationId, ctx.authority.id)] = 0;
 }
 
 function markReadNow(ctx: Ctx, conversation: Conversation): void {
