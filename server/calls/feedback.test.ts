@@ -68,6 +68,19 @@ describe('feedback.uploadStart', () => {
   it('refuses a picture type longer than a report keeps (60 characters)', async () => {
     const { ctx } = setup();
     await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: `image/${'x'.repeat(60)}` }] }, ctx('usr_002'))).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: `image/png; x=${'y'.repeat(60)}` }] }, ctx('usr_002'))).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('refuses a picture that the screen cannot show inline (SVG, an icon), before it signs or writes anything', async () => {
+    for (const mimeType of ['image/svg+xml', 'image/x-icon', 'image/tiff']) {
+      const { db, deps, ctx } = setup();
+      await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: 'image/png' }, { size: 50, mimeType }] }, ctx('usr_002')), mimeType).rejects.toMatchObject({
+        code: 'invalid_input', details: { fields: ['screenshots'] },
+      });
+      expect([deps.files.calls, db.intents.size]).toEqual([[], 0]);
+    }
+    const { ctx } = setup();
+    await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: 'image/avif' }, { size: 50, mimeType: 'image/webp' }] }, ctx('usr_002'))).resolves.toBeDefined();
   });
 });
 

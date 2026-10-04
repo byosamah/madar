@@ -8,6 +8,7 @@ import { confirmUpload } from '../files/confirm';
 import { removeNowOrLater } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents, type Intent } from '../files/intents';
 import { screenshotKey, stagingKey } from '../files/keys';
+import { isPictureType } from '../files/links';
 import { readFeedback } from '../files/records';
 import { assertAdmin, authorityOf, loadAuthority } from '../files/rights';
 
@@ -24,7 +25,10 @@ export const feedbackUploadStart: ServerCall<'feedback.uploadStart'> = async (in
   const { deps, office, now } = ctx;
   const userId = ctx.principal.userId;
   authorityOf((id) => office.lists.users[id], userId);
-  if (input.screenshots.some((shot) => shot.mimeType.length > SHOT_TYPE_LIMIT)) throw invalid('screenshots', 'A screenshot must be a PNG, JPEG, GIF or WebP picture.');
+  // The inline-safe pictures only (server/files/links.ts), so the Admin's inline link shows the picture; and a type a report keeps.
+  if (input.screenshots.some((shot) => !isPictureType(shot.mimeType) || shot.mimeType.length > SHOT_TYPE_LIMIT)) {
+    throw invalid('screenshots', 'A screenshot must be a PNG, JPEG, GIF, WebP or AVIF picture.');
+  }
   const intents: Intent[] = [];
   const uploads = [];
   for (const shot of input.screenshots) {
