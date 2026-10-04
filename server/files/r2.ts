@@ -28,8 +28,13 @@ function amzDate(date: Date): string {
  * the CORS rule allows, and a PUT with another type fails. A download link carries response-content-disposition in the
  * RFC 6266 form; HTML, SVG, XHTML and every XML type are always attachment.
  */
+/** The S3 endpoint of the bucket: the R2 EU endpoint of the account, or the endpoint that the env names. */
+export function r2Endpoint(env: Pick<R2Env, 'accountId' | 'endpoint'>): string {
+  return (env.endpoint ?? `https://${env.accountId}.eu.r2.cloudflarestorage.com`).replace(/\/+$/, '');
+}
+
 export function r2FilesPort(env: R2Env): FilesPort {
-  const endpoint = (env.endpoint ?? `https://${env.accountId}.eu.r2.cloudflarestorage.com`).replace(/\/+$/, '');
+  const endpoint = r2Endpoint(env);
   const now = env.now ?? (() => new Date());
   const fetchImpl = env.fetch ?? ((input, init) => fetch(input, init));
   const client = new AwsClient({ accessKeyId: env.accessKeyId, secretAccessKey: env.secretAccessKey, service: 's3', region: 'auto', retries: 0 });
