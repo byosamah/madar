@@ -65,14 +65,17 @@ async function tablesOf(schema: string): Promise<Map<string, string[]>> {
 
 /**
  * In one transaction (the project foreign keys wait for the commit): empties every public table, then copies in the rows of the
- * same tables of another schema.
+ * same tables of another schema. A platform table that the other schema lacks (the app-migration schema has no
+ * agent_approvals of G4) stays empty.
  */
 async function refillFrom(schema: string): Promise<void> {
   const tables = await tablesOf('public');
+  const source = await tablesOf(schema);
   await client.query('begin');
   try {
     await client.query(`truncate ${[...tables.keys()].map((t) => `public."${t}"`).join(', ')}`);
     for (const [table, columns] of tables) {
+      if (!source.has(table)) continue;
       await client.query(`insert into public."${table}" (${columns.join(', ')}) overriding system value select ${columns.join(', ')} from "${schema}"."${table}"`);
     }
     await client.query('commit');
