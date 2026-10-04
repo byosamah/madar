@@ -1,0 +1,168 @@
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { ApiError, type ApiErrorCode } from '../../api/errors';
+import { REMOTE } from '../../app/mode';
+import { useAuth } from '../auth/useAuth';
+
+/**
+ * The OAuth steps of the consent screen and of Settings, Agents (plan 5.6; task G4), over plain HTTP with the person's token:
+ * the OAuth server of Supabase Auth (the routes that supabase-js calls in auth.oauth.*) and the Madar approval on the api function.
+ * Plain HTTP, so the screens need no second Supabase client next to the one of src/app/remote/supabase.ts, and the prototype
+ * page carries no Supabase code.
+ *
+ * The order of an approval: details (Auth writes the person into the request), recordApproval (Madar), then approve (Auth).
+ * An agent token cannot record an approval (the api function refuses it), so an approval that an agent makes at Auth alone never
+ * links in Madar (server/mcp/approval.ts).
+ */
+
+export type ConsentRequest = { authorizationId: string; clientId: string; clientName: string; redirectUri: string };
+/** ask: the person decides. done: Auth knows this client from an earlier consent and gives the redirect at once. */
+export type ConsentDetails = { kind: 'ask'; request: ConsentRequest } | { kind: 'done'; redirectUrl: string };
+export type Grant = { clientId: string; clientName: string; grantedAt: string | null };
+
+export interface OAuthPort {
+  details(authorizationId: string): Promise<ConsentDetails>;
+  /** POST /agents/approve on the api function, with the person's browser token. */
+  recordApproval(authorizationId: string): Promise<void>;
+  /** The redirect address back to the AI app. */
+  approve(authorizationId: string): Promise<string>;
+  deny(authorizationId: string): Promise<string>;
+  listGrants(): Promise<Grant[]>;
+  revokeGrant(clientId: string): Promise<void>;
+}
+
+/** A refusal of Supabase Auth: its status and code (for example oauth_authorization_not_found). */
+export class OAuthFailure extends Error {
+  constructor(readonly status: number, readonly code: string | undefined, message: string) {
+    super(message);
+    this.name = 'OAuthFailure';
+  }
+}
+
+type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+const API_CODES: readonly ApiErrorCode[] = ['invalid_input', 'unauthenticated', 'forbidden', 'not_found', 'conflict', 'failed'];
+
+async function json(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; apiUrl: string; accessToken: () => Promise<string | null>; fetch?: Fetch }): OAuthPort {
+  const send: Fetch = o.fetch ?? ((input, init) => fetch(input, init));
+  const authUrl = `${o.supabaseUrl.replace(/\/+$/, '')}/auth/v1`;
+  const approveUrl = `${o.apiUrl.replace(/\/+$/, '')}/agents/approve?forceFunctionRegion=eu-central-1`;
+
+  const token = async () => {
+    const value = await o.accessToken();
+    if (!value) throw new ApiError('unauthenticated', 'Sign in to continue.');
+    return value;
+  };
+
+  async function auth(method: string, path: string, body?: unknown): Promise<unknown> {
+    const response = await send(`${authUrl}${path}`, {
+      method,
+      headers: { apikey: o.publishableKey, Authorization: `Bearer ${await token()}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.status === 204) return null;
+    const data = await json(response);
+    if (!response.ok) {
+      const message = String(data.msg ?? data.message ?? data.error_description ?? `Auth answered ${response.status}.`);
+      throw new OAuthFailure(response.status, typeof data.code === 'string' ? data.code : typeof data.error_code === 'string' ? data.error_code : undefined, message);
+    }
+    return data;
+  }
+
+  const redirectOf = (data: unknown): string => {
+    const url = (data as { redirect_url?: unknown } | null)?.redirect_url;
+    if (typeof url !== 'string' || url === '') throw new OAuthFailure(500, undefined, 'Auth gave no redirect address.');
+    return url;
+  };
+  const consent = (id: string, action: 'approve' | 'deny') => auth('POST', `/oauth/authorizations/${encodeURIComponent(id)}/consent`, { action }).then(redirectOf);
+
+  return {
+    async details(authorizationId) {
+      const data = (await auth('GET', `/oauth/authorizations/${encodeURIComponent(authorizationId)}`)) as Record<string, unknown>;
+      if (typeof data.redirect_url === 'string' && data.authorization_id === undefined) return { kind: 'done', redirectUrl: data.redirect_url };
+      const client = (data.client ?? {}) as { id?: unknown; name?: unknown };
+      return {
+        kind: 'ask',
+        request: {
+          authorizationId: String(data.authorization_id ?? authorizationId),
+          clientId: String(client.id ?? ''),
+          clientName: typeof client.name === 'string' && client.name.trim() !== '' ? client.name.trim() : '',
+          redirectUri: String(data.redirect_uri ?? ''),
+        },
+      };
+    },
+    async recordApproval(authorizationId) {
+      const response = await send(approveUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorizationId }),
+      });
+      if (response.ok) return;
+      const error = ((await json(response)).error ?? {}) as { code?: string; message?: string; details?: Record<string, unknown> };
+      const code = API_CODES.includes(error.code as ApiErrorCode) ? (error.code as ApiErrorCode) : 'failed';
+      throw new ApiError(code, error.message ?? 'Something went wrong. Try again.', error.details ?? {});
+    },
+    approve: (authorizationId) => consent(authorizationId, 'approve'),
+    deny: (authorizationId) => consent(authorizationId, 'deny'),
+    async listGrants() {
+      const data = await auth('GET', '/user/oauth/grants');
+      return (Array.isArray(data) ? data : []).map((row: { client?: { id?: unknown; name?: unknown }; granted_at?: unknown }) => ({
+        clientId: String(row.client?.id ?? ''),
+        clientName: typeof row.client?.name === 'string' ? row.client.name : '',
+        grantedAt: typeof row.granted_at === 'string' ? row.granted_at : null,
+      })).filter((grant) => grant.clientId !== '');
+    },
+    async revokeGrant(clientId) {
+      await auth('DELETE', `/user/oauth/grants?client_id=${encodeURIComponent(clientId)}`);
+    },
+  };
+}
+
+/** The prototype has no OAuth server: no request to show and no grants. */
+export const NO_OAUTH: OAuthPort = {
+  details: () => Promise.reject(new ApiError('not_found', 'The prototype has no AI app connections.')),
+  recordApproval: () => Promise.reject(new ApiError('not_found', 'The prototype has no AI app connections.')),
+  approve: () => Promise.reject(new ApiError('not_found', 'The prototype has no AI app connections.')),
+  deny: () => Promise.reject(new ApiError('not_found', 'The prototype has no AI app connections.')),
+  listGrants: async () => [],
+  revokeGrant: async () => undefined,
+};
+
+/** What the OAuth screens use: the port, and the step that leaves Madar for the AI app (a full page load). */
+export type OAuthTools = { port: OAuthPort; leave: (url: string) => void };
+
+const OAuthContext = createContext<OAuthTools | null>(null);
+
+/** Tests and the screenshot page give their own port and leave step. */
+export function OAuthProvider({ value, children }: { value: OAuthTools; children: ReactNode }) {
+  return <OAuthContext.Provider value={value}>{children}</OAuthContext.Provider>;
+}
+
+const text = (value: unknown) => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
+
+/** The port of the remote build from its public values (config/remote.<env>.env), as src/app/remote/bootstrap.ts reads them. */
+function remotePort(accessToken: () => Promise<string | null>): OAuthPort {
+  const env = import.meta.env as Record<string, unknown>;
+  const supabaseUrl = text(env.VITE_SUPABASE_URL);
+  const publishableKey = text(env.VITE_SUPABASE_PUBLISHABLE_KEY);
+  if (!supabaseUrl || !publishableKey) return NO_OAUTH;
+  const apiUrl = text(env.VITE_API_URL) ?? `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/api`;
+  return httpOAuthPort({ supabaseUrl, publishableKey, apiUrl, accessToken });
+}
+
+export function useOAuth(): OAuthTools {
+  const given = useContext(OAuthContext);
+  const auth = useAuth();
+  return useMemo(() => given ?? {
+    port: REMOTE ? remotePort(() => auth.accessToken()) : NO_OAUTH,
+    leave: (url: string) => window.location.assign(url),
+  }, [given, auth]);
+}
