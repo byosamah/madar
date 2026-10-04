@@ -106,6 +106,14 @@ describe('the real Deps from the environment', () => {
     expect(() => configFromEnv(reader({ ...FULL, DATABASE_URL: `${FULL.DATABASE_URL}?sslmode=require` }))).toThrow(/sslmode/);
   });
 
+  it('refuses every other TLS setting in either database URL, as pgDb does (C1 review)', () => {
+    for (const extra of ['?ssl=0', '?ssl=true', '?sslrootcert=x', '?SSLKEY=x', '?uselibpqcompat=true']) {
+      for (const name of ['DATABASE_URL', 'DATABASE_READ_URL'] as const) {
+        expect(() => configFromEnv(reader({ ...FULL, [name]: `${FULL[name]}${extra}` })), `${name}${extra}`).toThrow(new RegExp(name));
+      }
+    }
+  });
+
   it('takes the secret key from MADAR_SECRET_KEY on a host that does not inject SUPABASE_SECRET_KEYS (Workers)', () => {
     expect(missingOf({ ...without('SUPABASE_SECRET_KEYS'), MADAR_SECRET_KEY: 'sb_secret_x' })).toEqual([]);
   });

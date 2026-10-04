@@ -15,7 +15,7 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  * A missing value stops the start, and the error names every missing value. No error ever holds a value.
  *
  * Values:
- *   DATABASE_URL           the transaction pooler, as madar_server (required); no sslmode in it
+ *   DATABASE_URL           the transaction pooler, as madar_server (required); no TLS setting (ssl, sslmode and the like) in it
  *   DATABASE_READ_URL      the pool for reads (default DATABASE_URL)
  *   DATABASE_CA            the root certificate (required unless every database host, write and read, is a local name)
  *   SUPABASE_URL           the project URL (Supabase injects it)
@@ -116,7 +116,7 @@ export function serverEnvFrom(read: ReadEnv = env): ServerEnv {
   if (missing.length > 0) throw new MissingConfigError(missing);
 
   for (const [name, url] of [['DATABASE_URL', writeUrl], ['DATABASE_READ_URL', readUrl]] as const) {
-    if (/[?&]sslmode=/i.test(url)) throw new Error(`${name} must not carry sslmode: put the root certificate in DATABASE_CA (plan 4.5).`);
+    if (/[?&](ssl\w*|uselibpqcompat)=/i.test(url)) throw new Error(`${name} must not carry a TLS setting such as ssl or sslmode: put the root certificate in DATABASE_CA (plan 4.5).`);
   }
 
   const lockText = read('MADAR_LOCK_KEY');

@@ -30,6 +30,7 @@ export type RunResult =
   | { ok: true; output: unknown; storyId?: string; changed: boolean; signals?: ChangeSignal[] }
   | { ok: false; error: RunError };
 
+/** runCall checks story { id } for a server write (plan 4.9). story { ref } and key are not checked: a server write runs resolveStory and the KeyStore replay and put inside its own transaction. */
 /** What a server call (one of the 9) gets. It does its own permission checks with can() on the office snapshot. */
 export type ServerCallCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; batch: BatchScope; story?: StoryRef; key?: string; now: Date };
 

@@ -423,7 +423,7 @@ Contracts in `src/api/contract/server.ts` (T0). Fake versions in `src/api/handle
 
 Handlers stay synchronous and pure. Work outside the database goes through the `outbox` table:
 
-- C3 owns `server/core/effects.ts`: `EFFECTS_OF: Partial<Record<ServerCallName, (output, saved: SaveResult, q: Query) => Promise<OutboxRow[]>>>` and `processOutbox(deps, ids)`, which dispatches each row to a handler that another track registers through `registerEffect(kind, handler)`.
+- C3 owns `server/core/effects.ts`: `EFFECTS_OF: Partial<Record<SharedCallName, (output, saved: SaveResult, q: Query) => Promise<OutboxRow[]>>>` and `processOutbox(deps, ids)`, which dispatches each row to a handler that another track registers through `registerEffect(kind, handler)`. A server call (P `users.resendInvite`, G `agents.remove`) writes its outbox rows with `writeOutbox(q, rows)` in its own transaction and calls `processOutbox(deps, ids)` after its commit (C3 review).
 - Kinds and owners: `auth.invite` (P), `auth.ban`, `auth.unban`, `auth.email` (P), `agents.revokeAll` (G), `mail.notice` (N2), `r2.delete` (F).
 - The outbox rows are written in the call's transaction, so a rollback leaves no effect.
 - **Claim before work.** `processOutbox` and the job first claim a row with one statement: `update outbox set claimed_until = now() + interval '2 minutes', attempts = attempts + 1 where id = $1 and done_at is null and (claimed_until is null or claimed_until < now()) returning *`. No row means another worker has it. The job retries only rows older than 2 minutes, up to 5 attempts.
