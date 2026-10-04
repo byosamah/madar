@@ -132,4 +132,12 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
   - O / Z5: `brew install age` on the Mac (test:it needs it, or set MADAR_AGE); make one commit (a README) in `byosamah/madar-backups` before the first release.
   - Plan: section 9 gains a residual risk: the Pages project `madar` serves both test (branch preview) and production (branch main); and plan 5.9 should say that deploy.yml deploys the functions only, not the screens (O3 repair).
   - S (optional): add `auth.emailNotice` to the kinds comment in `server/core/effects.ts`.
+- [x] Whole-product check after wave 4 (2026-10-04): Admin, Management and Member on the local stack (remote build, functions, seeded office), in English and Arabic at 1440 and 390 px, from sign-in to sign-out with a database check at each step. Every step passed after three fixes:
+  - 00ab664: every upload and download in the real build failed on the local stack, because a local function signs Storage links on `http://kong:8000`. The links now use `FILES_PUBLIC_URL` (default `SUPABASE_URL`, so the hosted projects need nothing); `tests/e2e-deploy/local.ts` writes it.
+  - 887031d: after a mention pick, letters typed before the next frame came out of order ("@Faisal Al-Harbi ease check. pl", 7 of 10 updates). The pick moves the caret only when nothing was typed since.
+  - 1df7d4b: the search test "opens the preview of a file it found" waits 10 s (it failed twice under the full suite at 4.7 s).
+- [ ] Whole-product check follow-ups:
+  - X: in a spec, click a "…" menu only after the scroll to its button settles. The menu closes when the page scrolls, and Playwright's click scrolls first, so at 390 px a menu low in a long list (Admin, People) opens and closes at once. Steps: 390 px, Admin, about 20 people, click "Actions for <last person>": aria-expanded stays false. A person is not affected.
+  - X1 seed: the prototype agent "Madar Assistant" (owned by the Admin) has no `agent_links` row, so the Admin's Settings, Agents shows it as "Not used yet" with a Remove that revokes no grant. Decide whether the test office keeps it.
+  - X (proposal): keep the walk of this check as a spec (tests/e2e-deploy/walk.spec.ts, `MADAR_E2E_WALK=1`), so the next check between waves starts from it. Its source is in the session scratchpad, wave4-shots/e2e-walk/ (cleared after about 3 idle days).
 
