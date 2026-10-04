@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import { defaultPreferences } from '../../src/api/contract/entities';
 import { memoryMailDb } from '../mail/memoryMailDb';
-import { QUOTA_LIMITS } from '../mail/quota';
+import { QUOTA_LIMITS, QuotaFull } from '../mail/quota';
 import { MailSendError } from '../mail/resend';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
@@ -58,13 +58,15 @@ function memoryStore(people: Person[]) {
 }
 
 function setup(people: Person[], o: { db?: ReturnType<typeof memoryMailDb> } = {}) {
-  const deps = fakeDeps({ db: o.db?.db, config: { appUrl: 'https://madar.test' } });
+  // Every invitation counts against the daily mail quota (wave 6, V), so each test has the quota statements in memory.
+  const db = o.db ?? memoryMailDb();
+  const deps = fakeDeps({ db: db.db, config: { appUrl: 'https://madar.test' } });
   const auth = fakeAuth(deps.authAdmin);
   deps.authAdmin = auth;
   const mem = memoryStore(people);
   /** The payload as the outbox row holds it after the earlier attempts. */
   const payloadOf = (row: { payload: Record<string, unknown> }) => ({ ...row.payload, ...mem.payloads.get(String(row.payload.inviteId)) });
-  return { deps, auth, mem, payloadOf };
+  return { deps, auth, mem, payloadOf, db };
 }
 
 const linkIn = (text: string) => /https:\/\/madar\.test\/\S+/.exec(text)?.[0];
@@ -181,6 +183,45 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     const second = renewRow('usr_012');
     await expect(sendInvitation(payloadOf(second), deps, { store: mem.store })).rejects.toThrow(/quota/);
     expect(deps.mail.sent).toHaveLength(1);
+  });
+
+  it('an invitation of the Admin (users.create, users.resendInvite) counts its mail as sign-in mail, with the invite key, and a retry counts once', async () => {
+    const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    const row = inviteRow('usr_012');
+    expect(row.payload).not.toHaveProperty('counted');
+    deps.mail.failNext(new Error('Resend is down'));
+    await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    // One place in the day for the two attempts, under the idempotency key of the mail, with the Resend id of the send.
+    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `invite:${row.payload.inviteId}`, 'mail_1']]);
+  });
+
+  it('a full day makes no link and sends nothing; it throws QuotaFull with the next UTC midnight, so the row waits for a day with room', async () => {
+    const { deps, auth, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    const day = deps.clock.now().toISOString().slice(0, 10);
+    db.fill('notice', QUOTA_LIMITS.signin, day);
+    const row = inviteRow('usr_012');
+    const refused = await sendInvitation(payloadOf(row), deps, { store: mem.store }).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(QuotaFull);
+    expect((refused as QuotaFull).retryAt.toISOString()).toBe('2026-10-04T00:00:00.000Z');
+    // No Auth link: a link lives 1 hour, so a link made today would be out of date in tomorrow's mail.
+    expect([auth.links.length, deps.mail.sent.length]).toEqual([0, 0]);
+    expect(mem.payloads.get(String(row.payload.inviteId))).toBeUndefined();
+    expect(db.log.filter((r) => r.ref.startsWith('invite:'))).toEqual([]);
+    // The next UTC day has room: the same row makes its link and sends.
+    deps.clock.set('2026-10-04T00:05:00Z');
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    expect(auth.links).toHaveLength(1);
+    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`).map((r) => r.utc_day)).toEqual(['2026-10-04']);
+  });
+
+  it('a renewal keeps the one place that the renew route reserved for it (same key), so it counts once', async () => {
+    const { deps, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    const row = renewRow('usr_012');
+    const day = deps.clock.now().toISOString().slice(0, 10);
+    db.log.push({ utc_day: day, kind: 'signin', user_id: 'usr_012', ref: `invite:${row.payload.inviteId}`, resend_id: null });
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`)).toHaveLength(1);
   });
 
   it('writes the mail in Arabic, with the feminine forms, for an Arabic woman', async () => {

@@ -9,7 +9,7 @@ import { errorResponse, runErrorOf } from '../http/errors';
 import { reserve } from '../mail/quota';
 import { authAdminOf } from './admin';
 import { clientAddress } from './forgot';
-import { NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, renewRow } from './invite';
+import { mailKey, NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, renewRow } from './invite';
 import { hashedKey, hitLimit } from './rateLimit';
 
 /**
@@ -102,7 +102,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
       if (!(await hitLimit(t, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
         throw new Refused('A renewed invitation did not go out: the person asked too often today.');
       }
-      if ((await reserve(t, 'signin', `invite:${String(next.payload.inviteId)}`, { now, userId: user.id })) === 'over') {
+      if ((await reserve(t, 'signin', mailKey(String(next.payload.inviteId)), { now, userId: user.id })) === 'over') {
         throw new Refused('A renewed invitation did not go out: the daily mail quota is full.');
       }
       await t(PAYLOAD_MERGE_SQL, [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);

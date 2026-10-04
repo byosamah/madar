@@ -147,8 +147,8 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
     expect(auth.links.map((link) => link.type)).toEqual(['invite', 'invite']);
     expect(tokenIn(renewed)).toBe(auth.links[1].tokenHash);
     expect(keyIn(renewed)).not.toBe(keyIn(first));
-    // The renewal counts against the daily mail quota as sign-in mail.
-    expect(db.mem.log.map((row) => [row.kind, row.user_id])).toEqual([['signin', 'usr_002']]);
+    // The first invitation and the renewal each count against the daily mail quota as sign-in mail (wave 6, V: every invitation counts).
+    expect(db.mem.log.map((row) => [row.kind, row.user_id])).toEqual([['signin', 'usr_002'], ['signin', 'usr_002']]);
     // The first row is marked, so its key works once.
     expect(db.mem.outbox[0].payload).toHaveProperty('renewedAt');
   });
@@ -281,7 +281,8 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
     const results = await Promise.all([renewInvitation(key, deps), renewInvitation(key, deps)]);
     expect(results.sort()).toEqual(['none', 'sent']);
     expect(deps.mail.sent).toHaveLength(2);
-    expect(db.mem.log.filter((row) => row.kind === 'signin' && row.user_id === 'usr_002')).toHaveLength(1);
+    // The first invitation holds one place, the one renewal the other.
+    expect(db.mem.log.filter((row) => row.kind === 'signin' && row.user_id === 'usr_002')).toHaveLength(2);
   });
 
   it('refuses a body with no key with 400', async () => {

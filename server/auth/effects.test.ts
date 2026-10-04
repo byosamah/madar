@@ -340,6 +340,23 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'invite:inv_b']]);
   });
 
+  it('the invitation of auth.email counts as sign-in mail; on a full day the row waits (QuotaFull) and the next day sends it', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const pending = await linkedPerson(auth, person(), false);
+    const store = memoryPeople([{ ...pending, user: person({ email: 'sara.new@madar.test' }) }]);
+    const payload = { userId: 'usr_012', inviteId: 'inv_q' };
+    mem.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    const refused = await runAuthEffect(AUTH_KINDS.email, payload, deps, store).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(QuotaFull);
+    // Auth has the new email, and no new link was made on the full day.
+    expect(auth.users.get(pending.authUserId!)!.email).toBe('sara.new@madar.test');
+    expect([auth.links.length, deps.mail.sent.length]).toEqual([1, 0]);
+    deps.clock.set('2026-10-04T00:05:00Z');
+    await runAuthEffect(AUTH_KINDS.email, again(store, payload), deps, store);
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['sara.new@madar.test', 'invite:inv_q']]);
+    expect(mem.log.filter((row) => row.ref === 'invite:inv_q').map((row) => [row.utc_day, row.kind, row.resend_id])).toEqual([['2026-10-04', 'signin', 'mail_1']]);
+  });
+
   it('a retry of auth.email sends the invitation when the mail failed after Auth took the new email, with the first link', async () => {
     const { deps, auth } = setup(person(), true);
     const pending = await linkedPerson(auth, person(), false);

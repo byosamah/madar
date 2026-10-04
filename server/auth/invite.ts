@@ -4,7 +4,7 @@ import type { OutboxRow } from '../core/effects';
 import { takeOfficeLock } from '../core/lock';
 import type { AuthAdminPort, Deps } from '../core/ports';
 import { setAuthUserId } from '../data/officeCache';
-import { sendCounted } from '../mail/quota';
+import { QuotaFull, reserve, sendCounted } from '../mail/quota';
 import { isEmailExists } from './admin';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey } from './rateLimit';
@@ -40,9 +40,14 @@ import { hashedKey } from './rateLimit';
  * rebuild a live token hash from 1 million guesses. A recovery link (a person who accepted) carries none: Madar never renews
  * an accepted invitation.
  *
- * A renewal row (renewRow, counted: true) takes its place in the daily mail quota as sign-in mail (sendCounted, N2), with the
- * same idempotency key; the renew route reserves that place before it writes the row. A full day throws, so the row stays for
- * the job and goes out on a day with room.
+ * The daily mail quota (wave 6, track V): every invitation mail counts as sign-in mail (N2), the one of users.create, of
+ * users.resendInvite, of the auth.email effect and of a renewal, because Resend counts them all in its 100 a day. The place
+ * has the ref of the idempotency key, so a retry keeps its place and counts once. A row with no link yet reserves its place
+ * before Auth makes the link (a link lives 1 hour, so a link made on a full day would be dead in the next day's mail);
+ * sendCounted then finds that place. A full day throws QuotaFull: the row waits in the outbox until the next UTC midnight
+ * (processOutbox gives the attempt back), and users.invites shows no sentAt until the mail goes out. The renew route
+ * reserves the place of its row under the office lock before it writes the row (renewRow, counted: true marks a renewal);
+ * the reserve here takes only the mail lock, in a transaction of its own, so the lock order stays office lock, then mail lock.
  */
 
 export const INVITE_KIND = 'auth.invite';
@@ -145,12 +150,17 @@ export function newRenewKey(): string {
   return randomBase32(52);
 }
 
+/** The idempotency key of an invitation mail, and the ref of its place in the daily mail quota. */
+export const mailKey = (inviteId: string) => `invite:${inviteId}`;
+
+const QUOTA_FULL = 'The invitation did not go out: the daily mail quota is full. The job sends it on the next UTC day.';
+
 /** The outbox row of one invitation (auth.invite), or of another kind that may send one (auth.email). */
 export function inviteRow(userId: string, kind: string = INVITE_KIND): OutboxRow {
   return { kind, payload: { userId, inviteId: newInviteId() } };
 }
 
-/** The outbox row of a renewal (server/auth/renew.ts): an invitation whose mail counts against the daily quota. */
+/** The outbox row of a renewal (server/auth/renew.ts). counted marks a renewal; every invitation mail counts against the daily quota. */
 export function renewRow(userId: string): OutboxRow {
   return { kind: INVITE_KIND, payload: { userId, inviteId: newInviteId(), counted: true } };
 }
@@ -193,6 +203,11 @@ export async function sendInvitation(
     link = { type: payload.linkType, authUserId: payload.authUserId, tokenHash: payload.tokenHash };
     kept = payload.renewKey;
   } else {
+    // The place in today's quota first: a full day makes no link (above).
+    const now = deps.clock.now();
+    if ((await deps.db.tx('write', (q) => reserve(q, 'signin', mailKey(payload.inviteId), { now, userId: payload.userId }))) === 'over') {
+      throw new QuotaFull(QUOTA_FULL, now);
+    }
     link = await linkFor(deps.authAdmin, person.user.email);
     await store.keepLink(payload.inviteId, payload.userId, link, link.authUserId !== person.authUserId);
     const again = await store.person(payload.userId);
@@ -216,16 +231,10 @@ export async function sendInvitation(
       name: user.name, link: signinLink(deps.config.appUrl, 'welcome', link.tokenHash, link.type, renew),
     }, user.gender),
     tag: 'invite',
-    idempotencyKey: `invite:${payload.inviteId}`,
+    idempotencyKey: mailKey(payload.inviteId),
   };
-  let mailId: string;
-  if (payload.counted === true) {
-    const sent = await sendCounted(deps, 'signin', mail, { userId: user.id });
-    if (sent.status === 'over') throw new Error('The renewed invitation did not go out: the daily mail quota is full. The job tries it again.');
-    mailId = sent.id;
-  } else {
-    mailId = (await deps.mail.send(mail)).id;
-  }
-  await store.markSent(payload.inviteId, deps.clock.now(), mailId);
+  const sent = await sendCounted(deps, 'signin', mail, { userId: user.id });
+  if (sent.status === 'over') throw new QuotaFull(QUOTA_FULL, deps.clock.now());
+  await store.markSent(payload.inviteId, deps.clock.now(), sent.id);
   return 'sent';
 }
