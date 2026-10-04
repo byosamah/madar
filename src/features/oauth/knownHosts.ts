@@ -1,20 +1,22 @@
 /**
- * The redirect hosts of the AI apps that Madar knows (plan 5.6; task G4). The consent screen shows a plain warning when the
+ * The redirect addresses of the AI apps that Madar knows (plan 5.6; task G4). The consent screen shows a plain warning when the
  * redirect address of a request is not loopback and not on this list: the code of an approval goes to that address, so an
- * unknown host may be an app that the person did not start. The match is exact, so "claude.ai.evil.example" is unknown.
+ * unknown address may be an app that the person did not start. The match is exact on the scheme and the host, so
+ * "claude.ai.evil.example" is unknown, and so is "foo://claude.ai/cb": an AI app registers its own addresses (DCR), and an app
+ * scheme goes to whatever app owns that scheme on the device (review of G4).
  *
- * - Loopback: a desktop or command line app that waits on this computer (Claude Code, VS Code, Cursor and others).
- * - The web apps: Claude, ChatGPT, VS Code for the web.
- * - The app address of Cursor (cursor://anysphere.cursor-retrieval/...).
+ * - Loopback: a desktop or command line app that waits on this computer (Claude Code, VS Code, Cursor and others), http or https.
+ * - The web apps, https only: Claude, ChatGPT, VS Code for the web.
+ * - The app address of Cursor, cursor: only (cursor://anysphere.cursor-retrieval/...).
  */
-export const KNOWN_AI_HOSTS: readonly string[] = [
-  'claude.ai',
-  'claude.com',
-  'chatgpt.com',
-  'chat.openai.com',
-  'vscode.dev',
-  'insiders.vscode.dev',
-  'anysphere.cursor-retrieval',
+export const KNOWN_AI_APPS: readonly { scheme: string; host: string }[] = [
+  { scheme: 'https:', host: 'claude.ai' },
+  { scheme: 'https:', host: 'claude.com' },
+  { scheme: 'https:', host: 'chatgpt.com' },
+  { scheme: 'https:', host: 'chat.openai.com' },
+  { scheme: 'https:', host: 'vscode.dev' },
+  { scheme: 'https:', host: 'insiders.vscode.dev' },
+  { scheme: 'cursor:', host: 'anysphere.cursor-retrieval' },
 ];
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
@@ -55,12 +57,15 @@ export function safeRedirect(url: string): boolean {
 }
 
 /**
- * True when the consent screen must warn: an address that Madar would not leave for, or a host that is not loopback and not a
- * known AI app.
+ * True when the consent screen must warn: an address that Madar would not leave for, or an address that is not loopback (http or
+ * https) and not a known AI app with its own scheme.
  */
 export function needsWarning(redirectUri: string): boolean {
   if (!safeRedirect(redirectUri)) return true;
-  const host = hostOf(redirectUri)?.toLowerCase();
+  const parsed = new URL(redirectUri);
+  const scheme = parsed.protocol.toLowerCase();
+  const host = parsed.hostname.toLowerCase();
   if (!host) return true;
-  return !isLoopback(host) && !KNOWN_AI_HOSTS.includes(host);
+  if ((scheme === 'http:' || scheme === 'https:') && isLoopback(host)) return false;
+  return !KNOWN_AI_APPS.some((app) => app.scheme === scheme && app.host === host);
 }
