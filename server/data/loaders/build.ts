@@ -118,9 +118,11 @@ export class Load {
 
   /**
    * The number of rows that a count matches for each value given, under the key that the handlers read (unreadCountKey, plan
-   * 4.13 A9). A value with no row gets 0. A write may hold such a count only when its handler keeps it true (chats.markRead).
+   * 4.13 A9). A value with no row gets 0. A write may hold such a count only when its handler keeps it true: the caller says so
+   * with inWrite, and only chats.markRead does (it sets the count of the chat it marks to 0).
    */
-  async countWhere(s: CountSelect, values: readonly string[], keyOf: (value: string) => string): Promise<void> {
+  async countWhere(s: CountSelect, values: readonly string[], keyOf: (value: string) => string, o: { inWrite?: true } = {}): Promise<void> {
+    if (this.write && !o.inWrite) throw new Error('A write reads rows, never counts, except chats.markRead.');
     const want = [...new Set(values)];
     if (want.length === 0) return;
     const found = await this.#src.countWhere(s);

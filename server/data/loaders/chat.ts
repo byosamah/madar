@@ -26,8 +26,11 @@ function meOf(L: Load, userId: string): string[] {
 
 const markOf = (L: Load, id: string, userId: string) => L.get<ChatRead>('chatReads', chatReadKey(id, userId))?.lastReadAt ?? '';
 
+/** Only chats.markRead counts in a write: its handler keeps the count true (Load.countWhere). */
+type Kept = { inWrite?: true };
+
 /** The read marks, newest message and unread count of these chats. */
-async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[]): Promise<void> {
+async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[], kept: Kept = {}): Promise<void> {
   const ids = conversations.map((c) => c.id);
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
   await newestMessages(L, ids);
@@ -35,11 +38,11 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
   await L.countWhere({
     c: 'messages', per: 'conversation_id',
     where: [{ bounds: { col: 'conversation_id', by } }, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }],
-  }, ids, (id) => unreadCountKey(id, userId));
+  }, ids, (id) => unreadCountKey(id, userId), kept);
 }
 
 /** The task threads of U, with the comments that their preview and order read, and their unread counts. */
-async function threadsOf(L: Load, userId: string): Promise<void> {
+async function threadsOf(L: Load, userId: string, kept: Kept): Promise<void> {
   if (!L.authority || !can(L.authority, 'comment.read')) return;
   const me = meOf(L, userId);
   const led = Object.values(L.office.projects).filter((project) => project.leaderId === userId).map((project) => project.id);
@@ -61,7 +64,7 @@ async function threadsOf(L: Load, userId: string): Promise<void> {
   await L.countWhere({
     c: 'comments', per: 'target_id',
     where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }],
-  }, ids, (id) => unreadCountKey(id, userId));
+  }, ids, (id) => unreadCountKey(id, userId), kept);
 }
 
 /** The chats U may open, from the office. */
@@ -70,16 +73,21 @@ function visible(L: Load): Conversation[] {
   return L.authority ? Object.values(L.office.conversations).filter((c) => canSeeConversation(office, c, L.authority!)) : [];
 }
 
+/** Every chat and task thread of U. */
+async function everyChat(L: Load, kept: Kept): Promise<void> {
+  if (!L.authority) return;
+  await chatsOf(L, L.authority.id, visible(L), kept);
+  await threadsOf(L, L.authority.id, kept);
+}
+
 /** chats.list and chats.unreadCount: every chat and task thread of U. */
 export async function chatsAll(L: Load): Promise<void> {
-  if (!L.authority) return;
-  await chatsOf(L, L.authority.id, visible(L));
-  await threadsOf(L, L.authority.id);
+  await everyChat(L, {});
 }
 
 /** chats.markRead: as chats.list (it returns the full unread count), and the newest comment of a task thread it marks. */
 export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
-  await chatsAll(L);
+  await everyChat(L, { inWrite: true });
   const id = typeof input.conversationId === 'string' ? input.conversationId : '';
   if (!id.startsWith('tsk_') || !L.authority) return;
   await L.byKey('tasks', [id]);

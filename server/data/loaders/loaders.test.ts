@@ -6,6 +6,7 @@ import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { snapshotOf } from '../officeCache';
+import { Load } from './build';
 import { changesOf, runBoth, runOn, type Run } from './compare';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
@@ -457,6 +458,14 @@ describe('unread counts (plan 4.13, A9)', () => {
       await same(state, 'chats.markRead', { conversationId: room }, actor);
     }
     }, 30_000);
+
+  it('a write holds no unread count unless the call keeps it true (chats.markRead)', async () => {
+    const state = office();
+    const L = new Load({ src: memorySource(state), office: snapshotOf(state, 1), actorId: ADMIN, write: true });
+    const count = { c: 'messages', per: 'conversation_id', where: [] } as const;
+    await expect(L.countWhere(count, ['cnv_001'], (id) => id)).rejects.toThrow('A write reads rows, never counts');
+    await expect(L.countWhere(count, ['cnv_001'], (id) => id, { inWrite: true })).resolves.toBeUndefined();
+  });
 });
 
 describe('the jobs loader (plan 4.6, for track N3)', () => {
