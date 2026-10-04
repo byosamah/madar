@@ -1,0 +1,7 @@
+{
+  "signinMail": {
+    "emailChanged": {
+      "by": "The change came from {{actor}}."
+    }
+  }
+}

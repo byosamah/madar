@@ -1,13 +1,16 @@
 import type { Gender, Language } from '../../src/api/contract/entities';
 import ar from '../../src/i18n/real/p.ar.json';
 import en from '../../src/i18n/real/p.en.json';
+import sAr from '../../src/i18n/real/s.ar.json';
+import sEn from '../../src/i18n/real/s.en.json';
 
 /**
  * The sign-in mail of Madar (plan 5.1, change 8): the invitation, the reset link, and the notice at the old email after an
  * email change (renderEmailChangedMail, with no link), in the person's language, with the
  * feminine Arabic forms for a woman (the "_female" keys, as actorContext() picks them on the screens). The words live in
  * src/i18n/real/p.{en,ar}.json, so the word tests check them like every screen text. The server imports those two files and not
- * src/i18n/trees.ts, whose import.meta.glob works only in a Vite build (server/workerGraph.test.ts).
+ * src/i18n/trees.ts, whose import.meta.glob works only in a Vite build (server/workerGraph.test.ts). Track S adds the line that
+ * names who changed the email (src/i18n/real/s.{en,ar}.json, task S1); the loader merges it into the same signinMail.emailChanged.
  *
  * Track N2 builds renderMail for every mail kind (plan 5.4). When it merges, it can take these two kinds over; until then, the
  * effects of track P use this module. The mail holds no client data: only the person's own name and the link.
@@ -21,7 +24,13 @@ type MailWordsKind = SigninMailKind | 'emailChanged';
 
 function wordsOf(lang: Language, kind: MailWordsKind): Words & { linkHint: string; linkHint_female?: string } {
   const tree = (lang === 'ar' ? ar : en) as unknown as { signinMail: Record<MailWordsKind, Words> & { linkHint: string; linkHint_female?: string } };
-  return { ...tree.signinMail[kind], linkHint: tree.signinMail.linkHint, ...(tree.signinMail.linkHint_female ? { linkHint_female: tree.signinMail.linkHint_female } : {}) };
+  const more = (lang === 'ar' ? sAr : sEn) as unknown as { signinMail: Partial<Record<MailWordsKind, Words>> };
+  return {
+    ...tree.signinMail[kind],
+    ...more.signinMail[kind],
+    linkHint: tree.signinMail.linkHint,
+    ...(tree.signinMail.linkHint_female ? { linkHint_female: tree.signinMail.linkHint_female } : {}),
+  };
 }
 
 function pick(words: Words, key: string, reader: Gender | undefined): string {
@@ -59,19 +68,21 @@ function page(lang: Language, parts: string[]): string {
 }
 
 /**
- * The notice at the OLD email after the sign-in email of a person who accepted changed. It holds no link: it only names the
- * new email and asks the person to tell the Admin when they did not expect it.
+ * The notice at the OLD email after the sign-in email of a person who accepted changed. It holds no link: it names the new
+ * email and who made the change (by, when known), and asks the person to tell the Admin when they did not expect it.
  */
-export function renderEmailChangedMail(lang: Language, data: { name: string; email: string }, reader?: Gender): RenderedMail {
+export function renderEmailChangedMail(lang: Language, data: { name: string; email: string; by?: string }, reader?: Gender): RenderedMail {
   const words = wordsOf(lang, 'emailChanged');
   const subject = pick(words, 'subject', reader);
   const title = fill(pick(words, 'title', reader), { name: data.name });
   const body = fill(pick(words, 'body', reader), { email: data.email });
+  const by = data.by ? fill(pick(words, 'by', reader), { actor: data.by }) : undefined;
   const note = pick(words, 'note', reader);
-  const text = [title, '', body, '', note].join('\n');
+  const text = [title, '', body, ...(by ? ['', by] : []), '', note].join('\n');
   const html = page(lang, [
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(title)}</h1>`,
     `<p style="font-size:15px;line-height:1.5;margin:0 0 24px">${escapeHtml(body)}</p>`,
+    ...(by ? [`<p style="font-size:15px;line-height:1.5;margin:0 0 24px">${escapeHtml(by)}</p>`] : []),
     `<p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0">${escapeHtml(note)}</p>`,
   ]);
   return { subject, html, text };
