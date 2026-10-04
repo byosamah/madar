@@ -1,5 +1,5 @@
 import type { TestProject } from 'vitest/node';
-import { LOCAL_DB_URL, applyMigrations, dropSchema, localClient } from '../it/migrate';
+import { LOCAL_DB_URL, applyMigrations, localClient } from '../it/migrate';
 import { checksumOf } from './invariants';
 
 /**
@@ -98,15 +98,19 @@ export default async function setup(project: TestProject): Promise<() => Promise
   project.provide('madarDb', { url: prepared.url, baselines: prepared.baselines });
   return async () => {
     const { client } = prepared;
-    const left: string[] = [];
     try {
       if (prepared.granted) await client.query('revoke madar_server from current_user');
-      // A connection that a broken test left open may hold a lock on its schema: wait a little, then name the schema.
+      // A connection that a broken test left open may hold a lock on its schema: wait a little, then say so.
       await client.query("set lock_timeout = '10s'");
-      for (const schema of prepared.schemas) await dropSchema(client, schema).catch(() => left.push(schema));
+      // A worker beyond the ones made here makes its own schema (server/test/db.ts), so the teardown drops every worker schema.
+      const found = (await client.query("select nspname from pg_namespace where nspname ~ '^madar_w[0-9]+$' order by nspname")).rows as { nspname: string }[];
+      const schemas = found.map((row) => row.nspname);
+      if (schemas.length > 0) await client.query(`drop schema if exists ${schemas.join(', ')} cascade`);
+      console.info(`db mode: dropped the worker schemas ${schemas.join(', ') || '(none)'}.`);
+    } catch (error) {
+      throw new Error(`db mode: the teardown could not drop the worker schemas (${error instanceof Error ? error.message : String(error)}). The next run drops them again.`);
     } finally {
       await client.end();
     }
-    if (left.length > 0) throw new Error(`db mode: the teardown could not drop ${left.join(', ')}. The next run drops them again.`);
   };
 }
