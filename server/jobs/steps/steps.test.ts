@@ -218,22 +218,28 @@ describe('step 4, the cleanup', () => {
 
 describe('step 5, the upload leftovers (proof.md, Z0a item 6)', () => {
   type IntentRow = { id: string; project_id: string | null; staging_key: string; key: string; thumb_key: string | null; expires_at: Date; used_at: Date | null; created_at: Date };
-  const intent = (n: string, o: { used: boolean; age: number; thumb?: boolean; feedback?: boolean }): IntentRow => {
+  const intent = (n: string, o: { used: boolean; age: number; usedAge?: number; thumb?: boolean; feedback?: boolean }): IntentRow => {
     const created = ago(o.age);
     return {
       id: `upl_${n}`, project_id: o.feedback ? null : 'prj_001', staging_key: `up/upl-${n}/file`,
       key: o.feedback ? `feedback/upl-${n}/file` : `prj-001/upl-${n}/file`, thumb_key: o.thumb ? `prj-001/upl-${n}/thumb` : null,
-      expires_at: new Date(created.getTime() + 2 * HOUR), used_at: o.used ? new Date(created.getTime() + 60_000) : null, created_at: created,
+      expires_at: new Date(created.getTime() + 2 * HOUR), used_at: o.used ? (o.usedAge === undefined ? new Date(created.getTime() + 60_000) : ago(o.usedAge)) : null, created_at: created,
     };
   };
 
   function setup(rows: IntentRow[], inUse: string[] = []) {
     const deleted: string[] = [];
     const r = recorder((text, values) => {
-      if (text === OLD_INTENTS_SQL) return rows.filter((row) => row.created_at.getTime() <= (values[0] as Date).getTime());
+      if (text === OLD_INTENTS_SQL) {
+        const [cutoff, after, limit] = values as [Date, string, number];
+        return rows
+          .filter((row) => row.created_at.getTime() <= cutoff.getTime() && row.id > after)
+          .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+          .slice(0, limit);
+      }
       if (text === KEYS_IN_USE_SQL) return (values[0] as string[]).filter((key) => inUse.includes(key)).map((key) => ({ key }));
       if (text === INTENTS_DELETE_SQL) {
-        const gone = rows.filter((row) => (values[0] as string[]).includes(row.id) && row.created_at.getTime() <= (values[1] as Date).getTime());
+        const gone = rows.filter((row) => (values[0] as string[]).includes(row.id) && (row.used_at ?? row.created_at).getTime() < (values[1] as Date).getTime());
         deleted.push(...gone.map((row) => row.id));
         return gone.map((row) => ({ id: row.id }));
       }
@@ -256,7 +262,7 @@ describe('step 5, the upload leftovers (proof.md, Z0a item 6)', () => {
     const young = intent('young', { used: false, age: 2 * HOUR + 9 * 60_000 });
     const { r, deps, has } = setup([used, unused, young]);
     await uploads(deps, AT);
-    expect(r.valuesOf(OLD_INTENTS_SQL)).toEqual([[ago(STAGING_KEEP_MS), UPLOADS_BATCH]]);
+    expect(r.valuesOf(OLD_INTENTS_SQL)).toEqual([[ago(STAGING_KEEP_MS), '', UPLOADS_BATCH]]);
     expect(STAGING_KEEP_MS).toBe((2 * 60 + 10) * 60 * 1000);
     for (const n of ['used', 'unused']) {
       expect(has(`up/upl-${n}/file`), n).toBe(false);
@@ -282,7 +288,7 @@ describe('step 5, the upload leftovers (proof.md, Z0a item 6)', () => {
   });
 
   it('keeps the intent rows for 24 hours, so a retry with a stored answer still finds its intent, then deletes them after the removal', async () => {
-    const day = intent('day', { used: true, age: INTENT_KEEP_MS + 60_000 });
+    const day = intent('day', { used: true, age: INTENT_KEEP_MS + 2 * 60_000 });
     const hours = intent('hours', { used: true, age: 3 * HOUR });
     const { r, deps, deleted, has } = setup([day, hours]);
     expect(await uploads(deps, AT)).toEqual({ intents: 2, removed: 4, deleted: 1 });
@@ -293,6 +299,26 @@ describe('step 5, the upload leftovers (proof.md, Z0a item 6)', () => {
     const order = r.calls.map((c) => c.text);
     expect(order.indexOf(INTENTS_DELETE_SQL)).toBeGreaterThan(-1);
     expect(deps.files.calls.filter((c) => c.op === 'remove')).toHaveLength(1);
+  });
+
+  it('reads every old intent in one run, page by page, so a bulk upload of more than one page leaves no up/ object behind', async () => {
+    const rows = Array.from({ length: UPLOADS_BATCH + 1 }, (_, i) => intent(String(i).padStart(4, '0'), { used: true, age: 3 * HOUR }));
+    const { r, deps, has } = setup(rows);
+    expect(await uploads(deps, AT)).toEqual({ intents: UPLOADS_BATCH + 1, removed: 2 * (UPLOADS_BATCH + 1), deleted: 0 });
+    for (const row of rows) expect(has(row.staging_key), row.id).toBe(false);
+    expect(r.valuesOf(OLD_INTENTS_SQL)).toEqual([
+      [ago(STAGING_KEEP_MS), '', UPLOADS_BATCH],
+      [ago(STAGING_KEEP_MS), rows[UPLOADS_BATCH - 1].id, UPLOADS_BATCH],
+    ]);
+  });
+
+  it('keeps a used intent for 24 hours after its use, as long as the stored answer of its call, so a late retry still finds it', async () => {
+    const late = intent('late', { used: true, age: 25 * HOUR, usedAge: 23 * HOUR });
+    const done = intent('done', { used: true, age: 26 * HOUR, usedAge: 25 * HOUR });
+    const lost = intent('lost', { used: false, age: 25 * HOUR });
+    const { deps, deleted } = setup([late, done, lost]);
+    expect(await uploads(deps, AT)).toEqual({ intents: 3, removed: 7, deleted: 2 });
+    expect(deleted.sort()).toEqual(['upl_done', 'upl_lost']);
   });
 
   it('deletes no intent row when the store fails, so the next run tries the same objects again', async () => {
