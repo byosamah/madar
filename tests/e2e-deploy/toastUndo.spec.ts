@@ -16,7 +16,8 @@ async function deleteAComment(page: Page, text: string) {
   await sheet.getByRole('textbox', { name: 'Add a comment' }).fill(text);
   await sheet.getByRole('button', { name: 'Send' }).click();
   await expect(sheet.getByText(text)).toBeVisible();
-  await sheet.getByRole('button', { name: 'Actions for this comment' }).last().click();
+  // The office keeps the comments of earlier tests, and a restored comment may not be the last one: pick the menu of this one.
+  await sheet.getByRole('listitem').filter({ hasText: text }).getByRole('button', { name: 'Actions for this comment' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.getByText('Comment deleted.')).toBeVisible();
   await expect(sheet.getByText(text)).toHaveCount(0);
