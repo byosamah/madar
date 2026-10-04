@@ -4,8 +4,6 @@ import { SERVER_CALL_NAMES } from '../src/api/contract/server';
 import { SERVER_EXCLUDED } from '../src/api/sharedCalls';
 import { SERVER_CALLS, SERVER_HOOKS } from './calls/index';
 import { ROUTES } from './http/routes';
-import { runCall } from './core/runCall';
-import { pgDb } from './data/sql';
 import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
@@ -13,7 +11,6 @@ import { outboxMailPort } from './mail/outboxDriver';
 import { realtimeSignalPort } from './signal/realtime';
 import { verifyBrowserToken } from './auth/verify';
 import { principalOf } from './auth/principal';
-import { readOffice } from './data/officeCache';
 import { authAdminPort } from './auth/admin';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
@@ -34,9 +31,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 9 server calls by name, and every stub refuses until its track builds it', async () => {
+  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start is built: server/core/runCall.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    for (const name of SERVER_CALL_NAMES) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
+    for (const name of SERVER_CALL_NAMES.filter((n) => n !== 'story.start')) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
   it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
@@ -60,11 +57,7 @@ describe('the registries', () => {
 });
 
 describe('the stubs', () => {
-  it('runCall, the database and the signal sender refuse', async () => {
-    await refusesNotBuilt(() => runCall(deps, { principal: { userId: 'usr_001' }, name: 'users.list', input: {}, batch: ctx.batch }));
-    const db = pgDb({ writeUrl: 'postgres://w', readUrl: 'postgres://r' });
-    await refusesNotBuilt(() => db.tx('read', async () => 1));
-    await refusesNotBuilt(() => db.statement('read', 'select 1'));
+  it('the signal sender refuses (the database is built: server/data/sql.test.ts; runCall is built: server/core/runCall.test.ts)', async () => {
     await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
   });
 
@@ -82,13 +75,12 @@ describe('the stubs', () => {
     }
   });
 
-  it('mail, sign-in and the Auth admin refuse', async () => {
+  it('mail, sign-in and the Auth admin refuse (the office cache is built: server/data/officeCache.test.ts)', async () => {
     const mail = { to: 'a@madar.test', subject: 's', html: '', text: '', tag: 't', idempotencyKey: 'k' };
     await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
     await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
     await refusesNotBuilt(() => verifyBrowserToken('Bearer x'));
     await refusesNotBuilt(async () => principalOf('auth-user-1', office));
-    await refusesNotBuilt(() => readOffice(deps));
     const admin = authAdminPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x' });
     await refusesNotBuilt(() => admin.generateLink('invite', 'a@madar.test'));
     await refusesNotBuilt(() => admin.createUser('a@madar.test', 'pw'));

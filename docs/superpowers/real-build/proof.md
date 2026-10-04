@@ -229,3 +229,39 @@ Pending the owner address. Resend sends only to the account owner's address unti
 ### 10. R2
 
 Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files on Supabase Storage now. `scripts/storage/move-to-r2.ts` and the R2 smoke run when R2 is on.
+
+## C1. Diff writer, whole read and write, and `pgDb` on both hosts (2026-10-04)
+
+**Result: PASS.** The save step and `pgDb` work on the local stack as `madar_server`, and the Workers entry runs `deps.db` through the Hyperdrive binding `DB` on `wrangler dev`: requests in a row and at the same time all answer 200.
+
+**What ran.** Local stack of Supabase CLI 2.119.0 (Postgres 17, Supavisor transaction pooler on `127.0.0.1:54329`), reset from the `rb/C` worktree under the Docker lock. Wrangler 4.147.0 (`workerd`, `nodejs_compat`), local Hyperdrive mode with `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB` set to the local pooler. `npm run test:it`: 5 files, 55 of 55 pass.
+
+| Check | Suite | Result |
+|---|---|---|
+| The B2 round trip on the real `writeState` and `loadWhole` | `server/data/schema.test.ts` | Pass: the sample office comes back exactly, with `undoneBy` filled from the undo event |
+| The same round trip as `madar_server` through `pgDb` | `server/it/save.it.test.ts` | Pass |
+| An update keeps `ord`; a new row goes last; a row that comes back after a delete gets a new `ord` | same | Pass |
+| An office change raises `office_meta.version` once, sets `chg`, records `office_deletes`; a task change does not raise it | same | Pass |
+| The office signal takes the next `office_seq`; a read mark raises only that person's `person_seq` and no office number | same | Pass |
+| A save that changes an old event fails, and nothing of it is written | same | Pass |
+| A task of a missing project fails inside the save (`set constraints all immediate`) | same | Pass |
+| A comment whose target the call did not load gets its `project_id` from one lookup query | same | Pass |
+| A write has `lock_timeout 5s` and `statement_timeout 10s`; a read only the statement timeout; a read is read only | same | Pass |
+| A second transaction gives up on a held lock after 5 s with `55P03` | same | Pass (the test allows 4.5 to 9 s) |
+| `deps.db` on `wrangler dev` through the binding, 3 requests in a row, as `madar_server` | `server/it/workerdb.it.test.ts` | 200, 200, 200: lock held, `5s` and `10s`, one statement |
+| The same, 3 requests at the same time | same | 200 on each |
+| The E4 smoke on both hosts, with the Worker on the binding | `server/it/worker.it.test.ts` | 12 of 12 (the health check of the Worker connects through Hyperdrive) |
+
+**Design as built (from Z0a, items 3, 4 and 7).**
+
+- TLS: `pgDb({ writeUrl, readUrl, ca })` passes `ssl: { ca, rejectUnauthorized: true, servername }`. It refuses a URL with `sslmode`, and a host that is not local without `ca`. The CA comes from the secret `DATABASE_CA` (the PEM text of `scripts/proof/supabase-root-2021-ca.crt`); no copy goes into the server tree, so a new root needs only a new secret.
+- Every query refuses a plain `SET` or `RESET` and transaction control. Only `set local` and `set constraints` go through.
+- `pgDb({ connectionString })` takes a finished string as it is, for both pools. `server/entries/worker.ts` uses it with `env.DB.connectionString`. The apps and the health route connect through the binding too. Without the binding the Worker uses `DATABASE_URL` (a local pooler without TLS only). `wrangler.server.toml` declares `[[hyperdrive]] binding = "DB"` with a placeholder id.
+
+**Facts found on the way.**
+
+1. The local pooler takes the server role: user `madar_server.pooler-dev` connects with `current_user = madar_server` (the user `madar_server` without the tenant gets `ENOIDENTIFIER`). This adds to E1, fact 2: a local test of the server role can go through the pooler. Supavisor drops startup options, so a test that needs its own schema (`search_path`) connects to Postgres directly.
+2. The first run of the parallel case, with the user `postgres.pooler-dev`, gave 200, 500, 500 in 108 ms. The probe had no error text then. It did not happen again in 4 later runs, 32 parallel requests as `madar_server` and 15 as `postgres.pooler-dev`. Cause not proven. The probe now answers a failure with its message, so a repeat names its cause.
+3. A local `wrangler dev` with `[[hyperdrive]]` needs `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB`, so `npm run start:server` and every local Worker run must set it.
+
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `npm run test:it`.

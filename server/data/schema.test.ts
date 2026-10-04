@@ -4,7 +4,9 @@ import { emptyState, type State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { OFFICE_COLLECTIONS } from '../core/types';
 import { applyMigrations, dropSchema, localClient } from '../it/migrate';
+import type { Query } from '../core/ports';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES, collectionOf, rowsOf } from './tables';
+import { loadWhole, writeState } from './whole';
 
 const TODAY = '2026-10-04';
 /** The State fields that are not tables: the session lives in the browser, and counters has its own table (plan 4.2). */
@@ -78,49 +80,27 @@ describe('the table registry (server/data/tables.ts)', () => {
  * run MADAR_IT=1 npx vitest run --project server server/data/schema.test.ts under the Docker lock. It applies the
  * non-platform migrations into a schema of its own, as the db-mode harness does for each worker.
  *
- * writeHere and loadHere are B2's own small writer and loader. Track C1 moves this test onto writeState and loadWhole of
- * server/data/whole.ts.
+ * It writes and reads through writeState and loadWhole of server/data/whole.ts (task C1), the same save step that runCall uses.
  */
 describe.runIf(process.env.MADAR_IT === '1')('the schema against zod, on the local database', () => {
   const schema = `madar_b2_${process.pid}`;
   let db: pg.Client;
   let seed: State;
+  const q: Query = async <R,>(text: string, values?: unknown[]) => (await db.query(text, values)).rows as R[];
 
   async function writeHere(state: State): Promise<void> {
     await db.query('begin');
-    for (const spec of TABLES) {
-      const cols = Object.keys(spec.serverColumns ?? {});
-      const rows = rowsOf(state, spec).map(({ id, doc }) => ({
-        id,
-        // The save step never writes undoneBy (plan 4.3); the loader fills it.
-        doc: spec.collection === 'events' ? { ...doc, undoneBy: null } : doc,
-        ...Object.fromEntries(cols.map((col) => [col, spec.serverColumns![col](doc, state)])),
-      }));
-      if (rows.length === 0) continue;
-      await db.query(
-        `insert into ${spec.table} (id, doc${cols.map((col) => `, ${col}`).join('')})
-         select r->>'id', r->'doc'${cols.map((col) => `, r->>'${col}'`).join('')}
-         from jsonb_array_elements($1::jsonb) with ordinality as x(r, n) order by n
-         on conflict (id) do update set doc = excluded.doc`,
-        [JSON.stringify(rows)],
-      );
+    try {
+      await writeState(q, state);
+      await db.query('commit');
+    } catch (error) {
+      await db.query('rollback');
+      throw error;
     }
-    await db.query(`insert into ${COUNTERS_TABLE} (prefix, n) select key, value::integer from jsonb_each_text($1::jsonb)`, [JSON.stringify(state.counters)]);
-    await db.query('set constraints all immediate');
-    await db.query('commit');
   }
 
   async function loadHere(): Promise<Record<string, unknown>> {
-    const out: Record<string, unknown> = {};
-    for (const spec of TABLES) {
-      const { rows } = await db.query(`select doc from ${spec.table} order by ord`);
-      out[spec.collection] = collectionOf(spec, rows.map((row) => row.doc));
-    }
-    const events = out.events as Record<string, { undoes?: string; undoneBy: string | null }>;
-    for (const [id, event] of Object.entries(events)) if (event.undoes && events[event.undoes]) events[event.undoes].undoneBy = id;
-    const { rows } = await db.query(`select prefix, n from ${COUNTERS_TABLE}`);
-    out.counters = Object.fromEntries(rows.map((row) => [row.prefix, row.n]));
-    return out;
+    return (await loadWhole(q, { withEvents: true, today: TODAY })) as unknown as Record<string, unknown>;
   }
 
   beforeAll(async () => {

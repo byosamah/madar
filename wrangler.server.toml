@@ -11,3 +11,11 @@ workers_dev = false
 [dev]
 ip = "127.0.0.1"
 port = 8787
+
+# The database (proof.md, Z0a item 7): the Workers socket cannot check the private Supabase root, so the Worker connects through
+# Hyperdrive, which checks it (verify-full) and gives the Worker a finished connection string (server/entries/worker.ts).
+# Local runs set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB to the local pooler, so no password is in this file. The id is a
+# placeholder: a real deploy (only if the fallback is ever needed) makes a Hyperdrive config with the uploaded CA and caching off.
+[[hyperdrive]]
+binding = "DB"
+id = "00000000000000000000000000000000"
