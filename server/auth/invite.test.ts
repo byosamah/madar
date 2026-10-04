@@ -44,14 +44,14 @@ function memoryStore(people: Person[]) {
       }
     },
     async markSent(inviteId, at, mailId) {
-      const { tokenHash: _gone, ...rest } = payloads.get(inviteId) ?? {};
+      const { tokenHash: _gone, renewKey: _key, ...rest } = payloads.get(inviteId) ?? {};
       payloads.set(inviteId, { ...rest, sentAt: at.toISOString(), mailId });
     },
-    async addRenewKey(inviteId, hash) {
+    async keepRenewKey(inviteId, key, hash) {
       // As RENEW_KEY_SQL: a hash that the row already holds is not added again.
       const before = payloads.get(inviteId) ?? {};
       const keys = (before.renewKeys as string[] | undefined) ?? [];
-      if (!keys.includes(hash)) payloads.set(inviteId, { ...before, renewKeys: [...keys, hash] });
+      if (!keys.includes(hash)) payloads.set(inviteId, { ...before, renewKey: key, renewKeys: [...keys, hash] });
     },
   };
   return { store, payloads, relinks, byId, replaced, reads };
@@ -99,6 +99,35 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     // The key names no person and no email, and the stored row never holds it.
     expect(JSON.stringify(payload)).not.toContain(key);
     expect(key).not.toContain('sara');
+  });
+
+  it('makes the renew key at random, so the invite id and the token hash do not give it back (security fix 8)', async () => {
+    // Two runs send the same invitation row, and the fake Auth gives both the same token hash. A key made from the link
+    // would come out the same; a reader of the outbox could then rebuild the token hash from the 1 million Auth codes.
+    const row = inviteRow('usr_012');
+    const keys: string[] = [];
+    for (const _run of [1, 2]) {
+      const { deps, auth, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+      await sendInvitation(payloadOf(row), deps, { store: mem.store });
+      expect(auth.links[0].tokenHash).toBe('hash_1');
+      keys.push(renewIn(deps.mail.sent[0].text)!);
+    }
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it('keeps the renew key in the unsent row next to the token hash, so a retry mails it, and the sent row holds neither (security fix 8)', async () => {
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+    const row = inviteRow('usr_012');
+    deps.mail.failNext(new Error('Resend is down'));
+    await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
+    const unsent = mem.payloads.get(String(row.payload.inviteId))!;
+    expect(unsent).toMatchObject({ tokenHash: 'hash_1', renewKey: expect.stringMatching(/^[a-z2-7]{52}$/) });
+    expect(unsent.renewKeys).toEqual([await hashedKey('renew', String(unsent.renewKey))]);
+    await sendInvitation(payloadOf(row), deps, { store: mem.store });
+    expect(renewIn(deps.mail.sent[0].text)).toBe(unsent.renewKey);
+    const sent = mem.payloads.get(String(row.payload.inviteId))!;
+    expect(sent).not.toHaveProperty('tokenHash');
+    expect(sent).not.toHaveProperty('renewKey');
   });
 
   it('a retry after a failed send mails the same renew key and keeps one sha256', async () => {

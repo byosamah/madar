@@ -66,6 +66,7 @@ function memoryDb(users: Record<string, Row>) {
       const row = byInvite(values[0]);
       if (row) {
         delete row.payload.tokenHash;
+        delete row.payload.renewKey;
         Object.assign(row.payload, JSON.parse(String(values[1])) as Rec);
       }
       return [];
@@ -73,7 +74,7 @@ function memoryDb(users: Record<string, Row>) {
     if (text === RENEW_KEY_SQL) {
       const row = byInvite(values[0]);
       const keys = (row?.payload.renewKeys as string[] | undefined) ?? [];
-      if (row && !keys.includes(String(values[1]))) row.payload.renewKeys = [...keys, String(values[1])];
+      if (row && !keys.includes(String(values[2]))) Object.assign(row.payload, { renewKey: String(values[1]), renewKeys: [...keys, String(values[2])] });
       return [];
     }
     if (text === AUTH_LINK_SQL) {

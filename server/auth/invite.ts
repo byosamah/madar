@@ -23,20 +23,22 @@ import { hashedKey } from './rateLimit';
  *      Auth user of the new link is banned here, because the auth.ban effect of that call found no sign-in link yet.
  *   5. Send the mail in the person's language, with a link to Welcome that names the link type. The idempotency key is the
  *      invite id, so a send that runs twice goes out once. An invite link also carries a renew key (security fix 7, below).
- *   6. Mark the payload as sent (sentAt and the mail id) and drop the token hash: done rows stay in the outbox, and the token
- *      hash is a live sign-in credential. users.invites reads sentAt.
+ *   6. Mark the payload as sent (sentAt and the mail id) and drop the token hash and the renew key: done rows stay in the
+ *      outbox, and both are live credentials. users.invites reads sentAt.
  *
  * A retry (the 15-minute job) reads the payload again: it keeps the token hash of the first link, so the first mail never
  * carries a dead link, and a payload that is marked as sent sends nothing more. A stored link is dead when a later row of the
  * same person made a newer link (a new invite link makes the older ones fail): that retry sends nothing.
  *
  * The renew key (security fix 7): an Auth link lives 1 hour (otp_expiry), so an invitation that the person opens the next day
- * is out of date. The Welcome link of an invite link carries `renew`, an opaque key (52 base32 characters, the sha256 of the invite
- * id and the random token hash, renewKeyOf) that names no person and no email. The payload keeps only its sha256 (renewKeys, hashedKey 'renew'), never the key. With it the
- * Welcome screen asks POST /auth/renew-invite (server/auth/renew.ts) for a new invitation to the same person. Each attempt to
- * send makes the same key for the same link, so a retry sends the same mail and Resend answers it with the first mail (a lost
- * answer of the mail sender), and the row keeps one hash. A recovery
- * link (a person who accepted) carries none: Madar never renews an accepted invitation.
+ * is out of date. The Welcome link of an invite link carries `renew`, an opaque random key (52 base32 characters, newRenewKey)
+ * that names no person and no email. With it the Welcome screen asks POST /auth/renew-invite (server/auth/renew.ts) for a new
+ * invitation to the same person. The payload keeps the key next to the token hash until the mail is sent, so a retry sends the
+ * same mail and Resend answers it with the first mail (a lost answer of the mail sender). After the send the payload keeps
+ * only its sha256 (renewKeys, hashedKey 'renew'). The key is random, not made from the link (security fix 8): the token hash
+ * of an Auth link is the sha224 of the email and a 6-digit code, so a key made from it would let a reader of the outbox
+ * rebuild a live token hash from 1 million guesses. A recovery link (a person who accepted) carries none: Madar never renews
+ * an accepted invitation.
  *
  * A renewal row (renewRow, counted: true) takes its place in the daily mail quota as sign-in mail (sendCounted, N2), with the
  * same idempotency key; the renew route reserves that place before it writes the row. A full day throws, so the row stays for
@@ -52,6 +54,7 @@ const Payload = z.looseObject({
   userId: z.string().min(1),
   inviteId: z.string().min(1),
   tokenHash: z.string().min(1).optional(),
+  renewKey: z.string().min(1).optional(),
   authUserId: z.string().min(1).optional(),
   linkType: z.enum(['invite', 'recovery']).optional(),
   sentAt: z.string().optional(),
@@ -66,21 +69,26 @@ export interface InviteStore {
   newerLink(userId: string, inviteId: string): Promise<boolean>;
   /** Keeps the link in the payload of the row with this invite id; relink: also write users.auth_user_id. One transaction. */
   keepLink(inviteId: string, userId: string, link: SigninLink, relink: boolean): Promise<void>;
-  /** Marks the row as sent and drops its token hash. */
+  /** Marks the row as sent and drops its token hash and its renew key. */
   markSent(inviteId: string, at: Date, mailId: string): Promise<void>;
-  /** Adds the sha256 of one renew key (hashedKey 'renew') to the row with this invite id. */
-  addRenewKey(inviteId: string, hash: string): Promise<void>;
+  /** Keeps one renew key in the row with this invite id until the send, and adds its sha256 (hashedKey 'renew') to the row. */
+  keepRenewKey(inviteId: string, key: string, hash: string): Promise<void>;
 }
 
 export const PERSON_SQL = 'select doc, auth_user_id::text as auth from users where id = $1';
 /** The payload of the row with this invite id gains the given fields. Any kind: auth.email rows carry an invite id too. */
 export const PAYLOAD_MERGE_SQL = "update outbox set payload = payload || $2::jsonb where payload->>'inviteId' = $1";
-/** Sent: the payload gains sentAt and the mail id, and loses the token hash. linkType stays (newerLink reads it). */
-export const SENT_SQL = "update outbox set payload = (payload - 'tokenHash') || $2::jsonb where payload->>'inviteId' = $1";
-/** The row gains this renew key hash, after the earlier ones, unless it already holds it (a retry of the same link). */
+/** Sent: the payload gains sentAt and the mail id, and loses the token hash and the renew key. linkType stays (newerLink reads it). */
+export const SENT_SQL =
+  "update outbox set payload = (payload - '{tokenHash,renewKey}'::text[]) || $2::jsonb where payload->>'inviteId' = $1";
+/**
+ * The row keeps this renew key ($2) until the send, and gains its hash ($3) after the earlier ones, unless it already holds it
+ * (a retry of the same link).
+ */
 export const RENEW_KEY_SQL =
-  "update outbox set payload = jsonb_set(payload, '{renewKeys}', coalesce(payload->'renewKeys', '[]'::jsonb) || to_jsonb($2::text)) " +
-  "where payload->>'inviteId' = $1 and not coalesce(payload->'renewKeys', '[]'::jsonb) ? $2";
+  "update outbox set payload = jsonb_set(payload || jsonb_build_object('renewKey', $2::text), '{renewKeys}', " +
+  "coalesce(payload->'renewKeys', '[]'::jsonb) || to_jsonb($3::text)) " +
+  "where payload->>'inviteId' = $1 and not coalesce(payload->'renewKeys', '[]'::jsonb) ? $3";
 /** A later row of the same person that made a link. linkType marks a row that made one, sent or not. */
 export const NEWER_LINK_SQL =
   "select 1 as found from outbox where kind in ('auth.invite', 'auth.email') and payload->>'userId' = $1 and payload ? 'linkType' " +
@@ -110,8 +118,8 @@ export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
     async markSent(inviteId, at, mailId) {
       await deps.db.statement('write', SENT_SQL, [inviteId, JSON.stringify({ sentAt: at.toISOString(), mailId })]);
     },
-    async addRenewKey(inviteId, hash) {
-      await deps.db.statement('write', RENEW_KEY_SQL, [inviteId, hash]);
+    async keepRenewKey(inviteId, key, hash) {
+      await deps.db.statement('write', RENEW_KEY_SQL, [inviteId, key, hash]);
     },
   };
 }
@@ -132,28 +140,9 @@ export function newInviteId(): string {
 /** The query parameter of the renew key in a Welcome link. */
 export const RENEW_PARAM = 'renew';
 
-/**
- * The renew key of one link: sha256('madar-renew:<invite id>:<token hash>') in base32, 52 characters (256 bits). The same link
- * gives the same key, so a retry sends a mail that is the same byte for byte (Resend refuses one idempotency key with another
- * mail). The token hash is random and leaves the payload when the mail is sent, so the key is random to an outsider and names
- * no person. Only the mail holds the key; Madar keeps its sha256.
- */
-export async function renewKeyOf(inviteId: string, tokenHash: string): Promise<string> {
-  const data = new TextEncoder().encode(`madar-renew:${inviteId}:${tokenHash}`);
-  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
-  let text = '';
-  let bits = 0;
-  let value = 0;
-  for (const byte of bytes) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      text += BASE32[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-  }
-  if (bits > 0) text += BASE32[(value << (5 - bits)) & 31];
-  return text;
+/** A new renew key: 52 random base32 characters (260 bits). It names no person and no link. */
+export function newRenewKey(): string {
+  return randomBase32(52);
 }
 
 /** The outbox row of one invitation (auth.invite), or of another kind that may send one (auth.email). */
@@ -194,12 +183,15 @@ export async function sendInvitation(
     return 'skipped';
   }
   let link: SigninLink;
+  /** The renew key that an earlier attempt kept with the stored link. */
+  let kept: string | undefined;
   if (payload.tokenHash && payload.authUserId && payload.linkType) {
     if (await store.newerLink(payload.userId, payload.inviteId)) {
       deps.log.info('An invitation was not sent: a later invitation of the person made a newer link.', { userId: payload.userId });
       return 'skipped';
     }
     link = { type: payload.linkType, authUserId: payload.authUserId, tokenHash: payload.tokenHash };
+    kept = payload.renewKey;
   } else {
     link = await linkFor(deps.authAdmin, person.user.email);
     await store.keepLink(payload.inviteId, payload.userId, link, link.authUserId !== person.authUserId);
@@ -211,12 +203,12 @@ export async function sendInvitation(
     }
   }
   const { user } = person;
-  // The renew key of this link, the same on each attempt; the payload keeps its sha256 only. A recovery link (the person
-  // accepted) gets none.
+  // The renew key of this link: made once, then kept with the link until the send, so each attempt mails the same key. A
+  // recovery link (the person accepted) gets none.
   let renew: string | undefined;
   if (link.type === 'invite') {
-    renew = await renewKeyOf(payload.inviteId, link.tokenHash);
-    await store.addRenewKey(payload.inviteId, await hashedKey('renew', renew));
+    renew = kept ?? newRenewKey();
+    await store.keepRenewKey(payload.inviteId, renew, await hashedKey('renew', renew));
   }
   const mail = {
     to: user.email,
