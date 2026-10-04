@@ -195,6 +195,21 @@ describe('the remote runtime (plan R2)', () => {
     expect(requests[0].headers).toMatchObject({ Authorization: 'Bearer token-1', 'X-Madar-Build': '2026.10.4', apikey: 'sb_publishable_x' });
   });
 
+  it('makes the Supabase sign-in port, whose reset request also runs in Frankfurt', async () => {
+    const fetch = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof globalThis.fetch;
+    const withAuth = {
+      ...supabase,
+      auth: {
+        getSession: async () => ({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+      },
+    } as unknown as SupabaseClient;
+    const runtime = await bootstrapRemote({ config, supabase: withAuth, fetch });
+    expect(runtime.auth.status()).toBe('signed_out');
+    await runtime.auth.requestReset('hala@office.test');
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe('https://ref.supabase.co/functions/v1/api/auth/forgot?forceFunctionRegion=eu-central-1');
+  });
+
   it('turns a file upload and a feedback with pictures into their adapters, never into JSON', async () => {
     const fetch = vi.fn() as unknown as typeof globalThis.fetch;
     const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch });
