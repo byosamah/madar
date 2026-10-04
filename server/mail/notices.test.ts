@@ -5,7 +5,7 @@ import { EFFECTS_OF, registerEffect } from '../core/effects';
 import { fakeDeps } from '../test/fakes/deps';
 import { memoryMailDb } from './memoryMailDb';
 import {
-  ADMINS_SQL, NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_FREE_CALLS, NOTICE_MAIL_SQL, QUOTA_WARNING_EFFECT, USER_MAIL_SQL,
+  ADMINS_SQL, ADMIN_MAIL_SQL, NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_FREE_CALLS, NOTICE_MAIL_SQL, QUOTA_WARNING_EFFECT, USER_MAIL_SQL,
   appLink, noticeRows, sendNoticeMail, sendQuotaWarning,
 } from './notices';
 import { registerMailEffects } from './register';
@@ -18,10 +18,11 @@ import { registerMailEffects } from './register';
 const DAY = '2026-10-04';
 const NOW = new Date(`${DAY}T06:00:00Z`);
 
-type Person = { id: string; kind: 'human' | 'agent'; active: boolean; email: string; preferences: Preferences; gender: string | null };
+type Person = { id: string; kind: 'human' | 'agent'; active: boolean; email: string; preferences: Preferences; gender: string | null; systemRole: string };
 const person = (id: string, more: Partial<Person> = {}): Person => ({
-  id, kind: 'human', active: true, email: `${id}@madar.test`, preferences: defaultPreferences(), gender: null, ...more,
+  id, kind: 'human', active: true, email: `${id}@madar.test`, preferences: defaultPreferences(), gender: null, systemRole: 'member', ...more,
 });
+const admin = (id: string, more: Partial<Person> = {}): Person => person(id, { systemRole: 'admin', ...more });
 const withPrefs = (change: (p: Preferences) => void) => {
   const p = defaultPreferences();
   change(p);
@@ -40,6 +41,10 @@ function setup(o: { people?: Person[]; notices?: { id: string; userId: string; t
     if (text === USER_MAIL_SQL) {
       const p = people.get(values[0] as string);
       return p ? [{ user_id: p.id, kind: p.kind, active: p.active, email: p.email, preferences: p.preferences, gender: p.gender }] : [];
+    }
+    if (text === ADMIN_MAIL_SQL) {
+      const p = people.get(values[0] as string);
+      return p ? [{ user_id: p.id, kind: p.kind, active: p.active, email: p.email, preferences: p.preferences, gender: p.gender, system_role: p.systemRole }] : [];
     }
     if (text === ADMINS_SQL) return [{ id: 'usr_001' }, { id: 'usr_005' }];
     return undefined;
@@ -165,7 +170,7 @@ describe('sendNoticeMail: the mail of one notice', () => {
   });
 
   it('keeps notice 91 of the UTC day in the app and warns each Admin once', async () => {
-    const people = [person('usr_002'), person('usr_001', { gender: 'female' }), person('usr_005')];
+    const people = [person('usr_002'), admin('usr_001', { gender: 'female' }), admin('usr_005')];
     const notices = [{ id: 'ntf_91', userId: 'usr_002', trigger: 'mention' }, { id: 'ntf_92', userId: 'usr_002', trigger: 'mention' }];
     const { mem, deps } = setup({ people, notices });
     const undo = registerEffect(QUOTA_WARNING_EFFECT, sendQuotaWarning);
@@ -189,11 +194,21 @@ describe('sendNoticeMail: the mail of one notice', () => {
   });
 
   it('names the daily limit in the warning and links to Admin', async () => {
-    const { deps } = setup({ people: [person('usr_001')] });
+    const { deps } = setup({ people: [admin('usr_001')] });
     await sendQuotaWarning({ userId: 'usr_001', day: DAY }, deps);
     expect(deps.mail.sent[0].text).toContain('90');
     expect(deps.mail.sent[0].html).toContain('https://madar.test/admin');
     expect(deps.mail.sent[0].html).toContain('<img src="https://madar.test/icons/madar-192.png"');
+  });
+
+  it('reads the role when it sends: a person who is no longer an Admin, or who left, gets no warning', async () => {
+    for (const who of [person('usr_001'), admin('usr_001', { active: false }), admin('usr_001', { kind: 'agent' })]) {
+      const { mem, deps } = setup({ people: [who] });
+      await sendQuotaWarning({ userId: 'usr_001', day: DAY }, deps);
+      expect(deps.mail.sent).toEqual([]);
+      expect(mem.log).toEqual([]);
+      expect(mem.statements).toContain(ADMIN_MAIL_SQL);
+    }
   });
 });
 

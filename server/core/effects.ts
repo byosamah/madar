@@ -13,7 +13,7 @@ import type { Deps, Query } from './ports';
  *   rows, so registerOutbox refuses its name (at compile time and at run time). A server write writes its own rows with
  *   writeOutbox(q, rows) inside its own transaction, and calls processOutbox(deps, ids) after its commit.
  * - A track registers the handler of one effect kind with registerEffect(kind, handler). Kinds and owners: auth.invite, auth.ban,
- *   auth.unban, auth.email (P), agents.revokeAll (G), mail.notice (N2), r2.delete (F).
+ *   auth.unban, auth.email (P), auth.emailNotice (S), agents.revokeAll (G), mail.notice (N2), r2.delete (F).
  * - The module that registers must be imported by the entry: the call files through server/calls/index.ts, the effect handlers
  *   through server/core/deps.ts.
  * - Claim before work: processOutbox and the job claim a row with one statement first. No row means another worker has it, or

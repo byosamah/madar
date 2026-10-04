@@ -1,6 +1,6 @@
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
-import { ADMINS_SQL, appLink, mailOf, mailable, type PersonRow } from '../mail/notices';
+import { ADMIN_MAIL_SQL, ADMINS_SQL, appLink, mailOf, mailable, type PersonRow } from '../mail/notices';
 import { sendCounted } from '../mail/quota';
 import { USAGE_METERS, renderMail, type UsageMeter } from '../mail/templates';
 import { overLimit, readMeters, warningMeters } from './meters';
@@ -21,18 +21,13 @@ import { overLimit, readMeters, warningMeters } from './meters';
 
 export const LIMIT_WARNING_EFFECT = 'usage.limitWarning';
 
-/** $1 the UTC month, $2 the meter. A row back means this run made the mark, and so it sends the warning. */
-/**
- * $1 the person. The row of USER_MAIL_SQL (server/mail/notices.ts) with the system role, so the effect sends nothing to a person
- * who lost the Admin role between the row write and the send (the job retries a row for about an hour).
- */
-export const ADMIN_MAIL_SQL = `select id as user_id, kind, active, doc->>'email' as email, doc->'preferences' as preferences, doc->>'gender' as gender,
-  doc->>'systemRole' as system_role
-from users where id = $1`;
+/** The person row with the system role: server/mail/notices.ts holds it for both warnings to the Admins. */
+export { ADMIN_MAIL_SQL };
 
 /** The error of a warning that the warning quota of today stopped. The row stays for the job and shows in Usage. */
 export const WARNING_QUOTA_FULL = 'The warning quota of today is full.';
 
+/** $1 the UTC month, $2 the meter. A row back means this run made the mark, and so it sends the warning. */
 export const WARNING_MARK_SQL = 'insert into usage_warnings (month, metric) values ($1, $2) on conflict (month, metric) do nothing returning metric';
 
 export async function checkLimits(deps: Deps): Promise<{ warned: UsageMeter[] }> {

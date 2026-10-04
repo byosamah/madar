@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { goto } from './goto';
+import { openMenu } from './steps';
 
 /** tests/e2e/toastUndo.spec.ts on the remote build (task X2). */
 
@@ -17,7 +18,7 @@ async function deleteAComment(page: Page, text: string) {
   await sheet.getByRole('button', { name: 'Send' }).click();
   await expect(sheet.getByText(text)).toBeVisible();
   // The office keeps the comments of earlier tests, and a restored comment may not be the last one: pick the menu of this one.
-  await sheet.getByRole('listitem').filter({ hasText: text }).getByRole('button', { name: 'Actions for this comment' }).click();
+  await openMenu(sheet.getByRole('listitem').filter({ hasText: text }).getByRole('button', { name: 'Actions for this comment' }));
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.getByText('Comment deleted.')).toBeVisible();
   await expect(sheet.getByText(text)).toHaveCount(0);

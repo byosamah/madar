@@ -30,7 +30,8 @@ export function linkPath(text: string, screen: 'welcome' | 'reset', origin: stri
   throw new Error(`The mail has no link to /${screen}.`);
 }
 
-async function withClient<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
+/** One connection to the database of the run (databaseTarget), for the work given. The walk reads its checks through it too. */
+export async function withClient<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
   const target = databaseTarget(process.env);
   const client = new pg.Client({
     connectionString: target.url,

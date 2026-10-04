@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { asRole, expect, PERSON_OF, test } from './fixtures';
 import { goto, REMOTE, urlPattern } from './goto';
+import { openMenu } from './steps';
 
 /** tests/e2e/owner.spec.ts on the remote build (task X2): the phone tab bar, chat Inbox, bell, Overview, Pause and Meeting view. */
 
@@ -101,7 +102,7 @@ test.describe('as the leader of the project', () => {
     }
     await goto(page, '/projects/prj_001');
     await expect(page.getByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeVisible();
-    await page.getByRole('button', { name: 'More actions' }).click();
+    await openMenu(page.getByRole('button', { name: 'More actions' }));
     await page.getByRole('menuitem', { name: 'Pause project' }).click();
     const sheet = page.getByRole('dialog', { name: 'Pause this project?' });
     await expect(sheet).toBeVisible();
@@ -112,7 +113,7 @@ test.describe('as the leader of the project', () => {
     await expect(paused.getByText('Waiting for the client to sign the revised brief.')).toBeVisible();
     await paused.getByRole('button', { name: 'Resume project' }).click();
     await expect(page.getByRole('region', { name: 'Paused' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'More actions' }).click();
+    await openMenu(page.getByRole('button', { name: 'More actions' }));
     await expect(page.getByRole('menuitem', { name: 'Pause project' })).toBeVisible();
   });
 });

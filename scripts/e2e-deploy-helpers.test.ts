@@ -4,6 +4,8 @@ import { linkPath } from '../tests/e2e-deploy/mail';
 import { appOrigin, databaseTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
 import { functionsEnvLines, localOnly } from '../tests/e2e-deploy/local';
 import { word } from '../tests/e2e-deploy/words';
+import { closeTo, pngOf, WALK_PICTURE } from '../tests/e2e-deploy/picture';
+import { inflateSync } from 'node:zlib';
 
 /** The pure helpers of the browser checks on the test deployment (task X2). */
 
@@ -151,5 +153,61 @@ describe('functionsEnvLines', () => {
     expect(lines.FILES_PUBLIC_URL).toBe('http://127.0.0.1:54321');
     expect(lines.AUTH_ISSUER).toBe('http://127.0.0.1:54321/auth/v1');
     expect(lines.MADAR_SECRET_KEY).toBe('sb_secret_local');
+  });
+});
+
+describe('pngOf: the test picture of the walk, made at run time', () => {
+  /** The chunks of a PNG: type, data, and whether the stored CRC matches. */
+  function chunks(png: Buffer): { type: string; data: Buffer; crcOk: boolean }[] {
+    const table = Array.from({ length: 256 }, (_, n) => {
+      let c = n;
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      return c >>> 0;
+    });
+    const crc = (bytes: Buffer) => {
+      let c = 0xffffffff;
+      for (const byte of bytes) c = table[(c ^ byte) & 0xff] ^ (c >>> 8);
+      return (c ^ 0xffffffff) >>> 0;
+    };
+    const out: { type: string; data: Buffer; crcOk: boolean }[] = [];
+    for (let at = 8; at < png.length;) {
+      const length = png.readUInt32BE(at);
+      const type = png.subarray(at + 4, at + 8).toString('latin1');
+      const data = png.subarray(at + 8, at + 8 + length);
+      out.push({ type, data, crcOk: png.readUInt32BE(at + 8 + length) === crc(png.subarray(at + 4, at + 8 + length)) });
+      at += 12 + length;
+    }
+    return out;
+  }
+
+  it('writes a whole PNG: the signature, IHDR, IDAT and IEND, each with a right CRC', () => {
+    const png = pngOf(3, 2, (x, y) => [x * 100, y * 200, 7]);
+    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const parts = chunks(png);
+    expect(parts.map((c) => c.type)).toEqual(['IHDR', 'IDAT', 'IEND']);
+    expect(parts.every((c) => c.crcOk)).toBe(true);
+    const ihdr = parts[0].data;
+    // 3 x 2, 8 bits, truecolour (2), deflate, no filter method, no interlace.
+    expect([ihdr.readUInt32BE(0), ihdr.readUInt32BE(4), ...ihdr.subarray(8)]).toEqual([3, 2, 8, 2, 0, 0, 0]);
+  });
+
+  it('stores each pixel as it was given, one filter byte 0 for each row', () => {
+    const png = pngOf(3, 2, (x, y) => [x * 100, y * 200, 7]);
+    const raw = inflateSync(chunks(png)[1].data);
+    expect([...raw]).toEqual([0, 0, 0, 7, 100, 0, 7, 200, 0, 7, 0, 0, 200, 7, 100, 200, 7, 200, 200, 7]);
+  });
+
+  it('draws the walk picture in four colored quarters, which the preview check reads back', () => {
+    const { width, height, quarters } = WALK_PICTURE;
+    const png = WALK_PICTURE.png();
+    const raw = inflateSync(chunks(png)[1].data);
+    const at = (x: number, y: number) => [...raw.subarray(y * (width * 3 + 1) + 1 + x * 3, y * (width * 3 + 1) + 4 + x * 3)];
+    for (const q of quarters) expect(at(Math.floor(q.x * width), Math.floor(q.y * height)), q.name).toEqual([...q.rgb]);
+    expect(new Set(quarters.map((q) => q.rgb.join())).size).toBe(4);
+  });
+
+  it('compares a shown colour with some room for the scaling of the screen', () => {
+    expect(closeTo([200, 40, 40], [210, 30, 52])).toBe(true);
+    expect(closeTo([200, 40, 40], [255, 255, 255])).toBe(false);
   });
 });

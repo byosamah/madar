@@ -10,8 +10,8 @@ import { MAX_BODY_BYTES } from '../../src/api/remote/wire';
  * and `wrangler dev` (Cloudflare Workers, the fallback host), each against the local stack. It needs the local stack
  * (`supabase start`) and the Docker lock. It builds the bundles first. It talks only to 127.0.0.1.
  *
- * The parts that other tracks still build (the token check, runCall, MCP, jobs) answer with their stubs today, so the smoke
- * asks the two hosts to give the same answer there, not a fixed one.
+ * The token check, runCall, MCP and the jobs app are the real ones now (tracks P, C, G and N3), each with tests of its own. Here
+ * the smoke sends each a request without a valid sign-in (or jobs secret) and asks the two hosts to give the same answer.
  */
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -146,7 +146,7 @@ describe('both hosts', () => {
     return { status: response.status, body: await response.text() };
   }
 
-  it('give the same answer for the parts that other tracks still build: sign-in, MCP and jobs', async () => {
+  it('give the same answer to a request without a valid sign-in: the batch, MCP and jobs', async () => {
     const cases: [string, RequestInit][] = [
       ['/api/batch', { method: 'POST', headers: { 'X-Madar-Build': MIN_BUILD, Authorization: 'Bearer not-a-token' }, body: batchOf([call(0, 'session.get')]) }],
       ['/mcp', { method: 'POST', body: '{}' }],

@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect } from './fixtures';
 import { goto, urlPattern } from './goto';
 import { word } from './words';
@@ -64,4 +64,54 @@ export async function signOut(page: Page, person: string, lang: Lang): Promise<v
 /** A new name for this run, so a second run on the same office never meets the first one's rows. */
 export function runId(): string {
   return `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+}
+
+/**
+ * Opens a "…" menu (src/components/Menu.tsx) and checks that it stays open. The list has a fixed place, so it closes when the page
+ * under it scrolls, and a Playwright click scrolls to its button first: at 390 px a button low in a long list (Admin, People)
+ * opened its menu and closed it at once. So the button goes to the middle of the screen (never under a sticky bar), the click
+ * waits until the button held still for a few frames, and only then clicks.
+ */
+export async function openMenu(button: Locator): Promise<void> {
+  await button.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+  const settled = await button.evaluate((element) => new Promise<boolean>((resolve) => {
+    let last = '';
+    let still = 0;
+    const until = performance.now() + 3000;
+    const frame = () => {
+      const box = element.getBoundingClientRect();
+      const now = `${box.x},${box.y},${window.scrollX},${window.scrollY}`;
+      still = now === last ? still + 1 : 0;
+      last = now;
+      if (still >= 5) resolve(true);
+      else if (performance.now() > until) resolve(false);
+      else requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }));
+  expect(settled, 'the "…" button held still before the click').toBe(true);
+  await button.click();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+}
+
+/** One call of a batch: the name and the input, as the screens send it. */
+export type BatchCall = { name: string; input: unknown };
+
+/**
+ * Sends calls to the api function as the signed-in person of the page, from inside the page (its origin, its CSP), with the
+ * headers that the page's own last batch carried. `open` is the route whose first batch gives those headers.
+ */
+export async function batchAs(page: Page, open: string, calls: BatchCall[]): Promise<{ ok: boolean; error?: { code: string } }[]> {
+  const sent = page.waitForRequest((request) => /\/functions\/v1\/api\/batch/.test(request.url()) && request.method() === 'POST');
+  await goto(page, open);
+  const request = await sent;
+  const all = await request.allHeaders();
+  const headers = Object.fromEntries(['authorization', 'apikey', 'x-madar-build', 'content-type'].filter((name) => all[name]).map((name) => [name, all[name]]));
+  const body = JSON.stringify({ v: 1, calls: calls.map((call, i) => ({ i, name: call.name, input: call.input })) });
+  const answer = await page.evaluate(async ({ url, headers, body }) => {
+    const response = await fetch(url, { method: 'POST', headers, body });
+    return { status: response.status, json: await response.json() as { results?: { ok: boolean; error?: { code: string } }[] } };
+  }, { url: request.url(), headers, body });
+  expect(answer.status, 'the batch answer').toBe(200);
+  return answer.json.results ?? [];
 }
