@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileView } from '../../../api/contract/views';
-import { useFileUrl } from '../../../app/files';
+import { useFileLink, usePictureTest } from '../../../app/files';
 import { useCall } from '../../../app/runtime';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
@@ -10,13 +10,14 @@ import { PreviewSheet } from '../../project/files/PreviewSheet';
 const SHOWN = 6;
 
 function Drawing({ view, onOpen }: { view: FileView; onOpen: () => void }) {
-  const image = view.latest.mimeType.startsWith('image/');
-  const thumb = useFileUrl(image ? view.file.id : null, view.latest.letter);
+  const isPicture = usePictureTest();
+  const image = isPicture(view.latest.mimeType);
+  const thumb = useFileLink(image ? view.file.id : null, view.latest.letter, 'thumb');
   return (
     <li className="w-44 shrink-0">
       <button type="button" onClick={onOpen} className="pressable flex w-full flex-col gap-2 rounded-2xl text-start">
         <span className="grid h-28 w-full place-items-center overflow-hidden rounded-2xl bg-fill text-ink-2">
-          {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />}
+          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />}
         </span>
         <bdi className="block truncate text-[15px] text-ink">{view.file.name}</bdi>
       </button>

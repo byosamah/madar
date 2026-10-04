@@ -23,11 +23,26 @@ const uploadId = () => `upl_${Date.now().toString(36)}${Math.random().toString(3
 /** One blob: URL for each stored key and type, kept for the life of the page, so a list of pictures never makes a URL for each draw. */
 const blobUrls = new Map<string, string>();
 
-/** The type of the data in a link. A blob: URL runs on the app's own origin, so a page, a drawing, every XML type and every download stay plain data (plan 5.2). */
+/**
+ * The only types that a link may show inline, as in the real stores (server/files/links.ts, INLINE_SAFE; a server test checks that
+ * both rules agree). src/api never imports server code, so the list lives here too.
+ */
+const INLINE_SAFE = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif',
+  'application/pdf', 'text/plain',
+  'video/mp4', 'video/webm', 'video/quicktime',
+  'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm',
+]);
+
+/**
+ * The type of the data in a link. A blob: URL runs on the app's own origin, so only the short safe list shows inline; a page, a
+ * drawing, every XML type, every other type and every download stay plain data (plan 5.2). A value with a comma stays whole, so it
+ * is never one clean type.
+ */
 export function linkType(mimeType: string, disposition: 'inline' | 'attachment'): string {
-  const type = mimeType.split(';')[0].trim().toLowerCase();
-  const runs = type === 'text/html' || type === 'image/svg+xml' || type === 'application/xhtml+xml' || type === 'text/xml' || type === 'application/xml' || type.endsWith('+xml');
-  return disposition === 'inline' && !runs ? type : 'application/octet-stream';
+  const lower = mimeType.trim().toLowerCase();
+  const type = lower.includes(',') ? lower : lower.split(';')[0].trim();
+  return disposition === 'inline' && INLINE_SAFE.has(type) ? type : 'application/octet-stream';
 }
 
 const storyStart = defineCall({

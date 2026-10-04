@@ -1,0 +1,12 @@
+{
+  "files": {
+    "tooLarge": "{{name}} is larger than {{limit}}.",
+    "limitMb": "{{n}} MB"
+  },
+  "errors": {
+    "reasons": {
+      "file_too_large": "This file is too large to upload.",
+      "upload_failed": "The file did not upload. Try again."
+    }
+  }
+}

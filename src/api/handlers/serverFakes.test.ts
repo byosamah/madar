@@ -96,6 +96,27 @@ describe('the fake server calls', () => {
     expect(save.url).not.toBe(view.url);
   });
 
+  it('files.link shows inline only a short safe list (pictures, PDF, plain text, video, audio), as the real stores do: every other type is plain data', async () => {
+    const types: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      types.push((blob as Blob).type);
+      return `blob:madar-test/${types.length}`;
+    });
+    const t = testApi(CALLS);
+    t.as('usr_003');
+    const inline = async (name: string, type: string) => {
+      const stored = await t.api.call('files.upload', { projectId: 'prj_001', name, blob: new Blob(['x'], { type }) });
+      await t.api.call('files.link', { id: stored.file.id, variant: 'full', disposition: 'inline' });
+    };
+    for (const [name, type] of [['sheet.xsl', 'text/xsl'], ['archive.zip', 'application/zip'], ['odd.img', 'image/x-unknown'], ['doc.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']]) {
+      await inline(name, type);
+    }
+    expect(types).toEqual(['application/octet-stream', 'application/octet-stream', 'application/octet-stream', 'application/octet-stream']);
+    types.length = 0;
+    for (const [name, type] of [['photo.png', 'image/png'], ['notes.txt', 'text/plain'], ['walk.mp4', 'video/mp4']]) await inline(name, type);
+    expect(types).toEqual(['image/png', 'text/plain', 'video/mp4']);
+  });
+
   it('feedback.uploadStart gives one upload for each screenshot, up to three pictures of 10 MB', async () => {
     const t = testApi(CALLS);
     t.as('usr_003');

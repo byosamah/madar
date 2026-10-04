@@ -28,24 +28,22 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start is built: server/core/runCall.test.ts; users.invites and users.resendInvite are built: server/calls/people.test.ts)', async () => {
+  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
   it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
     expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.screenshot', 'feedback.send', 'files.upload', 'projects.delete']);
     for (const name of Object.keys(SERVER_HOOKS)) expect(SERVER_EXCLUDED as readonly string[]).not.toContain(name);
-    const hookCtx = { actorId: 'usr_001', now: new Date(), deps };
-    const q = (async () => []) as never;
-    await refusesNotBuilt(async () => SERVER_HOOKS['files.upload']?.preflight?.({} as never, hookCtx));
-    await refusesNotBuilt(async () => SERVER_HOOKS['files.upload']?.prepare?.({} as never, { ...hookCtx, q }, undefined));
-    await refusesNotBuilt(async () => SERVER_HOOKS['feedback.send']?.prepare?.({} as never, { ...hookCtx, q }, undefined));
-    // A read call: its preflight value reaches run() as "prepared", so the stub must refuse with an ApiError before run() reads it.
-    await refusesNotBuilt(async () => SERVER_HOOKS['feedback.screenshot']?.preflight?.({ id: 'fbk_001', index: 0 } as never, hookCtx));
-    // Until track F lists the stored files, projects.delete removes no stored data, so the db-mode tests of D2 pass before F merges.
-    await expect(SERVER_HOOKS['projects.delete']?.prepare?.({ id: 'prj_001' } as never, { ...hookCtx, q }, undefined)).resolves.toEqual({ blobKeys: [] });
+    // Track F built every hook (server/calls/{files,feedback}.test.ts): each one has its functions.
+    expect(Object.fromEntries(Object.entries(SERVER_HOOKS).map(([name, hooks]) => [name, Object.keys(hooks ?? {}).sort()]))).toEqual({
+      'files.upload': ['preflight', 'prepare'],
+      'feedback.send': ['preflight', 'prepare'],
+      'feedback.screenshot': ['preflight'],
+      'projects.delete': ['prepare'],
+    });
   });
 
   it('hold the extra HTTP route of the api function: POST /auth/forgot', async () => {
@@ -60,18 +58,11 @@ describe('the stubs', () => {
     await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
   });
 
-  it('the two file stores name their kind and limit, and refuse', async () => {
+  it('the two file stores name their kind and limit (they are built: server/files/*.test.ts)', () => {
     const supabase = supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x', bucket: 'madar-files' });
     expect([supabase.kind, supabase.maxFileBytes]).toEqual(['supabase', 50 * 1024 * 1024]);
     const r2 = r2FilesPort({ accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'madar-files' });
     expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 250 * 1024 * 1024]);
-    for (const port of [supabase, r2]) {
-      await refusesNotBuilt(() => port.presignPut('k', { mimeType: 'image/png' }));
-      await refusesNotBuilt(() => port.presignGet('k', { disposition: 'inline', filename: 'a.png', mimeType: 'image/png' }));
-      await refusesNotBuilt(() => port.head('k'));
-      await refusesNotBuilt(() => port.copy('a', 'b'));
-      await refusesNotBuilt(() => port.remove(['a']));
-    }
   });
 
   it('mail refuses (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts; the Auth admin is built: server/auth/admin.test.ts)', async () => {

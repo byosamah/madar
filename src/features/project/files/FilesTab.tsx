@@ -4,11 +4,10 @@ import { UploadIcon } from '../../../components/icons/animated/upload';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { MAX_FILE_BYTES } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
 import { canRetry, errorMessage } from '../../../app/errors';
-import { downloadFile, useFileUrl } from '../../../app/files';
+import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -25,12 +24,14 @@ import { ShareFileSheet } from './ShareFileSheet';
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { api } = useRuntime();
+  const runtime = useRuntime();
+  const { api } = runtime;
   const toast = useToast();
   const [showVersions, setShowVersions] = useState(false);
   const { file, latest } = view;
-  const image = latest.mimeType.startsWith('image/');
-  const thumb = useFileUrl(image ? file.id : null, latest.letter);
+  const isPicture = usePictureTest();
+  const image = isPicture(latest.mimeType);
+  const thumb = useFileLink(image ? file.id : null, latest.letter, 'thumb');
   const remove = useUndoable('files.delete', { message: () => t('files.deleted') });
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
@@ -41,7 +42,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
   const download = (letter?: string) => {
-    downloadFile(api, file.id, letter).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+    downloadFile(api, file.id, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
   };
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
@@ -57,7 +58,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
           From sm up it is one line again (audit 2026-10-03, V-33). */}
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-          {thumb ? <img src={thumb} alt="" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
+          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-2">
@@ -94,8 +95,10 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
 /** Files grouped by stage, with versions A, B, C (spec 5.7). Drop files anywhere on the tab to upload them. */
 export function FilesTab({ detail }: TabProps) {
   const { t } = useTranslation();
+  const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
+  const limit = useFileLimit();
   const files = useCall('files.list', { projectId: detail.project.id });
   const [stageId, setStageId] = useState(detail.currentStage.id);
   const [dragging, setDragging] = useState(false);
@@ -133,7 +136,7 @@ export function FilesTab({ detail }: TabProps) {
       const rest = queue.slice(sent);
       toast.show({
         tone: 'error',
-        message: errorMessage(error, t),
+        message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang),
         action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta), isUndo: false } : undefined,
       });
     } finally {
@@ -143,8 +146,9 @@ export function FilesTab({ detail }: TabProps) {
 
   const upload = async (list: FileList | null) => {
     const chosen = [...(list ?? [])];
-    for (const file of chosen.filter((f) => f.size > MAX_FILE_BYTES)) toast.show({ tone: 'error', message: t('files.tooBig', { name: file.name }) });
-    const accepted = chosen.filter((f) => f.size <= MAX_FILE_BYTES);
+    // The limit of the active store (50 MB on Supabase Storage), checked before any upload starts (plan 2b, point 1).
+    for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
+    const accepted = chosen.filter((f) => f.size <= limit);
     if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() });
   };
 

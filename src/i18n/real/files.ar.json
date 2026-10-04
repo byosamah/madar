@@ -1,0 +1,12 @@
+{
+  "files": {
+    "tooLarge": "حجم {{name}} أكبر من {{limit}}.",
+    "limitMb": "{{n}} ميغابايت"
+  },
+  "errors": {
+    "reasons": {
+      "file_too_large": "هذا الملف أكبر من الحجم المسموح برفعه.",
+      "upload_failed": "لم يُرفع الملف. حاول مرة أخرى."
+    }
+  }
+}
