@@ -26,6 +26,7 @@ const KONG_IN_DOCKER = 'http://kong:8000';
 /** A made-up local value. */
 const JOBS_SECRET = 'local-cron-secret-made-up';
 const SCHEDULE = '*/15 * * * *';
+const HISTORY_SCHEDULE = '0 3 * * *';
 
 let db: pg.Client;
 let dir = '';
@@ -36,8 +37,8 @@ let vaultBefore: { name: string; id: string }[] = [];
 type Job = { jobid: number; schedule: string; command: string; active: boolean; username: string; database: string };
 type Response = { id: number; status_code: number | null; content: string | null; error_msg: string | null; timed_out: boolean | null };
 
-const job = async (): Promise<Job | undefined> =>
-  (await db.query<Job>("select jobid::integer, schedule, command, active, username, database from cron.job where jobname = 'madar-jobs'")).rows[0];
+const job = async (name = 'madar-jobs'): Promise<Job | undefined> =>
+  (await db.query<Job>('select jobid::integer, schedule, command, active, username, database from cron.job where jobname = $1', [name])).rows[0];
 const lastResponseId = async (): Promise<number> => (await db.query<{ id: number }>('select coalesce(max(id), 0)::integer as id from net._http_response')).rows[0].id;
 const heartbeat = async (): Promise<Date | undefined> =>
   (await db.query<{ done_at: Date }>("select done_at from public.job_runs where key = 'heartbeat'")).rows[0]?.done_at;
@@ -77,20 +78,33 @@ function secretKey(): string {
   return status.SECRET_KEY ?? status.SERVICE_ROLE_KEY;
 }
 
-/** Waits until the jobs function answers: 401 for a request without the secret. */
-async function waitForJobs(ms: number): Promise<void> {
+/**
+ * Waits until the functions of this suite's serve process answer. A 401 is no proof: an edge runtime without JOBS_SECRET
+ * (CI starts one before the suite) gives 401 to every jobs call. Only this suite's env file gives region local-deno with
+ * JOBS_SECRET, and only with that secret does GET /api/health run its database check.
+ */
+async function waitForServe(ms: number): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
-      const response = await fetch(`${SUPABASE}/functions/v1/jobs/run`, { method: 'POST', body: '{}' });
-      await response.text();
-      if (response.status === 401) return;
+      const response = await fetch(`${SUPABASE}/functions/v1/api/health`, { headers: { 'x-madar-jobs-secret': JOBS_SECRET } });
+      const body = (await response.json().catch(() => ({}))) as { region?: string; checks?: { database?: string } };
+      if (body.region === 'local-deno' && body.checks?.database === 'ok') return;
     } catch {
       // Not up yet.
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  throw new Error(`The jobs function did not answer in ${ms} ms.`);
+  throw new Error(`The functions of this suite did not answer in ${ms} ms.`);
+}
+
+/**
+ * The address of this machine as the database container sees it. Docker Desktop on macOS forwards host.docker.internal.
+ * On Linux (CI) the Supabase CLI does not promise that name, so the suite uses the gateway of the stack network.
+ */
+function hostSeenFromDocker(): string {
+  if (process.platform === 'darwin') return 'host.docker.internal';
+  return execFileSync('docker', ['network', 'inspect', 'supabase_network_madar', '--format', '{{(index .IPAM.Config 0).Gateway}}'], { encoding: 'utf8' }).trim();
 }
 
 beforeAll(async () => {
@@ -109,6 +123,7 @@ afterAll(async () => {
   if (db) {
     const current = await job().catch(() => undefined);
     if (current && current.schedule !== SCHEDULE) await db.query('select cron.alter_job($1, schedule => $2)', [current.jobid, SCHEDULE]);
+    await db.query("delete from cron.job_run_details where command = 'madar-cron-history test row'").catch(() => undefined);
     await dropSecrets();
     await db.end();
   }
@@ -136,12 +151,55 @@ describe('suite 10: the schedule of the 15-minute job', () => {
     expect(sql).not.toMatch(/create_secret|update_secret/);
   });
 
-  it('makes the schedule once: the migration run again keeps one madar-jobs job', async () => {
+  it('makes the schedule once: the migration run again keeps one madar-jobs job and one madar-cron-history job', async () => {
     const before = await job();
+    const history = await job('madar-cron-history');
     await db.query(readFileSync(MIGRATION, 'utf8'));
-    const { rows } = await db.query<{ n: number }>("select count(*)::integer as n from cron.job where jobname = 'madar-jobs'");
-    expect(rows[0].n).toBe(1);
+    const { rows } = await db.query<{ name: string; n: number }>(
+      "select jobname as name, count(*)::integer as n from cron.job where jobname in ('madar-jobs', 'madar-cron-history') group by jobname order by jobname",
+    );
+    expect(rows).toEqual([
+      { name: 'madar-cron-history', n: 1 },
+      { name: 'madar-jobs', n: 1 },
+    ]);
     expect((await job())!.jobid).toBe(before!.jobid);
+    expect((await job('madar-cron-history'))!.jobid).toBe(history!.jobid);
+  });
+
+  it('deletes the run history of pg_cron older than 7 days every night at 03:00, and keeps the newer rows', async () => {
+    const history = await job('madar-cron-history');
+    expect(history).toMatchObject({ schedule: HISTORY_SCHEDULE, active: true, username: 'postgres', database: 'postgres' });
+    const jobid = (await job())!.jobid;
+    // The role postgres may not read the sequence of pg_cron, so the test rows take run numbers far above the real ones.
+    const insert = (days: number) =>
+      db.query<{ runid: number }>(
+        `insert into cron.job_run_details (jobid, runid, job_pid, database, username, command, status, return_message, start_time, end_time)
+         select $1, coalesce(max(runid), 0) + 1000000, 0, 'postgres', 'postgres', 'madar-cron-history test row', 'succeeded', 'test',
+           now() - make_interval(days => $2), now() - make_interval(days => $2)
+         from cron.job_run_details
+         returning runid::integer`,
+        [jobid, days],
+      );
+    const old = (await insert(8)).rows[0].runid;
+    const recent = (await insert(6)).rows[0].runid;
+    await db.query(history!.command);
+    const { rows } = await db.query<{ runid: number }>('select runid::integer from cron.job_run_details where runid = any($1::bigint[]) order by runid', [[old, recent]]);
+    expect(rows.map((row) => row.runid)).toEqual([recent]);
+  });
+
+  it('refuses to send the secret to a project_url that is plain http outside the local Docker network', async () => {
+    const before = await lastResponseId();
+    const queued = async () => (await db.query<{ n: number }>('select count(*)::integer as n from net.http_request_queue')).rows[0].n;
+    const queue = await queued();
+    await setSecret('jobs_secret', JOBS_SECRET);
+    for (const url of ['http://example.invalid', 'HTTP://example.invalid/', 'http://kong@example.invalid', 'http://10.0.0.1.example.invalid']) {
+      await setSecret('project_url', url);
+      await expect(runCommand(), url).rejects.toThrow(/project_url must use https/);
+    }
+    expect(await queued()).toBe(queue);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(await lastResponseId()).toBe(before);
+    await dropSecrets();
   });
 
   it('fails with a plain message and sends nothing while a Vault secret is missing', async () => {
@@ -164,10 +222,10 @@ describe('suite 10: the schedule of the 15-minute job', () => {
       request.resume();
       response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"v":1,"ok":true}');
     });
-    await new Promise<void>((resolve) => echo!.listen(0, '127.0.0.1', resolve));
+    // All addresses: on Linux the request comes from the gateway of the stack network, not from 127.0.0.1.
+    await new Promise<void>((resolve) => echo!.listen(0, '0.0.0.0', resolve));
     const port = (echo.address() as AddressInfo).port;
-    // Docker Desktop forwards host.docker.internal to this Mac.
-    await setSecret('project_url', `http://host.docker.internal:${port}/`);
+    await setSecret('project_url', `http://${hostSeenFromDocker()}:${port}/`);
     await setSecret('jobs_secret', JOBS_SECRET);
     const before = await lastResponseId();
     await runCommand();
@@ -198,7 +256,7 @@ describe('suite 10: the schedule of the 15-minute job', () => {
       const file = join(dir, 'functions.env');
       writeFileSync(file, Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
       serve = spawn('npx', ['supabase', 'functions', 'serve', '--env-file', file], { cwd: ROOT, detached: true, stdio: 'ignore' });
-      await waitForJobs(240_000);
+      await waitForServe(240_000);
       await setSecret('project_url', KONG_IN_DOCKER);
     }, 300_000);
 
