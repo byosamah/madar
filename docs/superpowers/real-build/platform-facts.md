@@ -192,6 +192,11 @@ supabase config push                # pushes config.toml settings (Auth, OAuth s
 
 Source: https://supabase.com/docs/guides/functions/quickstart and https://supabase.com/docs/guides/ai-tools/byo-mcp
 
+Local facts of this build (proof.md, sections E1 and C1):
+
+- The local transaction pooler is `127.0.0.1:54329` from the Mac and `pooler:6543` inside the Docker network. It accepts `postgres.pooler-dev` (runs as `postgres`) and `madar_server.pooler-dev` (runs as `madar_server`, once that role has a login).
+- `npm run start:server` (`wrangler dev -c wrangler.server.toml`) needs `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB` set to the local pooler URL, because the Worker takes its database from the Hyperdrive binding `DB`.
+
 ### 1.6 JWT verification for each function
 
 - With `verify_jwt = true` (the default), the platform checks the `Authorization` header before your code runs. The check accepts legacy HS256 tokens and tokens signed with the new asymmetric keys. Source: https://supabase.com/docs/guides/functions/auth-headers

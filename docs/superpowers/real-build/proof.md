@@ -26,7 +26,7 @@ Each section records one proof of the plan (`docs/superpowers/plans/2026-10-03-m
 **Facts found on the way (for C1, D1 and the it suites).**
 
 1. Inside the Docker network, a function must reach the pooler by its alias `pooler` (and the database by `db`). The container names (`supabase_pooler_madar`) contain `_`, and the Deno resolver refuses them: `getaddrinfo ENOTFOUND supabase_pooler_madar`. From the Mac, the transaction pooler is `127.0.0.1:54329` (`config.toml`, `[db.pooler] port`).
-2. The local pooler user is `postgres.pooler-dev` (tenant `pooler-dev`). The pooler connects to Postgres as `postgres`, so a local check of the `madar_server` role needs that role's own login through the pooler (B, Z0a).
+2. The local pooler user is `postgres.pooler-dev` (tenant `pooler-dev`). **Corrected after C1 (2026-10-04):** the local pooler also accepts `madar_server.pooler-dev` and then runs as `madar_server` (`current_user = madar_server`; the user `madar_server` without the tenant gets `ENOIDENTIFIER`), so a local check of the server role can go through the pooler once that role has a login (section C1, fact 1). The first text said the pooler always connects as `postgres`.
 3. The first serve on this Mac logged `CPU time soft limit reached` once for one isolate during the cold start, while the Mac's load average was about 170 (many agents at work). It did not repeat. Z0b measures the CPU of a cold start on the hosted platform (risk 3).
 4. The health route opens one connection of its own for each call and closes it, with a lock key (`7310999`) that is never the office key. So it shows the database path on every host without a pool of the app.
 
