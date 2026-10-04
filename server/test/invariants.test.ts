@@ -94,10 +94,12 @@ describe('the free checks of each db-mode call (TM 3.5, checks 2 to 5)', () => {
     ]);
   });
 
-  it('builds one checksum statement over every table of the schema', () => {
-    const sql = checksumSql(['users', 'events', 'office_meta']);
-    expect(sql).toContain('from users t');
-    expect(sql).toContain('from office_meta t');
-    expect(() => checksumSql(['users; drop table x'])).toThrow();
+  it('builds one checksum statement over every table of the schema, with the schema in each name, so no search_path counts', () => {
+    const sql = checksumSql('madar_w2', ['users', 'events', 'office_meta']);
+    expect(sql).toContain('from madar_w2.users t');
+    expect(sql).toContain('from madar_w2.office_meta t');
+    expect(sql).not.toMatch(/from (users|events|office_meta) t/);
+    expect(() => checksumSql('madar_w2', ['users; drop table x'])).toThrow();
+    expect(() => checksumSql('public; drop table x', ['users'])).toThrow();
   });
 });

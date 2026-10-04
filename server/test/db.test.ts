@@ -1,7 +1,31 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Event } from '../../src/api/contract/entities';
 import { makeTask, makeWorld, STAMP } from '../../src/test/factories';
-import { createGate, downChanges } from './db';
+import { noDb } from './fakes/db-none';
+import { Worker, createGate, downChanges, type Session } from './db';
+
+const ROOT = new URL('../../', import.meta.url);
+/** A static import or export of a file: "import type" leaves no module behind, every other form loads its module. */
+const STATIC_IMPORT = /^(?:import|export)\s+(?!type\s)(?:[^;'"]*?\sfrom\s+)?['"](\.[^'"]+)['"]/gm;
+
+/** Every file of the repository that loading this file loads at once, by path from the root. dynamic import() is left out. */
+function staticGraph(start: string): Set<string> {
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const file = queue.shift() as string;
+    for (const [, spec] of readFileSync(new URL(file, ROOT), 'utf8').matchAll(STATIC_IMPORT)) {
+      const base = new URL(spec, new URL(file, ROOT)).pathname.slice(ROOT.pathname.length);
+      const found = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, base].find((path) => /\.tsx?$/.test(path) && existsSync(new URL(path, ROOT)));
+      if (found && !seen.has(found)) {
+        seen.add(found);
+        queue.push(found);
+      }
+    }
+  }
+  return seen;
+}
 
 const event = (id: string, over: Partial<Event> = {}): Event => ({
   id, seq: 1, projectId: 'prj_001', actorId: 'usr_001', actorKind: 'human', actingForId: 'usr_001', correlationId: 'cor_a', verb: 'created',
@@ -85,5 +109,60 @@ describe('the test gate of the db harness', () => {
     finish();
     await Promise.all([running, ended]);
     expect(steps).toEqual(['step', 'end']);
+  });
+});
+
+describe('the setup file of the db project', () => {
+  it('loads no API module that a test file may mock, beyond the ones src/test/factories.ts loads', () => {
+    // A test file's vi.mock does not reach a module that the setup file loaded first (stageBackTracker.test.ts mocks permissions).
+    expect(staticGraph('server/core/runCall.ts')).toContain('src/api/permissions.ts');
+    const setup = staticGraph('server/test/db.ts');
+    const factories = staticGraph('src/test/factories.ts');
+    expect([...setup].filter((file) => file.startsWith('src/api/') && !factories.has(file))).toEqual([]);
+    expect(setup).not.toContain('server/core/runCall.ts');
+    expect(setup).not.toContain('server/core/serverCallMap.ts');
+  });
+});
+
+/** A connection that answers the setup queries of the worker and records every statement. */
+function fakeSession(o: { schema: string; currentSchema?: string }): Session & { sql: string[] } {
+  const sql: string[] = [];
+  return {
+    sql,
+    db: noDb,
+    baseline: 'sum_fresh',
+    client: {
+      async query(text: string) {
+        sql.push(text);
+        if (text.includes('current_schema()')) return { rows: [{ s: o.currentSchema ?? o.schema }] };
+        if (text.includes('pg_tables')) return { rows: [{ tablename: 'office_meta' }] };
+        if (text.includes('md5(')) return { rows: [{ sum: 'sum_fresh' }] };
+        return { rows: [] };
+      },
+    },
+    async close() {},
+  };
+}
+
+describe('the worker of the db harness', () => {
+  const provided = { url: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres', baselines: {}, run: 'run_test' };
+
+  it('gives each test fresh fakes, so a fake upload of one test is gone in the next', async () => {
+    const worker = new Worker({ provided, open: async (w) => fakeSession({ schema: w.schema }) });
+    await worker.begin();
+    worker.deps.files.objects.set('blob_1', { size: 3, mimeType: 'text/plain' });
+    worker.deps.mail.sent.push({ to: 'a@madar.test' } as never);
+    await worker.rollback();
+    await worker.begin();
+    expect(worker.deps.files.objects.size).toBe(0);
+    expect(worker.deps.mail.sent).toEqual([]);
+    await worker.close();
+  });
+
+  it('refuses a connection whose search_path did not take, as through the pooler, and names the direct port', async () => {
+    const session = fakeSession({ schema: 'x', currentSchema: 'public' });
+    const worker = new Worker({ provided, open: async () => session });
+    await expect(worker.begin()).rejects.toThrow(/works in the schema public, not in madar_w\d+.*direct connection.*54322/);
+    expect(session.sql.some((text) => text === 'begin')).toBe(false);
   });
 });

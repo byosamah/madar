@@ -30,11 +30,15 @@ export type CallCheck = {
 
 const SAFE_NAME = /^[a-z][a-z0-9_]*$/;
 
-/** One statement that gives one checksum over the rows of every table named. */
-export function checksumSql(tables: readonly string[]): string {
+/**
+ * One statement that gives one checksum over the rows of every table named. Each table goes with its schema, so the checksum is
+ * the same whatever the search_path of the connection is.
+ */
+export function checksumSql(schema: string, tables: readonly string[]): string {
+  if (!SAFE_NAME.test(schema)) throw new Error(`Not a schema name: ${schema}`);
   const parts = tables.map((table) => {
     if (!SAFE_NAME.test(table)) throw new Error(`Not a table name: ${table}`);
-    return `select '${table}' as n, md5(coalesce(string_agg(t::text, ',' order by t::text), '')) as h from ${table} t`;
+    return `select '${table}' as n, md5(coalesce(string_agg(t::text, ',' order by t::text), '')) as h from ${schema}.${table} t`;
   });
   return `select md5(string_agg(n || ':' || h, '|' order by n)) as sum from (${parts.join(' union all ')}) x`;
 }
@@ -42,10 +46,10 @@ export function checksumSql(tables: readonly string[]): string {
 /** The tables of one schema, by name. */
 export const SCHEMA_TABLES_SQL = "select tablename from pg_tables where schemaname = $1 order by tablename";
 
-/** The checksum of every table of a schema, as the given query sees it (its search_path must name the schema). */
+/** The checksum of every table of a schema. */
 export async function checksumOf(q: Query, schema: string): Promise<string> {
   const tables = (await q<{ tablename: string }>(SCHEMA_TABLES_SQL, [schema])).map((row) => row.tablename);
-  const [row] = await q<{ sum: string }>(checksumSql(tables));
+  const [row] = await q<{ sum: string }>(checksumSql(schema, tables));
   return row.sum;
 }
 

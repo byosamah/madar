@@ -4,19 +4,19 @@ import { afterAll, afterEach, beforeEach, inject, vi, type TestContext } from 'v
 import type { State } from '../../src/api/store';
 import { setNow } from '../../src/lib/dates';
 import { useDbTestApi } from '../../src/test/factories';
-import { createRunCall, type RunCall } from '../core/runCall';
-import type { Query } from '../core/ports';
+import type { RunCall } from '../core/runCall';
+import type { Db, Query } from '../core/ports';
 import type { CallEntry } from '../core/serverCallMap';
 import { clearOfficeCaches } from '../data/officeCache';
 import { COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, docOf, rowOf, rowsParam, upsertSql, type Row } from '../data/rows';
 import { pgDb } from '../data/sql';
 import { TABLES, rowsOf, type TableSpec } from '../data/tables';
 import { loadWhole } from '../data/whole';
-import { applyMigrations, localClient } from '../it/migrate';
+import { localClient } from '../it/migrate';
 import { skipReason } from './db-mode.skip';
 import { createDbApi, type MirrorBackend } from './dbApi';
-import { fakeDeps } from './fakes/deps';
-import { harnessDbUrl, workerLockKey, workerSchema } from './global-setup';
+import { fakeDeps, type FakeDeps } from './fakes/deps';
+import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb } from './global-setup';
 import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
 
 /**
@@ -24,9 +24,12 @@ import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
  * on this worker's schema of the local stack:
  *
  * - One schema for each worker (madar_w<VITEST_POOL_ID>), made by global-setup.ts. A worker beyond the ones the global setup made
- *   applies the migrations into its own schema.
- * - One connection for each test file. It signs in as postgres (the setup role) and keeps the schema on its search_path. It
- *   refuses any database host except 127.0.0.1 and localhost (harnessDbUrl).
+ *   applies the migrations into its own schema with its first file (workerBaseline).
+ * - One connection for each test file. It signs in as postgres (the setup role) and keeps the schema on its search_path, and it
+ *   checks that the search_path took (a pooler drops it). It refuses any database host except 127.0.0.1 and localhost.
+ * - Fresh fakes (files, mail, auth, signals, clock) for each test, as the rollback gives a fresh database.
+ * - The server code (runCall, the call map, every handler) loads with the first call, not with this file: a test file's vi.mock
+ *   does not reach a module that the setup file loaded first.
  * - One transaction for each test: BEGIN on the first call, ROLLBACK in afterEach. Each transaction of runCall becomes a savepoint
  *   inside it (pgDb with callerClient). After each rollback the office caches go (clearOfficeCaches), so a cache never holds a
  *   version that the rollback took back.
@@ -161,32 +164,66 @@ export function createGate(): Gate {
   };
 }
 
+/** One open connection of a worker: the client on its schema, the Db of runCall on that client, and the fresh-schema checksum. */
+export type Session = {
+  client: { query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }> };
+  db: Db;
+  baseline: string;
+  close(): Promise<void>;
+};
+
+/** The real connection: the schema made or found as postgres, then one pooled client with the schema on its search_path. */
+async function openSession(worker: Worker): Promise<Session> {
+  const setup = await localClient(worker.url);
+  let baseline: string;
+  try {
+    baseline = await workerBaseline(setup, worker.schema, worker.provided);
+  } finally {
+    await setup.end();
+  }
+  const pool = new pg.Pool({ connectionString: worker.url, max: 1, options: `-c search_path=${worker.schema}` });
+  pool.on('error', () => undefined);
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    await pool.end();
+    throw error;
+  }
+  return {
+    client,
+    db: pgDb({ writeUrl: worker.url, readUrl: worker.url }, { callerClient: client }),
+    baseline,
+    async close() {
+      client.release();
+      await pool.end();
+    },
+  };
+}
+
+let runCallModule: Promise<typeof import('../core/runCall')> | undefined;
+
 /** One worker's connection, transaction and backend. */
-class Worker {
+export class Worker {
   readonly schema = workerSchema(process.env.VITEST_POOL_ID);
   readonly lockKey = workerLockKey(this.schema);
   readonly url: string;
-  readonly baseline: string | undefined;
-  #pool?: pg.Pool;
-  #client?: PoolClient;
+  readonly provided: ProvidedDb | undefined;
+  readonly #opener: (worker: Worker) => Promise<Session>;
+  #session?: Session;
   #open = false;
   #sumSql?: string;
-  #ownBaseline?: string;
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
   /** How many calls ran on the database in this file, and their time in ms, for the gate of TM 4.1 (25 ms a call). */
   #calls = { n: 0, ms: 0 };
   readonly backend: MirrorBackend;
-  #deps?: ReturnType<typeof fakeDeps>;
+  #deps?: FakeDeps;
 
-  constructor() {
-    const provided = inject('madarDb');
+  constructor(o: { provided?: ProvidedDb; open?: (worker: Worker) => Promise<Session> } = {}) {
+    this.provided = o.provided ?? inject('madarDb');
+    this.#opener = o.open ?? openSession;
     // The worker checks the host again, so a URL that reached it some other way still cannot leave the Mac.
-    this.url = harnessDbUrl({ DATABASE_URL: provided?.url });
-    this.baseline = provided?.baselines[this.schema];
-    const deps = () => {
-      if (!this.#deps) throw new Error('db mode: the backend is used before its connection opened.');
-      return this.#deps;
-    };
+    this.url = harnessDbUrl({ DATABASE_URL: this.provided?.url });
     const worker = this;
     this.backend = {
       owner: undefined,
@@ -200,12 +237,18 @@ class Worker {
       readBack: () => loadWhole(worker.q, { withEvents: true }),
       checksum: () => worker.checksum(),
       get signals() {
-        return deps().signal.sent;
+        return worker.deps.signal.sent;
       },
       get clock() {
-        return deps().clock;
+        return worker.deps.clock;
       },
     };
+  }
+
+  /** The fakes of the running test. begin() makes new ones for each test. */
+  get deps(): FakeDeps {
+    if (!this.#deps) throw new Error('db mode: the backend is used before its test transaction opened.');
+    return this.#deps;
   }
 
   /** A backend for one mirror, behind the test gate. The owner mark stays one for the worker. */
@@ -234,53 +277,51 @@ class Worker {
   }
 
   readonly q: Query = async <R = Rec>(text: string, values?: unknown[]): Promise<R[]> => {
-    if (!this.#client) throw new Error('db mode: no connection.');
-    return (await this.#client.query(text, values)).rows as R[];
+    if (!this.#session) throw new Error('db mode: no connection.');
+    return (await this.#session.client.query(text, values)).rows as R[];
   };
 
-  async #connect(): Promise<PoolClient> {
-    if (this.#client) return this.#client;
-    const exists = await localClient(this.url);
+  async #connect(): Promise<void> {
+    if (this.#session) return;
+    const session = await this.#opener(this);
     try {
-      const [row] = (await exists.query('select to_regclass($1) as found', [`${this.schema}.office_meta`])).rows as { found: string | null }[];
-      if (!row.found) {
-        await applyMigrations(exists, this.schema);
-        this.#ownBaseline = await (async () => {
-          await exists.query(`set search_path to ${this.schema}`);
-          const tables = (await exists.query(SCHEMA_TABLES_SQL, [this.schema])).rows.map((r: { tablename: string }) => r.tablename);
-          return ((await exists.query(checksumSql(tables))).rows[0] as { sum: string }).sum;
-        })();
+      // A pooler (Supavisor, port 54329) drops the search_path of the startup options with no error, and every query would then
+      // run on the public schema of the local stack.
+      const [row] = (await session.client.query('select current_schema() as s')).rows as { s: string | null }[];
+      if (row?.s !== this.schema) {
+        throw new Error(
+          `db mode: the connection works in the schema ${row?.s ?? '(none)'}, not in ${this.schema}. The harness needs a direct connection to the local database (port 54322), not the pooler.`,
+        );
       }
-    } finally {
-      await exists.end();
+      const tables = ((await session.client.query(SCHEMA_TABLES_SQL, [this.schema])).rows as { tablename: string }[]).map((r) => r.tablename);
+      this.#sumSql = checksumSql(this.schema, tables);
+    } catch (error) {
+      await session.close();
+      throw error;
     }
-    this.#pool = new pg.Pool({ connectionString: this.url, max: 1, options: `-c search_path=${this.schema}` });
-    this.#pool.on('error', () => undefined);
-    this.#client = await this.#pool.connect();
-    const db = pgDb({ writeUrl: this.url, readUrl: this.url }, { callerClient: this.#client });
-    this.#deps = fakeDeps({ db, config: { lockKey: this.lockKey, supabaseUrl: `http://db-mode.${this.schema}` } });
-    const tables = (await this.q<{ tablename: string }>(SCHEMA_TABLES_SQL, [this.schema])).map((row) => row.tablename);
-    this.#sumSql = checksumSql(tables);
-    return this.#client;
+    this.#session = session;
   }
 
+  /** Opens the transaction of a test, once, with fresh fakes: the rollback takes back the rows, these go with it. */
   async begin(): Promise<void> {
     await this.#connect();
     if (this.#open) return;
     await this.q('begin');
     this.#open = true;
+    this.#deps = fakeDeps({ db: this.#session!.db, config: { lockKey: this.lockKey, supabaseUrl: `http://db-mode.${this.schema}` } });
   }
 
   async run(req: Parameters<MirrorBackend['run']>[0], calls: ReadonlyMap<string, CallEntry>) {
     let run = this.#runs.get(calls);
     if (!run) {
+      const { createRunCall } = await (runCallModule ??= import('../core/runCall'));
       run = createRunCall({ calls });
       this.#runs.set(calls, run);
     }
     await this.q(AS_SERVER);
     const started = performance.now();
     try {
-      return await run(this.#deps!, req);
+      return await run(this.deps, req);
     } finally {
       this.#calls.n += 1;
       this.#calls.ms += performance.now() - started;
@@ -308,20 +349,18 @@ class Worker {
 
   /** The leak guard (TM 5, point 4): no row of any test is left. Then the connection closes. */
   async close(): Promise<void> {
-    if (!this.#client) return;
+    const session = this.#session;
+    if (!session) return;
     const { n, ms } = this.#calls;
     console.info(`db mode: ${n} calls on the database in ${this.schema}, ${n > 0 ? (ms / n).toFixed(1) : 0} ms a call in runCall.`);
     try {
       await this.rollback();
-      const expected = this.#ownBaseline ?? this.baseline;
-      const now = await this.checksum();
-      if (expected !== undefined && now !== expected) {
+      if ((await this.checksum()) !== session.baseline) {
         throw new Error(`db mode, leak guard: the schema ${this.schema} holds rows that a test committed outside its transaction.`);
       }
     } finally {
-      this.#client.release();
-      await this.#pool!.end();
-      this.#client = undefined;
+      this.#session = undefined;
+      await session.close();
     }
   }
 }
