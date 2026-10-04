@@ -71,7 +71,8 @@ for (const v of VARIANTS) {
       await expect(page.getByText(`${person.name} added.`)).toBeVisible();
       const mail = await waitForMail({ to: person.email, tag: 'invite', after: before });
       // The link opens the app of the run: linkPath refuses a link to another origin, where the token would go.
-      expect(linkPath(mail.text, 'welcome', appOrigin(process.env, baseURL))).toMatch(/^\/welcome\?token_hash=[^&]+&type=invite$/);
+      // It carries the renew key of security fix 7 (52 base32 characters), for a new link when this one is out of date.
+      expect(linkPath(mail.text, 'welcome', appOrigin(process.env, baseURL))).toMatch(/^\/welcome\?token_hash=[^&]+&type=invite&renew=[a-z2-7]{52}$/);
       // The row of the person shows Invited until the first sign-in.
       await expect(page.getByRole('listitem').filter({ hasText: person.name }).getByText('Invited')).toBeVisible();
     });
