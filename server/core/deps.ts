@@ -3,6 +3,8 @@ import { authAdminPort } from '../auth/admin';
 import '../auth/effects';
 // Registers the file effect (r2.delete) in every entry, also one that runs only jobs (plan 4.12).
 import '../files/effects';
+// Registers the agent effect (agents.revokeAll) in every entry, also one that runs only jobs (plan 4.12).
+import '../mcp/revokeAll';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';

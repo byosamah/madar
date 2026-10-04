@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { EFFECTS_OF } from '../core/effects';
@@ -62,5 +62,14 @@ describe('agents.revokeAll', () => {
     expect(REVOKE_ALL_SQL).not.toMatch(/active/);
     expect(REVOKE_ALL_SQL).not.toMatch(/\busers\b/);
     await expect(runRevokeAll({}, { ...fakeDeps(), db })).rejects.toThrow(/user id/);
+  });
+  it('is registered by server/core/deps alone, so an entry that runs only jobs runs it (plan 4.12)', async () => {
+    vi.resetModules();
+    await import('../core/deps');
+    const { processOutbox } = await import('../core/effects');
+    const seen: string[] = [];
+    const db = { statement: async (_m: string, text: string) => (seen.push(text), text.includes('returning') ? [{ id: '1', kind: REVOKE_ALL_KIND, payload: { userId: 'usr_005' } }] : []) } as unknown as Db;
+    expect(await processOutbox({ ...fakeDeps(), db }, ['1'])).toEqual({ done: ['1'], failed: [] });
+    expect(seen).toContain(REVOKE_ALL_SQL);
   });
 });

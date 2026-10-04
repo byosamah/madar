@@ -1,5 +1,6 @@
 import { forgotRoute } from '../auth/forgot';
 import type { Deps } from '../core/ports';
+import { APPROVE_ROUTE } from '../mcp/approval';
 
 /**
  * The extra HTTP routes of the api function, beside POST /batch (plan 4.10). The app of track E mounts each route.
@@ -9,4 +10,5 @@ export type RouteDef = { method: 'GET' | 'POST'; path: string; handler: (request
 
 export const ROUTES: RouteDef[] = [
   { method: 'POST', path: '/auth/forgot', handler: forgotRoute },
+  APPROVE_ROUTE,
 ];
