@@ -322,16 +322,18 @@ Two more facts:
 
 ## P2 and P3. Invitations, reset mail, Auth effects and the first Admin on the local stack (2026-10-04)
 
-**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it scripts/first-admin.test.ts server/it/auth.it.test.ts server/it/invites.it.test.ts`. All 17 tests pass (local Auth v2.197.0). Mail goes to the fake mail port; every link of a mail goes to the real local Auth.
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it scripts/first-admin.test.ts server/it/auth.it.test.ts server/it/invites.it.test.ts`. All 19 tests pass (local Auth v2.197.0; rerun after the P2 review fixes). Mail goes to the fake mail port; every link of a mail goes to the real local Auth.
 
 | Case | Result |
 |---|---|
 | `users.create` by the Admin | One `auth.invite` outbox row in the call's transaction. After the commit: an `invite` link, `users.auth_user_id` written with `setAuthUserId` (a warm office cache finds the person by the link), the mail with `/welcome?token_hash=...&type=invite`. |
 | The person uses the link and sets a password | Sign-in works; `verifyBrowserToken` and `principalOf` give the new person; `users.invites` turns from `invited` (with `sentAt`) to `active`. |
 | `users.resendInvite` | A new `invite` link; the old link answers 403 `otp_expired`; the new link works. |
-| A retried `auth.invite` after a failed send | The retry keeps the token hash of the first link (outbox payload), and that link works. |
-| An email change before the person accepts (`auth.email`) | Auth gets the new email, and a new invitation goes to the new email; the link at the old email fails (403). |
-| An email change after the person accepted | Auth gets the new email; no mail; sign-in with the new email works. |
+| A retried `auth.invite` after a failed send | The retry keeps the token hash of the first link (outbox payload), and that link works. The sent row then holds no token hash (`sentAt`, `mailId` and `linkType` stay). |
+| A retried older `auth.invite` after `users.resendInvite` made a newer link | The retry sends nothing (its stored link is dead: 403); the newer link works. |
+| An email change before the person accepts (`auth.email`) | Auth gets the new email alone (no `email_confirm`), so the person stays unconfirmed: the new mail has an `invite` link, `users.invites` still says `invited`, and the link at the old email fails (403). With `email_confirm: true` Auth confirmed the person, and the next invite link answered 422 `email_exists`. |
+| A name change (`users.update` with no email) | No `auth.email` row: the producer reads the `user.updated` event that the save just wrote. |
+| An email change after the person accepted | Auth gets the new email, confirmed; a notice goes to the OLD email (no link); sign-in with the new email works; `users.invites` says `active`. |
 | `users.deactivate`, then `users.reactivate` | The old token gets 403 `account_off` at once. Auth bans the person: a password sign-in answers 400 `user_banned`. After the reactivation, sign-in works again. |
 | A Member token, then a role change by the Admin | The same token is refused (`forbidden`) on `users.invites`, then accepted: the role comes from `users`. |
 | `POST /api/auth/forgot` | The same 200 answer for a person and an unknown email; the reset mail in the person's language with `/reset?...&type=recovery`, which sets a new password; 429 after 3 an hour for one email; `rate_limits` holds no email. |
@@ -342,4 +344,7 @@ Two more facts:
 
 - The effects read the person again when they run, so a late retry never undoes a newer change (a ban does nothing for a person who is on again).
 - An email change needs to know whether the person accepted, and `users.invites` needs the state of every person. Both read Auth (`getUser`, `listUsers`), which `AuthAdminPort` does not have yet: the merge lead patch of P2 adds them.
-- The forgot route takes the network address from `cf-connecting-ip`, else the first `x-forwarded-for` entry. A client can set that header on Supabase, so the address limit is weak there; the limit for each email still holds.
+- The forgot route takes the network address from `cf-connecting-ip`, else the first `x-forwarded-for` entry. A client can set that header on Supabase, so the address limit is weak there; the limit for each email still holds, and an office limit of 20 reset mails an hour (`forgot:all`, counted only when a mail would go out) keeps a script from using up the mail of the day. Track Z: check on madar-test which `x-forwarded-for` entry the Supabase proxy adds, and read that entry.
+- The auth.email effect notes what it owes in the payload (`owesInvite`, or `notifyOld`) before it changes Auth, so a retry after a failed link or mail still sends it.
+- Track M: `failedEffects` of `usage.get` returns the kind, the attempts and the error of a row, never its payload. An unsent invitation row holds a live token hash.
+- The forgot route answers after the work (padded to 1.5 s). A slow Auth or Resend still makes the answer for a real account slower. Moving the work after the answer needs `after` (waitUntil) in the route handlers and a database that stays open after the answer on Workers; that is a host change for track E, not done here.
