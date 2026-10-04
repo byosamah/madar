@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/errors';
-import { hostOf, needsWarning, safeRedirect } from './knownHosts';
+import { addressOf, hostOf, needsWarning, safeRedirect } from './knownHosts';
 import { httpOAuthPort } from './oauthPort';
 
 describe('the redirect host of an AI app (knownHosts)', () => {
@@ -9,6 +9,14 @@ describe('the redirect host of an AI app (knownHosts)', () => {
     expect(hostOf('https://claude.ai/api/mcp/auth_callback')).toBe('claude.ai');
     expect(hostOf('cursor://anysphere.cursor-retrieval/oauth/callback')).toBe('anysphere.cursor-retrieval');
     expect(hostOf('not a url')).toBeNull();
+  });
+
+  it('names the address for the screen: the host for http and https, the scheme and host for an app address (review of G4)', () => {
+    expect(addressOf('https://claude.ai/api/mcp/auth_callback')).toBe('claude.ai');
+    expect(addressOf('http://127.0.0.1:33418/callback')).toBe('127.0.0.1');
+    expect(addressOf('cursor://anysphere.cursor-retrieval/oauth/callback')).toBe('cursor://anysphere.cursor-retrieval');
+    expect(addressOf('evil://claude.ai/cb')).toBe('evil://claude.ai');
+    expect(addressOf('not a url')).toBe('not a url');
   });
 
   it('warns for a host that is not loopback and not a known AI app, and for an address it cannot read', () => {

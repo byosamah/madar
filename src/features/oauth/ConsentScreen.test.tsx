@@ -101,6 +101,13 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     expectCalm(container);
   });
 
+  it('warns about a known host under another app scheme, and then offers no main button (review of G4)', async () => {
+    const { container } = await open({ tools: tools({ redirectUri: 'evil://claude.ai/cb' }) });
+    expect(await screen.findByText('Madar does not know \u2068evil://claude.ai\u2069. Approve only if you started this connection yourself, in an AI app you trust.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).not.toHaveClass('signature');
+    expectCalm(container);
+  });
+
   it('shows no warning for a loopback or known host, and Approve is the one main button', async () => {
     for (const redirectUri of [LOOPBACK, 'https://claude.ai/api/mcp/auth_callback']) {
       const { container, unmount } = await open({ tools: tools({ redirectUri }) });

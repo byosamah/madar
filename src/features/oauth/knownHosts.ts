@@ -30,6 +30,21 @@ export function hostOf(uri: string): string | null {
   }
 }
 
+/**
+ * The address of a redirect as the consent screen names it: the host for http and https, the scheme and the host for an app
+ * address (so "evil://claude.ai/cb" never reads as claude.ai), and the address itself when it does not parse.
+ */
+export function addressOf(uri: string): string {
+  try {
+    const parsed = new URL(uri);
+    if (!parsed.hostname) return uri;
+    const scheme = parsed.protocol.toLowerCase();
+    return scheme === 'http:' || scheme === 'https:' ? parsed.hostname : `${scheme}//${parsed.hostname}`;
+  } catch {
+    return uri;
+  }
+}
+
 export function isLoopback(host: string): boolean {
   return LOOPBACK.has(host.toLowerCase());
 }

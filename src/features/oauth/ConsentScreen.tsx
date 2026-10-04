@@ -9,7 +9,7 @@ import { Button } from '../../components/Button';
 import { AuthPage, FormError } from '../auth/AuthPage';
 import { signInPath } from '../auth/paths';
 import { useAuth } from '../auth/useAuth';
-import { hostOf, needsWarning, safeRedirect } from './knownHosts';
+import { addressOf, needsWarning, safeRedirect } from './knownHosts';
 import { OAuthFailure, useOAuth, type ConsentRequest } from './oauthPort';
 
 /**
@@ -103,7 +103,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   const [error, setError] = useState<string | null>(null);
   const name = request.clientName || t('consent.generic');
   // The host is Latin text inside an Arabic sentence too: the isolate marks keep it one unit, apart from the words around it.
-  const host = `\u2068${hostOf(request.redirectUri) ?? request.redirectUri}\u2069`;
+  const host = `\u2068${addressOf(request.redirectUri)}\u2069`;
   const warn = needsWarning(request.redirectUri);
   const unsafe = !safeRedirect(request.redirectUri);
 
