@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Navigate, useSearchParams } from 'react-router';
+import { ApiError } from '../../api/errors';
 import { errorMessage } from '../../app/errors';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
@@ -24,6 +25,8 @@ import { OAuthFailure, useOAuth, type ConsentRequest } from './oauthPort';
  *   and Approve is then not the main button.
  * - Approve: the approval is recorded in Madar first (the api function, the person's browser token), then Auth approves. When
  *   Madar refuses, Auth is never asked. Deny: Auth denies, and Madar records nothing.
+ * - After Madar refuses Approve for an app that the person removed (agent_removed), Approve goes: a second press only repeats
+ *   the refusal. The refusal words say how to connect the app again, and Deny stays as the way back to the AI app.
  * - The return address (security review of G4): the screen leaves only for a safe address (knownHosts.ts, safeRedirect), and
  *   after Approve or Deny only for the request's own address. A request whose address is not safe has no Approve.
  */
@@ -101,6 +104,8 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
   const person = useCall('session.get', {}).data?.user.name;
   const [pending, setPending] = useState<'approve' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Madar refused Approve for an app that the person removed (TASKS.md, Wave 5 follow-ups, G calm screen).
+  const [removed, setRemoved] = useState(false);
   const name = request.clientName || t('consent.generic');
   // The host is Latin text inside an Arabic sentence too: the isolate marks keep it one unit, apart from the words around it.
   const host = `\u2068${addressOf(request.redirectUri)}\u2069`;
@@ -121,6 +126,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
       }
       leave(redirect);
     } catch (failure) {
+      if (failure instanceof ApiError && failure.details.reason === 'agent_removed') setRemoved(true);
       setError(failureText(failure, t));
       setPending(null);
     }
@@ -150,7 +156,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
       {!unsafe && <FormError text={error} />}
       <div className="flex flex-col gap-2 sm:flex-row">
         {/* An unknown host takes away the main button, so the warning stays the one colored highlight. */}
-        <Button variant={warn ? 'secondary' : 'primary'} className="flex-1" disabled={pending !== null || unsafe} onClick={() => void answer('approve')}>{t('consent.approve')}</Button>
+        {!removed && <Button variant={warn ? 'secondary' : 'primary'} className="flex-1" disabled={pending !== null || unsafe} onClick={() => void answer('approve')}>{t('consent.approve')}</Button>}
         <Button className="flex-1" disabled={pending !== null} onClick={() => void answer('deny')}>{t('consent.deny')}</Button>
       </div>
     </AuthPage>

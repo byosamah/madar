@@ -75,6 +75,24 @@ function RenewLink({ renewKey }: { renewKey: string }) {
 }
 
 /**
+ * A reset link that is out of date, on this screen: the invitation sent again to a person who accepted but set no password
+ * (users.resendInvite) comes as a reset link with no renew key (TASKS.md, Wave 5 follow-ups, H). The Admin is not the next step:
+ * one short sentence and one main button to the Forgot screen, where the person types the email and gets a new reset link.
+ * The quiet way back to Sign in stays, for a person who set a password since then.
+ */
+function NewResetLink() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <p role="alert" className="text-body text-ink">{t('auth.welcome.recovery.body')}</p>
+      <Button variant="primary" className="w-full" onClick={() => void navigate('/forgot')}>{t('auth.welcome.recovery.again')}</Button>
+      <Link to="/sign-in" className={QUIET_LINK}>{t('auth.backToSignIn')}</Link>
+    </>
+  );
+}
+
+/**
  * The invitation link (client map 7.1), of type invite or recovery. The token is used only when the person presses the button, so a mail scanner that opens
  * the link does not use it. Then the person sees their name and email and sets a password.
  */
@@ -133,7 +151,9 @@ export function WelcomeScreen() {
     <AuthPage title={t('auth.welcome.title')}>
       {step === 'ended' && (renewKey
         ? <RenewLink renewKey={renewKey} />
-        : <LinkEnded text={t('auth.welcome.ended')} to="/sign-in" label={t('auth.backToSignIn')} />)}
+        : type === 'recovery'
+          ? <NewResetLink />
+          : <LinkEnded text={t('auth.welcome.ended')} to="/sign-in" label={t('auth.backToSignIn')} />)}
       {step === 'open' && (
         <>
           <p className="text-body text-ink-2">{t('auth.welcome.body')}</p>

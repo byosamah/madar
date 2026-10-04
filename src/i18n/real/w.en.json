@@ -1,0 +1,10 @@
+{
+  "auth": {
+    "welcome": {
+      "recovery": {
+        "body": "This link is out of date. You can get a new one with your email.",
+        "again": "Get a new link"
+      }
+    }
+  }
+}
