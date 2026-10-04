@@ -67,6 +67,42 @@ describe('the Supabase Storage store: signed upload links (plan 2b, point 1; pro
   });
 });
 
+describe('the Supabase Storage store: the address of the links for the browser (whole-product check after wave 4)', () => {
+  // A local function sees SUPABASE_URL=http://kong:8000, a name that only the Docker network knows. The browser must get the
+  // address of the Mac, or every upload and download fails with ERR_NAME_NOT_RESOLVED.
+  const INNER = 'http://kong:8000';
+  function split(answer: (seen: Seen) => Response) {
+    const seen: Seen[] = [];
+    const fetchImpl = (async (input: Request | string | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      const one = { method: request.method, url: request.url, headers: request.headers, body: request.body ? await request.text() : '' };
+      seen.push(one);
+      return answer(one);
+    }) as typeof fetch;
+    const port = supabaseStorageFilesPort({ supabaseUrl: INNER, publicUrl: `${BASE}/`, secretKey: SECRET, bucket: 'madar-files', fetch: fetchImpl, now: () => NOW });
+    return { seen, port };
+  }
+
+  it('signs an upload on SUPABASE_URL and gives the browser the link on publicUrl', async () => {
+    const { seen, port } = split(() => Response.json({ url: `/object/upload/sign/madar-files/up/upl-1/file?token=${token({ exp })}` }));
+    const put = await port.presignPut('up/upl-1/file', { mimeType: 'image/png' });
+    expect(seen[0].url).toBe(`${INNER}/storage/v1/object/upload/sign/madar-files/up/upl-1/file`);
+    expect(put.url.startsWith(`${BASE}/storage/v1/object/upload/sign/madar-files/up/upl-1/file?token=`)).toBe(true);
+  });
+
+  it('signs a download on SUPABASE_URL and gives the browser the link on publicUrl', async () => {
+    const { seen, port } = split(() => Response.json({ signedURL: '/object/sign/madar-files/prj-001/fil-001/1/file?token=abc' }));
+    const get = await port.presignGet('prj-001/fil-001/1/file', { disposition: 'inline', filename: 'plan.png', mimeType: 'image/png' });
+    expect(seen[0].url).toBe(`${INNER}/storage/v1/object/sign/madar-files/prj-001/fil-001/1/file`);
+    expect(get.url).toBe(`${BASE}/storage/v1/object/sign/madar-files/prj-001/fil-001/1/file?token=abc`);
+  });
+
+  it('gives the links on SUPABASE_URL when no publicUrl is set, as on a hosted project', async () => {
+    const { port } = store(() => Response.json({ signedURL: '/object/sign/madar-files/a/file?token=abc' }));
+    expect((await port.presignGet('prj-001/fil-001/1/file', { disposition: 'inline', filename: 'a.png', mimeType: 'image/png' })).url.startsWith(`${BASE}/storage/v1/`)).toBe(true);
+  });
+});
+
 describe('the Supabase Storage store: signed download links', () => {
   const signed = () => store((s) => Response.json({ signedURL: `${new URL(s.url).pathname.replace('/storage/v1', '')}?token=abc` }));
 

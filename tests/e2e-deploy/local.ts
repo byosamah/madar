@@ -42,14 +42,16 @@ function status(): Record<string, string> {
   return values;
 }
 
-function functionsEnv(file: string): void {
-  const values = status();
-  const lines = {
+/** The env lines of "supabase functions serve" on the local stack, from the values of "supabase status". */
+export function functionsEnvLines(values: Record<string, string>): Record<string, string> {
+  return {
     // Inside the Docker network the pooler is "pooler" (proof.md E1, fact 1).
     DATABASE_URL: 'postgres://postgres.pooler-dev:postgres@pooler:6543/postgres',
     MADAR_SECRET_KEY: values.SECRET_KEY ?? values.SERVICE_ROLE_KEY,
     // A local function sees SUPABASE_URL=http://kong:8000, but its tokens name the address of the Mac (proof.md P1).
     AUTH_ISSUER: `${SUPABASE_URL}/auth/v1`,
+    // The same for the file links: the browser cannot reach http://kong:8000, so the links go to the address of the Mac.
+    FILES_PUBLIC_URL: SUPABASE_URL,
     // The audience of an agent token is the MCP URL of the Mac (the token hook's mcp_url), not http://kong:8000/functions/v1/mcp.
     MCP_URL: `${SUPABASE_URL}/functions/v1/mcp`,
     APP_URL,
@@ -58,6 +60,10 @@ function functionsEnv(file: string): void {
     MAIL_DRIVER: 'outbox',
     SB_REGION: 'local-deno',
   };
+}
+
+function functionsEnv(file: string): void {
+  const lines = functionsEnvLines(status());
   writeFileSync(file, Object.entries(lines).map(([k, v]) => `${k}=${v}`).join('\n') + '\n', { mode: 0o600 });
   console.log(`Wrote ${file}.`);
 }

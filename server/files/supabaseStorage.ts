@@ -4,6 +4,8 @@ import { DOWNLOAD_LINK_SECONDS, HEAD_TIMEOUT_MS, UPLOAD_LINK_SECONDS, baseMimeTy
 
 export type SupabaseStorageEnv = {
   supabaseUrl: string;
+  /** The address of the links that the browser gets (default supabaseUrl). A local function sees Storage as http://kong:8000. */
+  publicUrl?: string;
   secretKey: string;
   bucket: string;
   fetch?: typeof fetch;
@@ -41,6 +43,7 @@ function tokenExpiry(link: string): Date | null {
  */
 export function supabaseStorageFilesPort(env: SupabaseStorageEnv): FilesPort {
   const storage = `${env.supabaseUrl.replace(/\/+$/, '')}/storage/v1`;
+  const links = `${(env.publicUrl ?? env.supabaseUrl).replace(/\/+$/, '')}/storage/v1`;
   const now = env.now ?? (() => new Date());
   const fetchImpl = env.fetch ?? ((input, init) => fetch(input, init));
   const auth = { apikey: env.secretKey, authorization: `Bearer ${env.secretKey}` };
@@ -98,14 +101,14 @@ export function supabaseStorageFilesPort(env: SupabaseStorageEnv): FilesPort {
       // No x-upsert header and no body: the default is no upsert.
       const signed = await json<{ url: string }>('upload sign', `/object/upload/sign/${env.bucket}/${key}`, { method: 'POST' });
       const expires = tokenExpiry(signed.url) ?? new Date(at.getTime() + UPLOAD_LINK_SECONDS.supabase * 1000);
-      return { url: `${storage}${signed.url}`, headers: { 'Content-Type': storedMimeType(o.mimeType) }, expiresAt: expires.toISOString() };
+      return { url: `${links}${signed.url}`, headers: { 'Content-Type': storedMimeType(o.mimeType) }, expiresAt: expires.toISOString() };
     },
 
     async presignGet(key, o) {
       assertObjectKey(key);
       const at = now();
       const signed = await json<{ signedURL: string }>('sign', `/object/sign/${env.bucket}/${key}`, { method: 'POST', body: { expiresIn: DOWNLOAD_LINK_SECONDS } });
-      let url = `${storage}${signed.signedURL}`;
+      let url = `${links}${signed.signedURL}`;
       if (effectiveDisposition(o.disposition, o.mimeType) === 'attachment') {
         url += `${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(safeFileName(o.filename))}`;
       }

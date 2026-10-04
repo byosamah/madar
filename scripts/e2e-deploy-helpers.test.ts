@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routeUrl, urlPattern } from '../tests/e2e-deploy/goto';
 import { linkPath } from '../tests/e2e-deploy/mail';
 import { appOrigin, databaseTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
-import { localOnly } from '../tests/e2e-deploy/local';
+import { functionsEnvLines, localOnly } from '../tests/e2e-deploy/local';
 import { word } from '../tests/e2e-deploy/words';
 
 /** The pure helpers of the browser checks on the test deployment (task X2). */
@@ -142,5 +142,14 @@ describe('localOnly', () => {
     expect(() => localOnly('http://127.0.0.1:54321')).not.toThrow();
     expect(() => localOnly('http://localhost:54321')).not.toThrow();
     expect(() => localOnly('https://qdgwpnesxppnqsaabqzd.supabase.co')).toThrow(/local stack/);
+  });
+});
+
+describe('functionsEnvLines', () => {
+  it('gives the local functions the address of the Mac for the file links, since they see Storage as http://kong:8000', () => {
+    const lines = functionsEnvLines({ SECRET_KEY: 'sb_secret_local' });
+    expect(lines.FILES_PUBLIC_URL).toBe('http://127.0.0.1:54321');
+    expect(lines.AUTH_ISSUER).toBe('http://127.0.0.1:54321/auth/v1');
+    expect(lines.MADAR_SECRET_KEY).toBe('sb_secret_local');
   });
 });

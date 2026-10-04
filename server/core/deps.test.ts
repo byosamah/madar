@@ -203,4 +203,24 @@ describe('the entry modules of deps.ts (P1, N2 follow-ups)', () => {
   it('names AUTH_ISSUER in the list of values of its header comment (server/auth/verify.ts reads it)', () => {
     expect(source('./deps.ts')).toMatch(/^ \*   AUTH_ISSUER {2,}\S/m);
   });
+
+  it('names FILES_PUBLIC_URL in the list of values of its header comment', () => {
+    expect(source('./deps.ts')).toMatch(/^ \*   FILES_PUBLIC_URL {2,}\S/m);
+  });
+});
+
+describe('FILES_PUBLIC_URL (whole-product check after wave 4)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('gives the browser the file links on FILES_PUBLIC_URL, while the server calls Storage on SUPABASE_URL', async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      calls.push(String(input instanceof Request ? input.url : input));
+      return Response.json({ url: '/object/upload/sign/madar-files/up/upl-1/file?token=t' });
+    });
+    const deps = buildDeps(reader({ ...FULL, SUPABASE_URL: 'http://kong:8000', FILES_PUBLIC_URL: 'http://127.0.0.1:54321' }));
+    const put = await deps.files.presignPut('up/upl-1/file', { mimeType: 'image/png' });
+    expect(calls).toEqual(['http://kong:8000/storage/v1/object/upload/sign/madar-files/up/upl-1/file']);
+    expect(put.url).toBe('http://127.0.0.1:54321/storage/v1/object/upload/sign/madar-files/up/upl-1/file?token=t');
+  });
 });

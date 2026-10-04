@@ -33,6 +33,8 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   APP_URL                the screens (required); API_URL and MCP_URL default to the function URLs of SUPABASE_URL
  *   MAIL_FROM              the sender (required); MAIL_DRIVER resend (default, needs RESEND_API_KEY) or outbox
  *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values)
+ *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
+ *                          sees another address for Storage than the browser does (a local function sees http://kong:8000)
  *   MIN_CLIENT_BUILD       the oldest screen build the server accepts (default 0)
  *   ALLOWED_ORIGINS        the origins for CORS, separated by commas (default the origin of APP_URL)
  *   SB_REGION              the region of the running function (Supabase injects it)
@@ -62,7 +64,7 @@ export type ServerEnv = {
   secretKey: string;
   jobsSecret?: string;
   mail: { driver: 'resend'; apiKey: string } | { driver: 'outbox' };
-  files: { bucket: string } | { r2: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string } };
+  files: { bucket: string; publicUrl?: string } | { r2: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string } };
 };
 
 /** The database hosts that may go without TLS: the Mac and the names inside the local Docker network. */
@@ -162,7 +164,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     secretKey: secretKey as string,
     ...(jobsSecret === undefined ? {} : { jobsSecret }),
     mail: driver === 'resend' ? { driver, apiKey } : { driver },
-    files: r2 ? { r2 } : { bucket: read('FILES_BUCKET') ?? 'madar-files' },
+    files: r2 ? { r2 } : { bucket: read('FILES_BUCKET') ?? 'madar-files', ...(read('FILES_PUBLIC_URL') ? { publicUrl: read('FILES_PUBLIC_URL') } : {}) },
   };
 }
 
@@ -195,7 +197,7 @@ export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
     clock: { now: () => new Date() },
     files: 'r2' in values.files
       ? r2FilesPort(values.files.r2)
-      : supabaseStorageFilesPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey, bucket: values.files.bucket }),
+      : supabaseStorageFilesPort({ supabaseUrl: config.supabaseUrl, publicUrl: values.files.publicUrl, secretKey: values.secretKey, bucket: values.files.bucket }),
     mail: values.mail.driver === 'resend' ? resendMailPort({ apiKey: values.mail.apiKey, from: config.mailFrom }) : outboxMailPort(db),
     signal: realtimeSender({ log, meter }),
     authAdmin: authAdminPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey }),
