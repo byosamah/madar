@@ -1,0 +1,82 @@
+import type { Kind } from '../api/remote/wire';
+
+/**
+ * The read map (plan 5.3, client map 3.2): for each read call, the kinds of change it reads and how far a change reaches it.
+ * src/app/signals.ts reloads a list only when a change signal names one of its kinds, in its project or for its person.
+ * readMap.test.ts runs each read call over the sample office with a State that records what it reads, and fails when a kind
+ * is missing here. An over-wide rule only costs a reload; a missing kind leaves a list old.
+ *
+ * Scopes:
+ * - office: any change of one of its kinds reloads it.
+ * - project: only a change in its project, or a change that touches the office (people, clients, a direct chat). projectOf
+ *   gives the project from the input or the cached answer; undefined means "any project".
+ * - person: the lists of one person (Inbox, chats, counts, session). A gap on the person channel reloads only these.
+ * - none: never reloads on a signal (signed file links, file data, screenshots). They load again when a screen opens them.
+ *
+ * The personal kinds (chatReads, notifications, preferences) reload a list only when the signal names this person, in any scope.
+ * Every call reads the record of the person who asks (the rights), so every rule that reloads names users.
+ */
+export type ReadScope = 'office' | 'project' | 'person' | 'none';
+export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(input: unknown, data: unknown): string | undefined };
+
+/** The State collections that are kinds (wire.ts Kind without the two narrow kinds). */
+export const COLLECTION_KINDS = [
+  'users', 'clients', 'projects', 'members', 'stages', 'deadlines', 'tasks', 'updates', 'comments', 'files', 'notifications',
+  'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'tracker', 'payments', 'feedback',
+  'teams', 'settings',
+] as const satisfies readonly Kind[];
+
+/** The kinds of a change that belongs to one person: they go only on that person's channel (plan, change 13). */
+export const PERSONAL_KINDS: ReadonlySet<Kind> = new Set<Kind>(['chatReads', 'notifications', 'preferences']);
+
+const field = (value: unknown, key: string): string | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const found = (value as Record<string, unknown>)[key];
+  return typeof found === 'string' ? found : undefined;
+};
+
+/** The project of a read whose input names it. */
+const byProjectId = (input: unknown) => field(input, 'projectId');
+
+const rule = (scope: ReadScope, kinds: readonly Kind[], projectOf?: ReadRule['projectOf']): ReadRule =>
+  projectOf ? { scope, kinds, projectOf } : { scope, kinds };
+
+const PROJECT_DETAIL: Kind[] = ['clients', 'comments', 'deadlines', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'];
+
+export const READS: Record<string, ReadRule> = {
+  'projects.get': rule('project', [...PROJECT_DETAIL, 'projectTouched', 'settings'], (input) => field(input, 'id')),
+  'updates.list': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'], byProjectId),
+  'tasks.list': rule('project', ['comments', 'files', 'members', 'projects', 'stages', 'tasks', 'users'], byProjectId),
+  'tasks.get': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'users'],
+    (_input, data) => field(typeof data === 'object' && data !== null ? (data as { task?: unknown }).task : undefined, 'projectId')),
+  'comments.list': rule('project', ['comments', 'files', 'tasks', 'updates', 'users']),
+  'files.list': rule('project', ['files', 'members', 'projects', 'users'], byProjectId),
+  'payments.list': rule('project', ['payments', 'projects', 'users'], byProjectId),
+  'tracker.list': rule('project', ['files', 'members', 'projects', 'tracker', 'users'], byProjectId),
+  'tracker.export': rule('project', ['events', 'files', 'projects', 'tracker', 'users'], byProjectId),
+  'events.list': rule('project', ['events', 'files', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
+  'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
+  'dashboard.get': rule('office', ['deadlines', 'members', 'projects', 'settings', 'stages', 'tasks', 'teams', 'tracker', 'users']),
+  'deadlines.list': rule('office', ['deadlines', 'projects', 'users']),
+  'search.query': rule('office', ['clients', 'files', 'projects', 'tasks', 'users']),
+  'users.list': rule('office', ['users', 'preferences']),
+  'users.get': rule('office', ['users', 'preferences']),
+  'users.invites': rule('office', ['users']),
+  'agents.list': rule('office', ['users']),
+  'clients.list': rule('office', ['clients', 'users']),
+  'settings.get': rule('office', ['settings', 'users']),
+  'teams.list': rule('office', ['teams', 'users']),
+  'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
+  'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
+  'feedback.list': rule('office', ['feedback', 'users']),
+  'session.get': rule('person', ['projects', 'users', 'preferences']),
+  'notifications.list': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
+  'notifications.count': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
+  'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
+  'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
+  'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'projects', 'users']),
+  'usage.get': rule('none', []),
+  'files.link': rule('none', []),
+  'files.get': rule('none', []),
+  'feedback.screenshot': rule('none', []),
+};
