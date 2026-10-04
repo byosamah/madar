@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  HEALTH_LOCK_KEY,
   checkSecrets,
   parseSecretsFile,
   runSecrets,
@@ -18,6 +19,16 @@ const SERVER_PASSWORD = 'Server-Password-1234';
 const ROOT_CA = readFileSync(new URL('../../config/supabase-root-2021-ca.crt', import.meta.url), 'utf8');
 
 const dbUrl = (ref: string, password = SERVER_PASSWORD) => `postgresql://madar_server.${ref}:${password}@aws-1-eu-central-1.pooler.supabase.com:6543/postgres`;
+
+/** Runs fn and gives its error text, or fails when fn does not throw. */
+function refusal(fn: () => unknown): string {
+  try {
+    fn();
+  } catch (error) {
+    return String(error);
+  }
+  throw new Error('no refusal');
+}
 
 function file(ref = TEST, extra = ''): string {
   return [
@@ -37,6 +48,8 @@ function harness(o: { target?: 'test' | 'production'; text?: string; env?: Recor
   const requests: { url: string; init: RequestInit }[] = [];
   const logs: string[] = [];
   const asked: string[] = [];
+  const signIns: { url: string; ca: string; afterCommit: boolean; requestsBefore: number }[] = [];
+  const slept: number[] = [];
   const query: Query = async (text, values) => {
     sql.push({ text, values });
     return { rowCount: text.includes('update_secret') ? 0 : 1 };
@@ -48,6 +61,13 @@ function harness(o: { target?: 'test' | 'production'; text?: string; env?: Recor
     env: o.env ?? { SUPABASE_ACCESS_TOKEN: 'sbp_token_value', MADAR_TEST_DB_PASSWORD: 'pg-test-pw', MADAR_DB_PASSWORD: 'pg-prod-pw' },
     dryRun: o.dryRun ?? false,
     connect: async () => ({ query, end: async () => undefined }),
+    serverUser: async ({ url, ca }) => {
+      signIns.push({ url, ca, afterCommit: sql.some((statement) => statement.text === 'commit'), requestsBefore: requests.length });
+      return 'madar_server';
+    },
+    sleep: async (ms) => {
+      slept.push(ms);
+    },
     fetch: async (url, init) => {
       requests.push({ url: String(url), init: init ?? {} });
       return new Response('[]', { status: 200 });
@@ -58,7 +78,7 @@ function harness(o: { target?: 'test' | 'production'; text?: string; env?: Recor
     },
     log: (line) => logs.push(line),
   };
-  return { run, sql, requests, logs, asked };
+  return { run, sql, requests, logs, asked, signIns, slept };
 }
 
 const secretValues = [SERVER_PASSWORD, 're_secret_value_1', 'jobs-secret-value-1', 'sbp_token_value', 'pg-test-pw', 'pg-prod-pw'];
@@ -115,6 +135,53 @@ describe('checkSecrets', () => {
   it('keeps the MCP URL free of a query, because the OAuth resource URL must not change (plan, change 5)', () => {
     expect(check(TEST, file()).mcpUrl).toBe(`https://${TEST}.supabase.co/functions/v1/mcp`);
     expect(() => check(TEST, file(TEST, `MCP_URL=https://${TEST}.supabase.co/functions/v1/mcp?forceFunctionRegion=eu-central-1`))).toThrow(/MCP_URL/);
+  });
+
+  it('takes DATABASE_READ_URL only under the rules of DATABASE_URL, with the same madar_server password', () => {
+    const read = (url: string) => check(TEST, file(TEST, `DATABASE_READ_URL=${url}`));
+    expect(() => read(dbUrl(TEST))).not.toThrow();
+    // postgres owns every table: it skips RLS and can truncate events, so the read pool must never sign in as it.
+    expect(() => read(dbUrl(TEST).replace('madar_server.', 'postgres.'))).toThrow(/DATABASE_READ_URL.*madar_server/);
+    expect(() => read(dbUrl(PRODUCTION))).toThrow(/DATABASE_READ_URL.*madar_server\.qdgwpnesxppnqsaabqzd/);
+    expect(() => read(dbUrl(TEST).replace(':6543/', ':5432/'))).toThrow(/DATABASE_READ_URL.*6543/);
+    expect(() => read(dbUrl(TEST).replace('aws-1-eu-central-1.pooler', 'db.qdgwpnesxppnqsaabqzd'))).toThrow(/DATABASE_READ_URL.*pooler/);
+    expect(() => read(`${dbUrl(TEST)}?sslmode=require`)).toThrow(/DATABASE_READ_URL.*TLS/);
+    expect(() => read(`${dbUrl(TEST)}?uselibpqcompat=true`)).toThrow(/DATABASE_READ_URL.*TLS/);
+    expect(() => read(dbUrl(TEST, 'Other-Password-99'))).toThrow(/DATABASE_READ_URL.*password of DATABASE_URL/);
+    expect(() => read('not a url')).toThrow(/DATABASE_READ_URL is not a URL/);
+  });
+
+  it('refuses a MAIL_DRIVER other than resend or outbox, as the server start does', () => {
+    expect(() => check(TEST, file(TEST, 'MAIL_DRIVER=resend'))).not.toThrow();
+    expect(() => check(TEST, file(TEST, 'MAIL_DRIVER=smtp'))).toThrow(/MAIL_DRIVER must be resend or outbox/);
+    expect(() => check(TEST, file(TEST, 'MAIL_DRIVER=Outbox'))).toThrow(/MAIL_DRIVER/);
+  });
+
+  it('refuses a MADAR_LOCK_KEY that is not a whole number, or that is the health check key', () => {
+    expect(() => check(TEST, file(TEST, 'MADAR_LOCK_KEY=7310002'))).not.toThrow();
+    for (const key of ['abc', '1.5', '', '9007199254740993']) {
+      expect(() => check(TEST, file(TEST, `MADAR_LOCK_KEY=${key}`)), key).toThrow(/MADAR_LOCK_KEY must be a whole number/);
+    }
+    expect(() => check(TEST, file(TEST, `MADAR_LOCK_KEY=${HEALTH_LOCK_KEY}`))).toThrow(/MADAR_LOCK_KEY must not be the health check key/);
+  });
+
+  it('keeps the health check key of the server start (server/core/deps.ts)', () => {
+    const deps = readFileSync(new URL('../../server/core/deps.ts', import.meta.url), 'utf8');
+    const [, key] = /export const HEALTH_LOCK_KEY = ([\d_]+);/.exec(deps)!;
+    expect(HEALTH_LOCK_KEY).toBe(Number(key.replaceAll('_', '')));
+  });
+
+  it('never puts a value into the errors of the read URL, the mail driver and the lock key', () => {
+    const errors = [
+      refusal(() => check(TEST, file(TEST, `DATABASE_READ_URL=${dbUrl(TEST).replace('madar_server.', 'postgres.')}`))),
+      refusal(() => check(TEST, file(TEST, `DATABASE_READ_URL=${dbUrl(TEST, 'Other-Password-99')}`))),
+      refusal(() => check(TEST, file(TEST, `DATABASE_READ_URL=${dbUrl(TEST)}?sslmode=leaky-value-2`))),
+      refusal(() => check(TEST, file(TEST, 'MAIL_DRIVER=leaky-value-2'))),
+      refusal(() => check(TEST, file(TEST, 'MADAR_LOCK_KEY=leaky-value-2'))),
+    ];
+    for (const error of errors) {
+      for (const value of [SERVER_PASSWORD, 'Other-Password-99', 'leaky-value-2']) expect(error).not.toContain(value);
+    }
   });
 
   it('wants https screens, never a local address', () => {
@@ -204,6 +271,69 @@ describe('runSecrets', () => {
   it('needs the Madar access token and the database password of the chosen project', async () => {
     await expect(runSecrets(harness({ env: { MADAR_TEST_DB_PASSWORD: 'x' } }).run)).rejects.toThrow(/SUPABASE_ACCESS_TOKEN/);
     await expect(runSecrets(harness({ env: { SUPABASE_ACCESS_TOKEN: 'x', MADAR_DB_PASSWORD: 'y' } }).run)).rejects.toThrow(/MADAR_TEST_DB_PASSWORD/);
+  });
+
+  it('signs in as madar_server through the transaction pooler after the commit and before the Management API (proof Z0a, item 7)', async () => {
+    const h = harness();
+    await runSecrets(h.run);
+    expect(h.signIns).toEqual([{ url: dbUrl(TEST), ca: ROOT_CA, afterCommit: true, requestsBefore: 0 }]);
+    expect(h.requests).toHaveLength(1);
+    expect(h.slept).toEqual([]);
+  });
+
+  it('tries the sign in again every 5 s when the pooler refuses the new password at first', async () => {
+    const h = harness();
+    let calls = 0;
+    h.run.serverUser = async () => {
+      calls += 1;
+      if (calls <= 2) throw new Error('Authentication credentials are invalid. Please reconnect with fresh credentials');
+      return 'madar_server';
+    };
+    await runSecrets(h.run);
+    expect(calls).toBe(3);
+    expect(h.slept).toEqual([5000, 5000]);
+    expect(h.requests).toHaveLength(1);
+  });
+
+  it('stops after 60 s of refused sign ins and sets no function secret', async () => {
+    const h = harness();
+    let calls = 0;
+    h.run.serverUser = async () => {
+      calls += 1;
+      throw new Error('password authentication failed for user "madar_server"');
+    };
+    await expect(runSecrets(h.run)).rejects.toThrow(/madar_server could not sign in through the transaction pooler/);
+    expect(h.slept.reduce((sum, ms) => sum + ms, 0)).toBe(60_000);
+    expect(calls).toBe(13);
+    expect(h.requests).toEqual([]);
+  });
+
+  it('counts a sign in as another role as a failure', async () => {
+    const h = harness();
+    h.run.serverUser = async () => 'postgres';
+    await expect(runSecrets(h.run)).rejects.toThrow(/madar_server could not sign in/);
+    expect(h.requests).toEqual([]);
+  });
+
+  it('never puts the password or the URL into the sign in error', async () => {
+    const h = harness();
+    h.run.serverUser = async ({ url }) => {
+      throw new Error(`connect failed for ${url} with ${SERVER_PASSWORD}`);
+    };
+    const error = await runSecrets(h.run).then(
+      () => '',
+      (failure: unknown) => String(failure),
+    );
+    expect(error).toMatch(/madar_server could not sign in/);
+    expect(error).not.toContain(SERVER_PASSWORD);
+    expect(error).not.toContain('pooler.supabase.com:6543');
+    for (const secret of secretValues) expect(h.logs.join('\n')).not.toContain(secret);
+  });
+
+  it('does not sign in during a dry run', async () => {
+    const h = harness({ dryRun: true, env: {} });
+    await runSecrets(h.run);
+    expect(h.signIns).toEqual([]);
   });
 
   it('rolls the transaction back and sets no function secret when a database step fails', async () => {

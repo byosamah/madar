@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
  * It reads secrets/<env>.env (git ignores the folder) and:
  *   1. in one transaction, as postgres through the session pooler: writes the Vault secrets project_url and jobs_secret, writes
  *      platform_config.mcp_url, and makes madar_server a login role with the password of DATABASE_URL, sent as a SCRAM verifier;
- *   2. sets the function secrets through the Management API (what `supabase secrets set` calls), with the Supabase root certificate
+ *   2. signs in with DATABASE_URL through the transaction pooler until current_user is madar_server, for up to a minute, because the
+ *      pooler once refused a new password at first (proof Z0a, item 7); without that sign in it stops, and no function secret changes;
+ *   3. sets the function secrets through the Management API (what `supabase secrets set` calls), with the Supabase root certificate
  *      as DATABASE_CA.
  *
  * It needs SUPABASE_ACCESS_TOKEN (the Madar account, never the Halulu sign-in of the CLI) and the postgres password of the project:
@@ -22,6 +24,11 @@ export type Target = 'test' | 'production';
 export const REFS: Record<Target, string> = { test: 'qdgwpnesxppnqsaabqzd', production: 'oprkvdjudjxxhvodkzgs' };
 const DB_PASSWORD: Record<Target, string> = { test: 'MADAR_TEST_DB_PASSWORD', production: 'MADAR_DB_PASSWORD' };
 export const POOLER_HOST = 'aws-1-eu-central-1.pooler.supabase.com';
+/** The advisory lock key of the health check (server/core/deps.ts, which imports the whole server, so a test keeps the two equal). */
+export const HEALTH_LOCK_KEY = 7_310_999;
+/** The sign in check after the new password: one try every 5 s for up to 60 s (proof Z0a, item 7). */
+export const SIGN_IN_WAIT_MS = 5_000;
+export const SIGN_IN_LIMIT_MS = 60_000;
 
 /** The function secrets that the server reads (server/core/deps.ts). Supabase injects SUPABASE_URL, SUPABASE_SECRET_KEYS and SB_REGION. */
 export const FUNCTION_SECRETS = [
@@ -51,27 +58,47 @@ export function parseSecretsFile(text: string): Record<string, string> {
 
 export type Checked = { serverPassword: string; mcpUrl: string; jobsSecret: string };
 
-/** The rules of the server's start (server/core/deps.ts), checked before anything changes. */
+/**
+ * A database URL of the server (plan, change 24): madar_server of this project on the transaction pooler, with no TLS setting.
+ * It gives the password. Errors name the setting, never a value.
+ */
+function checkServerUrl(name: string, text: string, ref: string): string {
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error(`${name} is not a URL.`);
+  }
+  if (url.username !== `madar_server.${ref}`) throw new Error(`${name} must sign in as madar_server.${ref}, the server role of this project.`);
+  if (url.hostname !== POOLER_HOST || url.port !== '6543') throw new Error(`${name} must use the transaction pooler ${POOLER_HOST}:6543.`);
+  if (/[?&](ssl\w*|uselibpqcompat)=/i.test(url.search)) throw new Error(`${name} must not carry a TLS setting such as sslmode: the server uses DATABASE_CA.`);
+  if (url.password === '') throw new Error(`${name} must hold the madar_server password.`);
+  return decodeURIComponent(url.password);
+}
+
+/** The rules of the server's start (server/core/deps.ts) and of the server role (plan, change 24), checked before anything changes. */
 export function checkSecrets(values: Record<string, string>, ref: string): Checked {
+  const driver = values.MAIL_DRIVER ?? 'resend';
+  if (driver !== 'resend' && driver !== 'outbox') throw new Error('MAIL_DRIVER must be resend or outbox.');
   const needed = ['DATABASE_URL', 'APP_URL', 'MAIL_FROM'];
-  if ((values.MAIL_DRIVER ?? 'resend') !== 'outbox') needed.push('RESEND_API_KEY');
+  if (driver === 'resend') needed.push('RESEND_API_KEY');
   needed.push('JOBS_SECRET');
   if (values.MADAR_FILE_STORE === 'r2') needed.push(...R2_NAMES);
   const missing = needed.filter((name) => !values[name]);
   if (missing.length > 0) throw new Error(`The secrets file needs ${missing.join(', ')}.`);
   if (values.MADAR_FILE_STORE !== undefined && !['supabase', 'r2'].includes(values.MADAR_FILE_STORE)) throw new Error('MADAR_FILE_STORE must be supabase or r2.');
 
-  let url: URL;
-  try {
-    url = new URL(values.DATABASE_URL);
-  } catch {
-    throw new Error('DATABASE_URL is not a URL.');
+  const serverPassword = checkServerUrl('DATABASE_URL', values.DATABASE_URL, ref);
+  // secrets.ts sets the role password from DATABASE_URL only, and postgres must never read for the server: it skips RLS.
+  if (values.DATABASE_READ_URL !== undefined && checkServerUrl('DATABASE_READ_URL', values.DATABASE_READ_URL, ref) !== serverPassword) {
+    throw new Error('DATABASE_READ_URL must hold the password of DATABASE_URL: the role madar_server has one password.');
   }
-  if (url.username !== `madar_server.${ref}`) throw new Error(`DATABASE_URL must sign in as madar_server.${ref}, the server role of this project.`);
-  if (url.hostname !== POOLER_HOST || url.port !== '6543') throw new Error(`DATABASE_URL must use the transaction pooler ${POOLER_HOST}:6543.`);
-  if (/[?&](ssl\w*|uselibpqcompat)=/i.test(url.search)) throw new Error('DATABASE_URL must not carry a TLS setting such as sslmode: the server uses DATABASE_CA.');
-  if (url.password === '') throw new Error('DATABASE_URL must hold the madar_server password.');
-  const serverPassword = decodeURIComponent(url.password);
+
+  if (values.MADAR_LOCK_KEY !== undefined) {
+    const lockKey = Number(values.MADAR_LOCK_KEY);
+    if (values.MADAR_LOCK_KEY === '' || !Number.isSafeInteger(lockKey)) throw new Error('MADAR_LOCK_KEY must be a whole number.');
+    if (lockKey === HEALTH_LOCK_KEY) throw new Error('MADAR_LOCK_KEY must not be the health check key.');
+  }
 
   if (!/^https:\/\//.test(values.APP_URL) || /\/\/(127\.0\.0\.1|localhost)[:/]?/.test(values.APP_URL)) throw new Error('APP_URL must be the https address of the screens.');
   const mcpUrl = values.MCP_URL ?? `https://${ref}.supabase.co/functions/v1/mcp`;
@@ -112,6 +139,9 @@ export type SecretsRun = {
   env: Record<string, string | undefined>;
   dryRun: boolean;
   connect: (o: { ref: string; password: string; ca: string }) => Promise<{ query: Query; end: () => Promise<void> }>;
+  /** Signs in with a server URL through the transaction pooler and gives current_user. */
+  serverUser: (o: { url: string; ca: string }) => Promise<string>;
+  sleep: (ms: number) => Promise<void>;
   fetch: typeof fetch;
   ask: (question: string) => Promise<string>;
   log: (line: string) => void;
@@ -124,6 +154,23 @@ async function confirmProduction(run: SecretsRun, ref: string): Promise<void> {
   if (run.env.MADAR_DEPLOY_CONFIRMED === 'production') return;
   const word = await run.ask(`This changes the production project ${ref}. Type production to go on: `);
   if (word.trim() !== 'production') throw new Error('Stopped: the typed word was not production. Nothing changed.');
+}
+
+/**
+ * madar_server signs in with DATABASE_URL through the transaction pooler (proof Z0a, item 7). The error names no value: a driver
+ * error can quote the URL, so its text stays out.
+ */
+async function waitForServerSignIn(run: SecretsRun, url: string): Promise<void> {
+  for (let waited = 0; ; waited += SIGN_IN_WAIT_MS) {
+    const user = await run.serverUser({ url, ca: run.rootCa }).catch(() => '');
+    if (user === 'madar_server') return;
+    if (waited >= SIGN_IN_LIMIT_MS) break;
+    await run.sleep(SIGN_IN_WAIT_MS);
+  }
+  throw new Error(
+    `madar_server could not sign in through the transaction pooler with DATABASE_URL of ${run.target} for ${SIGN_IN_LIMIT_MS / 1000} s. ` +
+      'The database has the new password; no function secret changed. Run secrets.ts again.',
+  );
 }
 
 export async function runSecrets(run: SecretsRun): Promise<void> {
@@ -165,7 +212,9 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
   } finally {
     await db.end();
   }
-  run.log(`Database of ${run.target}: Vault project_url and jobs_secret, platform_config.mcp_url, madar_server can sign in.`);
+  run.log(`Database of ${run.target}: Vault project_url and jobs_secret, platform_config.mcp_url, madar_server login.`);
+  await waitForServerSignIn(run, values.DATABASE_URL);
+  run.log(`madar_server signs in through the transaction pooler of ${run.target}.`);
 
   const answer = await run.fetch(`https://api.supabase.com/v1/projects/${ref}/secrets`, {
     method: 'POST',
@@ -206,6 +255,24 @@ if (isMain) {
       await client.connect();
       return { query: (text, values) => client.query(text, values), end: () => client.end() };
     },
+    serverUser: async ({ url, ca }) => {
+      // The transaction pooler as madar_server, as the functions connect (server/data/sql.ts), with the checked host name.
+      const parsed = new URL(url);
+      const client = new pg.Client({
+        host: parsed.hostname, port: Number(parsed.port), user: decodeURIComponent(parsed.username), password: decodeURIComponent(parsed.password),
+        database: decodeURIComponent(parsed.pathname.slice(1)) || 'postgres',
+        ssl: { ca, rejectUnauthorized: true, servername: parsed.hostname },
+        connectionTimeoutMillis: 10_000,
+      });
+      try {
+        await client.connect();
+        const answer = await client.query<{ current_user: string }>('select current_user');
+        return answer.rows[0]?.current_user ?? '';
+      } finally {
+        await client.end().catch(() => undefined);
+      }
+    },
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     fetch,
     ask: async (question) => {
       const reader = createInterface({ input: process.stdin, output: process.stderr });
