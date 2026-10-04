@@ -179,4 +179,18 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     expect(screen.getByRole('button', { name: 'موافقة' })).toBeInTheDocument();
     expectCalm(container);
   });
+
+  it('shows the Madar mark with the name above the title, and no new button or link (TASKS.md, Logo)', async () => {
+    for (const [language, title, name] of [['en', 'Connect Claude Code to Madar?', 'Madar'], ['ar', 'هل تربط Claude Code بمدار؟', 'مدار']] as const) {
+      const view = await open({ language });
+      const heading = await screen.findByRole('heading', { level: 1, name: title });
+      const brand = view.container.querySelector('[data-madar-brand]') as HTMLElement;
+      expect(brand).toHaveTextContent(name);
+      expect(brand.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(brand.querySelectorAll('[data-madar-mark][aria-hidden="true"]')).toHaveLength(1);
+      expect(brand.querySelectorAll('button, a')).toHaveLength(0);
+      expectCalm(view.container);
+      view.unmount();
+    }
+  });
 });
