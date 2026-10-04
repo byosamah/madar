@@ -71,4 +71,13 @@ describe('the file preview (F3 repair)', () => {
     expect(calls.map((call) => call.name)).toEqual(['files.get']);
     expect(within(sheet).queryByRole('button', { name: 'Download' })).toBeNull();
   });
+
+  it.each(['prototype', 'remote'] as const)('keeps a file that is not a picture or a PDF (a .docx) as the plain line in the %s build', async (mode) => {
+    const { calls } = renderSheet(view('fil_904', 'Brief.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), mode);
+    const sheet = await screen.findByRole('dialog', { name: 'Brief.docx' });
+    expect(within(sheet).getByText('There is no preview for this file type.')).toBeInTheDocument();
+    expect(sheet.querySelector('[data-file-icon]')).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Download' })).toBeNull();
+    expect(calls).toEqual([]);
+  });
 });

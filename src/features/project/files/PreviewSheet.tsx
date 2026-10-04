@@ -15,7 +15,7 @@ export const canPreview = (mimeType: string) => mimeType.startsWith('image/') ||
 /**
  * A file preview: an image or a PDF. With more than one view, Previous and Next move through them. The picture test of
  * app/files decides which pictures an img tag shows: in the real build a picture that the store keeps as a download (an SVG)
- * shows the file icon and a download, and asks for no inline link (F3 repair).
+ * shows the file icon and a download, and asks for no inline link (F3 repair). Any other type keeps the plain line, as before.
  */
 export function PreviewSheet({ views, index, onIndex, onClose }: { views: FileView[]; index: number; onIndex: (index: number) => void; onClose: () => void }) {
   const { t } = useTranslation();
@@ -26,13 +26,15 @@ export function PreviewSheet({ views, index, onIndex, onClose }: { views: FileVi
   const type = view.latest.mimeType;
   const picture = isPicture(type);
   const shown = picture || type === 'application/pdf';
+  // Only a picture that the picture test refuses gets the icon and a download; any other type keeps the plain line.
+  const refusedPicture = type.startsWith('image/') && !picture;
   const url = useFileUrl(shown ? view.file.id : null, view.latest.letter);
   const download = () => {
     downloadFile(runtime.api, view.file.id, view.latest.letter, { remote: isRemote(runtime) })
       .catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
   };
   let body = <p className="text-subheadline text-label-2">{t('files.noPreview')}</p>;
-  if (!shown) {
+  if (refusedPicture) {
     body = (
       <div className="flex flex-col items-center gap-3 py-6 text-center">
         <span data-file-icon className="grid size-16 place-items-center rounded-2xl bg-fill text-label-2">
