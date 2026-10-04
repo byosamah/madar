@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { serverContracts } from '../../src/api/contract/server';
+import { CLAIM_SQL } from '../core/effects';
 import type { Query } from '../core/ports';
 import { SENT_TODAY_SQL } from '../mail/quota';
 import { testConfig } from '../test/fakes/deps';
@@ -110,6 +111,14 @@ describe('readUsage', () => {
     expect(JSON.stringify(usage)).not.toContain('live-token');
     expect(FAILED_EFFECTS_SQL).not.toMatch(/payload|\*/);
     expect(() => serverContracts['usage.get'].output.parse(usage)).not.toThrow();
+  });
+
+  it('leaves out the rows that wait for a time they named (a full mail day), and keeps the rows that failed in the normal way', () => {
+    // A failed attempt keeps the claim of CLAIM_SQL (now + 2 minutes) at most; WAIT_SQL holds the row until the time it named,
+    // the next UTC midnight for QuotaFull. The emails meter tells the Admin about a full day, and a Retry cannot help before
+    // midnight. server/it/usage.it.test.ts runs it on the local database.
+    expect(CLAIM_SQL).toContain("claimed_until = now() + interval '2 minutes'");
+    expect(FAILED_EFFECTS_SQL).toContain("and not coalesce(claimed_until > now() + interval '2 minutes', false)");
   });
 
   it('shows the change signals that were not sent in the last day as one failed effect with no id', async () => {

@@ -3,7 +3,7 @@ import type { User } from '../../src/api/contract/entities';
 import type { SharedCallName } from '../../src/api/sharedCalls';
 import { processOutbox, registerEffect, registerOutbox, writeOutbox, type OutboxProducer, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
-import { sendCounted } from '../mail/quota';
+import { QuotaFull, sendCounted } from '../mail/quota';
 import { authAdminOf } from './admin';
 import { INVITE_KIND, inviteRow, PAYLOAD_MERGE_SQL, sendInvitation, sqlInviteStore, type InviteStore } from './invite';
 import { renderEmailChangedMail } from './mail';
@@ -148,20 +148,8 @@ const NoticePayload = z.object({
   key: z.string().min(1),
 });
 
-/**
- * A send that the daily mail quota refused. retryAt is the next UTC midnight, when the quota has room again. An outbox runner
- * that knows it (the merge lead patch of S1 for processOutbox) holds the row until then and gives the attempt back, so a full
- * day never uses up the 5 attempts of a row.
- */
-export class QuotaFull extends Error {
-  readonly retryAt: Date;
-
-  constructor(message: string, now: Date) {
-    super(message);
-    this.name = 'QuotaFull';
-    this.retryAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  }
-}
+/** QuotaFull lives in server/mail/quota.ts now (the invitation throws it too); this name stays for the callers of P and S. */
+export { QuotaFull };
 
 /**
  * The auth.emailNotice effect: the notice at the old email, counted against the daily mail quota as sign-in mail. A security

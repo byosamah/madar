@@ -3,13 +3,14 @@ import type { User } from '../../src/api/contract/entities';
 import { createForgotRoute } from '../auth/forgot';
 import { principalOf } from '../auth/principal';
 import { verifyBrowserToken } from '../auth/verify';
+import { LATER_INVITE_SQL } from '../auth/invite';
 import { processOutbox } from '../core/effects';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
 import { readOffice } from '../data/officeCache';
 import { setEnvSource } from '../env';
 import { authOf, linkIn, localStack, PASSWORD } from './authStack';
-import { newBatch, startOffice, type ItOffice } from './runCallOffice';
+import { newBatch, NOW, startOffice, type ItOffice } from './runCallOffice';
 
 /**
  * Suite 4 of TM 7, invitations, on the local stack (plan 5.1; task P2) [Docker]: users.create and users.resendInvite through
@@ -175,6 +176,10 @@ describe('suite 4: invitations on the local stack', () => {
     expect(await call('usr_001', 'users.update', { id: user.id, patch: { email: fixed } })).toMatchObject({ ok: true });
     const mail = mailTo(fixed);
     expect(mail.subject).toBe('Your invitation to Madar');
+    // The invitation of the auth.email effect takes a sign-in place too (wave 6, V): one for users.create, one for the new email.
+    const places = await office.sql<{ ref: string; sent: boolean }>(
+      "select ref, resend_id is not null as sent from mail_log where user_id = $1 and kind = 'signin' order by id", [user.id]);
+    expect(places).toEqual([{ ref: mailTo(email).idempotencyKey, sent: true }, { ref: mail.idempotencyKey, sent: true }]);
     // Auth did not confirm the person: the link is an invite link, and the Admin still sees "invited" (the badge and the resend).
     expect([linkIn(mail.text).pathname, linkIn(mail.text).searchParams.get('type')]).toEqual(['/welcome', 'invite']);
     const state = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
@@ -215,5 +220,79 @@ describe('suite 4: invitations on the local stack', () => {
     expect((await auth.signIn(moved, PASSWORD)).status).toBe(200);
     const state = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
     expect(state?.state).toBe('active');
+  });
+
+  it('a later invitation replaces a waiting one while it is still to run or after it sent, not after it ended with no mail (wave 6, V)', async () => {
+    const later = (inviteId: string) => office.sql(LATER_INVITE_SQL, ['usr_v_later', inviteId]);
+    const add = (inviteId: string, more = '') => office.sql(
+      `insert into outbox (kind, payload${more ? ', done_at' : ''}) values ('auth.invite', $1::jsonb${more ? ', now()' : ''})`,
+      [JSON.stringify({ userId: 'usr_v_later', inviteId, ...(more === 'sent' ? { sentAt: NOW.toISOString() } : {}) })]);
+    try {
+      await add('inv_v_a');
+      // A row of another person, or of another kind, does not count.
+      await office.sql("insert into outbox (kind, payload) values ('auth.invite', '{\"userId\":\"usr_v_other\",\"inviteId\":\"inv_v_o\"}'), ('auth.email', '{\"userId\":\"usr_v_later\",\"inviteId\":\"inv_v_e\"}')");
+      await add('inv_v_b', 'ended');
+      expect(await later('inv_v_a')).toEqual([]);
+      await add('inv_v_c', 'sent');
+      expect(await later('inv_v_a')).toEqual([{ found: 1 }]);
+      expect(await later('inv_v_c')).toEqual([]);
+      await add('inv_v_d');
+      expect(await later('inv_v_c')).toEqual([{ found: 1 }]);
+    } finally {
+      await office.sql("delete from outbox where payload->>'userId' in ('usr_v_later', 'usr_v_other')");
+    }
+  });
+
+  it('every invitation counts once as sign-in mail; a full day keeps the row with no link and no sentAt, and the next UTC day sends it (wave 6, V)', async () => {
+    type Counted = { ref: string; day: string; sent: boolean };
+    const counted = (userId: string) => office.sql<Counted>(
+      "select ref, utc_day::text as day, resend_id is not null as sent from mail_log where user_id = $1 and kind = 'signin' order by id", [userId]);
+    const sentAtOf = async (userId: string) => okOf<{ userId: string; state: string; sentAt: string | null }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === userId);
+
+    // users.create and users.resendInvite: one place each, under the idempotency key of the mail.
+    const { user, email } = await invite('quota');
+    expect(await counted(user.id)).toEqual([{ ref: mailTo(email).idempotencyKey, day: '2026-10-04', sent: true }]);
+    expect(await call('usr_001', 'users.resendInvite', { id: user.id })).toMatchObject({ ok: true });
+    const two = await counted(user.id);
+    expect(two.map((r) => [r.ref, r.sent])).toEqual([[two[0].ref, true], [mailTo(email).idempotencyKey, true]]);
+
+    // A full day (98 sign-in places): the call still works, the row waits until the next UTC midnight with its attempt given back.
+    await office.sql("insert into mail_log (utc_day, kind, ref) select $1::date, 'notice', 'v-fill-' || i from generate_series(1, 98) as i", [NOW.toISOString().slice(0, 10)]);
+    try {
+      const late = await invite('quota-full');
+      expect(deps.mail.sent.some((m) => m.to === late.email)).toBe(false);
+      const [row] = await office.sql<{ id: string; done: boolean; error: string; waits: boolean; attempts: number; token: boolean }>(
+        "select id::text as id, done_at is not null as done, error, claimed_until >= '2026-10-05T00:00:00Z'::timestamptz as waits, attempts, " +
+        "payload ? 'tokenHash' as token from outbox where kind = 'auth.invite' and payload->>'userId' = $1", [late.user.id]);
+      expect(row).toMatchObject({ done: false, waits: true, attempts: 0, token: false });
+      expect(row.error).toMatch(/daily mail quota is full/);
+      // No Auth link on the full day: a link lives 1 hour, so the mail of the next day makes its own.
+      expect(await office.sql('select auth_user_id from users where id = $1', [late.user.id])).toEqual([{ auth_user_id: null }]);
+      expect(await counted(late.user.id)).toEqual([]);
+      expect(await sentAtOf(late.user.id)).toMatchObject({ state: 'invited', sentAt: null });
+      // The Admin sends it again twice on the full day: three rows wait, each with no link.
+      for (let i = 0; i < 2; i += 1) expect(await call('usr_001', 'users.resendInvite', { id: late.user.id })).toMatchObject({ ok: true });
+      const waiting = (await office.sql<{ id: string }>(
+        "select id::text as id from outbox where kind = 'auth.invite' and payload->>'userId' = $1 and done_at is null order by id", [late.user.id])).map((r) => r.id);
+      expect(waiting).toHaveLength(3);
+      expect(waiting[0]).toBe(row.id);
+
+      // The next UTC day: the job claims the rows again (their wait is over), in id order. The two older rows give way to the
+      // last one, which takes the one place and sends the one mail, with a working link.
+      deps.clock.set('2026-10-05T00:05:00Z');
+      await office.sql("update outbox set claimed_until = now() - interval '1 second' where id = any($1::bigint[])", [waiting]);
+      expect(await processOutbox(deps, waiting)).toEqual({ done: waiting, failed: [] });
+      expect(deps.mail.sent.filter((m) => m.to === late.email)).toHaveLength(1);
+      const mail = mailTo(late.email);
+      expect(mail.subject).toBe('Your invitation to Madar');
+      expect(await counted(late.user.id)).toEqual([{ ref: mail.idempotencyKey, day: '2026-10-05', sent: true }]);
+      const [last] = await office.sql<{ key: string }>("select 'invite:' || (payload->>'inviteId') as key from outbox where id = $1", [waiting[2]]);
+      expect(mail.idempotencyKey).toBe(last.key);
+      expect((await sentAtOf(late.user.id))?.sentAt).toEqual(expect.any(String));
+      await accept(mail.text);
+    } finally {
+      deps.clock.set(NOW);
+      await office.sql("delete from mail_log where ref like 'v-fill-%'");
+    }
   });
 });

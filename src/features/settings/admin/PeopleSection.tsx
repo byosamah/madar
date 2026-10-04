@@ -73,7 +73,7 @@ export function PeopleSection() {
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
                 {
                   label: t('people.resend'),
-                  onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.sent', { name: user.name }) }) }),
+                  onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.onItsWay', { name: user.name }) }) }),
                   hidden: !user.active || !invited.has(user.id),
                 },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },

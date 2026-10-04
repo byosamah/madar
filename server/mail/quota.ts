@@ -105,3 +105,18 @@ export async function sendCounted(
   await deps.db.statement('write', RECORD_SENT_SQL, [utcDay(now), ref, id]);
   return { status: 'sent', id };
 }
+
+/**
+ * A send that the daily mail quota refused. retryAt is the next UTC midnight, when the quota has room again. processOutbox
+ * (server/core/effects.ts) holds the row until then and gives the attempt back, so a full day never uses up the 5 attempts of a
+ * row. The invitation (server/auth/invite.ts) and the notice at the old email (server/auth/effects.ts) throw it.
+ */
+export class QuotaFull extends Error {
+  readonly retryAt: Date;
+
+  constructor(message: string, now: Date) {
+    super(message);
+    this.name = 'QuotaFull';
+    this.retryAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  }
+}

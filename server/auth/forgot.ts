@@ -85,7 +85,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
     name: user.name, link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
-  }, user.gender);
+  }, user.gender, { appUrl: deps.config.appUrl });
   // sendCounted finds the place that this key holds.
   const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });
   if (sent.status === 'over') {

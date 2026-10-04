@@ -7,20 +7,29 @@ import { MadarMark } from '../../src/components/MadarMark';
 
 /**
  * The app icons and the web manifest of Madar (TASKS.md, Logo, point 3), made from the MadarMark component, never by hand:
- *   npx tsx scripts/icons/make-icons.tsx
+ *   npm run icons   (the same as: npx tsx scripts/icons/make-icons.tsx)
  * It renders the tile in the light tokens of src/design/tokens.css, takes a Playwright screenshot of each size, and writes the PNGs
  * and public/manifest.webmanifest, and scripts/icons/icons.sha256 (the digest of the page of each PNG, outside public/). Run it
  * again after a change of the mark or of the tokens: make-icons.test.ts compares icons.sha256 with the current pages.
  * - apple-touch-icon (180 px) fills the square: iOS rounds the corners itself, and a see-through corner turns black there.
  * - 192 and 512 px keep the 30% corners of the tile, with see-through corners (manifest purpose "any"; the mail header uses 192).
+ * - The maskable 512 px icon (manifest purpose "maskable", for Android) is full bleed: the glow fills the square to every edge, and
+ *   Android cuts it to its own circle or squircle. The form sits inside the central safe zone (a circle of 80% of the size) at
+ *   45% of that zone, the share it has in the tile, so a launcher that keeps only the safe zone shows the tile's proportions.
  */
 
-export type IconShape = 'square' | 'tile';
+export type IconShape = 'square' | 'tile' | 'maskable';
 export const ICONS: { file: string; size: number; shape: IconShape }[] = [
   { file: 'icons/apple-touch-icon.png', size: 180, shape: 'square' },
   { file: 'icons/madar-192.png', size: 192, shape: 'tile' },
   { file: 'icons/madar-512.png', size: 512, shape: 'tile' },
+  { file: 'icons/madar-maskable-512.png', size: 512, shape: 'maskable' },
 ];
+
+/** The safe zone of a maskable icon: a circle of this share of the size, around the center (W3C manifest, "maskable"). */
+export const MASKABLE_SAFE_ZONE = 0.8;
+/** The size of the form in the maskable icon: 45% (its share in the tile) of the safe zone. */
+export const MASKABLE_FORM = 0.36;
 
 /** The custom properties of the light :root block of tokens.css. */
 export function tokenValues(css: string): Record<string, string> {
@@ -31,14 +40,19 @@ export function tokenValues(css: string): Record<string, string> {
 
 const NEEDED = ['--glow-a', '--glow-b', '--glow-c', '--c-panel', '--c-ink'];
 
-/** One page that holds only the mark at the icon size. The square shape drops the corners and the ring with an !important rule. */
+/**
+ * One page that holds only the mark at the icon size. The square and the maskable shapes drop the corners and the ring with an
+ * !important rule; the maskable shape also draws the form smaller (MASKABLE_FORM).
+ */
 export function iconPage(size: number, shape: IconShape, tokens: Record<string, string>): string {
   for (const name of NEEDED) if (!tokens[name]) throw new Error(`tokens.css has no ${name} in :root.`);
   const vars = NEEDED.map((name) => `${name}:${tokens[name]}`).join(';');
-  const square = shape === 'square' ? '[data-madar-mark]{border-radius:0 !important;box-shadow:none !important}' : '';
+  const form = `${MASKABLE_FORM * 100}% !important`;
+  const square = shape === 'tile' ? '' : '[data-madar-mark]{border-radius:0 !important;box-shadow:none !important}';
+  const smaller = shape === 'maskable' ? `[data-madar-mark] svg{width:${form};height:${form}}` : '';
   return [
     '<!doctype html><html><head><meta charset="utf-8">',
-    `<style>:root{${vars}}html,body{margin:0;background:transparent}${square}</style>`,
+    `<style>:root{${vars}}html,body{margin:0;background:transparent}${square}${smaller}</style>`,
     `</head><body>${renderToStaticMarkup(<MadarMark size={size} />)}</body></html>`,
   ].join('');
 }
@@ -58,7 +72,9 @@ export function manifestOf(tokens: Record<string, string>) {
     display: 'standalone',
     theme_color: tokens['--c-bg'],
     background_color: tokens['--c-bg'],
-    icons: ICONS.filter((icon) => icon.shape === 'tile').map((icon) => ({ src: icon.file, sizes: `${icon.size}x${icon.size}`, type: 'image/png', purpose: 'any' })),
+    icons: ICONS.filter((icon) => icon.shape !== 'square').map((icon) => ({
+      src: icon.file, sizes: `${icon.size}x${icon.size}`, type: 'image/png', purpose: icon.shape === 'maskable' ? 'maskable' : 'any',
+    })),
   };
 }
 
