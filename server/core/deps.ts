@@ -89,7 +89,11 @@ function secretKeyOf(read: ReadEnv): string | undefined {
   return read('MADAR_SECRET_KEY');
 }
 
-export function serverEnvFrom(read: ReadEnv = env): ServerEnv {
+/**
+ * o.database: the database values from the caller, for example the finished connection string of the Hyperdrive binding
+ * (server/entries/worker.ts). serverEnvFrom then neither reads nor checks DATABASE_URL, DATABASE_READ_URL and DATABASE_CA.
+ */
+export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['database'] } = {}): ServerEnv {
   const missing: string[] = [];
   const need = (name: string): string => {
     const value = read(name);
@@ -97,7 +101,7 @@ export function serverEnvFrom(read: ReadEnv = env): ServerEnv {
     return value ?? '';
   };
 
-  const writeUrl = need('DATABASE_URL');
+  const writeUrl = o.database ? o.database.writeUrl : need('DATABASE_URL');
   const supabaseUrl = need('SUPABASE_URL');
   const secretKey = secretKeyOf(read);
   if (secretKey === undefined) missing.push('SUPABASE_SECRET_KEYS or MADAR_SECRET_KEY');
@@ -108,9 +112,9 @@ export function serverEnvFrom(read: ReadEnv = env): ServerEnv {
   if (driver !== 'resend' && driver !== 'outbox') throw new Error('MAIL_DRIVER must be resend or outbox.');
   const apiKey = driver === 'resend' ? need('RESEND_API_KEY') : '';
 
-  const readUrl = read('DATABASE_READ_URL') ?? writeUrl;
-  const ca = read('DATABASE_CA');
-  if (ca === undefined && writeUrl !== '' && !(localDatabase(writeUrl) && localDatabase(readUrl))) missing.push('DATABASE_CA');
+  const readUrl = o.database ? o.database.readUrl : (read('DATABASE_READ_URL') ?? writeUrl);
+  const ca = o.database ? o.database.ca : read('DATABASE_CA');
+  if (!o.database && ca === undefined && writeUrl !== '' && !(localDatabase(writeUrl) && localDatabase(readUrl))) missing.push('DATABASE_CA');
 
   const fileStore = fileStoreKind(read('MADAR_FILE_STORE'));
   const r2 = fileStore === 'r2'
@@ -119,7 +123,7 @@ export function serverEnvFrom(read: ReadEnv = env): ServerEnv {
 
   if (missing.length > 0) throw new MissingConfigError(missing);
 
-  for (const [name, url] of [['DATABASE_URL', writeUrl], ['DATABASE_READ_URL', readUrl]] as const) {
+  for (const [name, url] of o.database ? [] : ([['DATABASE_URL', writeUrl], ['DATABASE_READ_URL', readUrl]] as const)) {
     if (/[?&](ssl\w*|uselibpqcompat)=/i.test(url)) throw new Error(`${name} must not carry a TLS setting such as ssl or sslmode: put the root certificate in DATABASE_CA (plan 4.5).`);
   }
 

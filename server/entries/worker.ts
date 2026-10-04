@@ -35,19 +35,12 @@ export function hyperdriveOf(bindings: Record<string, unknown>): string | undefi
   return typeof binding?.connectionString === 'string' && binding.connectionString !== '' ? binding.connectionString : undefined;
 }
 
-/** The database values that serverEnvFrom must not check when the binding replaces them. */
-const DATABASE_VALUES = new Set(['DATABASE_URL', 'DATABASE_READ_URL', 'DATABASE_CA']);
 /**
- * serverEnvFrom requires a pooler URL and, for a cloud host, its root certificate. With the binding there is neither, so the check
- * reads this local stand-in, and the binding replaces it right after. No connection ever uses it.
+ * The values of the Worker. With the binding, the apps (and the health route) connect through Hyperdrive too, and serverEnvFrom
+ * takes the binding's connection string in place of DATABASE_URL, so it neither reads nor checks the database values.
  */
-const STAND_IN_URL = 'postgres://hyperdrive@127.0.0.1/hyperdrive';
-
-/** The values of the Worker. With the binding, the apps (and the health route) connect through Hyperdrive too. */
 function workerValues(hyperdrive: string | undefined): ServerEnv {
-  if (hyperdrive === undefined) return serverEnvFrom();
-  const values = serverEnvFrom((name) => (DATABASE_VALUES.has(name) ? (name === 'DATABASE_URL' ? STAND_IN_URL : undefined) : env(name)));
-  return { ...values, database: { writeUrl: hyperdrive, readUrl: hyperdrive } };
+  return serverEnvFrom(env, hyperdrive === undefined ? {} : { database: { writeUrl: hyperdrive, readUrl: hyperdrive } });
 }
 
 export function workerEntry(o: WorkerOptions = {}) {

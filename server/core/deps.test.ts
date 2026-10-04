@@ -141,6 +141,19 @@ describe('the real Deps from the environment', () => {
     expect(DEFAULT_LOCK_KEY).not.toBe(HEALTH_LOCK_KEY);
   });
 
+  it('takes the database values from its caller when given, and then neither reads nor checks the three database values (worker.ts, Hyperdrive)', () => {
+    const names: string[] = [];
+    const bound = reader(without('DATABASE_URL', 'DATABASE_CA'));
+    const read = (name: string) => (names.push(name), bound(name));
+    // The finished connection string of the binding carries its own TLS setting, which a DATABASE_URL may not.
+    const hyperdrive = 'postgresql://madar_server:pw@0123abcd.hyperdrive.local:5432/postgres?sslmode=disable';
+    const database = { writeUrl: hyperdrive, readUrl: hyperdrive };
+    expect(serverEnvFrom(read, { database }).database).toEqual(database);
+    expect(names.filter((name) => name.startsWith('DATABASE_'))).toEqual([]);
+    // Without the option, the check stays.
+    expect(() => serverEnvFrom(bound)).toThrow(MissingConfigError);
+  });
+
   it('reads the jobs secret when it is set, for the jobs app and the deep health check', () => {
     expect(serverEnvFrom(reader(FULL)).jobsSecret).toBeUndefined();
     expect(serverEnvFrom(reader({ ...FULL, JOBS_SECRET: 'made-up-jobs-secret' })).jobsSecret).toBe('made-up-jobs-secret');
