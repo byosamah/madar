@@ -11,12 +11,13 @@ import { authOf, localStack, type Stack } from '../server/it/authStack';
 import { applyMigrations, dropSchema, localClient } from '../server/it/migrate';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import { clientDb } from './first-admin';
-import { runSeed, seedAuthPort, SeedRefused, TEST_REF, type SeedAuth } from './seed-test-office';
+import { runSeed, seedAuthPort, SeedRefused, TEST_REF, testOffice, type SeedAuth } from './seed-test-office';
 
 /**
  * Task X1 on the local stack [Docker]: the seed writes the sample office, makes and links the 4 accounts, removes the other Auth
  * users, and a second run over a changed office leaves exactly the sample office again, also in a warm office cache. The office is
- * the non-platform migrations in a schema of its own; Auth is the real local Auth. runSeed takes the madar-test ref as its guard
+ * the non-platform migrations in a schema of its own, plus the platform table agent_approvals that the seed empties (made here with
+ * the columns of 20261004000402_platform_agent_approvals.sql); Auth is the real local Auth. runSeed takes the madar-test ref as its guard
  * and gets the local database and Auth from the test, which the command line never does (it refuses the local stack).
  *
  * It runs only with MADAR_IT=1 (npm run test:it, after the merge lead adds it to DOCKER_SCRIPT_TESTS of vite.config.ts).
@@ -34,6 +35,8 @@ let stack: Stack;
 let client: pg.Client;
 let auth: SeedAuth;
 let seed: State;
+/** What the seed writes: the sample office without its agents. */
+let office: State;
 const lines: string[] = [];
 
 /** Auth as the seed sees it: only the 4 accounts and the users of this run, so the shared local Auth keeps everyone else. */
@@ -54,7 +57,9 @@ beforeAll(async () => {
   client = await localClient();
   await applyMigrations(client, schema);
   await client.query(`set search_path to ${schema}`);
+  await client.query('create table agent_approvals (client_id uuid not null, owner_user_id text not null, approved_at timestamptz not null default now(), primary key (client_id, owner_user_id))');
   seed = await buildSeed(TODAY, async () => undefined);
+  office = testOffice(seed);
 }, 60_000);
 
 afterAll(async () => {
@@ -65,17 +70,20 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ON)('seed-test-office on the local stack', () => {
-  it('writes the sample office, makes and links the 4 accounts, and removes the other Auth users', async () => {
+  it('writes the sample office without its agents, makes and links the 4 accounts, removes the other Auth users, and empties agent_approvals', async () => {
     const orphan = await auth.createUser(`${run}-orphan@madar.test`, 'Madar-local-orphan-1');
+    await client.query("insert into agent_approvals (client_id, owner_user_id) values ('33333333-3333-4333-8333-333333333333', 'usr_001')");
     const result = await seedOnce();
     expect(result.changed).toBe(true);
 
     const back = await loadWhole(q, { today: TODAY });
     for (const spec of TABLES) {
-      const want = spec.collection === 'settings' ? seed.settings : (seed[spec.collection] ?? {});
+      const want = spec.collection === 'settings' ? office.settings : (office[spec.collection] ?? {});
       expect(back[spec.collection], spec.table).toEqual(want);
     }
-    expect(back.counters).toEqual(seed.counters);
+    expect(back.counters).toEqual(office.counters);
+    expect(Object.values(back.users).filter((u) => u.kind === 'agent')).toEqual([]);
+    expect((await client.query('select count(*)::int as n from agent_approvals')).rows).toEqual([{ n: 0 }]);
 
     const made = await accounts();
     expect(made.map((u) => u.email).sort()).toEqual([...EMAILS].sort());
@@ -99,7 +107,7 @@ describe.skipIf(!ON)('seed-test-office on the local stack', () => {
     const before = await accounts();
     const cache = createOfficeCache();
     const deps = { db: clientDb(client), meter: { addBytes() {}, async countRequest() {}, signalsFailed() {} } } as never;
-    const stray = { ...seed.users.usr_002, id: 'usr_099', name: 'Stray Person', email: 'stray@madar.test' };
+    const stray = { ...office.users.usr_002, id: 'usr_099', name: 'Stray Person', email: 'stray@madar.test' };
     await client.query(
       'with v as (update office_meta set version = version + 1 returning version) insert into users (id, doc, chg) select $1, $2::jsonb, v.version from v',
       ['usr_099', JSON.stringify(stray)],
@@ -111,11 +119,11 @@ describe.skipIf(!ON)('seed-test-office on the local stack', () => {
     await seedOnce();
 
     const warm = await cache.read(deps, q);
-    expect(Object.keys(warm.lists.users)).toEqual(Object.keys(seed.users));
-    expect(warm.lists.projects).toEqual(seed.projects);
+    expect(Object.keys(warm.lists.users)).toEqual(Object.keys(office.users));
+    expect(warm.lists.projects).toEqual(office.projects);
     expect(Number((await client.query('select version from office_meta')).rows[0].version)).toBeGreaterThan(Number(v1));
     expect((await client.query('select count(*)::int as n from stories')).rows).toEqual([{ n: 0 }]);
-    expect((await client.query('select count(*)::int as n from events')).rows).toEqual([{ n: Object.keys(seed.events).length }]);
+    expect((await client.query('select count(*)::int as n from events')).rows).toEqual([{ n: Object.keys(office.events).length }]);
     const after = await accounts();
     expect(after.map((u) => u.authUserId).sort()).toEqual(before.map((u) => u.authUserId).sort());
   });

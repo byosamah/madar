@@ -5,8 +5,8 @@ import { emptyState, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import {
-  KEEP_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL, TRUNCATE_TABLES, parseArgs, planText, runSeed,
-  seedAccounts, seedAuthPort, seedTarget, type SeedAuth,
+  KEEP_TABLES, PLATFORM_SEED_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL, TRUNCATE_TABLES, parseArgs,
+  planText, runSeed, seedAccounts, seedAuthPort, seedTarget, testOffice, type SeedAuth,
 } from './seed-test-office';
 import { OFFICE_LOCK_KEY } from './first-admin';
 import { AUTH_LINK_SQL } from '../server/data/officeCache';
@@ -65,13 +65,49 @@ describe('seed-test-office: the 4 accounts', () => {
   });
 });
 
+describe('seed-test-office: the office of madar-test', () => {
+  it('leaves out every agent of the sample office and the posts it wrote: a real agent needs a real approval', async () => {
+    const state = await buildSeed('2026-10-04', async () => undefined);
+    const agents = Object.values(state.users).filter((u) => u.kind === 'agent').map((u) => u.id);
+    expect(agents.length).toBeGreaterThan(0);
+    const office = testOffice(state);
+    expect(Object.values(office.users).filter((u) => u.kind === 'agent')).toEqual([]);
+    for (const id of agents) expect(JSON.stringify(office)).not.toMatch(new RegExp(`\\b${id}\\b`));
+    // Every person and every other record stays as the sample office has it.
+    expect(Object.keys(office.users)).toEqual(Object.keys(state.users).filter((id) => !agents.includes(id)));
+    expect(Object.values(office.updates).every((u) => !agents.includes(u.authorId))).toBe(true);
+    expect(Object.keys(office.updates).length).toBe(Object.values(state.updates).filter((u) => !agents.includes(u.authorId)).length);
+    expect(office.tasks).toEqual(state.tasks);
+    expect(office.counters).toEqual(state.counters);
+    expect(seedAccounts(office).map((a) => a.userId)).toEqual(seedAccounts(state).map((a) => a.userId));
+    // The sample office itself does not change.
+    expect(Object.values(state.users).some((u) => u.kind === 'agent')).toBe(true);
+  });
+
+  it('refuses an office where another record still names a left-out agent, so no row points at a person who is not there', async () => {
+    const state = await buildSeed('2026-10-04', async () => undefined);
+    const agent = Object.values(state.users).find((u) => u.kind === 'agent')!;
+    const task = Object.values(state.tasks)[0];
+    task.ownerId = agent.id;
+    expect(() => testOffice(state)).toThrow(new RegExp(`${agent.id}.*tasks ${task.id}`));
+  });
+});
+
 describe('seed-test-office: the tables', () => {
   it('empties every office table, the counters and the per-office server tables, and keeps the ones that guard quotas and links', () => {
-    const all = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...SERVER_TABLES].sort();
+    const all = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...SERVER_TABLES, ...PLATFORM_SEED_TABLES].sort();
     expect([...TRUNCATE_TABLES, ...KEEP_TABLES].sort()).toEqual(all);
     expect([...KEEP_TABLES].sort()).toEqual(['job_runs', 'mail_log', 'office_deletes', 'office_meta', 'person_seq', 'platform_config', 'usage_month', 'usage_warnings']);
     expect(TRUNCATE_SQL).toBe(`truncate ${TRUNCATE_TABLES.join(', ')} restart identity`);
     expect(TRUNCATE_SQL).not.toMatch(/public\./);
+  });
+
+  it('empties the platform table agent_approvals too, so an approval never outlives the agent links of the old office', () => {
+    // agent_links goes with the per-office server tables; an approval left behind would let the same client link again.
+    expect([...PLATFORM_SEED_TABLES]).toEqual(['agent_approvals']);
+    expect(TRUNCATE_TABLES).toContain('agent_approvals');
+    expect(TRUNCATE_TABLES).toContain('agent_links');
+    expect(KEEP_TABLES).not.toContain('agent_approvals');
   });
 
   it('records every office row as deleted under one new office version, so a warm office cache drops it', () => {
@@ -157,7 +193,7 @@ describe('seed-test-office: the dry run', () => {
     expect(fake.auth).toEqual(['list']);
     const text = lines.join('\n');
     expect(text).toMatch(/Dry run on madar-test \(qdgwpnesxppnqsaabqzd\)/);
-    expect(text).toMatch(/users: 12 rows now, 11 after/);
+    expect(text).toMatch(/users: 12 rows now, 10 after/);
     expect(text).toMatch(/hala\.nasser@madar\.test \(admin, usr_001\): set a new password on the existing Auth user/);
     expect(text).toMatch(/turki\.al\.otaibi@madar\.test \(management, usr_010\): make a new Auth user/);
     expect(text).toMatch(/Remove 1 other Auth user.*invited\.last\.run@madar\.test/s);
@@ -197,7 +233,8 @@ describe('seed-test-office: the run', () => {
     expect(SEED_LOCK_TIMEOUT_SQL).toBe("set local lock_timeout = '5s'");
     expect(writes.slice(0, 5)).toEqual(['begin', SEED_LOCK_TIMEOUT_SQL, 'select pg_advisory_xact_lock($1::bigint)', RECORD_DELETES_SQL, TRUNCATE_SQL]);
     expect(writes.slice(5)).toEqual([AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, 'commit']);
-    expect(fake.written).toEqual([office]);
+    expect(fake.written).toEqual([testOffice(office)]);
+    expect(Object.values(fake.written[0].users).some((u) => u.kind === 'agent')).toBe(false);
     const text = lines.join('\n');
     expect(text).toMatch(/Seeded madar-test \(qdgwpnesxppnqsaabqzd\)/);
     expect(text).toMatch(/Linked hala\.nasser@madar\.test to usr_001/);

@@ -7,7 +7,8 @@
 //   1. reads the plan: the Madar tables with their rows now and after, the 4 accounts, and the other Auth users;
 //   2. sets the 4 Auth accounts (one for each office role): a new password on an Auth user that exists, or a new Auth user;
 //   3. in one transaction as postgres under the office lock: records every office row as deleted (so a warm office cache drops
-//      it), empties the Madar tables, writes the sample office of today (writeState of buildSeed), and links the 4 accounts.
+//      it), empties the Madar tables and the platform table agent_approvals, writes the sample office of today (writeState of
+//      buildSeed, without its agents: testOffice), and links the 4 accounts.
 //      A lock wait over 5 seconds stops the run with "madar-test is busy" and changes no table;
 //   4. removes every other Auth user: after step 3 no person in Madar has it.
 // --dry-run prints the plan and changes nothing.
@@ -92,11 +93,23 @@ export function seedTarget(target: string): { ref: string; supabaseUrl: string }
  */
 export const KEEP_TABLES = ['office_meta', 'office_deletes', 'person_seq', 'platform_config', 'mail_log', 'usage_month', 'usage_warnings', 'job_runs'] as const;
 
-/** Every State table, the counters, and the server tables of the old office (stories, keys, effects, uploads, agents, test mail, limits). */
+/**
+ * The platform tables of the old office that a reseed empties: the agent approvals (20261004000402_platform_agent_approvals.sql).
+ * agent_links goes with the server tables, so an approval left behind would let the same AI app link again with no new approval,
+ * and a removed link would no longer stop it (X1 follow-up). The app-migration harness has no platform table, so a Docker test
+ * of the seed makes this one in its own schema.
+ */
+export const PLATFORM_SEED_TABLES = ['agent_approvals'] as const;
+
+/**
+ * Every State table, the counters, the server tables of the old office (stories, keys, effects, uploads, agents, test mail,
+ * limits), and the platform tables above.
+ */
 export const TRUNCATE_TABLES: readonly string[] = [
   ...TABLES.map((spec) => spec.table),
   COUNTERS_TABLE,
   ...SERVER_TABLES.filter((table) => !(KEEP_TABLES as readonly string[]).includes(table)),
+  ...PLATFORM_SEED_TABLES,
 ];
 
 /** One statement for every table, so the project foreign keys need no order. No table name carries a schema (TM 5). */
@@ -140,6 +153,32 @@ function rowsAfter(state: State): Map<string, number> {
   for (const spec of TABLES) rows.set(spec.table, spec.collection === 'settings' ? 1 : Object.keys((state[spec.collection] ?? {}) as object).length);
   rows.set(COUNTERS_TABLE, Object.keys(state.counters ?? {}).length);
   return rows;
+}
+
+// ---------- The office ----------
+
+/**
+ * The sample office without its agents and the posts they wrote. The sample agent ("Madar Assistant") has no agent_links row and
+ * no approval, so Settings, Agents would show it as "Not used yet" with a Remove that revokes nothing: on madar-test a real agent
+ * needs a real approval (X1 follow-up). It refuses an office where any other record still names a left-out agent. The given
+ * State does not change.
+ */
+export function testOffice(state: State): State {
+  const office = structuredClone(state);
+  const agents = new Set(Object.values(office.users).filter((user) => user.kind === 'agent').map((user) => user.id));
+  if (agents.size === 0) return office;
+  for (const id of agents) delete office.users[id];
+  for (const [id, update] of Object.entries(office.updates)) if (agents.has(update.authorId)) delete office.updates[id];
+  for (const [collection, records] of Object.entries(office)) {
+    if (!records || typeof records !== 'object') continue;
+    for (const [id, record] of Object.entries(records as Record<string, unknown>)) {
+      const text = JSON.stringify(record);
+      for (const agent of agents) {
+        if (new RegExp(`\\b${agent}\\b`).test(text)) throw new Error(`The office of madar-test leaves out the agent ${agent}, but ${collection} ${id} names it. Leave that record out too.`);
+      }
+    }
+  }
+  return office;
 }
 
 // ---------- The accounts ----------
@@ -260,7 +299,10 @@ async function readPlan(o: { q: Query; auth: SeedAuth; seed: State; ref: string;
 export type SeedOptions = {
   db: FirstAdminDb;
   auth: SeedAuth;
-  /** The sample office to write. The command line passes buildSeed of today, with the stamps of later today settled. */
+  /**
+   * The sample office to write. The command line passes buildSeed of today, with the stamps of later today settled. The run
+   * writes testOffice of it (no agents).
+   */
   seed: State;
   ref: string;
   env: Record<string, string | undefined>;
@@ -273,7 +315,8 @@ export type SeedOptions = {
 /** Prints the plan, and without dryRun makes it so. It refuses (SeedRefused) before any change when a check fails. */
 export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan: SeedPlan }> {
   if (o.ref !== TEST_REF) throw new SeedRefused(`This script runs only on madar-test (${TEST_REF}), not on the project ${o.ref}.`);
-  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: o.seed, ref: o.ref, env: o.env, dryRun: o.dryRun });
+  const office = testOffice(o.seed);
+  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: office, ref: o.ref, env: o.env, dryRun: o.dryRun });
   o.log(planText(plan));
   if (o.dryRun) {
     o.log('Nothing changed (dry run).');
@@ -305,7 +348,7 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
       await takeOfficeLock(q, o.lockKey);
       await q(RECORD_DELETES_SQL);
       await q(TRUNCATE_SQL);
-      await writeOffice(q, o.seed);
+      await writeOffice(q, office);
       for (const link of links) {
         if (!(await setAuthUserId(q, link.userId, link.authUserId))) throw new Error(`The users row ${link.userId} is missing after the seed.`);
       }
