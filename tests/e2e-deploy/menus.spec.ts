@@ -89,7 +89,7 @@ test('a "…" menu low in a long list stays open at 390 (Admin, People, about 20
   // The steps of the whole-product check after wave 4: a plain click scrolls to the last person's button, the page scroll
   // closes the menu that the click opened, and aria-expanded stays false. openMenu waits for the scroll to settle first.
   await page.setViewportSize({ width: 390, height: 844 });
-  const people = page.getByRole('button', { name: /^Actions for / });
+  const people = page.getByRole('region', { name: 'People', exact: true }).getByRole('button', { name: /^Actions for / });
   await goto(page, '/admin');
   await expect(people.first()).toBeVisible();
   const missing = 20 - (await people.count());
