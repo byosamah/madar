@@ -97,6 +97,73 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     expectCalm(arabic.container);
   });
 
+  describe('a reset link that is out of date, sent again to a person who accepted but set no password (TASKS.md, Wave 5 follow-ups, H)', () => {
+    const OLD_RESET = '/welcome?token_hash=hash-old&type=recovery';
+    const panel = (root: HTMLElement) => root.querySelector('.panel') as HTMLElement;
+    const ASK_ADMIN = 'This link has ended. Ask the Admin for a new invitation.';
+
+    it('says what happened in one short sentence, with one main button to the Forgot screen, not "Ask the Admin"', async () => {
+      const auth = invited();
+      const view = await renderAuth(OLD_RESET, asFaisal(auth));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      expect(await screen.findByText('This link is out of date. You can get a new one with your email.')).toBeInTheDocument();
+      expect(screen.queryByText(ASK_ADMIN)).toBeNull();
+      const buttons = within(panel(view.container)).getAllByRole('button');
+      expect(buttons.map((b) => b.textContent)).toEqual(['Get a new link']);
+      expect(buttons[0]).toHaveClass('signature');
+      // A person who set a password since then also lands here: Sign in stays one quiet tap away.
+      expect(within(panel(view.container)).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Back to sign in', '/sign-in']]);
+      expect(auth.log).toEqual(['verifyLink:recovery']);
+      expect(auth.renewals).toEqual([]);
+    });
+
+    it('opens the Forgot screen, where the person types the email and gets a new reset link', async () => {
+      const auth = invited();
+      await renderAuth(OLD_RESET, asFaisal(auth));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Get a new link' }));
+      expect(await screen.findByRole('heading', { level: 1, name: 'Reset your password' })).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText('Email'), FAISAL.email);
+      await userEvent.click(screen.getByRole('button', { name: 'Send the link' }));
+      expect(await screen.findByText('If this email has an account in Madar, a link is on its way. Check your email.')).toBeInTheDocument();
+      expect(auth.resets).toEqual([FAISAL.email]);
+    });
+
+    it('opens the same state at once for a reset link with no token', async () => {
+      await renderAuth('/welcome?type=recovery', asFaisal(invited()));
+      expect(await screen.findByText('This link is out of date. You can get a new one with your email.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Accept the invitation' })).toBeNull();
+    });
+
+    it('keeps "Send me a new link" for an invitation link with its renew key, and "Ask the Admin" for one without', async () => {
+      const renew = await renderAuth('/welcome?token_hash=hash-old&type=invite&renew=key-of-the-mail', asFaisal(invited()));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      expect(await screen.findByRole('button', { name: 'Send me a new link' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Get a new link' })).toBeNull();
+      renew.unmount();
+      await renderAuth('/welcome?token_hash=hash-old&type=invite', asFaisal(invited()));
+      await userEvent.click(await screen.findByRole('button', { name: 'Accept the invitation' }));
+      expect(await screen.findByText(ASK_ADMIN)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Get a new link' })).toBeNull();
+    });
+
+    it('passes the calm checks at phone width, in English and in Arabic right to left', async () => {
+      atPhoneWidth();
+      const english = await renderAuth('/welcome?type=recovery', asFaisal(invited()));
+      await screen.findByRole('button', { name: 'Get a new link' });
+      expectCalm(english.container);
+      english.unmount();
+      const arabic = await renderAuth('/welcome?type=recovery', { ...asFaisal(invited()), language: 'ar' });
+      expect(await screen.findByText('هذا الرابط لم يعد صالحًا. يمكنك الحصول على رابط جديد ببريدك.')).toBeInTheDocument();
+      expect(document.documentElement.dir).toBe('rtl');
+      expect(within(panel(arabic.container)).getAllByRole('button').map((b) => b.textContent)).toEqual(['احصل على رابط جديد']);
+      expect(screen.queryByText('انتهت صلاحية هذا الرابط. اطلب دعوة جديدة من مدير النظام.')).toBeNull();
+      expectCalm(arabic.container);
+      await userEvent.click(screen.getByRole('button', { name: 'احصل على رابط جديد' }));
+      expect(await screen.findByRole('heading', { level: 1, name: 'إعادة تعيين كلمة المرور' })).toBeInTheDocument();
+    });
+  });
+
   describe('an invitation link that is out of date, with its renew key (security fix 7)', () => {
     const OLD = '/welcome?token_hash=hash-old&type=invite&renew=key-of-the-mail';
     const panel = (root: HTMLElement) => root.querySelector('.panel') as HTMLElement;
