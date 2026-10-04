@@ -12,6 +12,10 @@ import { applyMigrations, dropSchema, localClient, localDbUrl, migrationFiles } 
 const SERVER_PASSWORD = 'madar-local-test';
 const BROWSER_ROLES = ['anon', 'authenticated'];
 const MADAR_TABLES = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...SERVER_TABLES].sort();
+/** The tables that only platform migrations make, so the app-migration harness never has them (G4: 20261004000402_platform_agent_approvals.sql). */
+const PLATFORM_TABLES = ['agent_approvals'];
+/** Every Madar table in public on the full stack. */
+const PUBLIC_TABLES = [...MADAR_TABLES, ...PLATFORM_TABLES].sort();
 
 type Stack = { apiUrl: string; publishableKey: string; secretKey: string };
 
@@ -95,14 +99,14 @@ describe('the database guards on the local stack', () => {
 
   it('has exactly the Madar tables in public', async () => {
     const { rows } = await db.query(`select relname from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'`);
-    expect(rows.map((row) => row.relname).sort()).toEqual(MADAR_TABLES);
+    expect(rows.map((row) => row.relname).sort()).toEqual(PUBLIC_TABLES);
   });
 
   it('turns RLS on for every table, and the only policy is for madar_server (the token hook may read platform_config)', async () => {
     const { rows } = await db.query(`select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'`);
     for (const row of rows) expect(row.relrowsecurity, row.relname).toBe(true);
     const { rows: policies } = await db.query(`select tablename, policyname, roles::text[] as roles, cmd from pg_policies where schemaname = 'public'`);
-    for (const table of MADAR_TABLES) {
+    for (const table of PUBLIC_TABLES) {
       const mine = policies.filter((policy) => policy.tablename === table);
       const expected = [{ tablename: table, policyname: 'server_all', roles: ['madar_server'], cmd: 'ALL' }];
       if (table === 'platform_config') expected.push({ tablename: table, policyname: 'auth_hook_read', roles: ['supabase_auth_admin'], cmd: 'SELECT' });
@@ -113,7 +117,7 @@ describe('the database guards on the local stack', () => {
 
   it('gives the browser roles no right on any Madar table or sequence', async () => {
     for (const role of BROWSER_ROLES) {
-      for (const table of MADAR_TABLES) {
+      for (const table of PUBLIC_TABLES) {
         const { rows } = await db.query(`select has_table_privilege($1, $2, 'select, insert, update, delete, truncate, references, trigger') as any`, [role, `public.${table}`]);
         expect(rows[0].any, `${role} on ${table}`).toBe(false);
       }
