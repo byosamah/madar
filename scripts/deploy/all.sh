@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # scripts/deploy/all.sh <test|production>: every deploy step in order (plan 5.9): migrations, settings, secrets, functions, screens.
 # Production runs only from the Mac, and only after the typed word production (plan, section 10, decision 9). It asks once,
-# before any step, and the steps do not ask again.
+# before any step, and the steps do not ask again. A MADAR_DEPLOY_CONFIRMED from the shell never counts here: only the typed word.
 . "$(dirname "$0")/lib.sh"
 deploy_target "${1:-}"
+unset MADAR_DEPLOY_CONFIRMED
 confirm_production
 DIR="$ROOT/scripts/deploy"
 
