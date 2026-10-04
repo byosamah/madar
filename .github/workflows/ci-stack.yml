@@ -95,37 +95,18 @@ jobs:
       - name: Local addresses and keys
         run: scripts/ci/stack-env.sh >> "$GITHUB_ENV"
       # Plan 6.5: test:mcp passes in CI. The runner serves its own mcp function with its own settings (server/mcp/conformance.ts),
-      # so it runs BEFORE the step that serves every function: a second serve would answer its requests (first push, 2026-10-04).
+      # and the suites of test:it that need functions (cron, worker) serve their own too. So the job serves no function itself:
+      # a shared serve answered their requests and broke them (first pushes, 2026-10-04). This is the order of a run on the Mac.
       # G3 adds server/mcp/run.ts (app.ts is already a T0 stub, so it cannot be the condition). Until G3 merges, this step skips.
       - name: MCP conformance
         if: hashFiles('server/mcp/run.ts') != ''
         run: npm run test:mcp
-      # Track E adds the function folders. Until it merges, this step skips.
-      - name: Serve the functions
-        if: hashFiles('supabase/functions/*/index.ts') != ''
-        # The server stops at start without its settings (DATABASE_URL, APP_URL, MAIL_FROM and the rest), so the functions get the
-        # same local env file as a run on the Mac (tests/e2e-deploy/local.ts, MAIL_DRIVER=outbox: no mail leaves the runner).
-        run: |
-          npx tsx tests/e2e-deploy/local.ts functions-env "$RUNNER_TEMP/functions.env"
-          nohup npx supabase functions serve --env-file "$RUNNER_TEMP/functions.env" > "$RUNNER_TEMP/functions.log" 2>&1 &
-          for _ in $(seq 1 90); do
-            if grep -q 'Serving functions on' "$RUNNER_TEMP/functions.log"; then
-              code="$(curl -s -o /dev/null -w '%{http_code}' "$SUPABASE_URL/functions/v1/api" || true)"
-              case "$code" in
-                000 | 502 | 503 | 504) ;;
-                *) echo "The functions answer (HTTP $code)."; exit 0 ;;
-              esac
-            fi
-            sleep 2
-          done
-          cat "$RUNNER_TEMP/functions.log"
-          echo "The functions did not start." >&2
-          exit 1
       # scripts/restore-check.test.ts (task O2) makes and opens a backup with age and looks up files in an rclone crypt copy.
       - name: Install age and rclone
         run: sudo apt-get update -q && sudo apt-get install -y -q age rclone
+      # The integration suites start from a fresh database, as on the Mac (each suite header: "after supabase db reset"). The
+      # conformance runner above leaves its agent, approval and link in the public office, which broke the agent suites.
+      - name: Fresh database for the integration suites
+        run: npx supabase db reset
       - name: Integration tests
         run: npm run test:it
-      - name: Function log
-        if: failure() && hashFiles('supabase/functions/*/index.ts') != ''
-        run: cat "$RUNNER_TEMP/functions.log" || true

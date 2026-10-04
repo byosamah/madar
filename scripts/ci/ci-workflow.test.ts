@@ -126,12 +126,13 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     expect(db).toContain('npm run test:db');
   });
 
-  it('starts the full stack, MinIO and the functions for the integration job', () => {
+  it('starts the full stack and MinIO for the integration job, and serves no function itself', () => {
     const integration = job('integration');
     expect(integration).toMatch(/supabase start\s*$/m);
     expect(integration).toContain('minio');
-    expect(integration).toContain('supabase functions serve');
     expect(integration).toContain('npm run test:it');
+    // The conformance runner and the cron and worker suites serve their own functions; a shared serve answered for them.
+    expect(integration).not.toContain('supabase functions serve');
   });
 
   it('takes MinIO from Chainguard, pinned by digest, because Docker Hub no longer serves minio/minio (F1)', () => {
@@ -159,11 +160,13 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     expect(build).toBeLessThan(at(integration, 'npx supabase start'));
   });
 
-  it('runs the MCP conformance check, once G3 adds server/mcp/run.ts, before the step that serves every function', () => {
+  it('runs the MCP conformance check, once G3 adds server/mcp/run.ts, before the integration suites', () => {
     const integration = job('integration');
     expect(integration).toMatch(/- name: MCP conformance\n {8}if: hashFiles\('server\/mcp\/run\.ts'\) != ''\n {8}run: npm run test:mcp\n/);
-    // The runner serves its own mcp function (server/mcp/conformance.ts). A serve that already runs would answer its requests.
-    expect(at(integration, 'npm run test:mcp')).toBeLessThan(at(integration, 'supabase functions serve'));
+    // The runner serves its own mcp function (server/mcp/conformance.ts), before the integration suites, and a db reset
+    // between them gives the suites the fresh database they expect.
+    expect(at(integration, 'npm run test:mcp')).toBeLessThan(at(integration, 'npx supabase db reset'));
+    expect(at(integration, 'npx supabase db reset')).toBeLessThan(at(integration, 'npm run test:it'));
   });
 
   it('uses the Supabase CLI version that package.json pins', () => {
