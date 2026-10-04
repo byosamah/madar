@@ -51,8 +51,15 @@ jobs:
           cache: npm
       # npm ci runs before any step gets a secret, so no install script can read one.
       - run: npm ci
-      - name: Install age
-        run: sudo apt-get update -q && sudo apt-get install -y -q age
+      # dump.ts runs the pg_dump script of the CLI with this pg_dump 17 (the server is 17), under verify-full: the CLI itself
+      # starts pg_dump with no TLS mode. The PGDG script adds the apt source of postgresql.org.
+      - name: Install age and pg_dump 17
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q age postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
 
       - name: Age of the newest backup
         id: fresh

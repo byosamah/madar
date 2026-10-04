@@ -91,6 +91,15 @@ describe('db-backup.yml', () => {
     expect(lines.findIndex((line) => line.includes('apt-get install -y -q age'))).toBeLessThan(firstSecret);
   });
 
+  it('installs pg_dump 17 before any secret and puts it first on the PATH, because dump.ts runs the CLI script with it', () => {
+    const lines = FILES.db.split('\n');
+    const firstSecret = lines.findIndex((line) => line.includes('${{ secrets.'));
+    const install = lines.findIndex((line) => line.includes('apt-get install -y -q postgresql-client-17'));
+    expect(install).toBeGreaterThan(0);
+    expect(install).toBeLessThan(firstSecret);
+    expect(FILES.db).toContain('echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"');
+  });
+
   it('makes the backup with dump.ts, the session pooler address and the age public key', () => {
     const dump = step(FILES.db, 'Dump, count and encrypt');
     expect(dump).toContain('npx tsx scripts/backup/dump.ts --out');
@@ -130,6 +139,22 @@ describe('files-backup.yml', () => {
     expect(step(FILES.files, 'Copy the files to B2')).toContain('rclone sync "source:$FILES_BUCKET" copy:current --backup-dir "copy:old/$today"');
   });
 
+  it('stops the sync, so GitHub mails the owner, before a mass delete in the source reaches the copy', () => {
+    expect(step(FILES.files, 'Copy the files to B2')).toMatch(/rclone sync [^\n]* --max-delete 200\b/);
+  });
+
+  it('connects psql with verify-full and the Supabase root certificate from the repository', () => {
+    const checkout = step(FILES.files, 'Get the Supabase root certificate');
+    expect(checkout).toMatch(/uses: actions\/checkout@[0-9a-f]{40}/);
+    expect(checkout).toContain('persist-credentials: false');
+    expect(checkout).toContain('sparse-checkout: scripts/proof/supabase-root-2021-ca.crt');
+    expect(FILES.files.indexOf('- name: Get the Supabase root certificate')).toBeLessThan(FILES.files.indexOf('- name: Write the size of the copy'));
+    const meter = step(FILES.files, 'Write the size of the copy to the usage meter');
+    expect(meter).toContain('PGSSLMODE: verify-full');
+    expect(meter).toContain('PGSSLROOTCERT: scripts/proof/supabase-root-2021-ca.crt');
+    expect(existsSync(new URL('scripts/proof/supabase-root-2021-ca.crt', root))).toBe(true);
+  });
+
   it('reads from Supabase Storage while the file store is supabase, and from R2 after the move', () => {
     expect(FILES.files).toContain('FILES_BUCKET: madar-files');
     expect(FILES.files).toContain("RCLONE_CONFIG_SOURCE_PROVIDER: ${{ vars.MADAR_FILE_STORE == 'r2' && 'Cloudflare' || 'Other' }}");
@@ -166,5 +191,11 @@ describe('restore-reminder.yml', () => {
     expect(open).toContain('gh issue create --repo "$REPO" --title "$title" --body "$body"');
     expect(open).toContain('npx tsx scripts/restore-check.ts --file');
     expect(existsSync(new URL('scripts/restore-check.ts', root))).toBe(true);
+  });
+
+  it('asks the owner to paste only the name of a failed step and its first line, never the rest of the detail (the issue is in the US)', () => {
+    const open = step(FILES.reminder, 'Open the issue "Run the restore check"');
+    expect(open).toContain('If a step failed, paste only its name and the first line of its detail');
+    expect(open).not.toContain('paste the step and its detail');
   });
 });

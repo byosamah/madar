@@ -45,7 +45,7 @@ jobs:
           3. In the madar folder, run:
              `npx tsx scripts/restore-check.ts --file ~/Downloads/madar-backup/<file>.age --key ~/madar-backup.key --files-remote madar-copy:current`
           4. Delete the key file and the downloaded backup.
-          5. Paste the "ok" line of the report here, then close this issue. If a step failed, paste the step and its detail, and keep the issue open.
+          5. Paste the "ok" line of the report here, then close this issue. If a step failed, paste only its name and the first line of its detail (for the restore step, the psql ERROR line), and keep the issue open. Never paste more of the report: this issue is stored in the US.
           BODY
           )"
           gh issue create --repo "$REPO" --title "$title" --body "$body"
