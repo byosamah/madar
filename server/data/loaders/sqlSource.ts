@@ -2,7 +2,7 @@ import { jsonPathOf } from '../../../src/api/references';
 import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, fieldName, matchesNothing, type Cond, type Row, type Select } from './query';
+import { columnOf, fieldName, matchesNothing, type Cond, type CountSelect, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -14,9 +14,8 @@ import type { Source } from './source';
 const C = 'collate "C"';
 const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(rows)).length;
 
-/** The SQL of one Select: $1 and up are its values. */
-export function selectSql(s: Select): { text: string; values: unknown[] } {
-  const values: unknown[] = [];
+/** The table and the where clause of a Select or a count: $1 and up are its values. */
+function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: string) => string; where: string } {
   const param = (value: unknown, type: string) => {
     values.push(value);
     return `$${values.length}::${type}`;
@@ -38,13 +37,17 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
       return `(t.created_at ${C} < ${at} or (t.created_at = ${at} and t.id ${C} < ${param(one.before.id, 'text')}))`;
     }
     if ('bounds' in one) {
-      const rows = Object.entries(one.bounds.by).map(([k, bound]) => ({ k, gt: bound.gt, ge: bound.ge ?? null }));
-      return `exists (select 1 from jsonb_to_recordset(${param(JSON.stringify(rows), 'jsonb')}) as b(k text, gt text, ge text) `
-        + `where b.k = ${col(one.bounds.col)} and t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}))`;
+      const rows = Object.entries(one.bounds.by).map(([k, bound]) => ({
+        k, gt: bound.gt, ge: bound.ge ?? null, aat: bound.after?.at ?? null, aid: bound.after?.id ?? null,
+      }));
+      return `exists (select 1 from jsonb_to_recordset(${param(JSON.stringify(rows), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
+        + `where b.k = ${col(one.bounds.col)} and t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
+        + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C})))`;
     }
     if ('field' in one) {
       const field = fieldName(one.field);
       if ('null' in one) return `(t.doc->'${field}' is null or t.doc->'${field}' = 'null'::jsonb)`;
+      if ('notIn' in one) return `(t.doc->>'${field}' is null or not (t.doc->>'${field}' = any(${param(one.notIn, 'text[]')})))`;
       return `t.doc->>'${field}' = any(${param(one.in, 'text[]')})`;
     }
     const column = col(one.col);
@@ -56,11 +59,21 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
     return `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
   }
 
+  return { col, where: s.where.length > 0 ? ` where ${s.where.map(cond).join(' and ')}` : '' };
+}
+
+/** The SQL of one Select: $1 and up are its values. */
+export function selectSql(s: Select): { text: string; values: unknown[] } {
+  const values: unknown[] = [];
+  const param = (value: unknown, type: string) => {
+    values.push(value);
+    return `$${values.length}::${type}`;
+  };
+  const { col, where } = whereSql(s, values);
   const table = tableOf(s.c).table;
   const doc = s.pick
     ? `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${param(s.pick, 'text[]')}))`
     : 't.doc';
-  const where = s.where.length > 0 ? ` where ${s.where.map(cond).join(' and ')}` : '';
   if (s.limit === undefined) return { text: `select t.ord, ${doc} as doc from ${table} t${where} order by t.ord`, values };
 
   const order = s.order;
@@ -75,6 +88,14 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
     text: `select ord, doc from (select t.ord, ${doc} as doc, ${rank} as r from ${table} t${where}) x where r <= ${limit} order by ord`,
     values,
   };
+}
+
+/** The SQL of one count: one grouped count over the rows that the conditions match. */
+export function countSql(s: CountSelect): { text: string; values: unknown[] } {
+  const values: unknown[] = [];
+  const { col, where } = whereSql(s, values);
+  const per = col(s.per);
+  return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
 }
 
 export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): Source {
@@ -99,6 +120,13 @@ export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): So
         `select ${column} as v, count(*)::integer as n from ${tableOf(c).table} where ${column} = any($1::text[]) group by ${column}`, [values],
       );
       return new Map(rows.map((row) => [row.v, Number(row.n)]));
+    },
+
+    async countWhere(s) {
+      if (matchesNothing(s)) return new Map();
+      const { text, values } = countSql(s);
+      const rows = await read<{ v: string | null; n: number }>(text, values);
+      return new Map(rows.flatMap((row) => (row.v === null ? [] : [[row.v, Number(row.n)] as const])));
     },
 
     async undoLinks(eventIds) {

@@ -74,10 +74,12 @@ export function fieldName(name: string): string {
  *   atOrAfter     the stamp of the column is at or after this time (compared as times, as events.list does)
  *   field / in    a doc field without a column has one of the values (doc->>'field')
  *   field / null  a doc field holds JSON null (or is absent)
+ *   field / notIn a doc field without a column is null or absent, or has none of the values
  *   has           a doc list field holds the value (doc->'field' ? value)
  *   notUndone     an event that no undo event names (events only)
  *   before        (created_at, id) comes before this pair in text order
- *   bounds        per key of a column: created_at after "gt" and, when "ge" is set, at or after "ge"
+ *   bounds        per key of a column: created_at after "gt"; when "ge" is set, at or after "ge"; when "after" is set,
+ *                 (created_at, id) after that pair in text order (the rows after one row, plan 4.13 A9)
  *   or            any of the conditions holds
  */
 export type Cond =
@@ -88,11 +90,15 @@ export type Cond =
   | { col: string; atOrAfter: string }
   | { field: string; in: readonly string[] }
   | { field: string; null: true }
+  | { field: string; notIn: readonly string[] }
   | { has: string; value: string }
   | { notUndone: true }
   | { before: { at: string; id: string } }
-  | { bounds: { col: string; by: Readonly<Record<string, { gt: string; ge?: string }>> } }
+  | { bounds: { col: string; by: Readonly<Record<string, Bound>> } }
   | { or: readonly Cond[] };
+
+/** The bound of one key of a "bounds" condition. */
+export type Bound = { gt: string; ge?: string; after?: { at: string; id: string } };
 
 /**
  * One read of one table.
@@ -111,10 +117,13 @@ export type Select = {
   pick?: readonly string[];
 };
 
+/** A count of one table (plan 4.13, A9): the rows that every condition matches, counted for each value of the column "per". */
+export type CountSelect = { c: TableCollection; where: readonly Cond[]; per: string };
+
 /** A row as a source returns it: its insertion order and its doc. */
 export type Row = { ord: number; doc: Rec };
 
 /** True when a Select can match no row, because a list condition is empty. */
-export function matchesNothing(s: Select): boolean {
+export function matchesNothing(s: Select | CountSelect): boolean {
   return s.where.some((cond) => 'in' in cond && cond.in.length === 0);
 }

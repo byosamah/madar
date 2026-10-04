@@ -53,7 +53,8 @@ export type State = {
   counters: Record<string, number>;
   /**
    * The real build: counts that a server loader puts in a read, so a list shows the number of comments and files without loading
-   * them (plan 4.13, A4). Keys come from commentCountKey and fileCountKey. The prototype never sets it, and the server never saves it.
+   * them (plan 4.13, A4), and the unread number of each chat and task thread without its unread rows (A9). Keys come from
+   * commentCountKey, fileCountKey and unreadCountKey. The prototype never sets it, and the server never saves it.
    */
   counts?: Record<string, number>;
 };
@@ -134,6 +135,11 @@ export function chatReadKey(conversationId: string, userId: string): string {
 /** The key of the comment count of a task or a post in State.counts. */
 export function commentCountKey(targetId: string): string {
   return `comments:${targetId}`;
+}
+
+/** The key of the unread number of a chat or a task thread for one person in State.counts (plan 4.13, A9). */
+export function unreadCountKey(conversationId: string, userId: string): string {
+  return `unread:${conversationId}:${userId}`;
 }
 
 /** The key of the file count of a task in State.counts. */
