@@ -2,7 +2,7 @@ import type { User } from '../../../src/api/contract/entities';
 import { emptyState, type State } from '../../../src/api/store';
 import { OFFICE_COLLECTIONS, type OfficeSnapshot } from '../../core/types';
 import { tableOf, type TableCollection } from '../tables';
-import type { Row, Select } from './query';
+import type { CountSelect, Row, Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -13,7 +13,8 @@ import type { Source } from './source';
  *   order of the prototype (TM R8). A row that two reads bring is kept once.
  * - Every loaded event gets its undoneBy from the undo event that names it (plan 4.3).
  * - A write gets the counters (it runs under the office lock). A read gets no counters and may get counts instead of rows
- *   (plan 4.13, A4); a write never gets counts, because its own new comment or file would not be in a count.
+ *   (plan 4.13, A4); a write never gets those counts, because its own new comment or file would not be in a count. The one
+ *   exception is the unread count (A9): chats.markRead writes only a read mark, and its handler sets the count it changes to 0.
  */
 
 type Rec = Record<string, unknown>;
@@ -112,6 +113,17 @@ export class Load {
     if (this.write) throw new Error('A write reads rows, never counts.');
     const want = [...new Set(values)];
     const found = await this.#src.count(c, col, want);
+    for (const value of want) this.#counts[keyOf(value)] = found.get(value) ?? 0;
+  }
+
+  /**
+   * The number of rows that a count matches for each value given, under the key that the handlers read (unreadCountKey, plan
+   * 4.13 A9). A value with no row gets 0. A write may hold such a count only when its handler keeps it true (chats.markRead).
+   */
+  async countWhere(s: CountSelect, values: readonly string[], keyOf: (value: string) => string): Promise<void> {
+    const want = [...new Set(values)];
+    if (want.length === 0) return;
+    const found = await this.#src.countWhere(s);
     for (const value of want) this.#counts[keyOf(value)] = found.get(value) ?? 0;
   }
 

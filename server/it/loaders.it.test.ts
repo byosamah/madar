@@ -33,7 +33,8 @@ function recording(inner: Source, log: Request[]): Source {
     return (inner[method] as (...a: unknown[]) => Promise<unknown>)(...args);
   }) as Source[K];
   return {
-    select: wrap('select'), count: wrap('count'), undoLinks: wrap('undoLinks'), referencing: wrap('referencing'), threads: wrap('threads'), counters: wrap('counters'),
+    select: wrap('select'), count: wrap('count'), countWhere: wrap('countWhere'), undoLinks: wrap('undoLinks'), referencing: wrap('referencing'),
+    threads: wrap('threads'), counters: wrap('counters'),
   };
 }
 
@@ -76,7 +77,7 @@ describe('the loaders on the local database', () => {
     }
     const unique = [...new Map(log.map((request) => [JSON.stringify(request), request])).values()];
     expect(unique.length).toBeGreaterThan(300);
-    expect(new Set(unique.map((request) => request.method))).toEqual(new Set(['select', 'count', 'undoLinks', 'referencing', 'threads', 'counters']));
+    expect(new Set(unique.map((request) => request.method))).toEqual(new Set(['select', 'count', 'countWhere', 'undoLinks', 'referencing', 'threads', 'counters']));
     const sql = sqlSource(q);
     const memory = memorySource(office);
     for (const request of unique) {
@@ -92,6 +93,32 @@ describe('the loaders on the local database', () => {
       expect(scoped, `${name} ${JSON.stringify(input)} as ${actor}`).toEqual(whole);
     }
   }, 120_000);
+
+  it('counts the unread rows as the memory form does: a tie at the own last comment, the authors left out, and a key with no row', async () => {
+    const thread = Object.values(office.comments).find((c) => c.id === 'cmt_903')!.targetId;
+    const stamp = '2026-10-03T11:00:00.000+03:00';
+    const counts = [
+      { c: 'comments', per: 'target_id', where: [
+        { col: 'target_type', eq: 'task' },
+        { bounds: { col: 'target_id', by: { [thread]: { gt: '', after: { at: stamp, id: 'cmt_903' } }, tsk_none: { gt: '' } } } },
+      ] },
+      { c: 'comments', per: 'target_id', where: [
+        { col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by: { [thread]: { gt: '2026-10-01T10:00:00.000+03:00' } } } },
+        { field: 'authorId', notIn: ['usr_006'] },
+      ] },
+      { c: 'messages', per: 'conversation_id', where: [
+        { bounds: { col: 'conversation_id', by: { cnv_001: { gt: '' }, cnv_013: { gt: stamp } } } }, { field: 'actingForId', notIn: ['usr_001'] },
+      ] },
+    ] as const;
+    const sql = sqlSource(q);
+    const memory = memorySource(office);
+    for (const s of counts) {
+      const fromSql = comparable('countWhere', await sql.countWhere(s));
+      expect(fromSql, JSON.stringify(s)).toEqual(comparable('countWhere', await memory.countWhere(s)));
+      expect(Object.keys(fromSql as object).length).toBeGreaterThan(0);
+    }
+    expect((await sql.countWhere(counts[0])).get(thread)).toBe(1);
+  });
 
   it('counts the bytes it reads toward the egress meter', async () => {
     let bytes = 0;

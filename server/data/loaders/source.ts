@@ -1,5 +1,5 @@
 import type { TableCollection } from '../tables';
-import type { Row, Select } from './query';
+import type { CountSelect, Row, Select } from './query';
 
 /**
  * Where a loader reads (task C2). sqlSource reads the database inside the call's transaction; memorySource reads a whole office in
@@ -10,6 +10,11 @@ export interface Source {
   select(s: Select): Promise<Row[]>;
   /** How many rows each value of a column has, for the values given (State.counts, plan 4.13 A4). Values with no row are left out. */
   count(c: TableCollection, col: string, values: readonly string[]): Promise<Map<string, number>>;
+  /**
+   * How many rows match a count, for each value of its column "per" (plan 4.13, A9): the unread messages of each chat and the
+   * unread comments of each task thread, without the rows. Values with no row are left out.
+   */
+  countWhere(s: CountSelect): Promise<Map<string, number>>;
   /** For each event id given that an undo event names, the id of that undo event (plan 4.3). */
   undoLinks(eventIds: readonly string[]): Promise<Map<string, string>>;
   /** The first row, in insertion order, whose doc holds the id at the path of REFERENCE_FIELDS, apart from the row with key "except". */

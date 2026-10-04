@@ -355,6 +355,92 @@ describe('the guarded reads of the review (2026-10-04)', () => {
   });
 });
 
+describe('unread counts (plan 4.13, A9)', () => {
+  const LONG = 5000;
+  /** One stamp a minute from 1 September, in the +03:00 shape of the office. */
+  const minute = (i: number) => {
+    const at = new Date(Date.UTC(2026, 8, 1, 6, 0) + i * 60_000);
+    const two = (n: number) => String(n).padStart(2, '0');
+    return `2026-${two(at.getUTCMonth() + 1)}-${two(at.getUTCDate())}T${two(at.getUTCHours())}:${two(at.getUTCMinutes())}:00.000+03:00`;
+  };
+
+  /**
+   * A project chat of 5,000 messages by its leader and the leader's agent, and a task thread of 5,000 comments after one comment
+   * of the Admin. The Admin has no read mark on either. Two messages share a stamp at the end.
+   */
+  function long(): { state: State; room: string; thread: string } {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const leader = state.projects.prj_001.leaderId!;
+    const agent = Object.values(state.users).find((u) => u.kind === 'agent' && u.ownerId === leader);
+    for (const key of Object.keys(state.chatReads)) if (state.chatReads[key].userId === ADMIN) delete state.chatReads[key];
+    for (let i = 0; i < LONG; i += 1) {
+      const id = `msg_${String(10_000 + i)}`;
+      const authorId = agent && i % 7 === 0 ? agent.id : leader;
+      state.messages[id] = {
+        id, conversationId: room.id, authorId, actingForId: leader, body: `Message ${i}`, mentions: [], fileIds: [], createdAt: minute(Math.min(i, LONG - 2)), editedAt: null,
+      };
+    }
+    const task = todo(state, 'prj_001')[0];
+    const comment = (id: string, authorId: string, at: string) => {
+      state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
+    };
+    comment('cmt_09999', ADMIN, minute(0));
+    for (let i = 1; i <= LONG; i += 1) comment(`cmt_${String(10_000 + i)}`, leader, minute(Math.min(i, LONG - 1)));
+    return { state, room: room.id, thread: task.id };
+  }
+
+  async function loadedBy(state: State, name: SharedCallName, input: unknown): Promise<State> {
+    const { whole, scoped, loaded } = await runBoth(state, name, input, ADMIN, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped, name).toEqual(whole);
+    expect(whole.outcome.error, name).toBeUndefined();
+    return loaded;
+  }
+
+  it('loads at most the newest message of a chat of 5,000 messages with no read mark, and the newest comments of a long thread', async () => {
+    const { state, room, thread } = long();
+    const inRoom = (loaded: State) => Object.values(loaded.messages).filter((m) => m.conversationId === room).length;
+    const onThread = (loaded: State) => Object.values(loaded.comments).filter((c) => c.targetId === thread).length;
+    for (const name of ['chats.list', 'chats.unreadCount'] as const) {
+      const loaded = await loadedBy(state, name, {});
+      expect(inRoom(loaded), name).toBeLessThanOrEqual(1);
+      expect(onThread(loaded), name).toBeLessThanOrEqual(2);
+    }
+    const rows = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(rows.find((row) => row.id === room)?.unread).toBeGreaterThanOrEqual(LONG);
+    expect(rows.find((row) => row.id === thread)?.unread).toBeGreaterThanOrEqual(LONG);
+
+    const paged = await loadedBy(state, 'chats.messages', { conversationId: room, limit: 2 });
+    expect(inRoom(paged)).toBeLessThanOrEqual(2);
+    const marked = await loadedBy(state, 'chats.markRead', { conversationId: room });
+    expect(inRoom(marked)).toBeLessThanOrEqual(1);
+    const markedThread = await loadedBy(state, 'chats.markRead', { conversationId: thread });
+    // The mark of a thread reads its newest stamp, so the comments that share that stamp come too (two here), and the own one.
+    const newestAt = minute(LONG - 1);
+    const kept = Object.values(markedThread.comments).filter((c) => c.targetId === thread);
+    expect(kept.every((c) => c.authorId === ADMIN || c.createdAt === newestAt)).toBe(true);
+    expect(kept.length).toBeLessThanOrEqual(3);
+  });
+
+  it('counts what the scan counts: not the person, not their agent, not a message for them, and after their own last comment', async () => {
+    const { state, room, thread } = long();
+    const leader = state.projects.prj_001.leaderId!;
+    // The leader reads both halfway: the counts start at the mark, and leave out the leader's own and the agent's messages.
+    state.chatReads[chatReadKey(room, leader)] = { conversationId: room, userId: leader, lastReadAt: minute(LONG / 2) };
+    state.comments.cmt_09998 = { ...state.comments.cmt_09999, id: 'cmt_09998', authorId: leader, createdAt: minute(LONG - 1) };
+    state.comments.cmt_09997 = { ...state.comments.cmt_09999, id: 'cmt_09997', authorId: ADMIN, createdAt: minute(LONG - 1) };
+    // Same stamp as the Admin's own last comment but an id before it: it comes before it in the thread, so it is not unread.
+    state.comments.cmt_09996 = { ...state.comments.cmt_09999, id: 'cmt_09996', authorId: leader, createdAt: minute(LONG - 1) };
+    for (const actor of [ADMIN, leader]) {
+      await same(state, 'chats.list', {}, actor);
+      await same(state, 'chats.unreadCount', {}, actor);
+      await same(state, 'chats.messages', { conversationId: room }, actor);
+      await same(state, 'chats.markRead', { conversationId: thread }, actor);
+      await same(state, 'chats.markRead', { conversationId: room }, actor);
+    }
+  });
+});
+
 describe('the jobs loader (plan 4.6, for track N3)', () => {
   it('gives runScheduledTriggers the same notices on its scoped load as on the whole office', async () => {
     const state = office();

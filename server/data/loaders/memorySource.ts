@@ -57,11 +57,14 @@ export function memorySource(state: State): Source {
       const bound = cond.bounds.by[String(col(cond.bounds.col))];
       if (!bound) return false;
       const at = String(doc.createdAt);
-      return at > bound.gt && (bound.ge === undefined || at >= bound.ge);
+      const after = bound.after;
+      return at > bound.gt && (bound.ge === undefined || at >= bound.ge) && (after === undefined || at > after.at || (at === after.at && key > after.id));
     }
     if ('field' in cond) {
       const value = fieldText(doc[cond.field]);
-      return 'null' in cond ? value === null : value !== null && cond.in.includes(value);
+      if ('null' in cond) return value === null;
+      if ('notIn' in cond) return value === null || !cond.notIn.includes(value);
+      return value !== null && cond.in.includes(value);
     }
     const value = col(cond.col);
     if ('in' in cond) return value !== null && cond.in.includes(String(value));
@@ -125,6 +128,19 @@ export function memorySource(state: State): Source {
       for (const row of all(c)) {
         const value = columnOf(c, col).value(row.doc, state, spec);
         if (value === null || !values.includes(String(value))) continue;
+        counts.set(String(value), (counts.get(String(value)) ?? 0) + 1);
+      }
+      return counts;
+    },
+
+    async countWhere(s) {
+      const counts = new Map<string, number>();
+      if (matchesNothing(s)) return counts;
+      const spec = tableOf(s.c);
+      for (const row of all(s.c)) {
+        if (!s.where.every((cond) => holds(s.c, row.doc, row.key, cond))) continue;
+        const value = columnOf(s.c, s.per).value(row.doc, state, spec);
+        if (value === null) continue;
         counts.set(String(value), (counts.get(String(value)) ?? 0) + 1);
       }
       return counts;
