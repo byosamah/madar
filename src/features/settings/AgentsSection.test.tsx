@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { expectCalm } from '../auth/calmChecks';
 import { fakeAuth } from '../auth/fakeAuth';
 import { renderAuth, SAMPLE_ACCOUNTS } from '../auth/renderAuth';
-import { OAuthProvider, type Grant, type OAuthPort } from '../oauth/oauthPort';
+import { httpOAuthPort, OAuthProvider, type Grant, type OAuthPort } from '../oauth/oauthPort';
 import { AgentsSection } from './AgentsSection';
 
 // Settings, Agents exists in the remote build only: the prototype has no OAuth server.
@@ -91,6 +91,48 @@ describe('Settings, Agents (plan 5.6; task G4)', () => {
     await waitFor(() => expect(s.revoked).toEqual(['c-1', 'c-2']));
     expect(s.removed).toEqual(['usr_011']);
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull());
+  });
+
+  it('clears the Retry line when the Retry finds the grant already gone at Auth (404 oauth_consent_not_found, review of G4)', async () => {
+    const s = setup();
+    // The real HTTP port over a fake Auth: the first revoke of c-2 is lost (500), then Auth has no grant of c-2 any more (404).
+    const deletes: string[] = [];
+    const grants = [{ client: { id: 'c-1', name: 'Claude Code' }, granted_at: null }];
+    let c2 = 0;
+    s.port = httpOAuthPort({ supabaseUrl: 'https://ref.supabase.co', publishableKey: 'pk', apiUrl: 'https://ref.supabase.co/functions/v1/api', accessToken: async () => 'tok', fetch: async (input, init) => {
+      if (init?.method !== 'DELETE') return Response.json(grants.filter((g) => !deletes.includes(g.client.id)));
+      const clientId = new URL(input).searchParams.get('client_id')!;
+      if (clientId === 'c-2' && c2++ === 0) return Response.json({ code: 500, msg: 'Auth answered 500.' }, { status: 500 });
+      if (clientId === 'c-2') return Response.json({ code: 404, error_code: 'oauth_consent_not_found', msg: 'No active grant found for this client' }, { status: 404 });
+      deletes.push(clientId);
+      return new Response(null, { status: 204 });
+    } });
+    await open(s);
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove Claude Code' }));
+    expect(await screen.findByText('Madar turned Claude Code off. The removal of its access to your account did not finish.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull());
+    expect(screen.queryByText('Madar turned Claude Code off. The removal of its access to your account did not finish.')).toBeNull();
+    expect(c2).toBe(2);
+  });
+
+  it('shows a failed list of grants with one Retry, and never says that no AI app is connected (review of G4)', async () => {
+    const s = setup({ rows: [], grants: [] });
+    let failing = true;
+    const list = s.port.listGrants;
+    s.port.listGrants = vi.fn(async () => {
+      if (failing) throw new Error('offline');
+      return list();
+    });
+    await open(s);
+    expect(await screen.findByText('The data did not load.')).toBeInTheDocument();
+    expect(screen.queryByText('No AI app is connected.')).toBeNull();
+    const retries = screen.getAllByRole('button', { name: 'Retry' });
+    expect(retries).toHaveLength(1);
+    failing = false;
+    await userEvent.click(retries[0]);
+    expect(await screen.findByText('No AI app is connected.')).toBeInTheDocument();
+    expect(screen.queryByText('The data did not load.')).toBeNull();
   });
 
   it('removes an app with access but no approval at Auth only', async () => {

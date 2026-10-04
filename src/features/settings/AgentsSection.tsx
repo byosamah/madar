@@ -111,7 +111,9 @@ function Agents() {
     <Section title={t('agents.title')}>
       <p className="text-subheadline text-ink-2">{t('agents.intro')}</p>
       <LoadFailed query={agents} />
-      {agents.data && items.length === 0 && !grants.isPending && <p className="text-body text-ink-2">{t('agents.none')}</p>}
+      {/* The grants are the only place where an app with access but no approval in Madar shows, so a failed list says so. */}
+      <LoadFailed query={grants} />
+      {agents.data && items.length === 0 && grants.isSuccess && <p className="text-body text-ink-2">{t('agents.none')}</p>}
       {items.length > 0 && (
         <ul className="flex flex-col divide-y divide-hairline">
           {items.map((item) => (
