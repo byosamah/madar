@@ -6,6 +6,7 @@ import { setEnvSource } from '../env';
 import { apiApp } from '../http/app';
 import { clearOfficeCaches } from '../data/officeCache';
 import { mcpApp, sqlMcpLimit, TOOL_CALLS_PER_MINUTE } from '../mcp/app';
+import { runRevokeAll } from '../mcp/revokeAll';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { authOf, localStack, PASSWORD } from './authStack';
 import { connectAgent, LOCAL_API, LOCAL_MCP_URL, publicOffice, registerClient, RELINK_SQL, type PublicOffice } from './oauthAgent';
@@ -173,6 +174,16 @@ describe('suite 12: MCP on the local stack', () => {
     expect((await linkOf(client)).revoked_at).not.toBeNull();
     expect([401, 403]).toContain((await tool(token, 'projects.get', { id: 'prj_001' })).status);
     expect((await batch(people.usr_001.token, [{ name: 'users.reactivate', input: { id: 'usr_005' } }])).body.results[0]).toMatchObject({ ok: true });
+    expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(401);
+  });
+
+  it('a retry of agents.revokeAll by the job after the person is on again still removes the links (security review of G3)', async () => {
+    const client = await registerClient(`Sara's second app ${randomUUID().slice(0, 6)}`);
+    const token = (await connectAgent(people.usr_005.client, client)).access_token;
+    expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
+    expect((await userDoc('usr_005'))?.active).toBe(true);
+    await runRevokeAll({ userId: 'usr_005' }, deps);
+    expect((await linkOf(client)).revoked_at).not.toBeNull();
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(401);
   });
 });

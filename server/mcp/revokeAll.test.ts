@@ -53,12 +53,14 @@ describe('agents.revokeAll', () => {
     expect(ran.flat().length).toBeGreaterThan(0);
   });
 
-  it('removes the links in one statement that reads the person again, so a person who is on again keeps the links', async () => {
+  it('removes the links in one statement, also when the person is on again before a retry of the effect runs', async () => {
     const seen: { text: string; values: unknown[] }[] = [];
     const db = { statement: async (_mode: string, text: string, values: unknown[] = []) => { seen.push({ text, values }); return []; } } as unknown as Db;
     await runRevokeAll({ userId: 'usr_005' }, { ...fakeDeps(), db });
     expect(seen).toEqual([{ text: REVOKE_ALL_SQL, values: ['usr_005'] }]);
-    expect(REVOKE_ALL_SQL).toContain('not u.active');
+    // The outbox row exists only because a turn-off committed: the statement never asks whether the person is still off.
+    expect(REVOKE_ALL_SQL).not.toMatch(/active/);
+    expect(REVOKE_ALL_SQL).not.toMatch(/\busers\b/);
     await expect(runRevokeAll({}, { ...fakeDeps(), db })).rejects.toThrow(/user id/);
   });
 });

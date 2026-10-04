@@ -12,8 +12,9 @@ import { loadFor } from '../data/loaders/index';
 import { signInAgain } from './auth';
 
 /**
- * The agent user of an approval (plan 5.6; task G3). The first MCP call of a new approval (a client_id with no agent link, or a
- * removed link and a newer session) runs ensureAgentUser, under the office lock, in one transaction:
+ * The agent user of an approval (plan 5.6; task G3). Only the first MCP call of a client_id with no agent link runs ensureAgentUser,
+ * under the office lock, in one transaction. A removed link stays removed: the AI app must register a new client (a new DCR
+ * client_id) to connect again, and G4 adds the approval that the person records in Madar.
  *
  * - The AI app: its name and the host of its first redirect address, from Auth (madar_private.agent_client,
  *   20261004000401_platform_agents.sql).
