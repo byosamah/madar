@@ -1,4 +1,6 @@
 import { notBuiltAsync } from '../core/notBuilt';
+// Registers agents.revokeAll after a turn-off (plan 4.12) in every entry that builds the call map.
+import '../mcp/revokeAll';
 import type { ServerCall } from '../core/types';
 
 /** Track G replaces these stubs (plan 5.6). */
