@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { User } from '../../src/api/contract/entities';
 import { invalid } from '../../src/api/errors';
-import { requestHost, type HostName, type RequestHost } from '../core/after';
+import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { sendCounted } from '../mail/quota';
@@ -16,12 +16,14 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   host gives an after (server/core/after.ts: ctx.waitUntil on Workers, EdgeRuntime.waitUntil on Supabase), the route answers
  *   first and does that work after the answer. With no after (tests, local runs) the work stays inline. Either way the answer
  *   waits until it took at least minMs (1.5 s).
- * - Limits, counted before the lookup, so they say nothing about the email: 3 an hour for each email and 10 an hour for each
- *   network address. Over a limit: 429 with Retry-After (the Forgot screen shows "Too many tries"). The keys hold only a sha256.
- * - Office limits, counted after the lookup and only when a mail would go out: 20 reset mails an hour (key forgot:all) and 30 a
- *   UTC day (key forgot:day). The reset mail also counts against the daily mail quota as sign-in mail (sendCounted, N2). So a
- *   flood of resets never uses up the mail of the day (Resend: 100 a day): notices keep their 90, and invitations still go.
- *   Over any of them: no mail, a warning in the log, and the same 200 answer.
+ * - Limits, counted before the lookup, so they say nothing about the email: 3 a day for each email (one window of 24 hours,
+ *   UTC) and 10 an hour for each network address. Over a limit: 429 with Retry-After (the Forgot screen shows "Too many tries").
+ *   The keys hold only a sha256.
+ * - No limit for the whole office (S1 security review): an office-wide cap lets one outsider who knows about 10 staff emails use
+ *   up the reset mail of everyone for the day. With 3 a day for each email, the office total is at most 3 times the number of
+ *   people, and a flood only sends reset mails to the mailboxes it names, which then hold a working link.
+ * - The reset mail counts against the daily mail quota as sign-in mail (sendCounted, N2): a full day sends no mail, logs a
+ *   warning, and gives the same 200 answer.
  * - For an active person with a sign-in link: a "recovery" link of Auth, and the reset mail in the person's language with a
  *   link to /reset. A person who never got an invitation has no Auth user, and gets nothing: generate_link must only run for
  *   an email that a users row holds (proof.md, P1).
@@ -30,20 +32,15 @@ import { hashedKey, hitLimit } from './rateLimit';
  * - The idempotency key of the mail is a sha256 of the token hash: the key goes to the mail sender and its logs, and the token
  *   hash is the live sign-in credential.
  * - A failure of Auth or of the mail is logged and gives the same answer.
- * - The network address (clientAddress, task S1): only a value that the host writes, never one that the sender can choose.
- *   Workers: cf-connecting-ip (Cloudflare sets it). Supabase: the LAST x-forwarded-for entry, which the gateway appends.
- *   OPEN PROOF (Z0b, TASKS.md item Z "which header carries the client address"): send a forged x-forwarded-for and a forged
- *   cf-connecting-ip to a probe function on madar-test, log both headers as they arrive, and keep this rule only when the last
- *   entry is the real client address. When the last entry is a proxy address (the same for every client), this limit becomes
- *   one limit for the whole office; then change the rule to the header that the probe names.
+ * - The network address (clientAddress, task S1): cf-connecting-ip, on both hosts. Proven on madar-test (2026-10-04, probe
+ *   function, Z0b): Supabase Edge Functions sit behind Cloudflare too; cf-connecting-ip holds the real client address, and
+ *   Cloudflare refuses a request that sends its own (error code 1000). x-forwarded-for arrives as "client, client, proxy": its
+ *   last entry is a rotating proxy address, so reading it puts many clients under one limit. true-client-ip passes through
+ *   forged. So the route never reads either. No cf-connecting-ip (local runs only): 'unknown'.
  */
 
-export const FORGOT_EMAIL_PER_HOUR = 3;
+export const FORGOT_EMAIL_PER_DAY = 3;
 export const FORGOT_IP_PER_HOUR = 10;
-export const FORGOT_OFFICE_PER_HOUR = 20;
-export const FORGOT_OFFICE_KEY = 'forgot:all';
-export const FORGOT_OFFICE_PER_DAY = 30;
-export const FORGOT_DAY_KEY = 'forgot:day';
 export const FORGOT_MIN_MS = 1500;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -53,11 +50,9 @@ export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth fro
 
 const Body = z.object({ email: z.email() });
 
-/** The network address of the sender, from the header that the host writes. No value: 'unknown' (one shared limit). */
-export function clientAddress(request: Request, host: HostName): string {
-  if (host === 'workers') return request.headers.get('cf-connecting-ip')?.trim() || 'unknown';
-  // Supabase (and local runs): the gateway appends the address it saw, so only the last entry is not the sender's own text.
-  return request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || 'unknown';
+/** The network address of the sender: the value that Cloudflare writes in front of both hosts. None (local runs): 'unknown'. */
+export function clientAddress(request: Request): string {
+  return request.headers.get('cf-connecting-ip')?.trim() || 'unknown';
 }
 
 /** Sends the reset mail when the email belongs to an active person with a sign-in link. Otherwise nothing. */
@@ -66,18 +61,6 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   if (!row || row.auth === null) return 'none';
   const user = User.parse(row.doc);
   if (!user.active || user.kind !== 'human') return 'none';
-  const q: Query = (text, values) => deps.db.statement('write', text, values);
-  const now = deps.clock.now();
-  const office = await hitLimit(q, { key: FORGOT_OFFICE_KEY, limit: FORGOT_OFFICE_PER_HOUR, windowMs: HOUR_MS, now });
-  if (!office.ok) {
-    deps.log.warn('A reset mail did not go out: the office reached its limit of reset mails for this hour.', { userId: row.id });
-    return 'none';
-  }
-  const day = await hitLimit(q, { key: FORGOT_DAY_KEY, limit: FORGOT_OFFICE_PER_DAY, windowMs: DAY_MS, now });
-  if (!day.ok) {
-    deps.log.warn('A reset mail did not go out: the office reached its limit of reset mails for this day.', { userId: row.id });
-    return 'none';
-  }
   const link = await deps.authAdmin.generateLink('recovery', user.email);
   if (link.authUserId !== row.auth) {
     deps.log.warn('A reset mail did not go out: the recovery link names another Auth user than the sign-in link.', { userId: row.id });
@@ -115,12 +98,12 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     if (!parsed.success) return errorResponse(runErrorOf(invalid('email', 'Type a valid email.')));
     const email = parsed.data.email.trim().toLowerCase();
 
-    const { host, after } = hostOf();
+    const { after } = hostOf();
     const q: Query = (text, values) => deps.db.statement('write', text, values);
     const now = deps.clock.now();
-    const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request, host)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
+    const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
-    const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_HOUR, windowMs: HOUR_MS, now });
+    const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_DAY, windowMs: DAY_MS, now });
     if (!byEmail.ok) return tooMany(byEmail.retryAfterMs);
 
     const work = sendReset(email, deps).catch((error: unknown) => {

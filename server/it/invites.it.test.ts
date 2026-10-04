@@ -122,7 +122,7 @@ describe('suite 4: invitations on the local stack', () => {
     await accept(invitation.text);
 
     const forgot = createForgotRoute({ minMs: 0 });
-    const response = await forgot(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers: { 'x-forwarded-for': '198.51.100.40' }, body: JSON.stringify({ email }) }), deps);
+    const response = await forgot(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers: { 'cf-connecting-ip': '198.51.100.40' }, body: JSON.stringify({ email }) }), deps);
     expect(response.status).toBe(200);
     const reset = mailTo(email);
     expect(reset.subject).toBe('إعادة تعيين كلمة المرور في مدار');

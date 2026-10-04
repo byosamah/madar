@@ -55,7 +55,7 @@ async function entry(token: string, name: string, input: unknown = {}): Promise<
 }
 
 const forgot = (email: string, ip: string) => app.fetch(new Request('http://127.0.0.1/auth/forgot', {
-  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify({ email }),
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify({ email }),
 }));
 
 beforeAll(async () => {
@@ -115,7 +115,7 @@ describe('suite 3: sign-in on the local stack', () => {
     expect((await auth.signIn(auth.email('sara'))).status).toBe(200);
   });
 
-  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 an hour for one email', async () => {
+  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 a day for one email', async () => {
     const member = auth.email('member');
     const sent = deps.mail.sent.length;
     const known = await forgot(member, '198.51.100.1');

@@ -11,9 +11,7 @@ import { memoryMailDb } from '../mail/memoryMailDb';
 import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
-import {
-  clientAddress, createForgotRoute, FORGOT_EMAIL_PER_HOUR, FORGOT_IP_PER_HOUR, FORGOT_OFFICE_PER_DAY, FORGOT_OFFICE_PER_HOUR, FORGOT_PERSON_SQL,
-} from './forgot';
+import { clientAddress, createForgotRoute, FORGOT_EMAIL_PER_DAY, FORGOT_IP_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
 import { RATE_SQL } from './rateLimit';
 
 /** POST /api/auth/forgot (plan 5.1; task P2). server/it/auth.it.test.ts runs it on the local stack. */
@@ -67,7 +65,7 @@ async function setup(o: { host?: () => RequestHost } = {}) {
   const app = apiApp(deps, { routes: [{ method: 'POST', path: '/auth/forgot', handler: route }] });
   const post = (body: unknown, ip = '203.0.113.7') =>
     app.fetch(new Request('http://127.0.0.1/auth/forgot', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `10.0.0.1, ${ip}` }, body: typeof body === 'string' ? body : JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': ip, 'x-forwarded-for': '10.0.0.1, 10.0.0.2' }, body: typeof body === 'string' ? body : JSON.stringify(body),
     }));
   return { auth, deps, mem, post, route, slept, users };
 }
@@ -98,15 +96,15 @@ describe('POST /auth/forgot', () => {
     expect(deps.mail.sent[0].text).toContain('افتحي الرابط');
   });
 
-  it(`answers 429 after ${FORGOT_EMAIL_PER_HOUR} requests an hour for one email, known or not, and keeps no email in the table`, async () => {
+  it(`answers 429 after ${FORGOT_EMAIL_PER_DAY} requests a day for one email, known or not, and keeps no email in the table`, async () => {
     const { deps, mem, post } = await setup();
     for (const email of ['faisal.al.harbi@madar.test', 'nobody@madar.test']) {
-      for (let i = 0; i < FORGOT_EMAIL_PER_HOUR; i += 1) expect((await post({ email }, `198.51.100.${i}`)).status).toBe(200);
+      for (let i = 0; i < FORGOT_EMAIL_PER_DAY; i += 1) expect((await post({ email }, `198.51.100.${i}`)).status).toBe(200);
       const over = await post({ email }, '198.51.100.99');
       expect(over.status).toBe(429);
       expect(Number(over.headers.get('Retry-After'))).toBeGreaterThan(0);
     }
-    expect(deps.mail.sent).toHaveLength(FORGOT_EMAIL_PER_HOUR);
+    expect(deps.mail.sent).toHaveLength(FORGOT_EMAIL_PER_DAY);
     expect([...mem.rates.keys()].some((key) => key.includes('@') || key.includes('198.51'))).toBe(false);
   });
 
@@ -137,27 +135,6 @@ describe('POST /auth/forgot', () => {
     expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.userId === 'usr_002')).toBe(true);
   });
 
-  it(`sends at most ${FORGOT_OFFICE_PER_HOUR} reset mails an hour for the whole office, and still gives the same answer`, async () => {
-    const { deps, mem, post } = await setup();
-    // A forged x-forwarded-for gets past the address limit; 3 an hour for each email still holds. The office limit caps the rest.
-    const people = ['faisal.al.harbi@madar.test', 'sara.al.qahtani@madar.test'];
-    let n = 0;
-    for (let round = 0; round < FORGOT_EMAIL_PER_HOUR; round += 1) {
-      for (const email of people) expect((await post({ email }, `198.51.100.${(n += 1)}`)).status).toBe(200);
-    }
-    for (let i = 0; i < FORGOT_EMAIL_PER_HOUR; i += 1) expect((await post({ email: 'nobody@madar.test' }, `192.0.2.${i}`)).status).toBe(200);
-    expect(deps.mail.sent).toHaveLength(6);
-    // Only a mail that would go out counts: the unknown email did not use the office limit.
-    const office = [...mem.rates.entries()].find(([key]) => key.startsWith('forgot:all|'));
-    expect(office?.[1]).toBe(6);
-    mem.rates.set(office![0], FORGOT_OFFICE_PER_HOUR);
-    for (const key of [...mem.rates.keys()]) if (key.startsWith('forgot:email:')) mem.rates.delete(key);
-    const over = await post({ email: people[0] }, '192.0.2.200');
-    expect([over.status, await over.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
-    expect(deps.mail.sent).toHaveLength(6);
-    expect(deps.logs.some((line) => line.level === 'warn' && /office/.test(line.message))).toBe(true);
-  });
-
   it('waits until the answer takes at least minMs, so the time does not tell whether the email has an account', async () => {
     const deps = fakeDeps({ db: memoryDb({}).db });
     const slept: number[] = [];
@@ -170,28 +147,48 @@ describe('POST /auth/forgot', () => {
   });
 });
 
-describe('clientAddress (S1): only a value that the host itself writes', () => {
+describe('clientAddress (S1): only the value that Cloudflare writes', () => {
   const request = (headers: Record<string, string>) => new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers });
 
-  it('on Workers: cf-connecting-ip, which Cloudflare sets; an x-forwarded-for of the sender counts for nothing', () => {
-    expect(clientAddress(request({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.1' }), 'workers')).toBe('203.0.113.7');
-    expect(clientAddress(request({ 'x-forwarded-for': '198.51.100.1' }), 'workers')).toBe('unknown');
+  it('reads cf-connecting-ip on both hosts: Cloudflare sits in front of Workers and of Supabase, and refuses a request that sends its own', () => {
+    expect(clientAddress(request({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.1' }))).toBe('203.0.113.7');
+    expect(clientAddress(request({ 'cf-connecting-ip': ' 203.0.113.8 ' }))).toBe('203.0.113.8');
   });
 
-  it('on Supabase: the LAST x-forwarded-for entry (the one the gateway appends); a forged cf-connecting-ip and the first entries count for nothing', () => {
-    expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 2.2.2.2 , 203.0.113.9' }), 'supabase')).toBe('203.0.113.9');
-    expect(clientAddress(request({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '203.0.113.9' }), 'supabase')).toBe('203.0.113.9');
-    expect(clientAddress(request({ 'cf-connecting-ip': '1.1.1.1' }), 'supabase')).toBe('unknown');
-    expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 203.0.113.9' }), 'other')).toBe('203.0.113.9');
+  it('never reads x-forwarded-for (its last entry is a rotating proxy address) or true-client-ip (it passes through forged); no value is "unknown" (local runs)', () => {
+    expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 203.0.113.9, 13.248.1.1' }))).toBe('unknown');
+    expect(clientAddress(request({ 'true-client-ip': '203.0.113.9' }))).toBe('unknown');
+    expect(clientAddress(request({}))).toBe('unknown');
   });
 });
 
 describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail quota, and the time of the answer', () => {
-  it(`a sender who changes the first x-forwarded-for entries still stops after ${FORGOT_IP_PER_HOUR} an hour`, async () => {
-    const { post } = await setup();
-    const forged = (n: number, body: unknown) => post(body, `198.51.100.${n}, 203.0.113.50`);
-    for (let i = 0; i < FORGOT_IP_PER_HOUR; i += 1) expect((await forged(i, { email: `p${i}@madar.test` })).status).toBe(200);
-    expect((await forged(77, { email: 'p77@madar.test' })).status).toBe(429);
+  it(`a sender who forges x-forwarded-for and true-client-ip still stops after ${FORGOT_IP_PER_HOUR} an hour`, async () => {
+    const { deps } = await setup();
+    const route = createForgotRoute({ minMs: 0, sleep: async () => undefined });
+    const forged = (n: number, email: string) => route(new Request('http://127.0.0.1/auth/forgot', {
+      method: 'POST', headers: { 'cf-connecting-ip': '203.0.113.50', 'x-forwarded-for': `198.51.100.${n}`, 'true-client-ip': `192.0.2.${n}` }, body: JSON.stringify({ email }),
+    }), deps);
+    for (let i = 0; i < FORGOT_IP_PER_HOUR; i += 1) expect((await forged(i, `p${i}@madar.test`)).status).toBe(200);
+    expect((await forged(77, 'p77@madar.test')).status).toBe(429);
+  });
+
+  it(`has no office-wide cap: 31 reset requests for 11 people in one day all send, and request ${FORGOT_EMAIL_PER_DAY + 1} for one email that day gets 429`, async () => {
+    const { auth, deps, mem, post, users } = await setup();
+    for (let i = 0; i < 11; i += 1) {
+      const email = `p${i}@madar.test`;
+      users[`usr_9${String(i).padStart(2, '0')}`] = { doc: { ...seed.users.usr_002, email }, auth: (await auth.generateLink('invite', email)).authUserId };
+    }
+    let n = 0;
+    for (let i = 0; i < 31; i += 1) expect((await post({ email: `p${i % 11}@madar.test` }, `198.51.100.${(n += 1)}`)).status).toBe(200);
+    expect(deps.mail.sent).toHaveLength(31);
+    expect(mem.mem.log.filter((row) => row.kind === 'signin')).toHaveLength(31);
+    expect([...mem.rates.keys()].some((key) => key.startsWith('forgot:all') || key.startsWith('forgot:day'))).toBe(false);
+    // p0 got 3 that day (requests 1, 12 and 23); the 4th is refused, whatever the address.
+    expect((await post({ email: 'p0@madar.test' }, '192.0.2.250')).status).toBe(429);
+    // A new UTC day: one window of 24 hours for each email.
+    deps.clock.set(new Date(deps.clock.now().getTime() + 24 * 60 * 60 * 1000));
+    expect((await post({ email: 'p0@madar.test' }, '192.0.2.251')).status).toBe(200);
   });
 
   it('counts the reset mail against the daily mail quota as sign-in mail, and sends none when the day is full (same answer)', async () => {
@@ -203,19 +200,6 @@ describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail 
     expect([full.status, await full.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
     expect(deps.mail.sent).toHaveLength(1);
     expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_005')).toBe(true);
-  });
-
-  it(`sends at most ${FORGOT_OFFICE_PER_DAY} reset mails a UTC day for the whole office, so resets never use up the mail of the day`, async () => {
-    const { deps, mem, post } = await setup();
-    expect(FORGOT_OFFICE_PER_DAY).toBeLessThan(QUOTA_LIMITS.notice / 2);
-    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
-    const day = [...mem.rates.entries()].find(([key]) => key.startsWith('forgot:day|'));
-    expect(day?.[1]).toBe(1);
-    mem.rates.set(day![0], FORGOT_OFFICE_PER_DAY);
-    const over = await post({ email: 'sara.al.qahtani@madar.test' }, '192.0.2.6');
-    expect([over.status, await over.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
-    expect(deps.mail.sent).toHaveLength(1);
-    expect(deps.logs.some((line) => line.level === 'warn' && /day/.test(line.message))).toBe(true);
   });
 
   it('with an after, answers before the lookup and the send: a send that takes 3 s does not show that the email has an account', async () => {
