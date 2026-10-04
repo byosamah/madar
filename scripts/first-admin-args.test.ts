@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cloudTarget, parseArgs, secretKeyFromApi } from './first-admin';
+import { DEFAULT_LOCK_KEY } from '../server/core/deps';
+import { cloudTarget, OFFICE_LOCK_KEY, parseArgs, secretKeyFromApi } from './first-admin';
 
 /** The parts of scripts/first-admin.ts that need no stack (task P3). scripts/first-admin.test.ts runs it on the local stack. */
 
@@ -22,6 +23,12 @@ describe('first-admin: the arguments', () => {
   it('takes --schema only with --env local (the test harness)', () => {
     expect(parseArgs(['--env', 'local', '--schema', 'madar_p3_1', ...BASE.slice(2)])).toMatchObject({ env: 'local', schema: 'madar_p3_1' });
     expect(() => parseArgs([...BASE, '--schema', 'x'])).toThrow(/--schema/);
+  });
+});
+
+describe('first-admin: the office lock', () => {
+  it('takes the same office lock key as the server', () => {
+    expect(OFFICE_LOCK_KEY).toBe(DEFAULT_LOCK_KEY);
   });
 });
 

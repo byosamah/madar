@@ -21,7 +21,6 @@ import { recordCreate } from '../src/api/events';
 import { nextId } from '../src/api/store';
 import { nowStamp } from '../src/lib/dates';
 import { authAdminPort } from '../server/auth/admin';
-import { DEFAULT_LOCK_KEY } from '../server/core/deps';
 import { takeOfficeLock } from '../server/core/lock';
 import type { AuthAdminPort, Query } from '../server/core/ports';
 import { newStoryId, sqlStories } from '../server/core/story';
@@ -33,6 +32,11 @@ const REFS = { test: 'qdgwpnesxppnqsaabqzd', production: 'oprkvdjudjxxhvodkzgs' 
 const POOLER_HOST = 'aws-1-eu-central-1.pooler.supabase.com';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MIN_PASSWORD = 8;
+/**
+ * The office lock key of the server (DEFAULT_LOCK_KEY of server/core/deps.ts; first-admin-args.test.ts keeps them equal). The
+ * script does not import deps.ts: deps.ts registers the Auth effects, whose mail words only load through Vite, not through tsx.
+ */
+export const OFFICE_LOCK_KEY = 7_310_001;
 
 export type Env = 'test' | 'production' | 'local';
 export type Args = {
@@ -268,7 +272,7 @@ async function main(): Promise<void> {
     if (args.schema) await client.query(`set search_path to ${args.schema}`);
     const lockText = process.env.MADAR_LOCK_KEY;
     const made = await makeFirstAdmin(
-      { db: clientDb(client), authAdmin: authAdminPort({ supabaseUrl, secretKey }), now: new Date(), lockKey: lockText ? Number(lockText) : DEFAULT_LOCK_KEY },
+      { db: clientDb(client), authAdmin: authAdminPort({ supabaseUrl, secretKey }), now: new Date(), lockKey: lockText ? Number(lockText) : OFFICE_LOCK_KEY },
       { email: args.email, name: args.name, language: args.language, gender: args.gender, discipline: args.discipline, password },
     );
     console.log(`Made the first Admin ${made.userId} (${args.email}). Sign in with this email and the password.`);
