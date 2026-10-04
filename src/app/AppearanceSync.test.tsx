@@ -2,7 +2,10 @@ import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // No session: the remote build before sign-in (X2, signin.spec). session.get has no data there.
-vi.mock('./runtime', () => ({ useCall: () => ({ data: undefined }) }));
+vi.mock('./runtime', () => ({
+  useCall: () => ({ data: undefined }),
+  useRuntime: () => ({ auth: { status: () => 'signed_out', subscribe: () => () => undefined } }),
+}));
 
 import { AppearanceSync } from './AppearanceSync';
 
