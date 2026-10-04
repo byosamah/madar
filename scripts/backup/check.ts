@@ -107,12 +107,31 @@ export function parseManifest(text: string): Manifest {
 }
 
 /**
- * The differences between the manifest (the live counts that dump.ts took under the office lock), the data dump and the restored
- * tables. An empty list is a pass. A table that the restore lost rows of is a broken restore; a dump that differs from the
- * manifest means a write landed during the dump that did not wait for the office lock.
+ * The tables that get writes without the office lock: rate_limits (POST /api/auth/forgot, which anyone can call), upload_intents
+ * (files.uploadStart), stories (story.start), outbox (the effects of a call, after its commit), mail_log (the mail lock) and
+ * mail_outbox (the mail path). A row can land in one of them between the counts of dump.ts and the snapshot of the data dump.
  */
-export function compareCounts(o: { manifest: Record<string, number>; dump: Record<string, number>; restored: Record<string, number> }): string[] {
+export const OUTSIDE_OFFICE_LOCK: readonly string[] = [
+  'public.mail_log',
+  'public.mail_outbox',
+  'public.outbox',
+  'public.rate_limits',
+  'public.stories',
+  'public.upload_intents',
+];
+
+/**
+ * The differences between the manifest (the live counts that dump.ts took under the office lock), the data dump and the restored
+ * tables. No problem is a pass. A table that the restore lost rows of is a broken restore; a dump that differs from the manifest
+ * means a write landed during the dump that did not wait for the office lock. For a table of OUTSIDE_OFFICE_LOCK that is
+ * expected, so its manifest difference is only a note; its restore must still match the dump.
+ */
+export function compareCounts(o: { manifest: Record<string, number>; dump: Record<string, number>; restored: Record<string, number> }): {
+  problems: string[];
+  notes: string[];
+} {
   const problems: string[] = [];
+  const notes: string[] = [];
   const names = [...new Set([...Object.keys(o.manifest), ...Object.keys(o.dump)])].sort();
   for (const name of names) {
     const inManifest = Object.hasOwn(o.manifest, name);
@@ -126,14 +145,41 @@ export function compareCounts(o: { manifest: Record<string, number>; dump: Recor
     if (restored === undefined) problems.push(`${name}: the restore does not have it.`);
     else if (restored !== dump) problems.push(`${name}: the dump holds ${dump} rows, the restore has ${restored}.`);
     if (inManifest && o.manifest[name] !== dump) {
-      problems.push(
-        restored === dump
-          ? `${name}: the manifest says ${o.manifest[name]} rows, the dump and the restore hold ${dump}.`
-          : `${name}: the manifest says ${o.manifest[name]} rows, the dump holds ${dump}.`,
-      );
+      if (OUTSIDE_OFFICE_LOCK.includes(name)) {
+        notes.push(`${name}: the manifest says ${o.manifest[name]} rows, the dump holds ${dump} (this table gets writes outside the office lock).`);
+      } else {
+        problems.push(
+          restored === dump
+            ? `${name}: the manifest says ${o.manifest[name]} rows, the dump and the restore hold ${dump}.`
+            : `${name}: the manifest says ${o.manifest[name]} rows, the dump holds ${dump}.`,
+        );
+      }
     }
   }
-  return problems;
+  return { problems, notes };
+}
+
+/**
+ * The one line of a failed restore that the report may show: the first ERROR line of psql. The DETAIL and CONTEXT lines go,
+ * because Postgres quotes up to 100 bytes of the broken row there (a name, an email). A value that the ERROR line quotes after
+ * a colon (invalid input syntax for type uuid: "...") is hidden too.
+ */
+export function restoreErrorLine(stderr: string): string {
+  const line = stderr.split('\n').find((text) => /\bERROR:/.test(text));
+  if (line === undefined) return 'psql gave no ERROR line.';
+  return line.trim().replace(/: ".*$/, ': "(value hidden)"');
+}
+
+/**
+ * The leftovers of a stopped restore check: the names <prefix><pid>-<suffix> whose process is gone. A name of a live process
+ * stays, so two checks at once never remove each other's container or folder.
+ */
+export function staleNames(names: string[], prefix: string, alive: (pid: number) => boolean): string[] {
+  return names.filter((name) => {
+    if (!name.startsWith(prefix)) return false;
+    const match = /^([0-9]+)-/.exec(name.slice(prefix.length));
+    return match !== null && !alive(Number(match[1]));
+  });
 }
 
 /** What is wrong with the entries of a backup archive (tar -t), before anything is unpacked. */

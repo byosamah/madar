@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BACKUP_SCHEMAS,
+  OUTSIDE_OFFICE_LOCK,
   archiveProblems,
   compareCounts,
   dumpRowCounts,
@@ -9,8 +10,10 @@ import {
   parseCheckArgs,
   parseManifest,
   pickKeys,
+  restoreErrorLine,
   rolesToMake,
   rolesSql,
+  staleNames,
   stampOf,
 } from './check';
 
@@ -123,17 +126,17 @@ describe('compareCounts', () => {
   const manifest = { 'public.users': 2, 'public.events': 5 };
 
   it('passes when the manifest, the dump and the restore agree', () => {
-    expect(compareCounts({ manifest, dump: { ...manifest }, restored: { ...manifest } })).toEqual([]);
+    expect(compareCounts({ manifest, dump: { ...manifest }, restored: { ...manifest } })).toEqual({ problems: [], notes: [] });
   });
 
   it('names a table that lost rows in the restore', () => {
-    expect(compareCounts({ manifest, dump: { ...manifest }, restored: { 'public.users': 2, 'public.events': 4 } })).toEqual([
+    expect(compareCounts({ manifest, dump: { ...manifest }, restored: { 'public.users': 2, 'public.events': 4 } }).problems).toEqual([
       'public.events: the dump holds 5 rows, the restore has 4.',
     ]);
   });
 
   it('names a dump that differs from the manifest, and a table that only one of them has', () => {
-    const problems = compareCounts({
+    const { problems } = compareCounts({
       manifest,
       dump: { 'public.users': 2, 'public.events': 4, 'public.extra': 0 },
       restored: { 'public.users': 2, 'public.events': 4, 'public.extra': 0 },
@@ -145,8 +148,61 @@ describe('compareCounts', () => {
   });
 
   it('names a manifest table that the dump does not hold', () => {
-    expect(compareCounts({ manifest, dump: { 'public.users': 2 }, restored: { 'public.users': 2 } })).toEqual([
+    expect(compareCounts({ manifest, dump: { 'public.users': 2 }, restored: { 'public.users': 2 } }).problems).toEqual([
       'public.events: the manifest has it, the dump does not.',
+    ]);
+  });
+
+  it('only notes a manifest difference of a table that gets writes outside the office lock, but still fails its restore', () => {
+    expect(OUTSIDE_OFFICE_LOCK).toEqual(
+      expect.arrayContaining(['public.rate_limits', 'public.upload_intents', 'public.mail_log', 'public.mail_outbox', 'public.stories', 'public.outbox']),
+    );
+    const loose = { ...manifest, 'public.rate_limits': 3 };
+    const dump = { ...manifest, 'public.rate_limits': 4 };
+    expect(compareCounts({ manifest: loose, dump, restored: { ...dump } })).toEqual({
+      problems: [],
+      notes: ['public.rate_limits: the manifest says 3 rows, the dump holds 4 (this table gets writes outside the office lock).'],
+    });
+    expect(compareCounts({ manifest: loose, dump, restored: { ...dump, 'public.rate_limits': 2 } }).problems).toEqual([
+      'public.rate_limits: the dump holds 4 rows, the restore has 2.',
+    ]);
+  });
+});
+
+describe('restoreErrorLine', () => {
+  it('keeps only the first ERROR line of psql, without the DETAIL and CONTEXT lines that quote the row', () => {
+    const stderr = [
+      'psql:/restore/data-madar.sql:812: ERROR:  invalid input syntax for type json',
+      'DETAIL:  Token "broken" is invalid.',
+      'CONTEXT:  JSON data, line 1: {"id": broken...',
+      'COPY users, line 1, column doc: "{"id": broken, "name": "Sara Al-Qahtani", "email": "sara@example.com"}"',
+    ].join('\n');
+    const line = restoreErrorLine(stderr);
+    expect(line).toBe('psql:/restore/data-madar.sql:812: ERROR:  invalid input syntax for type json');
+    expect(line).not.toMatch(/broken|Sara|example\.com/);
+  });
+
+  it('hides a value that the ERROR line itself quotes, and keeps the name of a constraint', () => {
+    expect(restoreErrorLine('psql:/restore/data-madar.sql:9: ERROR:  invalid input syntax for type uuid: "sara@example.com"')).toBe(
+      'psql:/restore/data-madar.sql:9: ERROR:  invalid input syntax for type uuid: "(value hidden)"',
+    );
+    expect(restoreErrorLine('psql:x.sql:3: ERROR:  duplicate key value violates unique constraint "users_pkey"\nDETAIL:  Key (id)=(usr_001) already exists.')).toBe(
+      'psql:x.sql:3: ERROR:  duplicate key value violates unique constraint "users_pkey"',
+    );
+  });
+
+  it('says so when psql gave no ERROR line, and never passes the other text on', () => {
+    expect(restoreErrorLine('could not connect: sara@example.com')).toBe('psql gave no ERROR line.');
+  });
+});
+
+describe('staleNames', () => {
+  it('names the leftovers of a check whose process is gone, and keeps those of a live one and the foreign names', () => {
+    const alive = (pid: number) => pid === 42;
+    const names = ['madar-restore-check-42-a1b2c3', 'madar-restore-check-7-ffffff', 'madar-restore-check-x-1', 'other-7-1'];
+    expect(staleNames(names, 'madar-restore-check-', alive)).toEqual(['madar-restore-check-7-ffffff']);
+    expect(staleNames(['madar-restore-9-Ab12Cd', 'madar-restore-42-xyz', 'madar-restore-check-9-a'], 'madar-restore-', alive)).toEqual([
+      'madar-restore-9-Ab12Cd',
     ]);
   });
 });
