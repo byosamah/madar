@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "reasons": {
+      "invite_limit": "This person got 5 invitations today. Try again tomorrow.",
+      "invite_agent": "An agent gets no invitation. It signs in through its person."
+    }
+  },
+  "signinMail": {
+    "invite": {
+      "subject": "Your invitation to Madar",
+      "title": "Welcome to Madar, {{name}}",
+      "body": "Your office invites you to Madar. Open the link to set your password.",
+      "button": "Accept the invitation",
+      "note": "The link works one time. If it ended, ask the Admin for a new invitation."
+    },
+    "reset": {
+      "subject": "Reset your Madar password",
+      "title": "Hello {{name}}",
+      "body": "Open the link to set a new password.",
+      "button": "Set a new password",
+      "note": "If you did not ask for this, ignore this email. Your password stays the same."
+    },
+    "emailChanged": {
+      "subject": "Your Madar sign-in email changed",
+      "title": "Hello {{name}}",
+      "body": "Your Madar sign-in email is now {{email}}. Mail from Madar goes to that address from now on.",
+      "note": "If you did not expect this change, tell the Admin of your office at once."
+    },
+    "linkHint": "If the button does not open, copy this link into your browser:"
+  }
+}

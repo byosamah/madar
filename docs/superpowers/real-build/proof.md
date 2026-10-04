@@ -265,3 +265,86 @@ Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files
 3. A local `wrangler dev` with `[[hyperdrive]]` needs `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB`, so `npm run start:server` and every local Worker run must set it.
 
 **Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `npm run test:it`.
+
+## P1. Token check and invitations on the local stack (2026-10-04)
+
+**Result: PASS.** An invitation works with open sign-up off. Every token of the invited person passes `verifyBrowserToken`. The link type for a second invitation depends on one fact: did the person accept the first one.
+
+**What ran.** Local stack of Supabase CLI 2.119.0 (Auth `gotrue:v2.197.0`, `enable_signup = false`), reset from the `rb/P` worktree under the Docker lock. `server/it/tokens.it.test.ts`: 8 of 8 pass. `server/auth/verify.test.ts` and `principal.test.ts` (unit, real ES256 keys): 18 of 18 pass. The bundle smoke on both hosts, `server/it/worker.it.test.ts`, still passes (12 of 12) with jose in the bundle.
+
+### Token check (`server/auth/verify.ts`)
+
+| Check | Result |
+|---|---|
+| Signing key of the local stack | ES256, one key in `/auth/v1/.well-known/jwks.json`. Issuer `http://127.0.0.1:54321/auth/v1`. |
+| Token of the Welcome session, of a password sign-in, of a refresh | Pass, `authUserId` = the `auth.users` id |
+| Form of `aud` on the local stack | The string `"authenticated"` after a password sign-in and after a refresh. The hosted Auth gives an array after a password sign-in (Z0a, item 2). The local stack cannot show the array form, so the unit test signs both forms. |
+| The legacy `ANON_KEY` and `SERVICE_ROLE_KEY` (HS256 JWTs) and the `sb_publishable_` key as a bearer token | Refused, `unauthenticated` |
+
+**Design (apply Z0a item 2, design change P1).** The check is `jwtVerify` of jose with `issuer`, `audience: 'authenticated'` and `algorithms: ['ES256']`, never a hand comparison of `aud`. The answers:
+
+- A bad, expired or foreign token: `unauthenticated` (401). An expired token has `details.reason: 'token_expired'`.
+- Any token with `client_id`: `forbidden` (403) with `details.reason: 'agent_token'` (plan section 2, change 6). This also holds when the token hook set `aud` to the MCP address: jose checks the signature before the claims, so the payload of the audience error is a signed payload.
+- `role` must be `authenticated`, and `sub` must be a text that is not empty.
+- A key set that cannot load: a plain `Error` that names the jose code or the cause. The batch route logs it and answers the hidden `failed` (500), so a JWKS outage never signs a person out and the operator sees why.
+- The JWKS comes from `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. The issuer is `${SUPABASE_URL}/auth/v1`, or `AUTH_ISSUER` when set. A local function sees `SUPABASE_URL=http://kong:8000`, but its tokens name `http://127.0.0.1:54321/auth/v1`, so a local `supabase functions serve` run with real tokens must set `AUTH_ISSUER`. Production leaves it unset.
+- `principalOf` gives the `users` row linked by `auth_user_id`, or `unauthenticated` (401) when no row has the link. It also runs `resolveActor` before any call: a turned-off person, or a link to a `users` row that is gone, gets the whole-request `unauthenticated` with `details.reason: 'account_off'` (HTTP 403, plan 4.10), and a link to an agent row gets `forbidden` (403). No call runs, so no transaction opens and no office lock is taken. `runCall` checks the actor again on every call.
+
+### Invitations with sign-up off
+
+| Step | Result |
+|---|---|
+| `POST /auth/v1/signup` with the publishable key | 422 `signup_disabled` |
+| `POST /auth/v1/admin/generate_link { type: 'invite' }` | 200. It makes the Auth user and gives `hashed_token`. The `sb_secret_` key and the service-role JWT both work. |
+| `POST /auth/v1/verify { type: 'invite', token_hash }` (the Welcome button) | 200, a session. Its AMR is `otp`. |
+| `PUT /auth/v1/user { password }` with that session | 200. The person then signs in with the password. |
+| The same link a second time | 403 `otp_expired` |
+
+### Which link type works for a second invitation
+
+| State of the person | `invite` | `recovery` |
+|---|---|---|
+| Did not accept yet | 200, the same Auth user. The first invite link fails after it (403 `otp_expired`). | 200. Its use sets the password and confirms the email. |
+| Accepted (password set) | 422 `email_exists` | 200. Its use gives a session (AMR `otp`) that sets a new password. |
+
+Two more facts:
+
+- The first link that a person uses makes every other open link of that person fail (403 `otp_expired`), whatever its type.
+- A `recovery` link made after an `invite` link does not stop the `invite` link before one of them is used. Only a new `invite` link replaces the old `invite` link at once.
+
+**For P2 (`users.resendInvite`).** Send `invite` while the Auth user has no `email_confirmed_at`, so the old link fails at once (the `invites.it` case "an old link fails"). Send `recovery` after the person accepted. When `invite` answers 422 `email_exists`, use `recovery`. The mail link carries the type of the link that the server made (`type=invite` or `type=recovery`), because the screen sends that type to `verifyOtp`.
+
+**For the Z1 gate ("require current password").** On the local Auth, the sessions from an invite link and from a recovery link both have the AMR `otp`, which is on the exempt list. The hosted Auth may differ. The Z1 probe on `madar-test` still decides.
+
+**Other facts found.** A reset to the same password gets 422 `same_password`. In an exploratory probe (not in the suite), `generate_link { type: 'magiclink' }` for an unknown address made a new Auth user with sign-up off: the admin API ignores `enable_signup`. So the server must call `generate_link` only for an address that a `users` row holds.
+
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it server/it/tokens.it.test.ts`.
+
+## P2 and P3. Invitations, reset mail, Auth effects and the first Admin on the local stack (2026-10-04)
+
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it scripts/first-admin.test.ts server/it/auth.it.test.ts server/it/invites.it.test.ts`. All 19 tests pass (local Auth v2.197.0; rerun after the P2 review fixes). Mail goes to the fake mail port; every link of a mail goes to the real local Auth.
+
+| Case | Result |
+|---|---|
+| `users.create` by the Admin | One `auth.invite` outbox row in the call's transaction. After the commit: an `invite` link, `users.auth_user_id` written with `setAuthUserId` (a warm office cache finds the person by the link), the mail with `/welcome?token_hash=...&type=invite`. |
+| The person uses the link and sets a password | Sign-in works; `verifyBrowserToken` and `principalOf` give the new person; `users.invites` turns from `invited` (with `sentAt`) to `active`. |
+| `users.resendInvite` | A new `invite` link; the old link answers 403 `otp_expired`; the new link works. |
+| A retried `auth.invite` after a failed send | The retry keeps the token hash of the first link (outbox payload), and that link works. The sent row then holds no token hash (`sentAt`, `mailId` and `linkType` stay). |
+| A retried older `auth.invite` after `users.resendInvite` made a newer link | The retry sends nothing (its stored link is dead: 403); the newer link works. |
+| An email change before the person accepts (`auth.email`) | Auth gets the new email alone (no `email_confirm`), so the person stays unconfirmed: the new mail has an `invite` link, `users.invites` still says `invited`, and the link at the old email fails (403). With `email_confirm: true` Auth confirmed the person, and the next invite link answered 422 `email_exists`. |
+| A name change (`users.update` with no email) | No `auth.email` row: the producer reads the `user.updated` event that the save just wrote. |
+| An email change after the person accepted | Auth gets the new email, confirmed; a notice goes to the OLD email (no link); sign-in with the new email works; `users.invites` says `active`. |
+| `users.deactivate`, then `users.reactivate` | The old token gets 403 `account_off` at once. Auth bans the person: a password sign-in answers 400 `user_banned`. After the reactivation, sign-in works again. |
+| A Member token, then a role change by the Admin | The same token is refused (`forbidden`) on `users.invites`, then accepted: the role comes from `users`. |
+| `POST /api/auth/forgot` | The same 200 answer for a person and an unknown email; the reset mail in the person's language with `/reset?...&type=recovery`, which sets a new password; 429 after 3 an hour for one email; `rate_limits` holds no email. |
+| Arabic person (`language: 'ar'`, `gender: 'female'`) | The invitation and the reset mail in Arabic, `dir="rtl"`, with the feminine forms. |
+| `scripts/first-admin.ts --env local` run twice (the command line, through `tsx`) | The first run makes `usr_001` (Admin, the given language and gender), `counters.usr = 1`, the `user.created` event and story, and the sign-in link; the Admin signs in. The second run refuses ("An Admin exists") and makes no Auth user. |
+
+**Design notes for the merge.**
+
+- The effects read the person again when they run, so a late retry never undoes a newer change (a ban does nothing for a person who is on again).
+- An email change needs to know whether the person accepted, and `users.invites` needs the state of every person. Both read Auth (`getUser`, `listUsers`), which `AuthAdminPort` does not have yet: the merge lead patch of P2 adds them.
+- The forgot route takes the network address from `cf-connecting-ip`, else the first `x-forwarded-for` entry. A client can set that header on Supabase, so the address limit is weak there; the limit for each email still holds, and an office limit of 20 reset mails an hour (`forgot:all`, counted only when a mail would go out) keeps a script from using up the mail of the day. Track Z: check on madar-test which `x-forwarded-for` entry the Supabase proxy adds, and read that entry.
+- The auth.email effect notes what it owes in the payload (`owesInvite`, or `notifyOld`) before it changes Auth, so a retry after a failed link or mail still sends it.
+- Track M: `failedEffects` of `usage.get` returns the kind, the attempts and the error of a row, never its payload. An unsent invitation row holds a live token hash.
+- The forgot route answers after the work (padded to 1.5 s). A slow Auth or Resend still makes the answer for a real account slower. Moving the work after the answer needs `after` (waitUntil) in the route handlers and a database that stays open after the answer on Workers; that is a host change for track E, not done here.

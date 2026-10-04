@@ -9,9 +9,6 @@ import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
 import { outboxMailPort } from './mail/outboxDriver';
 import { realtimeSignalPort } from './signal/realtime';
-import { verifyBrowserToken } from './auth/verify';
-import { principalOf } from './auth/principal';
-import { authAdminPort } from './auth/admin';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
 import { meterPort } from './usage/meter';
@@ -31,9 +28,10 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start is built: server/core/runCall.test.ts)', async () => {
+  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start is built: server/core/runCall.test.ts; users.invites and users.resendInvite are built: server/calls/people.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    for (const name of SERVER_CALL_NAMES.filter((n) => n !== 'story.start')) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
+    const built = ['story.start', 'users.invites', 'users.resendInvite'];
+    for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
   it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
@@ -52,7 +50,8 @@ describe('the registries', () => {
 
   it('hold the extra HTTP route of the api function: POST /auth/forgot', async () => {
     expect(ROUTES.map((r) => `${r.method} ${r.path}`)).toEqual(['POST /auth/forgot']);
-    await refusesNotBuilt(() => ROUTES[0].handler(new Request('http://127.0.0.1/api/auth/forgot', { method: 'POST' }), deps));
+    // Track P built it (server/auth/forgot.test.ts): a request with no email gets 400 before any database work.
+    expect((await ROUTES[0].handler(new Request('http://127.0.0.1/api/auth/forgot', { method: 'POST' }), deps)).status).toBe(400);
   });
 });
 
@@ -75,17 +74,10 @@ describe('the stubs', () => {
     }
   });
 
-  it('mail, sign-in and the Auth admin refuse (the office cache is built: server/data/officeCache.test.ts)', async () => {
+  it('mail refuses (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts; the Auth admin is built: server/auth/admin.test.ts)', async () => {
     const mail = { to: 'a@madar.test', subject: 's', html: '', text: '', tag: 't', idempotencyKey: 'k' };
     await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
     await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
-    await refusesNotBuilt(() => verifyBrowserToken('Bearer x'));
-    await refusesNotBuilt(async () => principalOf('auth-user-1', office));
-    const admin = authAdminPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x' });
-    await refusesNotBuilt(() => admin.generateLink('invite', 'a@madar.test'));
-    await refusesNotBuilt(() => admin.createUser('a@madar.test', 'pw'));
-    await refusesNotBuilt(() => admin.setBanned('id', true));
-    await refusesNotBuilt(() => admin.updateEmail('id', 'b@madar.test'));
   });
 
   it('the MCP app, the jobs app and the Workers entry answer 501 until built, so a mounted stub never crashes a host', async () => {
