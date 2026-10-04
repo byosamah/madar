@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePublicEnv, remoteSteps } from './build-remote.ts';
+import { buildId, parsePublicEnv, remoteSteps } from './build-remote.ts';
 
 describe('parsePublicEnv', () => {
   it('reads VITE_ values, skips comments and blank lines, and sets the remote flag', () => {
@@ -29,5 +29,12 @@ describe('remoteSteps', () => {
       'npx vite build --mode remote-test',
       'node scripts/check-bundles.ts remote',
     ]);
+  });
+});
+
+describe('buildId', () => {
+  it('names the UTC day of the build, which the server compares part by part with MIN_CLIENT_BUILD', () => {
+    expect(buildId(new Date('2026-10-04T23:30:00Z'))).toBe('2026.10.4');
+    expect(buildId(new Date('2026-10-04T21:30:00-03:00'))).toBe('2026.10.5');
   });
 });

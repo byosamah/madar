@@ -24,6 +24,11 @@ export function parsePublicEnv(text: string): Record<string, string> {
   return env;
 }
 
+/** The build ID: the UTC day of the build. The screens send it as X-Madar-Build, and the server refuses one older than MIN_CLIENT_BUILD. */
+export function buildId(d: Date): string {
+  return `${d.getUTCFullYear()}.${d.getUTCMonth() + 1}.${d.getUTCDate()}`;
+}
+
 export function remoteSteps(target: RemoteEnv): string[][] {
   return [
     ['node', 'scripts/check-rtl.ts'],
@@ -50,6 +55,7 @@ if (isMain) {
     process.exit(1);
   }
   const env = { ...process.env, ...parsePublicEnv(readFileSync(file, 'utf8')) };
+  env.VITE_MADAR_BUILD ??= buildId(new Date());
   const steps = dev ? [['npx', 'vite', '--host', '127.0.0.1', '--mode', `remote-${target}`]] : remoteSteps(target);
   for (const [command, ...rest] of steps) {
     console.log(`> ${command} ${rest.join(' ')}`);

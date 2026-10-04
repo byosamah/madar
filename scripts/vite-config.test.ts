@@ -21,6 +21,10 @@ function projects(env: { MADAR_DB?: string; MADAR_IT?: string } = {}): Project[]
   const resolved = (config as unknown as (e: { mode: string; command: string }) => { test: { projects: Project[] } })({ mode: 'test', command: 'serve' });
   return resolved.test.projects;
 }
+/** The build options that vite.config.ts gives for a mode. */
+function buildOf(mode: string): { rolldownOptions?: { output?: { codeSplitting?: boolean } } } {
+  return (config as unknown as (e: { mode: string; command: string }) => { build: object })({ mode, command: 'build' }).build;
+}
 const named = (list: Project[], name: string) => list.find((p) => p.test.name === name);
 
 const scripts = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { scripts: Record<string, string> }).scripts;
@@ -62,5 +66,16 @@ describe('the test scripts', () => {
 
   it('run the MCP conformance runner against the served function', () => {
     expect(scripts['test:mcp']).toContain('conformance server --url ${MCP_URL:-http://127.0.0.1:54321/functions/v1/mcp}');
+  });
+});
+
+describe('the build output', () => {
+  it('is one script file in the prototype build, so the prototype artifact holds every script', () => {
+    expect(buildOf('production').rolldownOptions?.output?.codeSplitting).toBe(false);
+  });
+
+  it('keeps code splitting in the remote modes', () => {
+    expect(buildOf('remote-test').rolldownOptions).toBeUndefined();
+    expect(buildOf('remote-production').rolldownOptions).toBeUndefined();
   });
 });

@@ -12,3 +12,7 @@ Secrets live only in `~/dev/madar/.env.local` (git ignores it) and in each host'
 The Supabase command line on this Mac is signed in to another account (Halulu). Madar commands use the Madar account token from `.env.local` (`SUPABASE_ACCESS_TOKEN`), so the Halulu sign-in stays as it is.
 
 Database connections go through the pooler: host `aws-1-eu-central-1.pooler.supabase.com`, session mode port 5432, transaction mode port 6543, user `postgres.<reference>`. Both passwords were tested on 2026-10-03.
+
+Public values (every page holds them, so they are not secrets):
+
+- madar-test publishable key: `sb_publishable_kfY3EbMbn4RfWcDMNo6LVw_pj6G71ZI` (track R2, 2026-10-04). Track O3 puts it in `config/remote.test.env` as `VITE_SUPABASE_PUBLISHABLE_KEY`.

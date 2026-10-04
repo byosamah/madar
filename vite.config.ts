@@ -11,6 +11,8 @@ const MADAR_API = process.env.VITE_MADAR_API ?? 'fake';
 const DOCKER_SCRIPT_TESTS = ['scripts/first-admin.test.ts', 'scripts/restore-check.test.ts'];
 
 export default defineConfig(({ mode }) => ({
+  // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.
+  build: mode.startsWith('remote') ? {} : { rolldownOptions: { output: { codeSplitting: false } } },
   base: mode.startsWith('remote') ? '/' : './',
   define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify(MADAR_API) },
   plugins: [react(), tailwindcss()],
