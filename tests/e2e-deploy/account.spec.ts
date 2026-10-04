@@ -2,6 +2,7 @@ import type { Browser, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { goto } from './goto';
 import { lastMailId, linkPath, waitForMail } from './mail';
+import { appOrigin } from './targets';
 import { NO_SESSION, runId, signIn, signOut, type Lang, type Theme } from './steps';
 import { word } from './words';
 
@@ -55,7 +56,7 @@ for (const v of VARIANTS) {
       expect(violations, 'the Content-Security-Policy blocked something').toEqual([]);
     });
 
-    test('the Admin adds the person, and the invitation mail lands in the outbox', async ({ page }) => {
+    test('the Admin adds the person, and the invitation mail lands in the outbox', async ({ page, baseURL }) => {
       const before = await lastMailId();
       await page.setViewportSize({ width: 1440, height: 900 });
       await goto(page, '/admin');
@@ -69,16 +70,17 @@ for (const v of VARIANTS) {
       await sheet.getByRole('button', { name: 'Save' }).click();
       await expect(page.getByText(`${person.name} added.`)).toBeVisible();
       const mail = await waitForMail({ to: person.email, tag: 'invite', after: before });
-      expect(linkPath(mail.text, 'welcome')).toMatch(/^\/welcome\?token_hash=[^&]+&type=invite$/);
+      // The link opens the app of the run: linkPath refuses a link to another origin, where the token would go.
+      expect(linkPath(mail.text, 'welcome', appOrigin(process.env, baseURL))).toMatch(/^\/welcome\?token_hash=[^&]+&type=invite$/);
       // The row of the person shows Invited until the first sign-in.
       await expect(page.getByRole('listitem').filter({ hasText: person.name }).getByText('Invited')).toBeVisible();
     });
 
-    test('the Welcome link sets the first password (Z0a case 1), and the person signs in with it', async ({ browser }) => {
+    test('the Welcome link sets the first password (Z0a case 1), and the person signs in with it', async ({ browser, baseURL }) => {
       const mail = await waitForMail({ to: person.email, tag: 'invite', after: 0 });
       const page = await personPage(browser, v);
       await guard(page, violations);
-      await goto(page, linkPath(mail.text, 'welcome'));
+      await goto(page, linkPath(mail.text, 'welcome', appOrigin(process.env, baseURL)));
       await expect(page.getByRole('heading', { level: 1, name: word(v.lang, 'auth.welcome.title') })).toBeVisible();
       // The token is used only on this press, so a mail scanner that opens the link does not use it.
       await page.getByRole('button', { name: word(v.lang, 'auth.welcome.open') }).click();
@@ -112,7 +114,7 @@ for (const v of VARIANTS) {
       await page.context().close();
     });
 
-    test('Forgot sends a reset mail, the Reset link sets a new password (Z0a case 2), and the person signs in with it', async ({ browser }) => {
+    test('Forgot sends a reset mail, the Reset link sets a new password (Z0a case 2), and the person signs in with it', async ({ browser, baseURL }) => {
       const before = await lastMailId();
       const page = await personPage(browser, v);
       await guard(page, violations);
@@ -121,7 +123,7 @@ for (const v of VARIANTS) {
       await page.locator('form button[type="submit"]').click();
       await expect(page.getByRole('status')).toHaveText(word(v.lang, 'auth.forgot.sent'));
       const mail = await waitForMail({ to: person.email, tag: 'reset', after: before });
-      await goto(page, linkPath(mail.text, 'reset'));
+      await goto(page, linkPath(mail.text, 'reset', appOrigin(process.env, baseURL)));
       await expect(page.getByRole('heading', { level: 1, name: word(v.lang, 'auth.reset.title') })).toBeVisible();
       await page.locator('#reset-password').fill(passwords.third);
       await page.locator('form button[type="submit"]').click();

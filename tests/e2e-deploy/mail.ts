@@ -1,35 +1,31 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
+import { databaseTarget } from './targets';
 
 /**
  * The mail of the test deployment (task X2). There the server runs with MAIL_DRIVER=outbox and writes each mail to the table
  * mail_outbox instead of sending it (server/mail/outboxDriver.ts), so the specs read the invitation and reset links from it.
  *
  * MADAR_E2E_DATABASE_URL is the database to read: the session pooler of madar-test as postgres, for a run on the deployment.
- * Without it, the specs read the local database of the local stack. A hosted database needs TLS with the Supabase root CA. The
- * production project is refused, so no run reads real mail.
+ * Without it, the specs read the local database of the local stack; a run on the deployment without it stops. A hosted database
+ * needs TLS with the Supabase root CA. targets.ts refuses every database but madar-test and the local stack.
  */
-const LOCAL_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const PRODUCTION_REF = 'oprkvdjudjxxhvodkzgs';
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const CA_FILE = join(import.meta.dirname, '..', '..', 'scripts', 'proof', 'supabase-root-2021-ca.crt');
-
-export type DatabaseTarget = { url: string; tls: boolean };
-
-export function databaseTarget(env: Record<string, string | undefined>): DatabaseTarget {
-  const url = env.MADAR_E2E_DATABASE_URL ?? LOCAL_DATABASE_URL;
-  if (url.includes(PRODUCTION_REF)) throw new Error('The browser checks never read the production database.');
-  return { url, tls: !LOCAL_HOSTS.has(new URL(url).hostname) };
-}
 
 export type OutboxMail = { id: number; to: string; tag: string; subject: string; text: string; html: string; createdAt: string };
 
-/** The path and query of the link to a screen (/welcome or /reset) in a mail text, for goto on the run's own host. */
-export function linkPath(text: string, screen: 'welcome' | 'reset'): string {
+/**
+ * The path and query of the link to a screen (/welcome or /reset) in a mail text, for goto on the run's own host. The link must
+ * go to `origin`, the app of the run (appOrigin in targets.ts): a token that a mail sends to another origin lets that origin take
+ * the account.
+ */
+export function linkPath(text: string, screen: 'welcome' | 'reset', origin: string): string {
   for (const found of text.match(/https?:\/\/\S+/g) ?? []) {
     const url = new URL(found);
-    if (url.pathname === `/${screen}`) return `${url.pathname}${url.search}`;
+    if (url.pathname !== `/${screen}`) continue;
+    if (url.origin !== origin) throw new Error(`The /${screen} link of the mail goes to ${url.origin}, not to ${origin}.`);
+    return `${url.pathname}${url.search}`;
   }
   throw new Error(`The mail has no link to /${screen}.`);
 }
