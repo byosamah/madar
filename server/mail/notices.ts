@@ -49,6 +49,15 @@ from users where id = $1`;
 /** The people who get the quota warning: every active Admin. */
 export const ADMINS_SQL = "select id from users where kind = 'human' and active and doc->>'systemRole' = 'admin' order by ord";
 
+/**
+ * $1 the person. The row of USER_MAIL_SQL with the system role, so a warning to the Admins (the quota warning here, the limit
+ * warning of server/usage/warn.ts) sends nothing to a person who lost the Admin role between the row write and the send (the job
+ * retries a row for about an hour).
+ */
+export const ADMIN_MAIL_SQL = `select id as user_id, kind, active, doc->>'email' as email, doc->'preferences' as preferences, doc->>'gender' as gender,
+  doc->>'systemRole' as system_role
+from users where id = $1`;
+
 type NewNotice = { id: string; user_id: string; trigger: Trigger; kind: string; active: boolean; preferences: Preferences };
 export type PersonRow = { user_id: string; kind: string; active: boolean; email: string; preferences: Preferences; gender: Gender | null };
 type NoticeRow = PersonRow & { id: string; trigger: Trigger };
@@ -105,12 +114,12 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }
 
-/** The mail.quotaWarning effect: one warning to one Admin, once a day. */
+/** The mail.quotaWarning effect: one warning to one Admin, once a day. A person who is no longer an Admin gets nothing. */
 export async function sendQuotaWarning(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const userId = String(payload.userId ?? '');
   const day = String(payload.day ?? utcDay(deps.clock.now()));
-  const [person] = await deps.db.statement<PersonRow>('write', USER_MAIL_SQL, [userId]);
-  if (!person || !mailable(person)) return;
+  const [person] = await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
+  if (!person || !mailable(person) || person.system_role !== 'admin') return;
   const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendCounted(deps, 'warning', mailOf(person.email, rendered, 'quota-warning', `quota-warning-${day}-${userId}`), { userId });
 }
