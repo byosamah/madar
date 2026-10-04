@@ -4,7 +4,8 @@ import { makeWorld, NOW } from '../../src/test/factories';
 import type { RunResult } from '../core/types';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { runOn } from '../data/loaders/compare';
-import { shadowProblems } from './shadow';
+import { serverCallMap, type SharedEntry } from '../core/serverCallMap';
+import { readsPrepared, shadowProblems } from './shadow';
 
 const INPUT = { workloadLimit: 20 };
 
@@ -79,5 +80,30 @@ describe('the shadow run (TM 3.5, check 1)', () => {
     const out = runOn(structuredClone(office), 'session.get', {}, 'usr_001', { now: NOW });
     const result: RunResult = { ok: true, output: { ...(out.output as object), limits: { maxFileBytes: 1 } }, changed: false };
     expect(await shadowProblems({ name: 'session.get', input: {}, actorId: 'usr_001', now: NOW, office, result, after: office })).toEqual([]);
+  });
+
+  it('skips only a call whose run reads the prepared value of a server hook', () => {
+    const entry = (name: string) => serverCallMap.get(name) as SharedEntry;
+    expect(readsPrepared(entry('files.upload'))).toBe(true);
+    expect(readsPrepared(entry('feedback.send'))).toBe(true);
+    expect(readsPrepared(entry('feedback.screenshot'))).toBe(true);
+    // projects.delete has a hook, but its run takes no prepared value: the hook only feeds the step after the commit.
+    expect(readsPrepared(entry('projects.delete'))).toBe(false);
+    expect(readsPrepared(entry('settings.update'))).toBe(false);
+  });
+
+  it('checks the scoped delete of projects.delete, and names a table the database did not empty', async () => {
+    const office = makeWorld();
+    const input = { id: 'prj_001', confirm: true };
+    const after = structuredClone(office);
+    const outcome = runOn(after, 'projects.delete', sharedCalls['projects.delete'].input.parse(input), 'usr_001', { now: NOW, correlationId: 'sty_real' });
+    expect(outcome.error).toBeUndefined();
+    const result: RunResult = { ok: true, output: outcome.output, storyId: 'sty_real', changed: true };
+    expect(await shadowProblems({ name: 'projects.delete', input, actorId: 'usr_001', now: NOW, office, result, after })).toEqual([]);
+
+    const leftStages = structuredClone(after);
+    leftStages.stages = structuredClone(office.stages);
+    const [problem] = await shadowProblems({ name: 'projects.delete', input, actorId: 'usr_001', now: NOW, office, result, after: leftStages });
+    expect(problem).toMatch(/^projects\.delete: the database saved another change than the whole office in memory.*stages/);
   });
 });

@@ -3,17 +3,18 @@ import { ApiError } from '../../src/api/errors';
 import { memoryPersister } from '../../src/api/persist';
 import { Store, type State } from '../../src/api/store';
 import { now as clockNow } from '../../src/lib/dates';
-import { serverCallMap, type CallEntry } from '../core/serverCallMap';
+import type { CallEntry } from '../core/serverCallMap';
 import type { ChangeSignal, Principal, RunRequest, RunResult, StoryRef } from '../core/types';
 import { TABLES } from '../data/tables';
 import type { FixedClock } from './fakes/clock';
 import { callProblems } from './invariants';
-import { shadowProblems } from './shadow';
 
 /**
  * The mirror store of db mode (TM 3.3; task D1). testApi() returns it when MADAR_DB=1 (src/test/factories.ts), so the API tests
  * run on the real load, run and save steps with no edit. It stays synchronous: t.store.state is the in-memory office of the test,
- * as today, and all database work waits for the first call.
+ * as today, and all database work waits for the first call. The server call map and the shadow run load with that first call
+ * too (loadServer), because server/test/db.ts loads this file before the test file, and a test file's vi.mock does not reach a
+ * module that is already loaded.
  *
  * For each call, one at a time:
  *   1. Check the name against the call map of the test, as createApi does. A call that the server does not have (the prototype
@@ -108,8 +109,19 @@ export function mergeInto(mirror: State, fresh: State): void {
   assignInPlace(mirror.counters, fresh.counters);
 }
 
+type ServerParts = { serverCallMap: ReadonlyMap<string, CallEntry>; shadowProblems: typeof import('./shadow').shadowProblems; readsPrepared: typeof import('./shadow').readsPrepared };
+let serverParts: Promise<ServerParts> | undefined;
+
+/** The call map of the server and the shadow run, which load every handler: loaded at the first call, once for each test file. */
+function loadServer(): Promise<ServerParts> {
+  serverParts ??= Promise.all([import('../core/serverCallMap'), import('./shadow')]).then(([map, shadow]) => ({
+    serverCallMap: map.serverCallMap, shadowProblems: shadow.shadowProblems, readsPrepared: shadow.readsPrepared,
+  }));
+  return serverParts;
+}
+
 /** The call map of the server, with the test's own definition where a test passes one under a shared name. */
-function callMapOf(calls: CallMap): ReadonlyMap<string, CallEntry> {
+function callMapOf(calls: CallMap, serverCallMap: ReadonlyMap<string, CallEntry>): ReadonlyMap<string, CallEntry> {
   const map = new Map<string, CallEntry>();
   for (const [name, def] of Object.entries(calls)) {
     const entry = serverCallMap.get(name);
@@ -126,7 +138,7 @@ function callMapOf(calls: CallMap): ReadonlyMap<string, CallEntry> {
 export function createDbApi<M extends CallMap>(calls: M, state: State, backend: MirrorBackend): DbTestApi<M> {
   const store = new Store(state, memoryPersister());
   const memoryApi = createApi(calls, { store, latencyMs: 0 });
-  const callMap = callMapOf(calls);
+  let callMap: ReadonlyMap<string, CallEntry> | undefined;
   /** The made-up story IDs of this test and their real stories: the batch scope's placeholder map, kept for every call. */
   const refs = new Map<string, string>();
   const back = () => new Map([...refs].map(([madeUp, real]) => [real, madeUp]));
@@ -140,7 +152,9 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
 
   async function invoke(name: string, input: unknown, meta: CallMeta): Promise<{ output: unknown; storyId: string; changed: boolean }> {
     if (!calls[name]) throw new ApiError('not_found', `There is no call named ${name}.`);
-    const entry = callMap.get(name);
+    const server = await loadServer();
+    const map = (callMap ??= callMapOf(calls, server.serverCallMap));
+    const entry = map.get(name);
     if (!entry) return memoryApi.run(name, input as never, meta);
 
     await backend.begin();
@@ -161,7 +175,7 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
     const sentBefore = backend.signals.length;
     const result = await backend.run(
       { principal: principalOf(actorId), name, input: serverInput, ...(story ? { story } : {}), ...(meta.key ? { key: meta.key } : {}), batch: { storyRefs: refs, overviewCalls: 0 } },
-      callMap,
+      map,
     );
     const after = await backend.readBack();
     const afterSum = await backend.checksum();
@@ -173,7 +187,7 @@ export function createDbApi<M extends CallMap>(calls: M, state: State, backend: 
       name, readOnly: entry.readOnly, ok: result.ok, beforeSum, afterSum, before, after, signals: backend.signals.slice(sentBefore),
     });
     if (problems.length === 0 && entry.kind === 'shared') {
-      problems.push(...(await shadowProblems({ name, input: serverInput, actorId, now, office: before, result, after, hooked: entry.hooks !== undefined })));
+      problems.push(...(await server.shadowProblems({ name, input: serverInput, actorId, now, office: before, result, after, readsPrepared: server.readsPrepared(entry) })));
     }
     if (problems.length > 0) throw new Error(`db mode: ${problems.join('\ndb mode: ')}`);
     if (!result.ok) throw new ApiError(result.error.code, result.error.message, result.error.details ?? {});

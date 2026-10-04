@@ -13,8 +13,9 @@ import { changesOf, runBoth, type Change, type Run } from '../data/loaders/compa
  * office, the SQL side (sqlSource or the save step) differs; when it does not, the loader of the call leaves something out.
  *
  * It ignores only what TM 3.5 allows: the story ID (the whole run takes the story of the database call) and random blob keys.
- * A call with server hooks (files.upload, feedback.send, feedback.screenshot, projects.delete) is not shadowed: its prepared value
- * comes from storage work that the memory run does not repeat. The harness passes hooked: true for those.
+ * A call whose run reads the prepared value of a server hook (files.upload, feedback.send, feedback.screenshot) is not shadowed:
+ * that value comes from storage work that the memory run does not repeat. The harness passes readsPrepared: true for those. A
+ * hook that only feeds the step after the commit (projects.delete) changes nothing in the run, so that call is shadowed.
  */
 
 export type ShadowCase = {
@@ -28,8 +29,13 @@ export type ShadowCase = {
   result: RunResult;
   /** The whole office after the call, read back from the database. */
   after: State;
-  hooked?: boolean;
+  readsPrepared?: boolean;
 };
+
+/** True when the run of a call takes the prepared value of its server hook (its third parameter), which the memory run lacks. */
+export function readsPrepared(entry: { hooks?: unknown; def: { run: (...args: never[]) => unknown } }): boolean {
+  return entry.hooks !== undefined && entry.def.run.length > 2;
+}
 
 /** Output fields that differ on the server on purpose: session.get returns the limits of the active file store. */
 const OUTPUT_IGNORES: Partial<Record<string, readonly string[]>> = { 'session.get': ['limits'] };
@@ -97,7 +103,7 @@ function changedCounters(before: State, after: State): Record<string, number> {
 
 export async function shadowProblems(c: ShadowCase): Promise<string[]> {
   const def = (sharedCalls as Record<string, (typeof sharedCalls)[SharedCallName]>)[c.name];
-  if (!def || c.hooked) return [];
+  if (!def || c.readsPrepared) return [];
   if (!def.input.safeParse(c.input).success) {
     if (c.result.ok) return [`${c.name}: the input does not parse, and the database still answered.`];
     return c.result.error.code === 'invalid_input' ? [] : [`${c.name}: the input does not parse, and the database refused with ${c.result.error.code}.`];
