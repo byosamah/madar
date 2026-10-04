@@ -10,7 +10,7 @@ import { apiApp } from '../http/app';
 import { ROUTES } from '../http/routes';
 import { fakeDeps } from '../test/fakes/deps';
 import { CLIENT_SQL, ensureAgentUser, LINK_SQL } from './agentUser';
-import { APPROVAL_INSERT_SQL, APPROVAL_SQL, APPROVE_PATH, approveRoute, AUTHORIZATION_SQL, withApproveRoute } from './approval';
+import { APPROVAL_INSERT_SQL, APPROVAL_SQL, APPROVE_PATH, approveRoute, AUTHORIZATION_SQL, REMOVED_LINK_SQL, withApproveRoute } from './approval';
 
 /**
  * The approval that a person records in Madar for an AI app (plan 5.6; task G4; proof.md G4). The route runs in the api app with
@@ -38,7 +38,7 @@ beforeAll(async () => {
 const personToken = (sub = HALA_AUTH) => sign({ sub, role: 'authenticated', aud: ['authenticated'], session_id: 's1' });
 const agentToken = (sub = HALA_AUTH) => sign({ sub, role: 'authenticated', aud: MCP_AUD, client_id: CLIENT, session_id: 's2' });
 
-function setup(o: { pending?: Record<string, { clientId: string; authUserId: string }>; off?: string[] } = {}) {
+function setup(o: { pending?: Record<string, { clientId: string; authUserId: string }>; off?: string[]; removed?: { client_id: string; owner_user_id: string }[] } = {}) {
   const pending = o.pending ?? { 'auth-1': { clientId: CLIENT, authUserId: HALA_AUTH } };
   const approvals: { client_id: string; owner_user_id: string }[] = [];
   const q = (async (text: string, values: unknown[] = []) => {
@@ -46,6 +46,7 @@ function setup(o: { pending?: Record<string, { clientId: string; authUserId: str
       const found = pending[String(values[0])];
       return [{ client_id: found && found.authUserId === values[1] ? found.clientId : null }];
     }
+    if (text === REMOVED_LINK_SQL) return (o.removed ?? []).some((row) => row.client_id === values[0] && row.owner_user_id === values[1]) ? [{ removed: 1 }] : [];
     if (text === APPROVAL_INSERT_SQL) {
       if (!approvals.some((row) => row.client_id === values[0] && row.owner_user_id === values[1])) approvals.push({ client_id: String(values[0]), owner_user_id: String(values[1]) });
       return [];
@@ -96,6 +97,22 @@ describe('POST /agents/approve: the approval that the person records in Madar', 
     expect([ended.status, ended.body.error?.details?.reason]).toEqual([400, 'authorization_ended']);
     expect((await approve(await personToken(), {})).status).toBe(400);
     expect(approvals).toEqual([]);
+  });
+});
+
+describe('POST /agents/approve after the person removed the agent of this client (review of G4)', () => {
+  it('refuses with 403 agent_removed and records nothing, so the screen never asks Auth to approve a client that can never link again', async () => {
+    const { approvals, approve } = setup({ removed: [{ client_id: CLIENT, owner_user_id: 'usr_001' }] });
+    const answer = await approve(await personToken());
+    expect(answer.status).toBe(403);
+    expect(answer.body.error).toMatchObject({ code: 'forbidden', details: { reason: 'agent_removed' } });
+    expect(approvals).toEqual([]);
+  });
+
+  it('records the approval when the removed link is another person\'s', async () => {
+    const { approvals, approve } = setup({ removed: [{ client_id: CLIENT, owner_user_id: 'usr_005' }] });
+    expect((await approve(await personToken())).status).toBe(200);
+    expect(approvals).toEqual([{ client_id: CLIENT, owner_user_id: 'usr_001' }]);
   });
 });
 

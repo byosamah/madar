@@ -72,6 +72,14 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     expect(leave).not.toHaveBeenCalled();
   });
 
+  it('never approves at Auth for an app that the person removed in Madar, and says how to connect it again (review of G4)', async () => {
+    const { port, leave } = await open({ tools: tools({ record: () => Promise.reject(new ApiError('forbidden', 'Removed.', { reason: 'agent_removed' })) }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.');
+    expect(port.approve).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
+  });
+
   it('sends a person with no session to Sign in, and brings them back with the same authorization_id', async () => {
     const auth = fakeAuth({ accounts: [{ ...SAMPLE_ACCOUNTS.hala }] });
     const { router, port } = await open({ auth, path: '/oauth/consent?authorization_id=abc%2F1' });

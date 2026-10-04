@@ -23,6 +23,8 @@ import type { RouteDef } from '../http/routes';
  * - The client: never from the browser. The route reads it from Auth's pending authorization of this person
  *   (madar_private.agent_authorization, 20261004000402_platform_agent_approvals.sql). An authorization that Auth already approved,
  *   denied or let expire, or that belongs to someone else, gives invalid_input with the reason authorization_ended.
+ * - A removed agent: when the person removed the link of this client (Settings, Agents, or agents.revokeAll), the route refuses
+ *   with forbidden, reason agent_removed. A removed link never links again, so the AI app must register a new client.
  *
  * This module holds no MCP code, so the api bundle carries it. server/http/routes.ts mounts APPROVE_ROUTE (merge lead patch of G4).
  */
@@ -32,6 +34,12 @@ export const APPROVE_PATH = '/agents/approve';
 export const AUTHORIZATION_SQL = 'select madar_private.agent_authorization($1::text, $2::uuid)::text as client_id';
 /** A second approval of the same client by the same person keeps the first one. */
 export const APPROVAL_INSERT_SQL = 'insert into agent_approvals (client_id, owner_user_id) values ($1::uuid, $2) on conflict (client_id, owner_user_id) do nothing';
+/**
+ * A removed link of this client and person (agent_links.revoked_at). A removed link never links again (G3), so an approval of the
+ * same client would let Auth give tokens that Madar refuses with 401 on every call, and the AI app would loop through the consent
+ * screen with no word to the person (review of G4).
+ */
+export const REMOVED_LINK_SQL = 'select 1 as removed from agent_links where client_id = $1::uuid and owner_user_id = $2 and revoked_at is not null';
 /** The approval that ensureAgentUser needs before it links a client to the person. */
 export const APPROVAL_SQL = 'select 1 as approved from agent_approvals where client_id = $1::uuid and owner_user_id = $2';
 
@@ -49,6 +57,10 @@ export async function recordApproval(q: Query, o: { authorizationId: string; aut
   const clientId = row?.client_id ?? null;
   if (clientId === null) {
     throw invalid('authorizationId', 'This approval request ended. Start the connection again in your AI app.', 'authorization_ended');
+  }
+  const [removed] = await q(REMOVED_LINK_SQL, [clientId, o.ownerId]);
+  if (removed) {
+    throw new ApiError('forbidden', 'You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.', { reason: 'agent_removed' });
   }
   await q(APPROVAL_INSERT_SQL, [clientId, o.ownerId]);
   return { clientId };

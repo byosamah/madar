@@ -32,7 +32,8 @@
   "errors": {
     "reasons": {
       "authorization_ended": "This request ended. Start the connection again in your AI app.",
-      "agent_not_approved": "You did not approve this AI app in Madar. Remove it in Settings, Agents, then connect it again."
+      "agent_not_approved": "You did not approve this AI app in Madar. Remove it in Settings, Agents, then connect it again.",
+      "agent_removed": "You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again."
     }
   }
 }
