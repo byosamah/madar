@@ -8,6 +8,7 @@ import { OFFICE_DELETES_KEEP_DAYS } from '../../data/officeCache';
 import { KEYS_IN_USE_SQL } from '../../files/effects';
 import { memoryMailDb } from '../../mail/memoryMailDb';
 import { USER_MAIL_SQL } from '../../mail/notices';
+import { MailSendError } from '../../mail/resend';
 import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL } from '../../mail/summary';
 import { fakeDeps } from '../../test/fakes/deps';
 import { IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANUP_SQL, STORIES_CLEANUP_SQL, cleanup } from './cleanup';
@@ -130,7 +131,7 @@ describe('step 2, the morning summary', () => {
     const { r, deps, marks } = setup();
     const at = new Date('2026-10-04T04:30:00Z');
     deps.clock.set(at);
-    expect(await summary(deps, at)).toEqual({ due: true, day: '2026-10-04', sent: 2, empty: 1, over: 0, skipped: 0, already: 0 });
+    expect(await summary(deps, at)).toEqual({ due: true, day: '2026-10-04', sent: 2, empty: 1, over: 0, skipped: 0, refused: 0, already: 0 });
     expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([
       ['usr_a@madar.test', 'summary-2026-10-04-usr_a'],
       ['usr_c@madar.test', 'summary-2026-10-04-usr_c'],
@@ -149,9 +150,30 @@ describe('step 2, the morning summary', () => {
     await expect(summary(deps, at)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
     expect(marks.size).toBe(0);
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
-    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, already: 1 });
+    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 0, already: 1 });
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test', 'usr_a@madar.test']);
     expect([...marks]).toEqual(['summary:2026-10-04']);
+  });
+
+  it('closes the day when Resend refuses a send for good (not retryable), warns, and the next run sends nothing to that person', async () => {
+    const { deps, marks } = setup();
+    const at = new Date('2026-10-04T04:30:00Z');
+    deps.clock.set(at);
+    deps.mail.failNext(new MailSendError('You can only send testing emails to your own email address.', { status: 403, code: 'validation_error', retryable: false }));
+    expect(await summary(deps, at)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 1, already: 0 });
+    expect([...marks]).toEqual(['summary:2026-10-04']);
+    expect(deps.logs.filter((l) => l.level === 'warn')).toEqual([{ level: 'warn', message: expect.any(String), fields: { userId: 'usr_a', code: 'validation_error', status: 403 } }]);
+    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
+  });
+
+  it('keeps the day open when Resend fails with a retryable error (a 429 or a 5xx)', async () => {
+    const { deps, marks } = setup();
+    const at = new Date('2026-10-04T04:30:00Z');
+    deps.clock.set(at);
+    deps.mail.failNext(new MailSendError('Too many requests.', { status: 429, code: 'rate_limit_exceeded', retryable: true }));
+    await expect(summary(deps, at)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
+    expect(marks.size).toBe(0);
   });
 });
 
