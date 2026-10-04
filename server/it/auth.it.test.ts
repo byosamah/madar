@@ -55,7 +55,7 @@ async function entry(token: string, name: string, input: unknown = {}): Promise<
 }
 
 const forgot = (email: string, ip: string) => app.fetch(new Request('http://127.0.0.1/auth/forgot', {
-  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify({ email }),
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify({ email }),
 }));
 
 beforeAll(async () => {
@@ -115,7 +115,7 @@ describe('suite 3: sign-in on the local stack', () => {
     expect((await auth.signIn(auth.email('sara'))).status).toBe(200);
   });
 
-  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 an hour for one email', async () => {
+  it('forgot: the same answer for a person and an unknown email, a reset mail that works, and 429 after 3 in one window for one email', async () => {
     const member = auth.email('member');
     const sent = deps.mail.sent.length;
     const known = await forgot(member, '198.51.100.1');
@@ -125,6 +125,8 @@ describe('suite 3: sign-in on the local stack', () => {
     const mail = deps.mail.sent[sent];
     expect(deps.mail.sent).toHaveLength(sent + 1);
     expect(mail.subject).toBe('Reset your Madar password');
+    // S1: the reset mail counts against the daily mail quota as sign-in mail.
+    expect(await office.sql<{ kind: string }>('select kind from mail_log where ref = $1', [mail.idempotencyKey])).toEqual([{ kind: 'signin' }]);
     const resetLink = linkIn(mail.text);
     expect(resetLink.pathname).toBe('/reset');
     const used = await auth.useLink('recovery', resetLink.searchParams.get('token_hash')!);
@@ -136,6 +138,7 @@ describe('suite 3: sign-in on the local stack', () => {
     const over = await forgot(member, '198.51.100.20');
     expect(over.status).toBe(429);
     expect(Number(over.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect((await over.json()).error.details.reason).toBe('too_many_resets_email');
     const keys = await office.sql<{ key: string }>('select key from rate_limits');
     expect(keys.some((row) => row.key.includes('@'))).toBe(false);
   });

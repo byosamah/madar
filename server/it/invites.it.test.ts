@@ -122,7 +122,7 @@ describe('suite 4: invitations on the local stack', () => {
     await accept(invitation.text);
 
     const forgot = createForgotRoute({ minMs: 0 });
-    const response = await forgot(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers: { 'x-forwarded-for': '198.51.100.40' }, body: JSON.stringify({ email }) }), deps);
+    const response = await forgot(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers: { 'cf-connecting-ip': '198.51.100.40' }, body: JSON.stringify({ email }) }), deps);
     expect(response.status).toBe(200);
     const reset = mailTo(email);
     expect(reset.subject).toBe('إعادة تعيين كلمة المرور في مدار');
@@ -201,6 +201,17 @@ describe('suite 4: invitations on the local stack', () => {
     expect(await call('usr_001', 'users.update', { id: user.id, patch: { email: moved } })).toMatchObject({ ok: true });
     expect(deps.mail.sent.slice(sent).map((m) => [m.to, m.subject])).toEqual([[email, 'Your Madar sign-in email changed']]);
     expect(deps.mail.sent[sent].text).toContain(moved);
+    // S1: the notice names the Admin, goes through its own outbox row, and counts against the daily mail quota.
+    const [admin] = await office.sql<{ name: string }>("select doc->>'name' as name from users where id = 'usr_001'");
+    expect(deps.mail.sent[sent].text).toContain(`The change came from ${admin.name}.`);
+    const notices = await office.sql<{ done: boolean; to: string }>(
+      "select done_at is not null as done, payload->>'to' as to from outbox where kind = 'auth.emailNotice' and payload->>'userId' = $1", [user.id]);
+    expect(notices).toEqual([{ done: true, to: email }]);
+    const [queued] = await office.sql<{ queued: boolean }>(
+      "select (payload->>'noticeQueued')::boolean as queued from outbox where kind = 'auth.email' and payload->>'userId' = $1", [user.id]);
+    expect(queued.queued).toBe(true);
+    const counted = await office.sql<{ kind: string }>('select kind from mail_log where ref = $1', [deps.mail.sent[sent].idempotencyKey]);
+    expect(counted).toEqual([{ kind: 'signin' }]);
     expect((await auth.signIn(moved, PASSWORD)).status).toBe(200);
     const state = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
     expect(state?.state).toBe('active');

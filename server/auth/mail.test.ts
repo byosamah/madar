@@ -67,6 +67,17 @@ describe('renderEmailChangedMail: the notice at the old email after an email cha
     expect(renderEmailChangedMail('ar', { name: 'خالد', email: 'k@madar.test' }).text).toContain('أخبر مدير النظام');
   });
 
+  it('names who made the change (S1) in both languages, and leaves the line out when nobody is known', () => {
+    const en = renderEmailChangedMail('en', { name: 'Sara', email: 'sara.new@madar.test', by: 'Faisal Al Harbi' });
+    expect(en.text).toContain('The change came from Faisal Al Harbi.');
+    expect(en.html).toContain('The change came from Faisal Al Harbi.');
+    expect(en.text.indexOf('Faisal')).toBeLessThan(en.text.indexOf('tell the Admin'));
+    const ar = renderEmailChangedMail('ar', { name: 'سارة', email: 'sara.new@madar.test', by: 'فيصل الحربي' }, 'female');
+    expect(ar.text).toContain('جاء التغيير من فيصل الحربي.');
+    expect(renderEmailChangedMail('en', { name: 'Sara', email: 'sara.new@madar.test' }).text).not.toContain('came from');
+    expect(renderEmailChangedMail('en', { name: 'S', email: 'e@madar.test', by: '<b>X</b>' }).html).toContain('&lt;b&gt;X&lt;/b&gt;');
+  });
+
   it('escapes the name and the email in the HTML, and has no em dash', () => {
     const mail = renderEmailChangedMail('en', { name: '<i>S</i>', email: 'a&b@madar.test' });
     expect(mail.html).toContain('&lt;i&gt;S&lt;/i&gt;');

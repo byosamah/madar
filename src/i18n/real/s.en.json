@@ -1,0 +1,12 @@
+{
+  "auth": {
+    "errors": {
+      "tooManyResets": "You already asked for reset links for this email. Use the newest reset email, or try again later."
+    }
+  },
+  "signinMail": {
+    "emailChanged": {
+      "by": "The change came from {{actor}}."
+    }
+  }
+}

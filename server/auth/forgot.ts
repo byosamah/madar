@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { User } from '../../src/api/contract/entities';
 import { invalid } from '../../src/api/errors';
+import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
 import { errorResponse, runErrorOf } from '../http/errors';
+import { reserve, sendCounted } from '../mail/quota';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
 
@@ -10,41 +12,55 @@ import { hashedKey, hitLimit } from './rateLimit';
  * POST /api/auth/forgot { email } (plan 5.1; task P2). The Forgot screen sends it with no sign-in.
  *
  * - The same answer, { v: 1, ok: true } with 200, for every valid email: a person, an unknown email, a turned-off person, an agent.
- *   The answer also waits until it took at least minMs (1.5 s), so its time does not tell either.
- * - Limits, counted before the lookup, so they say nothing about the email: 3 an hour for each email and 10 an hour for each
- *   network address. Over a limit: 429 with Retry-After (the Forgot screen shows "Too many tries"). The keys hold only a sha256.
- * - An office limit of 20 reset mails an hour (key forgot:all), counted after the lookup and only when a mail would go out.
- *   A client can forge the address on Supabase, so this keeps a script from using up the mail of the day (Resend: 100 a day)
- *   by sending 3 an hour to every person. Over it: no mail, a warning in the log, and the same 200 answer.
+ * - The time of the answer (task S1): the lookup, the Auth link and the send can take seconds for a real person. So when the
+ *   host gives an after (server/core/after.ts: ctx.waitUntil on Workers, EdgeRuntime.waitUntil on Supabase), the route answers
+ *   first and does that work after the answer. With no after (tests, local runs) the work stays inline. Either way the answer
+ *   waits until it took at least minMs (1.5 s).
+ * - Limits, counted before the lookup, so they say nothing about the email: 3 in one window for each email, and 10 an hour
+ *   for each network address. Over a limit: 429 with Retry-After. The two limits have their own reasons: too_many_resets_email
+ *   (the person already holds reset mails, so the screen says to use the newest one) and too_many_resets (the address; the
+ *   screen says to wait a few minutes). The keys hold only a sha256.
+ * - The window of each email is no longer than the life of a reset link (otp_expiry in supabase/config.toml and in the Auth
+ *   settings of the hosted projects): Auth keeps only the newest recovery token, so the newest mailed link must still work until
+ *   the window ends and the person can ask again. With otp_expiry = 3600 the window is 1 hour; a test reads config.toml and
+ *   fails when the window gets longer than the link life. A window of a day needs otp_expiry = 86400 first.
+ * - No limit for the whole office (S1 security review): an office-wide cap lets one outsider who knows about 10 staff emails use
+ *   up the reset mail of everyone for the day. A flood only sends reset mails to the mailboxes it names, which then hold a
+ *   working link.
+ * - The reset mail counts against the daily mail quota as sign-in mail (N2). The place in the quota comes first, before Auth
+ *   makes a link: a full day makes no recovery link (a new one would end the link that the person got earlier that day), sends
+ *   no mail, logs a warning, and gives the same 200 answer.
  * - For an active person with a sign-in link: a "recovery" link of Auth, and the reset mail in the person's language with a
  *   link to /reset. A person who never got an invitation has no Auth user, and gets nothing: generate_link must only run for
  *   an email that a users row holds (proof.md, P1).
  * - A link that names another Auth user than users.auth_user_id gets no mail and no relink: this route needs no sign-in, so
  *   it never moves a sign-in link (only auth.invite and auth.email do, after an Admin or Management action). It logs a warning.
- * - The idempotency key of the mail is a sha256 of the token hash: the key goes to the mail sender and its logs, and the token
- *   hash is the live sign-in credential.
+ * - The idempotency key of the mail, which is also its place in the quota, is a sha256 of the person and a random id: it exists
+ *   before the link, and it never holds the token hash, the live sign-in credential (the key goes to the mail sender and its
+ *   logs).
  * - A failure of Auth or of the mail is logged and gives the same answer.
- * - The network address: cf-connecting-ip on Cloudflare, else the first x-forwarded-for entry (the client, on Supabase).
- *   A client can set that entry on Supabase; track Z checks on madar-test which entry the platform adds.
+ * - The network address (clientAddress, task S1): cf-connecting-ip, on both hosts. Proven on madar-test (2026-10-04, probe
+ *   function, Z0b): Supabase Edge Functions sit behind Cloudflare too; cf-connecting-ip holds the real client address, and
+ *   Cloudflare refuses a request that sends its own (error code 1000). x-forwarded-for arrives as "client, client, proxy": its
+ *   last entry is a rotating proxy address, so reading it puts many clients under one limit. true-client-ip passes through
+ *   forged. So the route never reads either. No cf-connecting-ip (local runs only): 'unknown'.
  */
 
-export const FORGOT_EMAIL_PER_HOUR = 3;
-export const FORGOT_IP_PER_HOUR = 10;
-export const FORGOT_OFFICE_PER_HOUR = 20;
-export const FORGOT_OFFICE_KEY = 'forgot:all';
-export const FORGOT_MIN_MS = 1500;
 const HOUR_MS = 60 * 60 * 1000;
+export const FORGOT_EMAIL_PER_WINDOW = 3;
+/** No longer than the life of a reset link (otp_expiry = 3600 s): see the comment above. */
+export const FORGOT_EMAIL_WINDOW_MS = HOUR_MS;
+export const FORGOT_IP_PER_HOUR = 10;
+export const FORGOT_MIN_MS = 1500;
 
 /** The person with this email (the users.email column is lower case). */
 export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth from users where email = $1 and kind = 'human'";
 
 const Body = z.object({ email: z.email() });
 
+/** The network address of the sender: the value that Cloudflare writes in front of both hosts. None (local runs): 'unknown'. */
 export function clientAddress(request: Request): string {
-  const cloudflare = request.headers.get('cf-connecting-ip')?.trim();
-  if (cloudflare) return cloudflare;
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || 'unknown';
+  return request.headers.get('cf-connecting-ip')?.trim() || 'unknown';
 }
 
 /** Sends the reset mail when the email belongs to an active person with a sign-in link. Otherwise nothing. */
@@ -53,10 +69,11 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   if (!row || row.auth === null) return 'none';
   const user = User.parse(row.doc);
   if (!user.active || user.kind !== 'human') return 'none';
-  const q: Query = (text, values) => deps.db.statement('write', text, values);
-  const office = await hitLimit(q, { key: FORGOT_OFFICE_KEY, limit: FORGOT_OFFICE_PER_HOUR, windowMs: HOUR_MS, now: deps.clock.now() });
-  if (!office.ok) {
-    deps.log.warn('A reset mail did not go out: the office reached its limit of reset mails for this hour.', { userId: row.id });
+  // The place in the quota before the link: a full day must not end the link that the person got earlier.
+  const key = await hashedKey('reset', `${row.id}:${crypto.randomUUID()}`);
+  const now = deps.clock.now();
+  if ((await deps.db.tx('write', (q) => reserve(q, 'signin', key, { now, userId: row.id }))) === 'over') {
+    deps.log.warn('A reset mail did not go out: the daily mail quota is full.', { userId: row.id });
     return 'none';
   }
   const link = await deps.authAdmin.generateLink('recovery', user.email);
@@ -67,16 +84,32 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   const mail = renderSigninMail('reset', user.preferences.language, {
     name: user.name, link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
   }, user.gender);
-  await deps.mail.send({ to: user.email, ...mail, tag: 'reset', idempotencyKey: await hashedKey('reset', link.tokenHash) });
+  // sendCounted finds the place that this key holds.
+  const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });
+  if (sent.status === 'over') {
+    deps.log.warn('A reset mail did not go out: the daily mail quota is full.', { userId: row.id });
+    return 'none';
+  }
   return 'sent';
 }
 
+/** Over the limit of the network address. */
 function tooMany(retryAfterMs: number): Response {
   return errorResponse({ code: 'conflict', message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many_resets', retryAfterMs } });
 }
 
-export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void> } = {}) {
+/** Over the limit of one email: reset mails already went to it, and the newest one still works. */
+function tooManyForEmail(retryAfterMs: number): Response {
+  return errorResponse({
+    code: 'conflict',
+    message: 'You already asked for reset links for this email. Use the newest reset email, or try again later.',
+    details: { reason: 'too_many_resets_email', retryAfterMs },
+  });
+}
+
+export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost } = {}) {
   const minMs = o.minMs ?? FORGOT_MIN_MS;
+  const hostOf = o.host ?? requestHost;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   return async function forgotRoute(request: Request, deps: Deps): Promise<Response> {
@@ -91,18 +124,19 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     if (!parsed.success) return errorResponse(runErrorOf(invalid('email', 'Type a valid email.')));
     const email = parsed.data.email.trim().toLowerCase();
 
+    const { after } = hostOf();
     const q: Query = (text, values) => deps.db.statement('write', text, values);
     const now = deps.clock.now();
     const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);
-    const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_HOUR, windowMs: HOUR_MS, now });
-    if (!byEmail.ok) return tooMany(byEmail.retryAfterMs);
+    const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_WINDOW, windowMs: FORGOT_EMAIL_WINDOW_MS, now });
+    if (!byEmail.ok) return tooManyForEmail(byEmail.retryAfterMs);
 
-    try {
-      await sendReset(email, deps);
-    } catch (error) {
+    const work = sendReset(email, deps).catch((error: unknown) => {
       deps.log.warn('A reset mail did not go out.', { error: error instanceof Error ? error.message : String(error) });
-    }
+    });
+    if (after) after(work);
+    else await work;
     const spent = performance.now() - started;
     if (spent < minMs) await sleep(minMs - spent);
     return Response.json({ v: 1, ok: true });

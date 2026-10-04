@@ -1,0 +1,149 @@
+diff --git a/server/auth/effects.test.ts b/server/auth/effects.test.ts
+index 45c41b2..004fca0 100644
+--- a/server/auth/effects.test.ts
++++ b/server/auth/effects.test.ts
+@@ -280,6 +280,24 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
+     expect(failed).toMatchObject({ message: 'Resend is down' });
+   });
+ 
++  it('6 runs of the job on a full mail day leave the notice with attempts below 5, and it sends on the next UTC day', async () => {
++    const { deps, auth, mem } = setup(person(), true);
++    mem.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
++    const accepted = await linkedPerson(auth, person(), true);
++    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
++    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_6', byId: 'usr_001' }, deps, store);
++    const midnight = new Date(Date.UTC(deps.clock.now().getUTCFullYear(), deps.clock.now().getUTCMonth(), deps.clock.now().getUTCDate() + 1)).toISOString();
++    expect(mem.outbox.map((row) => [row.done, row.attempts, row.until])).toEqual([[false, 0, midnight]]);
++    // Six runs of the job that same day: the row is held until midnight, so no run claims it or spends an attempt.
++    for (let run = 0; run < 6; run += 1) expect(await processOutbox(deps, ['1'])).toEqual({ done: [], failed: [] });
++    expect(mem.outbox[0].attempts).toBeLessThan(5);
++    // The next UTC day: the hold ends and the quota has room.
++    deps.clock.set(new Date(midnight));
++    mem.outbox[0].claimed = false;
++    expect(await processOutbox(deps, ['1'])).toEqual({ done: ['1'], failed: [] });
++    expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
++  });
++
+   it('an older row that sent its notice (noticeSentAt, the P2 version) queues none', async () => {
+     const { deps, auth, mem } = setup(person(), true);
+     const accepted = await linkedPerson(auth, person(), true);
+diff --git a/server/core/effects.test.ts b/server/core/effects.test.ts
+index 66cc763..e4a43e8 100644
+--- a/server/core/effects.test.ts
++++ b/server/core/effects.test.ts
+@@ -3,7 +3,7 @@ import type { SaveResult } from '../data/save';
+ import { fakeDeps } from '../test/fakes/deps';
+ import type { Db, Query } from './ports';
+ import {
+-  CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, writeOutbox,
++  CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, WAIT_SQL, writeOutbox,
+ } from './effects';
+ 
+ const undo: (() => void)[] = [];
+@@ -82,6 +82,18 @@ describe('effects after the commit (plan 4.12)', () => {
+     expect(deps.logs.map((line) => line.level)).toEqual(['warn', 'warn']);
+   });
+ 
++  it('holds a row whose handler says when to try again (retryAt, for example a full mail day) until then, and gives the attempt back', async () => {
++    const retryAt = new Date('2026-10-05T00:00:00Z');
++    undo.push(registerEffect('test.later', async () => {
++      throw Object.assign(new Error('The daily mail quota is full.'), { retryAt });
++    }));
++    const { db, seen } = scriptedDb({ 1: { kind: 'test.later', payload: {} } });
++    const deps = fakeDeps({ db });
++    expect(await processOutbox(deps, ['1'])).toEqual({ done: [], failed: ['1'] });
++    expect(seen.slice(1)).toEqual([[WAIT_SQL, ['1', 'The daily mail quota is full.', '2026-10-05T00:00:00.000Z']]]);
++    expect(WAIT_SQL).toBe('update outbox set error = $2, claimed_until = $3::timestamptz, attempts = greatest(attempts - 1, 0) where id = $1');
++  });
++
+   it('takes producers for shared calls only: a server call never asks the producers, so its name does not compile', () => {
+     // @ts-expect-error agents.remove is a server call; it writes its own rows with writeOutbox and runs processOutbox itself.
+     expect(() => registerOutbox('agents.remove', async () => [])).toThrow(/agents.remove/);
+diff --git a/server/core/effects.ts b/server/core/effects.ts
+index dac6a8c..54e9a0e 100644
+--- a/server/core/effects.ts
++++ b/server/core/effects.ts
+@@ -19,6 +19,9 @@ import type { Deps, Query } from './ports';
+  * - Claim before work: processOutbox and the job claim a row with one statement first. No row means another worker has it, or
+  *   it is done. A failed row keeps its attempts and its error, and stays claimed for 2 minutes; the 15-minute job (track N3)
+  *   retries rows older than 2 minutes, up to 5 attempts. usage.get shows the failed rows to the Admin (track M).
++ * - A handler that knows when the work can go through (an error with retryAt, for example QuotaFull of a full mail day in
++ *   server/auth/effects.ts) keeps its error, and the row stays claimed until retryAt with the attempt given back: a full day
++ *   never uses up the 5 attempts of a row (S1 review).
+  */
+ 
+ export type OutboxRow = { kind: string; payload: Record<string, unknown> };
+@@ -66,6 +69,8 @@ export const CLAIM_SQL =
+   "update outbox set claimed_until = now() + interval '2 minutes', attempts = attempts + 1 where id = $1 and done_at is null and (claimed_until is null or claimed_until < now()) returning *";
+ export const DONE_SQL = 'update outbox set done_at = now(), error = null where id = $1';
+ export const FAIL_SQL = 'update outbox set error = $2 where id = $1';
++/** $1 id, $2 error, $3 the time to try again. */
++export const WAIT_SQL = 'update outbox set error = $2, claimed_until = $3::timestamptz, attempts = greatest(attempts - 1, 0) where id = $1';
+ 
+ /** Writes the rows inside the call's transaction. The ids come back in the order of the rows. */
+ export async function writeOutbox(q: Query, rows: OutboxRow[]): Promise<string[]> {
+@@ -74,6 +79,12 @@ export async function writeOutbox(q: Query, rows: OutboxRow[]): Promise<string[]
+   return found.map((row) => String(row.id)).sort((a, b) => Number(a) - Number(b));
+ }
+ 
++/** The time to try again that an error names, when it names one. */
++function retryAtOf(error: unknown): Date | null {
++  const at = (error as { retryAt?: unknown } | null)?.retryAt;
++  return at instanceof Date && !Number.isNaN(at.getTime()) ? at : null;
++}
++
+ function messageOf(error: unknown): string {
+   return (error instanceof Error ? error.message : String(error)).slice(0, 500);
+ }
+@@ -96,8 +107,14 @@ export async function processOutbox(deps: Deps, ids: string[]): Promise<{ done:
+       done.push(id);
+     } catch (error) {
+       const message = messageOf(error);
+-      await deps.db.statement('write', FAIL_SQL, [id, message]);
+-      deps.log.warn('An effect after the commit failed. The job tries it again.', { id, kind: row.kind, error: message });
++      const retryAt = retryAtOf(error);
++      if (retryAt) {
++        await deps.db.statement('write', WAIT_SQL, [id, message, retryAt.toISOString()]);
++        deps.log.warn('An effect after the commit waits. The job tries it again after the time it named.', { id, kind: row.kind, error: message, retryAt: retryAt.toISOString() });
++      } else {
++        await deps.db.statement('write', FAIL_SQL, [id, message]);
++        deps.log.warn('An effect after the commit failed. The job tries it again.', { id, kind: row.kind, error: message });
++      }
+       failed.push(id);
+     }
+   }
+diff --git a/server/mail/memoryMailDb.ts b/server/mail/memoryMailDb.ts
+index 184e50c..027caf8 100644
+--- a/server/mail/memoryMailDb.ts
++++ b/server/mail/memoryMailDb.ts
+@@ -1,5 +1,5 @@
+ import type { Db, Query } from '../core/ports';
+-import { CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL } from '../core/effects';
++import { CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, WAIT_SQL } from '../core/effects';
+ import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RESERVE_SQL } from './quota';
+ 
+ /**
+@@ -9,7 +9,7 @@ import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RESERVE_SQL } from '.
+  */
+ 
+ export type LogRow = { utc_day: string; kind: string; user_id: string | null; ref: string; resend_id: string | null };
+-export type OutboxRecord = { id: number; kind: string; payload: Record<string, unknown>; done: boolean; claimed: boolean; attempts: number; error: string | null };
++export type OutboxRecord = { id: number; kind: string; payload: Record<string, unknown>; done: boolean; claimed: boolean; attempts: number; error: string | null; until?: string };
+ export type Answer = (text: string, values: unknown[]) => unknown[] | undefined;
+ 
+ const SENDING = ['notice', 'summary', 'signin', 'warning'];
+@@ -56,6 +56,14 @@ export function memoryMailDb(answer: Answer = () => undefined) {
+       record.attempts += 1;
+       return [{ id: record.id, kind: record.kind, payload: record.payload }];
+     }
++    if (text === WAIT_SQL) {
++      // Held until $3: the row stays claimed (a test frees it when that time comes), and the attempt goes back.
++      const record = outbox.find((r) => String(r.id) === String(values[0]))!;
++      record.error = values[1] as string;
++      record.until = values[2] as string;
++      record.attempts = Math.max(record.attempts - 1, 0);
++      return [];
++    }
+     if (text === DONE_SQL || text === FAIL_SQL) {
+       const record = outbox.find((r) => String(r.id) === String(values[0]))!;
+       if (text === DONE_SQL) record.done = true;
