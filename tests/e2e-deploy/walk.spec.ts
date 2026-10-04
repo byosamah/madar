@@ -368,6 +368,8 @@ for (const { lang, width } of VARIANTS) {
       if (rows.length !== 2) throw new Error(`DB: ${rows.length} files rows`);
       const objects = await q<{ n: string }>("select count(*)::text as n from storage.objects where bucket_id = 'madar-files' and created_at > now() - interval '3 minutes'");
       await shot('file', 'admin');
+      // The toast sits over the bottom of the preview at 390 px; the pixel check waits until it goes.
+      await expect(page.getByText(w('files.uploaded', { n: '2' }))).toHaveCount(0, { timeout: 15_000 });
       // The preview must show the picture's own pixels: a blank or broken picture shows the white panel behind it.
       await openMenu(page.getByRole('button', { name: w('files.actions', { name: `${fileBase}.png` }) }));
       await page.getByRole('menuitem', { name: w('files.preview') }).click();
@@ -490,6 +492,8 @@ for (const { lang, width } of VARIANTS) {
         const heading = page.getByRole('heading', { level: 2, name: w('usage.title'), exact: true });
         if (role === 'admin') {
           await expect(heading).toBeVisible();
+          const section = page.locator('section').filter({ has: heading });
+          await expect(section.locator('p, li').first()).toBeVisible();
           await heading.scrollIntoViewIfNeeded();
           await shot('usage', role);
           return 'the Usage section shows';
@@ -508,9 +512,13 @@ for (const { lang, width } of VARIANTS) {
         const heading = page.getByRole('heading', { level: 2, name: w('agents.title'), exact: true });
         await expect(heading).toBeVisible();
         await heading.scrollIntoViewIfNeeded();
-        const links = await q<{ n: string }>('select count(*)::text as n from agent_links where owner_user_id = $1 and revoked_at is null', [DEPLOY_ACCOUNTS[role].userId]);
+        const section = page.locator('section').filter({ has: heading });
+        await expect(section.getByText(w('agents.none'), { exact: true })).toBeVisible();
+        await expect(page.getByText('Madar Assistant')).toHaveCount(0);
         await shot('agents', role);
-        return `agent_links ${links[0].n}`;
+        const links = await q<{ n: string }>('select count(*)::text as n from agent_links where owner_user_id = $1 and revoked_at is null', [DEPLOY_ACCOUNTS[role].userId]);
+        if (links[0].n !== '0') throw new Error(`DB: ${links[0].n} live agent links`);
+        return 'the empty words show, no sample agent, agent_links 0';
       });
     }
 
