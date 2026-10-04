@@ -64,8 +64,8 @@ describe('the test scripts', () => {
     expect(scripts['test:it']).toBe('MADAR_IT=1 vitest run --project it --passWithNoTests');
   });
 
-  it('run the MCP conformance runner against the served function', () => {
-    expect(scripts['test:mcp']).toContain('conformance server --url ${MCP_URL:-http://127.0.0.1:54321/functions/v1/mcp}');
+  it('run the MCP unit tests, then the conformance runner against the served function through server/mcp/conformance.ts (G3)', () => {
+    expect(scripts['test:mcp']).toBe('vitest run --project server server/mcp && tsx server/mcp/conformance.ts');
   });
 });
 
