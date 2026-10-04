@@ -17,6 +17,34 @@ describe('app shell', () => {
     expect(screen.queryByRole('link', { name: 'My Work' })).toBeNull();
   });
 
+  it('shows the Madar mark at the top start of every screen, and a press opens Home (owner, 2026-10-04)', async () => {
+    await renderApp('/dashboard');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
+    // One for a wide screen (at the top start, across from the picture) and one at the start of the phone top row.
+    const marks = screen.getAllByRole('link', { name: 'Madar, Home' });
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) {
+      expect(mark).toHaveAttribute('href', '#/');
+      expect(mark.querySelector('[data-madar-mark]')).not.toBeNull();
+    }
+    await userEvent.click(marks[0]);
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page'));
+  });
+
+  it('gives the start of the phone top row on a project page to the back link, not the mark', async () => {
+    await renderApp('/projects/prj_001');
+    expect(await screen.findByRole('link', { name: /Projects/, current: false })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Madar, Home' })).toHaveLength(1);
+  });
+
+  it('names the mark in Arabic', async () => {
+    await renderApp('/dashboard', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    expect(await screen.findAllByRole('link', { name: 'مدار، الرئيسية' })).toHaveLength(2);
+  });
+
   // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 360 and 390 px.
   // jsdom has no layout, so this test holds the rule in the classes. The pixel check was a browser run at 320 to 412 px in
   // Arabic and English: every tab and badge inside the bar, the Arabic label whole on two lines (F-2 re-check).

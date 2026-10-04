@@ -3,6 +3,7 @@
     "name": "Madar"
   },
   "nav": {
+    "madarHome": "Madar, Home",
     "main": "Main navigation",
     "projects": "Projects",
     "dashboard": "Dashboard",
