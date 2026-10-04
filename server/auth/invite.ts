@@ -17,12 +17,16 @@ import { renderSigninMail, signinLink } from './mail';
  *      goes instead (proof.md, section P1). A new invite link makes every older invite link of the person fail at once.
  *   3. In one transaction under the office lock: keep the link in the outbox payload, and write users.auth_user_id with
  *      setAuthUserId when it changed, so every warm office cache sees the sign-in link (plan 4.7).
- *   4. Send the mail in the person's language, with a link to Welcome that names the link type. The idempotency key is the
+ *   4. Read the person again. A person turned off meanwhile (users.deactivate committed after step 1) gets no mail, and the
+ *      Auth user of the new link is banned here, because the auth.ban effect of that call found no sign-in link yet.
+ *   5. Send the mail in the person's language, with a link to Welcome that names the link type. The idempotency key is the
  *      invite id, so a send that runs twice goes out once.
- *   5. Mark the payload as sent (sentAt and the mail id). users.invites reads sentAt.
+ *   6. Mark the payload as sent (sentAt and the mail id) and drop the token hash: done rows stay in the outbox, and the token
+ *      hash is a live sign-in credential. users.invites reads sentAt.
  *
  * A retry (the 15-minute job) reads the payload again: it keeps the token hash of the first link, so the first mail never
- * carries a dead link, and a payload that is marked as sent sends nothing more.
+ * carries a dead link, and a payload that is marked as sent sends nothing more. A stored link is dead when a later row of the
+ * same person made a newer link (a new invite link makes the older ones fail): that retry sends nothing.
  */
 
 export const INVITE_KIND = 'auth.invite';
@@ -41,14 +45,25 @@ const Payload = z.looseObject({
 
 export interface InviteStore {
   person(userId: string): Promise<Person | undefined>;
+  /** Merges fields into the payload of the row with this invite id (the auth.email effect notes what it still owes). */
+  note(inviteId: string, fields: Record<string, unknown>): Promise<void>;
+  /** True when a later auth.invite or auth.email row of this person already made a link: the link of this row is dead. */
+  newerLink(userId: string, inviteId: string): Promise<boolean>;
   /** Keeps the link in the payload of the row with this invite id; relink: also write users.auth_user_id. One transaction. */
   keepLink(inviteId: string, userId: string, link: SigninLink, relink: boolean): Promise<void>;
+  /** Marks the row as sent and drops its token hash. */
   markSent(inviteId: string, at: Date, mailId: string): Promise<void>;
 }
 
 export const PERSON_SQL = 'select doc, auth_user_id::text as auth from users where id = $1';
 /** The payload of the row with this invite id gains the given fields. Any kind: auth.email rows carry an invite id too. */
 export const PAYLOAD_MERGE_SQL = "update outbox set payload = payload || $2::jsonb where payload->>'inviteId' = $1";
+/** Sent: the payload gains sentAt and the mail id, and loses the token hash. linkType stays (newerLink reads it). */
+export const SENT_SQL = "update outbox set payload = (payload - 'tokenHash') || $2::jsonb where payload->>'inviteId' = $1";
+/** A later row of the same person that made a link. linkType marks a row that made one, sent or not. */
+export const NEWER_LINK_SQL =
+  "select 1 as found from outbox where kind in ('auth.invite', 'auth.email') and payload->>'userId' = $1 and payload ? 'linkType' " +
+  "and id > (select id from outbox where payload->>'inviteId' = $2 limit 1) limit 1";
 
 export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
   return {
@@ -56,6 +71,12 @@ export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
       const [row] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', PERSON_SQL, [userId]);
       if (!row) return undefined;
       return { user: User.parse(row.doc), authUserId: row.auth };
+    },
+    async note(inviteId, fields) {
+      await deps.db.statement('write', PAYLOAD_MERGE_SQL, [inviteId, JSON.stringify(fields)]);
+    },
+    async newerLink(userId, inviteId) {
+      return (await deps.db.statement('read', NEWER_LINK_SQL, [userId, inviteId])).length > 0;
     },
     async keepLink(inviteId, userId, link, relink) {
       await deps.db.tx('write', async (q) => {
@@ -66,7 +87,7 @@ export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
       });
     },
     async markSent(inviteId, at, mailId) {
-      await deps.db.statement('write', PAYLOAD_MERGE_SQL, [inviteId, JSON.stringify({ sentAt: at.toISOString(), mailId })]);
+      await deps.db.statement('write', SENT_SQL, [inviteId, JSON.stringify({ sentAt: at.toISOString(), mailId })]);
     },
   };
 }
@@ -113,10 +134,20 @@ export async function sendInvitation(
   }
   let link: SigninLink;
   if (payload.tokenHash && payload.authUserId && payload.linkType) {
+    if (await store.newerLink(payload.userId, payload.inviteId)) {
+      deps.log.info('An invitation was not sent: a later invitation of the person made a newer link.', { userId: payload.userId });
+      return 'skipped';
+    }
     link = { type: payload.linkType, authUserId: payload.authUserId, tokenHash: payload.tokenHash };
   } else {
     link = await linkFor(deps.authAdmin, person.user.email);
     await store.keepLink(payload.inviteId, payload.userId, link, link.authUserId !== person.authUserId);
+    const again = await store.person(payload.userId);
+    if (!again || !again.user.active) {
+      await deps.authAdmin.setBanned(link.authUserId, true);
+      deps.log.info('An invitation was not sent: the person was turned off while the link was made.', { userId: payload.userId });
+      return 'skipped';
+    }
   }
   const { user } = person;
   const mail = renderSigninMail('invite', user.preferences.language, {

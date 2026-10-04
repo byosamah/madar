@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderSigninMail, signinLink } from './mail';
+import { renderEmailChangedMail, renderSigninMail, signinLink } from './mail';
 
 const LINK = 'https://madar.test/welcome?token_hash=abc&type=invite';
 
@@ -48,6 +48,32 @@ describe('renderSigninMail: the invitation and reset mail in the person\'s langu
         const mail = renderSigninMail(kind, lang, { name: 'N', link: LINK }, 'female');
         expect(`${mail.subject}${mail.text}${mail.html}`).not.toContain(String.fromCharCode(0x2014));
       }
+    }
+  });
+});
+
+describe('renderEmailChangedMail: the notice at the old email after an email change', () => {
+  it('names the new email, holds no link, and tells the person to tell the Admin, in both languages', () => {
+    const en = renderEmailChangedMail('en', { name: 'Sara', email: 'sara.new@madar.test' });
+    expect(en.subject).toBe('Your Madar sign-in email changed');
+    expect(en.text).toContain('Hello Sara');
+    expect(en.text).toContain('sara.new@madar.test');
+    expect(en.text).toContain('tell the Admin');
+    expect(`${en.text}${en.html}`).not.toMatch(/href=|https?:/);
+    const ar = renderEmailChangedMail('ar', { name: 'سارة', email: 'sara.new@madar.test' }, 'female');
+    expect(ar.subject).toBe('تغيّر بريد تسجيل الدخول إلى مدار');
+    expect(ar.text).toContain('أخبري مدير النظام');
+    expect(ar.html).toContain('<html lang="ar" dir="rtl">');
+    expect(renderEmailChangedMail('ar', { name: 'خالد', email: 'k@madar.test' }).text).toContain('أخبر مدير النظام');
+  });
+
+  it('escapes the name and the email in the HTML, and has no em dash', () => {
+    const mail = renderEmailChangedMail('en', { name: '<i>S</i>', email: 'a&b@madar.test' });
+    expect(mail.html).toContain('&lt;i&gt;S&lt;/i&gt;');
+    expect(mail.html).toContain('a&amp;b@madar.test');
+    for (const lang of ['en', 'ar'] as const) {
+      const out = renderEmailChangedMail(lang, { name: 'N', email: 'e@madar.test' }, 'female');
+      expect(`${out.subject}${out.text}${out.html}`).not.toContain(String.fromCharCode(0x2014));
     }
   });
 });
