@@ -90,6 +90,8 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
   const signIn = await authAdminOf(deps.authAdmin).getUser(person.auth);
   // Accepted means a confirmed email AND a saved password (PASSWORD_SET_MARK), as users.invites says. A person who opened the
   // link and left still gets a new link: a recovery link, because Auth refuses an invite link for a confirmed email.
+  // The person can write the mark (user_metadata). That is safe here: a wrong mark only sends a recovery link, once per key,
+  // to the address Madar holds, which "Forgot password" gives anyone anyway; no right reads the mark (security review 2026-10-04).
   if (!signIn || (signIn.confirmed && signIn.passwordSet)) return 'none';
 
   const now = deps.clock.now();
