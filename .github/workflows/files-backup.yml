@@ -1,0 +1,114 @@
+# The weekly file copy (plan 5.7 and 2b point 1, change 21; task O2): Friday 03:07 Riyadh.
+#
+# rclone sync from the file store to a Backblaze B2 crypt remote. While MADAR_FILE_STORE is supabase (the default), the source
+# is the S3 form of Supabase Storage (bucket madar-files); after the move to R2 (vars.MADAR_FILE_STORE = r2) it is R2 with a
+# read-only key. sync only reads the source. A file that the sync replaces or removes moves to old/<date> in the copy, and the
+# old/ folders older than 7 days go. Last, the size of the B2 bucket goes to usage_month.backup_bytes for the usage meter.
+# The crypt remote encrypts the file contents and names with the owner's rclone crypt password, so B2 never sees a file.
+#
+# Values, by name only (Z5 sets them):
+#   secrets.FILES_S3_ENDPOINT          https://<ref>.supabase.co/storage/v1/s3, or the R2 EU endpoint after the move
+#   secrets.FILES_S3_ACCESS_KEY_ID     the S3 key of the file store (read only on R2)
+#   secrets.FILES_S3_SECRET_ACCESS_KEY
+#   secrets.B2_KEY_ID, secrets.B2_APPLICATION_KEY   a B2 application key for the backup bucket only
+#   secrets.RCLONE_CRYPT_PASSWORD, secrets.RCLONE_CRYPT_SALT   the crypt password and salt, in the form of "rclone obscure"
+#   secrets.BACKUP_DB_URL              the session pooler address of production as postgres (the same as db-backup.yml)
+#   vars.B2_BUCKET                     the B2 bucket of the copy
+#   vars.MADAR_FILE_STORE              supabase (default) or r2
+# The owner keeps the crypt password and salt offline as well: without them the copy cannot be read.
+name: Files backup
+
+on:
+  schedule:
+    - cron: '7 3 * * 5'
+      timezone: 'Asia/Riyadh'
+  workflow_dispatch:
+
+concurrency:
+  group: files-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FILES_BUCKET: madar-files
+  KEEP_DAYS: '7'
+
+jobs:
+  files:
+    name: files
+    # A fork or a copy of the repository has no files to copy.
+    if: github.repository == 'byosamah/madar'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    # The remotes come from environment variables, so no rclone config file with a key is written to disk. The source and its
+    # region follow the file store. No step installs a package after the secrets are in the environment of a step.
+    env:
+      RCLONE_CONFIG_SOURCE_TYPE: s3
+      RCLONE_CONFIG_SOURCE_PROVIDER: ${{ vars.MADAR_FILE_STORE == 'r2' && 'Cloudflare' || 'Other' }}
+      RCLONE_CONFIG_SOURCE_REGION: ${{ vars.MADAR_FILE_STORE == 'r2' && 'auto' || 'eu-central-1' }}
+      RCLONE_CONFIG_SOURCE_FORCE_PATH_STYLE: 'true'
+      RCLONE_CONFIG_SOURCE_NO_CHECK_BUCKET: 'true'
+      RCLONE_CONFIG_B2_TYPE: b2
+      RCLONE_CONFIG_B2_HARD_DELETE: 'true'
+      RCLONE_CONFIG_COPY_TYPE: crypt
+      RCLONE_CONFIG_COPY_REMOTE: b2:${{ vars.B2_BUCKET }}
+      RCLONE_CONFIG_COPY_FILENAME_ENCRYPTION: standard
+      RCLONE_CONFIG_COPY_DIRECTORY_NAME_ENCRYPTION: 'true'
+    steps:
+      - name: Install rclone, jq and psql
+        run: sudo apt-get update -q && sudo apt-get install -y -q rclone jq postgresql-client
+
+      - name: Copy the files to B2
+        env:
+          RCLONE_CONFIG_SOURCE_ENDPOINT: ${{ secrets.FILES_S3_ENDPOINT }}
+          RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID: ${{ secrets.FILES_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY: ${{ secrets.FILES_S3_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_B2_ACCOUNT: ${{ secrets.B2_KEY_ID }}
+          RCLONE_CONFIG_B2_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          RCLONE_CONFIG_COPY_PASSWORD: ${{ secrets.RCLONE_CRYPT_PASSWORD }}
+          RCLONE_CONFIG_COPY_PASSWORD2: ${{ secrets.RCLONE_CRYPT_SALT }}
+        run: |
+          today="$(date -u +%F)"
+          rclone sync "source:$FILES_BUCKET" copy:current --backup-dir "copy:old/$today" --fast-list --stats-one-line --stats 1m -v
+
+      - name: Remove old/ folders older than 7 days
+        env:
+          RCLONE_CONFIG_B2_ACCOUNT: ${{ secrets.B2_KEY_ID }}
+          RCLONE_CONFIG_B2_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          RCLONE_CONFIG_COPY_PASSWORD: ${{ secrets.RCLONE_CRYPT_PASSWORD }}
+          RCLONE_CONFIG_COPY_PASSWORD2: ${{ secrets.RCLONE_CRYPT_SALT }}
+        run: |
+          cutoff="$(date -u -d "$KEEP_DAYS days ago" +%F)"
+          folders="$(rclone lsf copy:old --dirs-only 2>/dev/null || true)"
+          printf '%s\n' "$folders" | while read -r folder; do
+            folder="${folder%/}"
+            case "$folder" in
+              [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+              *) continue ;;
+            esac
+            if [[ "$folder" < "$cutoff" ]]; then
+              echo "Remove old/$folder"
+              rclone purge "copy:old/$folder"
+            fi
+          done
+
+      # The month of Riyadh. At 03:07 Riyadh it is the same month in UTC, so the meter agrees with either reading.
+      - name: Write the size of the copy to the usage meter
+        env:
+          RCLONE_CONFIG_B2_ACCOUNT: ${{ secrets.B2_KEY_ID }}
+          RCLONE_CONFIG_B2_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET: ${{ vars.B2_BUCKET }}
+          BACKUP_DB_URL: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          bytes="$(rclone size "b2:$B2_BUCKET" --json | jq -r .bytes)"
+          case "$bytes" in
+            '' | *[!0-9]*) echo "::error::rclone size gave no byte count."; exit 1 ;;
+          esac
+          month="$(TZ=Asia/Riyadh date +%Y-%m)"
+          echo "The copy holds $bytes bytes ($month)."
+          psql "$BACKUP_DB_URL" -X -q -v ON_ERROR_STOP=1 -v month="$month" -v bytes="$bytes" <<'SQL'
+          insert into public.usage_month (month, backup_bytes) values (:'month', :bytes)
+          on conflict (month) do update set backup_bytes = excluded.backup_bytes;
+          SQL

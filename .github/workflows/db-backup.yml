@@ -1,0 +1,112 @@
+# The nightly database backup (plan 5.7, changes 12 and 21; task O2). It runs at 02:07 Riyadh, not on the busy start of the hour
+# (platform facts 11.2), and between two ticks of the 15-minute job.
+#
+# scripts/backup/dump.ts makes three dumps with the Supabase CLI through the session pooler as postgres (roles, schema, data),
+# counts the rows of every Madar table under the office lock (scripts/backup/manifest.sql), and encrypts the archive with age to
+# the owner's public key. Only the owner's offline key opens it (scripts/restore-check.ts). The file goes to a release of the
+# private repository madar-backups, and releases older than 30 days go. The run fails, so GitHub mails the owner, when the backup
+# fails or when the newest backup before this run was older than 26 hours (a night with no backup).
+#
+# Values, by name only (Z5 sets them):
+#   secrets.BACKUP_DB_URL        the session pooler address of production as postgres, with the password
+#   secrets.BACKUP_REPO_TOKEN    a fine-grained token with "contents: write" on madar-backups only
+#   vars.BACKUP_AGE_RECIPIENT    the owner's age public key (age1...); not a secret
+# madar-backups needs one commit (for example a README) before the first release.
+name: DB backup
+
+on:
+  schedule:
+    - cron: '7 2 * * *'
+      timezone: 'Asia/Riyadh'
+  workflow_dispatch:
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.23.1'
+  BACKUP_REPO: byosamah/madar-backups
+  KEEP_DAYS: '30'
+  STALE_HOURS: '26'
+
+jobs:
+  backup:
+    name: backup
+    # A fork or a copy of the repository has no backup to make.
+    if: github.repository == 'byosamah/madar'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # No step uses git after the checkout, so the job token does not stay in .git/config for install scripts to read.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # npm ci runs before any step gets a secret, so no install script can read one.
+      - run: npm ci
+      - name: Install age
+        run: sudo apt-get update -q && sudo apt-get install -y -q age
+
+      - name: Age of the newest backup
+        id: fresh
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1 --json createdAt --jq '.[0].createdAt // empty')"
+          if [ -z "$newest" ]; then
+            echo "No backup yet."
+            echo "hours=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          hours=$(( ($(date -u +%s) - $(date -u -d "$newest" +%s)) / 3600 ))
+          echo "The newest backup is $hours hours old."
+          echo "hours=$hours" >> "$GITHUB_OUTPUT"
+
+      - name: Dump, count and encrypt
+        id: dump
+        env:
+          BACKUP_DB_URL: ${{ secrets.BACKUP_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/backup"
+          npx tsx scripts/backup/dump.ts --out "$RUNNER_TEMP/backup" > "$RUNNER_TEMP/backup.json"
+          cat "$RUNNER_TEMP/backup.json"
+          echo "file=$(jq -r .file "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
+          echo "name=$(jq -r .name "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to madar-backups
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          FILE: ${{ steps.dump.outputs.file }}
+          NAME: ${{ steps.dump.outputs.name }}
+        run: |
+          gh release create "$NAME" "$FILE" --repo "$BACKUP_REPO" --title "$NAME" \
+            --notes "Nightly database backup of Madar, encrypted with age to the owner's key. Check it with scripts/restore-check.ts."
+
+      # Only after a good upload, so a run of failures never removes the last good backups.
+      - name: Remove backups older than 30 days
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
+          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | select(.tagName | startswith(\"madar-db-\")) | .tagName" |
+            while read -r tag; do
+              echo "Remove $tag"
+              gh release delete "$tag" --repo "$BACKUP_REPO" --yes --cleanup-tag
+            done
+
+      - name: Fail when the backup before this one was older than 26 hours
+        if: fromJSON(steps.fresh.outputs.hours) > fromJSON(env.STALE_HOURS)
+        env:
+          HOURS: ${{ steps.fresh.outputs.hours }}
+        run: |
+          echo "::error::The newest backup before this run was $HOURS hours old (the limit is $STALE_HOURS). A night had no backup."
+          exit 1
