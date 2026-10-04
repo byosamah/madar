@@ -1,5 +1,5 @@
 import { Command } from 'cmdk';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
@@ -11,6 +11,7 @@ import { normalizeForSearch } from '../../lib/text';
 import { NewProjectSheet } from '../projects/NewProjectSheet';
 import { NewTaskSheet } from './NewTaskSheet';
 import { PersonSheet } from './PersonSheet';
+import { useQueryInLink } from './useQueryInLink';
 import { LoadFailed } from '../../components/LoadFailed';
 import { taskLink } from '../../lib/params';
 
@@ -93,12 +94,10 @@ export function SearchScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   // The search text lives in the link too, so Back from a result shows the same search again (audit PER-14).
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const [text, setText] = useState(() => params.get('q') ?? '');
   const query = useDebounced(text.trim(), 150);
-  useEffect(() => {
-    setParams(query ? { q: query } : {}, { replace: true });
-  }, [query, setParams]);
+  useQueryInLink(query);
   const [sheet, setSheet] = useState<'task' | 'project' | null>(null);
   const [person, setPerson] = useState<UserCard | null>(null);
   const commands = [
