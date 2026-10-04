@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { ApiError, invalid, notFound } from '../../src/api/errors';
 import type { FeedbackPrepared, ScreenshotPrepared } from '../../src/api/handlers/feedback';
 import type { UploadPrepared } from '../../src/api/handlers/files';
@@ -15,7 +16,8 @@ import type { FakeFiles } from './fakes/files';
  * Track F builds the upload steps of the server (server/calls/files.ts, server/calls/feedback.ts). While a step is still the T0
  * stub, it answers not_built, and only then a stand-in of this file runs in its place: an upload record in memory, the object
  * check and the copy to the final key. A stand-in checks no right; the handler's run() checks them, as on the server. When F
- * merges, the real steps answer, and the stand-ins never run again. standInUses() counts them for the run report.
+ * merges, server/files/effects.ts exists (the marker of the "until" lines of db-mode.skip.ts), and withStandIns adds no stand-in:
+ * a step that answers not_built after that fails its call. standInUses() counts the stand-ins for the run report.
  */
 
 type Rec = Record<string, unknown>;
@@ -195,7 +197,17 @@ function sharedWithStandIn(entry: SharedEntry): SharedEntry {
   return { ...entry, hooks };
 }
 
-/** The call map with the stand-ins in front of the stubs of track F. Every other entry stays the same object. */
-export function withStandIns(map: ReadonlyMap<string, CallEntry>): ReadonlyMap<string, CallEntry> {
+/** The file that track F merges with its upload steps; the same marker as the "until" lines of db-mode.skip.ts. */
+const TRACK_F_MARKER = new URL('../files/effects.ts', import.meta.url);
+
+/**
+ * The call map with the stand-ins in front of the stubs of track F. Every other entry stays the same object. Once track F has
+ * merged, the map stays as it is.
+ */
+export function withStandIns(
+  map: ReadonlyMap<string, CallEntry>,
+  o: { trackFMerged?: boolean } = {},
+): ReadonlyMap<string, CallEntry> {
+  if (o.trackFMerged ?? existsSync(TRACK_F_MARKER)) return map;
   return new Map([...map].map(([name, entry]) => [name, entry.kind === 'server' ? serverWithStandIn(entry) : sharedWithStandIn(entry)]));
 }

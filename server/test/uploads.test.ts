@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { CallEntry, ServerEntry } from '../core/serverCallMap';
@@ -45,6 +46,21 @@ describe('the stand-ins for the upload steps of track F', () => {
     const result = await entry.call(input, ctx());
     expect(result.output).toMatchObject({ uploadId: expect.stringMatching(/^upl_dbmode_/), put: { url: expect.stringMatching(/^https:\/\/files\.test\/put\/up\//) } });
     expect(standInUses()).toBe(before + 1);
+  });
+
+  it('adds no stand-in once track F has merged (server/files/effects.ts exists), so a not_built step then fails the call', async () => {
+    const stub = start(async () => {
+      throw new ApiError('failed', 'files.uploadStart is not built yet.', { reason: 'not_built' });
+    });
+    const map = new Map([['files.uploadStart', stub]]);
+    const before = standInUses();
+    const merged = withStandIns(map, { trackFMerged: true });
+    expect(merged.get('files.uploadStart')).toBe(stub);
+    await expect((merged.get('files.uploadStart') as ServerEntry).call(input, ctx())).rejects.toMatchObject({ details: { reason: 'not_built' } });
+    expect(standInUses()).toBe(before);
+    // The default reads the same marker as the "until" lines of db-mode.skip.ts.
+    const effects = existsSync(new URL('../files/effects.ts', import.meta.url));
+    expect(withStandIns(map).get('files.uploadStart') === stub).toBe(effects);
   });
 
   it('keeps the answer and every other refusal of a real step', async () => {
