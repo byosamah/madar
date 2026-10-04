@@ -10,12 +10,13 @@ import type { AuthAdminPort } from '../core/ports';
  * - createUser: a confirmed user with a password (the first Admin, P3).
  * - setBanned: a ban of 100 years, or "none". A banned person cannot sign in or refresh; principalOf refuses the person anyway.
  * - updateEmail: the new email, confirmed at once, so Auth sends no mail of its own.
- * - listUsers: every Auth user and whether the email is confirmed (users.invites). It is not in AuthAdminPort yet: the merge
- *   lead patch of P2 adds it there.
+ * - listUsers: every Auth user and whether the email is confirmed (users.invites).
+ * - getUser: one Auth user, or null (the auth.email effect: did the email change, and did the person accept yet).
+ *   listUsers and getUser are not in AuthAdminPort yet: the merge lead patch of P2 adds them there and to the fake.
  */
 
 export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };
-export type AuthAdmin = AuthAdminPort & { listUsers(): Promise<AuthUserInfo[]> };
+export type AuthAdmin = AuthAdminPort & { listUsers(): Promise<AuthUserInfo[]>; getUser(authUserId: string): Promise<AuthUserInfo | null> };
 
 /** A refusal of the Auth admin API: the HTTP status and Auth's error code (for example email_exists). */
 export class AuthAdminError extends Error {
@@ -73,6 +74,11 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
     return parsed;
   }
 
+  function infoOf(user: Rec): AuthUserInfo | undefined {
+    const id = text(user.id);
+    return id ? { authUserId: id, email: text(user.email) ?? null, confirmed: Boolean(user.email_confirmed_at ?? user.confirmed_at) } : undefined;
+  }
+
   function userIdOf(body: Rec): string {
     const id = text(body.id) ?? text((body.user as Rec | undefined)?.id);
     if (!id) throw new Error('The Auth admin API gave no user id.');
@@ -95,14 +101,22 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
     async updateEmail(authUserId, email) {
       await call('PUT', `/users/${idPath(authUserId)}`, { email: email.toLowerCase(), email_confirm: true });
     },
+    async getUser(authUserId) {
+      try {
+        return infoOf(await call('GET', `/users/${idPath(authUserId)}`)) ?? null;
+      } catch (error) {
+        if (error instanceof AuthAdminError && error.status === 404) return null;
+        throw error;
+      }
+    },
     async listUsers() {
       const all: AuthUserInfo[] = [];
       for (let page = 1; ; page += 1) {
         const body = await call('GET', `/users?page=${page}&per_page=${PAGE}`);
         const users = Array.isArray(body.users) ? (body.users as Rec[]) : [];
         for (const user of users) {
-          const id = text(user.id);
-          if (id) all.push({ authUserId: id, email: text(user.email) ?? null, confirmed: Boolean(user.email_confirmed_at ?? user.confirmed_at) });
+          const info = infoOf(user);
+          if (info) all.push(info);
         }
         if (users.length < PAGE) return all;
       }
@@ -110,9 +124,12 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
   };
 }
 
-/** The listUsers of a port. The real port has it; a port without it (an old fake) refuses. Plan 4.11, users.invites. */
-export function listUsersOf(port: AuthAdminPort): () => Promise<AuthUserInfo[]> {
-  const maybe = (port as Partial<AuthAdmin>).listUsers;
-  if (typeof maybe !== 'function') throw new Error('The Auth admin port cannot list users.');
-  return () => maybe.call(port);
+/**
+ * The port with listUsers and getUser. The real port has both; a port without them (the T0 fake, until the merge lead patch of
+ * P2) refuses with a plain error, so the call or the effect fails and the job tries the effect again.
+ */
+export function authAdminOf(port: AuthAdminPort): AuthAdmin {
+  const maybe = port as Partial<AuthAdmin>;
+  if (typeof maybe.listUsers !== 'function' || typeof maybe.getUser !== 'function') throw new Error('The Auth admin port cannot read Auth users.');
+  return port as AuthAdmin;
 }

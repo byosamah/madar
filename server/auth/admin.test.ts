@@ -81,6 +81,17 @@ describe('authAdminPort over the GoTrue admin API (plan 5.1)', () => {
     ]);
   });
 
+  it('getUser gives the email and whether it is confirmed, or null for an unknown id', async () => {
+    const { seen, fetch } = stubFetch([
+      { status: 200, body: { id: ID, email: 'e@madar.test', email_confirmed_at: null } },
+      { status: 404, body: { code: 404, error_code: 'user_not_found', msg: 'User not found' } },
+    ]);
+    const admin = authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch });
+    await expect(admin.getUser(ID)).resolves.toEqual({ authUserId: ID, email: 'e@madar.test', confirmed: false });
+    await expect(admin.getUser(ID)).resolves.toBeNull();
+    expect(seen[0]).toMatchObject({ method: 'GET', url: `http://127.0.0.1:54321/auth/v1/admin/users/${ID}` });
+  });
+
   it('refuses an id that would change the path', async () => {
     const { fetch } = stubFetch([]);
     await expect(authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch }).setBanned('../x', true)).rejects.toThrow(/not an Auth user id/);
