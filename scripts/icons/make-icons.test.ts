@@ -65,6 +65,13 @@ describe('the app icons', () => {
   });
 });
 
+describe('npm run icons', () => {
+  it('runs the icon script', () => {
+    const scripts = (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }).scripts;
+    expect(scripts.icons).toBe('tsx scripts/icons/make-icons.tsx');
+  });
+});
+
 describe('the digests of the icon pages', () => {
   it('match the committed icons.sha256, so the PNGs come from the current tokens and the current mark', () => {
     expect(readFileSync('scripts/icons/icons.sha256', 'utf8')).toBe(iconDigests(tokens));

@@ -18,6 +18,7 @@
     "test:it": "MADAR_IT=1 vitest run --project it --passWithNoTests",
     "test:mcp": "vitest run --project server server/mcp && tsx server/mcp/conformance.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
+    "icons": "tsx scripts/icons/make-icons.tsx",
     "check:rtl": "node scripts/check-rtl.ts",
     "check:bundles": "node scripts/check-bundles.ts"
   },
