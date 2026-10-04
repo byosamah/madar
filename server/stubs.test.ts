@@ -6,8 +6,6 @@ import { SERVER_CALLS, SERVER_HOOKS } from './calls/index';
 import { ROUTES } from './http/routes';
 import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
-import { resendMailPort } from './mail/resend';
-import { outboxMailPort } from './mail/outboxDriver';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
 import { meterPort } from './usage/meter';
@@ -60,10 +58,6 @@ describe('the stubs', () => {
     expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 250 * 1024 * 1024]);
   });
 
-  it('mail refuses (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts; the Auth admin is built: server/auth/admin.test.ts)', async () => {
-    const mail = { to: 'a@madar.test', subject: 's', html: '', text: '', tag: 't', idempotencyKey: 'k' };
-    await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
-    await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
   });
 
   it('the MCP app, the jobs app and the Workers entry answer 501 until built, so a mounted stub never crashes a host', async () => {
