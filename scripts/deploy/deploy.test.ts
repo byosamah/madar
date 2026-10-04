@@ -36,7 +36,7 @@ function stub(dir: string, name: string, body = ''): void {
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'madar-deploy-'));
-  for (const file of [...SCRIPTS, 'headers.ts', 'config-check.ts']) {
+  for (const file of [...SCRIPTS, 'token-scope.sh', 'headers.ts', 'config-check.ts']) {
     const from = join(repo, 'scripts/deploy', file);
     mkdirSync(join(root, 'scripts/deploy'), { recursive: true });
     cpSync(from, join(root, 'scripts/deploy', file));
@@ -82,7 +82,7 @@ function readyForConfigPush(): void {
 
 describe('every deploy script', () => {
   it('is executable, except the shared library', () => {
-    for (const file of SCRIPTS) {
+    for (const file of [...SCRIPTS, 'token-scope.sh']) {
       const executable = (statSync(join(repo, 'scripts/deploy', file)).mode & 0o111) !== 0;
       expect(executable, file).toBe(file !== 'lib.sh');
     }
@@ -109,7 +109,7 @@ describe('every deploy script', () => {
   });
 
   it('has no em dash', () => {
-    for (const file of [...SCRIPTS, 'headers.ts', 'config-check.ts', 'secrets.ts']) {
+    for (const file of [...SCRIPTS, 'token-scope.sh', 'headers.ts', 'config-check.ts', 'secrets.ts']) {
       expect(readFileSync(join(repo, 'scripts/deploy', file), 'utf8'), file).not.toContain('\u2014');
     }
   });
@@ -256,6 +256,50 @@ describe('functions.sh', () => {
     expect(result.code).toBe(1);
     expect(result.out).toContain('did not answer from eu-central-1');
     expect(result.calls.filter((call) => call.startsWith('curl '))).toHaveLength(6);
+  });
+});
+
+describe('token-scope.sh', () => {
+  /** A curl stub that logs its arguments and its standard input, and answers with the HTTP code of STUB_CODE. */
+  function scopeCurl(): string {
+    const input = join(root, 'curl-input');
+    writeFileSync(join(stubs, 'curl'), `#!/bin/sh\necho "curl $*" >> "$STUB_LOG"\ncat > "${input}"\nprintf "%s" "$STUB_CODE"\n`, { mode: 0o755 });
+    return input;
+  }
+
+  it('goes on only when the production project refuses the token', () => {
+    for (const code of ['401', '403', '404']) {
+      scopeCurl();
+      const result = run('token-scope.sh', [], { env: { SUPABASE_ACCESS_TOKEN: 'sbp_scoped_token', STUB_CODE: code } });
+      expect(result.code, `${code} ${result.out}`).toBe(0);
+    }
+  });
+
+  it('stops when the token reaches production, or when the answer is unknown', () => {
+    for (const code of ['200', '000', '500', '']) {
+      scopeCurl();
+      const result = run('token-scope.sh', [], { env: { SUPABASE_ACCESS_TOKEN: 'sbp_wide_token', STUB_CODE: code } });
+      expect(result.code, code).toBe(1);
+      expect(result.out).toContain('production');
+      expect(result.out).not.toContain('sbp_wide_token');
+    }
+  });
+
+  it('asks the production project, with the token in the standard input of curl, never in its arguments', () => {
+    const input = scopeCurl();
+    const result = run('token-scope.sh', [], { env: { SUPABASE_ACCESS_TOKEN: 'sbp_scoped_token', STUB_CODE: '403' } });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toHaveLength(1);
+    expect(result.calls[0]).toContain(`https://api.supabase.com/v1/projects/${PRODUCTION}`);
+    expect(result.calls[0]).not.toContain('sbp_scoped_token');
+    expect(readFileSync(input, 'utf8')).toContain('Authorization: Bearer sbp_scoped_token');
+  });
+
+  it('needs the token', () => {
+    const result = run('token-scope.sh', [], { env: {} });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('SUPABASE_ACCESS_TOKEN');
+    expect(result.calls).toEqual([]);
   });
 });
 

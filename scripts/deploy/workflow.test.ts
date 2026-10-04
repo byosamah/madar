@@ -30,10 +30,34 @@ describe('.github/workflows/deploy.yml', () => {
     for (const trigger of ['push:', 'pull_request', 'schedule:', 'workflow_run', 'repository_dispatch']) expect(code).not.toContain(trigger);
   });
 
-  it('deploys the test project only: migrations, functions, then screens', () => {
+  it('checks the token scope first, then builds with no secret, then deploys the migrations and functions of the test project only', () => {
     const runs = [...code.matchAll(/run: (.+)/g)].map((match) => match[1].trim());
-    expect(runs).toEqual(['npm ci', 'scripts/deploy/db.sh test', 'scripts/deploy/functions.sh test', 'scripts/deploy/pages.sh test']);
+    expect(runs).toEqual([
+      'scripts/deploy/token-scope.sh',
+      'npm ci',
+      'npm run build:server',
+      'scripts/deploy/db.sh test',
+      'scripts/deploy/functions.sh test --prebuilt',
+    ]);
     expect(code).not.toMatch(/production|all\.sh|secrets\.ts|config\.sh/);
+  });
+
+  it('never runs npm (install or build) in a step that holds a secret, so dependency code never sees a token', () => {
+    const steps = code.split(/\n(?= {6}- )/).filter((part) => part.trimStart().startsWith('- '));
+    expect(steps.length).toBeGreaterThan(4);
+    for (const part of steps) if (part.includes('secrets.')) expect(part, part).not.toMatch(/\bnpm\b|npx|build/);
+    expect(step('Build')).not.toContain('secrets.');
+  });
+
+  it('stops the job before any build when the Supabase token reaches production (plan, section 10, decision 9)', () => {
+    const scope = code.indexOf('- name: Token scope');
+    expect(scope).toBeGreaterThan(-1);
+    expect(scope).toBeLessThan(code.indexOf('- name: Install'));
+    expect(step('Token scope')).toContain('SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}');
+  });
+
+  it('holds no Cloudflare token: the Pages project madar serves production too, so the test screens deploy from the Mac', () => {
+    expect(code).not.toMatch(/CLOUDFLARE|pages\.sh|wrangler/);
   });
 
   it('uses only TEST_ repository secrets, each in the one step that needs it, never in the job or during npm ci', () => {
@@ -47,8 +71,7 @@ describe('.github/workflows/deploy.yml', () => {
     expect(step('Migrations')).toContain('MADAR_TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}');
     expect(step('Functions')).toContain('SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}');
     expect(step('Functions')).not.toContain('DB_PASSWORD');
-    expect(step('Screens')).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.TEST_CLOUDFLARE_API_TOKEN }}');
-    expect(step('Screens')).not.toContain('SUPABASE_ACCESS_TOKEN');
+    expect(step('Token scope')).not.toContain('DB_PASSWORD');
   });
 
   it('reads the repository only, keeps no job token in .git/config, and pins every action to a full commit', () => {
