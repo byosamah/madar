@@ -397,7 +397,7 @@ Two more facts:
 
 - The effects read the person again when they run, so a late retry never undoes a newer change (a ban does nothing for a person who is on again).
 - An email change needs to know whether the person accepted, and `users.invites` needs the state of every person. Both read Auth (`getUser`, `listUsers`), which `AuthAdminPort` does not have yet: the merge lead patch of P2 adds them.
-- The forgot route takes the network address from `cf-connecting-ip`, else the first `x-forwarded-for` entry. A client can set that header on Supabase, so the address limit is weak there; the limit for each email still holds, and an office limit of 20 reset mails an hour (`forgot:all`, counted only when a mail would go out) keeps a script from using up the mail of the day. Track Z: check on madar-test which `x-forwarded-for` entry the Supabase proxy adds, and read that entry.
+- The forgot route takes the network address from `cf-connecting-ip` only, on both hosts, and never from `x-forwarded-for` or `true-client-ip`; with no `cf-connecting-ip` (local runs only) the address is `unknown`. (Corrected on 2026-10-04 after the S1 header probe, section "Z0b. The client address of a request" below. The P2 text said "else the first `x-forwarded-for` entry", and kept an office limit `forgot:all`.) The limits are 3 reset requests in one window for each email (1 hour, no longer than the life of a reset link) and 10 an hour for each address, and the reset mail counts against the daily mail quota (`sendCounted`). There is no office-wide limit: S1 removed `forgot:all` and `forgot:day`, because they let one outsider who knows a few staff emails use up the reset mail of the whole office.
 - The auth.email effect notes what it owes in the payload (`owesInvite`, or `notifyOld`) before it changes Auth, so a retry after a failed link or mail still sends it.
 - Track M: `failedEffects` of `usage.get` returns the kind, the attempts and the error of a row, never its payload. An unsent invitation row holds a live token hash.
 - The forgot route answers after the work (padded to 1.5 s). A slow Auth or Resend still makes the answer for a real account slower. Moving the work after the answer needs `after` (waitUntil) in the route handlers and a database that stays open after the answer on Workers; that is a host change for track E, not done here.
@@ -538,3 +538,48 @@ Two more facts:
 **Still open:** Admin invitations (`users.create`, `users.resendInvite`) do not count against the daily mail quota (`sendInvitation` sends with `deps.mail.send`); only a renewal does. A proposal for G: when the consent screen gets the redirect at once for a client whose link Madar removed, it could revoke that grant with the person's token and show the `agent_removed` words, so the person never needs Settings, Agents for this case.
 
 **2026-10-04, track H repair after review (security fix 7).** The renew key is no longer a new random value on each send attempt: it is the sha256 of the invite id and the random token hash of the link (`renewKeyOf`, 52 base32 characters), so a retry sends a mail that is the same byte for byte, and Resend (and `outboxMailPort`) gives the first answer instead of 409 `invalid_idempotent_request`. Unit proof: a mail fake with the Resend rule whose first send goes out and then times out; the retry returns `sent`, sets `sentAt`, drops the token hash and keeps one renew hash (on the first version it threw 409 on every retry). `RENEW_KEY_SQL` adds a hash only once. The renew route now counts the limit of the person and reserves the quota place inside the transaction under the office lock (office lock first, then the mail lock; no code takes them the other way), after it reads the key row again: a second press at the same moment counts nothing, and a refusal rolls back. `server/it/renew.it.test.ts` now also checks one `signin` row in `mail_log` for two presses at the same moment: 3 files (`renew`, `revokeAll`, `mailQuota`), 12 of 12 on the local stack after `supabase db reset` from `rb/H`. The out-of-date Welcome screen keeps the quiet "Back to sign in" link in both states, because Auth also answers `otp_expired` for a used link.
+
+## Z0b. The client address of a request on both hosts (S1 header probe, madar-test, 2026-10-04)
+
+**Why.** The forgot route limits reset requests for each network address (task S1). The limit is only as good as the header it reads, and the P2 rule read the first `x-forwarded-for` entry, which the sender writes.
+
+**What ran.** Track S1 deployed a short-lived probe function `probe-ip` to `madar-test` (`qdgwpnesxppnqsaabqzd`) only, sent it requests from the Mac with forged `x-forwarded-for`, `true-client-ip` and `cf-connecting-ip` headers, and logged the headers that arrived. The function is now a stub that answers 404; it goes when the owner says yes (TASKS.md, Z0b item). The Workers host gets `cf-connecting-ip` from Cloudflare itself (platform fact), so the result covers both hosts.
+
+| Header | What arrives at the function | Use |
+|---|---|---|
+| `cf-connecting-ip` | The real address of the client: Supabase Edge Functions sit behind Cloudflare too. Cloudflare refuses a request that sends its own `cf-connecting-ip` ("error code: 1000"), so a sender cannot forge it. | The only one, on both hosts |
+| `x-forwarded-for` | "client, client, proxy": a forged value is replaced, and the LAST entry is a rotating proxy address (for example 13.248.x.x, 172.69.x.x), not the client. Reading the last entry puts many clients under one proxy address, so one limit for many people. | Never |
+| `true-client-ip` | Passes through forged. | Never |
+
+**Result.** `clientAddress` (server/auth/forgot.ts) reads `cf-connecting-ip` on both hosts, and `unknown` only on local runs (S1, 2e43cb4). The rule "the last `x-forwarded-for` entry" of the first S1 commit is gone. The P2 design note above is corrected to match.
+
+## C2. Loaders and the office cache (local stack, 2026-10-04)
+
+C2 left this section out because track Z owns this file; track Y writes it from the C2 commits (f490928, 0371ac5, 6f4538d and the three C2 fixes), merged into main with rb/C (39c57e6), and from a re-run on main.
+
+**Result: PASS.** Each of the 108 shared calls has a loader that reads only the records the call needs, and every read gives the same rows from Postgres as from the whole office in memory. The office cache reloads only what changed.
+
+**What C2 built.**
+
+- `server/data/loaders/*.ts` and `LOADER_OF` (`index.ts`): a loader for each of the 108 calls (a unit test fails when a call has none), each with two sources behind one interface: `memorySource` (the whole office in memory, which the loader unit tests and the db-mode shadow run use) and `sqlSource` (Postgres). `compare.ts` (`runBoth`) and `sweep.ts` run one call on both and compare.
+- `server/data/officeCache.ts`: the office lists in module memory with the `office_meta.version` they were read at. A change reloads only the rows whose `chg` is newer; a delete arrives through `office_deletes`; a cache older than the oldest kept delete loads everything again; the objects are deep-frozen.
+
+**What ran.**
+
+| Check | Suite | Result |
+|---|---|---|
+| The 18 places of AM 6 where a scoped load could leave out a record: the scoped load gives the same answer as the whole office | `server/data/loaders/loaders.test.ts` | Pass (31 tests on main today, with the A9 unread counts) |
+| The office cache: version check, changed rows only, `office_deletes`, the delete window, frozen objects | `server/data/officeCache.test.ts` | Pass (15 tests on main today) |
+| Every read that the loaders make during the sweep, run on both sources against the sample office plus an undo pair, a thread with a read mark, messages with the same stamp, a decision, a helper and a direct message with a file | `server/it/loaders.it.test.ts` | Pass |
+| The whole sweep with the SQL source against the whole office in memory; the unread counts; the bytes read toward the egress meter | same | Pass (4 of 4) |
+| One project change reloads one row; a task change reads only `office_meta`; a missed delete loads everything; a rolled-back write is never served; frozen objects; a sign-in link from `setAuthUserId` | `server/it/officeCache.it.test.ts` | Pass (5 of 5) |
+
+**Found and fixed in C2's own review.**
+
+1. The cache could keep a snapshot that its own open transaction wrote. When that transaction rolled back and a later commit reused its version number, the cache served the rolled-back rows. Now `office_meta` tells the cache when the reading transaction wrote the row (`xmin`), and the cache builds that snapshot for that read only (73d95e5).
+2. `users.auth_user_id` changed outside the save step without a version raise, so a warm cache missed a new sign-in link. `setAuthUserId` is now the one statement for it, with a version raise and `chg` (73d95e5).
+3. The memory source ranks in one pass, and the sweep tests get 30 seconds under a full parallel run (7562c23). Tests now guard the undone feed event, event ties past `evt_999`, the chat notices of a deleted project and the jobs loader; each fails when its guard is removed (ea61894).
+
+**Follow-ups that C2 named, all done since:** unread counts from `State.counts` with one grouped SQL count for each chat (A9, wave 3); `setAuthUserId` in `auth.invite` and every later change of the sign-in link (P2); `clearOfficeCaches()` after each rollback and the reuse of `runBoth` and `memorySource` in the shadow run (D1); `office_deletes` kept for 7 days and the jobs loader `loadJobs` (N3.1).
+
+**Re-run.** On main 6aa0c56 (branch rb/Y), 2026-10-04: take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it server/it/loaders.it.test.ts server/it/officeCache.it.test.ts` (9 of 9 pass) and `npx vitest run --project server server/data/loaders server/data/officeCache` (46 of 46 pass).
