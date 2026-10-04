@@ -52,6 +52,15 @@ describe('move-to-r2 (plan 2b, point 1)', () => {
     expect(report).toEqual({ objects: 3, bytes: 15, firstPass: 3, secondPass: 0, removedFromTarget: 0, mismatched: [] });
   });
 
+  it('keeps the stored type from the object list, not the type of the download answer (Storage serves HTML as text/plain)', async () => {
+    const source = new Map<string, Stored>([['a/b/1/file', { body: '<p>x</p>', mimeType: 'text/html', etag: '1' }]]);
+    const listed = memorySource(source);
+    const served: MoveSource = { list: listed.list, read: async (key) => ({ ...(await listed.read(key))!, mimeType: 'text/plain' }) };
+    const target = memoryTarget();
+    await moveToR2(served, target, quiet);
+    expect(target.objects.get('a/b/1/file')?.mimeType).toBe('text/html');
+  });
+
   it('copies again in the second pass the objects that changed or came during the first, and removes the ones that went', async () => {
     const source = new Map<string, Stored>([
       ['a/b/1/file', { body: 'one', mimeType: 'text/plain', etag: '1' }],

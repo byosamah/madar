@@ -46,7 +46,8 @@ async function copyAll(source: MoveSource, target: MoveTarget, objects: SourceOb
   for (const object of objects) {
     const read = await source.read(object.key);
     if (!read) continue;
-    await target.write(object.key, read.body, read.mimeType);
+    // The type from the object list is the stored type. The download answer can differ: Storage serves HTML as text/plain.
+    await target.write(object.key, read.body, object.mimeType || read.mimeType);
     copied.set(object.key, object);
     if (copied.size % 100 === 0) log(`copied ${copied.size} of ${objects.length}`);
   }
