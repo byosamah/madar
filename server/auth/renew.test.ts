@@ -14,7 +14,7 @@ import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import './effects';
 import { fakeAuth } from './fakeAuth';
-import { inviteRow, NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, RENEW_KEY_SQL, RENEW_PARAM, SENT_SQL } from './invite';
+import { inviteRow, LATER_INVITE_SQL, NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, RENEW_KEY_SQL, RENEW_PARAM, SENT_SQL } from './invite';
 import { RATE_SQL } from './rateLimit';
 import { createRenewRoute, renewInvitation, RENEW_IP_PER_HOUR, RENEW_KEY_PER_HOUR, RENEW_PATH, RENEW_PERSON_PER_DAY, RENEW_ROW_SQL } from './renew';
 
@@ -58,6 +58,11 @@ function memoryDb(users: Record<string, Row>) {
       const mine = byInvite(values[1]);
       const newer = mem.outbox.some((r) => linkKinds.includes(r.kind) && r.payload.userId === values[0] && 'linkType' in r.payload && mine !== undefined && r.id > mine.id);
       return newer ? [{ found: 1 }] : [];
+    }
+    if (text === LATER_INVITE_SQL) {
+      const mine = byInvite(values[1]);
+      const later = mem.outbox.some((r) => r.kind === 'auth.invite' && r.payload.userId === values[0] && (!r.done || 'sentAt' in r.payload) && mine !== undefined && r.id > mine.id);
+      return later ? [{ found: 1 }] : [];
     }
     if (text === PAYLOAD_MERGE_SQL) {
       const row = byInvite(values[0]);

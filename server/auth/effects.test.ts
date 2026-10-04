@@ -111,6 +111,9 @@ function memoryPeople(people: Person[], db?: Db): AuthStore & { byId: Map<string
     async newerLink() {
       return false;
     },
+    async laterInvite() {
+      return false;
+    },
     async keepLink(inviteId, userId, link, relink) {
       merge(inviteId, { tokenHash: link.tokenHash, authUserId: link.authUserId, linkType: link.type });
       if (relink) byId.get(userId)!.authUserId = link.authUserId;

@@ -48,6 +48,8 @@ import { hashedKey } from './rateLimit';
  * (processOutbox gives the attempt back), and users.invites shows no sentAt until the mail goes out. The renew route
  * reserves the place of its row under the office lock before it writes the row (renewRow, counted: true marks a renewal);
  * the reserve here takes only the mail lock, in a transaction of its own, so the lock order stays office lock, then mail lock.
+ * A row with no link gives way to a later auth.invite row of the same person (laterInvite): on a full day the Admin can
+ * resend up to 5 times, and on the next day only the last row takes a place and sends.
  */
 
 export const INVITE_KIND = 'auth.invite';
@@ -72,6 +74,8 @@ export interface InviteStore {
   note(inviteId: string, fields: Record<string, unknown>): Promise<void>;
   /** True when a later auth.invite or auth.email row of this person already made a link: the link of this row is dead. */
   newerLink(userId: string, inviteId: string): Promise<boolean>;
+  /** True when a later auth.invite row of this person sends the newest invitation (LATER_INVITE_SQL): this row with no link gives way. */
+  laterInvite(userId: string, inviteId: string): Promise<boolean>;
   /** Keeps the link in the payload of the row with this invite id; relink: also write users.auth_user_id. One transaction. */
   keepLink(inviteId: string, userId: string, link: SigninLink, relink: boolean): Promise<void>;
   /** Marks the row as sent and drops its token hash and its renew key. */
@@ -99,6 +103,14 @@ export const NEWER_LINK_SQL =
   "select 1 as found from outbox where kind in ('auth.invite', 'auth.email') and payload->>'userId' = $1 and payload ? 'linkType' " +
   "and id > (select id from outbox where payload->>'inviteId' = $2 limit 1) limit 1";
 
+/**
+ * A later auth.invite row of the same person that is still to run or that sent its mail. A later row that ended with no mail
+ * (the person was turned off then) does not count: users.reactivate writes no new invitation, so this row still owes it.
+ */
+export const LATER_INVITE_SQL =
+  "select 1 as found from outbox where kind = 'auth.invite' and payload->>'userId' = $1 and (done_at is null or payload ? 'sentAt') " +
+  "and id > (select id from outbox where payload->>'inviteId' = $2 limit 1) limit 1";
+
 export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
   return {
     async person(userId) {
@@ -111,6 +123,9 @@ export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
     },
     async newerLink(userId, inviteId) {
       return (await deps.db.statement('read', NEWER_LINK_SQL, [userId, inviteId])).length > 0;
+    },
+    async laterInvite(userId, inviteId) {
+      return (await deps.db.statement('read', LATER_INVITE_SQL, [userId, inviteId])).length > 0;
     },
     async keepLink(inviteId, userId, link, relink) {
       await deps.db.tx('write', async (q) => {
@@ -203,6 +218,12 @@ export async function sendInvitation(
     link = { type: payload.linkType, authUserId: payload.authUserId, tokenHash: payload.tokenHash };
     kept = payload.renewKey;
   } else {
+    // A row that waited for a day with room gives way to a later invitation of the person: that row sends the newest mail, and
+    // this one would take a place for a link that the later one kills (on the day after a full day, when places are tight).
+    if (await store.laterInvite(payload.userId, payload.inviteId)) {
+      deps.log.info('An invitation was not sent: a later invitation of the person sends the newest mail.', { userId: payload.userId });
+      return 'skipped';
+    }
     // The place in today's quota first: a full day makes no link (above).
     const now = deps.clock.now();
     if ((await deps.db.tx('write', (q) => reserve(q, 'signin', mailKey(payload.inviteId), { now, userId: payload.userId }))) === 'over') {

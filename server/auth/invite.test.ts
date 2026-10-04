@@ -25,6 +25,12 @@ function memoryStore(people: Person[]) {
   const replaced = new Set<string>();
   /** Runs at each read of the person: a test changes the person between two reads. */
   const reads: ((p: Person | undefined) => void)[] = [];
+  /** The auth.invite rows in the order of their ids, as queue() writes them (laterInvite reads it). */
+  const queued: { userId: string; inviteId: string }[] = [];
+  const queue = <T extends { payload: Record<string, unknown> }>(row: T): T => {
+    queued.push({ userId: String(row.payload.userId), inviteId: String(row.payload.inviteId) });
+    return row;
+  };
   const store: InviteStore = {
     async person(userId) {
       reads.shift()?.(byId.get(userId));
@@ -35,6 +41,10 @@ function memoryStore(people: Person[]) {
     },
     async newerLink(_userId, inviteId) {
       return replaced.has(inviteId);
+    },
+    async laterInvite(userId, inviteId) {
+      const at = queued.findIndex((row) => row.inviteId === inviteId);
+      return at >= 0 && queued.slice(at + 1).some((row) => row.userId === userId);
     },
     async keepLink(inviteId, userId, link: SigninLink, relink) {
       payloads.set(inviteId, { ...payloads.get(inviteId), tokenHash: link.tokenHash, authUserId: link.authUserId, linkType: link.type });
@@ -54,7 +64,7 @@ function memoryStore(people: Person[]) {
       if (!keys.includes(hash)) payloads.set(inviteId, { ...before, renewKey: key, renewKeys: [...keys, hash] });
     },
   };
-  return { store, payloads, relinks, byId, replaced, reads };
+  return { store, payloads, relinks, byId, replaced, reads, queue };
 }
 
 function setup(people: Person[], o: { db?: ReturnType<typeof memoryMailDb> } = {}) {
@@ -220,6 +230,30 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
     expect(auth.links).toHaveLength(1);
     expect(db.log.filter((r) => r.ref === `invite:${row.payload.inviteId}`).map((r) => r.utc_day)).toEqual(['2026-10-04']);
+  });
+
+  it('rows that waited with no link send one mail on the next day: an older row gives way to a later invitation of the person and takes no place', async () => {
+    const { deps, auth, mem, payloadOf, db } = setup([{ user: person(), authUserId: null }]);
+    db.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    // users.create, then users.resendInvite twice, on a full day: each row runs after its commit and waits with no link.
+    const rows = [];
+    for (let i = 0; i < 3; i += 1) {
+      const row = mem.queue(inviteRow('usr_012'));
+      await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toBeInstanceOf(QuotaFull);
+      rows.push(row);
+    }
+    // The next UTC day: the job runs them in id order. Only the last one makes a link, takes a place and sends.
+    deps.clock.set('2026-10-04T00:05:00Z');
+    const results = [];
+    for (const row of rows) results.push(await sendInvitation(payloadOf(row), deps, { store: mem.store }));
+    expect(results).toEqual(['skipped', 'skipped', 'sent']);
+    expect([auth.links.length, deps.mail.sent.length]).toEqual([1, 1]);
+    expect(db.log.filter((r) => r.ref.startsWith('invite:')).map((r) => r.ref)).toEqual([`invite:${rows[2].payload.inviteId}`]);
+    // Another person's later row does not replace this one.
+    const other = setup([{ user: person(), authUserId: null }, { user: person({ id: 'usr_013', email: 'omar@madar.test' }), authUserId: null }]);
+    const mine = other.mem.queue(inviteRow('usr_012'));
+    other.mem.queue(inviteRow('usr_013'));
+    expect(await sendInvitation(other.payloadOf(mine), other.deps, { store: other.mem.store })).toBe('sent');
   });
 
   it('a renewal keeps the one place that the renew route reserved for it (same key), so it counts once', async () => {
