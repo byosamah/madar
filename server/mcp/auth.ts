@@ -17,12 +17,14 @@ import type { OfficeSnapshot, Principal } from '../core/types';
  *   app answers a hidden 500 and never tells an agent to sign in again because of an outage.
  * - The token comes only from the Authorization header, never from the query string (platform facts 7.2, point 27).
  *
- * The agent behind a checked token, with one statement (AGENT_SQL): the agent link of the client, the start of the session, and
+ * The agent behind a checked token, with one statement (AGENT_SQL): the agent link of the client, whether its session lives, and
  * madar_private.agent_session_ok (the Auth session still exists and belongs to the person who approved the link, the link is
  * not removed, the person and the agent are both on).
  * - No link: the first call of a new approval. ensureAgentUser (agentUser.ts) makes the link, then the statement runs again.
- * - A removed link and a session that started after the removal: a new approval of the same client. ensureAgentUser links again.
- * - A removed link with an older session, or a session that is gone: 401, so the agent signs in again.
+ * - A removed link: 401, also for a session that started after the removal. A new session alone does not prove that the person
+ *   approved again (Auth can remember an earlier consent). G4 adds the approval that the person records in Madar; until then a
+ *   removed client never links again (security review of G3, 2026-10-04).
+ * - A session that is gone: 401, so the agent signs in again.
  * - A live link whose check fails: the person or the agent is off (unauthenticated with the reason account_off, 403), or the
  *   session belongs to another person than the one who approved the client (401).
  */
@@ -104,8 +106,6 @@ export type AgentQuery = <R>(text: string, values?: unknown[]) => Promise<R[]>;
 export type EnsureAgent = (o: { ownerId: string; clientId: string }) => Promise<void>;
 export type AgentPrincipal = { principal: Principal; ownerId: string; linked: boolean };
 
-const time = (value: Date | string | null): number | null => (value === null ? null : new Date(value).getTime());
-
 export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Promise<OfficeSnapshot>; ensure: EnsureAgent }) {
   const read = async (token: AgentToken): Promise<AgentRow> => {
     const [row] = await o.query<AgentRow>(AGENT_SQL, [token.sessionId, token.clientId]);
@@ -118,13 +118,10 @@ export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Pro
 
   return async (token: AgentToken): Promise<AgentPrincipal> => {
     const row = await read(token);
-    const sessionAt = time(row.session_at);
-    if (sessionAt === null) throw signInAgain('This sign-in ended. Connect Madar again in your AI app.');
-    const revokedAt = time(row.revoked_at);
-    const newApproval = row.agent_user_id === null || (revokedAt !== null && sessionAt > revokedAt);
-    if (!newApproval) {
+    if (row.session_at === null) throw signInAgain('This sign-in ended. Connect Madar again in your AI app.');
+    if (row.agent_user_id !== null) {
+      if (row.revoked_at !== null) throw signInAgain('This agent was removed in Madar. Connect it again in your AI app.');
       if (row.ok) return principalOf(row, token, false);
-      if (revokedAt !== null) throw signInAgain('This agent was removed in Madar. Connect it again in your AI app.');
       const office = await o.office();
       const owner = office.lists.users[row.owner_user_id ?? ''];
       const agent = office.lists.users[row.agent_user_id ?? ''];

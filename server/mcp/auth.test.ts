@@ -146,16 +146,14 @@ describe('the agent principal: the link, the first call of a new approval, and t
     expect(ensured).toEqual([{ ownerId: 'usr_001', clientId: CLIENT }]);
   });
 
-  it('links again after a removal when the session started after it (a new approval of the same client)', async () => {
-    const revokedAt = new Date('2026-10-04T08:00:00Z');
+  it('never links a removed link again, also for a session that started after the removal (security review of G3)', async () => {
     const db = answers([
-      row({ agent_user_id: 'usr_009', owner_user_id: 'usr_001', revoked_at: revokedAt, session_at: new Date('2026-10-04T09:00:00Z') }),
-      row({ agent_user_id: 'usr_011', owner_user_id: 'usr_001', session_at: new Date('2026-10-04T09:00:00Z'), ok: true }),
+      row({ agent_user_id: 'usr_009', owner_user_id: 'usr_001', revoked_at: new Date('2026-10-04T08:00:00Z'), session_at: new Date('2026-10-04T09:00:00Z') }),
     ]);
-    const ensured: string[] = [];
-    const resolve = agentPrincipalResolver({ query: db.query, office: async () => office, ensure: async (o) => void ensured.push(o.clientId) });
-    expect((await resolve(tokenOf())).principal.userId).toBe('usr_011');
-    expect(ensured).toEqual([CLIENT]);
+    const ensure = async () => { throw new Error('No new link for a removed client until G4 records an approval.'); };
+    const resolve = agentPrincipalResolver({ query: db.query, office: async () => office, ensure });
+    const error = await resolve(tokenOf()).then(() => null, (e: unknown) => e as ApiError);
+    expect(error?.code).toBe('unauthenticated');
   });
 
   it('refuses a removed link whose session is older than the removal, and a session that is gone, with 401', async () => {

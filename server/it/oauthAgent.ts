@@ -22,11 +22,11 @@ export type AgentTokens = { access_token: string; refresh_token: string; token_t
 const base64url = (bytes: Buffer) => bytes.toString('base64url');
 
 /** Dynamic client registration, as an MCP client does it (RFC 7591): a public client with PKCE and no secret. */
-export async function registerClient(name: string, redirectUri = REDIRECT_URI): Promise<string> {
+export async function registerClient(name: string, redirectUris: string | string[] = REDIRECT_URI): Promise<string> {
   const response = await fetch(`${LOCAL_API}/auth/v1/oauth/clients/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_name: name, redirect_uris: [redirectUri], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }),
+    body: JSON.stringify({ client_name: name, redirect_uris: [redirectUris].flat(), grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }),
   });
   const body = (await response.json()) as { client_id?: string };
   if (!response.ok || !body.client_id) throw new Error(`The client registration failed: ${response.status} ${JSON.stringify(body)}`);

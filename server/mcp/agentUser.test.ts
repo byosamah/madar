@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { User } from '../../src/api/contract/entities';
 import { buildSeed } from '../../src/data/seed';
 import { executeParsed } from '../../src/api/execute';
-import { AGENT_USER_CREATE, agentNameOf, redirectHostOf } from './agentUser';
+import { AGENT_USER_CREATE, agentNameOf, redirectHostOf, redirectSetOf } from './agentUser';
 
 /** The parts of ensureAgentUser that need no database. The whole step runs on the local stack in server/it/mcp.it.test.ts. */
 
@@ -20,6 +20,17 @@ describe('the agent user of an approval', () => {
     expect(redirectHostOf('cursor://anysphere.cursor-retrieval/oauth/callback')).toBe('anysphere.cursor-retrieval');
     expect(redirectHostOf('not a url')).toBe('unknown');
     expect(redirectHostOf('')).toBe('unknown');
+  });
+
+  it('keys an app by the whole set of its redirect addresses: sorted and exact, a loopback address without its port', () => {
+    const one = redirectSetOf('http://127.0.0.1:33418/callback,https://claude.ai/cb');
+    expect(redirectSetOf(' https://claude.ai/cb , http://127.0.0.1:51000/callback')).toBe(one);
+    expect(redirectSetOf('http://localhost:9/cb')).toBe(redirectSetOf('http://localhost:10/cb'));
+    // One more address, another path or another host is another app (security review of G3, identity confusion).
+    expect(redirectSetOf('https://claude.ai/cb,https://other.example/cb')).not.toBe(redirectSetOf('https://claude.ai/cb'));
+    expect(redirectSetOf('https://claude.ai/cb2')).not.toBe(redirectSetOf('https://claude.ai/cb'));
+    expect(redirectSetOf('https://claude.ai:8443/cb')).not.toBe(redirectSetOf('https://claude.ai/cb'));
+    expect(redirectSetOf('')).toBe('');
   });
 
   it('makes an agent user of the person: a member with no role of its own, an address that no mail reaches, and a user.created event by the person', async () => {

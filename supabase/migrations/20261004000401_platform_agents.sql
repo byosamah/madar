@@ -4,9 +4,8 @@
 -- madar_server has no right on the auth schema. These two functions read one row each, as their owner, and only madar_server
 -- may run them. plpgsql, so the body is checked when it runs, after Auth made its tables.
 
--- When the Auth session of an agent token started, or null when the session is gone or belongs to another OAuth client.
--- The MCP token check (server/mcp/auth.ts) compares it with agent_links.revoked_at: a session that started after the removal of
--- an agent is a new approval of the same client, and links again; an older session stays refused.
+-- When the Auth session of an agent token started, or null when the session is gone, ended, or belongs to another OAuth client.
+-- The MCP token check (server/mcp/auth.ts) refuses a token whose session gives null, with a message to sign in again.
 create or replace function madar_private.agent_session_at(session_id uuid, client_id uuid) returns timestamptz
 language plpgsql
 stable
@@ -26,8 +25,9 @@ $$;
 revoke execute on function madar_private.agent_session_at(uuid, uuid) from public, anon, authenticated;
 grant execute on function madar_private.agent_session_at(uuid, uuid) to madar_server;
 
--- The name and the redirect addresses of one OAuth client (an AI app), for the agent user that its first call makes
--- (server/mcp/agentUser.ts). Auth keeps redirect_uris as one text, the addresses separated by commas.
+-- The name and the redirect addresses of one OAuth client (an AI app), for the agent user that its first call makes, and of the
+-- earlier clients of the same app, which must have the same set of addresses (server/mcp/agentUser.ts). Auth keeps
+-- redirect_uris as one text, the addresses separated by commas.
 create or replace function madar_private.agent_client(client_id uuid) returns table (client_name text, redirect_uris text)
 language plpgsql
 stable

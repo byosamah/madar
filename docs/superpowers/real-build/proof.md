@@ -447,7 +447,7 @@ Two more facts:
 
 **Result: pass.** An MCP client gets a token through the real OAuth 2.1 flow of the local Auth server, and the MCP app serves it on Node (in process) and on Deno (`supabase functions serve mcp`). Supabase CLI 2.119.0, Auth v2.197.0, edge runtime 1.77.1, after `supabase db reset` from the `rb/G` worktree.
 
-**Re-run.** Take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/mcp.it.test.ts server/it/hook.it.test.ts` (15 of 15 pass) and `npx tsx server/mcp/conformance.ts` (the second half of `npm run test:mcp`).
+**Re-run.** Take the Docker lock, `supabase db reset`, then `MADAR_IT=1 npx vitest run --project it server/it/mcp.it.test.ts server/it/hook.it.test.ts` (16 of 16 pass) and `npx tsx server/mcp/conformance.ts` (the second half of `npm run test:mcp`).
 
 | Check | Result |
 |---|---|
@@ -456,7 +456,8 @@ Two more facts:
 | A browser token on `mcp` | 401 with `WWW-Authenticate: Bearer resource_metadata=".../mcp/oauth-protected-resource", error="invalid_token"` (aud check). |
 | An agent token on `api` | 403 `forbidden`, `agent_token` (P's check holds; proof.md Z0a item 2). |
 | A write by the agent | The event names the agent (`actorKind: agent`) and its person (`actingForId`); the person undoes it through `api`. |
-| A removed link (`agent_links.revoked_at`) | The next call gets 401 at once. A new approval of the same client (a session that started after the removal) links again. |
+| A removed link (`agent_links.revoked_at`) | The next call gets 401 at once. Auth remembers the consent and gives the same client a new token at once; Madar still refuses it (401) and keeps the link removed (security review of G3: a new session is no new approval; G4 adds the approval the person records in Madar). |
+| A client with the same name and first redirect host, plus one more redirect address | A new agent user: an agent user is reused only for the same whole set of redirect addresses (security review of G3). |
 | The person turned off (`users.deactivate`) | `agents.revokeAll` removes the links in the same request's effects; the agent is refused; after `users.reactivate` the old token stays refused (401). |
 | 61 tool calls in one minute for one person, over two clients | The 61st counts 61 and is refused; `last_used_at` is set in the same statement. |
 

@@ -141,7 +141,7 @@ describe('suite 12: MCP on the local stack', () => {
     expect((await linkOf(firstClient)).last_used_at).not.toBeNull();
   });
 
-  it('stops the next call at once when the link is removed, and links again after a new approval of the same client', async () => {
+  it('stops the next call at once when the link is removed, and never links that client again (security review of G3)', async () => {
     const client = await registerClient(`Removable ${randomUUID().slice(0, 6)}`);
     const token = (await connectAgent(people.usr_001.client, client)).access_token;
     expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
@@ -150,9 +150,19 @@ describe('suite 12: MCP on the local stack', () => {
     const refused = await tool(token, 'projects.get', { id: 'prj_001' });
     expect(refused.status).toBe(401);
     expect(refused.headers.get('WWW-Authenticate')).toContain('error="invalid_token"');
+    // Auth remembers the consent and gives a new session at once; that is no new approval in Madar.
     const again = (await connectAgent(people.usr_001.client, client)).access_token;
-    expect((await tool(again, 'projects.get', { id: 'prj_001' })).status).toBe(200);
-    expect((await linkOf(client)).revoked_at).toBeNull();
+    expect((await tool(again, 'projects.get', { id: 'prj_001' })).status).toBe(401);
+    expect((await linkOf(client)).revoked_at).not.toBeNull();
+  });
+
+  it('gives a client with the same name and first host but one more redirect address a new agent user', async () => {
+    const other = await registerClient(appName, ['http://127.0.0.1:33418/callback', 'https://other.example/cb']);
+    const token = (await connectAgent(people.usr_001.client, other)).access_token;
+    expect((await tool(token, 'projects.get', { id: 'prj_001' })).status).toBe(200);
+    const link = await linkOf(other);
+    expect(link.redirect_host).toBe('127.0.0.1');
+    expect(link.agent_user_id).not.toBe(agentId);
   });
 
   it('turning the person off refuses the agent at once and removes its links (agents.revokeAll); the old token stays refused after the person is on again', async () => {

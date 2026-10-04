@@ -17,13 +17,16 @@ import { signInAgain } from './auth';
  *
  * - The AI app: its name and the host of its first redirect address, from Auth (madar_private.agent_client,
  *   20261004000401_platform_agents.sql).
- * - The agent user of (person, app name, redirect host): an active agent of the person that an earlier link of the same app
- *   names. A reconnect of the same app reuses it, because Supabase makes a new client for each reconnect (supabase/auth 2850).
- *   A removed agent (Settings, Agents) stays off: its app gets a new agent user.
+ * - The agent user of (person, app name, set of redirect addresses): an active agent of the person that an earlier link of the
+ *   same app names. A reconnect of the same app reuses it, because Supabase makes a new client for each reconnect (supabase/auth
+ *   2850). The whole set of redirect addresses must match (redirectSetOf), not only the first host, so a client that adds an
+ *   address of its own never takes over an agent user, its name and its History (security review of G3). The earlier clients'
+ *   addresses come from Auth; a client that Auth no longer has matches nothing. A removed agent stays off: its app gets a new one.
+ * - A link that exists stays as it is: a removed link never links again here (server/mcp/auth.ts).
  * - None: a new users row (kind agent, the person as owner, the app name, the address <agentId>@agents.madar.invalid, which no
  *   mail reaches) and the user.created event with the person as the actor, through the save step, so the History, the change
  *   signal and the office cache see it as any other new person.
- * - The agent link (agent_links), new or linked again.
+ * - The new agent link (agent_links).
  */
 
 const NAME_MAX = 80;
@@ -46,6 +49,24 @@ export function redirectHostOf(redirectUris: string): string {
   }
 }
 
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/**
+ * The redirect addresses of a client as one key: each address exact (a loopback address without its port, which a native app
+ * picks at random), sorted, without repeats. An address that does not parse stays as written.
+ */
+export function redirectSetOf(redirectUris: string): string {
+  const keys = redirectUris.split(',').map((uri) => uri.trim()).filter(Boolean).map((uri) => {
+    try {
+      const url = new URL(uri);
+      return LOOPBACK.has(url.hostname) ? `${url.protocol}//${url.hostname}${url.pathname}${url.search}` : url.href;
+    } catch {
+      return uri;
+    }
+  });
+  return [...new Set(keys)].sort().join('\n');
+}
+
 /** The new agent user, as users.create makes a person, without the people.manage check: a person approves an agent for themself. */
 export const AGENT_USER_CREATE = defineCall({
   input: z.object({ name: z.string().trim().min(1).max(NAME_MAX) }),
@@ -65,23 +86,22 @@ export const AGENT_USER_CREATE = defineCall({
 
 export const LINK_SQL = 'select agent_user_id, revoked_at from agent_links where client_id = $1::uuid';
 export const CLIENT_SQL = 'select client_name, redirect_uris from madar_private.agent_client($1::uuid)';
-export const SAME_APP_SQL =
-  'select agent_user_id from agent_links where owner_user_id = $1 and client_name = $2 and redirect_host = $3 order by approved_at desc';
-export const LINK_UPSERT_SQL = [
-  'insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, approved_at)',
-  ' values ($1::uuid, $2, $3, $4, $5, now())',
-  ' on conflict (client_id) do update set owner_user_id = excluded.owner_user_id, agent_user_id = excluded.agent_user_id,',
-  ' client_name = excluded.client_name, redirect_host = excluded.redirect_host, approved_at = excluded.approved_at,',
-  ' last_used_at = null, revoked_at = null',
+/** The earlier links of the same person, app name and host, with the redirect addresses of their clients in Auth. */
+export const SAME_APP_SQL = [
+  'select l.agent_user_id, c.redirect_uris from agent_links l cross join lateral madar_private.agent_client(l.client_id) c',
+  ' where l.owner_user_id = $1 and l.client_name = $2 and l.redirect_host = $3 order by l.approved_at desc',
 ].join('');
+/** A new link only: a client that has a link keeps it as it is (on conflict, nothing). */
+export const LINK_INSERT_SQL =
+  'insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, approved_at) values ($1::uuid, $2, $3, $4, $5, now()) on conflict (client_id) do nothing';
 
 export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId: string; data?: CallData }): Promise<{ agentUserId: string; created: boolean }> {
   const data = o.data ?? sqlData(deps);
   return data.tx('write', async (t) => {
     await t.lock(deps.config.lockKey);
     const [link] = await t.q<{ agent_user_id: string; revoked_at: Date | string | null }>(LINK_SQL, [o.clientId]);
-    // Another request of the same approval made the link while this one waited for the lock.
-    if (link && link.revoked_at === null) return { agentUserId: link.agent_user_id, created: false };
+    // Another request of the same approval made the link while this one waited for the lock. A removed link stays removed.
+    if (link) return { agentUserId: link.agent_user_id, created: false };
 
     const [client] = await t.q<{ client_name: string | null; redirect_uris: string }>(CLIENT_SQL, [o.clientId]);
     if (!client) throw signInAgain('Madar does not know this AI app. Connect it again in your AI app.');
@@ -94,8 +114,9 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
       throw new ApiError('unauthenticated', 'This account is turned off in Madar.', { reason: 'account_off' });
     }
 
-    const earlier = await t.q<{ agent_user_id: string }>(SAME_APP_SQL, [owner.id, name, host]);
-    let agentUserId = earlier.map((row) => row.agent_user_id).find((id) => {
+    const addresses = redirectSetOf(client.redirect_uris);
+    const earlier = await t.q<{ agent_user_id: string; redirect_uris: string }>(SAME_APP_SQL, [owner.id, name, host]);
+    let agentUserId = earlier.filter((row) => redirectSetOf(row.redirect_uris) === addresses).map((row) => row.agent_user_id).find((id) => {
       const user = office.lists.users[id];
       return user !== undefined && user.kind === 'agent' && user.active && user.ownerId === owner.id;
     });
@@ -113,7 +134,7 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
       if (saved.signals.length > 0) await deps.signal.send(t.q, saved.signals);
       agentUserId = user.id;
     }
-    await t.q(LINK_UPSERT_SQL, [o.clientId, owner.id, agentUserId, name, host]);
+    await t.q(LINK_INSERT_SQL, [o.clientId, owner.id, agentUserId, name, host]);
     return { agentUserId, created };
   });
 }
