@@ -25,7 +25,7 @@ function serverEntry(name: string, input: string, outDir: string, conditions: st
       rollupOptions: {
         input: { [name]: input },
         external: EXTERNAL,
-        output: { format: 'es', entryFileNames: `${name}.js`, codeSplitting: false },
+        output: { format: 'es', entryFileNames: `${name}.js`, codeSplitting: false, comments: { legal: true, annotation: true, jsdoc: false } },
       },
     },
   };

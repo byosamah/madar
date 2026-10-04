@@ -173,10 +173,10 @@ describe('the database guards on the local stack', () => {
 
   it('lets madar_server change the other Madar tables', async () => {
     const result = await rolledBack(server, async () => [
-      await failure(server, `insert into counters (prefix, n) values ('tsk', 1)`),
-      await failure(server, `update counters set n = 2 where prefix = 'tsk'`),
+      await failure(server, `insert into counters (prefix, n) values ('guard', 1)`),
+      await failure(server, `update counters set n = 2 where prefix = 'guard'`),
       await failure(server, `update office_meta set version = version + 1`),
-      await failure(server, `delete from counters where prefix = 'tsk'`),
+      await failure(server, `delete from counters where prefix = 'guard'`),
       await failure(server, 'select pg_advisory_xact_lock(42)'),
     ]);
     expect(result).toEqual(['no error', 'no error', 'no error', 'no error', 'no error']);
@@ -307,6 +307,10 @@ describe('the database guards on the local stack', () => {
        from pg_proc p where p.pronamespace = 'madar_private'::regnamespace order by 1`,
     );
     expect(rows).toEqual([
+      // The agent functions of track G (20261004000401_platform_agents.sql, 20261004000402_platform_agent_approvals.sql): the server only.
+      { name: 'madar_private.agent_authorization(text,uuid)', anon: false, authenticated: false, server: true },
+      { name: 'madar_private.agent_client(uuid)', anon: false, authenticated: false, server: true },
+      { name: 'madar_private.agent_session_at(uuid,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.agent_session_ok(uuid,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.current_madar_user_id()', anon: false, authenticated: true, server: true },
       // The bucket total of the files meter (task M1, 20261004000601_platform_usage_storage.sql): the server only.
