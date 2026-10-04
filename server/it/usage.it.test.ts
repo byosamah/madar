@@ -89,6 +89,15 @@ describe('suite 13: the usage meters on the local database', () => {
     expect(usage.jobsLastRun).toBe('2026-10-04T08:55:00.000+03:00');
   });
 
+  it('leaves out a row that waits for the next mail day, and keeps a row that just failed or failed earlier (wave 6, V)', async () => {
+    await office.sql(
+      "insert into outbox (kind, payload, attempts, error, claimed_until) values ('auth.invite', '{}', 0, 'The daily mail quota is full.', now() + interval '10 hours')");
+    await office.sql("insert into outbox (kind, payload, attempts, error, claimed_until) values ('mail.notice', '{}', 1, 'Resend said no.', now() + interval '90 seconds')");
+    await office.sql("insert into outbox (kind, payload, attempts, error, claimed_until) values ('auth.ban', '{}', 2, 'Auth said no.', now() - interval '1 hour')");
+    const usage = await deps.db.tx('read', (q) => readUsage(q, deps.config, NOW));
+    expect(usage.failedEffects.map((e) => e.kind).sort()).toEqual(['auth.ban', 'mail.notice']);
+  });
+
   it('gives usage.get to the Admin and forbidden to a Member, through runCall', async () => {
     expect(okOf<{ month: string }>(await call('usr_001')).month).toBe('2026-10');
     const refused = await call('usr_002');

@@ -42,9 +42,15 @@ export const STORAGE_PRESENT_SQL = "select to_regprocedure('madar_private.storag
 /** The bytes of every object in the bucket madar-files (supabase/migrations/20261004000601_platform_usage_storage.sql). */
 export const STORAGE_BYTES_SQL = 'select madar_private.storage_bytes() as bytes';
 
-/** The outbox rows that failed and are not done yet, newest first. Never the payload. */
+/**
+ * The outbox rows that failed and are not done yet, newest first. Never the payload. A row that waits for a time it named
+ * (WAIT_SQL in server/core/effects.ts: QuotaFull of a full mail day, until the next UTC midnight) is not a failure: the emails
+ * meter tells the Admin that the day is full, and a Retry cannot send it before then. A normal failure keeps the claim of
+ * CLAIM_SQL, now + 2 minutes at most, so only a wait holds the row longer.
+ */
 export const FAILED_EFFECTS_SQL = `select id::text as id, kind, error, attempts, created_at from outbox
 where done_at is null and error is not null
+  and not coalesce(claimed_until > now() + interval '2 minutes', false)
 order by created_at desc, id desc
 limit 20`;
 
