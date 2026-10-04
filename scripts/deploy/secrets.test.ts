@@ -223,7 +223,7 @@ describe('runSecrets', () => {
 
   describe('production', () => {
     it('stops in GitHub Actions or any CI, before it asks or changes anything (plan, section 10, decision 9)', async () => {
-      for (const ci of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }]) {
+      for (const ci of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }] as Record<string, string>[]) {
         const h = harness({ target: 'production', answer: 'production', env: { SUPABASE_ACCESS_TOKEN: 't', MADAR_DB_PASSWORD: 'p', ...ci } });
         await expect(runSecrets(h.run)).rejects.toThrow(/from the Mac only/);
         expect([h.sql, h.requests, h.asked]).toEqual([[], [], []]);

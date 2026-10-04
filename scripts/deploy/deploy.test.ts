@@ -127,7 +127,7 @@ describe('all.sh production', () => {
   });
 
   it('stops in GitHub Actions or any CI even with the typed word (plan, section 10, decision 9)', () => {
-    for (const ci of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }]) {
+    for (const ci of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }] as Record<string, string>[]) {
       const result = run('all.sh', ['production'], { input: 'production\n', env: { ...TOKENS, ...ci } });
       expect(result.code).toBe(1);
       expect(result.out).toContain('from the Mac only');
