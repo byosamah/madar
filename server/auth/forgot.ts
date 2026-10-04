@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { User } from '../../src/api/contract/entities';
 import { invalid } from '../../src/api/errors';
-import { takeOfficeLock } from '../core/lock';
 import type { Deps, Query } from '../core/ports';
-import { setAuthUserId } from '../data/officeCache';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
@@ -15,15 +13,25 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   The answer also waits until it took at least minMs (1.5 s), so its time does not tell either.
  * - Limits, counted before the lookup, so they say nothing about the email: 3 an hour for each email and 10 an hour for each
  *   network address. Over a limit: 429 with Retry-After (the Forgot screen shows "Too many tries"). The keys hold only a sha256.
+ * - An office limit of 20 reset mails an hour (key forgot:all), counted after the lookup and only when a mail would go out.
+ *   A client can forge the address on Supabase, so this keeps a script from using up the mail of the day (Resend: 100 a day)
+ *   by sending 3 an hour to every person. Over it: no mail, a warning in the log, and the same 200 answer.
  * - For an active person with a sign-in link: a "recovery" link of Auth, and the reset mail in the person's language with a
- *   link to /reset. A link that names another Auth user is written with setAuthUserId (plan 4.7). A person who never got an
- *   invitation has no Auth user, and gets nothing: generate_link must only run for an email that a users row holds (proof.md, P1).
+ *   link to /reset. A person who never got an invitation has no Auth user, and gets nothing: generate_link must only run for
+ *   an email that a users row holds (proof.md, P1).
+ * - A link that names another Auth user than users.auth_user_id gets no mail and no relink: this route needs no sign-in, so
+ *   it never moves a sign-in link (only auth.invite and auth.email do, after an Admin or Management action). It logs a warning.
+ * - The idempotency key of the mail is a sha256 of the token hash: the key goes to the mail sender and its logs, and the token
+ *   hash is the live sign-in credential.
  * - A failure of Auth or of the mail is logged and gives the same answer.
  * - The network address: cf-connecting-ip on Cloudflare, else the first x-forwarded-for entry (the client, on Supabase).
+ *   A client can set that entry on Supabase; track Z checks on madar-test which entry the platform adds.
  */
 
 export const FORGOT_EMAIL_PER_HOUR = 3;
 export const FORGOT_IP_PER_HOUR = 10;
+export const FORGOT_OFFICE_PER_HOUR = 20;
+export const FORGOT_OFFICE_KEY = 'forgot:all';
 export const FORGOT_MIN_MS = 1500;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -45,17 +53,21 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
   if (!row || row.auth === null) return 'none';
   const user = User.parse(row.doc);
   if (!user.active || user.kind !== 'human') return 'none';
+  const q: Query = (text, values) => deps.db.statement('write', text, values);
+  const office = await hitLimit(q, { key: FORGOT_OFFICE_KEY, limit: FORGOT_OFFICE_PER_HOUR, windowMs: HOUR_MS, now: deps.clock.now() });
+  if (!office.ok) {
+    deps.log.warn('A reset mail did not go out: the office reached its limit of reset mails for this hour.', { userId: row.id });
+    return 'none';
+  }
   const link = await deps.authAdmin.generateLink('recovery', user.email);
   if (link.authUserId !== row.auth) {
-    await deps.db.tx('write', async (q) => {
-      await takeOfficeLock(q, deps.config.lockKey);
-      await setAuthUserId(q, row.id, link.authUserId);
-    });
+    deps.log.warn('A reset mail did not go out: the recovery link names another Auth user than the sign-in link.', { userId: row.id });
+    return 'none';
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
     name: user.name, link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
   }, user.gender);
-  await deps.mail.send({ to: user.email, ...mail, tag: 'reset', idempotencyKey: `reset:${link.tokenHash}` });
+  await deps.mail.send({ to: user.email, ...mail, tag: 'reset', idempotencyKey: await hashedKey('reset', link.tokenHash) });
   return 'sent';
 }
 

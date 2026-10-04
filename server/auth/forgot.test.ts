@@ -8,7 +8,7 @@ import { AUTH_LINK_SQL } from '../data/officeCache';
 import { apiApp } from '../http/app';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
-import { createForgotRoute, FORGOT_EMAIL_PER_HOUR, FORGOT_IP_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
+import { createForgotRoute, FORGOT_EMAIL_PER_HOUR, FORGOT_IP_PER_HOUR, FORGOT_OFFICE_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
 import { RATE_SQL } from './rateLimit';
 
 /** POST /api/auth/forgot (plan 5.1; task P2). server/it/auth.it.test.ts runs it on the local stack. */
@@ -84,7 +84,9 @@ describe('POST /auth/forgot', () => {
     expect(auth.links.map((l) => [l.type, l.email])).toEqual([['recovery', 'faisal.al.harbi@madar.test']]);
     expect(deps.mail.sent).toHaveLength(1);
     const [mail] = deps.mail.sent;
-    expect(mail).toMatchObject({ to: 'faisal.al.harbi@madar.test', subject: 'Reset your Madar password', tag: 'reset', idempotencyKey: `reset:${auth.links[0].tokenHash}` });
+    expect(mail).toMatchObject({ to: 'faisal.al.harbi@madar.test', subject: 'Reset your Madar password', tag: 'reset', idempotencyKey: expect.stringMatching(/^reset:[0-9a-f]{64}$/) });
+    // The key goes to the mail sender and its logs: it never holds the token hash, which is the live sign-in credential.
+    expect(mail.idempotencyKey).not.toContain(auth.links[0].tokenHash);
     expect(mail.text).toContain(`https://madar.test/reset?token_hash=${auth.links[0].tokenHash}&type=recovery`);
   });
 
@@ -124,11 +126,35 @@ describe('POST /auth/forgot', () => {
     expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.error === 'Auth is down')).toBe(true);
   });
 
-  it('writes the sign-in link again with setAuthUserId when the recovery link names another Auth user', async () => {
-    const { auth, mem, post, users } = await setup();
+  it('never moves the sign-in link and sends no mail when the recovery link names another Auth user (no sign-in needed here)', async () => {
+    const { deps, mem, post, users } = await setup();
     users.usr_002.auth = '00000000-0000-4000-8000-0000000000ff';
-    await post({ email: 'faisal.al.harbi@madar.test' });
-    expect(mem.relinks).toEqual([['usr_002', auth.links[0].authUserId]]);
+    const response = await post({ email: 'faisal.al.harbi@madar.test' });
+    expect([response.status, await response.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    expect(mem.relinks).toEqual([]);
+    expect(deps.mail.sent).toEqual([]);
+    expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.userId === 'usr_002')).toBe(true);
+  });
+
+  it(`sends at most ${FORGOT_OFFICE_PER_HOUR} reset mails an hour for the whole office, and still gives the same answer`, async () => {
+    const { deps, mem, post } = await setup();
+    // A forged x-forwarded-for gets past the address limit; 3 an hour for each email still holds. The office limit caps the rest.
+    const people = ['faisal.al.harbi@madar.test', 'sara.al.qahtani@madar.test'];
+    let n = 0;
+    for (let round = 0; round < FORGOT_EMAIL_PER_HOUR; round += 1) {
+      for (const email of people) expect((await post({ email }, `198.51.100.${(n += 1)}`)).status).toBe(200);
+    }
+    for (let i = 0; i < FORGOT_EMAIL_PER_HOUR; i += 1) expect((await post({ email: 'nobody@madar.test' }, `192.0.2.${i}`)).status).toBe(200);
+    expect(deps.mail.sent).toHaveLength(6);
+    // Only a mail that would go out counts: the unknown email did not use the office limit.
+    const office = [...mem.rates.entries()].find(([key]) => key.startsWith('forgot:all|'));
+    expect(office?.[1]).toBe(6);
+    mem.rates.set(office![0], FORGOT_OFFICE_PER_HOUR);
+    for (const key of [...mem.rates.keys()]) if (key.startsWith('forgot:email:')) mem.rates.delete(key);
+    const over = await post({ email: people[0] }, '192.0.2.200');
+    expect([over.status, await over.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    expect(deps.mail.sent).toHaveLength(6);
+    expect(deps.logs.some((line) => line.level === 'warn' && /office/.test(line.message))).toBe(true);
   });
 
   it('waits until the answer takes at least minMs, so the time does not tell whether the email has an account', async () => {
