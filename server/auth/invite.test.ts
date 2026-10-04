@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import { defaultPreferences } from '../../src/api/contract/entities';
+import { memoryMailDb } from '../mail/memoryMailDb';
+import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
-import { INVITE_KIND, inviteRow, sendInvitation, type InviteStore, type Person, type SigninLink } from './invite';
+import { INVITE_KIND, inviteRow, RENEW_PARAM, renewRow, sendInvitation, type InviteStore, type Person, type SigninLink } from './invite';
+import { hashedKey } from './rateLimit';
 
 function person(over: Partial<User> = {}): User {
   return {
@@ -43,12 +46,16 @@ function memoryStore(people: Person[]) {
       const { tokenHash: _gone, ...rest } = payloads.get(inviteId) ?? {};
       payloads.set(inviteId, { ...rest, sentAt: at.toISOString(), mailId });
     },
+    async addRenewKey(inviteId, hash) {
+      const before = payloads.get(inviteId) ?? {};
+      payloads.set(inviteId, { ...before, renewKeys: [...((before.renewKeys as string[] | undefined) ?? []), hash] });
+    },
   };
   return { store, payloads, relinks, byId, replaced, reads };
 }
 
-function setup(people: Person[]) {
-  const deps = fakeDeps({ config: { appUrl: 'https://madar.test' } });
+function setup(people: Person[], o: { db?: ReturnType<typeof memoryMailDb> } = {}) {
+  const deps = fakeDeps({ db: o.db?.db, config: { appUrl: 'https://madar.test' } });
   const auth = fakeAuth(deps.authAdmin);
   deps.authAdmin = auth;
   const mem = memoryStore(people);
@@ -58,6 +65,8 @@ function setup(people: Person[]) {
 }
 
 const linkIn = (text: string) => /https:\/\/madar\.test\/\S+/.exec(text)?.[0];
+/** The renew key in the Welcome link of a mail (security fix 7), or undefined. */
+const renewIn = (text: string) => new URL(linkIn(text) ?? 'https://madar.test/').searchParams.get(RENEW_PARAM) ?? undefined;
 
 describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
   it('makes an invite link, links the Auth user with setAuthUserId, and sends the mail in English with a Welcome link', async () => {
@@ -70,8 +79,50 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(mem.relinks).toEqual([{ userId: 'usr_012', authUserId }]);
     const [mail] = deps.mail.sent;
     expect(mail).toMatchObject({ to: 'sara@madar.test', subject: 'Your invitation to Madar', tag: 'invite', idempotencyKey: `invite:${row.payload.inviteId}` });
-    expect(linkIn(mail.text)).toBe(`https://madar.test/welcome?token_hash=${tokenHash}&type=invite`);
+    // The link also carries the renew key of security fix 7, so the Welcome screen can ask for a new link when this one is out of date.
+    const key = renewIn(mail.text)!;
+    expect(linkIn(mail.text)).toBe(`https://madar.test/welcome?token_hash=${tokenHash}&type=invite&${RENEW_PARAM}=${key}`);
     expect(mem.payloads.get(String(row.payload.inviteId))).toMatchObject({ linkType: 'invite', sentAt: deps.clock.now().toISOString(), mailId: 'mail_1' });
+  });
+
+  it('puts an opaque random renew key in the Welcome link, and keeps only its sha256 (security fix 7)', async () => {
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+    const row = inviteRow('usr_012');
+    await sendInvitation(payloadOf(row), deps, { store: mem.store });
+    const key = renewIn(deps.mail.sent[0].text)!;
+    expect(key).toMatch(/^[a-z2-7]{52}$/);
+    const payload = mem.payloads.get(String(row.payload.inviteId))!;
+    expect(payload.renewKeys).toEqual([await hashedKey('renew', key)]);
+    // The key names no person and no email, and the stored row never holds it.
+    expect(JSON.stringify(payload)).not.toContain(key);
+    expect(key).not.toContain('sara');
+  });
+
+  it('a retry after a failed send mails a new renew key and keeps the sha256 of both, so whichever mail went out still works', async () => {
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
+    const row = inviteRow('usr_012');
+    deps.mail.failNext(new Error('Resend is down'));
+    await expect(sendInvitation(payloadOf(row), deps, { store: mem.store })).rejects.toThrow('Resend is down');
+    await sendInvitation(payloadOf(row), deps, { store: mem.store });
+    const key = renewIn(deps.mail.sent[0].text)!;
+    const hashes = mem.payloads.get(String(row.payload.inviteId))!.renewKeys as string[];
+    expect(hashes).toHaveLength(2);
+    expect(hashes[1]).toBe(await hashedKey('renew', key));
+    expect(hashes[0]).not.toBe(hashes[1]);
+  });
+
+  it('a renewal row counts its mail against the daily mail quota as sign-in mail, and a full day keeps the row for the job', async () => {
+    const db = memoryMailDb();
+    const { deps, mem, payloadOf } = setup([{ user: person(), authUserId: null }], { db });
+    const row = renewRow('usr_012');
+    expect(row).toMatchObject({ kind: INVITE_KIND, payload: { userId: 'usr_012', counted: true } });
+    expect(await sendInvitation(payloadOf(row), deps, { store: mem.store })).toBe('sent');
+    expect(db.log.map((r) => [r.kind, r.user_id, r.ref, r.resend_id])).toEqual([['signin', 'usr_012', `invite:${row.payload.inviteId}`, 'mail_1']]);
+    // A full day: the mail does not go out, and the row stays for the job (it throws).
+    db.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    const second = renewRow('usr_012');
+    await expect(sendInvitation(payloadOf(second), deps, { store: mem.store })).rejects.toThrow(/quota/);
+    expect(deps.mail.sent).toHaveLength(1);
   });
 
   it('writes the mail in Arabic, with the feminine forms, for an Arabic woman', async () => {
@@ -132,6 +183,8 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(linkIn(deps.mail.sent[0].text)).toBe(`https://madar.test/welcome?token_hash=${auth.links[1].tokenHash}&type=recovery`);
     // The same Auth user: the link does not change, so setAuthUserId does not run.
     expect(mem.relinks).toEqual([]);
+    // A person who accepted gets no renew key: Madar never renews an accepted invitation (security fix 7).
+    expect(renewIn(deps.mail.sent[0].text)).toBeUndefined();
   });
 
   it('sends nothing for a turned-off person, an agent, or a person who is gone', async () => {

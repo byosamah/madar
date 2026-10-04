@@ -118,6 +118,9 @@ function memoryPeople(people: Person[], db?: Db): AuthStore & { byId: Map<string
     async markSent(inviteId, at, mailId) {
       merge(inviteId, { sentAt: at.toISOString(), mailId });
     },
+    async addRenewKey(inviteId, hash) {
+      merge(inviteId, { renewKeys: [hash] });
+    },
     async queueNotice(inviteId, rows) {
       if (!db) throw new Error('This test has no outbox.');
       return db.tx('write', async (q) => {

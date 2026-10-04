@@ -1,4 +1,5 @@
 import { forgotRoute } from '../auth/forgot';
+import { RENEW_PATH, renewRoute } from '../auth/renew';
 import type { Deps } from '../core/ports';
 import { APPROVE_ROUTE } from '../mcp/approval';
 
@@ -10,5 +11,6 @@ export type RouteDef = { method: 'GET' | 'POST'; path: string; handler: (request
 
 export const ROUTES: RouteDef[] = [
   { method: 'POST', path: '/auth/forgot', handler: forgotRoute },
+  { method: 'POST', path: RENEW_PATH, handler: renewRoute },
   APPROVE_ROUTE,
 ];
