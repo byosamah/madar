@@ -1,0 +1,38 @@
+# Expected failures of the MCP conformance runner 0.1.16 against Madar's mcp function (server/mcp/conformance.ts, task G3).
+# The runner tests a fixture server ("everything server"): its scenarios call tools, prompts and resources by fixed names
+# that Madar does not have (test_simple_text, test_image_content, prompts, resources, completions, logging/setLevel).
+# Madar passes the scenarios that need no fixture: server-initialize, ping, tools-list, server-sse-polling,
+# server-sse-multiple-streams. The 2026-07-28 points of platform facts 7.2 are in server/mcp/app.test.ts.
+server:
+  # Madar declares no logging capability (deprecated in 2026-07-28) and no completions.
+  - logging-set-level
+  - completion-complete
+  # Fixture tools of the runner.
+  - tools-call-simple-text
+  - tools-call-image
+  - tools-call-audio
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - tools-call-with-logging
+  - tools-call-error
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation
+  - json-schema-2020-12
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  # Madar has no resources and no prompts.
+  - resources-list
+  - resources-read-text
+  - resources-read-binary
+  - resources-templates-read
+  - resources-subscribe
+  - resources-unsubscribe
+  - prompts-list
+  - prompts-get-simple
+  - prompts-get-with-args
+  - prompts-get-embedded-resource
+  - prompts-get-with-image
+  # The scenario is for a localhost server with no sign-in: it expects 200 for the Origin http://127.0.0.1:<port>.
+  # Madar refuses every Origin outside ALLOWED_ORIGINS with 403 (platform facts 7.2, point 2); the evil Origin gets 403 too.
+  - dns-rebinding-protection
