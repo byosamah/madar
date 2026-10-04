@@ -286,9 +286,9 @@ Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files
 - A bad, expired or foreign token: `unauthenticated` (401). An expired token has `details.reason: 'token_expired'`.
 - Any token with `client_id`: `forbidden` (403) with `details.reason: 'agent_token'` (plan section 2, change 6). This also holds when the token hook set `aud` to the MCP address: jose checks the signature before the claims, so the payload of the audience error is a signed payload.
 - `role` must be `authenticated`, and `sub` must be a text that is not empty.
-- A key set that cannot load: `failed` (500) with `details.reason: 'token_check_unavailable'`. A JWKS outage never signs a person out.
+- A key set that cannot load: a plain `Error` that names the jose code or the cause. The batch route logs it and answers the hidden `failed` (500), so a JWKS outage never signs a person out and the operator sees why.
 - The JWKS comes from `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. The issuer is `${SUPABASE_URL}/auth/v1`, or `AUTH_ISSUER` when set. A local function sees `SUPABASE_URL=http://kong:8000`, but its tokens name `http://127.0.0.1:54321/auth/v1`, so a local `supabase functions serve` run with real tokens must set `AUTH_ISSUER`. Production leaves it unset.
-- `principalOf` gives the `users` row linked by `auth_user_id`, or `unauthenticated` (401) when no row has the link. A turned-off person still gets a principal, and `runCall` refuses that person with `account_off` (403).
+- `principalOf` gives the `users` row linked by `auth_user_id`, or `unauthenticated` (401) when no row has the link. It also runs `resolveActor` before any call: a turned-off person, or a link to a `users` row that is gone, gets the whole-request `unauthenticated` with `details.reason: 'account_off'` (HTTP 403, plan 4.10), and a link to an agent row gets `forbidden` (403). No call runs, so no transaction opens and no office lock is taken. `runCall` checks the actor again on every call.
 
 ### Invitations with sign-up off
 

@@ -1,7 +1,9 @@
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK, type JWTPayload } from 'jose';
+import { createLocalJWKSet, errors, exportJWK, generateKeyPair, SignJWT, type JWK, type JWTPayload } from 'jose';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import { setEnvSource } from '../env';
+import { apiApp } from '../http/app';
+import { fakeDeps } from '../test/fakes/deps';
 import { browserTokenChecker, verifyBrowserToken } from './verify';
 
 /**
@@ -135,11 +137,31 @@ describe('browserTokenChecker (plan 5.1)', () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('gives failed, not unauthenticated, when the key set cannot load, so a JWKS outage never signs a person out', async () => {
+  it('throws a plain error that names the cause when the key set cannot load, never unauthenticated', async () => {
+    for (const [cause, named] of [[new TypeError('fetch failed'), 'fetch failed'], [new errors.JWKSTimeout(), 'ERR_JWKS_TIMEOUT']] as const) {
+      const down = browserTokenChecker({ issuer: ISSUER, jwks: async () => { throw cause; } });
+      const error = await down(`Bearer ${await token()}`).then(() => null, (e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(ApiError);
+      expect((error as Error).message).toContain(named);
+    }
+  });
+
+  it('so a JWKS outage answers the hidden 500 failed, never signs a person out, and leaves a log line', async () => {
+    const deps = fakeDeps();
     const down = browserTokenChecker({ issuer: ISSUER, jwks: async () => { throw new TypeError('fetch failed'); } });
-    const error = await refusal(down(`Bearer ${await token()}`));
-    expect(error.code).toBe('failed');
-    expect(error.details).toMatchObject({ reason: 'token_check_unavailable' });
+    const runCall = vi.fn();
+    const app = apiApp(deps, { verifyToken: down, runCall, readOffice: async () => { throw new Error('not reached'); } });
+    const response = await app.fetch(new Request('http://127.0.0.1/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+      body: JSON.stringify({ v: 1, calls: [{ i: 0, name: 'tasks.get', input: {} }] }),
+    }));
+    expect(response.status).toBe(500);
+    expect(response.headers.get('WWW-Authenticate')).toBeNull();
+    expect(await response.json()).toMatchObject({ error: { code: 'failed' } });
+    expect(runCall).not.toHaveBeenCalled();
+    expect(deps.logs.some((l) => l.level === 'error' && String(l.fields?.error).includes('fetch failed'))).toBe(true);
   });
 });
 

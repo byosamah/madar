@@ -14,8 +14,8 @@ import { env, requireEnv } from '../env';
  *   has not set its aud to the MCP address. Agents use the mcp function.
  * - role must be "authenticated" and sub must be a text: the id of the auth.users row, for principalOf.
  *
- * A refusal of the token is unauthenticated (401). A key set that cannot load is failed (500), so an outage of the JWKS
- * never signs a person out.
+ * A refusal of the token is unauthenticated (401). A key set that cannot load throws a plain Error that names the cause:
+ * the batch route logs it and answers the hidden 500 failed, so an outage of the JWKS never signs a person out.
  */
 
 export type TokenCheckOptions = { issuer: string; jwks: JWTVerifyGetKey };
@@ -26,7 +26,7 @@ const AUDIENCE = 'authenticated';
 const CLOCK_TOLERANCE_S = 5;
 const BEARER = /^bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i;
 
-/** The jose codes that mean "this token is not good". Every other error (the key set did not load) is failed. */
+/** The jose codes that mean "this token is not good". Every other error (the key set did not load) is a plain Error. */
 const TOKEN_REFUSALS = new Set([
   'ERR_JWT_EXPIRED',
   'ERR_JWT_CLAIM_VALIDATION_FAILED',
@@ -63,7 +63,8 @@ export function browserTokenChecker(o: TokenCheckOptions): TokenChecker {
       if ((error instanceof errors.JWTClaimValidationFailed || error instanceof errors.JWTExpired) && hasClientId(error.payload)) throw agentToken();
       if (error instanceof errors.JWTExpired) throw signIn('token_expired');
       if (error instanceof errors.JOSEError && TOKEN_REFUSALS.has(error.code)) throw signIn();
-      throw new ApiError('failed', 'The sign-in check is not available. Try again.', { reason: 'token_check_unavailable' });
+      // Not a ruling on the token: a plain error, so the batch route logs the cause and answers the hidden 500 failed.
+      throw new Error(`The sign-in check did not run: ${error instanceof errors.JOSEError ? error.code : error instanceof Error ? error.message : String(error)}`);
     }
     if (hasClientId(payload)) throw agentToken();
     if (payload.role !== AUDIENCE || typeof payload.sub !== 'string' || payload.sub === '') throw signIn();
