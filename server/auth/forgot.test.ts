@@ -2,13 +2,18 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import type { After, RequestHost } from '../core/after';
 import { LOCK_SQL } from '../core/lock';
-import type { Db, Query } from '../core/ports';
+import type { Mail } from '../core/ports';
 import { AUTH_LINK_SQL } from '../data/officeCache';
 import { apiApp } from '../http/app';
+import { memoryMailDb } from '../mail/memoryMailDb';
+import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
 import { fakeAuth } from './fakeAuth';
-import { createForgotRoute, FORGOT_EMAIL_PER_HOUR, FORGOT_IP_PER_HOUR, FORGOT_OFFICE_PER_HOUR, FORGOT_PERSON_SQL } from './forgot';
+import {
+  clientAddress, createForgotRoute, FORGOT_EMAIL_PER_HOUR, FORGOT_IP_PER_HOUR, FORGOT_OFFICE_PER_DAY, FORGOT_OFFICE_PER_HOUR, FORGOT_PERSON_SQL,
+} from './forgot';
 import { RATE_SQL } from './rateLimit';
 
 /** POST /api/auth/forgot (plan 5.1; task P2). server/it/auth.it.test.ts runs it on the local stack. */
@@ -18,10 +23,11 @@ beforeAll(async () => {
   seed = await buildSeed('2026-10-04', async () => undefined);
 });
 
+/** The users rows and the rate limits in memory, on the mail database of N2 (the quota and the outbox statements). */
 function memoryDb(users: Record<string, { doc: User; auth: string | null }>) {
   const rates = new Map<string, number>();
   const relinks: unknown[][] = [];
-  const q = (async (text: string, values: unknown[] = []) => {
+  const mem = memoryMailDb((text, values) => {
     if (text === RATE_SQL) {
       const id = `${values[0]}|${values[1]}`;
       rates.set(id, (rates.get(id) ?? 0) + 1);
@@ -37,17 +43,12 @@ function memoryDb(users: Record<string, { doc: User; auth: string | null }>) {
       users[String(values[0])].auth = String(values[1]);
       return [{ id: values[0] }];
     }
-    throw new Error(`No answer for: ${text.slice(0, 60)}`);
-  }) as Query;
-  const db: Db = {
-    tx: async (_mode, work) => work(q),
-    savepoint: async (inner, work) => work(inner),
-    statement: async (_mode, text, values) => q(text, values),
-  };
-  return { db, rates, relinks };
+    return undefined;
+  });
+  return { db: mem.db, mem, rates, relinks };
 }
 
-async function setup() {
+async function setup(o: { host?: () => RequestHost } = {}) {
   const auth = fakeAuth();
   const linked = async (user: User) => ({ doc: user, auth: (await auth.generateLink('invite', user.email)).authUserId });
   const users: Record<string, { doc: User; auth: string | null }> = {
@@ -62,13 +63,13 @@ async function setup() {
   const deps = fakeDeps({ db: mem.db, config: { appUrl: 'https://madar.test' } });
   deps.authAdmin = auth;
   const slept: number[] = [];
-  const route = createForgotRoute({ minMs: 0, sleep: async (ms) => void slept.push(ms) });
+  const route = createForgotRoute({ minMs: 0, sleep: async (ms) => void slept.push(ms), host: o.host });
   const app = apiApp(deps, { routes: [{ method: 'POST', path: '/auth/forgot', handler: route }] });
   const post = (body: unknown, ip = '203.0.113.7') =>
     app.fetch(new Request('http://127.0.0.1/auth/forgot', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `${ip}, 10.0.0.1` }, body: typeof body === 'string' ? body : JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `10.0.0.1, ${ip}` }, body: typeof body === 'string' ? body : JSON.stringify(body),
     }));
-  return { auth, deps, mem, post, slept, users };
+  return { auth, deps, mem, post, route, slept, users };
 }
 
 describe('POST /auth/forgot', () => {
@@ -166,5 +167,100 @@ describe('POST /auth/forgot', () => {
     expect(slept).toHaveLength(1);
     expect(slept[0]).toBeGreaterThan(1000);
     expect(slept[0]).toBeLessThanOrEqual(1500);
+  });
+});
+
+describe('clientAddress (S1): only a value that the host itself writes', () => {
+  const request = (headers: Record<string, string>) => new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers });
+
+  it('on Workers: cf-connecting-ip, which Cloudflare sets; an x-forwarded-for of the sender counts for nothing', () => {
+    expect(clientAddress(request({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.1' }), 'workers')).toBe('203.0.113.7');
+    expect(clientAddress(request({ 'x-forwarded-for': '198.51.100.1' }), 'workers')).toBe('unknown');
+  });
+
+  it('on Supabase: the LAST x-forwarded-for entry (the one the gateway appends); a forged cf-connecting-ip and the first entries count for nothing', () => {
+    expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 2.2.2.2 , 203.0.113.9' }), 'supabase')).toBe('203.0.113.9');
+    expect(clientAddress(request({ 'cf-connecting-ip': '1.1.1.1', 'x-forwarded-for': '203.0.113.9' }), 'supabase')).toBe('203.0.113.9');
+    expect(clientAddress(request({ 'cf-connecting-ip': '1.1.1.1' }), 'supabase')).toBe('unknown');
+    expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 203.0.113.9' }), 'other')).toBe('203.0.113.9');
+  });
+});
+
+describe('POST /auth/forgot (S1): the limits a sender cannot get past, the mail quota, and the time of the answer', () => {
+  it(`a sender who changes the first x-forwarded-for entries still stops after ${FORGOT_IP_PER_HOUR} an hour`, async () => {
+    const { post } = await setup();
+    const forged = (n: number, body: unknown) => post(body, `198.51.100.${n}, 203.0.113.50`);
+    for (let i = 0; i < FORGOT_IP_PER_HOUR; i += 1) expect((await forged(i, { email: `p${i}@madar.test` })).status).toBe(200);
+    expect((await forged(77, { email: 'p77@madar.test' })).status).toBe(429);
+  });
+
+  it('counts the reset mail against the daily mail quota as sign-in mail, and sends none when the day is full (same answer)', async () => {
+    const { deps, mem, post } = await setup();
+    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
+    expect(mem.mem.log.map((row) => [row.kind, row.user_id, row.resend_id])).toEqual([['signin', 'usr_002', 'mail_1']]);
+    mem.mem.fill('notice', QUOTA_LIMITS.signin - 1, deps.clock.now().toISOString().slice(0, 10));
+    const full = await post({ email: 'sara.al.qahtani@madar.test' }, '192.0.2.5');
+    expect([full.status, await full.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    expect(deps.mail.sent).toHaveLength(1);
+    expect(deps.logs.some((line) => line.level === 'warn' && /quota/.test(line.message) && line.fields?.userId === 'usr_005')).toBe(true);
+  });
+
+  it(`sends at most ${FORGOT_OFFICE_PER_DAY} reset mails a UTC day for the whole office, so resets never use up the mail of the day`, async () => {
+    const { deps, mem, post } = await setup();
+    expect(FORGOT_OFFICE_PER_DAY).toBeLessThan(QUOTA_LIMITS.notice / 2);
+    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
+    const day = [...mem.rates.entries()].find(([key]) => key.startsWith('forgot:day|'));
+    expect(day?.[1]).toBe(1);
+    mem.rates.set(day![0], FORGOT_OFFICE_PER_DAY);
+    const over = await post({ email: 'sara.al.qahtani@madar.test' }, '192.0.2.6');
+    expect([over.status, await over.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    expect(deps.mail.sent).toHaveLength(1);
+    expect(deps.logs.some((line) => line.level === 'warn' && /day/.test(line.message))).toBe(true);
+  });
+
+  it('with an after, answers before the lookup and the send: a send that takes 3 s does not show that the email has an account', async () => {
+    const later: Promise<unknown>[] = [];
+    const after: After = (work) => void later.push(work);
+    const { deps, route } = await setup({ host: () => ({ host: 'supabase', after }) });
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const send = deps.mail.send.bind(deps.mail);
+    // The send of a real person takes 3 s here: it waits until the test lets it go.
+    deps.mail.send = async (mail: Mail) => {
+      await slow;
+      return send(mail);
+    };
+    const ask = (email: string) => route(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) }), deps);
+    const timed = async (email: string) => {
+      const started = performance.now();
+      const response = await Promise.race([ask(email), new Promise<'late'>((resolve) => setTimeout(() => resolve('late'), 500))]);
+      return { answer: response === 'late' ? 'late' : [response.status, await response.text()], ms: performance.now() - started };
+    };
+    const person = await timed('faisal.al.harbi@madar.test');
+    const nobody = await timed('nobody@madar.test');
+    expect(person.answer).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    expect(nobody.answer).toEqual(person.answer);
+    expect(Math.abs(person.ms - nobody.ms)).toBeLessThan(100);
+    expect(deps.mail.sent).toHaveLength(0);
+    expect(later).toHaveLength(2);
+    release();
+    await Promise.all(later);
+    expect(deps.mail.sent.map((mail) => mail.to)).toEqual(['faisal.al.harbi@madar.test']);
+  });
+
+  it('with no after (tests, local runs), keeps the lookup and the send inline, before the answer', async () => {
+    const { deps, post } = await setup({ host: () => ({ host: 'other' }) });
+    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
+    expect(deps.mail.sent).toHaveLength(1);
+  });
+
+  it('logs a failure of the work after the answer, and the answer stays the same', async () => {
+    const later: Promise<unknown>[] = [];
+    const { auth, deps, post } = await setup({ host: () => ({ host: 'supabase', after: (work) => void later.push(work) }) });
+    auth.failNext(new Error('Auth is down'));
+    const response = await post({ email: 'faisal.al.harbi@madar.test' });
+    expect([response.status, await response.text()]).toEqual([200, JSON.stringify({ v: 1, ok: true })]);
+    await Promise.all(later);
+    expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.error === 'Auth is down')).toBe(true);
   });
 });
