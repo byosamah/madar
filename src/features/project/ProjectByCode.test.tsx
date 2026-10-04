@@ -3,10 +3,13 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
+// A whole project page can take more than the 1 s default when the suite runs next to a build (flaky, wave 5 and 6 merges).
+const LOAD = { timeout: 10_000 };
+
 describe('project links', () => {
   it('opens a project from its code', async () => {
     await renderApp('/projects/code/KH-26-003');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Eastern Shore Primary School' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Eastern Shore Primary School' }, LOAD)).toBeInTheDocument();
   });
 
   it('says when no project has the code', async () => {
@@ -19,7 +22,7 @@ describe('project links', () => {
       state.session.currentUserId = 'usr_002';
     });
     await api.call('updates.create', { projectId: 'prj_001', body: 'Same facade as #KH-26-003' });
-    await userEvent.click(await screen.findByRole('link', { name: '#KH-26-003' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Eastern Shore Primary School' })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('link', { name: '#KH-26-003' }, LOAD));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Eastern Shore Primary School' }, LOAD)).toBeInTheDocument();
   });
 });

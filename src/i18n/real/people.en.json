@@ -2,7 +2,6 @@
   "people": {
     "invited": "Invited",
     "resend": "Send the invitation again",
-    "sent": "Invitation sent to {{name}}.",
     "languageHint": "Madar uses this language for the invitation email and the first sign-in."
   },
   "password": {

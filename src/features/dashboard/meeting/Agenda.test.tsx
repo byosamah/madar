@@ -383,6 +383,8 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await renderApp(MEETING);
     const decisions = () => within(screen.getByRole('region', { name: 'Decisions' }));
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    // The panel waits for projects.get, so it can come after the card (a flake under load, wave 6 merge).
+    await screen.findByRole('region', { name: 'Decisions' });
     await userEvent.type(decisions().getByRole('textbox', { name: 'Write a decision' }), 'Yesterday decision{Enter}');
     await decisions().findByText('Yesterday decision');
     // No page event comes in the morning. The check of each minute finds the new day.
@@ -397,6 +399,7 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
     await screen.findByRole('article', { name: 'Corniche Office Tower' });
     await userEvent.keyboard('b');
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
+    await screen.findByRole('region', { name: 'Decisions' });
     expect(await decisions().findByText('Morning decision')).toBeInTheDocument();
   });
 
