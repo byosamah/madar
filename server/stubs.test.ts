@@ -9,7 +9,6 @@ import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { resendMailPort } from './mail/resend';
 import { outboxMailPort } from './mail/outboxDriver';
 import { realtimeSignalPort } from './signal/realtime';
-import { authAdminPort } from './auth/admin';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
 import { meterPort } from './usage/meter';
@@ -73,15 +72,10 @@ describe('the stubs', () => {
     }
   });
 
-  it('mail and the Auth admin refuse (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts)', async () => {
+  it('mail refuses (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts; the Auth admin is built: server/auth/admin.test.ts)', async () => {
     const mail = { to: 'a@madar.test', subject: 's', html: '', text: '', tag: 't', idempotencyKey: 'k' };
     await refusesNotBuilt(() => resendMailPort({ apiKey: 'x', from: 'Madar <a@madar.test>' }).send(mail));
     await refusesNotBuilt(() => outboxMailPort(noDb).send(mail));
-    const admin = authAdminPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x' });
-    await refusesNotBuilt(() => admin.generateLink('invite', 'a@madar.test'));
-    await refusesNotBuilt(() => admin.createUser('a@madar.test', 'pw'));
-    await refusesNotBuilt(() => admin.setBanned('id', true));
-    await refusesNotBuilt(() => admin.updateEmail('id', 'b@madar.test'));
   });
 
   it('the MCP app, the jobs app and the Workers entry answer 501 until built, so a mounted stub never crashes a host', async () => {
