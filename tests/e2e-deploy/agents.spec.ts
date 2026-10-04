@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { AFTER_G, asRole, expect, PERSON_OF, test } from './fixtures';
+import { AFTER_G, asRole, expect, PERSON_OF, test, useLanguage } from './fixtures';
 import { DEPLOYED, goto } from './goto';
-import { expectCalm, expectNoSeriousA11y, runId } from './steps';
+import { expectCalm, expectNoSeriousA11y, LANGS, runId, THEMES, WIDTHS } from './steps';
+import { supabaseTarget, type SupabaseTarget } from './targets';
 
 /**
  * AI agents on the remote build (plan 5.6; task X2): the consent flow of an MCP client up to the Approve page, Settings, Agents,
@@ -15,14 +16,16 @@ import { expectCalm, expectNoSeriousA11y, runId } from './steps';
  * - The steps run as the member account (Faisal), so the Admin keeps no agent. A failed case 3 would change Faisal's password; the
  *   next seed sets it back.
  *
- * Values: MADAR_E2E_SUPABASE_URL (the project URL; the local stack by default), MADAR_E2E_PUBLISHABLE_KEY (for case 3), and
- * MADAR_E2E_MCP_URL (default <project URL>/functions/v1/mcp).
+ * Values: MADAR_E2E_SUPABASE_URL (the project URL; the local stack by default, and required on the test deployment),
+ * MADAR_E2E_PUBLISHABLE_KEY (for case 3), and MADAR_E2E_MCP_URL (default <project URL>/functions/v1/mcp). targets.ts refuses
+ * every project but madar-test and the local stack before the first call, so no run registers a client on another project.
  */
 test.skip(!AFTER_G, 'The agents come with track G. The merge lead runs this spec after the merge of rb/G (MADAR_E2E_AFTER_G=1).');
 test.use(asRole('member'));
 
-const SUPABASE_URL = (process.env.MADAR_E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321').replace(/\/+$/, '');
-const MCP_URL = process.env.MADAR_E2E_MCP_URL ?? `${SUPABASE_URL}/functions/v1/mcp`;
+let checkedTarget: SupabaseTarget | undefined;
+/** The project of this spec, checked at its first use: a skipped spec (no track G yet) needs no project values. */
+const target = (): SupabaseTarget => (checkedTarget ??= supabaseTarget(process.env));
 /** A loopback redirect, as a desktop MCP client uses: the consent screen shows no warning for it. */
 const REDIRECT_URI = 'http://127.0.0.1:33418/callback';
 
@@ -30,7 +33,7 @@ const base64url = (bytes: Buffer) => bytes.toString('base64url');
 
 /** Dynamic client registration, as an MCP client does it (RFC 7591). */
 async function registerClient(name: string): Promise<string> {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/oauth/clients/register`, {
+  const response = await fetch(`${target().supabaseUrl}/auth/v1/oauth/clients/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_name: name, redirect_uris: [REDIRECT_URI], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }),
@@ -45,10 +48,10 @@ type Flow = { clientId: string; verifier: string; consentRoute: string };
 /** The authorize step with PKCE. Auth answers with the consent page of Madar; the spec opens it on the run's own host. */
 async function startFlow(clientId: string): Promise<Flow> {
   const verifier = base64url(randomBytes(32));
-  const authorize = new URL(`${SUPABASE_URL}/auth/v1/oauth/authorize`);
+  const authorize = new URL(`${target().supabaseUrl}/auth/v1/oauth/authorize`);
   authorize.search = new URLSearchParams({
     response_type: 'code', client_id: clientId, redirect_uri: REDIRECT_URI, code_challenge: base64url(createHash('sha256').update(verifier).digest()),
-    code_challenge_method: 'S256', state: base64url(randomBytes(12)), resource: MCP_URL,
+    code_challenge_method: 'S256', state: base64url(randomBytes(12)), resource: target().mcpUrl,
   }).toString();
   const start = await fetch(authorize, { redirect: 'manual' });
   const consent = new URL(start.headers.get('location') ?? 'http://x/');
@@ -70,31 +73,43 @@ async function approve(page: Page): Promise<string> {
 }
 
 async function exchange(flow: Flow, code: string): Promise<string> {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/oauth/token`, {
+  const response = await fetch(`${target().supabaseUrl}/auth/v1/oauth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: flow.clientId, code_verifier: flow.verifier, resource: MCP_URL }),
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: flow.clientId, code_verifier: flow.verifier, resource: target().mcpUrl }),
   });
   const body = (await response.json()) as { access_token?: string };
   if (!response.ok || !body.access_token) throw new Error(`The code exchange failed: ${response.status}`);
   return body.access_token;
 }
 
-test('the consent screen shows the agent and its one Approve button', async ({ page }) => {
-  const name = `X2 consent ${runId()}`;
-  const flow = await startFlow(await registerClient(name));
-  for (const width of [390, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await goto(page, flow.consentRoute);
-    await expect(page.getByText(name)).toBeVisible();
-    // The host of the redirect address shows, so a person sees where the agent sends the code.
-    await expect(page.getByText('127.0.0.1').first()).toBeVisible();
-    await expect(page.locator('button.signature:visible')).toHaveCount(1);
-    await page.screenshot({ path: `test-results/e2e-deploy-shots/agents/consent-${width}.png`, fullPage: true });
-    await expectCalm(page, 'consent');
-    await expectNoSeriousA11y(page, 'consent');
+// Plan 6.1, rule 8: the consent screen in both languages and both themes, at the 3 widths. One flow serves the 3 widths of a
+// language and a theme; the preferences fixture puts Faisal's English back at the end.
+for (const lang of LANGS) {
+  for (const theme of THEMES) {
+    test(`the consent screen shows the agent and its one Approve button at ${WIDTHS.join(', ')}px, ${lang}, ${theme}`, async ({ page }) => {
+      const name = `X2 consent ${lang} ${theme} ${runId()}`;
+      const flow = await startFlow(await registerClient(name));
+      await page.emulateMedia({ colorScheme: theme });
+      if (lang === 'ar') await useLanguage(page, 'ar');
+      for (const width of WIDTHS) {
+        const label = `consent ${width}px ${lang} ${theme}`;
+        await page.setViewportSize({ width, height: 900 });
+        await goto(page, flow.consentRoute);
+        await expect(page.getByText(name)).toBeVisible();
+        await expect(page.locator('html')).toHaveAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        // The host of the redirect address shows, so a person sees where the agent sends the code.
+        await expect(page.getByText('127.0.0.1').first()).toBeVisible();
+        await expect(page.locator('button.signature:visible')).toHaveCount(1);
+        await page.screenshot({ path: `test-results/e2e-deploy-shots/agents/consent-${width}-${lang}-${theme}.png`, fullPage: true });
+        await expectCalm(page, label);
+        await expectNoSeriousA11y(page, label);
+        expect.soft(await page.evaluate(() => document.documentElement.scrollWidth), `${label} scrolls sideways`).toBeLessThanOrEqual(width);
+      }
+    });
   }
-});
+}
 
 test('an approved agent shows in Settings, Agents after its first call, and Remove takes it away', async ({ page }) => {
   const name = `X2 agent ${runId()}`;
@@ -103,7 +118,7 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   await expect(page.getByText(name)).toBeVisible();
   const token = await exchange(flow, await approve(page));
   // The first MCP call makes the agent link (ensureAgentUser).
-  const listed = await fetch(MCP_URL, {
+  const listed = await fetch(target().mcpUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
@@ -119,7 +134,7 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   const confirm = page.getByRole('dialog').locator('button.signature, button.text-late').last();
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
   await expect(page.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
-  const after = await fetch(MCP_URL, {
+  const after = await fetch(target().mcpUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
@@ -134,7 +149,7 @@ test('Z0a case 3: an agent token cannot set a new password without the current o
   const flow = await startFlow(await registerClient(`X2 password check ${runId()}`));
   await goto(page, flow.consentRoute);
   const token = await exchange(flow, await approve(page));
-  const answer = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+  const answer = await fetch(`${target().supabaseUrl}/auth/v1/user`, {
     method: 'PUT',
     headers: { apikey: publishable, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: `Agent-set-${runId()}-pass` }),
