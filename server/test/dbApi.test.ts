@@ -10,36 +10,18 @@ import { setNow } from '../../src/lib/dates';
 import { makeTask, makeWorld, NOW } from '../../src/test/factories';
 import { memoryData } from '../core/memoryData';
 import { createRunCall } from '../core/runCall';
-import type { CallEntry } from '../core/serverCallMap';
 import type { RunResult } from '../core/types';
 import { fakeDeps } from './fakes/deps';
 import { createDbApi, officeOf, type MirrorBackend } from './dbApi';
-import { withStandIns } from './uploads';
+import { uploadStandIns } from './uploadStandIns';
 
 /**
  * The mirror store on the in-memory data of runCall (server/core/memoryData.ts), so its rules run without Docker. The database
- * backend of server/test/db.ts follows the same interface, and the db project runs it on the local stack.
+ * backend of server/test/db.ts follows the same interface, and the db project runs it on the local stack. The upload steps of
+ * track F keep their upload records in SQL (server/files/intents.ts), which the in-memory data does not answer. Here they run on
+ * the stand-ins of uploadStandIns.ts, so this file still checks the mirror's own upload steps without Docker; the db project
+ * runs the real steps of track F on the local stack.
  */
-const notBuilt = async (): Promise<never> => {
-  throw new ApiError('failed', 'not built', { reason: 'not_built' });
-};
-
-/**
- * The upload steps of track F keep their upload records in SQL (server/files/intents.ts), which the in-memory data does not
- * answer. Here they run on the stand-ins of uploads.ts, so this file still checks the mirror's own upload steps without Docker;
- * the db project runs the real steps of track F on the local stack.
- */
-function uploadsOnStandIns(calls: ReadonlyMap<string, CallEntry>): ReadonlyMap<string, CallEntry> {
-  const map = new Map(calls);
-  for (const [name, entry] of calls) {
-    if (entry.kind === 'server' && (name === 'files.uploadStart' || name === 'feedback.uploadStart')) map.set(name, { ...entry, call: notBuilt });
-    if (entry.kind === 'shared' && entry.hooks && ['files.upload', 'feedback.send', 'feedback.screenshot'].includes(name)) {
-      map.set(name, { ...entry, hooks: Object.fromEntries(Object.keys(entry.hooks).map((hook) => [hook, notBuilt])) });
-    }
-  }
-  return withStandIns(map, { trackFMerged: false });
-}
-
 function memoryBackend(o: { lie?: (result: RunResult, mem: ReturnType<typeof memoryData>) => void } = {}) {
   const mem = memoryData(emptyState(''));
   const deps = fakeDeps({ db: mem.db });
@@ -57,7 +39,7 @@ function memoryBackend(o: { lie?: (result: RunResult, mem: ReturnType<typeof mem
     },
     async run(req, calls) {
       runs += 1;
-      const result = await createRunCall({ calls: uploadsOnStandIns(calls), data: () => mem.data(), afterCommit: async () => undefined })(deps, req);
+      const result = await createRunCall({ calls: uploadStandIns(calls), data: () => mem.data(), afterCommit: async () => undefined })(deps, req);
       o.lie?.(result, mem);
       return result;
     },

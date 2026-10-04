@@ -115,7 +115,7 @@ export async function workerBaseline(client: SqlClient, schema: string, provided
 }
 
 /** What one test file of a worker writes into the run folder when it closes (server/test/db.ts). */
-export type WorkerStats = { n: number; ms: number; standIns?: number };
+export type WorkerStats = { n: number; ms: number };
 
 /** The gate of TM 4.1 and plan 7.2: the db job fails when the run takes more than 120 s, or a call more than 25 ms on average. */
 const GATE_RUN_MS = 120_000;
@@ -139,7 +139,6 @@ export function readWorkerStats(dir: string): WorkerStats[] {
 export function speedGate(stats: readonly WorkerStats[], runMs: number, o: { ci: boolean }): { line: string; failure?: string } {
   const n = stats.reduce((sum, one) => sum + one.n, 0);
   const ms = stats.reduce((sum, one) => sum + one.ms, 0);
-  const standIns = stats.reduce((sum, one) => sum + (one.standIns ?? 0), 0);
   const perCall = n > 0 ? ms / n : 0;
   const seconds = Math.round(runMs / 1000);
   const over = [
@@ -147,7 +146,6 @@ export function speedGate(stats: readonly WorkerStats[], runMs: number, o: { ci:
     runMs > GATE_RUN_MS ? `the run of ${seconds} s is over the gate of ${GATE_RUN_MS / 1000} s` : '',
   ].filter(Boolean);
   let line = `db mode: ${n} calls, ${perCall.toFixed(1)} ms a call in runCall, the run took ${seconds} s.`;
-  if (standIns > 0) line += ` ${standIns} upload steps ran on the stand-ins of server/test/uploads.ts, until track F merges.`;
   if (over.length === 0) return { line };
   const failure = `db mode, speed gate (TM 4.1): ${over.join('; ')}.`;
   return o.ci ? { line, failure } : { line: `${line} Warning, over the gate (only CI fails on it): ${over.join('; ')}.` };

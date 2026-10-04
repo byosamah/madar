@@ -9,7 +9,7 @@ import { TABLES } from '../data/tables';
 import type { FixedClock } from './fakes/clock';
 import type { FakeFiles } from './fakes/files';
 import { callProblems } from './invariants';
-import { browserPut, keyOfLink, storedContent, withStandIns } from './uploads';
+import { browserPut, keyOfLink, storedContent } from './uploads';
 
 /**
  * The mirror store of db mode (TM 3.3; task D1). testApi() returns it when MADAR_DB=1 (src/test/factories.ts), so the API tests
@@ -130,9 +130,8 @@ function loadServer(): Promise<ServerParts> {
 }
 
 /**
- * The call map of the server, with the test's own definition where a test passes one under a shared name, and the stand-ins of
- * uploads.ts in front of the stubs of track F. It holds every server call, also the upload starts that only the mirror's own
- * upload steps send; a test reaches only the names of its own call map.
+ * The call map of the server, with the test's own definition where a test passes one under a shared name. It holds every server
+ * call, also the upload starts that only the mirror's own upload steps send; a test reaches only the names of its own call map.
  */
 function callMapOf(calls: CallMap, serverCallMap: ReadonlyMap<string, CallEntry>): ReadonlyMap<string, CallEntry> {
   const map = new Map<string, CallEntry>(serverCallMap);
@@ -142,7 +141,7 @@ function callMapOf(calls: CallMap, serverCallMap: ReadonlyMap<string, CallEntry>
       map.set(name, { ...entry, def, input: def.wire?.input ?? def.input, readOnly: def.readOnly === true });
     }
   }
-  return withStandIns(map);
+  return map;
 }
 
 /** The browser store of the mirror: its file methods read and write the fake file store of the running test. */
