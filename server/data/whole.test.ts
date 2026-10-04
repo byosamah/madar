@@ -47,6 +47,21 @@ describe('loadWhole', () => {
     expect(sql.filter((text) => text.startsWith('select doc from'))).toHaveLength(TABLES.length);
   });
 
+  it('gives a change event back each field of the change on both sides, as undefined where the JSON of the doc dropped it (D2)', async () => {
+    // events.ts records a field that was absent before a change as before[field] = undefined, and the Undo removes the field again
+    // from that key. JSON drops the key, so the load puts it back from the other side.
+    const before = { startDate: '2026-10-01' };
+    const after = { startDate: '2026-10-07', dateNotes: [{ lateDays: 4 }] };
+    const { q } = fakeDb({ events: [{ ...EVENT, id: 'evt_001', before, after }, { ...EVENT, id: 'evt_002', seq: 2, before: null, after: { id: 'tsk_002' } }] });
+    const state = await loadWhole(q, { withEvents: true });
+    const loaded = state.events.evt_001.before as Record<string, unknown>;
+    expect(Object.keys(loaded).sort()).toEqual(['dateNotes', 'startDate']);
+    expect(loaded.dateNotes).toBeUndefined();
+    expect(state.events.evt_001.after).toEqual(after);
+    expect(state.events.evt_002.before).toBeNull();
+    expect(state.events.evt_002.after).toEqual({ id: 'tsk_002' });
+  });
+
   it('leaves the events out when asked', async () => {
     const { q, sql } = fakeDb({ events: [{ ...EVENT, id: 'evt_001' }] });
     const state = await loadWhole(q, { withEvents: false });

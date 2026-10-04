@@ -115,6 +115,23 @@ describe('the 18 places of AM 6', () => {
     expect(run.outcome.error).toMatchObject({ code: 'conflict', message: expect.stringContaining('Other items') });
   });
 
+  it('an Undo on rows from the database takes away a field that the change added, though JSON keeps no undefined (D2)', async () => {
+    const state = office();
+    const open = todo(state, 'prj_001').filter((t) => t.prerequisiteIds === undefined);
+    const [task, first] = open;
+    apply(state, 'tasks.update', { id: task.id, patch: { prerequisiteIds: [first.id] } }, ADMIN, { story: 'cor_wait' });
+    const added = Object.values(state.events).find((e) => e.correlationId === 'cor_wait' && e.targetId === task.id)!;
+    expect('prerequisiteIds' in (added.before as object)).toBe(true);
+    // The rows as the database holds them: JSON, so the key of the undefined value is gone.
+    const stored = JSON.parse(JSON.stringify(state)) as State;
+    expect('prerequisiteIds' in (stored.events[added.id].before as object)).toBe(false);
+    const { scoped } = await runBoth(stored, 'events.undo', { eventId: added.id }, ADMIN, { now: NOW, correlationId: 'cor_test' });
+    const memory = await same(state, 'events.undo', { eventId: added.id }, ADMIN);
+    expect(scoped.outcome.error).toBeUndefined();
+    expect(docs(scoped, 'tasks')).toEqual(docs(memory, 'tasks'));
+    expect(docs(scoped, 'tasks')[0].prerequisiteIds).toBeUndefined();
+  });
+
   it('row 4: an Undo sees a later change of the same task in another story', async () => {
     const state = office();
     const task = tasksOfProject(state, 'prj_001').find((t) => t.status !== 'done')!;

@@ -1,6 +1,6 @@
 import { emptyState, type State } from '../../src/api/store';
 import type { Query } from '../core/ports';
-import { COUNTERS_SELECT_SQL, selectDocsSql } from './rows';
+import { COUNTERS_SELECT_SQL, pairEventFields, selectDocsSql } from './rows';
 import { diffState, writeDiff, type SaveResult } from './save';
 import { TABLES, collectionOf } from './tables';
 
@@ -37,6 +37,7 @@ export async function loadWhole(q: Query, o: { withEvents?: boolean; today?: str
     lists[spec.collection] = collectionOf(spec, rows.map((row) => row.doc));
   }
   for (const event of Object.values(state.events)) {
+    pairEventFields(event as unknown as Record<string, unknown>);
     if (event.undoes && state.events[event.undoes]) state.events[event.undoes].undoneBy = event.id;
   }
   const counters = await q<{ prefix: string; n: number | string }>(COUNTERS_SELECT_SQL);
