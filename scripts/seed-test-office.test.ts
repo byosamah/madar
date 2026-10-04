@@ -11,7 +11,7 @@ import { authOf, localStack, type Stack } from '../server/it/authStack';
 import { applyMigrations, dropSchema, localClient } from '../server/it/migrate';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import { clientDb } from './first-admin';
-import { runSeed, seedAuthPort, TEST_REF, type SeedAuth } from './seed-test-office';
+import { runSeed, seedAuthPort, SeedRefused, TEST_REF, type SeedAuth } from './seed-test-office';
 
 /**
  * Task X1 on the local stack [Docker]: the seed writes the sample office, makes and links the 4 accounts, removes the other Auth
@@ -119,4 +119,28 @@ describe.skipIf(!ON)('seed-test-office on the local stack', () => {
     const after = await accounts();
     expect(after.map((u) => u.authUserId).sort()).toEqual(before.map((u) => u.authUserId).sort());
   });
+
+  it('stops with "madar-test is busy" after 5 seconds when another session holds a lock on a Madar table, and changes no table', async () => {
+    const count = async () => (await client.query('select count(*)::int as n from events')).rows[0].n as number;
+    const version = async () => Number((await client.query('select version from office_meta')).rows[0].version);
+    const [events, v] = [await count(), await version()];
+    const holder = await localClient();
+    try {
+      // A long read: ACCESS SHARE on events. TRUNCATE needs ACCESS EXCLUSIVE, so it waits for this session.
+      await holder.query('begin');
+      await holder.query(`lock table ${schema}.events in access share mode`);
+      const started = Date.now();
+      const error = await seedOnce().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SeedRefused);
+      expect((error as Error).message).toMatch(/madar-test is busy/);
+      expect(Date.now() - started).toBeLessThan(20_000);
+    } finally {
+      await holder.query('rollback').catch(() => undefined);
+      await holder.end();
+    }
+    expect(await count()).toBe(events);
+    expect(await version()).toBe(v);
+    // The session is free again: the next run goes through.
+    expect((await seedOnce()).changed).toBe(true);
+  }, 60_000);
 });

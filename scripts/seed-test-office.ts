@@ -7,7 +7,8 @@
 //   1. reads the plan: the Madar tables with their rows now and after, the 4 accounts, and the other Auth users;
 //   2. sets the 4 Auth accounts (one for each office role): a new password on an Auth user that exists, or a new Auth user;
 //   3. in one transaction as postgres under the office lock: records every office row as deleted (so a warm office cache drops
-//      it), empties the Madar tables, writes the sample office of today (writeState of buildSeed), and links the 4 accounts;
+//      it), empties the Madar tables, writes the sample office of today (writeState of buildSeed), and links the 4 accounts.
+//      A lock wait over 5 seconds stops the run with "madar-test is busy" and changes no table;
 //   4. removes every other Auth user: after step 3 no person in Madar has it.
 // --dry-run prints the plan and changes nothing.
 //
@@ -22,8 +23,9 @@ import type { State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { settleFuture } from '../src/data/shift';
 import { todayISO } from '../src/lib/dates';
+import { ApiError } from '../src/api/errors';
 import { authAdminPort, AuthAdminError } from '../server/auth/admin';
-import { takeOfficeLock } from '../server/core/lock';
+import { LOCK_TIMEOUT_CODE, takeOfficeLock } from '../server/core/lock';
 import type { AuthUserInfo, Query } from '../server/core/ports';
 import { setAuthUserId } from '../server/data/officeCache';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES } from '../server/data/tables';
@@ -109,6 +111,19 @@ export const RECORD_DELETES_SQL =
   'with v as (update office_meta set version = version + 1 returning version) insert into office_deletes (tbl, id, chg) select x.tbl, x.id, v.version from v, ('
   + TABLES.filter((spec) => spec.office).map((spec) => `select '${spec.table}' as tbl, id from ${spec.table}`).join(' union all ')
   + ') x on conflict do nothing';
+
+/**
+ * The first statement of the seed transaction (proof.md Z0a item 4: set local passes through Supavisor). The office lock and
+ * TRUNCATE (an ACCESS EXCLUSIVE lock on each table) wait at most 5 seconds, as the server's own writes do (server/core/lock.ts).
+ * Without it, one idle or long session would stop the seed with no end, and every later read and write of madar-test behind it.
+ */
+export const SEED_LOCK_TIMEOUT_SQL = "set local lock_timeout = '5s'";
+
+/** A lock wait that ran out: Postgres 55P03, or the busy refusal that takeOfficeLock makes of it. */
+function isBusy(error: unknown): boolean {
+  if (error instanceof ApiError) return error.details.reason === 'busy';
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === LOCK_TIMEOUT_CODE;
+}
 
 /** Which of the tables exist (on the search path). */
 export const PRESENT_SQL = 'select t, to_regclass(t) is not null as present from unnest($1::text[]) as t';
@@ -284,15 +299,24 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
   }
 
   const writeOffice = o.writeOffice ?? writeState;
-  await o.db.tx(async (q) => {
-    await takeOfficeLock(q, o.lockKey);
-    await q(RECORD_DELETES_SQL);
-    await q(TRUNCATE_SQL);
-    await writeOffice(q, o.seed);
-    for (const link of links) {
-      if (!(await setAuthUserId(q, link.userId, link.authUserId))) throw new Error(`The users row ${link.userId} is missing after the seed.`);
-    }
-  });
+  try {
+    await o.db.tx(async (q) => {
+      await q(SEED_LOCK_TIMEOUT_SQL);
+      await takeOfficeLock(q, o.lockKey);
+      await q(RECORD_DELETES_SQL);
+      await q(TRUNCATE_SQL);
+      await writeOffice(q, o.seed);
+      for (const link of links) {
+        if (!(await setAuthUserId(q, link.userId, link.authUserId))) throw new Error(`The users row ${link.userId} is missing after the seed.`);
+      }
+    });
+  } catch (error) {
+    if (!isBusy(error)) throw error;
+    throw new SeedRefused(
+      'madar-test is busy: another session held a lock on the Madar tables for more than 5 seconds. The Madar tables did not change. '
+      + 'The 4 Auth accounts have their new passwords, and the next run links them. Run the script again.',
+    );
+  }
   for (const t of plan.tables) if (!t.kept) changes.push(`${t.table}: removed ${t.rowsNow} rows, wrote ${t.rowsAfter}.`);
   for (const link of links) changes.push(`Linked ${link.email} to ${link.userId}.`);
 

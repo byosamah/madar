@@ -5,7 +5,7 @@ import { emptyState, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import {
-  KEEP_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL, TRUNCATE_TABLES, parseArgs, planText, runSeed,
+  KEEP_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL, TRUNCATE_TABLES, parseArgs, planText, runSeed,
   seedAccounts, seedAuthPort, seedTarget, type SeedAuth,
 } from './seed-test-office';
 import { OFFICE_LOCK_KEY } from './first-admin';
@@ -85,11 +85,12 @@ describe('seed-test-office: the tables', () => {
 
 type Fake = { sql: string[]; written: State[]; auth: string[] };
 
-function fakeDb(o: { present?: boolean } = {}) {
+function fakeDb(o: { present?: boolean; busyOn?: string } = {}) {
   const fake: Fake = { sql: [], written: [], auth: [] };
   const present = o.present ?? true;
   const q = (async (text: string, values?: unknown[]) => {
     fake.sql.push(text);
+    if (text === o.busyOn) throw Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' });
     if (text === PRESENT_SQL) return (values![0] as string[]).map((t) => ({ t, present }));
     if (text.startsWith('select ') && text.includes('count(*)')) {
       return [...text.matchAll(/select '([a-z_]+)' as t, count\(\*\)::int as n/g)].map((m) => ({ t: m[1], n: m[1] === 'users' ? 12 : 3 }));
@@ -101,9 +102,14 @@ function fakeDb(o: { present?: boolean } = {}) {
     q,
     async tx<T>(work: (inner: Query) => Promise<T>): Promise<T> {
       fake.sql.push('begin');
-      const result = await work(q);
-      fake.sql.push('commit');
-      return result;
+      try {
+        const result = await work(q);
+        fake.sql.push('commit');
+        return result;
+      } catch (error) {
+        fake.sql.push('rollback');
+        throw error;
+      }
     },
   };
   return { fake, db };
@@ -188,8 +194,9 @@ describe('seed-test-office: the run', () => {
       `delete ${STRAY}`,
     ]);
     const writes = fake.sql.slice(fake.sql.indexOf('begin'));
-    expect(writes.slice(0, 4)).toEqual(['begin', 'select pg_advisory_xact_lock($1::bigint)', RECORD_DELETES_SQL, TRUNCATE_SQL]);
-    expect(writes.slice(4)).toEqual([AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, 'commit']);
+    expect(SEED_LOCK_TIMEOUT_SQL).toBe("set local lock_timeout = '5s'");
+    expect(writes.slice(0, 5)).toEqual(['begin', SEED_LOCK_TIMEOUT_SQL, 'select pg_advisory_xact_lock($1::bigint)', RECORD_DELETES_SQL, TRUNCATE_SQL]);
+    expect(writes.slice(5)).toEqual([AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, AUTH_LINK_SQL, 'commit']);
     expect(fake.written).toEqual([office]);
     const text = lines.join('\n');
     expect(text).toMatch(/Seeded madar-test \(qdgwpnesxppnqsaabqzd\)/);
@@ -210,6 +217,43 @@ describe('seed-test-office: the run', () => {
       expect(fake.sql).not.toContain('begin');
       expect(fake.auth).toEqual(['list']);
     }
+  });
+
+  it('stops with a clear message when madar-test is busy: the tables do not change and no other Auth user goes', async () => {
+    // The office lock (pg_advisory_xact_lock) and TRUNCATE wait at most 5 seconds; both give Postgres 55P03 after that.
+    for (const busyOn of ['select pg_advisory_xact_lock($1::bigint)', TRUNCATE_SQL]) {
+      const { fake, db } = fakeDb({ busyOn });
+      const written: State[] = [];
+      const error = await runSeed({
+        db, auth: fakeAuth(fake, EXISTING), seed: await seed(), ref: TEST_REF, env: PASSWORDS, dryRun: false, lockKey: OFFICE_LOCK_KEY,
+        log: () => undefined, writeOffice: async (_q, state) => void written.push(state),
+      }).catch((e: unknown) => e);
+      expect(error, busyOn).toBeInstanceOf(SeedRefused);
+      const message = (error as Error).message;
+      expect(message).toMatch(/madar-test is busy/);
+      expect(message).toMatch(/The Madar tables did not change/);
+      expect(message).toMatch(/4 Auth accounts have their new passwords/);
+      expect(message).toMatch(/Run the script again/);
+      for (const value of Object.values(PASSWORDS)) expect(message).not.toContain(value);
+      const writes = fake.sql.slice(fake.sql.indexOf('begin'));
+      expect(writes[1]).toBe(SEED_LOCK_TIMEOUT_SQL);
+      expect(writes.at(-1)).toBe('rollback');
+      expect(writes).not.toContain('commit');
+      if (busyOn !== TRUNCATE_SQL) expect(writes).not.toContain(TRUNCATE_SQL);
+      expect(written).toEqual([]);
+      expect(fake.auth.some((call) => call.startsWith('delete '))).toBe(false);
+    }
+  });
+
+  it('passes on every other database error as it is', async () => {
+    const { fake, db } = fakeDb();
+    const boom = Object.assign(new Error('relation "users" does not exist'), { code: '42P01' });
+    const error = await runSeed({
+      db, auth: fakeAuth(fake, EXISTING), seed: await seed(), ref: TEST_REF, env: PASSWORDS, dryRun: false, lockKey: OFFICE_LOCK_KEY,
+      log: () => undefined, writeOffice: async () => { throw boom; },
+    }).catch((e: unknown) => e);
+    expect(error).toBe(boom);
+    expect(fake.auth.some((call) => call.startsWith('delete '))).toBe(false);
   });
 
   it('refuses before any change when the Madar tables are missing', async () => {
