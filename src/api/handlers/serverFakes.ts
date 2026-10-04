@@ -174,6 +174,15 @@ const usageGet = defineCall({
   },
 });
 
+/** The prototype has no outbox, so no effect fails and none waits for a Retry. */
+const usageRetryEffect = defineCall({
+  ...c['usage.retryEffect'],
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    throw notFound('Failed effect', input.id);
+  },
+});
+
 export const serverFakes = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -184,4 +193,5 @@ export const serverFakes = {
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
+  'usage.retryEffect': usageRetryEffect,
 };

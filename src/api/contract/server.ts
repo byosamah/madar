@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { FileId, ProjectId, StageId, TaskId, UserId } from './entities';
 
 /**
- * The 9 calls that only the real build has (plan 4.11). They carry the work that State cannot hold: story IDs, file links,
+ * The 10 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12). They carry the work that State cannot hold: story IDs, file links,
  * invitations, agents and usage. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones.
  * The MCP tool list (track G) reads these contracts, not the server code.
  */
 export const SERVER_CALL_NAMES = [
   'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get',
+  'usage.retryEffect',
 ] as const;
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
@@ -140,6 +141,17 @@ const usageGet = {
   readOnly: true,
 };
 
+/**
+ * The Retry of one failed effect in Admin, Usage (plan 4.12, 5.8; task M1). The server sets its attempts back to zero and runs it
+ * again after the commit, so a row that reached the 5 attempts of the job gets a new chance. The id is the outbox row id of
+ * failedEffects; the line of the change signals has none.
+ */
+const usageRetryEffect = {
+  input: z.object({ id: z.string().regex(/^\d{1,19}$/, 'Not the id of a failed effect.') }),
+  output: z.object({ retried: z.literal(true) }),
+  readOnly: false,
+};
+
 export const serverContracts = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -150,5 +162,6 @@ export const serverContracts = {
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
+  'usage.retryEffect': usageRetryEffect,
 } satisfies Record<ServerCallName, { input: z.ZodType; output: z.ZodType; readOnly: boolean }>;
 export type ServerContracts = typeof serverContracts;

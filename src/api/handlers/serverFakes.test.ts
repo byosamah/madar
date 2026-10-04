@@ -12,9 +12,9 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 9 server calls, and the fakes follow the same contracts', () => {
+  it('name the 10 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
-      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'story.start', 'usage.get', 'users.invites', 'users.resendInvite',
+      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());
     for (const name of SERVER_CALL_NAMES) {
@@ -180,5 +180,14 @@ describe('the fake server calls', () => {
     for (const meter of [usage.calls, usage.database, usage.files, usage.backupCopy, usage.emails, usage.emailsMonth, usage.egress]) expect(meter.used).toBe(0);
     t.as('usr_002');
     await expect(t.api.call('usage.get', {})).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('usage.retryEffect finds no failed effect in the prototype (it has no outbox), and refuses everyone but the Admin', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_001');
+    await expect(t.api.call('usage.retryEffect', { id: '17' })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(t.api.call('usage.retryEffect', { id: 'x' })).rejects.toMatchObject({ code: 'invalid_input' });
+    t.as('usr_002');
+    await expect(t.api.call('usage.retryEffect', { id: '17' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });

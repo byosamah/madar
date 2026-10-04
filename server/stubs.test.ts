@@ -25,9 +25,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 9 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get: server/calls/usage.test.ts)', async () => {
+  it('list the 10 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
