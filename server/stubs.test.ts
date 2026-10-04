@@ -60,18 +60,11 @@ describe('the stubs', () => {
     await refusesNotBuilt(() => realtimeSignalPort.send((async () => []) as never, []));
   });
 
-  it('the two file stores name their kind and limit, and refuse', async () => {
+  it('the two file stores name their kind and limit (they are built: server/files/*.test.ts)', () => {
     const supabase = supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: 'x', bucket: 'madar-files' });
     expect([supabase.kind, supabase.maxFileBytes]).toEqual(['supabase', 50 * 1024 * 1024]);
     const r2 = r2FilesPort({ accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'madar-files' });
     expect([r2.kind, r2.maxFileBytes]).toEqual(['r2', 250 * 1024 * 1024]);
-    for (const port of [supabase, r2]) {
-      await refusesNotBuilt(() => port.presignPut('k', { mimeType: 'image/png' }));
-      await refusesNotBuilt(() => port.presignGet('k', { disposition: 'inline', filename: 'a.png', mimeType: 'image/png' }));
-      await refusesNotBuilt(() => port.head('k'));
-      await refusesNotBuilt(() => port.copy('a', 'b'));
-      await refusesNotBuilt(() => port.remove(['a']));
-    }
   });
 
   it('mail refuses (the office cache is built: server/data/officeCache.test.ts; the token check and the person lookup are built: server/auth/verify.test.ts, principal.test.ts; the Auth admin is built: server/auth/admin.test.ts)', async () => {
