@@ -476,7 +476,7 @@ describe('runCall: the server calls (plan 4.11)', () => {
   it('runs story.start, checks the actor first, and keeps the refusal of a server call that is not built yet', async () => {
     const { call, edit } = setup();
     expect((await call(ADMIN, 'story.start', {})).ok).toBe(true);
-    const stub = errorOf(await call(ADMIN, 'usage.get', {}));
+    const stub = errorOf(await call(ADMIN, 'agents.list', {}));
     expect([stub.code, stub.details?.reason]).toEqual(['failed', 'not_built']);
     edit((state) => {
       state.users.usr_005.active = false;
