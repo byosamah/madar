@@ -1,5 +1,7 @@
 import type { Db, Mail, MailPort } from '../core/ports';
 import { MailSendError } from './resend';
+// The mail effects of every entry: server/core/deps.ts imports this file, so the handlers and the notice producers load once.
+import './effects';
 
 /**
  * MAIL_DRIVER=outbox (test deployment, plan 5.4; task N2.1): writes each mail to mail_outbox instead of sending it, so the browser
