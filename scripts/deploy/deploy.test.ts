@@ -126,6 +126,14 @@ describe('all.sh production', () => {
     }
   });
 
+  it('asks even when MADAR_DEPLOY_CONFIRMED=production comes from the environment, so only a typed word deploys production', () => {
+    const result = run('all.sh', ['production'], { input: '', env: { ...TOKENS, MADAR_DEPLOY_CONFIRMED: 'production' } });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('Type production to go on');
+    expect(result.out).toContain('Nothing changed');
+    expect(result.calls).toEqual([]);
+  });
+
   it('stops in GitHub Actions or any CI even with the typed word (plan, section 10, decision 9)', () => {
     for (const ci of [{ CI: 'true' }, { GITHUB_ACTIONS: 'true' }] as Record<string, string>[]) {
       const result = run('all.sh', ['production'], { input: 'production\n', env: { ...TOKENS, ...ci } });
@@ -214,6 +222,33 @@ describe('functions.sh', () => {
       `supabase functions deploy api mcp jobs --project-ref ${TEST} --use-api`,
       `curl -fsS --max-time 20 https://${TEST}.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1`,
     ]);
+  });
+
+  it('with --prebuilt, deploys the bundles of an earlier build step and builds nothing, so the token never meets the build', () => {
+    mkdirSync(join(root, 'supabase/functions/_build'), { recursive: true });
+    for (const name of ['api', 'mcp', 'jobs']) writeFileSync(join(root, `supabase/functions/_build/${name}.js`), 'export default {};\n');
+    const result = run('functions.sh', ['test', '--prebuilt'], { env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toEqual([
+      `supabase functions deploy api mcp jobs --project-ref ${TEST} --use-api`,
+      `curl -fsS --max-time 20 https://${TEST}.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1`,
+    ]);
+  });
+
+  it('with --prebuilt, stops before the deploy when a bundle is missing', () => {
+    mkdirSync(join(root, 'supabase/functions/_build'), { recursive: true });
+    writeFileSync(join(root, 'supabase/functions/_build/api.js'), 'export default {};\n');
+    const result = run('functions.sh', ['test', '--prebuilt'], { env: TOKENS });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('supabase/functions/_build/mcp.js');
+    expect(result.calls).toEqual([]);
+  });
+
+  it('stops with the usage for an unknown option, and runs nothing', () => {
+    const result = run('functions.sh', ['test', '--fast'], { env: TOKENS });
+    expect(result.code).toBe(2);
+    expect(result.out).toMatch(/Usage: functions\.sh <test\|production> \[--prebuilt\]/);
+    expect(result.calls).toEqual([]);
   });
 
   it('fails when api answers from another region, after its retries', () => {
