@@ -2,12 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { MADAR_DOORS } from '../../src/components/MadarMark';
-import { ICONS, iconPage, manifestOf, tokenValues } from './make-icons';
+import { ICONS, iconDigests, iconPage, manifestOf, tokenValues } from './make-icons';
 
 /**
  * The app icons and the web manifest (TASKS.md, Logo, point 3): PNGs of the light glow tile, made by make-icons.tsx (never by
- * hand), and the manifest with the colors of the tokens. The checks read the committed files, so a token change without a new
- * run of the script fails here.
+ * hand), and the manifest with the colors of the tokens. The checks read the committed files. icons.sha256 holds the digest of the
+ * page that made each PNG, so a change of a token, of MADAR_GLOW, of MADAR_DOORS or of MadarMark without a new run of the script
+ * fails here.
  */
 const css = readFileSync('src/design/tokens.css', 'utf8');
 const tokens = tokenValues(css);
@@ -61,6 +62,21 @@ describe('the app icons', () => {
     expect(tokens['--glow-a']).toBe('#CCE0FF');
     expect(tokens['--c-panel']).toBe('#FFFFFF');
     expect(tokens['--c-bg']).toBe('#F4F4F7');
+  });
+});
+
+describe('the digests of the icon pages', () => {
+  it('match the committed icons.sha256, so the PNGs come from the current tokens and the current mark', () => {
+    expect(readFileSync('scripts/icons/icons.sha256', 'utf8')).toBe(iconDigests(tokens));
+  });
+
+  it('change with every token the tile uses and with the shape', () => {
+    const now = iconDigests(tokens);
+    for (const name of ['--glow-a', '--glow-b', '--glow-c', '--c-panel', '--c-ink']) {
+      expect(iconDigests({ ...tokens, [name]: '#123456' }), name).not.toBe(now);
+    }
+    expect(now.split('\n').filter(Boolean)).toHaveLength(ICONS.length);
+    for (const icon of ICONS) expect(now).toMatch(new RegExp(`^[0-9a-f]{64}  ${icon.file}$`, 'm'));
   });
 });
 

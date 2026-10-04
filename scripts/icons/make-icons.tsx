@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,8 @@ import { MadarMark } from '../../src/components/MadarMark';
  * The app icons and the web manifest of Madar (TASKS.md, Logo, point 3), made from the MadarMark component, never by hand:
  *   npx tsx scripts/icons/make-icons.tsx
  * It renders the tile in the light tokens of src/design/tokens.css, takes a Playwright screenshot of each size, and writes the PNGs
- * and public/manifest.webmanifest. Run it again after a change of the mark or of the tokens (make-icons.test.ts checks the files).
+ * and public/manifest.webmanifest, and scripts/icons/icons.sha256 (the digest of the page of each PNG, outside public/). Run it
+ * again after a change of the mark or of the tokens: make-icons.test.ts compares icons.sha256 with the current pages.
  * - apple-touch-icon (180 px) fills the square: iOS rounds the corners itself, and a see-through corner turns black there.
  * - 192 and 512 px keep the 30% corners of the tile, with see-through corners (manifest purpose "any"; the mail header uses 192).
  */
@@ -39,6 +41,11 @@ export function iconPage(size: number, shape: IconShape, tokens: Record<string, 
     `<style>:root{${vars}}html,body{margin:0;background:transparent}${square}</style>`,
     `</head><body>${renderToStaticMarkup(<MadarMark size={size} />)}</body></html>`,
   ].join('');
+}
+
+/** One line per icon, "<sha256 of its page>  <file>", as sha256sum writes it. Any change of the tile changes a line. */
+export function iconDigests(tokens: Record<string, string>): string {
+  return ICONS.map((icon) => `${createHash('sha256').update(iconPage(icon.size, icon.shape, tokens)).digest('hex')}  ${icon.file}\n`).join('');
 }
 
 /** The web manifest. Its links are relative to its own address, so the prototype and the remote build both find the icons. */
@@ -75,6 +82,8 @@ async function main(): Promise<void> {
   }
   writeFileSync(join(root, 'public/manifest.webmanifest'), `${JSON.stringify(manifestOf(tokens), null, 2)}\n`);
   console.log('wrote public/manifest.webmanifest');
+  writeFileSync(join(root, 'scripts/icons/icons.sha256'), iconDigests(tokens));
+  console.log('wrote scripts/icons/icons.sha256');
 }
 
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
