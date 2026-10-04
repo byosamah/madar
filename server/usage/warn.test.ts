@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultPreferences, type Preferences } from '../../src/api/contract/entities';
 import type { Config } from '../core/ports';
 import { memoryMailDb } from '../mail/memoryMailDb';
-import { ADMINS_SQL, USER_MAIL_SQL } from '../mail/notices';
+import { ADMINS_SQL } from '../mail/notices';
 import { SENT_TODAY_SQL } from '../mail/quota';
 import { renderMail } from '../mail/templates';
 import { fakeDeps } from '../test/fakes/deps';
 import { METERS_SQL } from './meters';
 import { registerUsageEffects } from './register';
-import { LIMIT_WARNING_EFFECT, WARNING_MARK_SQL, checkLimits, sendLimitWarning } from './warn';
+import { ADMIN_MAIL_SQL, LIMIT_WARNING_EFFECT, WARNING_MARK_SQL, checkLimits, sendLimitWarning } from './warn';
 
 /**
  * The 80% warning (plan 5.8; task M1): one email to each active Admin when a meter passes 80%, once for each meter and month.
@@ -19,8 +19,8 @@ import { LIMIT_WARNING_EFFECT, WARNING_MARK_SQL, checkLimits, sendLimitWarning }
 const GB = 1024 * 1024 * 1024;
 const NOW = new Date('2026-10-04T06:00:00Z');
 
-type Person = { id: string; active: boolean; email: string; preferences: Preferences; gender: string | null };
-const person = (id: string, more: Partial<Person> = {}): Person => ({ id, active: true, email: `${id}@madar.test`, preferences: defaultPreferences(), gender: null, ...more });
+type Person = { id: string; active: boolean; email: string; preferences: Preferences; gender: string | null; systemRole: string };
+const person = (id: string, more: Partial<Person> = {}): Person => ({ id, active: true, email: `${id}@madar.test`, preferences: defaultPreferences(), gender: null, systemRole: 'admin', ...more });
 
 type MeterValues = { calls: number; bytes_read: number; backup_bytes: number | null; database_bytes: number; files_bytes: number; emails_month: number };
 const CALM: MeterValues = { calls: 10, bytes_read: 0, backup_bytes: null, database_bytes: 1000, files_bytes: 0, emails_month: 0 };
@@ -32,10 +32,10 @@ function setup(o: { meters?: Partial<MeterValues>; people?: Person[]; config?: P
   const mem = memoryMailDb((text, values) => {
     if (text === METERS_SQL) return [Object.fromEntries(Object.entries(meters).map(([k, v]) => [k, v === null ? null : String(v)]))];
     if (text === SENT_TODAY_SQL) return [{ n: mem.log.filter((r) => r.utc_day === values[0] && r.kind !== 'refused').length }];
-    if (text === ADMINS_SQL) return [...people.values()].filter((p) => p.active).map((p) => ({ id: p.id }));
-    if (text === USER_MAIL_SQL) {
+    if (text === ADMINS_SQL) return [...people.values()].filter((p) => p.active && p.systemRole === 'admin').map((p) => ({ id: p.id }));
+    if (text === ADMIN_MAIL_SQL) {
       const p = people.get(values[0] as string);
-      return p ? [{ user_id: p.id, kind: 'human', active: p.active, email: p.email, preferences: p.preferences, gender: p.gender }] : [];
+      return p ? [{ user_id: p.id, kind: 'human', active: p.active, email: p.email, preferences: p.preferences, gender: p.gender, system_role: p.systemRole }] : [];
     }
     if (text === WARNING_MARK_SQL) {
       const key = `${values[0]}|${values[1]}`;
@@ -129,6 +129,17 @@ describe('checkLimits (plan 5.8)', () => {
     expect((await checkLimits(deps)).warned).toEqual(['files']);
     expect(mem.outbox).toEqual([expect.objectContaining({ kind: LIMIT_WARNING_EFFECT, done: false, error: 'Resend is away.' })]);
   });
+
+  it('never marks a warning done when the warning quota of today is full: the row keeps its error, so the Admin sees it in Usage', async () => {
+    const { mem, deps } = setup({ meters: { files_bytes: 0.9 * GB }, people: [person('usr_001')] });
+    mem.fill('notice', 98, '2026-10-04');
+    expect((await checkLimits(deps)).warned).toEqual(['files', 'emailsToday']);
+    expect(deps.mail.sent).toEqual([]);
+    expect(mem.outbox.map((r) => [r.kind, r.done, r.error])).toEqual([
+      [LIMIT_WARNING_EFFECT, false, 'The warning quota of today is full.'],
+      [LIMIT_WARNING_EFFECT, false, 'The warning quota of today is full.'],
+    ]);
+  });
 });
 
 describe('sendLimitWarning (the usage.limitWarning effect)', () => {
@@ -150,10 +161,17 @@ describe('sendLimitWarning (the usage.limitWarning effect)', () => {
     expect(deps.mail.sent).toEqual([]);
   });
 
-  it('keeps to the warning quota: at the hard stop of 98 the warning does not go, and the effect still ends', async () => {
+  it('sends nothing to a person who is no longer an Admin when the effect runs', async () => {
+    const { deps, people } = setup();
+    people.get('usr_001')!.systemRole = 'member';
+    await sendLimitWarning(payload, deps);
+    expect(deps.mail.sent).toEqual([]);
+  });
+
+  it('keeps to the warning quota: at the hard stop of 98 the warning does not go, and the effect fails so its row stays for the job', async () => {
     const { mem, deps } = setup();
     mem.fill('notice', 98, '2026-10-04');
-    await expect(sendLimitWarning(payload, deps)).resolves.toBeUndefined();
+    await expect(sendLimitWarning(payload, deps)).rejects.toThrow('The warning quota of today is full.');
     expect(deps.mail.sent).toEqual([]);
   });
 
