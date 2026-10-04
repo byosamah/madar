@@ -144,8 +144,28 @@ describe('suite 4: invitations on the local stack', () => {
     await office.sql('update outbox set claimed_until = null where id = $1', [row.id]);
     expect(await processOutbox(deps, [row.id])).toEqual({ done: [row.id], failed: [] });
     expect(tokenHashOf(mailTo(email).text)).toBe(row.payload.tokenHash);
+    // A done row keeps no token hash: the hash is a live sign-in credential.
+    const [done] = await office.sql<{ payload: Record<string, unknown> }>('select payload from outbox where id = $1', [row.id]);
+    expect(done.payload).toMatchObject({ sentAt: expect.any(String), linkType: 'invite' });
+    expect(done.payload).not.toHaveProperty('tokenHash');
     await accept(mailTo(email).text);
     expect((await auth.signIn(email)).status).toBe(200);
+  });
+
+  it('a retry of an older invitation sends nothing when a newer invitation already made a newer link', async () => {
+    deps.mail.failNext(new Error('Resend is down'));
+    const { user, email } = await invite('stale');
+    const [row] = await office.sql<{ id: string; payload: { tokenHash: string } }>(
+      "select id::text as id, payload from outbox where kind = 'auth.invite' and payload->>'userId' = $1", [user.id],
+    );
+    expect(await call('usr_001', 'users.resendInvite', { id: user.id })).toMatchObject({ ok: true });
+    const fresh = tokenHashOf(mailTo(email).text);
+    const sent = deps.mail.sent.length;
+    await office.sql('update outbox set claimed_until = null where id = $1', [row.id]);
+    expect(await processOutbox(deps, [row.id])).toEqual({ done: [row.id], failed: [] });
+    expect(deps.mail.sent).toHaveLength(sent);
+    expect([(await auth.useLink('invite', row.payload.tokenHash)).status]).toEqual([403]);
+    expect((await auth.useLink('invite', fresh)).status).toBe(200);
   });
 
   it('an email change before the person accepts sends a new invitation to the new email; the link at the old email fails', async () => {
@@ -155,18 +175,34 @@ describe('suite 4: invitations on the local stack', () => {
     expect(await call('usr_001', 'users.update', { id: user.id, patch: { email: fixed } })).toMatchObject({ ok: true });
     const mail = mailTo(fixed);
     expect(mail.subject).toBe('Your invitation to Madar');
+    // Auth did not confirm the person: the link is an invite link, and the Admin still sees "invited" (the badge and the resend).
+    expect([linkIn(mail.text).pathname, linkIn(mail.text).searchParams.get('type')]).toEqual(['/welcome', 'invite']);
+    const state = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
+    expect(state?.state).toBe('invited');
     expect([(await auth.useLink('invite', old)).status]).toEqual([403]);
     await accept(mail.text);
     expect((await auth.signIn(fixed)).status).toBe(200);
   });
 
-  it('an email change after the person accepted reaches Auth and sends no mail; the person signs in with the new email', async () => {
+  it('a name change writes no auth.email row; an email change writes one', async () => {
+    const { user } = await invite('rename');
+    const rows = async () => (await office.sql<{ n: string }>("select count(*)::text as n from outbox where kind = 'auth.email' and payload->>'userId' = $1", [user.id]))[0].n;
+    expect(await call('usr_001', 'users.update', { id: user.id, patch: { name: 'Person renamed' } })).toMatchObject({ ok: true });
+    expect(await rows()).toBe('0');
+    expect(await call('usr_001', 'users.update', { id: user.id, patch: { email: auth.email('rename-new') } })).toMatchObject({ ok: true });
+    expect(await rows()).toBe('1');
+  });
+
+  it('an email change after the person accepted reaches Auth, and only a notice goes to the old email; the person signs in with the new email', async () => {
     const { user, email } = await invite('moved');
     await accept(mailTo(email).text);
     const moved = auth.email('moved-new');
     const sent = deps.mail.sent.length;
     expect(await call('usr_001', 'users.update', { id: user.id, patch: { email: moved } })).toMatchObject({ ok: true });
-    expect(deps.mail.sent).toHaveLength(sent);
+    expect(deps.mail.sent.slice(sent).map((m) => [m.to, m.subject])).toEqual([[email, 'Your Madar sign-in email changed']]);
+    expect(deps.mail.sent[sent].text).toContain(moved);
     expect((await auth.signIn(moved, PASSWORD)).status).toBe(200);
+    const state = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
+    expect(state?.state).toBe('active');
   });
 });
