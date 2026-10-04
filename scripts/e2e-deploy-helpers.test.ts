@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routeUrl, urlPattern } from '../tests/e2e-deploy/goto';
 import { databaseTarget, linkPath } from '../tests/e2e-deploy/mail';
 import { localOnly } from '../tests/e2e-deploy/local';
+import { word } from '../tests/e2e-deploy/words';
 
 /** The pure helpers of the browser checks on the test deployment (task X2). */
 
@@ -64,6 +65,20 @@ describe('databaseTarget', () => {
     expect(databaseTarget({ MADAR_E2E_DATABASE_URL: 'postgresql://postgres.qdgwpnesxppnqsaabqzd:pw@aws-1-eu-central-1.pooler.supabase.com:5432/postgres' }).tls).toBe(true);
     expect(() => databaseTarget({ MADAR_E2E_DATABASE_URL: 'postgresql://postgres.oprkvdjudjxxhvodkzgs:pw@aws-1-eu-central-1.pooler.supabase.com:5432/postgres' })).toThrow(/production/);
     expect(() => databaseTarget({ MADAR_E2E_DATABASE_URL: 'postgresql://postgres:pw@db.oprkvdjudjxxhvodkzgs.supabase.co:5432/postgres' })).toThrow(/production/);
+  });
+});
+
+describe('word', () => {
+  it('reads a text of either language from the base files and the files of the real build', () => {
+    expect(word('en', 'auth.signOut')).toBe('Sign out');
+    expect(word('en', 'settings.languages.ar')).toBe('العربية');
+    expect(word('ar', 'auth.signOut')).not.toBe('Sign out');
+    expect(word('ar', 'auth.signOut')).toMatch(/[؀-ۿ]/);
+  });
+
+  it('fills the placeholders and refuses a key that no file has', () => {
+    expect(word('en', 'auth.welcome.greeting', { name: 'Lina' })).toBe('Welcome, Lina');
+    expect(() => word('en', 'auth.nothing.here')).toThrow(/auth\.nothing\.here/);
   });
 });
 

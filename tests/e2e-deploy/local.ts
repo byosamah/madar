@@ -78,7 +78,8 @@ async function seed(): Promise<void> {
 
 function playwrightEnv(): void {
   const values = status();
-  const lines = { MADAR_LOCAL_PUBLISHABLE_KEY: values.PUBLISHABLE_KEY ?? values.ANON_KEY, MADAR_E2E_SUPABASE_URL: SUPABASE_URL, ...localPasswords() };
+  const key = values.PUBLISHABLE_KEY ?? values.ANON_KEY;
+  const lines = { MADAR_LOCAL_PUBLISHABLE_KEY: key, MADAR_E2E_PUBLISHABLE_KEY: key, MADAR_E2E_SUPABASE_URL: SUPABASE_URL, ...localPasswords() };
   for (const [k, v] of Object.entries(lines)) console.log(`export ${k}='${v}'`);
 }
 

@@ -1,0 +1,145 @@
+import { createHash, randomBytes } from 'node:crypto';
+import type { Page } from '@playwright/test';
+import { AFTER_G, asRole, expect, PERSON_OF, test } from './fixtures';
+import { DEPLOYED, goto } from './goto';
+import { expectCalm, expectNoSeriousA11y, runId } from './steps';
+
+/**
+ * AI agents on the remote build (plan 5.6; task X2): the consent flow of an MCP client up to the Approve page, Settings, Agents,
+ * and proof.md Z0a, item 2, case 3: an agent token gets a refusal on PUT /auth/v1/user with a password and no current_password.
+ *
+ * - Every test here needs track G (the token hook, the MCP server, the consent screen and Settings, Agents). The merge lead runs
+ *   this spec after the merge of rb/G, with MADAR_E2E_AFTER_G=1.
+ * - Case 3 runs only on the test deployment (MADAR_DEPLOY_URL): the refusal comes from the Auth setting "require current
+ *   password", which the local stack cannot turn on (supabase/cli issue 5846). Z1 turns that setting on in madar-test first.
+ * - The steps run as the member account (Faisal), so the Admin keeps no agent. A failed case 3 would change Faisal's password; the
+ *   next seed sets it back.
+ *
+ * Values: MADAR_E2E_SUPABASE_URL (the project URL; the local stack by default), MADAR_E2E_PUBLISHABLE_KEY (for case 3), and
+ * MADAR_E2E_MCP_URL (default <project URL>/functions/v1/mcp).
+ */
+test.skip(!AFTER_G, 'The agents come with track G. The merge lead runs this spec after the merge of rb/G (MADAR_E2E_AFTER_G=1).');
+test.use(asRole('member'));
+
+const SUPABASE_URL = (process.env.MADAR_E2E_SUPABASE_URL ?? 'http://127.0.0.1:54321').replace(/\/+$/, '');
+const MCP_URL = process.env.MADAR_E2E_MCP_URL ?? `${SUPABASE_URL}/functions/v1/mcp`;
+/** A loopback redirect, as a desktop MCP client uses: the consent screen shows no warning for it. */
+const REDIRECT_URI = 'http://127.0.0.1:33418/callback';
+
+const base64url = (bytes: Buffer) => bytes.toString('base64url');
+
+/** Dynamic client registration, as an MCP client does it (RFC 7591). */
+async function registerClient(name: string): Promise<string> {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/oauth/clients/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_name: name, redirect_uris: [REDIRECT_URI], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }),
+  });
+  const body = (await response.json()) as { client_id?: string };
+  if (!response.ok || !body.client_id) throw new Error(`The client registration failed: ${response.status}`);
+  return body.client_id;
+}
+
+type Flow = { clientId: string; verifier: string; consentRoute: string };
+
+/** The authorize step with PKCE. Auth answers with the consent page of Madar; the spec opens it on the run's own host. */
+async function startFlow(clientId: string): Promise<Flow> {
+  const verifier = base64url(randomBytes(32));
+  const authorize = new URL(`${SUPABASE_URL}/auth/v1/oauth/authorize`);
+  authorize.search = new URLSearchParams({
+    response_type: 'code', client_id: clientId, redirect_uri: REDIRECT_URI, code_challenge: base64url(createHash('sha256').update(verifier).digest()),
+    code_challenge_method: 'S256', state: base64url(randomBytes(12)), resource: MCP_URL,
+  }).toString();
+  const start = await fetch(authorize, { redirect: 'manual' });
+  const consent = new URL(start.headers.get('location') ?? 'http://x/');
+  const authorizationId = consent.searchParams.get('authorization_id');
+  if (consent.pathname !== '/oauth/consent' || !authorizationId) throw new Error(`The authorize step gave no consent page: ${start.status}`);
+  return { clientId, verifier, consentRoute: `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}` };
+}
+
+/** Approves on the consent screen and catches the redirect with the code, as the MCP client's loopback server would. */
+async function approve(page: Page): Promise<string> {
+  let code: string | null = null;
+  await page.route(`${new URL(REDIRECT_URI).origin}/**`, (route) => {
+    code = new URL(route.request().url()).searchParams.get('code');
+    return route.fulfill({ status: 200, contentType: 'text/plain', body: 'Madar sent the code.' });
+  });
+  await page.locator('button.signature:visible').click();
+  await expect.poll(() => code, { timeout: 15_000 }).not.toBeNull();
+  return code!;
+}
+
+async function exchange(flow: Flow, code: string): Promise<string> {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: flow.clientId, code_verifier: flow.verifier, resource: MCP_URL }),
+  });
+  const body = (await response.json()) as { access_token?: string };
+  if (!response.ok || !body.access_token) throw new Error(`The code exchange failed: ${response.status}`);
+  return body.access_token;
+}
+
+test('the consent screen shows the agent and its one Approve button', async ({ page }) => {
+  const name = `X2 consent ${runId()}`;
+  const flow = await startFlow(await registerClient(name));
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await goto(page, flow.consentRoute);
+    await expect(page.getByText(name)).toBeVisible();
+    // The host of the redirect address shows, so a person sees where the agent sends the code.
+    await expect(page.getByText('127.0.0.1').first()).toBeVisible();
+    await expect(page.locator('button.signature:visible')).toHaveCount(1);
+    await page.screenshot({ path: `test-results/e2e-deploy-shots/agents/consent-${width}.png`, fullPage: true });
+    await expectCalm(page, 'consent');
+    await expectNoSeriousA11y(page, 'consent');
+  }
+});
+
+test('an approved agent shows in Settings, Agents after its first call, and Remove takes it away', async ({ page }) => {
+  const name = `X2 agent ${runId()}`;
+  const flow = await startFlow(await registerClient(name));
+  await goto(page, flow.consentRoute);
+  await expect(page.getByText(name)).toBeVisible();
+  const token = await exchange(flow, await approve(page));
+  // The first MCP call makes the agent link (ensureAgentUser).
+  const listed = await fetch(MCP_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+  expect(listed.status).toBe(200);
+  await page.unroute(`${new URL(REDIRECT_URI).origin}/**`);
+  await goto(page, '/settings');
+  await expect(page.getByRole('button', { name: PERSON_OF.member, exact: true })).toBeVisible();
+  const row = page.getByRole('listitem').filter({ hasText: name });
+  await expect(row).toBeVisible();
+  await row.getByRole('button').last().click();
+  // Remove may ask once; the main button of that question confirms it.
+  const confirm = page.getByRole('dialog').locator('button.signature, button.text-late').last();
+  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  await expect(page.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
+  const after = await fetch(MCP_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+  });
+  expect(after.status, 'a removed agent is stopped at once').toBe(401);
+});
+
+test('Z0a case 3: an agent token cannot set a new password without the current one', async ({ page }) => {
+  test.skip(!DEPLOYED, 'The local stack cannot turn on "require current password" (supabase/cli issue 5846); this case runs on the test deployment.');
+  const publishable = process.env.MADAR_E2E_PUBLISHABLE_KEY;
+  if (!publishable) throw new Error('MADAR_E2E_PUBLISHABLE_KEY is missing: set the publishable key of madar-test.');
+  const flow = await startFlow(await registerClient(`X2 password check ${runId()}`));
+  await goto(page, flow.consentRoute);
+  const token = await exchange(flow, await approve(page));
+  const answer = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { apikey: publishable, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: `Agent-set-${runId()}-pass` }),
+  });
+  const body = (await answer.json().catch(() => ({}))) as { code?: string; error_code?: string };
+  expect(answer.status, 'Auth refuses the new password').toBeGreaterThanOrEqual(400);
+  expect(body.error_code ?? body.code).toBe('current_password_required');
+});
