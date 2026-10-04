@@ -265,3 +265,57 @@ Waits until the owner turns on R2 (plan 2b, point 1). Section 6 covers the files
 3. A local `wrangler dev` with `[[hyperdrive]]` needs `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB`, so `npm run start:server` and every local Worker run must set it.
 
 **Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `npm run test:it`.
+
+## P1. Token check and invitations on the local stack (2026-10-04)
+
+**Result: PASS.** An invitation works with open sign-up off. Every token of the invited person passes `verifyBrowserToken`. The link type for a second invitation depends on one fact: did the person accept the first one.
+
+**What ran.** Local stack of Supabase CLI 2.119.0 (Auth `gotrue:v2.197.0`, `enable_signup = false`), reset from the `rb/P` worktree under the Docker lock. `server/it/tokens.it.test.ts`: 8 of 8 pass. `server/auth/verify.test.ts` and `principal.test.ts` (unit, real ES256 keys): 18 of 18 pass. The bundle smoke on both hosts, `server/it/worker.it.test.ts`, still passes (12 of 12) with jose in the bundle.
+
+### Token check (`server/auth/verify.ts`)
+
+| Check | Result |
+|---|---|
+| Signing key of the local stack | ES256, one key in `/auth/v1/.well-known/jwks.json`. Issuer `http://127.0.0.1:54321/auth/v1`. |
+| Token of the Welcome session, of a password sign-in, of a refresh | Pass, `authUserId` = the `auth.users` id |
+| Form of `aud` on the local stack | The string `"authenticated"` after a password sign-in and after a refresh. The hosted Auth gives an array after a password sign-in (Z0a, item 2). The local stack cannot show the array form, so the unit test signs both forms. |
+| The legacy `ANON_KEY` and `SERVICE_ROLE_KEY` (HS256 JWTs) and the `sb_publishable_` key as a bearer token | Refused, `unauthenticated` |
+
+**Design (apply Z0a item 2, design change P1).** The check is `jwtVerify` of jose with `issuer`, `audience: 'authenticated'` and `algorithms: ['ES256']`, never a hand comparison of `aud`. The answers:
+
+- A bad, expired or foreign token: `unauthenticated` (401). An expired token has `details.reason: 'token_expired'`.
+- Any token with `client_id`: `forbidden` (403) with `details.reason: 'agent_token'` (plan section 2, change 6). This also holds when the token hook set `aud` to the MCP address: jose checks the signature before the claims, so the payload of the audience error is a signed payload.
+- `role` must be `authenticated`, and `sub` must be a text that is not empty.
+- A key set that cannot load: `failed` (500) with `details.reason: 'token_check_unavailable'`. A JWKS outage never signs a person out.
+- The JWKS comes from `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. The issuer is `${SUPABASE_URL}/auth/v1`, or `AUTH_ISSUER` when set. A local function sees `SUPABASE_URL=http://kong:8000`, but its tokens name `http://127.0.0.1:54321/auth/v1`, so a local `supabase functions serve` run with real tokens must set `AUTH_ISSUER`. Production leaves it unset.
+- `principalOf` gives the `users` row linked by `auth_user_id`, or `unauthenticated` (401) when no row has the link. A turned-off person still gets a principal, and `runCall` refuses that person with `account_off` (403).
+
+### Invitations with sign-up off
+
+| Step | Result |
+|---|---|
+| `POST /auth/v1/signup` with the publishable key | 422 `signup_disabled` |
+| `POST /auth/v1/admin/generate_link { type: 'invite' }` | 200. It makes the Auth user and gives `hashed_token`. The `sb_secret_` key and the service-role JWT both work. |
+| `POST /auth/v1/verify { type: 'invite', token_hash }` (the Welcome button) | 200, a session. Its AMR is `otp`. |
+| `PUT /auth/v1/user { password }` with that session | 200. The person then signs in with the password. |
+| The same link a second time | 403 `otp_expired` |
+
+### Which link type works for a second invitation
+
+| State of the person | `invite` | `recovery` |
+|---|---|---|
+| Did not accept yet | 200, the same Auth user. The first invite link fails after it (403 `otp_expired`). | 200. Its use sets the password and confirms the email. |
+| Accepted (password set) | 422 `email_exists` | 200. Its use gives a session (AMR `otp`) that sets a new password. |
+
+Two more facts:
+
+- The first link that a person uses makes every other open link of that person fail (403 `otp_expired`), whatever its type.
+- A `recovery` link made after an `invite` link does not stop the `invite` link before one of them is used. Only a new `invite` link replaces the old `invite` link at once.
+
+**For P2 (`users.resendInvite`).** Send `invite` while the Auth user has no `email_confirmed_at`, so the old link fails at once (the `invites.it` case "an old link fails"). Send `recovery` after the person accepted. When `invite` answers 422 `email_exists`, use `recovery`. The mail link carries the type of the link that the server made (`type=invite` or `type=recovery`), because the screen sends that type to `verifyOtp`.
+
+**For the Z1 gate ("require current password").** On the local Auth, the sessions from an invite link and from a recovery link both have the AMR `otp`, which is on the exempt list. The hosted Auth may differ. The Z1 probe on `madar-test` still decides.
+
+**Other facts found.** A reset to the same password gets 422 `same_password`. In an exploratory probe (not in the suite), `generate_link { type: 'magiclink' }` for an unknown address made a new Auth user with sign-up off: the admin API ignores `enable_signup`. So the server must call `generate_link` only for an address that a `users` row holds.
+
+**Re-run.** Take the Docker lock, `supabase db reset` from the worktree, then `MADAR_IT=1 npx vitest run --project it server/it/tokens.it.test.ts`.
