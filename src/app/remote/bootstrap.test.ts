@@ -6,6 +6,13 @@ import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
 import { bootstrapRemote, firstLanguage, personChangeSource, remoteConfig } from './bootstrap';
 
+// The file adapters of track F (src/app/files.ts), replaced by markers so the test sees which adapters the bootstrap hands RemoteApi.
+const fileAdapters = vi.hoisted(() => ({
+  'files.upload': async (input: unknown) => ({ adapter: 'files.upload', input }),
+  'feedback.send': async (input: unknown) => ({ adapter: 'feedback.send', input }),
+}));
+vi.mock('../files', () => ({ remoteFileAdapters: () => fileAdapters }));
+
 type Listener = (status: AuthStatus, change?: 'left' | 'person') => void;
 
 /** A sign-in port the test drives: it says when the session starts, ends or changes person. */
@@ -234,13 +241,12 @@ describe('the remote runtime (plan R2)', () => {
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe('https://ref.supabase.co/functions/v1/api/auth/forgot?forceFunctionRegion=eu-central-1');
   });
 
-  it('turns a file upload and a feedback with pictures into their adapters, never into JSON', async () => {
+  it('turns a file upload and a feedback with pictures into the file adapters of src/app/files.ts, never into JSON', async () => {
     const fetch = vi.fn() as unknown as typeof globalThis.fetch;
     const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch });
     const blob = new Blob(['x'], { type: 'text/plain' });
-    // Track F replaces the adapter stubs; until then each says it is not built, and no request leaves.
-    await expect(runtime.api.call('files.upload', { projectId: 'prj_001', name: 'a.txt', blob } as never)).rejects.toMatchObject({ details: { reason: 'not_built' } });
-    await expect(runtime.api.call('feedback.send', { kind: 'bug', title: 'x', body: 'y', screenshots: [blob] } as never)).rejects.toMatchObject({ details: { reason: 'not_built' } });
+    await expect(runtime.api.call('files.upload', { projectId: 'prj_001', name: 'a.txt', blob } as never)).resolves.toMatchObject({ adapter: 'files.upload' });
+    await expect(runtime.api.call('feedback.send', { kind: 'bug', title: 'x', body: 'y', screenshots: [blob] } as never)).resolves.toMatchObject({ adapter: 'feedback.send' });
     expect(fetch).not.toHaveBeenCalled();
   });
 

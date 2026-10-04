@@ -44,6 +44,15 @@ describe('the test fakes of the server ports', () => {
     expect(fakeFiles({ kind: 'r2' }).maxFileBytes).toBe(250 * 1024 * 1024);
   });
 
+  it('fakeFiles refuses a copy onto a key that holds an object, as Storage does', async () => {
+    const files = fakeFiles();
+    files.objects.set('up/a', { size: 1, mimeType: 'application/pdf' });
+    files.objects.set('up/b', { size: 2, mimeType: 'application/pdf' });
+    await files.copy('up/a', 'prj-001/a/file');
+    await expect(files.copy('up/b', 'prj-001/a/file')).rejects.toThrow(/already/);
+    expect(await files.head('prj-001/a/file')).toEqual({ size: 1, mimeType: 'application/pdf' });
+  });
+
   it('fakeMail records the mail and fails on request', async () => {
     const mail = fakeMail();
     const sent = await mail.send({ to: 'a@madar.test', subject: 'Hi', html: '<p>Hi</p>', text: 'Hi', tag: 'invite', idempotencyKey: 'k1' });

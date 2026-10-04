@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import { MAX_FILE_BYTES } from '../../api/contract/entities';
 import { canRetry, errorMessage } from '../../app/errors';
+import { tooLargeText, uploadErrorMessage, useFileLimit } from '../../app/files';
+import { useLang } from '../../app/lang';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
@@ -20,6 +21,8 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const navigate = useNavigate();
   const toast = useToast();
   const { api } = useRuntime();
+  const limit = useFileLimit();
+  const lang = useLang();
   const settings = useCall('settings.get', {});
   const defaults = settings.data?.defaultStages ?? [];
   const form = useProjectForm(emptyProjectForm(defaults));
@@ -54,7 +57,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     } catch (error) {
       toast.show({
         tone: 'error',
-        message: errorMessage(error, t),
+        message: uploadErrorMessage(error, file.name, t, lang),
         action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadCover(projectId, stageId, file), isUndo: false } : undefined,
       });
     }
@@ -88,7 +91,8 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       onOpenChange(false);
       navigate(`/projects/${detail.project.id}`);
       // The project exists now. The cover goes up on its own, so a failed upload never makes a second project.
-      if (cover && cover.size > MAX_FILE_BYTES) toast.show({ tone: 'error', message: t('files.tooBig', { name: cover.name }) });
+      // The limit of the active store (session.get), named, so a cover over it never starts an upload that the server refuses.
+      if (cover && cover.size > limit) toast.show({ tone: 'error', message: tooLargeText(cover.name, limit, t, lang) });
       else if (cover) void uploadCover(detail.project.id, detail.currentStage.id, cover);
     } catch (error) {
       toast.show({ tone: 'error', message: errorMessage(error, t) });

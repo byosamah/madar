@@ -42,8 +42,8 @@ export const SignedPut = z.object({
 });
 export type SignedPut = z.infer<typeof SignedPut>;
 
-const MimeType = z.string().min(1).max(100);
-const ImageType = z.string().max(100).regex(/^image\//, 'A screenshot must be a picture.');
+const MimeType = z.string().min(1).max(100).regex(/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i, 'The file type is not valid.');
+const ImageType = z.string().max(100).regex(/^image\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i, 'A screenshot must be a picture.');
 const UploadId = z.string().min(1).max(80);
 const Empty = z.object({});
 const Meter = z.object({ used: z.number().min(0), limit: z.number().positive() });

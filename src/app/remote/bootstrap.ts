@@ -1,11 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { Language } from '../../api/contract/entities';
-import { feedbackAdapter } from '../../api/remote/feedback';
 import { createRemoteApi } from '../../api/remote/remoteApi';
-import { uploadAdapter } from '../../api/remote/upload';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
+import { remoteFileAdapters } from '../files';
 import type { Runtime } from '../runtime';
 import type { ChangeListener, ChangeSource } from '../signals';
 import { createSupabaseAuth } from './auth';
@@ -154,7 +153,7 @@ export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: 
 
 /**
  * Builds the remote runtime. The parts can come in for tests; by default they come from the public values of the build.
- * Track F fills the two adapters; makeThumb stays a stand-in until src/app/thumbs.ts exists (plan 5.2).
+ * The two file adapters come from track F (src/app/files.ts), with the thumbnail maker of src/app/thumbs.ts (plan 5.2).
  */
 export async function bootstrapRemote(o: {
   config?: RemoteConfig;
@@ -171,10 +170,7 @@ export async function bootstrapRemote(o: {
   });
   const supabase = o.supabase ?? createSupabase({ url: config.supabaseUrl, publishableKey: config.publishableKey });
   const auth = o.auth ?? (await createSupabaseAuth(supabase, { apiUrl: config.apiUrl, fetch: o.fetch }));
-  const adapters: Partial<Record<CallName, Adapter>> = {
-    'files.upload': uploadAdapter({ makeThumb: async () => null }),
-    'feedback.send': feedbackAdapter(),
-  };
+  const adapters: Partial<Record<CallName, Adapter>> = remoteFileAdapters();
   let changes: PersonChangeSource | undefined;
   const api = createRemoteApi<Calls>({
     url: config.apiUrl,

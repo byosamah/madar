@@ -34,6 +34,8 @@ export function fakeFiles(o: { kind?: FileStoreKind; headDelayMs?: number; maxFi
       calls.push({ op: 'copy', key: `${from}>${to}` });
       const object = objects.get(from);
       if (!object) throw new Error(`No object at ${from}.`);
+      // Storage refuses a copy onto a key that holds an object (KeyAlreadyExists).
+      if (objects.has(to)) throw new Error(`An object is already at ${to}.`);
       objects.set(to, { ...object });
     },
     async remove(keys) {

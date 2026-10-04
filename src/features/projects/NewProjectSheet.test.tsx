@@ -5,6 +5,18 @@ import { useState } from 'react';
 import { renderWithRuntime } from '../../test/render';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ApiError } from '../../api/errors';
+import { render } from '@testing-library/react';
+import { RouterProvider, createMemoryRouter } from 'react-router';
+import { calls, type MadarApi } from '../../api/calls';
+import { createApi } from '../../api/client';
+import { memoryPersister } from '../../api/persist';
+import { Store } from '../../api/store';
+import { RuntimeProvider, createQueryClient } from '../../app/runtime';
+import { ToastProvider } from '../../app/toasts';
+import { buildSeed } from '../../data/seed';
+import { initI18n } from '../../i18n';
+import { setNow } from '../../lib/dates';
+import { NOW, TODAY } from '../../test/factories';
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -172,5 +184,42 @@ describe('the New Project sheet: contract start date', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(Object.values(store.state.projects).some((p) => p.name === 'No Contract Villa')).toBe(true));
     expect(Object.values(store.state.projects).find((p) => p.name === 'No Contract Villa')?.contractStartDate).toBeNull();
+  });
+
+  // The real build: session.get names the limit of the active store, and a cover over it never goes to files.upload.
+  it.each([
+    ['en', 'Cover.png is larger than 50 MB.'],
+    ['ar', 'حجم Cover.png أكبر من 50 ميغابايت.'],
+  ] as const)('refuses a cover over the store limit before the upload and names the limit (%s)', async (lang, message) => {
+    setNow(NOW);
+    const store = new Store(await buildSeed(TODAY, async () => undefined), memoryPersister());
+    const fake = createApi(calls, { store, latencyMs: 0 });
+    const uploads: unknown[] = [];
+    const api = {
+      ...fake,
+      call: async (name: string, input: unknown, meta?: unknown) => {
+        if (name === 'files.upload') uploads.push(input);
+        const output = await (fake.call as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
+        return name === 'session.get' ? { ...(output as object), limits: { maxFileBytes: 50 * 1024 * 1024 } } : output;
+      },
+    } as MadarApi;
+    initI18n(lang);
+    render(
+      <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+        <ToastProvider><RouterProvider router={createMemoryRouter([{ path: '*', element: <NewProjectSheet open onOpenChange={() => undefined} /> }])} /></ToastProvider>
+      </RuntimeProvider>,
+    );
+    const sheet = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(sheet).getAllByRole('textbox').length).toBeGreaterThan(0));
+    await userEvent.type(within(sheet).getAllByRole('textbox')[0], 'Harbour Gate Offices');
+    const cover = new File(['png'], 'Cover.png', { type: 'image/png' });
+    Object.defineProperty(cover, 'size', { value: 60 * 1024 * 1024 });
+    // Wait for session.get, so the limit of the store is known.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    fireEvent.change(sheet.querySelector('#project-cover') as HTMLInputElement, { target: { files: [cover] } });
+    fireEvent.submit(sheet.querySelector('form') as HTMLFormElement);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(uploads).toEqual([]);
+    initI18n('en');
   });
 });
