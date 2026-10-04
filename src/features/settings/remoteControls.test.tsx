@@ -70,9 +70,35 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     expect(within(hala).queryByText('Invited')).toBeNull();
     await userEvent.click(within(faisal).getByRole('button', { name: 'Actions for Faisal Al-Harbi' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Send the invitation again' }));
-    expect(await screen.findByText('Invitation sent to Faisal Al-Harbi.')).toBeInTheDocument();
+    // On its way, not sent: on a full mail day the mail waits for the next day (wave 6, V), and the words stay true.
+    expect(await screen.findByText('The invitation is on its way to Faisal Al-Harbi.')).toBeInTheDocument();
     expect(call).toHaveBeenCalledWith('users.resendInvite', { id: 'usr_002' }, expect.objectContaining({ key: expect.any(String) }));
   });
+
+  it('shows an invitation that waits for a day with mail room as a calm Invited mark only: no alarm, no date, no new button (EN and AR)', async () => {
+    // The mail of Faisal's invitation did not go out yet (sentAt null): the daily mail quota was full (wave 6, V).
+    const waiting = (name: string) => (name === 'users.invites'
+      ? [{ userId: 'usr_002', state: 'invited', sentAt: null }, { userId: 'usr_001', state: 'active', sentAt: null }]
+      : undefined);
+    for (const language of ['en', 'ar'] as const) {
+      const { container, unmount } = await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), answer: waiting, language });
+      const people = await screen.findByRole('heading', { level: 2 });
+      const faisal = (await screen.findByText('Faisal Al-Harbi')).closest('li')!;
+      expect(await within(faisal).findByText(language === 'ar' ? 'مدعو' : 'Invited')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      // One main button for the section (Add person); each row has only its Actions menu.
+      expect(within(faisal).getAllByRole('button')).toHaveLength(1);
+      expect(faisal.textContent).not.toMatch(/quota|limit|failed|error|الحصة|فشل|خطأ/i);
+      expectCalm(container, { titleLevel: 2 });
+      expect(people).toBeInTheDocument();
+      if (language === 'ar') {
+        await userEvent.click(within(faisal).getByRole('button'));
+        await userEvent.click(await screen.findByRole('menuitem', { name: 'إرسال الدعوة مرة أخرى' }));
+        expect(await screen.findByText('الدعوة في طريقها إلى Faisal Al-Harbi.')).toBeInTheDocument();
+      }
+      unmount();
+    }
+  }, 20000);
 
   it('offers no new invitation to a person who has signed in', async () => {
     await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), answer: invites });
