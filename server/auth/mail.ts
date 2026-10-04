@@ -75,7 +75,11 @@ function page(lang: Language, parts: string[]): string {
     `<html lang="${lang}" dir="${dir}">`,
     '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>',
     `<body style="margin:0;padding:24px;background:#ffffff;color:#1d1d1f;font-family:-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;text-align:${align}">`,
+    // Gmail drops the html and body tags with their attributes, so the direction and the alignment also sit on a div, as the
+    // N2 pages do (renderPage).
+    `<div dir="${dir}" style="text-align:${align}">`,
     ...parts,
+    '</div>',
     '</body></html>',
   ].join('\n');
 }
@@ -113,15 +117,10 @@ export function renderSigninMail(
   const note = pick(words, 'note', reader);
   const hint = pick(words, 'linkHint', reader);
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
-  const align = lang === 'ar' ? 'right' : 'left';
   const link = escapeHtml(data.link);
 
   const text = [title, '', body, '', `${button}: ${data.link}`, '', note].join('\n');
-  const html = [
-    '<!doctype html>',
-    `<html lang="${lang}" dir="${dir}">`,
-    '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>',
-    `<body style="margin:0;padding:24px;background:#ffffff;color:#1d1d1f;font-family:-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;text-align:${align}">`,
+  const html = page(lang, [
     brandHeader(mailWords(lang)('mail.common.brand'), dir, o.appUrl ? logoAddress(o.appUrl) : undefined),
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(title)}</h1>`,
     `<p style="font-size:15px;line-height:1.5;margin:0 0 24px">${escapeHtml(body)}</p>`,
@@ -129,7 +128,6 @@ export function renderSigninMail(
     `<p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 8px">${escapeHtml(hint)}</p>`,
     `<p dir="ltr" style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 24px;word-break:break-all">${link}</p>`,
     `<p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0">${escapeHtml(note)}</p>`,
-    '</body></html>',
-  ].join('\n');
+  ]);
   return { subject, html, text };
 }

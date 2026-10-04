@@ -87,6 +87,24 @@ describe('the header of the invitation and the reset mail: the Madar mark of the
     }
   });
 
+  it('holds the direction and the alignment in a div inside the body, because Gmail drops the html and body tags with their attributes', () => {
+    const bodyOf = (html: string) => html.slice(html.indexOf('>', html.indexOf('<body')) + 1, html.indexOf('</body>')).trim();
+    for (const lang of LANGS) {
+      const dir = lang === 'ar' ? 'rtl' : 'ltr';
+      const align = lang === 'ar' ? 'right' : 'left';
+      const mails = [
+        ...KINDS.map((kind) => renderSigninMail(kind, lang, { name: 'N', link: LINK }, undefined, { appUrl: APP }).html),
+        ...KINDS.map((kind) => renderSigninMail(kind, lang, { name: 'N', link: LINK }).html),
+        renderEmailChangedMail(lang, { name: 'N', email: 'e@madar.test' }).html,
+      ];
+      for (const html of mails) {
+        const inner = bodyOf(html);
+        expect(inner.startsWith(`<div dir="${dir}" style="text-align:${align}">`)).toBe(true);
+        expect(inner.endsWith('</div>')).toBe(true);
+      }
+    }
+  });
+
   it('keeps the words, the link and the text part as they were', () => {
     for (const kind of KINDS) {
       for (const lang of LANGS) {
