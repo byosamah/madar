@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { asRole, expect, PERSON_OF, test } from './fixtures';
-import { goto, REMOTE, urlPattern } from './goto';
+import { goto, settle, REMOTE, urlPattern } from './goto';
 import { openMenu } from './steps';
 
 /** tests/e2e/owner.spec.ts on the remote build (task X2): the phone tab bar, chat Inbox, bell, Overview, Pause and Meeting view. */
@@ -147,7 +147,7 @@ for (const theme of ['light', 'dark'] as const) {
       await goto(page, route);
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expect(page.locator('h1, main[aria-label]').first()).toBeVisible();
-      await page.waitForTimeout(1200);
+      await settle(page);
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
       const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
       expect.soft(serious.map((v) => `${name}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

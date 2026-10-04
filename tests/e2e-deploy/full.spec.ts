@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { expect, test, useArabic } from './fixtures';
-import { goto } from './goto';
+import { goto, settle } from './goto';
 
 /** tests/e2e/full.spec.ts on the remote build (task X2): every screen in both languages, both themes, at 390, 820 and 1440 px. */
 
@@ -14,7 +14,7 @@ async function sweep(page: Page, folder: string): Promise<void> {
   for (const route of ROUTES) {
     await goto(page, route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await page.waitForTimeout(1200);
+    await settle(page);
     const name = route === '/' ? 'home' : route.slice(1).replace(/[/?=&]/g, '-');
     await page.screenshot({ path: `test-results/e2e-deploy-shots/full/${folder}/${name}.png`, fullPage: true });
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();

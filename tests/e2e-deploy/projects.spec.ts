@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { expect, test, useArabic } from './fixtures';
-import { goto, urlPattern } from './goto';
+import { goto, settle, urlPattern } from './goto';
 
 /** tests/e2e/projects.spec.ts on the remote build (task X2), at 820 px too. */
 
@@ -31,7 +31,7 @@ for (const width of [390, 820, 1440]) {
         const route = `/projects/prj_001?tab=${tab}`;
         await goto(page, route);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        await page.waitForTimeout(1200);
+        await settle(page);
         await page.screenshot({ path: `test-results/e2e-deploy-shots/projects/${width}-${lang}-${tab}.png`, fullPage: true });
         await expectNoSeriousA11yIssues(page, route);
       }

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, useArabic } from './fixtures';
-import { goto } from './goto';
+import { goto, settle } from './goto';
 
 /** tests/e2e/shell.spec.ts on the remote build (task X2). */
 
@@ -21,7 +21,7 @@ for (const width of WIDTHS) {
           await goto(page, route);
           await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
           if (route === '/' || route === '/projects') await expect(page.locator('main ul li').first()).toBeVisible();
-          await page.waitForTimeout(1200); // the entrance and count-up motion settle before the contrast check
+          await settle(page);
           const name = route === '/' ? 'home' : route.slice(1);
           await page.screenshot({ path: `test-results/e2e-deploy-shots/shell/${width}-${lang}-${theme}-${name}.png`, fullPage: true });
           const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();

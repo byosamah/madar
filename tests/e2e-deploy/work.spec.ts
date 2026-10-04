@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { expect, test, useArabic } from './fixtures';
-import { goto } from './goto';
+import { goto, settle } from './goto';
 
 /** tests/e2e/work.spec.ts on the remote build (task X2), at 820 px too. */
 
@@ -29,7 +29,7 @@ for (const width of [390, 820, 1440]) {
       for (const screen of SCREENS) {
         await goto(page, screen.route);
         await screen.ready(page);
-        await page.waitForTimeout(1200);
+        await settle(page);
         await page.screenshot({ path: `test-results/e2e-deploy-shots/work/${width}-${lang}-${screen.name}.png`, fullPage: true });
         await expectNoSeriousA11yIssues(page, screen.route, screen.scope);
       }

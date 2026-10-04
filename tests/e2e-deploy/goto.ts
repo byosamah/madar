@@ -41,3 +41,19 @@ export function urlPattern(route: string, o: { target?: Target; end?: boolean } 
 export async function goto(page: Page, route: string): Promise<void> {
   await page.goto(routeUrl(route));
 }
+
+/**
+ * Waits until a screen is still before a contrast check or a screenshot: no request for 500 ms, then no running animation
+ * that ends (a drifting glow loops forever, so it does not count). A fixed 1.2 s wait was too short on the live copy: the
+ * panels mount when their data comes, about 1 s after the page opens, and only then fade in for up to 0.7 s, so axe measured
+ * half-transparent text (deploy suite on the test copy, 2026-10-05).
+ */
+export async function settle(page: Page): Promise<void> {
+  await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+  await page.waitForTimeout(150);
+  await page.waitForFunction(
+    () => document.getAnimations().every((animation) => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity),
+    undefined,
+    { timeout: 10_000 },
+  ).catch(() => undefined);
+}
