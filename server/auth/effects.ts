@@ -149,9 +149,25 @@ const NoticePayload = z.object({
 });
 
 /**
+ * A send that the daily mail quota refused. retryAt is the next UTC midnight, when the quota has room again. An outbox runner
+ * that knows it (the merge lead patch of S1 for processOutbox) holds the row until then and gives the attempt back, so a full
+ * day never uses up the 5 attempts of a row.
+ */
+export class QuotaFull extends Error {
+  readonly retryAt: Date;
+
+  constructor(message: string, now: Date) {
+    super(message);
+    this.name = 'QuotaFull';
+    this.retryAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  }
+}
+
+/**
  * The auth.emailNotice effect: the notice at the old email, counted against the daily mail quota as sign-in mail. A security
- * notice never counts as done unless the mail went out (S1 review): a full day throws, so the row stays in the outbox and the
- * job tries it again (up to 5 attempts); after that the Admin sees it as a failed effect in Usage (track M).
+ * notice never counts as done unless the mail went out (S1 review): a full day throws QuotaFull, so the row stays in the outbox
+ * for the next UTC day. Any other failure throws as it is: the job tries it again (up to 5 attempts); after that the Admin sees
+ * it as a failed effect in Usage (track M).
  */
 export async function sendEmailNotice(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const parsed = NoticePayload.safeParse(payload);
@@ -159,7 +175,7 @@ export async function sendEmailNotice(payload: Record<string, unknown>, deps: De
   const notice = parsed.data;
   const mail = renderEmailChangedMail(notice.language, { name: notice.name, email: notice.email, by: notice.by }, notice.gender ?? undefined);
   const sent = await sendCounted(deps, 'signin', { to: notice.to, ...mail, tag: 'notice', idempotencyKey: notice.key }, { userId: notice.userId });
-  if (sent.status === 'over') throw new Error('The email change notice did not go out: the daily mail quota is full. The job tries it again.');
+  if (sent.status === 'over') throw new QuotaFull('The email change notice did not go out: the daily mail quota is full. The job tries it again.', deps.clock.now());
 }
 
 function userIdOf(payload: Rec): string {

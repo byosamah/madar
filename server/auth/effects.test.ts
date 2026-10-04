@@ -7,7 +7,7 @@ import type { SaveResult } from '../data/save';
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { QUOTA_LIMITS } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
-import { AUTH_CALLS, AUTH_KINDS, authRowsOf, runAuthEffect, sqlAuthStore, USER_EMAIL_CHANGED_SQL, type AuthStore } from './effects';
+import { AUTH_CALLS, AUTH_KINDS, authRowsOf, QuotaFull, runAuthEffect, sendEmailNotice, sqlAuthStore, USER_EMAIL_CHANGED_SQL, type AuthStore } from './effects';
 import { fakeAuth } from './fakeAuth';
 import { PAYLOAD_MERGE_SQL, type Person } from './invite';
 
@@ -254,11 +254,30 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     // A security notice never counts as done unless the mail went out: the job tries it again, and after 5 attempts the Admin
     // sees it as a failed effect in Usage (track M).
     expect(mem.outbox.map((row) => [row.kind, row.done, row.error])).toEqual([[AUTH_KINDS.emailNotice, false, expect.stringMatching(/quota/)]]);
+    // Here the test frees the claim by hand. The real job claims the row again only after the next UTC midnight once the merge
+    // lead patch of S1 (processOutbox reads QuotaFull.retryAt) is in; without it, each run of a full day spends an attempt.
     // The next UTC day has room again.
     deps.clock.set(new Date(deps.clock.now().getTime() + 24 * 60 * 60 * 1000));
     mem.outbox[0].claimed = false;
     expect(await processOutbox(deps, ['1'])).toEqual({ done: ['1'], failed: [] });
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
+  });
+
+  it('a full mail day throws QuotaFull with the next UTC midnight, so the outbox can wait for the next day without spending an attempt', async () => {
+    const { deps, mem } = setup(person(), true);
+    deps.clock.set(new Date('2026-10-04T21:30:00Z'));
+    mem.fill('notice', QUOTA_LIMITS.signin, '2026-10-04');
+    const payload = { userId: 'usr_012', to: 'sara@madar.test', email: 'sara.new@madar.test', name: 'Sara', language: 'en', key: 'email-changed:inv_z' };
+    const refused = await sendEmailNotice(payload, deps).then(() => null, (error: unknown) => error);
+    expect(refused).toBeInstanceOf(QuotaFull);
+    expect(refused).toMatchObject({ message: expect.stringMatching(/quota/), retryAt: new Date('2026-10-05T00:00:00Z') });
+    expect(deps.mail.sent).toEqual([]);
+    // Any other failure stays a plain error: it spends an attempt, as before.
+    deps.mail.failNext(new Error('Resend is down'));
+    deps.clock.set(new Date('2026-10-05T00:00:00Z'));
+    const failed = await sendEmailNotice(payload, deps).then(() => null, (error: unknown) => error);
+    expect(failed).not.toBeInstanceOf(QuotaFull);
+    expect(failed).toMatchObject({ message: 'Resend is down' });
   });
 
   it('an older row that sent its notice (noticeSentAt, the P2 version) queues none', async () => {
