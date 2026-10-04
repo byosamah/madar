@@ -6,7 +6,7 @@ import { ADMINS_SQL } from '../mail/notices';
 import { SENT_TODAY_SQL } from '../mail/quota';
 import { renderMail } from '../mail/templates';
 import { fakeDeps } from '../test/fakes/deps';
-import { METERS_SQL } from './meters';
+import { METERS_SQL, STORAGE_PRESENT_SQL } from './meters';
 import { registerUsageEffects } from './register';
 import { ADMIN_MAIL_SQL, LIMIT_WARNING_EFFECT, WARNING_MARK_SQL, checkLimits, sendLimitWarning } from './warn';
 
@@ -32,6 +32,8 @@ function setup(o: { meters?: Partial<MeterValues>; people?: Person[]; config?: P
   const mem = memoryMailDb((text, values) => {
     if (text === METERS_SQL) return [Object.fromEntries(Object.entries(meters).map(([k, v]) => [k, v === null ? null : String(v)]))];
     if (text === SENT_TODAY_SQL) return [{ n: mem.log.filter((r) => r.utc_day === values[0] && r.kind !== 'refused').length }];
+    // No bucket function here, as in the db-mode harness: files_bytes from the file records drives the files meter.
+    if (text === STORAGE_PRESENT_SQL) return [{ present: false }];
     if (text === ADMINS_SQL) return [...people.values()].filter((p) => p.active && p.systemRole === 'admin').map((p) => ({ id: p.id }));
     if (text === ADMIN_MAIL_SQL) {
       const p = people.get(values[0] as string);

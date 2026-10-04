@@ -8,7 +8,7 @@ import type { ServerCallCtx } from '../core/types';
 import { snapshotOf } from '../data/officeCache';
 import { SENT_TODAY_SQL } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
-import { FAILED_EFFECTS_SQL, JOBS_LAST_RUN_SQL, METERS_SQL, SIGNALS_SQL } from '../usage/meters';
+import { FAILED_EFFECTS_SQL, JOBS_LAST_RUN_SQL, METERS_SQL, SIGNALS_SQL, STORAGE_PRESENT_SQL } from '../usage/meters';
 import { usageGet } from './usage';
 
 /** usage.get (plan 4.11, 5.8; task M1), with the meter statements answered in memory. server/it/usage.it.test.ts runs the SQL. */
@@ -26,6 +26,7 @@ function readOnlyDb(): Db & { modes: string[] } {
     if (text === SENT_TODAY_SQL) return [{ n: 2 }];
     if (text === FAILED_EFFECTS_SQL) return [{ id: '4', kind: 'mail.notice', error: 'Resend said no.', attempts: 2, created_at: new Date('2026-10-04T05:00:00Z'), payload: { notificationId: 'ntf_1' } }];
     if (text === SIGNALS_SQL || text === JOBS_LAST_RUN_SQL) return [];
+    if (text === STORAGE_PRESENT_SQL) return [{ present: false }];
     throw new Error(`Not a usage statement: ${text.slice(0, 60)}`);
   }) as Query;
   const refuse = () => Promise.reject(new Error('usage.get reads in one read transaction.'));

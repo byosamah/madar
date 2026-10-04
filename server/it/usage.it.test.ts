@@ -1,6 +1,10 @@
+import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { FilesPort } from '../core/ports';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
+import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import '../usage/effects';
 import { meterPort } from '../usage/meter';
 import { readMeters, readUsage } from '../usage/meters';
@@ -14,6 +18,7 @@ import { NOW, newBatch, startOffice, type ItOffice } from './runCallOffice';
  */
 
 const GB = 1024 * 1024 * 1024;
+const ROOT = join(import.meta.dirname, '..', '..');
 let office: ItOffice;
 let deps: ReturnType<ItOffice['isolate']>;
 
@@ -57,7 +62,8 @@ describe('suite 13: the usage meters on the local database', () => {
     await office.sql("insert into usage_month (month, calls, bytes_read, backup_bytes) values ('2026-10', 1200, 4096, null), ('2026-09', 99, 1, 777)");
     await office.sql("insert into mail_log (utc_day, kind, ref) values ('2026-10-04', 'notice', 'a'), ('2026-10-04', 'signin', 'b'), ('2026-10-02', 'warning', 'c'), ('2026-10-04', 'refused', 'quota-refused'), ('2026-09-30', 'notice', 'd')");
     const fileBytes = Object.values(office.seed.files).flatMap((file) => file.versions).reduce((sum, version) => sum + version.size, 0);
-    const meters = await deps.db.tx('read', (q) => readMeters(q, deps.config, NOW));
+    // On R2 the files meter sums the versions of the file records. On Supabase Storage it reads the bucket (the next suite).
+    const meters = await deps.db.tx('read', (q) => readMeters(q, { ...deps.config, fileStore: 'r2' }, NOW));
     expect(meters).toMatchObject({
       month: '2026-10',
       calls: { used: 1200 },
@@ -113,4 +119,49 @@ describe('suite 13: the usage meters on the local database', () => {
     expect(runs.flatMap((r) => r.warned)).toEqual(['egress']);
     expect(await office.sql('select month, metric from usage_warnings')).toEqual([{ month: '2026-10', metric: 'egress' }]);
   });
+});
+
+describe('suite 13: file storage on the local Supabase Storage counts the whole bucket (migration 20261004000601)', () => {
+  type Start = { uploadId: string; put: { url: string; headers: Record<string, string> }; thumbPut?: { url: string; headers: Record<string, string> } };
+  let store: FilesPort;
+  let fdeps: ReturnType<ItOffice['isolate']>;
+  const keys: string[] = [];
+  const as = (userId: string, name: string, input: unknown) => runCall(fdeps, { principal: { userId }, name, input, batch: newBatch() });
+  const filesUsed = async () => (await fdeps.db.tx('read', (q) => readMeters(q, fdeps.config, NOW))).files.used;
+  const put = async (target: { url: string; headers: Record<string, string> }, body: string) => {
+    expect((await fetch(target.url, { method: 'PUT', headers: target.headers, body })).status).toBe(200);
+  };
+
+  beforeAll(() => {
+    const status = JSON.parse(execFileSync('npx', ['supabase', 'status', '-o', 'json'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })) as Record<string, string>;
+    store = supabaseStorageFilesPort({ supabaseUrl: 'http://127.0.0.1:54321', secretKey: status.SECRET_KEY ?? status.SERVICE_ROLE_KEY, bucket: 'madar-files' });
+    fdeps = office.isolate();
+    fdeps.files = store as never;
+    expect(fdeps.config.fileStore).toBe('supabase');
+  }, 60_000);
+
+  afterAll(async () => {
+    if (keys.length > 0) await store.remove(keys).catch(() => undefined);
+  });
+
+  it('a file and its thumbnail add to the meter, files.delete leaves it as it is (the data stays for Undo), and a feedback screenshot adds to it', async () => {
+    const leader = office.seed.projects.prj_001.leaderId!;
+    const start = await filesUsed();
+    const begin = okOf<Start>(await as(leader, 'files.uploadStart', { projectId: 'prj_001', name: 'meter.png', size: 9, mimeType: 'image/png', thumb: { size: 5, mimeType: 'image/webp' } }));
+    await put(begin.put, 'png-bytes');
+    await put(begin.thumbPut!, 'thumb');
+    const file = okOf<{ file: { id: string } }>(await as(leader, 'files.upload', { projectId: 'prj_001', name: 'meter.png', uploadId: begin.uploadId }));
+    const [intent] = await office.sql<{ key: string; thumb_key: string }>('select key, thumb_key from upload_intents where id = $1', [begin.uploadId]);
+    keys.push(intent.key, intent.thumb_key);
+    expect(await filesUsed()).toBe(start + 9 + 5);
+
+    okOf(await as(leader, 'files.delete', { id: file.file.id }));
+    expect(await filesUsed()).toBe(start + 9 + 5);
+
+    const shots = okOf<{ uploads: Start[] }>(await as('usr_005', 'feedback.uploadStart', { screenshots: [{ size: 8, mimeType: 'image/png' }] }));
+    await put(shots.uploads[0].put, 'png-shot');
+    const report = okOf<{ screenshots: { blobKey: string }[] }>(await as('usr_005', 'feedback.send', { kind: 'bug', message: 'The meter counts screenshots', uploadIds: [shots.uploads[0].uploadId] }));
+    keys.push(...report.screenshots.map((shot) => shot.blobKey));
+    expect(await filesUsed()).toBe(start + 9 + 5 + 8);
+  }, 60_000);
 });

@@ -12,8 +12,12 @@ import type { UsageMeter } from '../mail/templates';
  * change signals that were not sent in the last day, and the last run of the 15-minute job.
  *
  * - Calls and egress: the rows that the usage meter (meter.ts) writes for each request, in the UTC month.
- * - Database: pg_database_size. Files: the sizes of every version in the file records, against the limit of the active store
- *   (1 GB on Supabase Storage, plan 2b point 1). Backup copy: the last size that the backup job wrote (plan 5.7).
+ * - Database: pg_database_size. Backup copy: the last size that the backup job wrote (plan 5.7).
+ * - Files, against the limit of the active store (1 GB on Supabase Storage, plan 2b point 1). On Supabase Storage the meter reads
+ *   the real bucket total (madar_private.storage_bytes(), a platform migration): the bucket also holds the data of deleted files
+ *   (kept for Undo, section 10 decision 2), the thumbnails, the feedback screenshots and the staging objects, and Storage refuses
+ *   uploads at the bucket limit. On R2, and where the function does not exist (the db-mode harness skips platform files), it
+ *   counts the sizes of every version in the file records.
  * - Emails: Resend counts the UTC day and month; the quota of N2 (server/mail/quota.ts) counts the same rows.
  */
 
@@ -32,6 +36,11 @@ export const METERS_SQL = `select
   (select count(*) from mail_log
     where utc_day >= $2::date and utc_day < ($2::date + interval '1 month')::date
       and kind in ('notice', 'summary', 'signin', 'warning'))::bigint as emails_month`;
+
+/** True when the platform function of the bucket total exists. */
+export const STORAGE_PRESENT_SQL = "select to_regprocedure('madar_private.storage_bytes()') is not null as present";
+/** The bytes of every object in the bucket madar-files (supabase/migrations/20261004000601_platform_usage_storage.sql). */
+export const STORAGE_BYTES_SQL = 'select madar_private.storage_bytes() as bytes';
 
 /** The outbox rows that failed and are not done yet, newest first. Never the payload. */
 export const FAILED_EFFECTS_SQL = `select id::text as id, kind, error, attempts, created_at from outbox
@@ -59,15 +68,25 @@ export function utcMonth(at: Date): string {
 
 type MeterRow = { calls: unknown; bytes_read: unknown; backup_bytes: unknown; database_bytes: unknown; files_bytes: unknown; emails_month: unknown };
 
-export async function readMeters(q: Query, config: Pick<Config, 'limits'>, now: Date): Promise<Meters> {
+/** The bytes in the store: the bucket total on Supabase Storage when the function exists, else the file records. */
+async function storedBytes(q: Query, store: FileStoreKind, fromRecords: number): Promise<number> {
+  if (store !== 'supabase') return fromRecords;
+  const [check] = await q<{ present: boolean }>(STORAGE_PRESENT_SQL);
+  if (!check?.present) return fromRecords;
+  const [total] = await q<{ bytes: unknown }>(STORAGE_BYTES_SQL);
+  return num(total?.bytes);
+}
+
+export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'fileStore'>, now: Date): Promise<Meters> {
   const month = utcMonth(now);
   const [row] = await q<MeterRow>(METERS_SQL, [month, `${month}-01`]);
   const today = await sentToday(q, { now });
+  const files = await storedBytes(q, config.fileStore, num(row?.files_bytes));
   return {
     month,
     calls: { used: num(row?.calls), limit: FREE_PLAN_LIMITS.calls },
     database: { used: num(row?.database_bytes), limit: FREE_PLAN_LIMITS.databaseBytes },
-    files: { used: num(row?.files_bytes), limit: config.limits.filesTotalBytes },
+    files: { used: files, limit: config.limits.filesTotalBytes },
     backupCopy: { used: num(row?.backup_bytes), limit: FREE_PLAN_LIMITS.backupCopyBytes },
     emails: { used: today, limit: FREE_PLAN_LIMITS.emailsPerDay },
     emailsMonth: { used: num(row?.emails_month), limit: FREE_PLAN_LIMITS.emailsPerMonth },
@@ -75,7 +94,7 @@ export async function readMeters(q: Query, config: Pick<Config, 'limits'>, now: 
   };
 }
 
-export async function readUsage(q: Query, config: Pick<Config, 'limits'>, now: Date): Promise<Usage> {
+export async function readUsage(q: Query, config: Pick<Config, 'limits' | 'fileStore'>, now: Date): Promise<Usage> {
   const meters = await readMeters(q, config, now);
   const failed = await q<{ id: string; kind: string; error: string | null; attempts: unknown; created_at: unknown }>(FAILED_EFFECTS_SQL);
   const failedEffects: FailedEffect[] = failed.map((row) => ({
