@@ -309,6 +309,8 @@ describe('the database guards on the local stack', () => {
     expect(rows).toEqual([
       { name: 'madar_private.agent_session_ok(uuid,uuid)', anon: false, authenticated: false, server: true },
       { name: 'madar_private.current_madar_user_id()', anon: false, authenticated: true, server: true },
+      // The bucket total of the files meter (task M1, 20261004000601_platform_usage_storage.sql): the server only.
+      { name: 'madar_private.storage_bytes()', anon: false, authenticated: false, server: true },
     ]);
     const { rows: send } = await db.query(
       `select to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null as present,
