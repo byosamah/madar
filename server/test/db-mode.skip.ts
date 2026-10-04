@@ -52,7 +52,8 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
     test: 'task threads follow the comment read rule shows a thread to a removed member exactly when comments.list lets them read it',
     reason:
       'Its last part turns the person off and expects forbidden from comments.list and an answer from chats.list. The server refuses '
-      + 'both with unauthenticated and the reason account_off (plan 4.5, the actor). The removed-member part runs in the chats tests of C2.',
+      + 'both with unauthenticated and the reason account_off (plan 4.5, the actor). The D2 report gives the merge lead a patch that '
+      + 'splits the test, so its removed-member part runs in db mode.',
   },
   {
     file: 'src/api/handlers/projectsAudit.test.ts',
