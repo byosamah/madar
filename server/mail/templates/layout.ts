@@ -58,7 +58,7 @@ function header(logo: string, brand: string, dir: 'ltr' | 'rtl'): string {
   const name = escapeHtml(brand);
   return [
     '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;">',
-    `<tr><td style="padding:0;${gap}vertical-align:middle;"><img src="${escapeHtml(logo)}" width="28" height="28" alt="${name}" style="display:block;border:0;outline:none;width:28px;height:28px;"></td>`,
+    `<tr><td style="padding:0;${gap}vertical-align:middle;"><img src="${escapeHtml(logo)}" width="28" height="28" alt="" style="display:block;border:0;outline:none;width:28px;height:28px;"></td>`,
     `<td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">${name}</td></tr>`,
     '</table>',
   ].join('');

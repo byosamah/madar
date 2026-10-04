@@ -42,11 +42,13 @@ describe('renderMail', () => {
 
   describe('the header (TASKS.md, Logo, point 4)', () => {
     it('shows the Madar mark as the 192 px picture at the app address, with the name, in both languages', () => {
+      // The empty alt: the name sits in the next cell, so a screen reader or a mail program that blocks pictures gives it once.
       const english = renderMail('notice', 'en', SAMPLES.notice, {}, { appUrl: APP_URL }).html;
-      expect(english).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="Madar"');
+      expect(english).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt=""');
       expect(english).toMatch(/>Madar<\/td>/);
       const arabic = renderMail('notice', 'ar', SAMPLES.notice, {}, { appUrl: APP_URL }).html;
-      expect(arabic).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt="مدار"');
+      expect(arabic).toContain('<img src="https://madar.example/icons/madar-192.png" width="28" height="28" alt=""');
+      expect(arabic).toMatch(/>مدار<\/td>/);
       // The gap sits between the mark and the name: after the mark in English, before it (on the left) in Arabic.
       expect(english).toContain('padding-right:10px');
       expect(arabic).toContain('padding-left:10px');
