@@ -52,7 +52,7 @@ export const MCP_DENY = [
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
   // Feedback, agents and usage.
   'feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.uploadStart',
-  'agents.list', 'agents.remove', 'usage.get',
+  'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**
