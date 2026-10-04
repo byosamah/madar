@@ -62,19 +62,19 @@
         "egress": "Data sent this month"
       },
       "next": {
-        "calls": "Next step: move Madar to the paid Supabase plan before the month ends.",
-        "database": "Next step: remove old data that the office does not need, or move to the paid Supabase plan.",
+        "calls": "Next step: move Madar to the paid database plan before the month ends.",
+        "database": "Next step: remove old data that the office does not need, or move to the paid database plan.",
         "files": "Next step: move the files to Cloudflare R2, or remove old file versions.",
         "filesR2": "Above 10 GB, R2 charges about $0.015 for each GB a month. No action is needed.",
         "backup": "Next step: remove old copies from the backup storage, or pay for more space there.",
         "emailsToday": "Notice emails stop at the daily limit and stay in the app. No action is needed.",
         "emailsMonth": "Next step: ask people to turn off the email notices that they do not need.",
-        "egress": "Next step: move Madar to the paid Supabase plan before the month ends."
+        "egress": "Next step: move Madar to the paid database plan before the month ends."
       }
     },
     "quota": {
       "subject": "Notice emails stopped for today",
-      "stopped": "Madar sent {{limit}} notice emails today. That is the daily limit of the free plan.",
+      "stopped": "Madar sent {{limit}} emails today. That is the daily limit for notice emails on the free plan.",
       "stayInApp": "New notices stay in the app. Emails start again at 03:00 Riyadh time.",
       "signinStill": "Invitations and password resets still go by email.",
       "noAction": "No action is needed."

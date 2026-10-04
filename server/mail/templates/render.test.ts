@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TRIGGERS, type Gender, type Language } from '../../../src/api/contract/entities';
 import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTemplate } from './index';
@@ -121,6 +122,18 @@ describe('renderMail', () => {
       for (const text of steps) expect(text).toContain('80%');
     }
     expect(renderMail('limitWarning', 'en', SAMPLES.limitWarning).text).toContain('move the files to Cloudflare R2, or remove old file versions');
+  });
+
+  it('never names the database vendor: the screen bundle loads these words, and the prototype bundle check refuses the name', () => {
+    for (const lang of ['en', 'ar']) {
+      const words = readFileSync(new URL(`../../../src/i18n/real/mail.${lang}.json`, import.meta.url), 'utf8');
+      expect({ lang, vendor: words.match(/supabase|سوبابيس/gi) }).toEqual({ lang, vendor: null });
+    }
+  });
+
+  it('counts every email of the day in the quota warning, not only the notices: the limit counts sign-in mail too', () => {
+    expect(renderMail('quotaWarning', 'en', SAMPLES.quotaWarning).text).toContain('Madar sent 90 emails today.');
+    expect(renderMail('quotaWarning', 'ar', SAMPLES.quotaWarning).text).toContain('أرسل مدار 90 رسالة اليوم');
   });
 
   it('writes no em dash and no empty line of words in any mail, and only Arabic words in an Arabic mail', () => {
