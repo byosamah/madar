@@ -46,7 +46,9 @@ function memoryDb(users: Record<string, Row>) {
       const found = mem.outbox
         .filter((r) => linkKinds.includes(r.kind) && ((r.payload.renewKeys as string[] | undefined) ?? []).includes(String(values[0])))
         .sort((a, b) => b.id - a.id)[0];
-      return found ? [{ id: String(found.id), user_id: found.payload.userId, invite_id: found.payload.inviteId, renewed: 'renewedAt' in found.payload }] : [];
+      return found
+        ? [{ id: String(found.id), user_id: found.payload.userId, invite_id: found.payload.inviteId, sent: 'sentAt' in found.payload, renewed: 'renewedAt' in found.payload }]
+        : [];
     }
     if (text === PERSON_SQL) {
       const row = users[String(values[0])];
@@ -151,7 +153,7 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
     expect(db.mem.outbox[0].payload).toHaveProperty('renewedAt');
   });
 
-  it('gives the same answer and sends nothing for an unknown key, a used key, a removed person, an accepted person, and a key that a newer invitation replaced', async () => {
+  it('gives the same answer and sends nothing for an unknown key, a used key, a removed person, an accepted person, a key that a newer invitation replaced, and a key whose mail did not go out', async () => {
     type Case = (o: Awaited<ReturnType<typeof setup>>) => Promise<string>;
     const cases: Record<string, Case> = {
       unknown: async () => 'abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrst',
@@ -174,6 +176,15 @@ describe('POST /auth/renew-invite (security fix 7)', () => {
         const key = keyIn(await invite('usr_002'));
         await invite('usr_002');
         return key;
+      },
+      // The mail did not go out, so the row still holds the plain key next to the token hash (security fix 8). A reader of
+      // the outbox must not be able to use it.
+      unsent: async ({ db, deps, invite }) => {
+        deps.mail.failNext(new Error('Resend is down'));
+        await invite('usr_002');
+        const row = db.mem.outbox.find((r) => r.kind === 'auth.invite')!;
+        expect(row.payload).not.toHaveProperty('sentAt');
+        return String(row.payload.renewKey);
       },
     };
     const answers: string[] = [];

@@ -20,15 +20,17 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   row of that mail keeps only its sha256 (renewKeys). The route never takes an address from the request: the new invitation
  *   goes to the address that Madar holds for the person of that row.
  * - The same answer, { v: 1, ok: true } with 200, for every key: a good one, an unknown one, a used one, one of a removed person,
- *   one of a person who accepted, and one that a newer invitation replaced. Only a good key sends anything.
+ *   one of a person who accepted, one that a newer invitation replaced, and one whose mail did not go out. Only a good key
+ *   sends anything.
  * - The time of the answer: as the forgot route, the route answers first and does the lookup and the send with after (when the
  *   host gives one), and the answer waits until it took at least minMs (1.5 s).
  * - Limits counted before the lookup, so they say nothing about the key: 3 an hour for each key and 10 an hour for each network
  *   address (cf-connecting-ip only, clientAddress of forgot.ts). Over a limit: 429 with the reason too_many. The keys of
  *   rate_limits hold only a sha256.
- * - A good key: the row of the key (auth.invite or auth.email) is not renewed yet; no later row of the person made a newer link
- *   (an Admin resend, an email change, an earlier renewal); the person is a human who is on and has a sign-in link; and Auth
- *   says the person did not accept yet. Then, after the answer, one transaction under the office lock:
+ * - A good key: the mail of the key went out (security fix 8); the row of the key (auth.invite or auth.email) is not renewed
+ *   yet; no later row of the person made a newer link (an Admin resend, an email change, an earlier renewal); the person is a
+ *   human who is on and has a sign-in link; and Auth says the person did not accept yet. Then, after the answer, one
+ *   transaction under the office lock:
  *   1. The row of the key is read again. A second press at the same moment finds the mark of the first (below) and stops here,
  *      so it counts nothing.
  *   2. A limit for each person, silent (same answer): 3 renewals a day, so a person who opens the mail again and again cannot
@@ -51,9 +53,13 @@ export const RENEW_IP_PER_HOUR = 10;
 export const RENEW_PERSON_PER_DAY = 3;
 export const RENEW_MIN_MS = 1500;
 
-/** The newest row whose mail held this key ($1: hashedKey 'renew' of the key), and whether it was renewed. */
+/**
+ * The newest row whose mail held this key ($1: hashedKey 'renew' of the key), whether its mail went out, and whether it was
+ * renewed.
+ */
 export const RENEW_ROW_SQL =
-  "select id::text as id, payload->>'userId' as user_id, payload->>'inviteId' as invite_id, payload ? 'renewedAt' as renewed from outbox " +
+  "select id::text as id, payload->>'userId' as user_id, payload->>'inviteId' as invite_id, payload ? 'sentAt' as sent, " +
+  "payload ? 'renewedAt' as renewed from outbox " +
   "where kind in ('auth.invite', 'auth.email') and payload->'renewKeys' ? $1 order by id desc limit 1";
 
 /** A limit or the quota refused the renewal: the transaction rolls back, and the key stays unused. */
@@ -61,13 +67,20 @@ class Refused extends Error {}
 
 const Body = z.object({ key: z.string().trim().min(1).max(200) });
 
-type KeyRow = { id: string; user_id: string; invite_id: string; renewed: boolean };
+type KeyRow = { id: string; user_id: string; invite_id: string; sent: boolean; renewed: boolean };
+
+/**
+ * A key works only after its mail went out. Until then the row keeps the plain key next to the token hash (a retry mails the
+ * same key), and the send drops it in the statement that writes sentAt (SENT_SQL), so a plain key that a reader of the outbox
+ * finds never works (security fix 8).
+ */
+const usable = (row: KeyRow | undefined): row is KeyRow => row !== undefined && row.sent && !row.renewed;
 
 /** Sends a new invitation when the key is good. Otherwise nothing. */
 export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?: (deps: Deps, ids: string[]) => Promise<unknown> } = {}): Promise<'sent' | 'none'> {
   const hash = await hashedKey('renew', key);
   const [row] = await deps.db.statement<KeyRow>('read', RENEW_ROW_SQL, [hash]);
-  if (!row || row.renewed) return 'none';
+  if (!usable(row)) return 'none';
   const [person] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', PERSON_SQL, [row.user_id]);
   if (!person || person.auth === null) return 'none';
   const user = User.parse(person.doc);
@@ -85,7 +98,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
     ids = await deps.db.tx('write', async (t) => {
       await takeOfficeLock(t, deps.config.lockKey);
       const [again] = await t<KeyRow>(RENEW_ROW_SQL, [hash]);
-      if (!again || again.renewed || again.id !== row.id) return [] as string[];
+      if (!usable(again) || again.id !== row.id) return [] as string[];
       if (!(await hitLimit(t, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
         throw new Refused('A renewed invitation did not go out: the person asked too often today.');
       }
