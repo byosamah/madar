@@ -7,7 +7,7 @@ type StubSession = { access_token: string; user?: { id: string; email?: string }
 type Listener = (event: string, session: StubSession | null) => void;
 
 /** A Supabase client with only the auth parts that the port uses. Each method answers what the test gives it. */
-function stubClient(o: { session?: StubSession | null; results?: Record<string, { error: unknown } | (() => { error: unknown })> } = {}) {
+function stubClient(o: { session?: StubSession | null; results?: Record<string, { error: unknown } | (() => { error: unknown })>; metadata?: Record<string, unknown> } = {}) {
   let session = o.session ?? null;
   let listener: Listener = () => undefined;
   const steps: string[] = [];
@@ -27,6 +27,7 @@ function stubClient(o: { session?: StubSession | null; results?: Record<string, 
       if (!result.error) {
         session = { access_token: 'token-2', user: { id: o.session?.user?.id ?? 'usr_001', email: input.email } };
         listener('SIGNED_IN', session);
+        return { data: { user: { ...session.user, user_metadata: o.metadata ?? {} } }, ...result };
       }
       return { data: {}, ...result };
     }),
@@ -181,6 +182,27 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     }
   });
 
+  it('sends the password and its mark in one request, so the People list says active only after a real save (owner, 2026-10-04)', async () => {
+    const stub = stubClient();
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
+    await auth.setPassword('green-field-77');
+    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', data: { madar_password_set: true } });
+  });
+
+  it('marks an account after a sign-in with a password once, and a failed mark never fails the sign-in', async () => {
+    const fresh = stubClient();
+    await (await createSupabaseAuth(fresh.client, { apiUrl: 'https://api.test' })).signIn('a@b.test', 'right-pass');
+    expect(fresh.steps).toEqual(['signIn:a@b.test', 'updateUser']);
+    expect(fresh.client.auth.updateUser).toHaveBeenCalledWith({ data: { madar_password_set: true } });
+    const marked = stubClient({ metadata: { madar_password_set: true } });
+    await (await createSupabaseAuth(marked.client, { apiUrl: 'https://api.test' })).signIn('a@b.test', 'right-pass');
+    expect(marked.steps).toEqual(['signIn:a@b.test']);
+    const refused = stubClient({ results: { updateUser: { error: apiError('unexpected_failure', 500) } } });
+    const port = await createSupabaseAuth(refused.client, { apiUrl: 'https://api.test' });
+    await expect(port.signIn('a@b.test', 'right-pass')).resolves.toBeUndefined();
+    expect(port.status()).toBe('signed_in');
+  });
+
   it('sets a password and names a weak or an unchanged one', async () => {
     const auth = await createSupabaseAuth(stubClient().client, { apiUrl: 'https://api.test' });
     await expect(auth.setPassword('green-field-77')).resolves.toBeUndefined();
@@ -203,7 +225,7 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     await auth.changePassword('old-pass-11', 'green-field-77');
     expect(stub.client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'hala@office.test', password: 'old-pass-11' });
     // With "require current password" on, Auth refuses a new password without the current one, so the update carries it too.
-    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', current_password: 'old-pass-11' });
+    expect(stub.client.auth.updateUser).toHaveBeenCalledWith({ password: 'green-field-77', current_password: 'old-pass-11', data: { madar_password_set: true } });
     expect(stub.steps).toEqual(['signIn:hala@office.test', 'updateUser']);
     // The check signs in the same person again: the screens see no change of session.
     expect(seen).toEqual([]);

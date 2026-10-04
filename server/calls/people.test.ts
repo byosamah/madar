@@ -129,6 +129,19 @@ describe('users.invites', () => {
     expect(output.map((row) => row.userId)).toEqual(['usr_001', 'usr_002', 'usr_003', 'usr_004', 'usr_005', 'usr_006', 'usr_007', 'usr_008', 'usr_010', 'usr_011']);
   });
 
+  it('keeps a person invited who opened the link but set no password, so the Admin can send the invitation again (owner, 2026-10-04)', async () => {
+    const { db, auth, ctx } = setup();
+    // Auth confirms the email as soon as the link opens; only the password save marks the account (PASSWORD_SET_MARK).
+    const opened = await auth.generateLink('invite', 'faisal.al.harbi@madar.test');
+    auth.open(opened.authUserId);
+    const accepted = await auth.generateLink('invite', 'reem.al.ghamdi@madar.test');
+    auth.accept(accepted.authUserId);
+    Object.assign(db.tables.links, { usr_002: opened.authUserId, usr_003: accepted.authUserId });
+    const { output } = await usersInvites({}, ctx());
+    const byId = Object.fromEntries(output.map((row) => [row.userId, row.state]));
+    expect([byId.usr_002, byId.usr_003]).toEqual(['invited', 'active']);
+  });
+
   it('is for the Admin and Management only', async () => {
     const { ctx } = setup();
     await expect(usersInvites({}, ctx('usr_010'))).resolves.toMatchObject({ changed: false });

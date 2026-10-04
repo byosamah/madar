@@ -1,4 +1,5 @@
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
+import { PASSWORD_SET_MARK } from '../../api/contract/server';
 import { AuthFailure, type AuthFailureReason } from '../../features/auth/authFailure';
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from '../../features/auth/sessionEnd';
 import type { AuthPort, AuthStatus } from '../auth';
@@ -67,8 +68,15 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
     },
     async signIn(email, password) {
       clearLeaving();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) fail(error);
+      // A sign-in with a password proves that the person has one, so an account from before the mark gets it too. Best effort:
+      // the mark changes only the Invited label of the Admin's People list (PASSWORD_SET_MARK), never the sign-in.
+      if (data.user?.user_metadata?.[PASSWORD_SET_MARK] !== true) {
+        try {
+          await supabase.auth.updateUser({ data: { [PASSWORD_SET_MARK]: true } });
+        } catch { /* the next sign-in tries again */ }
+      }
     },
     async signOut(options) {
       if (options?.scope === 'others') {
@@ -101,7 +109,8 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
       if (error) fail(error, true);
     },
     async setPassword(password) {
-      const { error } = await supabase.auth.updateUser({ password });
+      // The password and its mark in one request, so users.invites says active only after a real save (PASSWORD_SET_MARK).
+      const { error } = await supabase.auth.updateUser({ password, data: { [PASSWORD_SET_MARK]: true } });
       if (error) fail(error);
     },
     async changePassword(current, next) {
@@ -115,7 +124,7 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
       const check = await supabase.auth.signInWithPassword({ email, password: current });
       if (check.error) fail(check.error);
       // With the setting on, Auth refuses a new password without the current one, so the update carries it too.
-      const { error } = await supabase.auth.updateUser({ password: next, current_password: current });
+      const { error } = await supabase.auth.updateUser({ password: next, current_password: current, data: { [PASSWORD_SET_MARK]: true } });
       if (!error) return;
       const code = (error as { code?: string }).code ?? '';
       if (CURRENT_PASSWORD_CODES.has(code)) throw new AuthFailure('wrong_credentials', error.message);

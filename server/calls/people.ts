@@ -54,11 +54,13 @@ export const usersInvites: ServerCall<'users.invites'> = async (_input, ctx) => 
   }));
   const linkOf = new Map(links.map((row) => [row.id, row.auth]));
   const sentOf = new Map(sent.map((row) => [row.user_id, new Date(row.sent_at)]));
-  const confirmed = new Set((await authAdminOf(deps.authAdmin).listUsers()).filter((user) => user.confirmed).map((user) => user.authUserId));
+  // Active: the person opened the link (Auth confirmed the email) and saved a password (PASSWORD_SET_MARK). A person who opened
+  // the link and left before a password stays invited, so the Admin can send the invitation again (owner, 2026-10-04).
+  const accepted = new Set((await authAdminOf(deps.authAdmin).listUsers()).filter((user) => user.confirmed && user.passwordSet).map((user) => user.authUserId));
   const output = people.map((user) => {
     const link = linkOf.get(user.id);
     const at = sentOf.get(user.id);
-    return { userId: user.id, state: link && confirmed.has(link) ? ('active' as const) : ('invited' as const), sentAt: at ? nowStamp(at) : null };
+    return { userId: user.id, state: link && accepted.has(link) ? ('active' as const) : ('invited' as const), sentAt: at ? nowStamp(at) : null };
   });
   return { output, changed: false };
 };

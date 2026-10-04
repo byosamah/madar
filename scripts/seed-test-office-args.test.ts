@@ -175,8 +175,8 @@ function fakeAuth(fake: Fake, users: AuthUserInfo[]): SeedAuth {
 const HALA = '11111111-1111-4111-8111-111111111111';
 const STRAY = '22222222-2222-4222-8222-222222222222';
 const EXISTING: AuthUserInfo[] = [
-  { authUserId: HALA, email: 'hala.nasser@madar.test', confirmed: true },
-  { authUserId: STRAY, email: 'invited.last.run@madar.test', confirmed: false },
+  { authUserId: HALA, email: 'hala.nasser@madar.test', confirmed: true, passwordSet: true },
+  { authUserId: STRAY, email: 'invited.last.run@madar.test', confirmed: false, passwordSet: false },
 ];
 
 describe('seed-test-office: the dry run', () => {
@@ -326,7 +326,7 @@ describe('seed-test-office: the Auth admin calls', () => {
     }) as typeof globalThis.fetch;
     const auth = seedAuthPort({ supabaseUrl: TEST_URL, secretKey: 'sb_secret_k', fetch });
     await auth.setPassword(HALA, 'admin-pass-1');
-    expect(seen[0]).toBe(`PUT ${TEST_URL}/auth/v1/admin/users/${HALA} Bearer sb_secret_k {"password":"admin-pass-1","email_confirm":true,"ban_duration":"none"}`);
+    expect(seen[0]).toBe(`PUT ${TEST_URL}/auth/v1/admin/users/${HALA} Bearer sb_secret_k {"password":"admin-pass-1","email_confirm":true,"ban_duration":"none","user_metadata":{"madar_password_set":true}}`);
     const error = await auth.deleteUser(STRAY).catch((e: unknown) => e as Error);
     expect(seen[1]).toBe(`DELETE ${TEST_URL}/auth/v1/admin/users/${STRAY} Bearer sb_secret_k `);
     expect(String(error)).toMatch(/500/);

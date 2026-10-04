@@ -24,6 +24,7 @@ import type { State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { settleFuture } from '../src/data/shift';
 import { todayISO } from '../src/lib/dates';
+import { PASSWORD_SET_MARK } from '../src/api/contract/server';
 import { ApiError } from '../src/api/errors';
 import { authAdminPort, AuthAdminError } from '../server/auth/admin';
 import { LOCK_TIMEOUT_CODE, takeOfficeLock } from '../server/core/lock';
@@ -199,7 +200,7 @@ export function seedAccounts(state: State): DeployAccount[] {
 export type SeedAuth = {
   listUsers(): Promise<AuthUserInfo[]>;
   createUser(email: string, password: string): Promise<{ authUserId: string }>;
-  /** A new password, a confirmed email, and no ban. */
+  /** A new password, a confirmed email, the password mark (PASSWORD_SET_MARK), and no ban. */
   setPassword(authUserId: string, password: string): Promise<void>;
   deleteUser(authUserId: string): Promise<void>;
 };
@@ -221,7 +222,7 @@ export function seedAuthPort(o: { supabaseUrl: string; secretKey: string; fetch?
   return {
     listUsers: () => admin.listUsers(),
     createUser: (email, password) => admin.createUser(email, password),
-    setPassword: (authUserId, password) => call('PUT', authUserId, { password, email_confirm: true, ban_duration: 'none' }),
+    setPassword: (authUserId, password) => call('PUT', authUserId, { password, email_confirm: true, ban_duration: 'none', user_metadata: { [PASSWORD_SET_MARK]: true } }),
     deleteUser: (authUserId) => call('DELETE', authUserId),
   };
 }

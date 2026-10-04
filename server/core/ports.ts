@@ -63,7 +63,8 @@ export interface SignalPort {
   send(q: Query, signals: ChangeSignal[]): Promise<void>;
 }
 
-export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };
+/** confirmed: Auth confirmed the email. passwordSet: the person saved a password (PASSWORD_SET_MARK). */
+export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean; passwordSet: boolean };
 export interface AuthAdminPort {
   generateLink(type: 'invite' | 'recovery', email: string): Promise<{ authUserId: string; tokenHash: string }>;
   createUser(email: string, password: string): Promise<{ authUserId: string }>;

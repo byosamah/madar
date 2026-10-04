@@ -1,3 +1,4 @@
+import { PASSWORD_SET_MARK } from '../../src/api/contract/server';
 import type { AuthAdminPort } from '../core/ports';
 
 /**
@@ -7,16 +8,16 @@ import type { AuthAdminPort } from '../core/ports';
  * - generateLink: POST /auth/v1/admin/generate_link. It makes the Auth user when the email is new (open sign-up is off, but the
  *   admin API ignores that), so the server calls it only for an email that a users row holds (proof.md, section P1).
  *   An "invite" for a person who already accepted answers 422 email_exists: the caller then sends a "recovery" link.
- * - createUser: a confirmed user with a password (the first Admin, P3).
+ * - createUser: a confirmed user with a password (the first Admin, P3), marked as one whose password is set (PASSWORD_SET_MARK).
  * - setBanned: a ban of 100 years, or "none". A banned person cannot sign in or refresh; principalOf refuses the person anyway.
  * - updateEmail: the new email. The admin API sends no mail of its own. { confirm: true } only for a person who already
  *   accepted: it confirms the email at once. A person who did not accept yet gets the email alone and stays unconfirmed, so
  *   users.invites still says "invited" and the next invite link to the new email works (a confirmed one answers 422).
- * - listUsers: every Auth user and whether the email is confirmed (users.invites).
+ * - listUsers: every Auth user, whether the email is confirmed, and whether the person saved a password (users.invites).
  * - getUser: one Auth user, or null (the auth.email effect: did the email change, and did the person accept yet).
  */
 
-export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean };
+export type AuthUserInfo = { authUserId: string; email: string | null; confirmed: boolean; passwordSet: boolean };
 export type UpdateEmailOptions = { confirm?: boolean };
 export type AuthAdmin = AuthAdminPort & {
   listUsers(): Promise<AuthUserInfo[]>;
@@ -82,7 +83,10 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
 
   function infoOf(user: Rec): AuthUserInfo | undefined {
     const id = text(user.id);
-    return id ? { authUserId: id, email: text(user.email) ?? null, confirmed: Boolean(user.email_confirmed_at ?? user.confirmed_at) } : undefined;
+    const meta = user.user_metadata as Rec | undefined;
+    return id
+      ? { authUserId: id, email: text(user.email) ?? null, confirmed: Boolean(user.email_confirmed_at ?? user.confirmed_at), passwordSet: meta?.[PASSWORD_SET_MARK] === true }
+      : undefined;
   }
 
   function userIdOf(body: Rec): string {
@@ -99,7 +103,7 @@ export function authAdminPort(o: { supabaseUrl: string; secretKey: string; fetch
       return { authUserId: userIdOf(body), tokenHash };
     },
     async createUser(email, password) {
-      return { authUserId: userIdOf(await call('POST', '/users', { email: email.toLowerCase(), password, email_confirm: true })) };
+      return { authUserId: userIdOf(await call('POST', '/users', { email: email.toLowerCase(), password, email_confirm: true, user_metadata: { [PASSWORD_SET_MARK]: true } })) };
     },
     async setBanned(authUserId, banned) {
       await call('PUT', `/users/${idPath(authUserId)}`, { ban_duration: banned ? BAN_FOREVER : 'none' });

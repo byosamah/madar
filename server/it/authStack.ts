@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { PASSWORD_SET_MARK } from '../../src/api/contract/server';
 import { authAdminPort, type AuthAdmin } from '../auth/admin';
 
 /**
@@ -47,7 +48,9 @@ export function authOf(stack: Stack, prefix: string) {
     email: (label: string) => `${run}-${label}@madar.test`,
     /** The Welcome and Reset screens: verifyOtp with the token hash of a link. */
     useLink: (type: string, tokenHash: string) => auth('POST', '/verify', { body: { type, token_hash: tokenHash } }),
-    setPassword: async (accessToken: string, password = PASSWORD) => (await auth('PUT', '/user', { bearer: accessToken, body: { password } })).status,
+    /** The Welcome and Reset screens: the password and its mark in one request, as src/app/remote/auth.ts sends them. */
+    setPassword: async (accessToken: string, password = PASSWORD) =>
+      (await auth('PUT', '/user', { bearer: accessToken, body: { password, data: { [PASSWORD_SET_MARK]: true } } })).status,
     signIn: (email: string, password = PASSWORD) => auth('POST', '/token?grant_type=password', { body: { email, password } }),
     tokenOf: (answer: Answer) => String(answer.body.access_token ?? ''),
     codeOf: (answer: Answer) => answer.body.error_code ?? answer.body.code,

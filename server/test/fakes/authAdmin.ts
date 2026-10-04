@@ -44,11 +44,11 @@ export function fakeAuthAdmin(): FakeAuthAdmin {
     },
     // A user with a password counts as confirmed; server/auth/fakeAuth.ts adds acceptance for the P suites.
     async listUsers() {
-      return [...users.entries()].map(([authUserId, user]) => ({ authUserId, email: user.email, confirmed: user.password !== null }));
+      return [...users.entries()].map(([authUserId, user]) => ({ authUserId, email: user.email, confirmed: user.password !== null, passwordSet: user.password !== null }));
     },
     async getUser(authUserId) {
       const user = users.get(authUserId);
-      return user ? { authUserId, email: user.email, confirmed: user.password !== null } : null;
+      return user ? { authUserId, email: user.email, confirmed: user.password !== null, passwordSet: user.password !== null } : null;
     },
   };
 }

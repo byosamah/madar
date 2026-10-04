@@ -4,19 +4,23 @@ import { AuthAdminError, type AuthAdmin, type AuthUserInfo, type UpdateEmailOpti
 
 /**
  * For tests only: the T0 fake of Supabase Auth with the parts of the real Auth that track P relies on (proof.md, section P1).
- * - accept(authUserId): the person used the link and set a password, so the email is confirmed.
+ * - accept(authUserId): the person used the link and set a password, so the email is confirmed and the password mark is set.
+ * - open(authUserId): the person used the link but set no password: the email is confirmed, with no password mark.
  * - An "invite" link for a person who accepted is refused with 422 email_exists, as the real Auth does.
  * - listUsers, getUser and updateEmail { confirm }, which the merge lead patch of P2 adds to AuthAdminPort and to the T0 fake.
  * - failNext(error): the next Auth call fails once.
  */
 export type FakeAuth = FakeAuthAdmin & AuthAdmin & {
   confirmed: Set<string>;
+  passwordSet: Set<string>;
   accept(authUserId: string): void;
+  open(authUserId: string): void;
   failNext(error: Error): void;
 };
 
 export function fakeAuth(base: FakeAuthAdmin = fakeAuthAdmin()): FakeAuth {
   const confirmed = new Set<string>();
+  const passwordSet = new Set<string>();
   let failure: Error | null = null;
   const check = () => {
     if (failure) {
@@ -27,14 +31,19 @@ export function fakeAuth(base: FakeAuthAdmin = fakeAuthAdmin()): FakeAuth {
   };
   const info = (id: string): AuthUserInfo | null => {
     const user = base.users.get(id);
-    return user ? { authUserId: id, email: user.email, confirmed: confirmed.has(id) } : null;
+    return user ? { authUserId: id, email: user.email, confirmed: confirmed.has(id), passwordSet: passwordSet.has(id) } : null;
   };
   return {
     ...base,
     users: base.users,
     links: base.links,
     confirmed,
+    passwordSet,
     accept(authUserId) {
+      confirmed.add(authUserId);
+      passwordSet.add(authUserId);
+    },
+    open(authUserId) {
       confirmed.add(authUserId);
     },
     failNext(error) {
@@ -52,6 +61,7 @@ export function fakeAuth(base: FakeAuthAdmin = fakeAuthAdmin()): FakeAuth {
       check();
       const made = await base.createUser(email, password);
       confirmed.add(made.authUserId);
+      passwordSet.add(made.authUserId);
       return made;
     },
     async setBanned(authUserId, banned) {

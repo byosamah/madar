@@ -79,7 +79,13 @@ describe('suite 4: invitations on the local stack', () => {
     const before = okOf<{ userId: string; state: string; sentAt: string | null }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
     expect(before).toMatchObject({ state: 'invited', sentAt: expect.stringMatching(/\+03:00$/) });
 
-    await accept(mail.text);
+    // Auth confirms the email as soon as the link opens. Until the person saves a password, users.invites still says invited,
+    // so the Admin can send the invitation again (owner, 2026-10-04).
+    const opened = await auth.useLink(url.searchParams.get('type')!, url.searchParams.get('token_hash')!);
+    expect(opened.status).toBe(200);
+    const halfway = okOf<{ userId: string; state: string }[]>(await call('usr_001', 'users.invites', {})).find((r) => r.userId === user.id);
+    expect(halfway?.state).toBe('invited');
+    expect(await auth.setPassword(auth.tokenOf(opened))).toBe(200);
     const signedIn = await auth.signIn(email);
     expect(signedIn.status).toBe(200);
     const { authUserId } = await verifyBrowserToken(`Bearer ${auth.tokenOf(signedIn)}`);

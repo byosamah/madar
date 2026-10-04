@@ -49,10 +49,10 @@ describe('authAdminPort over the GoTrue admin API (plan 5.1)', () => {
     expect(String((error as Error).message)).not.toContain(SECRET);
   });
 
-  it('createUser makes a confirmed user with the password', async () => {
+  it('createUser makes a confirmed user with the password and the password mark', async () => {
     const { seen, fetch } = stubFetch([{ status: 200, body: { id: 'auth-3' } }]);
     await expect(authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch }).createUser('d@madar.test', 'pw-12345678')).resolves.toEqual({ authUserId: 'auth-3' });
-    expect(seen[0]).toMatchObject({ method: 'POST', url: 'http://127.0.0.1:54321/auth/v1/admin/users', body: { email: 'd@madar.test', password: 'pw-12345678', email_confirm: true } });
+    expect(seen[0]).toMatchObject({ method: 'POST', url: 'http://127.0.0.1:54321/auth/v1/admin/users', body: { email: 'd@madar.test', password: 'pw-12345678', email_confirm: true, user_metadata: { madar_password_set: true } } });
   });
 
   it('setBanned bans for 100 years and unbans with "none"; updateEmail confirms the new email only when asked', async () => {
@@ -71,13 +71,18 @@ describe('authAdminPort over the GoTrue admin API (plan 5.1)', () => {
     ]);
   });
 
-  it('listUsers reads every page and tells who confirmed the email', async () => {
-    const page = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({ id: `auth-${from + i}`, email: `p${from + i}@madar.test`, email_confirmed_at: (from + i) % 2 === 0 ? '2026-10-04T06:00:00Z' : null }));
+  it('listUsers reads every page and tells who confirmed the email and who saved a password', async () => {
+    const page = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({
+      id: `auth-${from + i}`, email: `p${from + i}@madar.test`, email_confirmed_at: (from + i) % 2 === 0 ? '2026-10-04T06:00:00Z' : null,
+      // Only the exact true counts: a person who opened the link and left has no mark, and a text value is not the mark.
+      user_metadata: from + i === 0 ? { madar_password_set: true } : from + i === 2 ? { madar_password_set: 'true' } : {},
+    }));
     const { seen, fetch } = stubFetch([{ status: 200, body: { users: page(1000, 0) } }, { status: 200, body: { users: page(2, 1000) } }]);
     const users = await authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch }).listUsers();
     expect(users).toHaveLength(1002);
-    expect(users[0]).toEqual({ authUserId: 'auth-0', email: 'p0@madar.test', confirmed: true });
-    expect(users[1001]).toEqual({ authUserId: 'auth-1001', email: 'p1001@madar.test', confirmed: false });
+    expect(users[0]).toEqual({ authUserId: 'auth-0', email: 'p0@madar.test', confirmed: true, passwordSet: true });
+    expect(users[2]).toEqual({ authUserId: 'auth-2', email: 'p2@madar.test', confirmed: true, passwordSet: false });
+    expect(users[1001]).toEqual({ authUserId: 'auth-1001', email: 'p1001@madar.test', confirmed: false, passwordSet: false });
     expect(seen.map((s) => s.url)).toEqual([
       'http://127.0.0.1:54321/auth/v1/admin/users?page=1&per_page=1000',
       'http://127.0.0.1:54321/auth/v1/admin/users?page=2&per_page=1000',
@@ -90,7 +95,7 @@ describe('authAdminPort over the GoTrue admin API (plan 5.1)', () => {
       { status: 404, body: { code: 404, error_code: 'user_not_found', msg: 'User not found' } },
     ]);
     const admin = authAdminPort({ supabaseUrl: URL_, secretKey: SECRET, fetch });
-    await expect(admin.getUser(ID)).resolves.toEqual({ authUserId: ID, email: 'e@madar.test', confirmed: false });
+    await expect(admin.getUser(ID)).resolves.toEqual({ authUserId: ID, email: 'e@madar.test', confirmed: false, passwordSet: false });
     await expect(admin.getUser(ID)).resolves.toBeNull();
     expect(seen[0]).toMatchObject({ method: 'GET', url: `http://127.0.0.1:54321/auth/v1/admin/users/${ID}` });
   });
