@@ -8,10 +8,10 @@ import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from 
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
-import { usageGet } from './usage';
+import { usageGet, usageRetryEffect } from './usage';
 
 /**
- * The registry of the 9 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
+ * The registry of the 10 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
  * never this list. The contracts are in src/api/contract/server.ts.
  */
 export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
@@ -24,6 +24,7 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
+  'usage.retryEffect': usageRetryEffect,
 };
 
 /**

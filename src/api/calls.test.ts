@@ -48,18 +48,18 @@ const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot',
 const TEAM_CALLS = ['teams.list', 'teams.create', 'teams.update', 'teams.delete', 'members.addTeam'];
 // Fixes from the audit of 2026-10-03: the Undo of "Mark all read" (SHL-16), and a way back for a deactivated person (SHL-7).
 const AUDIT_CALLS = ['notifications.markUnread', 'users.reactivate'];
-// The 9 server calls of the real build, with fake versions for the prototype (plan 4.11).
-const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get'];
+// The 10 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1).
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount']);
 // Server reads named one by one, so the name rule does not decide them by accident.
 const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get']);
 
 describe('the call map', () => {
-  it('has every call from the spec plus the documented extras, and the 9 server calls', () => {
+  it('has every call from the spec plus the documented extras, and the 10 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(121);
+    expect(Object.keys(calls)).toHaveLength(122);
   });
 
   it('marks exactly the read calls as read-only', () => {
