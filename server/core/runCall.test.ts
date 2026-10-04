@@ -8,7 +8,7 @@ import { buildSeed } from '../../src/data/seed';
 import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { registerOutbox } from './effects';
-import { everyCall } from './everyCall';
+import { EXPECTED_REFUSALS, everyCall } from './everyCall';
 import { memoryData, type MemoryData } from './memoryData';
 import { createRunCall, type CallData, type RunCallOptions } from './runCall';
 import { serverCallMap, type CallEntry, type SharedEntry } from './serverCallMap';
@@ -511,7 +511,7 @@ describe('runCall: every call once on the sample office (task C3, done when)', (
     }
     expect(Object.keys(outcomes)).toHaveLength(Object.keys(sharedCalls).length + 1);
     expect(deps.logs.filter((line) => line.level === 'error')).toEqual([]);
-    // Most calls run their rule to the end; the rest refuse by a rule of the office, never by a crash.
-    expect(Object.values(outcomes).filter((o) => o === 'ok').length).toBeGreaterThan(80);
+    // Every call runs its rule to the end, except the named refusals: the 3 hooks not built yet and a few rules of the office.
+    expect(Object.fromEntries(Object.entries(outcomes).filter(([, o]) => o !== 'ok'))).toEqual(EXPECTED_REFUSALS);
   }, 30_000);
 });

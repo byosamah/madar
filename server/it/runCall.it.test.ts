@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import { defineCall } from '../../src/api/registry';
 import { registerEffect, registerOutbox } from '../core/effects';
-import { everyCall } from '../core/everyCall';
+import { EXPECTED_REFUSALS, everyCall } from '../core/everyCall';
 import { createRunCall, runCall } from '../core/runCall';
 import type { Principal, RunRequest, RunResult } from '../core/types';
 import { readOffice } from '../data/officeCache';
@@ -162,6 +162,7 @@ describe('suite 2: runCall on the local database, as madar_server', () => {
       if (!result.ok) expect(result.error.message, item.name).not.toBe(HIDDEN);
     }
     expect(isolate.logs.filter((line) => line.level === 'error')).toEqual([]);
-    expect(Object.values(outcomes).filter((o) => o === 'ok').length).toBeGreaterThan(80);
+    expect(Object.keys(outcomes)).toHaveLength(everyCall(office.seed).length);
+    expect(Object.fromEntries(Object.entries(outcomes).filter(([, o]) => o !== 'ok'))).toEqual(EXPECTED_REFUSALS);
   }, 60_000);
 });
