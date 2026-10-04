@@ -6,14 +6,17 @@ import { HEAD_TIMEOUT_MS, baseMimeType, isPictureType, storedMimeType } from './
 /**
  * The preflight check of an uploaded object (plan 5.2, step 3; proof.md, Z0a item 6; task F2), before the office lock:
  *
- *   1. head on the staging key (3 s limit), compared with the intent: the size, and the type in lower case without parameters
- *      against storedMimeType of the declared type. The signed link does not fix the type on Storage, so this is the only type guard.
- *   2. copy to the final key, then head on the final key and the same comparison: the copy result is what a file version uses.
- *   3. remove the staging key. A second PUT to the staging link cannot replace the object between steps 1 and 2: the links are
+ *   1. head on the final key (3 s limit). When it holds an object, an earlier attempt already copied it (a retry after a busy
+ *      lock, a staging removal that failed, or a head that timed out after a good copy): the check runs on that object, the
+ *      staging leftover goes quietly, and nothing is copied. Storage refuses a copy onto a key that holds an object, and R2
+ *      would replace it, so a confirmed version never changes.
+ *   2. head on the staging key, compared with the intent: the size, and the type in lower case without parameters against
+ *      storedMimeType of the declared type. The signed link does not fix the type on Storage, so this is the only type guard.
+ *   3. copy to the empty final key, then head on the final key and the same comparison: the copy result is what a file version uses.
+ *   4. remove the staging key. A second PUT to the staging link cannot replace the object between steps 2 and 3: the links are
  *      signed without upsert, so the store refuses a PUT to a key that holds an object.
  *
- * A mismatch refuses the call and removes the object. When the staging key is gone but the final key holds a matching object, an
- * earlier attempt already copied it (a retry after a busy lock): the check passes on the final object.
+ * A mismatch refuses the call and removes the object.
  */
 
 type Found = { size: number; mimeType: string };
@@ -38,30 +41,31 @@ async function quietly(remove: Remove, keys: string[]): Promise<void> {
 
 /** true when the final key now holds an accepted object; false when nothing arrived. */
 async function confirmObject(files: FilesPort, o: { staging: string; final: string; field: string; accept: Accept; remove: Remove }): Promise<boolean> {
-  const staged = await files.head(o.staging, { timeoutMs: HEAD_TIMEOUT_MS });
-  if (staged) {
-    const refused = o.accept(staged);
+  const done = await files.head(o.final, { timeoutMs: HEAD_TIMEOUT_MS });
+  if (done) {
+    const refused = o.accept(done);
     if (refused) {
-      await quietly(o.remove, [o.staging]);
+      await quietly(o.remove, [o.final]);
       throw refused;
-    }
-    await files.copy(o.staging, o.final);
-    const copied = await files.head(o.final, { timeoutMs: HEAD_TIMEOUT_MS });
-    const wrong = copied ? o.accept(copied) : notArrived(o.field);
-    if (wrong) {
-      await quietly(o.remove, [o.staging, o.final]);
-      throw wrong;
     }
     await quietly(o.remove, [o.staging]);
     return true;
   }
-  const done = await files.head(o.final, { timeoutMs: HEAD_TIMEOUT_MS });
-  if (!done) return false;
-  const refused = o.accept(done);
+  const staged = await files.head(o.staging, { timeoutMs: HEAD_TIMEOUT_MS });
+  if (!staged) return false;
+  const refused = o.accept(staged);
   if (refused) {
-    await quietly(o.remove, [o.final]);
+    await quietly(o.remove, [o.staging]);
     throw refused;
   }
+  await files.copy(o.staging, o.final);
+  const copied = await files.head(o.final, { timeoutMs: HEAD_TIMEOUT_MS });
+  const wrong = copied ? o.accept(copied) : notArrived(o.field);
+  if (wrong) {
+    await quietly(o.remove, [o.staging, o.final]);
+    throw wrong;
+  }
+  await quietly(o.remove, [o.staging]);
   return true;
 }
 

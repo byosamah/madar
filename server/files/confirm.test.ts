@@ -11,8 +11,21 @@ const STAGING = 'up/upl-a/file';
 const FINAL = 'prj-001/upl-a/file';
 const WANT = { size: 12, mimeType: 'application/pdf' };
 
+/** Storage refuses a copy onto a key that holds an object (KeyAlreadyExists), so the fake here does too. */
+function storageCopy(files: FakeFiles): FakeFiles {
+  const copy = files.copy.bind(files);
+  files.copy = async (from, to) => {
+    if (files.objects.has(to)) {
+      files.calls.push({ op: 'copy', key: `${from}>${to}` });
+      throw new Error('Storage copy failed with 400 (KeyAlreadyExists).');
+    }
+    await copy(from, to);
+  };
+  return files;
+}
+
 function setup(objects: Record<string, { size: number; mimeType: string }> = {}) {
-  const files = fakeFiles();
+  const files = storageCopy(fakeFiles());
   for (const [key, value] of Object.entries(objects)) files.objects.set(key, value);
   const removed: string[][] = [];
   const remove = async (keys: string[]) => {
@@ -29,7 +42,8 @@ describe('confirmUpload', () => {
   it('checks the staging object, copies it, checks the copy, and removes the staging key', async () => {
     const { files, removed, run } = setup({ [STAGING]: { size: 12, mimeType: 'application/pdf' } });
     await run();
-    expect(ops(files)).toEqual(['head', 'copy', 'head', 'remove']);
+    expect(ops(files)).toEqual(['head', 'head', 'copy', 'head', 'remove']);
+    expect(files.calls[0].key).toBe(FINAL);
     expect([...files.objects.keys()]).toEqual([FINAL]);
     expect(removed).toEqual([[STAGING]]);
   });
@@ -77,8 +91,26 @@ describe('confirmUpload', () => {
   it('takes a matching final object when the staging key is gone, so a retry after the copy works', async () => {
     const { files, run } = setup({ [FINAL]: { size: 12, mimeType: 'application/pdf' } });
     await run();
-    expect(ops(files)).toEqual(['head', 'head']);
+    expect(ops(files)).toEqual(['head', 'remove']);
     expect(files.objects.has(FINAL)).toBe(true);
+  });
+
+  it('takes the final object with no copy when a second PUT left a staging object too, and the final object stays the same', async () => {
+    // A retry after a busy lock, a staging removal that failed, or a head on the final key that timed out after a good copy.
+    const { files, removed, run } = setup({ [STAGING]: { size: 12, mimeType: 'application/pdf' }, [FINAL]: { size: 12, mimeType: 'application/pdf' } });
+    const confirmed = files.objects.get(FINAL);
+    await run();
+    expect(ops(files)).toEqual(['head', 'remove']);
+    expect(files.objects.get(FINAL)).toBe(confirmed);
+    expect(removed).toEqual([[STAGING]]);
+    expect([...files.objects.keys()]).toEqual([FINAL]);
+  });
+
+  it('never copies over a final object, even when the staging object differs from it', async () => {
+    const { files, run } = setup({ [STAGING]: { size: 12, mimeType: 'image/png' }, [FINAL]: { size: 12, mimeType: 'application/pdf' } });
+    await run();
+    expect(ops(files)).not.toContain('copy');
+    expect(files.objects.get(FINAL)).toEqual({ size: 12, mimeType: 'application/pdf' });
   });
 
   it('refuses when nothing arrived', async () => {
