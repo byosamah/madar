@@ -3,7 +3,7 @@ import type { SaveResult } from '../data/save';
 import { fakeDeps } from '../test/fakes/deps';
 import type { Db, Query } from './ports';
 import {
-  CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, writeOutbox,
+  CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, WAIT_SQL, writeOutbox,
 } from './effects';
 
 const undo: (() => void)[] = [];
@@ -80,6 +80,18 @@ describe('effects after the commit (plan 4.12)', () => {
       [FAIL_SQL, ['2', 'No effect handler is registered for test.none.']],
     ]);
     expect(deps.logs.map((line) => line.level)).toEqual(['warn', 'warn']);
+  });
+
+  it('holds a row whose handler says when to try again (retryAt, for example a full mail day) until then, and gives the attempt back', async () => {
+    const retryAt = new Date('2026-10-05T00:00:00Z');
+    undo.push(registerEffect('test.later', async () => {
+      throw Object.assign(new Error('The daily mail quota is full.'), { retryAt });
+    }));
+    const { db, seen } = scriptedDb({ 1: { kind: 'test.later', payload: {} } });
+    const deps = fakeDeps({ db });
+    expect(await processOutbox(deps, ['1'])).toEqual({ done: [], failed: ['1'] });
+    expect(seen.slice(1)).toEqual([[WAIT_SQL, ['1', 'The daily mail quota is full.', '2026-10-05T00:00:00.000Z']]]);
+    expect(WAIT_SQL).toBe('update outbox set error = $2, claimed_until = $3::timestamptz, attempts = greatest(attempts - 1, 0) where id = $1');
   });
 
   it('takes producers for shared calls only: a server call never asks the producers, so its name does not compile', () => {

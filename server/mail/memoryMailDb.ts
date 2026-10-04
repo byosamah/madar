@@ -1,5 +1,5 @@
 import type { Db, Query } from '../core/ports';
-import { CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL } from '../core/effects';
+import { CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, WAIT_SQL } from '../core/effects';
 import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RESERVE_SQL } from './quota';
 
 /**
@@ -9,7 +9,7 @@ import { MAIL_LOCK_SQL, RECORD_SENT_SQL, REFUSAL_MARK_SQL, RESERVE_SQL } from '.
  */
 
 export type LogRow = { utc_day: string; kind: string; user_id: string | null; ref: string; resend_id: string | null };
-export type OutboxRecord = { id: number; kind: string; payload: Record<string, unknown>; done: boolean; claimed: boolean; attempts: number; error: string | null };
+export type OutboxRecord = { id: number; kind: string; payload: Record<string, unknown>; done: boolean; claimed: boolean; attempts: number; error: string | null; until?: string };
 export type Answer = (text: string, values: unknown[]) => unknown[] | undefined;
 
 const SENDING = ['notice', 'summary', 'signin', 'warning'];
@@ -55,6 +55,14 @@ export function memoryMailDb(answer: Answer = () => undefined) {
       record.claimed = true;
       record.attempts += 1;
       return [{ id: record.id, kind: record.kind, payload: record.payload }];
+    }
+    if (text === WAIT_SQL) {
+      // Held until $3: the row stays claimed (a test frees it when that time comes), and the attempt goes back.
+      const record = outbox.find((r) => String(r.id) === String(values[0]))!;
+      record.error = values[1] as string;
+      record.until = values[2] as string;
+      record.attempts = Math.max(record.attempts - 1, 0);
+      return [];
     }
     if (text === DONE_SQL || text === FAIL_SQL) {
       const record = outbox.find((r) => String(r.id) === String(values[0]))!;

@@ -280,6 +280,24 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(failed).toMatchObject({ message: 'Resend is down' });
   });
 
+  it('6 runs of the job on a full mail day leave the notice with attempts below 5, and it sends on the next UTC day', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    mem.fill('notice', QUOTA_LIMITS.signin, deps.clock.now().toISOString().slice(0, 10));
+    const accepted = await linkedPerson(auth, person(), true);
+    const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_6', byId: 'usr_001' }, deps, store);
+    const midnight = new Date(Date.UTC(deps.clock.now().getUTCFullYear(), deps.clock.now().getUTCMonth(), deps.clock.now().getUTCDate() + 1)).toISOString();
+    expect(mem.outbox.map((row) => [row.done, row.attempts, row.until])).toEqual([[false, 0, midnight]]);
+    // Six runs of the job that same day: the row is held until midnight, so no run claims it or spends an attempt.
+    for (let run = 0; run < 6; run += 1) expect(await processOutbox(deps, ['1'])).toEqual({ done: [], failed: [] });
+    expect(mem.outbox[0].attempts).toBeLessThan(5);
+    // The next UTC day: the hold ends and the quota has room.
+    deps.clock.set(new Date(midnight));
+    mem.outbox[0].claimed = false;
+    expect(await processOutbox(deps, ['1'])).toEqual({ done: ['1'], failed: [] });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['sara@madar.test']);
+  });
+
   it('an older row that sent its notice (noticeSentAt, the P2 version) queues none', async () => {
     const { deps, auth, mem } = setup(person(), true);
     const accepted = await linkedPerson(auth, person(), true);

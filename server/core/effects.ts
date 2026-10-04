@@ -19,6 +19,9 @@ import type { Deps, Query } from './ports';
  * - Claim before work: processOutbox and the job claim a row with one statement first. No row means another worker has it, or
  *   it is done. A failed row keeps its attempts and its error, and stays claimed for 2 minutes; the 15-minute job (track N3)
  *   retries rows older than 2 minutes, up to 5 attempts. usage.get shows the failed rows to the Admin (track M).
+ * - A handler that knows when the work can go through (an error with retryAt, for example QuotaFull of a full mail day in
+ *   server/auth/effects.ts) keeps its error, and the row stays claimed until retryAt with the attempt given back: a full day
+ *   never uses up the 5 attempts of a row (S1 review).
  */
 
 export type OutboxRow = { kind: string; payload: Record<string, unknown> };
@@ -66,12 +69,20 @@ export const CLAIM_SQL =
   "update outbox set claimed_until = now() + interval '2 minutes', attempts = attempts + 1 where id = $1 and done_at is null and (claimed_until is null or claimed_until < now()) returning *";
 export const DONE_SQL = 'update outbox set done_at = now(), error = null where id = $1';
 export const FAIL_SQL = 'update outbox set error = $2 where id = $1';
+/** $1 id, $2 error, $3 the time to try again. */
+export const WAIT_SQL = 'update outbox set error = $2, claimed_until = $3::timestamptz, attempts = greatest(attempts - 1, 0) where id = $1';
 
 /** Writes the rows inside the call's transaction. The ids come back in the order of the rows. */
 export async function writeOutbox(q: Query, rows: OutboxRow[]): Promise<string[]> {
   if (rows.length === 0) return [];
   const found = await q<{ id: string | number }>(OUTBOX_INSERT_SQL, [JSON.stringify(rows)]);
   return found.map((row) => String(row.id)).sort((a, b) => Number(a) - Number(b));
+}
+
+/** The time to try again that an error names, when it names one. */
+function retryAtOf(error: unknown): Date | null {
+  const at = (error as { retryAt?: unknown } | null)?.retryAt;
+  return at instanceof Date && !Number.isNaN(at.getTime()) ? at : null;
 }
 
 function messageOf(error: unknown): string {
@@ -96,8 +107,14 @@ export async function processOutbox(deps: Deps, ids: string[]): Promise<{ done: 
       done.push(id);
     } catch (error) {
       const message = messageOf(error);
-      await deps.db.statement('write', FAIL_SQL, [id, message]);
-      deps.log.warn('An effect after the commit failed. The job tries it again.', { id, kind: row.kind, error: message });
+      const retryAt = retryAtOf(error);
+      if (retryAt) {
+        await deps.db.statement('write', WAIT_SQL, [id, message, retryAt.toISOString()]);
+        deps.log.warn('An effect after the commit waits. The job tries it again after the time it named.', { id, kind: row.kind, error: message, retryAt: retryAt.toISOString() });
+      } else {
+        await deps.db.statement('write', FAIL_SQL, [id, message]);
+        deps.log.warn('An effect after the commit failed. The job tries it again.', { id, kind: row.kind, error: message });
+      }
       failed.push(id);
     }
   }
