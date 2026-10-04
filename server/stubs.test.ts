@@ -50,7 +50,8 @@ describe('the registries', () => {
 
   it('hold the extra HTTP route of the api function: POST /auth/forgot', async () => {
     expect(ROUTES.map((r) => `${r.method} ${r.path}`)).toEqual(['POST /auth/forgot']);
-    await refusesNotBuilt(() => ROUTES[0].handler(new Request('http://127.0.0.1/api/auth/forgot', { method: 'POST' }), deps));
+    // Track P built it (server/auth/forgot.test.ts): a request with no email gets 400 before any database work.
+    expect((await ROUTES[0].handler(new Request('http://127.0.0.1/api/auth/forgot', { method: 'POST' }), deps)).status).toBe(400);
   });
 });
 
