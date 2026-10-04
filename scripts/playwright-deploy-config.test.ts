@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -50,6 +50,20 @@ describe('playwright.deploy.config', () => {
     const [setup] = projects(config);
     expect(setup.use?.trace).toBe('off');
     expect(projects(deployConfig({ MADAR_DEPLOY_URL: 'https://preview.madar-test.pages.dev' }))[0].use?.trace).toBe('off');
+  });
+
+  it('records no trace of a spec that types the password of an office account', () => {
+    // A trace keeps the value of each fill in clear text, and the deploy project keeps the trace of a failed test.
+    const dir = join(import.meta.dirname, '..', 'tests', 'e2e-deploy');
+    const typing = readdirSync(dir).filter((file) => file.endsWith('.spec.ts') && /\bpasswordOf\(/.test(readFileSync(join(dir, file), 'utf8')));
+    expect(typing.length).toBeGreaterThan(0);
+    for (const file of typing) {
+      expect(readFileSync(join(dir, file), 'utf8'), `${file} types a password of an office account`).toMatch(/^test\.use\(\{ trace: 'off' \}\);$/m);
+    }
+    // No spec reads a password secret around passwordOf.
+    for (const file of readdirSync(dir).filter((name) => name.endsWith('.spec.ts'))) {
+      expect(readFileSync(join(dir, file), 'utf8'), file).not.toMatch(/MADAR_TEST_PASSWORD_/);
+    }
   });
 
   it('builds its own remote build for the local stack in a folder of its own, and never reuses a server on the port', () => {

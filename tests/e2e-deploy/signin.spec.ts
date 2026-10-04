@@ -1,5 +1,5 @@
 import { DEPLOY_ACCOUNTS } from './accounts';
-import { expect, passwordOf, test } from './fixtures';
+import { expect, passwordOf, test, useLanguage } from './fixtures';
 import { goto, urlPattern } from './goto';
 import { expectCalm, expectNoSeriousA11y, LANGS, NO_SESSION, runId, signedOutLanguage, signIn, THEMES, WIDTHS } from './steps';
 import { word } from './words';
@@ -7,7 +7,11 @@ import { word } from './words';
 /**
  * The sign-in screens of the remote build (plan 5.1; task X2): Sign in, Forgot, Reset and Welcome with no session, the way back
  * to the screen of a link after sign-in, Sign out, and the session sheet when the session ends.
+ *
+ * These tests type the Admin's password, and a trace keeps the value of each fill in clear text. So this file records no trace,
+ * as the setup project does (scripts/playwright-deploy-config.test.ts checks every spec that calls passwordOf).
  */
+test.use({ trace: 'off' });
 
 const admin = DEPLOY_ACCOUNTS.admin;
 
@@ -88,21 +92,45 @@ test.describe('with no session', () => {
   });
 });
 
-test('an ended session opens the session sheet over the screen, and the password closes it', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await goto(page, '/');
-  await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('listitem').first()).toBeVisible();
-  // The kept session ends: its access token is old and Auth refuses its refresh token. The real Auth answers the refresh.
-  await page.evaluate(() => {
-    const kept = JSON.parse(window.localStorage.getItem('madar.auth') ?? 'null') as Record<string, unknown> | null;
-    if (!kept) throw new Error('No kept session in this browser.');
-    window.localStorage.setItem('madar.auth', JSON.stringify({ ...kept, expires_at: 1, refresh_token: 'x2-ended-refresh-token' }));
-  });
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: /^Projects/ }).click();
-  const sheet = page.getByRole('dialog', { name: word('en', 'auth.expired.title') });
-  await expect(sheet).toBeVisible({ timeout: 20_000 });
-  await sheet.locator('input[type="password"]').fill(passwordOf('admin'));
-  await page.getByRole('button', { name: word('en', 'auth.expired.submit') }).click();
-  await expect(sheet).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Projects' }).getByRole('listitem').first()).toBeVisible();
-});
+const escapeText = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The sheet stays open while the viewport takes each width, so one ended session (and one sign-in with the password) serves the 3
+// widths of a language and a theme. That keeps the password sign-ins of a run under the Auth limit.
+for (const lang of LANGS) {
+  for (const theme of THEMES) {
+    test(`an ended session opens the session sheet over the screen at ${WIDTHS.join(', ')}px, ${lang}, ${theme}, and the password closes it`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: theme });
+      // The preferences fixture puts the Admin's English back at the end.
+      if (lang === 'ar') await useLanguage(page, 'ar');
+      await goto(page, '/');
+      await expect(page.getByRole('list', { name: word(lang, 'home.projects') }).getByRole('listitem').first()).toBeVisible();
+      // The kept session ends: its access token is old and Auth refuses its refresh token. The real Auth answers the refresh.
+      await page.evaluate(() => {
+        const kept = JSON.parse(window.localStorage.getItem('madar.auth') ?? 'null') as Record<string, unknown> | null;
+        if (!kept) throw new Error('No kept session in this browser.');
+        window.localStorage.setItem('madar.auth', JSON.stringify({ ...kept, expires_at: 1, refresh_token: 'x2-ended-refresh-token' }));
+      });
+      await page.getByRole('navigation', { name: word(lang, 'nav.main') }).getByRole('link', { name: new RegExp(`^${escapeText(word(lang, 'nav.projects'))}`) }).click();
+      const sheet = page.getByRole('dialog', { name: word(lang, 'auth.expired.title') });
+      await expect(sheet).toBeVisible({ timeout: 20_000 });
+      for (const width of WIDTHS) {
+        await page.setViewportSize({ width, height: 900 });
+        const label = `session sheet ${width}px ${lang} ${theme}`;
+        await expect(page.locator('html')).toHaveAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expect(sheet.getByRole('button', { name: word(lang, 'auth.expired.submit') })).toBeVisible();
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: `test-results/e2e-deploy-shots/signin/session-${width}-${lang}-${theme}.png`, fullPage: true });
+        // The calm check of the sheet: its one main button is the password button.
+        await expect.soft(sheet.locator('button.signature:visible'), `${label}: one main button`).toHaveCount(1);
+        await expectNoSeriousA11y(page, label, '[role="dialog"]');
+        expect.soft(await page.evaluate(() => document.documentElement.scrollWidth), `${label} scrolls sideways`).toBeLessThanOrEqual(width);
+      }
+      await sheet.locator('input[type="password"]').fill(passwordOf('admin'));
+      await sheet.getByRole('button', { name: word(lang, 'auth.expired.submit') }).click();
+      await expect(sheet).toHaveCount(0);
+      await expect(page.getByRole('list', { name: word(lang, 'screens.projects') }).getByRole('listitem').first()).toBeVisible();
+    });
+  }
+}
