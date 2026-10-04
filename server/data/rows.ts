@@ -16,6 +16,21 @@ export function docOf(spec: TableSpec, rec: Rec): Rec {
   return spec.collection === 'events' ? { ...rec, undoneBy: null } : rec;
 }
 
+/**
+ * The event of a doc that the database gave back, in place (task D2). A change event names the same fields in before and after
+ * (events.ts: applyPatch, the Undo, and the two handlers that write an event themselves), and a field that was absent before the
+ * change is before[field] = undefined. JSON drops that key, and the Undo then leaves the field in place. So each field that one
+ * side names and the other lacks comes back as undefined on the other side.
+ */
+export function pairEventFields(event: Rec): Rec {
+  const { before, after } = event;
+  const isFields = (side: unknown): side is Rec => side !== null && typeof side === 'object' && !Array.isArray(side);
+  if (!isFields(before) || !isFields(after)) return event;
+  for (const field of Object.keys(after)) if (!(field in before)) before[field] = undefined;
+  for (const field of Object.keys(before)) if (!(field in after)) after[field] = undefined;
+  return event;
+}
+
 /** The row of one record, with its server columns computed from the State after the call. */
 export function rowOf(spec: TableSpec, rec: Rec, state: State): Row {
   const columns: Record<string, unknown> = {};

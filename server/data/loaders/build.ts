@@ -1,6 +1,7 @@
 import type { User } from '../../../src/api/contract/entities';
 import { emptyState, type State } from '../../../src/api/store';
 import { OFFICE_COLLECTIONS, type OfficeSnapshot } from '../../core/types';
+import { pairEventFields } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
 import type { CountSelect, Row, Select } from './query';
 import type { Source } from './source';
@@ -142,7 +143,10 @@ export class Load {
     const events = Object.values(state.events);
     if (events.length > 0) {
       const links = await this.#src.undoLinks(events.map((event) => event.id));
-      for (const event of events) event.undoneBy = links.get(event.id) ?? null;
+      for (const event of events) {
+        pairEventFields(event as unknown as Rec);
+        event.undoneBy = links.get(event.id) ?? null;
+      }
     }
     state.counters = this.write ? await this.#src.counters() : {};
     if (Object.keys(this.#counts).length > 0) state.counts = { ...this.#counts };
