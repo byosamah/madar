@@ -1,4 +1,9 @@
-export type ProjectFormValues = {
+import { isProjectCode, normalizeTypedCode } from '../../lib/projectCode';
+import { emptyCodeValues, validateCodeValues, type CodeErrors, type CodeValues } from './codeForm';
+
+export type ProjectFormValues = CodeValues & {
+  /** The Admin's correction of the code, in the edit form only (right project.editCode). */
+  code: string;
   name: string;
   clientId: string;
   leader: string;
@@ -14,12 +19,15 @@ export type ProjectFormValues = {
 };
 
 /** Each value is a text key, so the form shows the message in the current language. */
-export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'targetEndDate' | 'stages', string>>;
+export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'targetEndDate' | 'stages' | 'code', string>> & CodeErrors;
+
+/** Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. */
+export type ProjectFormRules = { create?: boolean; editCode?: boolean };
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
     name: '', clientId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
-    stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '',
+    stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
   };
 }
 
@@ -36,8 +44,8 @@ export function areaValue(text: string): number | null {
   return western ? Number(western) : null;
 }
 
-/** The same rules as projects.create (spec 4.4). Only the name is required. */
-export function validateProjectForm(values: ProjectFormValues): ProjectFormErrors {
+/** The same rules as projects.create (spec 4.4). A new project also needs its code parts (owner, 2026-10-05). */
+export function validateProjectForm(values: ProjectFormValues, rules: ProjectFormRules = {}): ProjectFormErrors {
   const errors: ProjectFormErrors = {};
   if (!values.name.trim()) errors.name = 'projectForm.errors.nameRequired';
   const area = areaValue(values.area);
@@ -45,5 +53,7 @@ export function validateProjectForm(values: ProjectFormValues): ProjectFormError
   if (values.startDate && values.targetEndDate && values.targetEndDate <= values.startDate) errors.targetEndDate = 'projectForm.errors.endAfterStart';
   if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
+  if (rules.create) Object.assign(errors, validateCodeValues(values));
+  if (rules.editCode && !isProjectCode(normalizeTypedCode(values.code))) errors.code = 'projectCode.errors.full';
   return errors;
 }

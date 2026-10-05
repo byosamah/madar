@@ -7,6 +7,8 @@ import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { Sheet } from '../../components/Sheet';
+import { normalizeTypedCode } from '../../lib/projectCode';
+import { emptyCodeValues } from './codeForm';
 import type { ProjectFormValues } from './projectForm';
 import { areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
@@ -26,6 +28,8 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
     teamIds: [],
     modelFolderPath: project.modelFolderPath,
     description: project.description,
+    code: project.code,
+    ...emptyCodeValues(),
   };
 }
 
@@ -33,7 +37,9 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
   const { t } = useTranslation();
   const { api } = useRuntime();
   const toast = useToast();
-  const form = useProjectForm(valuesOf(detail));
+  // Only the Admin corrects the code (owner, 2026-10-05). For everyone else the code is not in the form.
+  const editCode = detail.viewerCan.editCode === true;
+  const form = useProjectForm(valuesOf(detail), { editCode });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,6 +67,8 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
           targetEndDate: v.targetEndDate || null,
           modelFolderPath: v.modelFolderPath.trim(),
           description: v.description.trim(),
+          // A corrected code goes only when the Admin changed it, so a save by the Admin never records a code change by mistake.
+          ...(editCode && normalizeTypedCode(v.code) !== detail.project.code ? { code: normalizeTypedCode(v.code) } : {}),
         },
       }, meta);
       const before = JSON.stringify(detail.stages.map((stage) => [stage.id, stage.name]));
@@ -97,7 +105,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
       )}
     >
       <form id="edit-project" noValidate onSubmit={submit} className="pt-2">
-        <ProjectFields form={form} mode="edit" />
+        <ProjectFields form={form} mode="edit" editCode={editCode} />
       </form>
     </Sheet>
   );

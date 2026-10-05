@@ -28,6 +28,14 @@ function Harness() {
   );
 }
 
+/** The code parts that every new project needs (owner, 2026-10-05). Locked initials of a client stay as they are. */
+async function fillCode(sheet: HTMLElement, initials = 'HGO') {
+  const field = within(sheet).getByLabelText('Client initials') as HTMLInputElement;
+  if (!field.readOnly) await userEvent.type(field, initials);
+  await userEvent.selectOptions(within(sheet).getByLabelText('Classification'), 'COM');
+  await userEvent.type(within(sheet).getByLabelText('Building type'), 'Offices');
+}
+
 async function openSheet() {
   const view = await renderWithRuntime(<Harness />, undefined, { path: '/' });
   await userEvent.click(screen.getByText('Start'));
@@ -60,7 +68,8 @@ describe('the New Project sheet', () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
     await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
-    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Harbour Holding{Enter}');
+    await userEvent.type(within(sheet).getByLabelText('English name (or Arabic)'), 'Harbour Holding');
+    await userEvent.type(within(sheet).getByLabelText('Initials'), 'hrb{Enter}');
     await waitFor(() => expect((within(sheet).getByLabelText('Client') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Harbour Holding'));
     expect(Object.keys(store.state.projects)).toHaveLength(12);
     expect(screen.getByRole('dialog', { name: 'New Project' })).toBeInTheDocument();
@@ -86,13 +95,16 @@ describe('the New Project sheet', () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
     await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
-    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Harbour Holding');
+    await userEvent.type(within(sheet).getByLabelText('English name (or Arabic)'), 'Harbour Holding');
+    await userEvent.type(within(sheet).getByLabelText('Initials'), 'HRB');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add client' }));
     await waitFor(() => expect((within(sheet).getByLabelText('Client') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Harbour Holding'));
     await userEvent.selectOptions(within(sheet).getByLabelText('Leader'), 'Faisal Al-Harbi');
     await userEvent.click(within(sheet).getByRole('checkbox', { name: /Sara Al-Qahtani/ }));
+    await waitFor(() => expect(within(sheet).getByLabelText('Client initials')).toHaveValue('HRB'));
+    await fillCode(sheet);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    expect(await screen.findByText(/KH-26-\d{3} created\./)).toBeInTheDocument();
+    expect(await screen.findByText('260900HRB-COM-Offices created.')).toBeInTheDocument();
     const project = Object.values(store.state.projects).find((p) => p.name === 'Harbour Gate Offices');
     expect(project?.leaderId).toBe('usr_002');
     expect(store.state.clients[project!.clientId!].name).toBe('Harbour Holding');
@@ -102,8 +114,9 @@ describe('the New Project sheet', () => {
   it('adds a client with an Arabic name and the contact the same as the client (colleague comments 10 and 11)', async () => {
     const { sheet, store } = await openSheet();
     await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
-    await userEvent.type(within(sheet).getByLabelText('Client name (English)'), 'Villa Owner');
-    await userEvent.type(within(sheet).getByLabelText('Client name (Arabic)'), 'مالك الفيلا');
+    await userEvent.type(within(sheet).getByLabelText('English name (or Arabic)'), 'Villa Owner');
+    await userEvent.type(within(sheet).getByLabelText('Arabic name (or English)'), 'مالك الفيلا');
+    await userEvent.type(within(sheet).getByLabelText('Initials'), 'VLO');
     await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Same as client' }));
     expect(within(sheet).getByLabelText('Contact name')).toBeDisabled();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add client' }));
@@ -159,6 +172,7 @@ describe('the New Project sheet', () => {
       return (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
     }) as typeof api.call;
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');
+    await fillCode(sheet);
     await userEvent.upload(within(sheet).getByLabelText('Cover image'), new File(['x'], 'cover.png', { type: 'image/png' }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New Project' })).toBeNull());
@@ -173,6 +187,7 @@ describe('the New Project sheet: contract start date', () => {
   it('has the field, and saves the date on the project', async () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Contract Test Villa');
+    await fillCode(sheet);
     fireEvent.change(within(sheet).getByLabelText('Contract start date'), { target: { value: '2026-10-05' } });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(Object.values(store.state.projects).find((p) => p.name === 'Contract Test Villa')?.contractStartDate).toBe('2026-10-05'));
@@ -181,6 +196,7 @@ describe('the New Project sheet: contract start date', () => {
   it('leaves the date empty when none is chosen', async () => {
     const { sheet, store } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'No Contract Villa');
+    await fillCode(sheet);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(Object.values(store.state.projects).some((p) => p.name === 'No Contract Villa')).toBe(true));
     expect(Object.values(store.state.projects).find((p) => p.name === 'No Contract Villa')?.contractStartDate).toBeNull();
@@ -212,6 +228,9 @@ describe('the New Project sheet: contract start date', () => {
     const sheet = await screen.findByRole('dialog');
     await waitFor(() => expect(within(sheet).getAllByRole('textbox').length).toBeGreaterThan(0));
     await userEvent.type(within(sheet).getAllByRole('textbox')[0], 'Harbour Gate Offices');
+    fireEvent.change(sheet.querySelector('#code-initials') as HTMLInputElement, { target: { value: 'HGO' } });
+    fireEvent.change(sheet.querySelector('#code-class') as HTMLSelectElement, { target: { value: 'COM' } });
+    fireEvent.change(sheet.querySelector('#code-type') as HTMLInputElement, { target: { value: 'Offices' } });
     const cover = new File(['png'], 'Cover.png', { type: 'image/png' });
     Object.defineProperty(cover, 'size', { value: 60 * 1024 * 1024 });
     // Wait for session.get, so the limit of the store is known.
