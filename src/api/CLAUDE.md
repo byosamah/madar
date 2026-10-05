@@ -21,6 +21,13 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Handlers stay synchronous and pure. A handler never does network work. Outside work is an effect.
 - The test count only grows, except when the code a test checks is deleted.
 
+## The project code (owner, 2026-10-05)
+- `lib/projectCode.ts` reads and builds `YYMMSSINI-CLS-Type` (key `YYMMSSINI`, contract `YYMMSS`). Old codes (`KH-26-014`)
+  stay valid. Two projects of one contract share one code, so the projects table has no unique rule on the code.
+- `projects.create` takes `codeParts`, `code` or `sameContractAs` (at most one); with none, the old automatic code. A typed
+  code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
+- Only the Admin corrects a code (`project.editCode`, `projects.update` `patch.code`, verb `project.code_changed`).
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
