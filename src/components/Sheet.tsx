@@ -191,9 +191,12 @@ export function Sheet(props: SheetProps) {
     returnHolder.current = active.closest<HTMLElement>('[role="dialog"]');
   }, [open, modal]);
   if (!modal) return <SidePanel {...props} />;
+  // Vaul draws a strip in the colour of the sheet on the side of the screen edge, for a pull past the end. The bottom sheet keeps
+  // it. A side sheet floats 12 px from the edge and has no pull, so there the strip only filled the gap beside the rounded
+  // corners (owner, 2026-10-05, item 5).
   const shape = phone
     ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
-    : `inset-y-3 end-3 rounded-sheet ${widthOf(wide)}`;
+    : `inset-y-3 end-3 rounded-sheet after:hidden ${widthOf(wide)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal handleOnly={!phone}>
