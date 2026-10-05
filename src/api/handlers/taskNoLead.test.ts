@@ -244,6 +244,47 @@ describe('tasks.take', () => {
     expect(t.store.state.tasks.tsk_002.ownerId).toBeNull();
   });
 
+  it('refuses a member the Undo of a change of lead that the leader made with other fields (review 2026-10-05)', async () => {
+    const t = world();
+    t.as('usr_002');
+    await t.api.call('tasks.update', { id: 'tsk_002', patch: { ownerId: 'usr_006', needsReview: true, prerequisiteIds: ['tsk_001'] } });
+    const event = Object.values(t.store.state.events).at(-1)!;
+    t.as('usr_006');
+    await expect(t.api.call('events.undo', { eventId: event.id })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.tasks.tsk_002).toMatchObject({ ownerId: 'usr_006', needsReview: true, prerequisiteIds: ['tsk_001'] });
+  });
+
+  it('refuses a member the Undo of a task that the leader gave them (review 2026-10-05)', async () => {
+    const t = world();
+    t.as('usr_002');
+    await t.api.call('tasks.update', { id: 'tsk_002', patch: { ownerId: 'usr_006' } });
+    const event = Object.values(t.store.state.events).at(-1)!;
+    t.as('usr_006');
+    await expect(t.api.call('events.undo', { eventId: event.id })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('events.undoStory', { correlationId: event.correlationId })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.tasks.tsk_002.ownerId).toBe('usr_006');
+  });
+
+  it('lets the person an agent took a task for give it back with Undo', async () => {
+    const t = world();
+    t.as('usr_005');
+    await t.api.call('tasks.take', { taskId: 'tsk_002' });
+    const take = Object.values(t.store.state.events).at(-1)!;
+    t.as('usr_003');
+    await t.api.call('events.undo', { eventId: take.id });
+    expect(t.store.state.tasks.tsk_002.ownerId).toBeNull();
+  });
+
+  it('lets a helper who took a task give it back with Undo, and puts them back in the helper list', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_002.helperIds = ['usr_006', 'usr_003'];
+    t.as('usr_006');
+    await t.api.call('tasks.take', { taskId: 'tsk_002' });
+    const take = Object.values(t.store.state.events).at(-1)!;
+    await t.api.call('events.undo', { eventId: take.id });
+    expect(t.store.state.tasks.tsk_002).toMatchObject({ ownerId: null, helperIds: ['usr_006', 'usr_003'] });
+  });
+
   it('shows Take it only to a team member, on an open task with no lead', async () => {
     const t = world();
     t.as('usr_006');
