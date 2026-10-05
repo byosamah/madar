@@ -218,6 +218,9 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
   restore check by hand (`scripts/restore-check.ts`).
 
 ## Screens and design system
+- Read `DESIGN.md` before any screen work: the design system in the Google DESIGN.md format (alpha, spec 0.4.0).
+  Tokens in its YAML front matter, the reasons in prose. Check it with `npx @google/design.md lint DESIGN.md` (0 errors,
+  0 warnings today). `src/design/tokens.css` stays the source of the values; when they change, change DESIGN.md too.
 - Routes (`src/app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker,
   schedule, files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/inbox`,
   `/notifications`, `/search`, `/settings`, `/admin`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`,
