@@ -47,4 +47,12 @@ describe('the Team tab', () => {
     await userEvent.tab();
     await waitFor(() => expect(store.state.members['prj_001:usr_006'].discipline).toBe('MEP lead'));
   });
+
+  it('keeps the full name on a phone: the discipline field takes its own line under the name (owner, 2026-10-05)', async () => {
+    // A 160 px field on the name line left the name about 80 px at 390 px ("Fais..."). jsdom has no layout, so the test guards the
+    // classes that wrap the field: full width under the name on a phone, 10rem on the line from the sm width up.
+    await renderApp(TEAM, as('usr_002'));
+    const field = await screen.findByLabelText('Discipline of Yousef Saleh');
+    expect(field.className.split(' ')).toEqual(expect.arrayContaining(['order-last', 'ms-12', 'w-[calc(100%-3rem)]', 'sm:order-none', 'sm:ms-0', 'sm:w-40']));
+  });
 });

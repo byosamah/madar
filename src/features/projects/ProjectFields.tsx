@@ -82,7 +82,8 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
       {adding && (
         <div className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
           <ClientForm form={form} idPrefix="client" clients={clients} onEnter={add} />
-          <Button variant="primary" className="sm:self-start" disabled={create.isPending} onClick={add}>
+          {/* A plain button: Create project stays the one main button of the sheet (calm rule, 2026-10-05). */}
+          <Button className="sm:self-start" disabled={create.isPending} onClick={add}>
             {t('projectForm.addClient')}
           </Button>
         </div>

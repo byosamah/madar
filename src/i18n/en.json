@@ -145,21 +145,6 @@
     "delete": "Delete",
     "deleted": "Template deleted."
   },
-  "stageTemplates": {
-    "title": "Stage templates",
-    "empty": "No templates are saved yet.",
-    "savedBy": "Saved by {{name}}",
-    "actions": "Actions for template {{name}}",
-    "delete": "Delete",
-    "deleted": "Template deleted.",
-    "startFrom": "Start from",
-    "current": "Current stages",
-    "officeDefault": "Office default stages",
-    "saveAs": "Save as template",
-    "name": "Template name",
-    "saveTemplate": "Save template",
-    "saved": "Template saved."
-  },
   "common": {
     "retry": "Retry",
     "undo": "Undo",

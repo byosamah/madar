@@ -46,6 +46,9 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
   `PATCH /config/auth/signing-keys/{id}`.
 - Both projects today: current password required for a change, legacy API keys off, HS256 key revoked, SSL enforced,
   Realtime private only, the Data API off.
+- The Data API is off by `db_schema` = '' (`GET /v1/projects/{ref}/postgrest`), so `/rest/v1/` answers PGRST002. The
+  `config push` diff still says `api.enabled` true after every push (2026-10-05): ignore it. That GET also returns
+  `jwt_secret` (the revoked HS256 key): read only `db_schema`, for example with `jq .db_schema`.
 - A new database password works on the pooler only after a few seconds.
 - Management API logs: `analytics/endpoints/logs.all` is gone (2026-09-23). `analytics/endpoints/logs` takes ClickHouse
   SQL (`from logs where source_name = 'auth_logs'`). On 2026-10-05 it answered "Backend error", so it is not proven yet.

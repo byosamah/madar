@@ -215,4 +215,12 @@ describe('the New Project sheet: contract start date', () => {
     expect(uploads).toEqual([]);
     initI18n('en');
   });
+
+  it('keeps one main button while the New client box is open: Create project (calm rule, 2026-10-05)', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    await within(sheet).findByRole('button', { name: 'Add client' });
+    const main = within(sheet).getAllByRole('button').filter((button) => button.classList.contains('signature'));
+    expect(main.map((button) => button.textContent)).toEqual(['Create project']);
+  });
 });

@@ -154,22 +154,6 @@
     "delete": "حذف",
     "deleted": "حُذف القالب."
   },
-  "stageTemplates": {
-    "title": "قوالب المراحل",
-    "empty": "لا توجد قوالب محفوظة بعد.",
-    "savedBy": "حفظه {{name}}",
-    "savedBy_female": "حفظته {{name}}",
-    "actions": "إجراءات القالب {{name}}",
-    "delete": "حذف",
-    "deleted": "حُذف القالب.",
-    "startFrom": "ابدأ من",
-    "current": "المراحل الحالية",
-    "officeDefault": "مراحل المكتب الافتراضية",
-    "saveAs": "حفظ كقالب",
-    "name": "اسم القالب",
-    "saveTemplate": "حفظ القالب",
-    "saved": "حُفظ القالب."
-  },
   "common": {
     "retry": "إعادة المحاولة",
     "undo": "تراجع",

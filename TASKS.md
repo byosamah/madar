@@ -204,7 +204,8 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Track admin: the Admin side list with one section at a time (4)
 - [x] Track profile: profile picture (10), English and Arabic names for each person (12)
 - [x] Merge wave 1 (admin, lead, fix, clients, profile), register the Clients section. npm test 3705 passed; typecheck, build, build:server, build:remote test pass
-- [ ] Small follow-ups: (done: the created toast shows the project key, so no two dots) Team tab names cut at 390 px (old layout); the date fields that save with a form button still show dd/mm/yyyy (list in the fix track report)
+- [x] Small follow-ups: the created toast shows the project key; Team tab names keep their width at 390 px (the discipline field takes its own line); Add client is a plain button, so Create project stays the one main button
+- [ ] The date fields that save with a form button get the "Set date..." look (fix-dates track)
 - [x] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a). Migration 20261005000100_project_templates.sql (checked in PGlite only)
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
 - [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
@@ -215,6 +216,6 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Test copy again at 69e3be7: account.spec.ts repeated 3 times 28 of 28, agents.spec 10 of 10, the MCP icon and /favicon.ico
 - [x] Production (owner OK in chat, 2026-10-05): main pushed, all.sh production from 69e3be7, the quick check passes
 - [ ] Owner: the Claude connector may keep the old vado.sa icon in its cache; remove and add the connector again to refresh it
-- [ ] Look into: the config diff says api.enabled is true on madar-test after every push; the Data API answers PGRST002 (no data), so nothing leaks, but the setting does not change
-- [ ] Clean up: the unused words of the old stage template screens (stageTemplates.startFrom and others in en.json and ar.json)
+- [x] The Data API: off in both projects by db_schema = '' (PGRST002); the api.enabled line of the config diff is a CLI report only (supabase/CLAUDE.md)
+- [x] Clean up: the 13 unused stageTemplates words left en.json and ar.json
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)

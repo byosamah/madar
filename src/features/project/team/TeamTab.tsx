@@ -57,9 +57,10 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
             const value = discipline.trim();
             if (value && value !== member.discipline) save.mutate({ projectId: detail.project.id, userId: user.id, discipline: value });
           }}
-          className="field w-40"
+          // On a phone the field takes its own line under the name, so the name keeps its width (owner, 2026-10-05).
+          className="field order-last ms-12 w-[calc(100%-3rem)] sm:order-none sm:ms-0 sm:w-40"
         />
-      ) : <span className="text-subheadline text-label-2">{member.discipline}</span>}
+      ) : <span className="order-last ms-12 text-subheadline text-label-2 sm:order-none sm:ms-0">{member.discipline}</span>}
       <div className="size-11 shrink-0">
         <Menu label={t('team.actions', { name: nameOf(user) })} items={items} />
       </div>
