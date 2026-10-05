@@ -122,6 +122,14 @@ describe('supabaseTarget', () => {
     expect(() => supabaseTarget({ MADAR_E2E_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co' })).toThrow(/qdgwpnesxppnqsaabqzd/);
     expect(() => supabaseTarget({ MADAR_E2E_MCP_URL: 'https://oprkvdjudjxxhvodkzgs.supabase.co/functions/v1/mcp' })).toThrow(/MADAR_E2E_MCP_URL/);
     expect(() => supabaseTarget({ MADAR_E2E_SUPABASE_URL: 'https://qdgwpnesxppnqsaabqzd.supabase.co', MADAR_E2E_MCP_URL: 'https://mcp.example.com/mcp' })).toThrow(/MADAR_E2E_MCP_URL/);
+    // The short address of production is never a target of the browser checks.
+    expect(() => supabaseTarget({ MADAR_E2E_SUPABASE_URL: 'https://qdgwpnesxppnqsaabqzd.supabase.co', MADAR_E2E_MCP_URL: 'https://madar.vado.sa/mcp' })).toThrow(/MADAR_E2E_MCP_URL/);
+  });
+
+  it('takes the short MCP address of the test copy, the Pages forwarder to madar-test (2026-10-05)', () => {
+    expect(supabaseTarget({ MADAR_E2E_SUPABASE_URL: 'https://qdgwpnesxppnqsaabqzd.supabase.co', MADAR_E2E_MCP_URL: 'https://preview.madar-46r.pages.dev/mcp' })).toEqual({
+      supabaseUrl: 'https://qdgwpnesxppnqsaabqzd.supabase.co', mcpUrl: 'https://preview.madar-46r.pages.dev/mcp',
+    });
   });
 });
 

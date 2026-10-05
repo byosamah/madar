@@ -36,6 +36,16 @@ export async function proxyMcp(request: Request, fetcher: typeof fetch = fetch):
   const inside = url.pathname === PREFIX || url.pathname.startsWith(`${PREFIX}/`);
   if (!target || !inside) return new Response('Not found. The Madar MCP address is https://madar.vado.sa/mcp.', { status: 404 });
 
+  // Encoded dots, encoded slashes and backslashes could become a path outside the mcp function upstream (security review).
+  // The URL parser already removes plain dot segments, so the prefix check above holds for those.
+  const suffix = url.pathname.slice(PREFIX.length);
+  if (/%2e|%2f|%5c|\\/i.test(suffix)) return new Response('Not found.', { status: 404 });
+  const base = new URL(target);
+  const upstream = new URL(`${base.pathname}${suffix}${url.search}`, base);
+  if (upstream.origin !== base.origin || !(upstream.pathname === base.pathname || upstream.pathname.startsWith(`${base.pathname}/`))) {
+    return new Response('Not found.', { status: 404 });
+  }
+
   const headers = new Headers();
   request.headers.forEach((value, name) => {
     const key = name.toLowerCase();
@@ -43,7 +53,7 @@ export async function proxyMcp(request: Request, fetcher: typeof fetch = fetch):
   });
   headers.set('x-region', 'eu-central-1');
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
-  const answer = await fetcher(`${target}${url.pathname.slice(PREFIX.length)}${url.search}`, {
+  const answer = await fetcher(upstream.toString(), {
     method: request.method,
     headers,
     body: hasBody ? request.body : undefined,

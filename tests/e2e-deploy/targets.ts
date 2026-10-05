@@ -6,6 +6,8 @@ import { TEST_REF } from '../../scripts/seed-test-office';
  * A run on the test deployment (MADAR_DEPLOY_URL) must name each one: a missing value never falls back to the local stack.
  */
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
+/** The test copy on Pages: its /mcp forwards to the mcp function of madar-test only. */
+const TEST_MCP_HOST = 'preview.madar-46r.pages.dev';
 const PRODUCTION_REF = 'oprkvdjudjxxhvodkzgs';
 const LOCAL_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const LOCAL_SUPABASE_URL = 'http://127.0.0.1:54321';
@@ -46,7 +48,9 @@ export function supabaseTarget(env: Env): SupabaseTarget {
   const mcpUrl = env.MADAR_E2E_MCP_URL ?? `${supabaseUrl}/functions/v1/mcp`;
   for (const [name, url] of [['MADAR_E2E_SUPABASE_URL', supabaseUrl], ['MADAR_E2E_MCP_URL', mcpUrl]] as const) {
     const { hostname } = new URL(url);
-    if (!LOCAL_HOSTS.has(hostname) && hostname !== `${TEST_REF}.supabase.co`) {
+    // The MCP URL may also be the short address of the test copy, which forwards to madar-test (server/http/pagesMcpProxy.ts).
+    const testCopy = name === 'MADAR_E2E_MCP_URL' && hostname === TEST_MCP_HOST;
+    if (!LOCAL_HOSTS.has(hostname) && hostname !== `${TEST_REF}.supabase.co` && !testCopy) {
       throw new Error(`${name} must name madar-test (${TEST_REF}.supabase.co) or the local stack, not ${hostname}.`);
     }
   }

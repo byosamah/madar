@@ -71,4 +71,19 @@ describe('the short MCP address on Cloudflare Pages (owner, 2026-10-05)', () => 
     expect((await proxyMcp(new Request('https://madar.vado.sa/api/batch'), fetcher)).status).toBe(404);
     expect(seen).toHaveLength(0);
   });
+
+  it('refuses encoded dots, encoded slashes and backslashes after /mcp, so no path leaves the mcp function upstream (security review)', async () => {
+    const { seen, fetcher } = recorder();
+    for (const path of ['/mcp/%2e%2e%2fapi%2fbatch', '/mcp/x%2Fy', '/mcp/x%5Cy', '/mcp/%2e%2e']) {
+      expect((await proxyMcp(new Request(`https://madar.vado.sa${path}`, { method: 'POST', body: '{}' }), fetcher)).status, path).toBe(404);
+    }
+    expect(seen).toHaveLength(0);
+    // A plain path still goes, and stays under the mcp function. The URL parser itself turns a lone %2e segment into nothing, so
+    // /mcp/a/%2e/b reaches /mcp/a/b, inside the function; /mcp/%2E%2E/api never matches /mcp at all.
+    await proxyMcp(new Request('https://madar.vado.sa/mcp/oauth-protected-resource'), fetcher);
+    expect(new URL(seen[0].url).pathname).toBe('/functions/v1/mcp/oauth-protected-resource');
+    await proxyMcp(new Request('https://madar.vado.sa/mcp/a/%2e/b'), fetcher);
+    expect(new URL(seen[1].url).pathname).toBe('/functions/v1/mcp/a/b');
+    expect((await proxyMcp(new Request('https://madar.vado.sa/mcp/%2E%2E/api'), fetcher)).status).toBe(404);
+  });
 });
