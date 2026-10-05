@@ -645,6 +645,9 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     return user;
   })[1];
   state.session.currentUserId = humans[0].id;
+  // A new person starts light (owner, 2026-10-05, item 11). The sample people stand for people who exist, and the browser suites
+  // show them dark through the device setting, so they keep the System theme.
+  for (const user of Object.values(state.users)) user.preferences.theme = 'system';
 
   // Four office teams, with some people in two of them (colleague comment 15). Indexes into PEOPLE.
   [['Design', [1, 2, 4, 6]], ['Technical', [3, 5, 7]], ['Interiors', [2, 6]], ['Site', [5, 7, 4]]].forEach(([name, members]) => {

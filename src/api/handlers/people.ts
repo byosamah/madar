@@ -247,7 +247,7 @@ export const meUpdateProfile = defineCall({
 });
 
 export const meUpdatePreferences = defineCall({
-  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional() }),
+  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional() }),
   output: User,
   run(input, ctx) {
     const current = ctx.actor.preferences;
@@ -257,6 +257,7 @@ export const meUpdatePreferences = defineCall({
       language: input.language ?? current.language,
       theme: input.theme ?? current.theme,
       glass: input.glass ?? current.glass,
+      ...(input.hatchOverlap !== undefined && { hatchOverlap: input.hatchOverlap }),
     };
     applyPatch(ctx, ctx.actor, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
     return ctx.actor;

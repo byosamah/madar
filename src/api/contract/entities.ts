@@ -66,12 +66,15 @@ export const Preferences = z.object({
   email: z.partialRecord(Trigger, z.boolean()).optional(),
   /** The real build: the morning summary email. A missing value means on. */
   morningSummary: z.boolean().optional(),
+  /** The hatch over the days that two stages share, on every schedule. A missing value means on (owner, 2026-10-05, item 9). */
+  hatchOverlap: z.boolean().optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
+/** A new person starts with the light theme. A person who exists keeps their choice (owner, 2026-10-05, item 11). */
 export function defaultPreferences(): Preferences {
   const notifications = Object.fromEntries(TRIGGERS.map((trigger) => [trigger, true])) as Record<Trigger, boolean>;
-  return { language: 'en', theme: 'system', glass: 'frosted', notifications };
+  return { language: 'en', theme: 'light', glass: 'frosted', notifications };
 }
 
 export const Gender = z.enum(['female', 'male']);

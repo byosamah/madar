@@ -1,7 +1,7 @@
 import { DEPLOY_ACCOUNTS } from './accounts';
 import { expect, passwordOf, test, useLanguage } from './fixtures';
 import { goto, urlPattern } from './goto';
-import { expectCalm, expectNoSeriousA11y, LANGS, NO_SESSION, runId, signedOutLanguage, signIn, THEMES, WIDTHS } from './steps';
+import { expectCalm, expectNoSeriousA11y, LANGS, NO_SESSION, runId, signedOutLanguage, signedOutTheme, signIn, THEMES, WIDTHS } from './steps';
 import { word } from './words';
 
 /**
@@ -25,6 +25,7 @@ test.describe('with no session', () => {
           await page.setViewportSize({ width, height: 900 });
           await page.emulateMedia({ colorScheme: theme });
           await signedOutLanguage(page, lang);
+          await signedOutTheme(page, theme);
           const screens: [string, string][] = [
             ['/sign-in', 'auth.signIn.title'],
             ['/forgot', 'auth.forgot.title'],
@@ -46,6 +47,13 @@ test.describe('with no session', () => {
       }
     }
   }
+
+  test('the sign-in screen is light on a dark device when this device saved no theme (owner, 2026-10-05, item 11)', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await goto(page, '/sign-in');
+    await expect(page.getByRole('heading', { level: 1, name: word('en', 'auth.signIn.title') })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  });
 
   test('a link with no session goes to Sign in, refuses a wrong password, and comes back after the sign-in', async ({ page }) => {
     await goto(page, '/projects?filter=at_risk');

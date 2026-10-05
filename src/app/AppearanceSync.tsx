@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useCall } from './runtime';
 import { useAuth } from '../features/auth/useAuth';
-import { applyAppearance, ENV_QUERIES, readEnvironment, resolveAppearance } from './appearance';
+import { applyAppearance, deviceTheme, ENV_QUERIES, readEnvironment, resolveAppearance, saveDeviceTheme } from './appearance';
 import { applyLanguage, initI18n } from '../i18n';
 
 /**
@@ -26,9 +26,11 @@ export function AppearanceSync() {
 
   useEffect(() => {
     const root = document.documentElement;
-    // Before sign-in (the remote build) there is no session: the page follows the device, as the System theme does.
-    applyAppearance(root, resolveAppearance(prefs ?? { theme: 'system', glass: 'frosted' }, env));
+    // Before sign-in (the remote build) there is no session: the page takes the theme saved on this device, else light
+    // (owner, 2026-10-05, item 11). The theme of a signed-in person is saved for the screens before the next sign-in.
+    applyAppearance(root, resolveAppearance(prefs ?? { theme: deviceTheme(), glass: 'frosted' }, env));
     if (!prefs) return;
+    saveDeviceTheme(prefs.theme);
     applyLanguage(root, prefs.language);
     initI18n(prefs.language);
   }, [prefs, env]);

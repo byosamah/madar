@@ -22,6 +22,28 @@ export function readEnvironment(win: Window = window): Environment {
   };
 }
 
+/** The theme of the last person who signed in on this device. The screens before sign-in use it. */
+export const THEME_KEY = 'madar.theme';
+const THEMES: readonly Preferences['theme'][] = ['system', 'light', 'dark'];
+
+/** The theme of the screens before sign-in: the choice saved on this device, else light (owner, 2026-10-05, item 11). */
+export function deviceTheme(): Preferences['theme'] {
+  try {
+    const saved = window.localStorage.getItem(THEME_KEY);
+    return THEMES.includes(saved as Preferences['theme']) ? (saved as Preferences['theme']) : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+export function saveDeviceTheme(theme: Preferences['theme']): void {
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Blocked storage: the screens before sign-in stay light.
+  }
+}
+
 export function applyAppearance(root: HTMLElement, appearance: Appearance): void {
   root.dataset.theme = appearance.theme;
   root.dataset.glass = appearance.glass;

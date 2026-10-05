@@ -23,6 +23,16 @@ export async function signedOutLanguage(page: Page, lang: Lang): Promise<void> {
 }
 
 /**
+ * The theme saved on this device for the screens before sign-in (src/app/appearance.ts, THEME_KEY). With nothing saved they are
+ * light, also on a dark device (owner, 2026-10-05, item 11).
+ */
+export async function signedOutTheme(page: Page, theme: Theme): Promise<void> {
+  await page.addInitScript((value) => {
+    try { window.localStorage.setItem('madar.theme', value); } catch { /* blocked storage */ }
+  }, theme);
+}
+
+/**
  * No serious or critical axe finding (WCAG 2.2 AA), as today's specs check. Soft, so a sweep shows every screen. `within` limits
  * the check to one part of the page, such as an open sheet ('[role="dialog"]').
  */
