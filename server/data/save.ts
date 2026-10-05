@@ -68,7 +68,7 @@ export type SaveOptions = { story?: SignalMeta; signals?: boolean };
 
 const PERSONAL_KINDS = new Set<Kind>(['chatReads', 'notifications', 'preferences']);
 /** The collections whose records belong to no project. A change of one of them is an office change. */
-const OFFICE_SCOPE = new Set<string>(['clients', 'teams', 'settings', 'stageTemplates', 'taskTemplates', 'feedback']);
+const OFFICE_SCOPE = new Set<string>(['clients', 'teams', 'settings', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'feedback']);
 
 /** JSON with sorted keys, so two records with the same fields in another order compare equal. */
 function canonical(value: unknown): string {

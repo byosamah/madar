@@ -77,6 +77,8 @@ export const REFERENCE_FIELDS: readonly ReferenceField[] = [
 
   { collection: 'stageTemplates', path: 'createdBy', targets: ['user'] },
   { collection: 'taskTemplates', path: 'createdBy', targets: ['user'] },
+  { collection: 'projectTemplates', path: 'createdBy', targets: ['user'] },
+  { collection: 'projectTemplates', path: 'roles[].defaultUserId', targets: ['user'] },
 
   { collection: 'tracker', path: 'projectId', targets: ['project'] },
   { collection: 'tracker', path: 'closedBy', targets: ['user'] },
@@ -137,7 +139,7 @@ export function jsonPathOf(path: string): string {
 const OWN_COLLECTION: Partial<Record<EventTarget, RefCollection>> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates', comment: 'comments',
   file: 'files', client: 'clients', user: 'users', stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker',
-  payment: 'payments', feedback: 'feedback', team: 'teams',
+  payment: 'payments', feedback: 'feedback', team: 'teams', projectTemplate: 'projectTemplates',
 };
 
 /** True when a record other than the target itself still holds the target's id in one of its reference fields. */

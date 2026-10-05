@@ -35,7 +35,8 @@ describe('the server types (type-level checks; the file compiles only when they 
   it('keep the office lists of the cache, read once for each batch', () => {
     expectTypeOf<OfficeSnapshot['lists']>().toHaveProperty('users');
     expectTypeOf<BatchScope['office']>().toEqualTypeOf<OfficeSnapshot | undefined>();
-    expect(OFFICE_COLLECTIONS).toHaveLength(11);
+    expect(OFFICE_COLLECTIONS).toHaveLength(12);
+    expect(OFFICE_COLLECTIONS).toContain('projectTemplates');
   });
 
   it('let the fakes stand in for every port', () => {

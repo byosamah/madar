@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { migrateState } from './migrate';
-import type { TrackerEntry } from '../api/contract/entities';
+import { ProjectTemplate, type TrackerEntry } from '../api/contract/entities';
 import { STATE_VERSION, type State } from '../api/store';
 import { makeTask, makeWorld, STAMP } from '../test/factories';
 import { FORMS } from '../lib/projectMark';
@@ -75,7 +75,7 @@ describe('migrateState', () => {
     const migrated = migrateState(old) as unknown as Record<string, unknown> & State;
 
     expect(migrated.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(8);
+    expect(STATE_VERSION).toBe(9);
     expect('time' in migrated).toBe(false);
     expect('timeRows' in migrated).toBe(false);
     expect('weekUnlocks' in migrated).toBe(false);
@@ -128,7 +128,43 @@ describe('migrateState', () => {
     world.version = 7;
     const done = migrateState(world)!;
     expect(done.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(8);
+    expect(STATE_VERSION).toBe(9);
     expect(done.tasks.tsk_002.dateNotes?.map((n) => n.forDueDate)).toEqual(['2026-09-27', '2026-10-08', '2026-10-01', undefined]);
+  });
+
+  it('takes a version 8 office to version 9: each stage template becomes a project template with stages and no tasks (owner, 2026-10-05, item 6a)', () => {
+    const world = makeWorld();
+    world.stageTemplates = {
+      stt_001: { id: 'stt_001', name: 'Interior fit-out', stages: ['Concept', 'Permits'], createdBy: 'usr_003', createdAt: STAMP },
+      stt_004: { id: 'stt_004', name: 'Competition entry', stages: ['Brief'], createdBy: 'usr_001', createdAt: STAMP },
+    };
+    world.counters.stt = 4;
+    world.version = 8;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(STATE_VERSION);
+    expect(STATE_VERSION).toBe(9);
+    expect(Object.values(done.projectTemplates!)).toEqual([
+      {
+        id: 'ptp_001', name: 'Interior fit-out', roles: [], tasks: [], createdBy: 'usr_003', createdAt: STAMP, updatedAt: STAMP,
+        stages: [{ id: 's1', name: 'Concept', startOffset: null, durationDays: null }, { id: 's2', name: 'Permits', startOffset: null, durationDays: null }],
+      },
+      {
+        id: 'ptp_002', name: 'Competition entry', roles: [], tasks: [], createdBy: 'usr_001', createdAt: STAMP, updatedAt: STAMP,
+        stages: [{ id: 's1', name: 'Brief', startOffset: null, durationDays: null }],
+      },
+    ]);
+    expect(done.counters.ptp).toBe(2);
+    // The old templates stay, so the stage template calls still answer.
+    expect(Object.keys(done.stageTemplates!)).toEqual(['stt_001', 'stt_004']);
+    for (const template of Object.values(done.projectTemplates!)) expect(ProjectTemplate.safeParse(template).success).toBe(true);
+  });
+
+  it('takes a version 8 office with no stage templates to version 9 with an empty list of project templates', () => {
+    const world = makeWorld();
+    delete world.stageTemplates;
+    world.version = 8;
+    const done = migrateState(world)!;
+    expect(done.version).toBe(9);
+    expect(done.projectTemplates).toEqual({});
   });
 });

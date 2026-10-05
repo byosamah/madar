@@ -1,0 +1,91 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { ProjectTemplate } from '../../../api/contract/entities';
+import { useUndoable } from '../../../app/actions';
+import { usePersonName } from '../../../app/personName';
+import { useCall } from '../../../app/runtime';
+import { Button } from '../../../components/Button';
+import { LoadFailed } from '../../../components/LoadFailed';
+import { Menu } from '../../../components/Menu';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { PlusIcon } from '../../../components/icons/animated/plus';
+import { actorContext, counted } from '../../../lib/grammar';
+import { templateDays } from '../../../lib/projectPlan';
+import { ProjectTemplateEditor } from './ProjectTemplateEditor';
+
+/** "5 stages · 11 tasks · 60 working days". A former stage template has stages only, so its line names only them. */
+function useSizeLine() {
+  const { t } = useTranslation();
+  return (template: ProjectTemplate) => {
+    const days = templateDays(template);
+    return [
+      counted(t, 'projectTemplates.stageCount', template.stages.length),
+      ...(template.tasks.length > 0 ? [counted(t, 'projectTemplates.taskCount', template.tasks.length)] : []),
+      ...(days > 0 ? [counted(t, 'projectTemplates.dayCount', days)] : []),
+    ].join(' · ');
+  };
+}
+
+/**
+ * The office's project templates (owner, 2026-10-05, item 6a), Admin only: one row for each template, with its size and who
+ * saved it. A row opens the template in the editor. "New template" opens an empty editor. Stage templates of before are here
+ * as templates with stages and no tasks.
+ */
+export function ProjectTemplatesSection() {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const sizeOf = useSizeLine();
+  const templates = useCall('projectTemplates.list', {});
+  const remove = useUndoable('projectTemplates.delete', { message: () => t('projectTemplates.deleted') });
+  // undefined: no editor. null: a new template.
+  const [editing, setEditing] = useState<ProjectTemplate | null | undefined>(undefined);
+
+  return (
+    <section aria-labelledby="admin-project-templates" className="surface flex flex-col gap-3 rounded-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="admin-project-templates" className="text-headline">{t('projectTemplates.title')}</h2>
+        <Button onClick={() => setEditing(null)}>
+          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+          {t('projectTemplates.new')}
+        </Button>
+      </div>
+      <p className="text-footnote text-ink-2">{t('projectTemplates.intro')}</p>
+      <LoadFailed query={templates} />
+      {templates.data?.length === 0 && <p className="text-subheadline text-ink-2">{t('projectTemplates.empty')}</p>}
+      <ul className="hairline flex flex-col">
+        {(templates.data ?? []).map((template) => {
+          const savedBy = t('projectTemplates.savedBy', {
+            name: nameOf({ name: template.createdByName, nameAr: template.createdByNameAr }), context: actorContext({ gender: template.createdByGender }),
+          });
+          const body = (
+            <span className="flex min-w-0 flex-1 flex-col">
+              <bdi className="truncate font-semibold text-ink">{template.name}</bdi>
+              <span className="text-footnote text-ink-2">{sizeOf(template)}</span>
+              <span className="text-footnote text-ink-2">{savedBy}</span>
+            </span>
+          );
+          return (
+            <li key={template.id} className="flex items-center gap-2 py-1">
+              {template.canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(template)}
+                  className="pressable flex min-h-14 min-w-0 flex-1 items-center rounded-xl px-2 py-2 text-start hover:bg-fill"
+                >
+                  {body}
+                </button>
+              ) : <div className="flex min-h-14 min-w-0 flex-1 items-center px-2 py-2">{body}</div>}
+              {template.canEdit && (
+                <Menu
+                  label={t('projectTemplates.actions', { name: template.name })}
+                  items={[{ label: t('projectTemplates.delete'), onSelect: () => remove.mutate({ id: template.id }), destructive: true }]}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {editing !== undefined && <ProjectTemplateEditor key={editing?.id ?? 'new'} template={editing} onClose={() => setEditing(undefined)} />}
+    </section>
+  );
+}

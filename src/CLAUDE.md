@@ -32,6 +32,10 @@ any screen work.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A desk opens the first section at `/admin`; a
   phone shows the list there. An unknown or forbidden section goes back to `/admin`.
+- Project templates: the Admin section (`ProjectTemplatesSection.tsx`, the editor works on a text draft, `templateDraft.ts`)
+  and "Start from a template" in the new-project form (`features/projects/TemplateUse.tsx`, `templateForm.ts`). A chosen
+  template takes the place of the stage list and makes the start date required. The ticks "Can stretch" stay folded, and show
+  only when the end date gives another length. The dates come from `lib/projectPlan.ts`, as on the server.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.

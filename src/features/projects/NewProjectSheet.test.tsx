@@ -126,32 +126,6 @@ describe('the New Project sheet', () => {
     expect(client.contactName).toBe('Villa Owner');
   });
 
-  it('fills the stage list from a saved template, and the person can still edit it', async () => {
-    const { sheet } = await openSheet();
-    const stageNames = () => within(sheet).getAllByLabelText(/^Stage \d+$/).map((input) => (input as HTMLInputElement).value);
-    expect(stageNames()).toHaveLength(7);
-    await userEvent.selectOptions(within(sheet).getByLabelText('Start from'), 'Competition entry');
-    expect(stageNames()).toEqual(['Brief', 'Concept', 'Presentation']);
-    await userEvent.type(within(sheet).getByLabelText('Stage 3'), ' board');
-    expect(stageNames()[2]).toBe('Presentation board');
-    await userEvent.selectOptions(within(sheet).getByLabelText('Start from'), 'Office default stages');
-    expect(stageNames()).toHaveLength(7);
-  });
-
-  it('saves the current stage list as a template and offers it under Start from', async () => {
-    const { sheet, store } = await openSheet();
-    await userEvent.selectOptions(within(sheet).getByLabelText('Start from'), 'Competition entry');
-    await userEvent.type(within(sheet).getByLabelText('Stage 3'), ' board');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Save as template' }));
-    await userEvent.type(within(sheet).getByLabelText('Template name'), 'Boards{Enter}');
-    expect(await screen.findByText('Template saved.')).toBeInTheDocument();
-    const saved = Object.values(store.state.stageTemplates ?? {}).find((tpl) => tpl.name === 'Boards');
-    expect(saved?.stages).toEqual(['Brief', 'Concept', 'Presentation board']);
-    // Enter saved the template and did not send the project form.
-    expect(Object.keys(store.state.projects)).toHaveLength(12);
-    expect(within(sheet).getByRole('option', { name: 'Boards' })).toBeInTheDocument();
-  });
-
   it('keeps what the person typed when the office settings change while the sheet is open', async () => {
     const { sheet, api } = await openSheet();
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Harbour Gate Offices');

@@ -1,6 +1,6 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, Settings, Stage, StageTemplate, Task, TaskTemplate,
-  Team, TrackerEntry, Update, User,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, Settings, Stage,
+  StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from './contract/entities';
 import { DEFAULT_STALE_DAYS } from './contract/entities';
 import type { Persister } from './persist';
@@ -8,10 +8,11 @@ import type { Persister } from './persist';
 /**
  * Version 2 added the grammatical gender of people. Version 3 removed the hours system (owner, 2026-10-01).
  * Version 4 added the chat: conversations, messages and read marks. Version 7 added the restart-day notice.
- * Version 8 gave each date note the due day it was made for.
+ * Version 8 gave each date note the due day it was made for. Version 9 added project templates and made one from each stage
+ * template (owner, 2026-10-05, item 6a).
  * src/data/migrate.ts brings older offices up to date.
  */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export const DEFAULT_STAGES = [
   'Concept', 'Schematic Design', 'Design Development', 'Construction Documents', 'Permits', 'Tender', 'Supervision',
@@ -41,6 +42,8 @@ export type State = {
   stageTemplates?: Record<string, StageTemplate>;
   /** Saved tasks, one stage each. Offices saved before this feature have none, so reads go through taskTemplatesOf. */
   taskTemplates?: Record<string, TaskTemplate>;
+  /** Saved project plans: stages, tasks, roles and dates. Offices saved before this feature have none, so reads go through projectTemplatesOf. */
+  projectTemplates?: Record<string, ProjectTemplate>;
   /** The client tracker. Offices saved before this feature have none, so reads go through trackerOf. */
   tracker?: Record<string, TrackerEntry>;
   /** The payment milestones. Offices saved before this feature have none, so reads go through paymentsOf. */
@@ -81,6 +84,7 @@ export function emptyState(today: string): State {
     chatReads: {},
     stageTemplates: {},
     taskTemplates: {},
+    projectTemplates: {},
     tracker: {},
     payments: {},
     teams: {},
@@ -99,6 +103,12 @@ export function stageTemplatesOf(state: State): Record<string, StageTemplate> {
 export function taskTemplatesOf(state: State): Record<string, TaskTemplate> {
   state.taskTemplates ??= {};
   return state.taskTemplates;
+}
+
+/** The saved project templates. An old office has none, so this makes the collection when it is missing. */
+export function projectTemplatesOf(state: State): Record<string, ProjectTemplate> {
+  state.projectTemplates ??= {};
+  return state.projectTemplates;
 }
 
 /** The tracker entries. An old office has none, so this makes the collection when it is missing. */

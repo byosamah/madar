@@ -48,6 +48,7 @@ export const MCP_DENY = [
   'notifications.updateSettings', 'chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount',
   // Templates, tracker extras and payment deletes.
   'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
+  'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',
   'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
   // Feedback, agents and usage.

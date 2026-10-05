@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderApp } from '../../../test/render';
+
+/**
+ * The Admin section "Project templates" (owner, 2026-10-05, item 6a). The sample office has two stage templates as project
+ * templates with stages only, and "Villa, full design": 5 stages, 11 tasks, 60 working days.
+ */
+const region = (name: string) => screen.findByRole('region', { name });
+const savedNamed = (store: { state: { projectTemplates?: Record<string, { name: string }> } }, name: string) =>
+  Object.values(store.state.projectTemplates ?? {}).find((template) => template.name === name);
+
+describe('the Admin section Project templates', () => {
+  it('lists each template with its size, and a former stage template with its stages only', async () => {
+    await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    expect(await within(section).findByText('Villa, full design')).toBeInTheDocument();
+    expect(within(section).getByText('5 stages · 11 tasks · 60 working days')).toBeInTheDocument();
+    expect(within(section).getByText('Competition entry')).toBeInTheDocument();
+    expect(within(section).getByText('3 stages')).toBeInTheDocument();
+  });
+
+  it('makes a new template with a role, a stage and a task', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    await userEvent.click(within(section).getByRole('button', { name: 'New template' }));
+    const sheet = await screen.findByRole('dialog', { name: 'New project template' });
+    await userEvent.type(within(sheet).getByLabelText('Template name'), 'Small house');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a role' }));
+    await userEvent.type(within(sheet).getByLabelText('Name of role 1'), 'Architect');
+    await userEvent.selectOptions(within(sheet).getByLabelText('Default person of role 1'), 'Faisal Al-Harbi');
+    await userEvent.type(within(sheet).getByLabelText('Name of stage 1'), 'Concept');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+    await userEvent.type(within(sheet).getByLabelText('Task'), 'Massing');
+    await userEvent.selectOptions(within(sheet).getByLabelText('Role'), 'Architect');
+    const days = within(sheet).getByLabelText('Working days');
+    await userEvent.clear(days);
+    await userEvent.type(days, '8');
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Can stretch' }));
+    expect(within(sheet).getByText('Length: 8 working days')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+    const saved = savedNamed(store, 'Small house') as unknown as { roles: unknown[]; stages: unknown[]; tasks: unknown[] };
+    expect(saved.roles).toEqual([{ id: 'r1', name: 'Architect', defaultUserId: 'usr_002' }]);
+    expect(saved.stages).toEqual([{ id: 's1', name: 'Concept', startOffset: null, durationDays: null }]);
+    expect(saved.tasks).toEqual([{
+      id: 't1', stageId: 's1', title: 'Massing', description: '', checklist: [], needsReview: true, roleId: 'r1', startOffset: 0, durationDays: 8, flexible: false,
+    }]);
+  });
+
+  it('shows the first problem and saves nothing', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    await userEvent.click(within(await region('Project templates')).getByRole('button', { name: 'New template' }));
+    const sheet = await screen.findByRole('dialog', { name: 'New project template' });
+    const before = Object.keys(store.state.projectTemplates ?? {}).length;
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(within(sheet).getByRole('alert')).toHaveTextContent('Give the template a name.');
+    await userEvent.type(within(sheet).getByLabelText('Template name'), 'Small house');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(within(sheet).getByRole('alert')).toHaveTextContent('Give every stage a name.');
+    expect(Object.keys(store.state.projectTemplates ?? {})).toHaveLength(before);
+  });
+
+  it('opens a template from its row, with its timeline, and saves a change', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    await userEvent.click(await within(section).findByRole('button', { name: /^Villa, full design/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
+    expect(within(sheet).getByText('Length: 60 working days')).toBeInTheDocument();
+    // The legend names the two kinds of bar, with no colour word: the colours change with the theme.
+    expect(within(within(sheet).getByRole('region', { name: 'Timeline' })).getByText('Keeps its length')).toBeInTheDocument();
+    expect(within(sheet).getAllByLabelText('Task').map((field) => (field as HTMLInputElement).value)).toHaveLength(11);
+    const name = within(sheet).getByLabelText('Template name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Villa, long');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(savedNamed(store, 'Villa, long')).toBeDefined());
+    expect(savedNamed(store, 'Villa, full design')).toBeUndefined();
+  });
+
+  it('moves a stage up and removes a task', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    await userEvent.click(await within(await region('Project templates')).findByRole('button', { name: /^Villa, full design/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Actions for stage 2' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Move up' }));
+    expect(within(sheet).getByLabelText('Name of stage 1')).toHaveValue('Schematic Design');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Remove the task Site visit and survey' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    await waitFor(() => {
+      const saved = savedNamed(store, 'Villa, full design') as unknown as { stages: { name: string }[]; tasks: { title: string }[] };
+      expect(saved.stages.map((stage) => stage.name).slice(0, 2)).toEqual(['Schematic Design', 'Concept']);
+      expect(saved.tasks).toHaveLength(10);
+    });
+  });
+
+  it('deletes a template, with Undo', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Competition entry' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(savedNamed(store, 'Competition entry')).toBeUndefined());
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(savedNamed(store, 'Competition entry')).toBeDefined());
+  });
+});

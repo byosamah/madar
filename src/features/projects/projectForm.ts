@@ -1,7 +1,16 @@
+import type { ProjectTemplate } from '../../api/contract/entities';
 import { isProjectCode, normalizeTypedCode } from '../../lib/projectCode';
 import { emptyCodeValues, validateCodeValues, type CodeErrors, type CodeValues } from './codeForm';
+import { planOfForm } from './templateForm';
 
-export type ProjectFormValues = CodeValues & {
+/** The project template to start from (owner, 2026-10-05, item 6a). templateId '' is no template. See templateForm.ts. */
+export type TemplateChoice = { templateId: string; templateRoles: Record<string, string>; templateStretch: Record<string, boolean> };
+
+export function emptyTemplateChoice(): TemplateChoice {
+  return { templateId: '', templateRoles: {}, templateStretch: {} };
+}
+
+export type ProjectFormValues = CodeValues & TemplateChoice & {
   /** The Admin's correction of the code, in the edit form only (right project.editCode). */
   code: string;
   name: string;
@@ -19,15 +28,20 @@ export type ProjectFormValues = CodeValues & {
 };
 
 /** Each value is a text key, so the form shows the message in the current language. */
-export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'targetEndDate' | 'stages' | 'code', string>> & CodeErrors;
+/** "template" has no field text: the line under the dates says why the plan does not fit. It only stops the create. */
+export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template', string>> & CodeErrors;
 
-/** Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. */
-export type ProjectFormRules = { create?: boolean; editCode?: boolean };
+/**
+ * Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. "templates" are the
+ * project templates that the new-project form offers, so the form can check the chosen one.
+ */
+export type ProjectFormRules = { create?: boolean; editCode?: boolean; templates?: readonly ProjectTemplate[] };
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
     name: '', clientId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
+    ...emptyTemplateChoice(),
   };
 }
 
@@ -51,7 +65,12 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
   const area = areaValue(values.area);
   if (area !== null && !(area >= 0)) errors.area = 'projectForm.errors.areaNumber';
   if (values.startDate && values.targetEndDate && values.targetEndDate <= values.startDate) errors.targetEndDate = 'projectForm.errors.endAfterStart';
-  if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
+  if (values.templateId) {
+    // A template gives the stages. It needs a start date, and its locked tasks must fit before the end date.
+    const template = rules.templates?.find((t) => t.id === values.templateId);
+    if (!values.startDate) errors.startDate = 'templateUse.errors.startRequired';
+    else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.template = 'templateUse.tooShort';
+  } else if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
   if (rules.create) Object.assign(errors, validateCodeValues(values));
   if (rules.editCode && !isProjectCode(normalizeTypedCode(values.code))) errors.code = 'projectCode.errors.full';

@@ -20,7 +20,8 @@ import {
  * The loader of each call that the server runs (plan 4.6; task C2). runCall (C3) calls loadFor() inside the call's transaction,
  * after the office lock for a write, and runs the handler on the State it returns. The table of plan 4.6 names the loaders:
  *
- *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get, chats.openDirect)
+ *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get, chats.openDirect).
+ *                  projects.create reads its project template from them too.
  *   feedback       the office and every feedback row
  *   project        one project P: its view, and its files, Tracker entries or payments when the call scans them
  *   task           one task T: every task of its project, and its events, comments, files and Tracker entry
@@ -158,6 +159,10 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'taskTemplates.save': task(taskTemplatesSave),
   'taskTemplates.rename': office,
   'taskTemplates.delete': office,
+
+  'projectTemplates.list': office,
+  'projectTemplates.save': office,
+  'projectTemplates.delete': office,
 
   'tracker.list': project(trackerList),
   'tracker.log': project(trackerLog),

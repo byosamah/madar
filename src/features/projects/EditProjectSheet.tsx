@@ -10,7 +10,7 @@ import { Sheet } from '../../components/Sheet';
 import { normalizeTypedCode } from '../../lib/projectCode';
 import { emptyCodeValues } from './codeForm';
 import type { ProjectFormValues } from './projectForm';
-import { areaValue } from './projectForm';
+import { areaValue, emptyTemplateChoice } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
 
 function valuesOf(detail: ProjectDetail): ProjectFormValues {
@@ -30,6 +30,7 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
     description: project.description,
     code: project.code,
     ...emptyCodeValues(),
+    ...emptyTemplateChoice(),
   };
 }
 

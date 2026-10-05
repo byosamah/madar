@@ -5,6 +5,7 @@ import {
   type LinkKind,
 } from '../api/contract/entities';
 import { writeEvent, type EventContext } from '../api/events';
+import { projectTemplateFromStages } from '../api/projectTemplates';
 import { notify, reviewersOf } from '../api/notify';
 import { addDays, dayOfWeek, diffDays, maxDay, minDay, weekStartOf } from '../lib/dates';
 import { mentionMarkup } from '../lib/text';
@@ -663,6 +664,51 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     const id = nextId(state, 'stt');
     state.stageTemplates![id] = { id, name: name as string, stages: stages as string[], createdBy: templateAuthor.id, createdAt: at(addDays(today, -30), 0) };
   });
+
+  // Project templates (owner, 2026-10-05, item 6a). Each stage template as a project template with stages and no tasks, as the
+  // version 9 step makes it, and one full plan of 60 working days (about 3 months) with roles, tasks and dates. The permit
+  // tasks do not stretch: the municipality takes its time.
+  for (const old of Object.values(state.stageTemplates!)) {
+    const id = nextId(state, 'ptp');
+    state.projectTemplates![id] = projectTemplateFromStages(old, id);
+  }
+  const villaPlan = nextId(state, 'ptp');
+  const task = (id: string, stageId: string, title: string, roleId: string | null, startOffset: number, durationDays: number, flexible = true, checklist: string[] = []) => ({
+    id, stageId, title, description: '', checklist, needsReview: true, roleId, startOffset, durationDays, flexible,
+  });
+  state.projectTemplates![villaPlan] = {
+    id: villaPlan,
+    name: 'Villa, full design',
+    roles: [
+      { id: 'r1', name: 'Architect', defaultUserId: humans[1].id },
+      { id: 'r2', name: 'Structural engineer', defaultUserId: humans[3].id },
+      { id: 'r3', name: 'Interior designer', defaultUserId: humans[6].id },
+      { id: 'r4', name: 'Permits', defaultUserId: null },
+    ],
+    stages: [
+      { id: 's1', name: 'Concept', startOffset: null, durationDays: null },
+      { id: 's2', name: 'Schematic Design', startOffset: null, durationDays: null },
+      { id: 's3', name: 'Design Development', startOffset: null, durationDays: null },
+      { id: 's4', name: 'Construction Documents', startOffset: null, durationDays: null },
+      { id: 's5', name: 'Permits', startOffset: null, durationDays: null },
+    ],
+    tasks: [
+      task('t1', 's1', 'Site visit and survey', 'r1', 0, 3, true, ['Photos', 'Boundary check']),
+      task('t2', 's1', 'Massing options', 'r1', 3, 7),
+      task('t3', 's1', 'Concept presentation', 'r1', 10, 2, false),
+      task('t4', 's2', 'Floor plans', 'r1', 12, 8),
+      task('t5', 's2', 'Structural concept', 'r2', 14, 6),
+      task('t6', 's3', 'Material board', 'r3', 20, 5, true, ['Facade materials', 'Interior finishes']),
+      task('t7', 's3', 'Structural coordination review', 'r2', 25, 5),
+      task('t8', 's4', 'Drawings set', 'r1', 30, 15),
+      task('t9', 's4', 'Wall sections and details', 'r1', 38, 7),
+      task('t10', 's5', 'Balady submission pack', 'r4', 45, 5, false, ['Application form', 'Signed drawings set', 'Ownership deed copy']),
+      task('t11', 's5', 'Municipality review', 'r4', 50, 10, false),
+    ],
+    createdBy: templateAuthor.id,
+    createdAt: at(addDays(today, -14), 0),
+    updatedAt: at(addDays(today, -14), 0),
+  };
 
   // Saved tasks, one stage each, for the stages that repeat on every project.
   const TASK_TEMPLATES: [string, string, string, string[], boolean, 'static' | 'dynamic', number | null][] = [

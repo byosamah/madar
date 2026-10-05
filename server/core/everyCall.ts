@@ -82,6 +82,13 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],
     'stageTemplates.delete': [{ id: 'stt_002' }],
+    'projectTemplates.list': [{}],
+    'projectTemplates.save': [{
+      name: 'Short villa', roles: [{ id: 'r1', name: 'Architect', defaultUserId: 'usr_002' }],
+      stages: [{ id: 's1', name: 'Concept', startOffset: null, durationDays: null }],
+      tasks: [{ id: 't1', stageId: 's1', title: 'Massing', description: '', checklist: [], needsReview: true, roleId: 'r1', startOffset: 0, durationDays: 5, flexible: true }],
+    }],
+    'projectTemplates.delete': [{ id: 'ptp_002' }],
     'feedback.screenshot': [{ id: 'fbk_001', index: 0 }],
     'feedback.setStatus': [{ id: 'fbk_001', status: 'done' }],
     'taskTemplates.list': [{}],
