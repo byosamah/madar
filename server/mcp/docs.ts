@@ -26,6 +26,8 @@ export const INSTRUCTIONS = [
   'Files: you can list files and refer to them by ID. To upload a file, the person uses the Madar screens.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
+  '',
+  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */
@@ -98,11 +100,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its stages and the current stage, its team, leader, client, dates, health, deadlines and links.',
+    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form).',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. Filters: status, filter (all, mine, at_risk), stageName, health, leaderId, clientId, teamId; sort by updated, deadline or name.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk), stageName, health, leaderId, clientId, teamId; sort by updated, deadline or name.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -110,7 +112,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, location, area in square metres, dates, model folder path, description, cover file. Send only the fields that change, in "patch". The project leader and the Admin may do this.',
+    description: 'Changes the details of one project: name, client, location, area in square metres, dates, model folder path, description, cover file. Send only the fields that change, in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it.',
   },
   'search.query': {
     title: 'Search',

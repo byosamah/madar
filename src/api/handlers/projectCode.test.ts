@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Client, Project } from '../contract/entities';
 import type { State } from '../store';
 import { historyCalls } from './history';
+import { insightCalls } from './insights';
 import { peopleCalls } from './people';
 import { projectCalls } from './projects';
 import { makeProject, makeWorld, NOW, testApi } from '../../test/factories';
@@ -9,7 +10,7 @@ import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
 
-const calls = { ...projectCalls, ...peopleCalls, ...historyCalls };
+const calls = { ...projectCalls, ...peopleCalls, ...historyCalls, ...insightCalls };
 
 /** The test world (today 2026-09-30) with two clients: one with initials, one from before initials existed. */
 function world(): State {
@@ -186,5 +187,22 @@ describe('projects.update of the code: the Admin only (item 6b)', () => {
     t.as('usr_001');
     await t.api.call('events.undo', { eventId: event.id });
     expect(t.store.state.projects.prj_001.code).toBe('KH-26-001');
+  });
+});
+
+describe('search.query finds a project by its code (item 6b)', () => {
+  it('finds a project by its key, by its full code and by a link mark, and answers with the full code', async () => {
+    const state = world();
+    state.projects.prj_001.code = '260902AZT-RES-Multi-unit Dev.';
+    const t = testApi(calls, state);
+    for (const text of ['260902AZT', '260902azt', '#260902AZT', '260902AZT-RES-Multi-unit Dev.']) {
+      const found = await t.api.call('search.query', { text });
+      expect(found.projects.map((p) => p.code), text).toEqual(['260902AZT-RES-Multi-unit Dev.']);
+    }
+  });
+
+  it('still finds an old code', async () => {
+    const t = testApi(calls, world());
+    expect((await t.api.call('search.query', { text: '#KH-26-001' })).projects.map((p) => p.id)).toEqual(['prj_001']);
   });
 });

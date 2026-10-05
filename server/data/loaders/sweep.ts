@@ -71,6 +71,12 @@ export function writeSweep(office: State): SweepCall[] {
   const file = Object.values(office.files)[0];
   return [
     ['projects.update', { id: 'prj_001', patch: { name: 'Renamed', coverFileId: file.projectId === 'prj_001' ? file.id : null } }, ADMIN],
+    // The project code (owner, 2026-10-05): a code from its parts writes the initials onto a client that has none, the same
+    // contract copies a code, and the Admin corrects a code.
+    ['projects.create', { name: 'Sweep Villas', clientId: 'cli_002', codeParts: { initials: 'DLD', classification: 'RES', type: 'Villa' } }, ADMIN],
+    ['projects.create', { name: 'Sweep annex', sameContractAs: 'prj_001' }, ADMIN],
+    ['projects.update', { id: 'prj_001', patch: { code: '261000GCH-COM-Office Tower' } }, ADMIN],
+    ['clients.update', { id: 'cli_001', patch: { initials: 'GCH' } }, ADMIN],
     ['projects.setStatus', { id: 'prj_009', status: 'active' }, ADMIN],
     ['projects.resume', { id: 'prj_012' }, ADMIN],
     ['projects.pause', { id: 'prj_001', kind: 'client', reason: 'Waiting', resumeOn: null }, ADMIN],
