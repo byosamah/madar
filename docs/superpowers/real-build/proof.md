@@ -617,3 +617,11 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Run 2** (after the fixes, screens redeployed): full suite 157 passed, 2 failed, 7 skipped by design; the CSP check is clean. The walk passed 143 of 144 steps; the one failure was `net::ERR_CONNECTION_CLOSED`, and a rerun of that variant passed 36 of 36. One failure was a contrast check on half-faded tiles: `settle()` in `tests/e2e-deploy/goto.ts` now waits for a quiet network and every finite animation (c4c62d1).
 - **Expected failure, an open Z1 item:** Z0a case 3. With "require current password" off, an approved agent token set a new password for the person through `PUT /auth/v1/user` (200). The seed reset it. The auto-mode safety system refused the setting change for Claude; the owner turns it on in madar-test first, then the suite checks Welcome and Reset (Z0a cases 1 and 2) with it on, and only then production.
 - **Production after the suite:** the fixed screens (pages.sh production), Realtime `private_only` true, SSL enforced; the end-to-end check passes (`session.get`, `usage.get` with the database meters).
+
+### Z1 finished and the secrets rotated (2026-10-05)
+
+- **Require current password:** on in madar-test first; account.spec (Welcome and Reset, EN and AR) and agents.spec passed 18 of 18 on the test copy, and Z0a case 3 now gets `current_password_required`. Then on in production. The invite session can still save a first password, so the Z1 gate of section Z0a item 2 holds.
+- **Legacy keys and HS256:** turned off and revoked in both projects; a password sign-in and `session.get` worked after it. Supabase docs: Storage signed URLs use their own key.
+- **Database passwords:** rotated with `PATCH /v1/projects/{ref}/database/password`; the session pooler accepted the new production password after a few seconds. madar_server has its own password and was not touched.
+- **Resend:** a key with `sending_access` for the vado.sa domain only now serves production; the account-wide key stays for the owner's other apps until he rotates it.
+- **Spam:** the first invitation landed in Gmail spam. Resend DKIM (`resend._domainkey`) and SPF on `send.vado.sa` pass, tracking is off, the links point to madar.vado.sa; vado.sa has no DMARC record. The owner adds `_dmarc` TXT `v=DMARC1; p=none; adkim=r; aspf=r` in the Vercel DNS.
