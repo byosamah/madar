@@ -9,7 +9,6 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
-import { requiredLabel } from '../ProfileSection';
 
 type Form = {
   name: string; nameAr: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
@@ -84,12 +83,12 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     >
       <div className="flex flex-col gap-4 pt-1">
         <TextField
-          id="person-name" label={requiredLabel(t('profile.nameEn'))} aria-required value={form.name} dir="auto"
+          id="person-name" label={t('profile.nameEn')} required value={form.name} dir="auto"
           error={errorFor('name', t('admin.errors.name'))} onChange={(event) => set('name', event.target.value)}
         />
         {!isAgent && (
           <TextField
-            id="person-name-ar" label={arabicNeeded ? requiredLabel(t('profile.nameAr')) : t('profile.nameAr')} aria-required={arabicNeeded || undefined}
+            id="person-name-ar" label={t('profile.nameAr')} required={arabicNeeded}
             value={form.nameAr} dir="auto" lang="ar" error={errorFor('nameAr', t('profile.errors.nameAr'))} onChange={(event) => set('nameAr', event.target.value)}
           />
         )}

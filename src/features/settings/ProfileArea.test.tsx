@@ -48,8 +48,8 @@ describe('the profile area', () => {
     const { store } = await renderApp('/settings', (state) => {
       state.users.usr_001.nameAr = undefined;
     });
-    const english = await screen.findByLabelText('Name in English *');
-    expect(english).toHaveAttribute('aria-required', 'true');
+    const english = await screen.findByLabelText('Name in English');
+    expect(english).toHaveAccessibleDescription(/required/i);
     const arabic = screen.getByLabelText('Name in Arabic');
     expect(arabic).toHaveValue('');
     await userEvent.type(arabic, 'هالة ناصر');

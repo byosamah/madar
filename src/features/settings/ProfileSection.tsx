@@ -11,8 +11,6 @@ import { TextField } from '../../components/Fields';
 import { PictureError, pictureOf, safePicture } from '../../lib/picture';
 import { FormError } from '../auth/AuthPage';
 
-/** A label with the mark of a required field. The field itself carries aria-required, so a screen reader says "required". */
-export const requiredLabel = (label: string): string => `${label} *`;
 
 /**
  * The profile area at the top of Settings (owner items 10 and 12, 2026-10-05): the picture, and the names in English and in
@@ -97,8 +95,8 @@ export function ProfileSection({ user }: { user: User }) {
         {/* A refused field shows its message under it, as in the Admin forms (audit 2026-10-03, SHL-22). */}
         <TextField
           id="profile-name"
-          label={requiredLabel(t('profile.nameEn'))}
-          aria-required
+          label={t('profile.nameEn')}
+          required
           value={name}
           dir="auto"
           autoComplete="name"

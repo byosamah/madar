@@ -11,10 +11,10 @@ describe('the names of a person in the Admin sheet', () => {
     const { store } = await renderApp('/admin');
     await userEvent.click(within(await people()).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
-    const english = within(sheet).getByLabelText('Name in English *');
-    const arabic = within(sheet).getByLabelText('Name in Arabic *');
-    expect(english).toHaveAttribute('aria-required', 'true');
-    expect(arabic).toHaveAttribute('aria-required', 'true');
+    const english = within(sheet).getByLabelText('Name in English');
+    const arabic = within(sheet).getByLabelText('Name in Arabic');
+    expect(english).toHaveAccessibleDescription(/required/i);
+    expect(arabic).toHaveAccessibleDescription(/required/i);
     await userEvent.type(english, 'Nora Salem');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
@@ -33,7 +33,7 @@ describe('the names of a person in the Admin sheet', () => {
     await userEvent.click(await within(await people()).findByRole('button', { name: 'Actions for Omar Haddad' }));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Edit' }));
     const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
-    expect(within(sheet).getByLabelText('Name in English *')).toHaveValue('Omar Haddad');
+    expect(within(sheet).getByLabelText('Name in English')).toHaveValue('Omar Haddad');
     const arabic = within(sheet).getByLabelText('Name in Arabic');
     expect(arabic).toHaveValue('');
     const discipline = within(sheet).getByLabelText('Discipline');
