@@ -66,6 +66,21 @@ describe('the Payments panel', () => {
     expect(await within(await panel()).findByText('SAR 85,500')).toBeInTheDocument();
   });
 
+  it('takes a message away as soon as the person fixes that field, and keeps the others (owner, 2026-10-05)', async () => {
+    await renderApp(PROJECT, as('usr_011'));
+    await userEvent.click(within(await panel()).getByRole('button', { name: 'Add payment' }));
+    const sheet = await sheetOf('Add payment');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+    expect(within(sheet).getByText('Choose a due date.')).toBeInTheDocument();
+    fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: '2026-11-15' } });
+    expect(within(sheet).queryByText('Choose a due date.')).toBeNull();
+    expect(within(sheet).getByText('Enter a name.')).toBeInTheDocument();
+    await userEvent.type(within(sheet).getByLabelText('Amount (SAR)'), '0');
+    expect(within(sheet).getByText('Enter an amount above zero.')).toBeInTheDocument();
+    await userEvent.type(within(sheet).getByLabelText('Amount (SAR)'), '5');
+    expect(within(sheet).queryByText('Enter an amount above zero.')).toBeNull();
+  });
+
   it('edits a payment from its row', async () => {
     const { store } = await renderApp(PROJECT, as('usr_010'));
     await userEvent.click(await within(await panel()).findByRole('button', { name: 'Open payment Construction documents fee' }));

@@ -42,9 +42,18 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
   };
   const kept = drafts?.get(draftKey) ?? start;
   const [form, setForm] = useState<PaymentDraft>(kept);
-  const set = (patch: Partial<PaymentDraft>) => setForm((current) => ({ ...current, ...patch }));
-  const { name, amount, dueDate, receivedOn, note } = form;
   const [problems, setProblems] = useState<Problems>({});
+  const set = (patch: Partial<PaymentDraft>) => {
+    const next = { ...form, ...patch };
+    setForm(next);
+    // A field that shows a message checks itself again as the person fixes it, so a fixed field loses its message at once
+    // (owner, 2026-10-05). A field with no message stays quiet until the next Save.
+    setProblems((shown) => {
+      const now = rulesOf(next);
+      return Object.fromEntries(Object.entries(shown).map(([field, text]) => [field, text && now[field as keyof Problems]])) as Problems;
+    });
+  };
+  const { name, amount, dueDate, receivedOn, note } = form;
   // Only a change is kept, so a later change by another person shows when the sheet opens again.
   const startText = JSON.stringify(start);
   useEffect(() => {
@@ -66,15 +75,19 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
   const error = saved ? update.error : create.error;
   const problem = (field: keyof Problems, fallback: string) => problems[field] ?? fieldError(error, field, t, fallback);
 
+  // The same rules as the API, so the message shows under its field at once.
+  function rulesOf(draft: PaymentDraft): Problems {
+    return {
+      name: draft.name.trim() ? undefined : t('payments.errors.name'),
+      amount: parseAmount(draft.amount) > 0 ? undefined : t('payments.errors.amount'),
+      dueDate: draft.dueDate ? undefined : t('payments.errors.dueDate'),
+      receivedOn: draft.receivedOn > todayISO() ? t('payments.errors.futureReceived') : undefined,
+    };
+  }
+
   const submit = () => {
     const value = parseAmount(amount);
-    // The same rules as the API, so the message shows under its field at once.
-    const next: Problems = {
-      name: name.trim() ? undefined : t('payments.errors.name'),
-      amount: value > 0 ? undefined : t('payments.errors.amount'),
-      dueDate: dueDate ? undefined : t('payments.errors.dueDate'),
-      receivedOn: receivedOn > todayISO() ? t('payments.errors.futureReceived') : undefined,
-    };
+    const next = rulesOf(form);
     setProblems(next);
     if (next.name || next.amount || next.dueDate || next.receivedOn) return;
     if (saved) update.mutate({ id: saved.id, patch: { name: name.trim(), amount: value, dueDate, receivedOn: receivedOn || null, note } });
