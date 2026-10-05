@@ -12,16 +12,20 @@ import { Button } from '../../components/Button';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
+import { ClientForm, useClientForm } from './ClientForm';
+import { clientInput, emptyClientDraft } from './clientRules';
+import { CODE_FIELDS, upperCodeHead } from './codeForm';
+import { ProjectCodeFields } from './ProjectCodeFields';
 import { StageTemplatePicker } from './StageTemplatePicker';
-import { validateProjectForm, type ProjectFormErrors, type ProjectFormValues } from './projectForm';
+import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
-const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'targetEndDate', 'stages'];
+const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'targetEndDate', 'stages', 'code', ...CODE_FIELDS];
 
 /** Form state that shows an error only after the person leaves the field, or on submit (spec 4.4). */
-export function useProjectForm(initial: ProjectFormValues) {
+export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRules = {}) {
   const [values, setValues] = useState(initial);
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  const all = validateProjectForm(values);
+  const all = validateProjectForm(values, rules);
   const errors = Object.fromEntries(Object.entries(all).filter(([field]) => touched.has(field))) as ProjectFormErrors;
   return {
     values,
@@ -45,30 +49,26 @@ export function useProjectForm(initial: ProjectFormValues) {
 }
 export type ProjectForm = ReturnType<typeof useProjectForm>;
 
+/** The client select, and "New client" with the one client form (owner, 2026-10-05, items 1 and 3). */
 function ClientPicker({ value, onChange, clients }: { value: string; onChange: (id: string) => void; clients: Client[] }) {
   const { t } = useTranslation();
   const toast = useToast();
   const lang = useLang();
-  const empty = { name: '', nameAr: '', contactName: '', phone: '', email: '' };
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState(empty);
-  // The client is the contact person, for example a private villa owner (colleague comment 10).
-  const [same, setSame] = useState(false);
-  const named = clientName({ name: draft.name.trim(), nameAr: draft.nameAr.trim() }, lang);
+  const form = useClientForm(emptyClientDraft());
   const create = useAction('clients.create', {
     onSuccess: (client) => {
       onChange(client.id);
       setAdding(false);
-      setDraft(empty);
-      setSame(false);
+      form.reset(emptyClientDraft());
       toast.show({ message: t('projectForm.clientAdded') });
     },
   });
-  const add = () => create.mutate({ ...draft, name: draft.name.trim(), nameAr: draft.nameAr.trim(), contactName: same ? named : draft.contactName });
-  const field = (key: keyof typeof empty) => ({
-    value: draft[key],
-    onChange: (event: { target: { value: string } }) => setDraft((current) => ({ ...current, [key]: event.target.value })),
-  });
+  // A press on Add shows every message first. The client goes only when every rule holds.
+  const add = () => {
+    if (create.isPending || !form.check()) return;
+    create.mutate(clientInput(form.values, lang));
+  };
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-end gap-2">
@@ -79,33 +79,9 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
         <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>
       </div>
       {adding && (
-        <div
-          className="grid gap-3 rounded-2xl bg-fill p-3 sm:grid-cols-2"
-          onKeyDown={(event) => {
-            // Enter in a client field adds the client. It must not send the project form that holds these fields (audit PER-7).
-            const target = event.target as HTMLInputElement;
-            if (event.key !== 'Enter' || target.tagName !== 'INPUT' || target.type === 'checkbox') return;
-            event.preventDefault();
-            if (named && !create.isPending) add();
-          }}
-        >
-          <TextField id="client-name" label={t('projectForm.clientName')} dir="ltr" {...field('name')} />
-          <TextField id="client-name-ar" label={t('projectForm.clientNameAr')} dir="rtl" lang="ar" {...field('nameAr')} />
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <TextField id="client-contact" label={t('projectForm.contactName')} dir="auto" disabled={same} {...(same ? { value: named, onChange: () => undefined } : field('contactName'))} />
-            <label className="flex min-h-11 items-center gap-3 self-start rounded-xl px-2 hover:bg-fill">
-              <input type="checkbox" className="size-5 shrink-0 accent-[var(--c-accent-fill)]" checked={same} onChange={(event) => setSame(event.target.checked)} />
-              <span className="text-subheadline text-ink">{t('projectForm.sameAsClient')}</span>
-            </label>
-          </div>
-          <TextField id="client-phone" type="tel" dir="ltr" label={t('projectForm.phone')} {...field('phone')} />
-          <TextField id="client-email" type="email" dir="ltr" label={t('projectForm.email')} {...field('email')} />
-          <Button
-            variant="primary"
-            className="sm:col-span-2"
-            disabled={!named || create.isPending}
-            onClick={add}
-          >
+        <div className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+          <ClientForm form={form} idPrefix="client" clients={clients} onEnter={add} />
+          <Button variant="primary" className="sm:self-start" disabled={create.isPending} onClick={add}>
             {t('projectForm.addClient')}
           </Button>
         </div>
@@ -171,8 +147,11 @@ function TeamPicker({ people, value, onChange }: { people: User[]; value: string
   );
 }
 
-/** The project fields of spec 4.4. "edit" leaves out the leader and the team, which the header and the Team tab change. */
-export function ProjectFields({ form, mode }: { form: ProjectForm; mode: 'create' | 'edit' }) {
+/**
+ * The project fields of spec 4.4. "edit" leaves out the leader and the team, which the header and the Team tab change.
+ * "create" adds the Project code group (owner, 2026-10-05). "editCode" gives the Admin the code field in the edit form.
+ */
+export function ProjectFields({ form, mode, editCode = false }: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean }) {
   const { t } = useTranslation();
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
@@ -180,7 +159,7 @@ export function ProjectFields({ form, mode }: { form: ProjectForm; mode: 'create
   const meId = session.data?.authority.id;
   const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId);
   const { values, errors, set, touch } = form;
-  const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string) : undefined);
+  const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
     <div className="flex flex-col gap-4">
       <TextField
@@ -194,7 +173,22 @@ export function ProjectFields({ form, mode }: { form: ProjectForm; mode: 'create
         onBlur={() => touch('name')}
         error={error('name')}
       />
+      {mode === 'edit' && editCode && (
+        <TextField
+          id="project-code"
+          label={t('projectCode.group')}
+          hint={t('projectCode.editHint')}
+          required
+          dir="ltr"
+          autoComplete="off"
+          value={values.code}
+          onChange={(event) => set('code', upperCodeHead(event.target.value))}
+          onBlur={() => touch('code')}
+          error={error('code')}
+        />
+      )}
       <ClientPicker value={values.clientId} onChange={(id) => set('clientId', id)} clients={clients.data ?? []} />
+      {mode === 'create' && <ProjectCodeFields form={form} clients={clients.data ?? []} />}
       {mode === 'create' && (
         <SelectField id="project-leader" label={t('projectForm.leader')} value={values.leader} onChange={(event) => set('leader', event.target.value)}>
           <option value="me">{t('projectForm.leaderMe')}</option>

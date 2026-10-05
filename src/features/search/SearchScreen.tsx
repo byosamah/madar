@@ -14,6 +14,7 @@ import { PersonSheet } from './PersonSheet';
 import { useQueryInLink } from './useQueryInLink';
 import { LoadFailed } from '../../components/LoadFailed';
 import { taskLink } from '../../lib/params';
+import { projectKey } from '../../lib/projectCode';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
@@ -38,7 +39,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
     return (
       <div className="flex flex-col gap-1 px-3 py-2">
         <p className="text-subheadline text-label-2">{t('search.empty', { text: query })}</p>
-        <p className="text-footnote text-label-2">{t('search.emptyHint')}</p>
+        <p className="text-footnote text-label-2">{t('projectCode.searchHint', { example: '260902AZT' })}</p>
       </div>
     );
   }
@@ -48,7 +49,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
         <Command.Group heading={t('search.projects')} className={GROUP}>
           {projects.map((p) => (
             <Item key={p.id} value={`project-${p.id}`} onSelect={() => navigate(`/projects/${p.id}`)}>
-              <span className="tabular text-footnote text-label-2">{p.code}</span>
+              <span className="tabular text-footnote text-label-2">{projectKey(p.code)}</span>
               <bdi>{p.name}</bdi>
             </Item>
           ))}
@@ -59,7 +60,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
           {tasks.map((task) => (
             <Item key={task.id} value={`task-${task.id}`} onSelect={() => navigate(taskLink(task.projectId, task.id))}>
               <bdi className="min-w-0 flex-1 truncate">{task.title}</bdi>
-              <span className="tabular text-footnote text-label-2">{task.projectCode}</span>
+              <span className="tabular text-footnote text-label-2">{projectKey(task.projectCode)}</span>
             </Item>
           ))}
         </Command.Group>
@@ -80,7 +81,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
           {files.map((file) => (
             <Item key={file.id} value={`file-${file.id}`} onSelect={() => navigate(`/projects/${file.projectId}?tab=files&file=${file.id}`)}>
               <bdi className="min-w-0 flex-1 truncate">{file.name}</bdi>
-              <span className="tabular text-footnote text-label-2">{file.projectCode}</span>
+              <span className="tabular text-footnote text-label-2">{projectKey(file.projectCode)}</span>
             </Item>
           ))}
         </Command.Group>

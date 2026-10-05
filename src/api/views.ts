@@ -52,7 +52,7 @@ export function countFiles(state: State, taskId: string): number {
 
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
 export const FEED_VERBS = new Set([
-  'project.created', 'project.stage_changed', 'project.leader_changed', 'task.created', 'task.status_changed',
+  'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
 ]);
 
@@ -92,6 +92,7 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
     }
     case 'project': {
       const name = state.projects[event.targetId]?.name ?? '';
+      if (event.verb === 'project.code_changed' && typeof after.code === 'string') return { label: name, detail: { code: after.code } };
       if (typeof after.currentStageId === 'string') return { label: name, detail: { stage: state.stages[after.currentStageId]?.name ?? '' } };
       if ('leaderId' in after) {
         const leader = typeof after.leaderId === 'string' ? (state.users[after.leaderId]?.name ?? '') : '';
@@ -167,6 +168,7 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     post: can(viewer, 'content.post', r),
     review: can(viewer, 'task.review', r),
     payments: can(viewer, 'payment.manage'),
+    editCode: can(viewer, 'project.editCode', r),
   };
 }
 

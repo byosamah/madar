@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
+import { ClientId, ClientInitials, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
@@ -12,6 +12,7 @@ import { projectRoleOf } from '../permissions';
 import { memberKey, nextId, paymentsOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
+import { buildProjectCode, CLASSIFICATIONS, codeMonth, contractOf, nextSeries, PROJECT_CODE_PATTERN, projectKey, TYPE_MAX } from '../../lib/projectCode';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
@@ -24,6 +25,56 @@ const Area = z.number().nonnegative().max(10_000_000);
 const FolderPath = z.string().trim().max(260);
 const Description = z.string().max(5000);
 const DeadlineName = z.string().trim().min(1).max(120);
+
+/** A full code typed by hand, of the old or the new form. */
+const TypedCode = z.string().trim().regex(PROJECT_CODE_PATTERN, 'Use a code like 260902AZT-RES-Villa.');
+/** The parts of a new code. The server adds YYMM (today in Riyadh) and the next series (owner, 2026-10-05). */
+const CodeParts = z.object({
+  initials: ClientInitials,
+  classification: z.enum(CLASSIFICATIONS),
+  type: z.string().trim().min(1).max(TYPE_MAX).regex(/^[^\n\r\u2028\u2029]+$/, 'Write the building type on one line.'),
+});
+
+/**
+ * A new code may not take the series of another contract: YYMMSS names one contract, and two projects of one contract share
+ * the whole code. An old code has no contract part, so it is never taken.
+ */
+function assertCodeFree(ctx: Ctx, code: string, selfId: string | null): void {
+  const contract = contractOf(code);
+  if (!contract) return;
+  const other = Object.values(ctx.state.projects).find((p) => p.id !== selfId && p.code !== code && contractOf(p.code) === contract);
+  if (other) throw invalid('code', `The series ${contract} belongs to another contract (${projectKey(other.code)}).`, 'code_taken');
+}
+
+type CodeInput = { clientId: string | null; codeParts?: z.output<typeof CodeParts>; code?: string; sameContractAs?: string };
+
+/** The code of a new project: from its parts, typed by hand, or the code of another project of the same contract. */
+function codeOfNew(ctx: Ctx, input: CodeInput): string {
+  const { state, today } = ctx;
+  const ways = [input.codeParts, input.code, input.sameContractAs].filter((way) => way !== undefined).length;
+  if (ways > 1) throw invalid('code', 'Give the code in one way: the parts, a typed code, or the same contract as another project.');
+  if (input.sameContractAs !== undefined) {
+    const other = state.projects[input.sameContractAs];
+    if (!other) throw invalid('sameContractAs', 'This project does not exist.');
+    return other.code;
+  }
+  if (input.code !== undefined) {
+    assertCodeFree(ctx, input.code, null);
+    return input.code;
+  }
+  if (input.codeParts !== undefined) {
+    const client = input.clientId ? state.clients[input.clientId] : undefined;
+    if (client?.initials && client.initials !== input.codeParts.initials) {
+      throw invalid('codeParts.initials', `Use the initials of the client: ${client.initials}.`, 'initials_mismatch');
+    }
+    const yymm = codeMonth(today);
+    const series = nextSeries(Object.values(state.projects).map((p) => p.code), yymm);
+    if (series === null) throw invalid('codeParts', 'This month used all 100 series. Type the code by hand.', 'code_series_full');
+    return buildProjectCode({ yymm, series, ...input.codeParts });
+  }
+  // No code given: the old automatic code, so old callers keep working.
+  return nextProjectCode(state, state.settings.codePrefix, today);
+}
 
 export function nextProjectCode(state: State, prefix: string, today: string): string {
   const head = `${prefix}-${today.slice(2, 4)}-`;
@@ -119,6 +170,12 @@ export const projectsCreate = defineCall({
     teamIds: z.array(UserId).max(50).default([]),
     modelFolderPath: FolderPath.default(''),
     description: Description.default(''),
+    /** The new code from its parts (owner, 2026-10-05). Give at most one of codeParts, code and sameContractAs. */
+    codeParts: CodeParts.optional(),
+    /** A full code typed by hand, for a project that already has one. */
+    code: TypedCode.optional(),
+    /** Another project of the same contract: the new project gets its code. */
+    sameContractAs: ProjectId.optional(),
   }),
   output: ProjectDetail,
   run(input, ctx) {
@@ -132,6 +189,7 @@ export const projectsCreate = defineCall({
       const member = state.users[userId];
       if (!member?.active || member.kind !== 'human') throw invalid('teamIds', 'Every team member must be an active person. Agents act for a person.');
     }
+    const code = codeOfNew(ctx, input);
     const id = nextId(state, 'prj');
     const stageIds = (input.stages ?? state.settings.defaultStages).map((name, order) => {
       const stageId = nextId(state, 'stg');
@@ -139,7 +197,7 @@ export const projectsCreate = defineCall({
       return stageId;
     });
     const project: Project = {
-      id, code: nextProjectCode(state, state.settings.codePrefix, today), name: input.name, clientId: input.clientId,
+      id, code, name: input.name, clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
       startDate: input.startDate, targetEndDate: input.targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
@@ -147,6 +205,11 @@ export const projectsCreate = defineCall({
     };
     state.projects[id] = project;
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });
+    // A client with no initials takes the initials of the code, so its next project finds them (owner, 2026-10-05).
+    const client = input.clientId ? state.clients[input.clientId] : undefined;
+    if (client && !client.initials && input.codeParts) {
+      applyPatch(ctx, client, { initials: input.codeParts.initials }, { projectId: null, verb: 'client.updated', targetType: 'client', targetId: client.id });
+    }
     const people = new Set([ctx.authority.id, ...(leaderId ? [leaderId] : []), ...input.teamIds]);
     for (const userId of people) addMember(ctx, id, userId);
     addProjectConversation(state, id, stamp);
@@ -168,12 +231,20 @@ export const projectsUpdate = defineCall({
       modelFolderPath: FolderPath.optional(),
       description: Description.optional(),
       coverFileId: FileId.nullable().optional(),
+      /** A correction of the code: the Admin only (right project.editCode). The History records it as project.code_changed. */
+      code: TypedCode.optional(),
     }),
   }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireEditable(ctx, input.id);
-    const { patch } = input;
+    const { code, ...patch } = input.patch;
+    const newCode = code !== undefined && code !== project.code ? code : undefined;
+    if (newCode !== undefined) {
+      // The checks come before any change, so a refused code changes nothing.
+      assertCan(ctx, 'project.editCode', { projectRole: roleIn(ctx, project.id) });
+      assertCodeFree(ctx, newCode, project.id);
+    }
     const start = patch.startDate !== undefined ? patch.startDate : project.startDate;
     const end = patch.targetEndDate !== undefined ? patch.targetEndDate : project.targetEndDate;
     assertDates(start, end, 'targetEndDate');
@@ -182,6 +253,9 @@ export const projectsUpdate = defineCall({
       const file = ctx.state.files[patch.coverFileId];
       if (!file || file.projectId !== project.id) throw invalid('coverFileId', 'This file is not in the project.');
       if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.', 'cover_not_image');
+    }
+    if (newCode !== undefined) {
+      applyPatch(ctx, project, { code: newCode }, { projectId: project.id, verb: 'project.code_changed', targetType: 'project', targetId: project.id });
     }
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);

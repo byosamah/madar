@@ -61,6 +61,9 @@ any screen work.
   English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
+- A required field: `required` on `TextField`, `SelectField` or `TextArea` shows an asterisk after the label and a hidden
+  "required" word in the description. The label text stays the field name, and the browser never checks the field.
+- A project code shows as its key (`projectKey`) in lists and rows, and in full in the project header and About.
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

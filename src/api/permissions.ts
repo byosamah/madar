@@ -3,7 +3,7 @@ import { memberKey, type State } from './store';
 
 export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
-  | 'project.delete' | 'project.healthOverride'
+  | 'project.delete' | 'project.healthOverride' | 'project.editCode'
   | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
   | 'task.take'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
@@ -61,6 +61,8 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     case 'event.undoAgent':
       return leads;
     case 'project.delete':
+    // The code is fixed after create. Only the Admin corrects it (owner, 2026-10-05).
+    case 'project.editCode':
     case 'admin.manage':
       return admin;
     // Management makes and changes people, but never an Admin: the calls add that rule. The office settings stay with the Admin.

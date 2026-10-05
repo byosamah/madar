@@ -49,7 +49,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
-            <span className="tabular">{project.code}</span>
+            <span dir="ltr" className="tabular break-all">{project.code}</span>
             {detail.client && <><span aria-hidden>·</span><bdi>{clientName(detail.client, lang)}</bdi></>}
             {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
           </p>

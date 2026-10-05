@@ -4,6 +4,7 @@ import type { UserCard } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Sheet } from '../../components/Sheet';
+import { projectKey } from '../../lib/projectCode';
 
 /** A person from search: their discipline, email and active projects (plan clarification 8). */
 export function PersonSheet({ person, onClose }: { person: UserCard; onClose: () => void }) {
@@ -25,7 +26,7 @@ export function PersonSheet({ person, onClose }: { person: UserCard; onClose: ()
               {theirs.map((summary) => (
                 <li key={summary.project.id}>
                   <Link to={`/projects/${summary.project.id}`} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
-                    <span className="tabular text-footnote text-label-2">{summary.project.code}</span>
+                    <span className="tabular text-footnote text-label-2">{projectKey(summary.project.code)}</span>
                     <bdi className="min-w-0 flex-1 truncate">{summary.project.name}</bdi>
                     <span className="text-footnote text-label-2">{summary.leader?.id === person.id ? t('person.leads') : t('person.member')}</span>
                   </Link>

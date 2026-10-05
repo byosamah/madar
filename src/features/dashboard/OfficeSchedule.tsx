@@ -14,6 +14,7 @@ import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
 import { HatchSwitch, useHatchOverlap } from './hatch';
 import { currentTone, DeadlineMarks, stageKind, type StageKind } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
+import { projectKey } from '../../lib/projectCode';
 
 type Row = DashboardData['schedule'][number];
 
@@ -164,7 +165,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-xl px-2 text-start"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="tabular block text-caption text-ink-2">{row.project.code}</span>
+                        <span className="tabular block text-caption text-ink-2">{projectKey(row.project.code)}</span>
                         <bdi className="block truncate text-subheadline text-ink">{row.project.name}</bdi>
                         {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign has its own line, so the
                             name keeps the width of the narrow column (audit 2026-10-03, V-7). */}

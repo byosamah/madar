@@ -8,6 +8,7 @@ import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { Sheet } from '../../components/Sheet';
+import { codeInput } from './codeForm';
 import { emptyProjectForm, areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
 
@@ -15,7 +16,7 @@ function focusFirstError(): void {
   requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
 }
 
-/** Anyone can create a project (spec 2.2). Only the name is required (spec 4.4). */
+/** Anyone can create a project (spec 2.2). The name and the code parts are required (spec 4.4; owner, 2026-10-05). */
 export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const lang = useLang();
   const settings = useCall('settings.get', {});
   const defaults = settings.data?.defaultStages ?? [];
-  const form = useProjectForm(emptyProjectForm(defaults));
+  const form = useProjectForm(emptyProjectForm(defaults), { create: true });
   const [cover, setCover] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -85,6 +86,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         teamIds: v.teamIds,
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),
+        ...codeInput(v),
       });
       toast.show({ message: t('projectForm.created', { code: detail.project.code }) });
       fresh.current = true;
