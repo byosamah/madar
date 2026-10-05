@@ -11,6 +11,12 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Each entity table: `id text pk`, `ord bigserial`, `doc jsonb` (the whole zod record), generated key columns,
   `search_text`, `chg` (`supabase/migrations/20261004000100_core.sql`).
 - A new zod collection needs a table in a new migration and an entry in `tables.ts`.
+- The loops of `20261004000102_guards.sql` and `20261004000103_roles.sql` ran once, so a table of a later migration gives
+  itself RLS, the revoke from public, anon and authenticated, the madar_server grants and the `server_all` policy
+  (`20261005000100_project_templates.sql` is the pattern).
+- A migration that writes office rows follows the office cache rule: it raises `office_meta.version` and sets `chg` of the
+  rows to it. A migration that makes records with a counter prefix sets that counter to the highest number.
+- `project_templates` is an office list (`OFFICE_COLLECTIONS`), so `projects.create` reads its template from the office.
 - Server-only tables (`20261004000101_server_tables.sql`): office_meta, office_deletes, person_seq, platform_config, stories,
   idempotency, outbox, upload_intents, agent_links, mail_log, mail_outbox, usage_month, usage_warnings, rate_limits, job_runs.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new

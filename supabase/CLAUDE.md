@@ -9,6 +9,9 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - No migration holds a secret. CI checks for `create_secret(` (`scripts/ci/check-migration-secrets.ts`).
 - Files named `*_platform_*` need the Supabase schemas (auth, realtime, cron, storage), so the test harness skips them.
 - Number ranges: app 20261004000100-199, realtime 0200, cron 0300, auth and agents 0400s, files 0500, usage 0600s.
+- A new file must sort after the last migration of the hosted projects: `supabase db push` (`scripts/deploy/db.sh`, no
+  `--include-all`) refuses a file that comes before it. So new app migrations start a new day, for example
+  `20261005000100_project_templates.sql`.
 - A new function gets no default EXECUTE. Grant each one by name, only to the role that calls it.
 - After any migration change: `npx supabase db reset`, from your own worktree, under the Docker lock.
 

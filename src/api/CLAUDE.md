@@ -30,6 +30,18 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
 - Only the Admin corrects a code (`project.editCode`, `projects.update` `patch.code`, verb `project.code_changed`).
 
+## Project templates (owner, 2026-10-05, item 6a)
+- `ProjectTemplate` (`ptp_`): roles (a name and a default person), stages, and tasks with a start day and a length in working
+  days (Sunday to Thursday, day 0 is the project start) and `flexible`. Ids inside a template (`r1`, `s1`, `t1`) are unique in it.
+- `projectTemplates.list`, `.save` (no `id` makes one, an `id` changes one) and `.delete`. Saving needs `project.create`; a change
+  or a delete needs the person who saved it or the Admin. MCP: deny list.
+- `projects.create` takes `template: { templateId, startDate, endDate?, roles, fixedTaskIds }`, never with `stages`, `startDate`
+  or `targetEndDate`. The plan comes from `lib/projectPlan.ts`, the same function as the screen. Locked tasks that do not fit
+  refuse with reason `template_too_short` (`names` holds the days they need). A role person joins the team; a role with no
+  person gives tasks with no lead. The tasks send no notice: their people had the one notice of their place on the team.
+- Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
+  migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
@@ -45,7 +57,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The prototype store needs a new `STATE_VERSION` and a step in `src/data/migrate.ts`.
 
 ## Prototype data
-- `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 8 (`store.ts`).
+- `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 9 (`store.ts`).
 - Each version has a step in `src/data/migrate.ts`. A newer or unreadable saved office is never wiped.
 
 ## Tests
