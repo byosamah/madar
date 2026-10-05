@@ -210,8 +210,10 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
 - [x] Local stack: db reset applies the new migration; test:db 956 (24 skipped), test:it 240, deploy suite 159 passed (8 skipped), the walk 4 of 4 variants
 - [x] Owner OK (2026-10-05): main fast-forwarded to the batch; all.sh test deployed 228c01b (health 112 calls). The config push needed vector buckets off (402 on the free plan)
-- [ ] Deploy suite on the test copy, result in proof.md section Deploy
-- [ ] Owner tries the batch on the test copy, then all.sh production from 228c01b (needs the typed word)
+- [x] Deploy suite on the test copy at 228c01b: walk 144 of 144 steps, agents.spec in full; 2 failures from a sign-out race, fixed (no call without a session, reason no_session). Result in proof.md, section Deploy
+- [x] The MCP icon showed vado.sa: the serverInfo now names the Madar logo, and public/favicon.ico holds it
+- [ ] Test copy again at the final commit: account.spec.ts repeated 3 times (the race), agents.spec, the MCP icon and /favicon.ico
+- [ ] Production (owner OK in chat, 2026-10-05): push main, all.sh production from the final test commit, the quick check
 - [ ] Look into: the config diff says api.enabled is true on madar-test after every push; the Data API answers PGRST002 (no data), so nothing leaks, but the setting does not change
 - [ ] Clean up: the unused words of the old stage template screens (stageTemplates.startFrom and others in en.json and ar.json)
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)
