@@ -216,7 +216,10 @@ describe('tasks.take', () => {
     await expect(t.api.call('tasks.take', { taskId: 'tsk_002' })).rejects.toMatchObject({ code: 'forbidden' });
     t.store.state.users.usr_006.active = false;
     t.as('usr_006');
-    await expect(t.api.call('tasks.take', { taskId: 'tsk_002' })).rejects.toMatchObject({ code: 'forbidden' });
+    // The rule refuses a person who is off. On the database, the account check refuses first (unauthenticated, account_off).
+    await expect(t.api.call('tasks.take', { taskId: 'tsk_002' })).rejects.toMatchObject({ code: expect.stringMatching(/^(forbidden|unauthenticated)$/) });
+    t.as('usr_001');
+    expect((await t.api.call('tasks.get', { id: 'tsk_002' })).task.ownerId).toBeNull();
     await expect(t.api.call('tasks.take', { taskId: 'tsk_999' })).rejects.toMatchObject({ code: 'not_found' });
   });
 

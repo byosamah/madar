@@ -78,7 +78,7 @@ describe.runIf(process.env.MADAR_IT === '1')('the project templates migration, o
       `select c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = $1 and c.relname = 'project_templates'`, [schema],
     );
     expect(rls).toEqual([{ relrowsecurity: true }]);
-    const { rows: policies } = await db.query(`select policyname, roles from pg_policies where schemaname = $1 and tablename = 'project_templates'`, [schema]);
+    const { rows: policies } = await db.query(`select policyname, roles::text[] as roles from pg_policies where schemaname = $1 and tablename = 'project_templates'`, [schema]);
     expect(policies).toEqual([{ policyname: 'server_all', roles: ['madar_server'] }]);
     const { rows: grants } = await db.query(
       `select grantee, privilege_type from information_schema.role_table_grants where table_schema = $1 and table_name = 'project_templates' and grantee in ('anon', 'authenticated', 'madar_server') order by 1, 2`,
