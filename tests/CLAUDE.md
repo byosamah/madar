@@ -27,7 +27,9 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 - `goto.ts`: `settle(page)` waits for the network, then for every finite animation to end. Use it before a size check
   or a screenshot.
 - `steps.ts`: `signIn`, `expectCalm`, `expectNoSeriousA11y`, and the widths (390, 820, 1440), languages and themes.
-- `accounts.ts`: the 4 sample accounts (Admin, Management, Accounting, Member). Local passwords are in `local.ts`.
+- `accounts.ts`: the 4 sample accounts, with role emails: admin@, management@, accounting@ and member@madar.test.
+  The seed (`testOffice`) gives these emails to the 4 people of the test office; the prototype keeps its sample emails.
+  Local passwords are in `local.ts`. Test copy passwords are in `secrets/test-accounts.env` (the owner sets them).
 - A spec that leaves a grant or a setting behind removes it in a `finally` (as `agents.spec.ts` does), so the next run
   starts from the same office.
 

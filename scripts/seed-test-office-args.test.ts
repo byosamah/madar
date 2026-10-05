@@ -46,8 +46,8 @@ describe('seed-test-office: the arguments and the target', () => {
 });
 
 describe('seed-test-office: the 4 accounts', () => {
-  it('names one person of the sample office for each office role, by the sample email', async () => {
-    const state = await seed();
+  it('names one person of the test office for each office role, by the role email', async () => {
+    const state = testOffice(await seed());
     const accounts = seedAccounts(state);
     expect(accounts.map((a) => a.role)).toEqual([...DEPLOY_ROLES]);
     for (const account of accounts) {
@@ -62,6 +62,11 @@ describe('seed-test-office: the 4 accounts', () => {
   it('refuses a sample office whose people no longer match the account list', () => {
     const state = emptyState('2026-10-04');
     expect(() => seedAccounts(state)).toThrow(/usr_001.*admin/);
+  });
+
+  it('refuses the sample office before testOffice, because its people still have the sample emails', async () => {
+    const state = await seed();
+    expect(() => seedAccounts(state)).toThrow(/admin@madar\.test/);
   });
 });
 
@@ -79,9 +84,20 @@ describe('seed-test-office: the office of madar-test', () => {
     expect(Object.keys(office.updates).length).toBe(Object.values(state.updates).filter((u) => !agents.includes(u.authorId)).length);
     expect(office.tasks).toEqual(state.tasks);
     expect(office.counters).toEqual(state.counters);
-    expect(seedAccounts(office).map((a) => a.userId)).toEqual(seedAccounts(state).map((a) => a.userId));
+    expect(seedAccounts(office).map((a) => a.userId)).toEqual(DEPLOY_ROLES.map((role) => DEPLOY_ACCOUNTS[role].userId));
     // The sample office itself does not change.
     expect(Object.values(state.users).some((u) => u.kind === 'agent')).toBe(true);
+  });
+
+  it('gives the 4 account people their role emails (owner, 2026-10-05), and every other person keeps the sample email', async () => {
+    const state = await buildSeed('2026-10-04', async () => undefined);
+    const office = testOffice(state);
+    expect(DEPLOY_ROLES.map((role) => DEPLOY_ACCOUNTS[role].email)).toEqual(['admin@madar.test', 'management@madar.test', 'accounting@madar.test', 'member@madar.test']);
+    for (const role of DEPLOY_ROLES) expect(office.users[DEPLOY_ACCOUNTS[role].userId].email, role).toBe(DEPLOY_ACCOUNTS[role].email);
+    const accountIds = new Set(DEPLOY_ROLES.map((role) => DEPLOY_ACCOUNTS[role].userId));
+    for (const user of Object.values(office.users)) if (!accountIds.has(user.id)) expect(user.email, user.id).toBe(state.users[user.id].email);
+    // The sample office of the prototype keeps its sample emails.
+    expect(state.users.usr_001.email).toBe('hala.nasser@madar.test');
   });
 
   it('refuses an office where another record still names a left-out agent, so no row points at a person who is not there', async () => {
@@ -175,7 +191,7 @@ function fakeAuth(fake: Fake, users: AuthUserInfo[]): SeedAuth {
 const HALA = '11111111-1111-4111-8111-111111111111';
 const STRAY = '22222222-2222-4222-8222-222222222222';
 const EXISTING: AuthUserInfo[] = [
-  { authUserId: HALA, email: 'hala.nasser@madar.test', confirmed: true, passwordSet: true },
+  { authUserId: HALA, email: 'admin@madar.test', confirmed: true, passwordSet: true },
   { authUserId: STRAY, email: 'invited.last.run@madar.test', confirmed: false, passwordSet: false },
 ];
 
@@ -194,8 +210,8 @@ describe('seed-test-office: the dry run', () => {
     const text = lines.join('\n');
     expect(text).toMatch(/Dry run on madar-test \(qdgwpnesxppnqsaabqzd\)/);
     expect(text).toMatch(/users: 12 rows now, 10 after/);
-    expect(text).toMatch(/hala\.nasser@madar\.test \(admin, usr_001\): set a new password on the existing Auth user/);
-    expect(text).toMatch(/turki\.al\.otaibi@madar\.test \(management, usr_010\): make a new Auth user/);
+    expect(text).toMatch(/admin@madar\.test \(admin, usr_001\): set a new password on the existing Auth user/);
+    expect(text).toMatch(/management@madar\.test \(management, usr_010\): make a new Auth user/);
     expect(text).toMatch(/Remove 1 other Auth user.*invited\.last\.run@madar\.test/s);
     expect(text).toMatch(/Nothing changed/);
     for (const value of Object.values(PASSWORDS)) expect(text).not.toContain(value);
@@ -226,7 +242,7 @@ describe('seed-test-office: the run', () => {
     });
     expect(result.changed).toBe(true);
     expect(fake.auth).toEqual([
-      'list', `password ${HALA}`, 'create turki.al.otaibi@madar.test', 'create noura.al.shammari@madar.test', 'create faisal.al.harbi@madar.test',
+      'list', `password ${HALA}`, 'create management@madar.test', 'create accounting@madar.test', 'create member@madar.test',
       `delete ${STRAY}`,
     ]);
     const writes = fake.sql.slice(fake.sql.indexOf('begin'));
@@ -237,7 +253,7 @@ describe('seed-test-office: the run', () => {
     expect(Object.values(fake.written[0].users).some((u) => u.kind === 'agent')).toBe(false);
     const text = lines.join('\n');
     expect(text).toMatch(/Seeded madar-test \(qdgwpnesxppnqsaabqzd\)/);
-    expect(text).toMatch(/Linked hala\.nasser@madar\.test to usr_001/);
+    expect(text).toMatch(/Linked admin@madar\.test to usr_001/);
     expect(text).toMatch(/Removed the Auth user invited\.last\.run@madar\.test/);
     for (const value of Object.values(PASSWORDS)) expect(text).not.toContain(value);
   });

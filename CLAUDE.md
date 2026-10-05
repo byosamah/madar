@@ -101,8 +101,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
 2. `npx tsx tests/e2e-deploy/local.ts functions-env <file>`, then `npx supabase functions serve --env-file <file>`.
 3. `npx tsx tests/e2e-deploy/local.ts seed` - the sample office and 4 accounts (`tests/e2e-deploy/accounts.ts`:
-   Admin hala.nasser, Management turki.al.otaibi, Accounting noura.al.shammari, Member faisal.al.harbi, all
-   `@madar.test`; passwords in `localPasswords` of `local.ts`).
+   admin, management, accounting and member, each `@madar.test`; passwords in `localPasswords` of `local.ts`).
 4. `VITE_MADAR_API=remote VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_PUBLISHABLE_KEY=<PUBLISHABLE_KEY>
    npx vite build --mode remote-local --outDir test-results/remote-local`, then
    `npx vite preview --mode remote-local --outDir test-results/remote-local --host 127.0.0.1 --port 4174 --strictPort`.

@@ -4,8 +4,9 @@ import { join } from 'node:path';
 /**
  * The 4 sign-in accounts of the test office (task X1), one for each office role. scripts/seed-test-office.ts makes them in Auth
  * and links each to its person of the sample office; playwright.deploy.config.ts signs in once with each and keeps the session.
- * The emails are the sample office's own emails (src/data/seed.ts), and scripts/seed-test-office-args.test.ts checks that they
- * still are. The passwords never sit in the repository: each account names the secret that holds it.
+ * The emails are role addresses (owner, 2026-10-05): testOffice in scripts/seed-test-office.ts gives them to the 4 people, and
+ * the sample office of the prototype keeps its own emails. The passwords never sit in the repository: each account names the
+ * secret that holds it.
  */
 export const DEPLOY_ROLES = ['admin', 'management', 'accounting', 'member'] as const;
 export type DeployRole = (typeof DEPLOY_ROLES)[number];
@@ -13,10 +14,10 @@ export type DeployRole = (typeof DEPLOY_ROLES)[number];
 export type DeployAccount = { role: DeployRole; userId: string; email: string; passwordSecret: string };
 
 export const DEPLOY_ACCOUNTS: Record<DeployRole, DeployAccount> = {
-  admin: { role: 'admin', userId: 'usr_001', email: 'hala.nasser@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_ADMIN' },
-  management: { role: 'management', userId: 'usr_010', email: 'turki.al.otaibi@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_MANAGEMENT' },
-  accounting: { role: 'accounting', userId: 'usr_011', email: 'noura.al.shammari@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_ACCOUNTING' },
-  member: { role: 'member', userId: 'usr_002', email: 'faisal.al.harbi@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_MEMBER' },
+  admin: { role: 'admin', userId: 'usr_001', email: 'admin@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_ADMIN' },
+  management: { role: 'management', userId: 'usr_010', email: 'management@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_MANAGEMENT' },
+  accounting: { role: 'accounting', userId: 'usr_011', email: 'accounting@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_ACCOUNTING' },
+  member: { role: 'member', userId: 'usr_002', email: 'member@madar.test', passwordSecret: 'MADAR_TEST_PASSWORD_MEMBER' },
 };
 
 /**

@@ -161,11 +161,16 @@ function rowsAfter(state: State): Map<string, number> {
 /**
  * The sample office without its agents and the posts they wrote. The sample agent ("Madar Assistant") has no agent_links row and
  * no approval, so Settings, Agents would show it as "Not used yet" with a Remove that revokes nothing: on madar-test a real agent
- * needs a real approval (X1 follow-up). It refuses an office where any other record still names a left-out agent. The given
- * State does not change.
+ * needs a real approval (X1 follow-up). It refuses an office where any other record still names a left-out agent. The 4 people
+ * of the accounts get the role emails of tests/e2e-deploy/accounts.ts (admin@madar.test and the like). The given State does not
+ * change.
  */
 export function testOffice(state: State): State {
   const office = structuredClone(state);
+  for (const account of Object.values(DEPLOY_ACCOUNTS)) {
+    const user = office.users[account.userId];
+    if (user) user.email = account.email;
+  }
   const agents = new Set(Object.values(office.users).filter((user) => user.kind === 'agent').map((user) => user.id));
   if (agents.size === 0) return office;
   for (const id of agents) delete office.users[id];

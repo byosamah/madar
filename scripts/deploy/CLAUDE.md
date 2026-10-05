@@ -8,7 +8,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 1. Commit the change on main, with every merge gate green.
 2. `scripts/deploy/all.sh test`. At its end it records the commit (`.git/madar-test-deploy`, shared by every worktree).
 3. Run the deploy suite on the test copy (`tests/CLAUDE.md`). It seeds the sample office again at its end.
-4. The owner tries the change on the test copy with a sample account (passwords in `secrets/test-accounts.env`).
+4. The owner tries the change on the test copy with a sample account: admin@, management@, accounting@ or
+   member@madar.test (passwords in `secrets/test-accounts.env`).
 5. After the owner's OK: `scripts/deploy/all.sh production` from the same commit.
 - Production refuses, before the typed word: a commit that is not the recorded one, a change that is not committed (also
   a new file), and a folder that is not a git checkout. A new commit (also a merge or a rebase) needs `all.sh test` again.
