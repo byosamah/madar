@@ -625,3 +625,8 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Database passwords:** rotated with `PATCH /v1/projects/{ref}/database/password`; the session pooler accepted the new production password after a few seconds. madar_server has its own password and was not touched.
 - **Resend:** a key with `sending_access` for the vado.sa domain only now serves production; the account-wide key stays for the owner's other apps until he rotates it.
 - **Spam:** the first invitation landed in Gmail spam. Resend DKIM (`resend._domainkey`) and SPF on `send.vado.sa` pass, tracking is off, the links point to madar.vado.sa; vado.sa has no DMARC record. The owner adds `_dmarc` TXT `v=DMARC1; p=none; adkim=r; aspf=r` in the Vercel DNS.
+
+### The short MCP address and the first backup (2026-10-05)
+
+- **MCP:** https://madar.vado.sa/mcp is a Cloudflare Pages Function that forwards to the mcp function of the host's project with `x-region: eu-central-1`, after it drops the `cf-*` and client-address headers. MCP_URL of each project is the short address, so the 401 `WWW-Authenticate` and the resource metadata name it, and Auth gives tokens that audience. agents.spec through the test copy's short address: 10 of 10. The old Supabase function address still answers; its tokens now carry the short audience.
+- **Backup:** the first `DB backup` run by hand succeeded (release `madar-db-20261005-070349Z` in byosamah/madar-backups, about 14 KB); `age -d` with the owner's key opened it, and it holds roles.sql, schema.sql, data.sql and manifest.json. The opened copy was deleted at once.

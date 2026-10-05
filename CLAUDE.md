@@ -182,6 +182,10 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.
 
 ### AI agents (MCP)
+- The MCP address is https://madar.vado.sa/mcp (test copy: https://preview.madar-46r.pages.dev/mcp): a Pages Function
+  (`functions/mcp/[[path]].ts`, `server/http/pagesMcpProxy.ts`) forwards to the Supabase mcp function of the host's project,
+  pinned to Frankfurt. MCP_URL in `secrets/<env>.env` is that address, so it is the token audience. Connect Claude Code with
+  `claude mcp add --transport http madar https://madar.vado.sa/mcp`.
 - MCP spec 2026-07-28, stateless, with a 2025 fallback. 36 tools (15 reads, 21 writes); everything else is in
   `MCP_DENY` (`server/mcp/tools.ts`), and a test fails for a call in neither list.
 - MCP token: ES256, `aud` = MCP_URL (set by the token hook from `platform_config.mcp_url`), `client_id` required, only
