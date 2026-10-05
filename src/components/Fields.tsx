@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 type FieldProps = { id: string; label: string; error?: string; hint?: string; className?: string };
 
@@ -43,59 +43,5 @@ export function SelectField({ id, label, error, hint, className, children, ...in
         {children}
       </select>
     </Shell>
-  );
-}
-
-/**
- * A date field that saves when the person leaves it or presses Enter, not on every key.
- * While a person types a year, the browser reports years like 0002; a year before 2000 never saves.
- */
-export function DateDraftField({ id, label, error, hint, className, value, onCommit, disabled }: FieldProps & {
-  value: string; onCommit: (value: string | null) => void; disabled?: boolean;
-}) {
-  const [draft, setDraft] = useState(value);
-  // The draft sent last. Enter and the blur after it send the same draft once, so a reason sheet does not open twice (audit 2026-10-03, BRW-3).
-  // A new visit to the field or a new draft forgets it, so a person can send a refused date again (review 2026-10-03).
-  const sent = useRef<string | null>(null);
-  useEffect(() => {
-    setDraft(value);
-    sent.current = null;
-  }, [value]);
-  const commit = () => {
-    if (draft === value || draft === sent.current) return;
-    if (draft === '') {
-      sent.current = draft;
-      onCommit(null);
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft) || Number(draft.slice(0, 4)) < 2000) {
-      setDraft(value);
-      return;
-    }
-    sent.current = draft;
-    onCommit(draft);
-  };
-  return (
-    <TextField
-      id={id}
-      label={label}
-      error={error}
-      hint={hint}
-      className={className}
-      type="date"
-      value={draft}
-      disabled={disabled}
-      onChange={(event) => {
-        sent.current = null;
-        setDraft(event.target.value);
-      }}
-      onFocus={() => { sent.current = null; }}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        commit();
-      }}
-    />
   );
 }

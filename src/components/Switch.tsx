@@ -24,3 +24,27 @@ export function Switch({
     </div>
   );
 }
+
+/** A small switch with its word at the start, for one choice inside a line of other words, such as beside a legend. */
+export function SmallSwitch({
+  id, label, checked, onChange,
+}: { id: string; label: string; checked: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <span className="inline-flex min-h-11 items-center gap-2">
+      <label htmlFor={id} className="text-footnote text-ink-2">{label}</label>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`pressable relative h-6 w-10 shrink-0 rounded-full ${checked ? 'bg-green' : 'bg-fill-strong'}`}
+      >
+        <span
+          aria-hidden
+          className={`absolute start-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4 rtl:-translate-x-4' : ''}`}
+        />
+      </button>
+    </span>
+  );
+}

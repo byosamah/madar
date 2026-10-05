@@ -8,6 +8,7 @@ vi.mock('./runtime', () => ({
 }));
 
 import { AppearanceSync } from './AppearanceSync';
+import { THEME_KEY } from './appearance';
 
 const realMatchMedia = window.matchMedia;
 
@@ -27,13 +28,36 @@ function deviceDark(dark: boolean) {
 afterEach(() => {
   window.matchMedia = realMatchMedia;
   delete document.documentElement.dataset.theme;
+  window.localStorage.removeItem(THEME_KEY);
 });
 
 describe('AppearanceSync with no session (X2 merge lead patch)', () => {
-  it('applies the device theme before sign-in, as the System theme does', () => {
+  // The owner (2026-10-05, item 11): the screens before sign-in are light, also on a dark device, unless this device saved a choice.
+  it('applies light before sign-in, also on a dark device', () => {
     deviceDark(true);
     render(<AppearanceSync />);
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('applies the theme saved on this device before sign-in', () => {
+    deviceDark(false);
+    window.localStorage.setItem(THEME_KEY, 'dark');
+    render(<AppearanceSync />);
     expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('follows a dark device when the saved choice is System', () => {
+    deviceDark(true);
+    window.localStorage.setItem(THEME_KEY, 'system');
+    render(<AppearanceSync />);
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('applies light when the saved value is not a theme', () => {
+    deviceDark(true);
+    window.localStorage.setItem(THEME_KEY, 'purple');
+    render(<AppearanceSync />);
+    expect(document.documentElement.dataset.theme).toBe('light');
   });
 
   it('applies light on a light device', () => {

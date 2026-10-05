@@ -9,12 +9,14 @@ import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
-import { DateDraftField, SelectField, TextField } from '../../../components/Fields';
+import { DateDraftField } from '../../../components/DateDraftField';
+import { SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { HatchSwitch, useHatchOverlap } from '../../dashboard/hatch';
 import { currentTone } from '../../dashboard/scheduleMarks';
 import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
@@ -120,13 +122,20 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   const overlaps = stageOverlaps(detail.stages);
+  const [hatch, setHatch] = useHatchOverlap();
   // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
   // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
   const paused = detail.project.status === 'on_hold';
   const tone = currentTone(paused, detail.health?.value ?? 'on_track');
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
-      {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
+      {/* One small switch beside the legend. With the hatch off, the legend goes and the switch stays (owner, 2026-10-05, item 9). */}
+      {overlaps.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 pb-1">
+          {hatch && <p className="text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
+          <span className="ms-auto"><HatchSwitch on={hatch} onChange={setHatch} /></span>
+        </div>
+      )}
       <div className="grid min-w-[40rem] grid-cols-[10rem_minmax(0,1fr)] gap-x-3">
         <div />
         <div ref={scale} className="relative h-7">
@@ -158,7 +167,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
                 ) : <span className="tabular flex h-11 items-center text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>}
-                {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
+                {hatch && overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
                   <span
                     key={overlap.stageIds.join('-')}
                     aria-hidden
@@ -188,7 +197,14 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   );
 }
 
-/** Stage dates as a list: the phone view, and date fields for the leader on every screen size. */
+/** The columns of the stage dates editor: the stage name, then Start and End. The column names use the same grid, so they line up. */
+const DATE_ROW = 'grid grid-cols-2 items-center gap-x-3 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]';
+
+/**
+ * Stage dates as a list: the phone view, and the dates editor for the leader on every screen size. The editor has one row for
+ * each stage, its name at the start, then the Start and End columns, with the column names once at the top (owner, 2026-10-05,
+ * item 8). On a phone the name takes its own line over the two dates.
+ */
 function StageDates({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -199,33 +215,49 @@ function StageDates({ detail }: TabProps) {
   const edit = detail.viewerCan.edit;
   const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
   const overlaps = stageOverlaps(detail.stages);
+  const name = (stage: Stage) => (
+    <>
+      <span dir="auto" className="block text-subheadline font-medium">{stage.name}</span>
+      {overlappingWith(stage.id, overlaps).length > 0 && (
+        <span dir="auto" className="block text-footnote text-ink-2">
+          {t('project.stageOverlap', { names: list.format(overlappingWith(stage.id, overlaps).map((id) => detail.stages.find((other) => other.id === id)?.name ?? '')) })}
+        </span>
+      )}
+    </>
+  );
   return (
     <section aria-labelledby="schedule-stages" className="panel p-5">
       <h2 id="schedule-stages" className="text-headline text-ink">{t('schedule.stages')}</h2>
-      <ul className="mt-2 flex flex-col gap-3">
-        {detail.stages.map((stage) => (
-          <li key={stage.id} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <span className="min-w-0 flex-1">
-              <span dir="auto" className="block text-subheadline font-medium">{stage.name}</span>
-              {overlappingWith(stage.id, overlaps).length > 0 && (
-                <span dir="auto" className="block text-footnote text-ink-2">
-                  {t('project.stageOverlap', { names: list.format(overlappingWith(stage.id, overlaps).map((id) => detail.stages.find((other) => other.id === id)?.name ?? '')) })}
-                </span>
-              )}
-            </span>
-            {edit ? (
-              <>
-                <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} value={stage.startDate ?? ''}
+      {edit ? (
+        <>
+          {/* The column names, once. Each date field also has its full label ("Start of Permits") for a screen reader. */}
+          <div aria-hidden className={`${DATE_ROW} mt-3 text-footnote font-medium text-ink-2`}>
+            <span className="hidden sm:block" />
+            <span className="ps-3">{t('schedule.startColumn')}</span>
+            <span className="ps-3">{t('schedule.endColumn')}</span>
+          </div>
+          <ul className="hairline mt-1">
+            {detail.stages.map((stage) => (
+              <li key={stage.id} className={`${DATE_ROW} gap-y-1 py-2`}>
+                <span className="col-span-2 min-w-0 sm:col-span-1">{name(stage)}</span>
+                <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} hideLabel value={stage.startDate ?? ''}
                   onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate }, rollback)} />
-                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} value={stage.endDate ?? ''}
+                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} hideLabel value={stage.endDate ?? ''}
                   onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
-              </>
-            ) : (
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-3">
+          {detail.stages.map((stage) => (
+            <li key={stage.id} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <span className="min-w-0 flex-1">{name(stage)}</span>
               <span className="tabular text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>
-            )}
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

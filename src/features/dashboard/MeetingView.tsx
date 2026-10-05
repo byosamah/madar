@@ -30,6 +30,7 @@ import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
+import { useHatchOn } from './hatch';
 import { currentTone, DeadlineMarks, stageKind } from './scheduleMarks';
 
 // The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
@@ -137,7 +138,8 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
   const { t } = useTranslation();
   const lang = useLang();
   const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
-  const overlaps = stageOverlaps(row.stages);
+  // The person's hatch choice of the Dashboard and the project schedule applies here too (owner, 2026-10-05, item 9).
+  const overlaps = useHatchOn() ? stageOverlaps(row.stages) : [];
   return (
     <>
       {row.stages.map((stage, i) => {

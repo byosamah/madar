@@ -111,6 +111,8 @@ describe('the Schedule tab', () => {
     const { store } = await renderApp(SCHEDULE, as('usr_002'));
     await screen.findByRole('slider', { name: 'End of Permits' });
     const start = document.getElementById('start-stg_005') as HTMLInputElement;
+    // The keyboard comes to the field, so the person types the date in the full field (owner, 2026-10-05, item 8).
+    start.focus();
     fireEvent.change(start, { target: { value: '0002-09-29' } });
     fireEvent.change(start, { target: { value: '2026-09-29' } });
     expect(store.state.stages.stg_005.startDate).toBe('2026-09-28');
