@@ -82,6 +82,10 @@ test('a person creates a project and lands on it', async ({ page }) => {
   await page.getByRole('button', { name: 'New Project' }).click();
   const sheet = page.getByRole('dialog', { name: 'New Project' });
   await sheet.getByLabel('Name', { exact: true }).fill('Harbour Gate Offices');
+  // A new project needs its code parts (owner, 2026-10-05).
+  await sheet.getByLabel('Client initials').fill('HGO');
+  await sheet.getByLabel('Classification').selectOption('COM');
+  await sheet.getByLabel('Building type').fill('Offices');
   await sheet.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Harbour Gate Offices' })).toBeVisible();
 });
