@@ -207,7 +207,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [ ] Small follow-ups: (done: the created toast shows the project key, so no two dots) Team tab names cut at 390 px (old layout); the date fields that save with a form button still show dd/mm/yyyy (list in the fix track report)
 - [x] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a). Migration 20261005000100_project_templates.sql (checked in PGlite only)
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
-- [ ] Prototype smoke (87 of 87) on the batch branch
+- [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
 - [ ] Local stack, when Docker runs: db reset, server/it/projectTemplates.it.test.ts, guards, schema, loaders and runCall it tests one at a time, then test:db, full test:it, the deploy suite walk
 - [ ] Clean up: the unused words of the old stage template screens (stageTemplates.startFrom and others in en.json and ar.json)
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)
