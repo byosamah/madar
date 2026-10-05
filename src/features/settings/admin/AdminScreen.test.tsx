@@ -75,18 +75,6 @@ describe('the Admin page', () => {
     expect(store.state.users.usr_001.systemRole).toBe('admin');
   });
 
-  it('lists the stage templates and lets the Admin delete one, with Undo', async () => {
-    const { store } = await renderApp('/admin/stage-templates');
-    const section = await region('Stage templates');
-    expect(await within(section).findByText('Interior fit-out')).toBeInTheDocument();
-    expect(within(section).getByText('Brief · Concept · Presentation')).toBeInTheDocument();
-    await userEvent.click(within(section).getByRole('button', { name: 'Actions for template Competition entry' }));
-    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
-    await waitFor(() => expect(Object.values(store.state.stageTemplates ?? {}).map((tpl) => tpl.name)).toEqual(['Interior fit-out']));
-    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(Object.keys(store.state.stageTemplates ?? {})).toHaveLength(2));
-  });
-
   it('lists the task templates by stage, and lets the Admin rename and delete one, with Undo', async () => {
     const { store } = await renderApp('/admin/task-templates');
     const section = await region('Task templates');
@@ -115,7 +103,8 @@ describe('the Admin page', () => {
       state.users.usr_001.gender = 'female';
     };
     // Each template list has its own section now (owner, 2026-10-05). The Arabic screen names her in Arabic (owner item 12).
-    const stages = await renderApp('/admin/stage-templates', asArabicWoman);
+    // Stage templates merged into project templates (owner, 2026-10-05, item 6a).
+    const stages = await renderApp('/admin/project-templates', asArabicWoman);
     expect((await screen.findAllByText('حفظته هالة ناصر')).length).toBeGreaterThan(0);
     expect(screen.queryByText('حفظه هالة ناصر')).toBeNull();
     stages.unmount();
@@ -222,7 +211,7 @@ describe('the Admin side list', () => {
     expect(groupsOf(await sectionList())).toEqual([
       { group: 'People', rows: ['People', 'Teams'] },
       { group: 'Office', rows: ['Office settings', 'Clients'] },
-      { group: 'Templates', rows: ['Stage templates', 'Task templates'] },
+      { group: 'Templates', rows: ['Project templates', 'Task templates'] },
       // Usage is a section of the real build only.
       { group: 'System', rows: ['Requests and bugs'] },
     ]);
@@ -236,7 +225,7 @@ describe('the Admin side list', () => {
     const list = await sectionList();
     expect(within(list).getByRole('link', { name: 'People' })).toHaveAttribute('aria-current', 'page');
     expect(within(list).getByRole('link', { name: 'Teams' })).not.toHaveAttribute('aria-current');
-    for (const name of ['Teams', 'Office settings', 'Stage templates', 'Task templates']) expect(screen.queryByRole('region', { name })).toBeNull();
+    for (const name of ['Teams', 'Office settings', 'Project templates', 'Task templates']) expect(screen.queryByRole('region', { name })).toBeNull();
   });
 
   it('opens one section at a time from its row, and keeps the list in place', async () => {
@@ -252,7 +241,7 @@ describe('the Admin side list', () => {
   });
 
   it('gives each section its own link', async () => {
-    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/clients', 'Clients'], ['/admin/stage-templates', 'Stage templates'], ['/admin/task-templates', 'Task templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
+    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/clients', 'Clients'], ['/admin/project-templates', 'Project templates'], ['/admin/task-templates', 'Task templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
       const view = await renderApp(path);
       expect(await region(name as string)).toBeInTheDocument();
       expect(within(await sectionList()).getByRole('link', { current: 'page' })).toHaveAttribute('href', `#${path}`);
@@ -415,7 +404,7 @@ describe('the Admin page for Management and Accounting', () => {
     const people = await region('People');
     expect(within(await sectionList()).getAllByRole('link').map((link) => link.textContent)).toEqual(['People', 'Teams']);
     expect(screen.queryByRole('region', { name: 'Office settings' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Stage templates' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Project templates' })).toBeNull();
     expect(screen.queryByText('Only the Admin and Management can open this page.')).toBeNull();
     await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });

@@ -5,7 +5,7 @@ import { ClientsSection } from './ClientsSection';
 import { FeedbackSection } from './FeedbackSection';
 import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
-import { StageTemplatesSection } from './StageTemplatesSection';
+import { ProjectTemplatesSection } from './ProjectTemplatesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
 import { TeamsSection } from './TeamsSection';
 import { UsageSection } from './UsageSection';
@@ -39,7 +39,7 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'teams', group: 'people', titleKey: 'teams.title', roles: ['admin', 'management'], Component: TeamsSection },
   { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], Component: OfficeSection },
   { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], Component: ClientsSection },
-  { id: 'stage-templates', group: 'templates', titleKey: 'stageTemplates.title', roles: ['admin'], Component: StageTemplatesSection },
+  { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], Component: ProjectTemplatesSection },
   { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], Component: TaskTemplatesSection },
   { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], Component: FeedbackSection },
   { id: 'usage', group: 'system', titleKey: 'usage.title', roles: ['admin'], Component: UsageSection, remoteOnly: true },

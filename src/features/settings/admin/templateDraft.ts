@@ -1,0 +1,161 @@
+import type { ProjectTemplate, TemplateRole, TemplateStage, TemplateTask } from '../../../api/contract/entities';
+import { templateDays, type PlanTemplate } from '../../../lib/projectPlan';
+
+/**
+ * The project template editor works on a draft: the text of each field as the person types it. The numbers stay text until
+ * the save, so a half-typed number never jumps. An empty person or role is ''.
+ */
+export type DraftRole = { id: string; name: string; defaultUserId: string };
+export type DraftStage = { id: string; name: string; start: string; days: string };
+export type DraftTask = {
+  id: string; stageId: string; title: string; roleId: string; start: string; days: string; flexible: boolean;
+  /** Kept as saved: the editor shows only the fields of the owner's list (title, role, start, length, can stretch). */
+  description: string; checklist: string[]; needsReview: boolean;
+};
+export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftStage[]; tasks: DraftTask[] };
+export type TemplateParts = { name: string; roles: TemplateRole[]; stages: TemplateStage[]; tasks: TemplateTask[] };
+
+const OFFSET_MAX = 2000;
+const DAYS_MAX = 365;
+const NEW_TASK_DAYS = 5;
+
+export function emptyDraft(): TemplateDraft {
+  return { name: '', roles: [], stages: [{ id: 's1', name: '', start: '', days: '' }], tasks: [] };
+}
+
+const text = (n: number | null) => (n === null ? '' : String(n));
+
+export function draftOf(template: ProjectTemplate): TemplateDraft {
+  return {
+    name: template.name,
+    roles: template.roles.map((role) => ({ id: role.id, name: role.name, defaultUserId: role.defaultUserId ?? '' })),
+    stages: template.stages.map((stage) => ({ id: stage.id, name: stage.name, start: text(stage.startOffset), days: text(stage.durationDays) })),
+    tasks: template.tasks.map((task) => ({
+      id: task.id, stageId: task.stageId, title: task.title, roleId: task.roleId ?? '', start: String(task.startOffset), days: String(task.durationDays),
+      flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
+    })),
+  };
+}
+
+/** A whole number from the text of a field, also with Arabic-Indic or Persian digits. Null when it is not one. */
+export function wholeNumber(value: string): number | null {
+  const western = value.trim()
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+  return /^\d{1,5}$/.test(western) ? Number(western) : null;
+}
+
+const offsetOk = (value: string) => { const n = wholeNumber(value); return n !== null && n <= OFFSET_MAX; };
+const daysOk = (value: string) => { const n = wholeNumber(value); return n !== null && n >= 1 && n <= DAYS_MAX; };
+
+/** The next free id of a kind: r for a role, s for a stage, t for a task. */
+function freeId(draft: TemplateDraft, prefix: 'r' | 's' | 't'): string {
+  const used = [...draft.roles, ...draft.stages, ...draft.tasks]
+    .map((part) => (part.id.startsWith(prefix) ? Number(part.id.slice(prefix.length)) : 0))
+    .filter((n) => Number.isInteger(n));
+  return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+
+export function addRole(draft: TemplateDraft): TemplateDraft {
+  return { ...draft, roles: [...draft.roles, { id: freeId(draft, 'r'), name: '', defaultUserId: '' }] };
+}
+
+export function addStage(draft: TemplateDraft): TemplateDraft {
+  return { ...draft, stages: [...draft.stages, { id: freeId(draft, 's'), name: '', start: '', days: '' }] };
+}
+
+/** A new task starts where the last task of its stage ends, or where the template ends when the stage has no task yet. */
+export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
+  const own = draftPlanTemplate({ ...draft, tasks: draft.tasks.filter((task) => task.stageId === stageId) });
+  const start = own.tasks.length > 0
+    ? Math.max(...own.tasks.map((task) => task.startOffset + task.durationDays))
+    : templateDays(draftPlanTemplate(draft));
+  const task: DraftTask = {
+    id: freeId(draft, 't'), stageId, title: '', roleId: '', start: String(start), days: String(NEW_TASK_DAYS), flexible: true,
+    description: '', checklist: [], needsReview: true,
+  };
+  // The task goes after the last task of its stage, so the list stays grouped by stage.
+  const last = draft.tasks.map((t) => t.stageId).lastIndexOf(stageId);
+  const tasks = [...draft.tasks];
+  tasks.splice(last === -1 ? tasks.length : last + 1, 0, task);
+  return { ...draft, tasks };
+}
+
+export function removeStage(draft: TemplateDraft, stageId: string): TemplateDraft {
+  return { ...draft, stages: draft.stages.filter((stage) => stage.id !== stageId), tasks: draft.tasks.filter((task) => task.stageId !== stageId) };
+}
+
+export function removeRole(draft: TemplateDraft, roleId: string): TemplateDraft {
+  return {
+    ...draft,
+    roles: draft.roles.filter((role) => role.id !== roleId),
+    tasks: draft.tasks.map((task) => (task.roleId === roleId ? { ...task, roleId: '' } : task)),
+  };
+}
+
+export function moveStage(draft: TemplateDraft, stageId: string, delta: -1 | 1): TemplateDraft {
+  const from = draft.stages.findIndex((stage) => stage.id === stageId);
+  const to = from + delta;
+  if (from === -1 || to < 0 || to >= draft.stages.length) return draft;
+  const stages = [...draft.stages];
+  [stages[from], stages[to]] = [stages[to], stages[from]];
+  return { ...draft, stages };
+}
+
+function twice(names: string[]): boolean {
+  const seen = new Set<string>();
+  for (const name of names.map((n) => n.trim().toLowerCase())) {
+    if (seen.has(name)) return true;
+    seen.add(name);
+  }
+  return false;
+}
+
+/** The first problem of a draft as a word key, or null. The same rules as projectTemplates.save, in the order of the editor. */
+export function draftError(draft: TemplateDraft): string | null {
+  if (!draft.name.trim()) return 'projectTemplates.errors.name';
+  if (draft.roles.some((role) => !role.name.trim())) return 'projectTemplates.errors.roleName';
+  if (twice(draft.roles.map((role) => role.name))) return 'projectTemplates.errors.roleTwice';
+  if (draft.stages.length === 0) return 'projectTemplates.errors.noStage';
+  if (draft.stages.some((stage) => !stage.name.trim())) return 'projectTemplates.errors.stageName';
+  if (twice(draft.stages.map((stage) => stage.name))) return 'projectTemplates.errors.stageTwice';
+  for (const stage of draft.stages) {
+    const hasStart = stage.start.trim() !== '';
+    const hasDays = stage.days.trim() !== '';
+    if (hasStart !== hasDays) return 'projectTemplates.errors.stageNumbers';
+    if (hasStart && (!offsetOk(stage.start) || !daysOk(stage.days))) return 'projectTemplates.errors.numbers';
+  }
+  if (draft.tasks.some((task) => !task.title.trim())) return 'projectTemplates.errors.taskTitle';
+  if (draft.tasks.some((task) => !offsetOk(task.start) || !daysOk(task.days))) return 'projectTemplates.errors.numbers';
+  return null;
+}
+
+/** The input of projectTemplates.save. Call it only when draftError gives null. */
+export function draftInput(draft: TemplateDraft): TemplateParts {
+  const stageIds = new Set(draft.stages.map((stage) => stage.id));
+  return {
+    name: draft.name.trim(),
+    roles: draft.roles.map((role) => ({ id: role.id, name: role.name.trim(), defaultUserId: role.defaultUserId || null })),
+    stages: draft.stages.map((stage) => ({
+      id: stage.id, name: stage.name.trim(), startOffset: stage.start.trim() ? wholeNumber(stage.start) : null, durationDays: stage.days.trim() ? wholeNumber(stage.days) : null,
+    })),
+    tasks: draft.tasks.filter((task) => stageIds.has(task.stageId)).map((task) => ({
+      id: task.id, stageId: task.stageId, title: task.title.trim(), description: task.description, checklist: task.checklist, needsReview: task.needsReview,
+      roleId: task.roleId || null, startOffset: wholeNumber(task.start)!, durationDays: wholeNumber(task.days)!, flexible: task.flexible,
+    })),
+  };
+}
+
+/** The parts of a draft that the timeline can draw: only whole numbers in range. */
+export function draftPlanTemplate(draft: TemplateDraft): PlanTemplate {
+  return {
+    stages: draft.stages.map((stage) => ({
+      id: stage.id,
+      startOffset: offsetOk(stage.start) && daysOk(stage.days) ? wholeNumber(stage.start) : null,
+      durationDays: offsetOk(stage.start) && daysOk(stage.days) ? wholeNumber(stage.days) : null,
+    })),
+    tasks: draft.tasks
+      .filter((task) => offsetOk(task.start) && daysOk(task.days))
+      .map((task) => ({ id: task.id, stageId: task.stageId, startOffset: wholeNumber(task.start)!, durationDays: wholeNumber(task.days)!, flexible: task.flexible })),
+  };
+}
