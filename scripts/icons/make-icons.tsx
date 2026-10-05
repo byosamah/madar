@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MadarMark } from '../../src/components/MadarMark';
+import { icoOf } from './ico';
 
 /**
  * The app icons and the web manifest of Madar (TASKS.md, Logo, point 3), made from the MadarMark component, never by hand:
@@ -100,6 +101,9 @@ async function main(): Promise<void> {
   console.log('wrote public/manifest.webmanifest');
   writeFileSync(join(root, 'scripts/icons/icons.sha256'), iconDigests(tokens));
   console.log('wrote scripts/icons/icons.sha256');
+  // /favicon.ico for the tools that ask a site only for that file (ico.ts); ico.test.ts checks that it matches the 192 px PNG.
+  writeFileSync(join(root, 'public/favicon.ico'), icoOf(readFileSync(join(root, 'public/icons/madar-192.png')), 192));
+  console.log('wrote public/favicon.ico');
 }
 
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));

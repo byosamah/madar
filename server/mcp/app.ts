@@ -39,6 +39,21 @@ import { mcpTools, type ToolDef } from './tools';
  */
 
 export const SERVER_INFO = { name: 'madar', title: 'Madar', version: '1.0.0' } as const;
+
+type ServerIcon = { src: string; mimeType: string; sizes: string[] };
+type ServerInfo = { name: string; title: string; version: string; websiteUrl?: string; icons?: ServerIcon[] };
+
+/**
+ * The serverInfo of the MCP answer. On an https address it names the Madar logo on the same site (public/icons), so a client
+ * shows the Madar icon and not the icon of the parent domain vado.sa (owner, 2026-10-05). An icon address must be https, so a
+ * plain http address (the local stack) gets no icon and no site.
+ */
+export function serverInfoFor(mcpUrl: string): ServerInfo {
+  const url = new URL(mcpUrl);
+  if (url.protocol !== 'https:') return { ...SERVER_INFO };
+  const icon = (size: number): ServerIcon => ({ src: `${url.origin}/icons/madar-${size}.png`, mimeType: 'image/png', sizes: [`${size}x${size}`] });
+  return { ...SERVER_INFO, websiteUrl: url.origin, icons: [icon(192), icon(512)] };
+}
 export const TOOL_CALLS_PER_MINUTE = 60;
 const MINUTE_MS = 60_000;
 
@@ -148,9 +163,10 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
 
 function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {
   const tools = mcpTools();
+  const info = serverInfoFor(deps.config.mcpUrl);
   return createMcpHandler(async () => {
     const stateCodec = await codec;
-    const server = new McpServer({ ...SERVER_INFO }, {
+    const server = new McpServer({ ...info }, {
       instructions: INSTRUCTIONS,
       capabilities: { tools: {} },
       cacheHints: {

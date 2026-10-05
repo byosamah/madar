@@ -24,6 +24,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   in neither list, so every new shared call goes into one of them.
 - Each tool needs a title and a description in `TOOL_DOCS` (`docs.ts`). Write them short, exact, in plain English.
 - `madar.readFirst` gives the agent the instructions and the person it acts for, by the English name.
+- The serverInfo names the Madar logo (`public/icons/madar-192.png` and `-512.png` on the site of MCP_URL) and the site
+  (`serverInfoFor`, `app.ts`), so a client shows the Madar icon. `public/favicon.ico` holds the same logo (`scripts/icons/ico.ts`).
 - `users.list` gives both names (`name`, `nameAr`) and leaves picture data out of `avatarUrl` (`run.ts`).
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They

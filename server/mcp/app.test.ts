@@ -10,7 +10,7 @@ import { memoryData, type MemoryData } from '../core/memoryData';
 import { createRunCall } from '../core/runCall';
 import type { OfficeSnapshot } from '../core/types';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
-import { mcpApp, TOOL_CALLS_PER_MINUTE, type McpAppOptions, type McpLimit } from './app';
+import { mcpApp, serverInfoFor, TOOL_CALLS_PER_MINUTE, type McpAppOptions, type McpLimit } from './app';
 import { agentTokenChecker, type AgentPrincipal, type AgentToken } from './auth';
 import { INSTRUCTIONS } from './docs';
 import { HOP_HEADER, hopHeaderOf, hopKeyFrom } from './forward';
@@ -542,5 +542,22 @@ describe('suite 12: the MCP server in process', () => {
     expect(body.result).toEqual({ from: 'frankfurt' });
     expect(seen).toHaveLength(1);
     expect(new URL(seen[0].url).searchParams.get('forceFunctionRegion')).toBe('eu-central-1');
+  });
+});
+
+describe('serverInfoFor', () => {
+  it('names the Madar logo on the site of the MCP address, so a client shows the Madar icon, not the vado.sa one (owner, 2026-10-05)', () => {
+    expect(serverInfoFor('https://madar.vado.sa/mcp')).toEqual({
+      name: 'madar', title: 'Madar', version: '1.0.0', websiteUrl: 'https://madar.vado.sa',
+      icons: [
+        { src: 'https://madar.vado.sa/icons/madar-192.png', mimeType: 'image/png', sizes: ['192x192'] },
+        { src: 'https://madar.vado.sa/icons/madar-512.png', mimeType: 'image/png', sizes: ['512x512'] },
+      ],
+    });
+    expect(serverInfoFor('https://preview.madar-46r.pages.dev/mcp').icons?.[0].src).toBe('https://preview.madar-46r.pages.dev/icons/madar-192.png');
+  });
+
+  it('gives no icon and no site for a plain http address (the local stack): an icon address must be https', () => {
+    expect(serverInfoFor('http://127.0.0.1:54321/functions/v1/mcp')).toEqual({ name: 'madar', title: 'Madar', version: '1.0.0' });
   });
 });
