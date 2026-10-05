@@ -6,6 +6,7 @@ import { fieldError } from '../../../app/errors';
 import { useAction } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
+import { DateField } from '../../../components/DateField';
 import { TextArea, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { todayISO } from '../../../lib/dates';
@@ -100,9 +101,10 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
       >
         <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
         <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField id="payment-due" type="date" label={t('payments.dueDate')} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(event) => set({ dueDate: event.target.value })} />
-          <TextField id="payment-received" type="date" label={t('payments.receivedOn')} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(event) => set({ receivedOn: event.target.value })} />
+        {/* The due date is needed, so it changes but never goes empty: no clear control. The received date is empty until the money comes. */}
+        <div className="grid grid-cols-2 gap-4">
+          <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
+          <DateField id="payment-received" label={t('payments.receivedOn')} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
         </div>
         <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} value={note} onChange={(event) => set({ note: event.target.value })} />
       </form>

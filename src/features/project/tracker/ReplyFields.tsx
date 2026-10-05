@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import type { UserCard } from '../../../api/contract/views';
 import { usePersonName } from '../../../app/personName';
-import { SelectField, TextField } from '../../../components/Fields';
+import { DateField } from '../../../components/DateField';
+import { SelectField } from '../../../components/Fields';
 
 /** Who answers a message that waits for our reply, and by which day. The two fields of the quick log and of the entry sheet. */
 export function ReplyFields({ id, members, userId, dueDate, onUser, onDueDate }: {
@@ -19,7 +20,7 @@ export function ReplyFields({ id, members, userId, dueDate, onUser, onDueDate }:
       <SelectField id={`${id}-who`} label={t('tracker.replyWho')} value={userId} onChange={(event) => onUser(event.target.value)} className="min-w-44 flex-1">
         {members.map((user) => <option key={user.id} value={user.id}>{nameOf(user)}</option>)}
       </SelectField>
-      <TextField id={`${id}-by`} type="date" label={t('tracker.replyBy')} value={dueDate} onChange={(event) => onDueDate(event.target.value)} className="min-w-40" />
+      <DateField id={`${id}-by`} label={t('tracker.replyBy')} clearable={false} value={dueDate} onChange={onDueDate} className="min-w-40" />
     </div>
   );
 }

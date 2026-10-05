@@ -10,6 +10,7 @@ import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { DateDraftField } from '../../../components/DateDraftField';
+import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { Sheet } from '../../../components/Sheet';
@@ -295,7 +296,7 @@ function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; d
         }}
       >
         <TextField id="deadline-edit-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
-        <TextField id="deadline-edit-date" type="date" label={t('schedule.deadlineDate')} value={date} onChange={(event) => setDate(event.target.value)} />
+        <DateField id="deadline-edit-date" label={t('schedule.deadlineDate')} clearable={false} value={date} onChange={setDate} />
         <SelectField id="deadline-edit-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
           <option value="">{t('files.noStage')}</option>
           {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
@@ -360,7 +361,7 @@ function Deadlines({ detail }: TabProps) {
           }}
         >
           <TextField id="deadline-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
-          <TextField id="deadline-date" type="date" label={t('schedule.deadlineDate')} value={date} onChange={(event) => setDate(event.target.value)} />
+          <DateField id="deadline-date" label={t('schedule.deadlineDate')} clearable={false} value={date} onChange={setDate} />
           <SelectField id="deadline-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
             <option value="">{t('files.noStage')}</option>
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}

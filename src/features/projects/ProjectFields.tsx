@@ -10,6 +10,7 @@ import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { DateField } from '../../components/DateField';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
@@ -223,30 +224,29 @@ export function ProjectFields({
         onBlur={() => touch('area')}
         error={error('area')}
       />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="project-contract-start" type="date" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(event) => set('contractStartDate', event.target.value)} />
+      {/* The dates sit in two equal columns at every width, so the contract start lines up with the start date below. */}
+      <div className="grid grid-cols-2 gap-4">
+        <DateField id="project-contract-start" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(day) => set('contractStartDate', day)} />
       </div>
       {mode === 'create' && templates.length > 0 && <TemplatePicker form={form} templates={templates} />}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <TextField
+      <div className="grid grid-cols-2 gap-4">
+        <DateField
           id="project-start"
-          type="date"
           label={t('projectForm.startDate')}
           required={template !== undefined}
           value={values.startDate}
-          onChange={(event) => set('startDate', event.target.value)}
+          onChange={(day) => set('startDate', day)}
           onBlur={() => touch('startDate')}
           error={template ? error('startDate') : undefined}
         />
-        <TextField
+        <DateField
           id="project-end"
-          type="date"
           label={t('projectForm.endDate')}
           hint={template ? t('templateUse.endHint') : undefined}
           // The plan line (TemplateDetails) says why the locked tasks do not fit. The field only carries the mark, so the focus comes here.
           {...(errors.template ? { 'aria-invalid': true, 'aria-describedby': 'project-end-hint template-plan-line' } : {})}
           value={values.targetEndDate}
-          onChange={(event) => set('targetEndDate', event.target.value)}
+          onChange={(day) => set('targetEndDate', day)}
           onBlur={() => touch('targetEndDate')}
           error={error('targetEndDate')}
         />
