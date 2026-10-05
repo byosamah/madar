@@ -11,6 +11,7 @@ import { Sheet } from '../../components/Sheet';
 import { codeInput } from './codeForm';
 import { emptyProjectForm, areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
+import { templateInput } from './templateForm';
 
 function focusFirstError(): void {
   requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
@@ -25,8 +26,10 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const limit = useFileLimit();
   const lang = useLang();
   const settings = useCall('settings.get', {});
+  const templates = useCall('projectTemplates.list', {});
+  const users = useCall('users.list', {});
   const defaults = settings.data?.defaultStages ?? [];
-  const form = useProjectForm(emptyProjectForm(defaults), { create: true });
+  const form = useProjectForm(emptyProjectForm(defaults), { create: true, templates: templates.data });
   const [cover, setCover] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -71,6 +74,11 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       return;
     }
     const v = form.values;
+    // A template gives the stages and the dates (owner, 2026-10-05, item 6a). Without one, the stage list and the dates go as before.
+    const template = v.templateId ? templates.data?.find((t) => t.id === v.templateId) : undefined;
+    const plan = template
+      ? { template: templateInput(template, v, users.data ?? []) }
+      : { startDate: v.startDate || null, targetEndDate: v.targetEndDate || null, stages: v.stages.map((stage) => stage.name.trim()) };
     setSaving(true);
     try {
       const detail = await api.call('projects.create', {
@@ -80,9 +88,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         location: v.location.trim(),
         areaM2: areaValue(v.area),
         contractStartDate: v.contractStartDate || null,
-        startDate: v.startDate || null,
-        targetEndDate: v.targetEndDate || null,
-        stages: v.stages.map((stage) => stage.name.trim()),
+        ...plan,
         teamIds: v.teamIds,
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),
@@ -117,7 +123,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       )}
     >
       <form id="new-project" noValidate onSubmit={submit} className="flex flex-col gap-4 pt-2">
-        <ProjectFields form={form} mode="create" />
+        <ProjectFields form={form} mode="create" templates={templates.data ?? []} />
         <div className="flex flex-col gap-1">
           <label htmlFor="project-cover" className="text-footnote text-label-2">{t('projectForm.cover')}</label>
           <input

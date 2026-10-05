@@ -111,15 +111,15 @@ describe('the Project screen header', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Corniche Tower' })).toBeInTheDocument();
   });
 
-  it('starts the stages of an existing project from a template, and shows why a stage with tasks cannot go', async () => {
+  it('shows why a stage with tasks cannot go from the stage list', async () => {
     const { store } = await renderApp(PROJECT);
     await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
     const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
-    const start = within(sheet).getByLabelText('Start from');
-    expect(within(start).getByRole('option', { name: 'Current stages' })).toBeInTheDocument();
-    await userEvent.selectOptions(start, 'Competition entry');
-    expect(within(sheet).getAllByLabelText(/^Stage \d+$/).map((input) => (input as HTMLInputElement).value)).toEqual(['Brief', 'Concept', 'Presentation']);
+    // Stage templates merged into project templates (owner, 2026-10-05): the edit form keeps only the stage list.
+    expect(within(sheet).queryByLabelText('Start from')).toBeNull();
+    const busy = Object.values(store.state.stages).find((s) => s.projectId === 'prj_001' && Object.values(store.state.tasks).some((t) => t.stageId === s.id))!;
+    await userEvent.click(within(sheet).getByRole('button', { name: `Remove ${busy.name}` }));
     const before = Object.values(store.state.stages).filter((s) => s.projectId === 'prj_001').length;
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText('A stage with tasks cannot be removed. Move its tasks first.')).toBeInTheDocument();

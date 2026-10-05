@@ -3,7 +3,7 @@ import { PlusIcon } from '../../components/icons/animated/plus';
 import { XIcon } from '../../components/icons/animated/x';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Client, User } from '../../api/contract/entities';
+import type { Client, ProjectTemplate, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
@@ -17,10 +17,10 @@ import { ClientForm, useClientForm } from './ClientForm';
 import { clientInput, emptyClientDraft } from './clientRules';
 import { CODE_FIELDS, upperCodeHead } from './codeForm';
 import { ProjectCodeFields } from './ProjectCodeFields';
-import { StageTemplatePicker } from './StageTemplatePicker';
+import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
-const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'targetEndDate', 'stages', 'code', ...CODE_FIELDS];
+const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', ...CODE_FIELDS];
 
 /** Form state that shows an error only after the person leaves the field, or on submit (spec 4.4). */
 export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRules = {}) {
@@ -152,8 +152,12 @@ function TeamPicker({ people, value, onChange }: { people: User[]; value: string
 /**
  * The project fields of spec 4.4. "edit" leaves out the leader and the team, which the header and the Team tab change.
  * "create" adds the Project code group (owner, 2026-10-05). "editCode" gives the Admin the code field in the edit form.
+ * "create" also offers the project templates (owner, 2026-10-05, item 6a): a chosen template gives the stages, so its part
+ * takes the place of the stage list, and the start date becomes required.
  */
-export function ProjectFields({ form, mode, editCode = false }: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean }) {
+export function ProjectFields({
+  form, mode, editCode = false, templates = [],
+}: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean; templates?: readonly ProjectTemplate[] }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const byName = useByPersonName();
@@ -161,8 +165,10 @@ export function ProjectFields({ form, mode, editCode = false }: { form: ProjectF
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const meId = session.data?.authority.id;
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId).sort(byName);
+  const humans = (users.data ?? []).filter((user) => user.kind === 'human');
+  const people = humans.filter((user) => user.id !== meId).sort(byName);
   const { values, errors, set, touch } = form;
+  const template = mode === 'create' && values.templateId ? templates.find((t) => t.id === values.templateId) : undefined;
   const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
     <div className="flex flex-col gap-4">
@@ -220,20 +226,32 @@ export function ProjectFields({ form, mode, editCode = false }: { form: ProjectF
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="project-contract-start" type="date" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(event) => set('contractStartDate', event.target.value)} />
       </div>
+      {mode === 'create' && templates.length > 0 && <TemplatePicker form={form} templates={templates} />}
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField id="project-start" type="date" label={t('projectForm.startDate')} value={values.startDate} onChange={(event) => set('startDate', event.target.value)} />
+        <TextField
+          id="project-start"
+          type="date"
+          label={t('projectForm.startDate')}
+          required={template !== undefined}
+          value={values.startDate}
+          onChange={(event) => set('startDate', event.target.value)}
+          onBlur={() => touch('startDate')}
+          error={template ? error('startDate') : undefined}
+        />
         <TextField
           id="project-end"
           type="date"
           label={t('projectForm.endDate')}
+          hint={template ? t('templateUse.endHint') : undefined}
           value={values.targetEndDate}
           onChange={(event) => set('targetEndDate', event.target.value)}
           onBlur={() => touch('targetEndDate')}
           error={error('targetEndDate')}
         />
       </div>
-      <StageTemplatePicker stages={values.stages} onChange={(stages) => set('stages', stages)} mode={mode} />
-      <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />
+      {template
+        ? <TemplateDetails form={form} template={template} people={humans} />
+        : <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />}
       {mode === 'create' && <TeamPicker people={people} value={values.teamIds} onChange={(ids) => set('teamIds', ids)} />}
       <TextField
         id="project-folder"
