@@ -1,0 +1,11 @@
+{
+  "schedule": {
+    "hatchSwitch": "إظهار الخطوط المائلة",
+    "startColumn": "البداية",
+    "endColumn": "النهاية"
+  },
+  "dateField": {
+    "set": "اختر التاريخ…",
+    "clear": "مسح {{label}}"
+  }
+}

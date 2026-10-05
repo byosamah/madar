@@ -11,6 +11,7 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { clipSpan, midPct, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
 import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
+import { HatchSwitch, useHatchOverlap } from './hatch';
 import { currentTone, DeadlineMarks, stageKind, type StageKind } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
 
@@ -103,6 +104,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
   const { span, ticks } = scheduleWindow(today, zoom);
   const todayAt = { insetInlineStart: `${offsetPct(span, today)}%` };
   const paused = view.schedule.find((row) => row.pause)?.pause ?? null;
+  const [hatch, setHatch] = useHatchOverlap();
   return (
     <section aria-labelledby="dash-schedule" className="panel flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -131,7 +133,9 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-5 rounded-full ring-1 ring-inset ring-chart-muted" />{t('dashboard.legend.next')}</li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rotate-45 rounded-sm bg-ink-2" />{t('dashboard.legend.deadline')}</li>
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-3.5 w-0.5 rounded-full bg-ink" />{t('dashboard.legend.today')}</li>
-          <li className="inline-flex items-center gap-1.5"><span aria-hidden className="overlap-hatch h-2.5 w-5 rounded-full opacity-60" />{t('dashboard.legend.overlap')}</li>
+          {hatch && <li className="inline-flex items-center gap-1.5"><span aria-hidden className="overlap-hatch h-2.5 w-5 rounded-full opacity-60" />{t('dashboard.legend.overlap')}</li>}
+          {/* One small switch beside the hatch in the legend. With the hatch off, the switch stays alone (owner, 2026-10-05, item 9). */}
+          <li className="inline-flex items-center"><HatchSwitch on={hatch} onChange={setHatch} /></li>
         </ul>
       )}
       {view.schedule.length === 0 ? <p className="text-footnote text-ink-2">{t('dashboard.noData')}</p> : (
@@ -148,7 +152,8 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
             {view.schedule.map((row) => {
               const current = row.stages.findIndex((stage) => stage.id === row.currentStageId);
               const isOpen = opened.has(row.project.id);
-              const overlaps = stageOverlaps(row.stages);
+              // With the hatch off, no row and no opened line draws it (owner, 2026-10-05, item 9).
+              const overlaps = hatch ? stageOverlaps(row.stages) : [];
               return (
                 <Fragment key={row.project.id}>
                   <div className="flex min-h-11 min-w-0 items-center gap-1 rounded-xl hover:bg-fill">

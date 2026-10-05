@@ -15,6 +15,7 @@ import { Sheet } from '../../../components/Sheet';
 import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { HatchSwitch, useHatchOverlap } from '../../dashboard/hatch';
 import { currentTone } from '../../dashboard/scheduleMarks';
 import { stageDatesText } from '../StageControl';
 import type { TabProps } from '../tabs';
@@ -120,13 +121,20 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   const overlaps = stageOverlaps(detail.stages);
+  const [hatch, setHatch] = useHatchOverlap();
   // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
   // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
   const paused = detail.project.status === 'on_hold';
   const tone = currentTone(paused, detail.health?.value ?? 'on_track');
   return (
     <section aria-label={t('schedule.chart')} className="panel overflow-x-auto p-5">
-      {overlaps.length > 0 && <p className="pb-3 text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
+      {/* One small switch beside the legend. With the hatch off, the legend goes and the switch stays (owner, 2026-10-05, item 9). */}
+      {overlaps.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 pb-1">
+          {hatch && <p className="text-footnote text-ink-2">{t('schedule.overlapLegend')}</p>}
+          <span className="ms-auto"><HatchSwitch on={hatch} onChange={setHatch} /></span>
+        </div>
+      )}
       <div className="grid min-w-[40rem] grid-cols-[10rem_minmax(0,1fr)] gap-x-3">
         <div />
         <div ref={scale} className="relative h-7">
@@ -158,7 +166,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
                 ) : <span className="tabular flex h-11 items-center text-footnote text-ink-2">{stageDatesText(stage, t, lang)}</span>}
-                {overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
+                {hatch && overlaps.filter((overlap) => overlap.stageIds.includes(stage.id)).map((overlap) => (
                   <span
                     key={overlap.stageIds.join('-')}
                     aria-hidden

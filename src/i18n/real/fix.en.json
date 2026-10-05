@@ -1,0 +1,11 @@
+{
+  "schedule": {
+    "hatchSwitch": "Show the hatch",
+    "startColumn": "Start",
+    "endColumn": "End"
+  },
+  "dateField": {
+    "set": "Set date…",
+    "clear": "Clear {{label}}"
+  }
+}
