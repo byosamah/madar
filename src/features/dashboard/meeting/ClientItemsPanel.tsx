@@ -60,7 +60,7 @@ function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onA
       </div>
       {replying && (
         <p className="text-[15px] text-ink-2">
-          {t('dashboard.meeting.replyLine', { name: replying.owner.name, date: replying.dueDate ? formatDay(replying.dueDate, lang) : '' })}
+          {t('dashboard.meeting.replyLine', { name: replying.owner?.name ?? t('lead.noLead'), date: replying.dueDate ? formatDay(replying.dueDate, lang) : '' })}
         </p>
       )}
       {canAct && (

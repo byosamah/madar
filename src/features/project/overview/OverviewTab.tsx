@@ -37,7 +37,7 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
       <button type="button" onClick={() => onOpen(row.task.id)} className="pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start transition-colors hover:bg-fill/50">
         <span className="min-w-0 flex-1">
           <bdi className="block truncate text-subheadline font-medium text-ink">{row.task.title}</bdi>
-          {showOwner && <bdi className="block truncate text-footnote text-ink-2">{row.owner.name}</bdi>}
+          {showOwner && <bdi className="block truncate text-footnote text-ink-2">{row.owner?.name ?? t('lead.noLead')}</bdi>}
         </span>
         {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-footnote text-ink-2">{when}</span>)}
       </button>

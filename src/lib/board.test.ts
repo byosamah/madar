@@ -33,4 +33,10 @@ describe('move targets', () => {
     expect(moveTargets('in_review', true, true)).toEqual(['done']);
     expect(moveTargets('in_progress', false, true)).toEqual(['todo', 'in_review', 'done']);
   });
+
+  it('gives a task with no lead only To do and In progress, because it cannot finish (owner, 2026-10-05)', () => {
+    expect(moveTargets('todo', true, true, false)).toEqual(['in_progress']);
+    expect(moveTargets('in_progress', false, false, false)).toEqual(['todo']);
+    expect(moveTargets('todo', false, false, true)).toEqual(['in_progress', 'in_review', 'done']);
+  });
 });

@@ -67,13 +67,16 @@ function sentenceOf({ event, actor, label, detail }: EventLineView, t: TFunction
     return after?.decision ? t('dashboard.meeting.summary.decision', { text: plainText(after.body ?? ''), context }) : null;
   }
   if (event.verb === 'task.updated') return taskChange(event, label, context, t, lang);
-  if (event.verb === 'task.reassigned') return t('dashboard.meeting.summary.leadChanged', { label, lead: detail.lead ?? '', context });
+  // A change of lead names the new lead. A change to no lead says the lead went (owner, 2026-10-05).
+  if (event.verb === 'task.reassigned') {
+    return detail.lead ? t('dashboard.meeting.summary.leadChanged', { label, lead: detail.lead, context }) : t('dashboard.meeting.summary.leadRemoved', { label, context });
+  }
   if (event.verb === 'tracker.closed') return t(detail.waiting === 'client' ? 'dashboard.meeting.summary.received' : 'dashboard.meeting.summary.answered', { label, context });
   if (event.verb === 'tracker.reply_assigned') return t('dashboard.meeting.summary.replyAssigned', { label, person: detail.person ?? '', context });
   // A new task is an action of the meeting. It names the person and the due date, as the meeting panel does (audit 2026-10-03, F-18).
   if (event.verb === 'task.created') {
     const dueDate = fieldsOf(event.after).dueDate;
-    return actionLine(t, lang, label, detail.lead ?? '', typeof dueDate === 'string' ? dueDate : null);
+    return actionLine(t, lang, label, detail.lead || t('lead.noLead'), typeof dueDate === 'string' ? dueDate : null);
   }
   if (FEED_EVENT_VERBS.has(event.verb)) {
     const item: FeedItem = { kind: 'event', id: event.id, at: event.createdAt, author: actor, verb: event.verb, targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: false };

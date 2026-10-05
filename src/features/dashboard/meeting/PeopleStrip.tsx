@@ -11,14 +11,17 @@ import { counted } from '../../../lib/grammar';
 import { needsAttention } from '../../../lib/overview';
 import { compareTasks } from '../../../lib/stageFlow';
 
-type Person = { owner: TaskRow['owner']; open: TaskRow[]; late: number };
+type Person = { owner: NonNullable<TaskRow['owner']>; open: TaskRow[]; late: number };
 
-/** The leads of the open tasks of one project. The busiest person is first, then the one with more late tasks, then by name. */
+/**
+ * The leads of the open tasks of one project. The busiest person is first, then the one with more late tasks, then by name.
+ * A task with no lead belongs to nobody, so it counts for no person here (owner, 2026-10-05).
+ */
 function peopleOf(rows: TaskRow[], today: string): Person[] {
   const late = new Set(needsAttention(rows, today).pastDue.map((row) => row.task.id));
   const byId = new Map<string, Person>();
   for (const row of rows) {
-    if (row.task.status === 'done') continue;
+    if (row.task.status === 'done' || !row.owner) continue;
     const person = byId.get(row.owner.id) ?? { owner: row.owner, open: [], late: 0 };
     person.open.push(row);
     if (late.has(row.task.id)) person.late += 1;

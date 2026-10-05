@@ -9,9 +9,11 @@ export const BOARD_COLUMNS: TaskStatus[] = ['todo', 'in_progress', 'in_review', 
  * For anyone else, Done on a task that needs review lands in In review again and changes nothing. So while it waits, its lead
  * gets only the pull-back columns, To do and In progress (audit 2026-10-03, F-19).
  */
-export function moveTargets(status: TaskStatus, reviews: boolean, needsReview = false): TaskStatus[] {
+export function moveTargets(status: TaskStatus, reviews: boolean, needsReview = false, hasLead = true): TaskStatus[] {
   if (status === 'in_review' && reviews) return ['done'];
   if (status === 'in_review' && needsReview) return ['todo', 'in_progress'];
+  // A task with no lead cannot finish or wait for review, so it moves only between To do and In progress (owner, 2026-10-05).
+  if (!hasLead) return BOARD_COLUMNS.filter((column) => column !== status && (column === 'todo' || column === 'in_progress'));
   return BOARD_COLUMNS.filter((column) => column !== status);
 }
 

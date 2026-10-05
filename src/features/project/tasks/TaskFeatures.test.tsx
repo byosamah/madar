@@ -45,7 +45,7 @@ describe('"From a template" on the Tasks tab', () => {
     expect(screen.queryByRole('button', { name: 'From a template in Concept' })).toBeNull();
   });
 
-  it('is there for a team member too, who becomes the lead of the new task', async () => {
+  it('is there for a team member too, and the new task has no lead (owner, 2026-10-05)', async () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
     await userEvent.click(await templateButton('Design Development'));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Material board' }));
@@ -53,7 +53,7 @@ describe('"From a template" on the Tasks tab', () => {
     const ask = await screen.findByRole('dialog', { name: 'This moves the project back to Design Development. Why?' });
     await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The client wants a material board');
     await userEvent.click(within(ask).getByRole('button', { name: 'Move back' }));
-    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Material board' && task.ownerId === 'usr_005')).toBe(true));
+    await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Material board' && task.ownerId === null)).toBe(true));
     expect(store.state.projects.prj_001.stageBack).toMatchObject({ reason: 'The client wants a material board' });
   });
 });

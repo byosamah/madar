@@ -12,7 +12,7 @@ import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
 import { TaskSheet } from './TaskSheet';
 
-const FILTERS = ['all', 'mine', 'overdue', 'flagged'] as const;
+const FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 const VIEWS = ['list', 'board'] as const;
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 const RADIO = 'flex min-h-11 items-center gap-3 text-body text-ink';
@@ -28,6 +28,10 @@ export function TasksTab({ detail }: TabProps) {
   const setShowDone = (on: boolean) => setFilterParam(setParams, 'done', on ? '1' : null);
   const tasks = useCall('tasks.list', { projectId: detail.project.id, filter, activeProjectsOnly: false });
   const rows = tasks.data ?? [];
+  // The project leader sees one gentle line with the open tasks that have no lead, and one press shows them (owner, 2026-10-05).
+  const leads = detail.viewerCan.createTaskForAnyone;
+  const unled = useCall('tasks.list', { projectId: detail.project.id, filter: 'no_lead', includeDone: false, activeProjectsOnly: false }, { enabled: leads });
+  const unledCount = leads ? unled.data?.length ?? 0 : 0;
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
   for (const row of rows) if (row.task.status === 'done') doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
@@ -76,6 +80,12 @@ export function TasksTab({ detail }: TabProps) {
             ))}
           </fieldset>
         </FilterButton>
+        {unledCount > 0 && filter !== 'no_lead' && (
+          <p className="text-footnote text-ink-2">
+            {t('lead.countLine', { count: unledCount })}{' '}
+            <button type="button" onClick={() => setFilter('no_lead')} className="pressable min-h-11 font-semibold text-link">{t('lead.showThem')}</button>
+          </p>
+        )}
       </div>
       {/* A list that did not load says so and offers Retry, never an empty tab (audit 2026-10-03, PRJ-4). */}
       <LoadFailed query={tasks} />

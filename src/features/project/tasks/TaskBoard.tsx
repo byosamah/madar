@@ -14,6 +14,7 @@ import { useToast } from '../../../app/toasts';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { Menu } from '../../../components/Menu';
+import { NoLeadMark } from '../../../components/NoLeadMark';
 import { BOARD_COLUMNS, moveTargets, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
@@ -54,9 +55,11 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
         {starts && <span className="tabular whitespace-nowrap">{startsText(row.task.startDate as string, t, lang)}</span>}
         {!starts && word && row.task.dueDate && <span className={`tabular whitespace-nowrap ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
         {row.task.flagged && <AnimatedIcon icon={BadgeAlertIcon} size={12} className="text-attn" aria-label={t('tasks.flagged')} />}
-        <span className="ms-auto">{row.helpers.length > 0
-          ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={18} leaderSize={24} />
-          : <Avatar user={row.owner} size={22} />}</span>
+        <span className="ms-auto">{!row.owner
+          ? <NoLeadMark size={22} />
+          : row.helpers.length > 0
+            ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={18} leaderSize={24} />
+            : <Avatar user={row.owner} size={22} />}</span>
       </div>
       {isWaiting(row) && row.task.status !== 'done' && <p dir="auto" className="text-footnote text-ink-2">{t('tasks.waitingFor', { names: waitingNames(row, lang) })}</p>}
     </div>
@@ -109,7 +112,7 @@ function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
           <Menu
             label={t('tasks.moveTo', { title: row.task.title })}
             items={[
-              ...moveTargets(row.task.status, reviewing, row.task.needsReview).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
+              ...moveTargets(row.task.status, reviewing, row.task.needsReview, row.owner !== null).map((status) => ({ label: t(`taskStatus.${status}`), onSelect: () => onMove(status) })),
               // Send back needs a note, so the item opens the task panel, where the review block comes first (audit 2026-10-03, V-5).
               // The panel opens ready for the note (audit 2026-10-03, F-8).
               { label: t('tasks.sendBackOpen'), onSelect: onSendBack, hidden: !reviewing },
@@ -139,7 +142,7 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: columnKeys }),
   );
-  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviews, row.task.needsReview).includes(status);
+  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviews, row.task.needsReview, row.owner !== null).includes(status);
   // The screen point of the pointer while a card is lifted. The delta of the drag end also counts the scroll of the board
   // and the page since the drag began, so on a phone, where the board scrolls, it missed the column (audit 2026-10-03, F-9).
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -161,12 +164,12 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
     if (!row) return;
-    if (over && moveTargets(row.task.status, reviews, row.task.needsReview).includes(over.id as TaskStatus)) {
+    if (over && moveTargets(row.task.status, reviews, row.task.needsReview, row.owner !== null).includes(over.id as TaskStatus)) {
       move.mutate({ id: row.task.id, status: over.id as TaskStatus });
       return;
     }
     // A closed column takes no drop, so the card went back with no visible reason. When the pointer let go over a closed
-    // column, a toast says why and opens the review block (audit 2026-10-03, F-9). Only a card in review has closed columns.
+    // column, a toast says why and opens the review block (audit 2026-10-03, F-9). Only a card in review or a card with no lead has closed columns.
     // A keyboard drag has no pointer point and cannot reach a closed column.
     const at = pointer.current;
     if (!at || typeof (activatorEvent as Partial<PointerEvent>).clientX !== 'number') return;
@@ -177,9 +180,12 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
     });
     if (refused) {
       // The reviewer is told to send back with a note; the lead, whose task waits for review, is told who finishes it (F-19).
-      toast.show(reviews
-        ? { message: t('errors.reasons.review_send_back'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
-        : { message: t('tasks.waitsForApproval') });
+      // A task with no lead is told that it needs a lead first, with the way to its panel (owner, 2026-10-05).
+      toast.show(row.owner === null
+        ? { message: t('lead.needsLeadToast'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
+        : reviews
+          ? { message: t('errors.reasons.review_send_back'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
+          : { message: t('tasks.waitsForApproval') });
     }
   };
   // The click that ends a pointer drag must not open the task.

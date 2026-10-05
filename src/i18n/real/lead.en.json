@@ -1,0 +1,33 @@
+{
+  "lead": {
+    "noLead": "No lead",
+    "takeIt": "Take it",
+    "takeHint": "Nobody leads this task yet. Take it to work on it and finish it.",
+    "taken": "This task is yours now.",
+    "removed": "This task has no lead now.",
+    "needsLeadToast": "Not yet. Give this task a lead first.",
+    "completeNeedsLead": "{{title}} cannot be finished yet. It has no lead.",
+    "countLine": "{{count}} tasks have no lead.",
+    "countLine_one": "1 task has no lead.",
+    "countLine_other": "{{count}} tasks have no lead.",
+    "showThem": "Show them"
+  },
+  "tasks": {
+    "filter": {
+      "no_lead": "No lead"
+    }
+  },
+  "errors": {
+    "reasons": {
+      "needs_lead": "This task has no lead. Give it a lead first.",
+      "has_lead": "This task has a lead already."
+    }
+  },
+  "dashboard": {
+    "meeting": {
+      "summary": {
+        "leadRemoved": "removed the lead of “{{label}}”"
+      }
+    }
+  }
+}
