@@ -1,0 +1,34 @@
+# Browser tests (Playwright)
+
+Two Playwright suites. Unit, server, db and integration tests sit next to their code (see Commands in the root
+CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the main context.
+
+## The prototype smoke (`e2e/`)
+- `npx playwright test` (`playwright.config.ts`, port 4173). 87 of 87 must pass at each screen merge.
+
+## The deploy suite (`e2e-deploy/`)
+- `npx playwright test -c playwright.deploy.config.ts`. It runs the real screens on the server.
+- Local by default: it needs `MADAR_LOCAL_PUBLISHABLE_KEY` and a fresh seed (`npx tsx tests/e2e-deploy/local.ts seed`).
+- On the test copy: load `.env.local` and `secrets/test-accounts.env`, then set `MADAR_DEPLOY_URL`,
+  `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
+  (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
+- Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
+- It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
+
+## Guards (`e2e-deploy/targets.ts`)
+- The suite never reads the production database and never names a production host. It reads madar-test or the local
+  stack only. Keep these guards. A new target needs a new guard and a test in `scripts/e2e-deploy-helpers.test.ts`.
+- `TEST_MCP_HOST` is the only short host it accepts, and only for `MADAR_E2E_MCP_URL`.
+- No `ssl` or `sslmode` in a database URL: the specs pass the root certificate as `ca`.
+
+## Helpers
+- `goto.ts`: `settle(page)` waits for the network, then for every finite animation to end. Use it before a size check
+  or a screenshot.
+- `steps.ts`: `signIn`, `expectCalm`, `expectNoSeriousA11y`, and the widths (390, 820, 1440), languages and themes.
+- `accounts.ts`: the 4 sample accounts (Admin, Management, Accounting, Member). Local passwords are in `local.ts`.
+- A spec that leaves a grant or a setting behind removes it in a `finally` (as `agents.spec.ts` does), so the next run
+  starts from the same office.
+
+## Rules
+- Never run a shared `supabase functions serve` next to `test:mcp` or `test:it`.
+- A flaky step needs a fix of its cause (a missing wait, an animation), never a longer timeout alone.

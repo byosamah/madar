@@ -1,0 +1,63 @@
+# Screens
+
+React + TypeScript + Vite + Tailwind v4, React Router, TanStack Query, Motion, i18next, vaul sheets. Other guides here:
+`api/` (the contract and the fake API), `i18n/` (words), `design/` (tokens). Read `DESIGN.md` at the repo root before
+any screen work.
+
+## Folders
+- `app/`: the shell, routes, runtime hooks, modes, and `app/remote/` (Supabase client, sign-in port, realtime channel).
+- `features/<area>/`: one folder for each screen area. `components/`: shared parts. `lib/`: pure helpers (dates, due, stages).
+- `data/`: the sample office of the prototype. `test/`: render helpers, factories, setup.
+
+## Two builds from one source
+- `VITE_MADAR_API` (`fake` default, `remote`) is fixed at build time. Use `PROTOTYPE`/`REMOTE` from `app/mode.ts`.
+- `main.tsx` loads only one bootstrap. Its first import is `app/zodConfig.ts` (zod runs jitless, so the CSP holds).
+- The prototype uses `createHashRouter` (links `#/...`, base `./`, one script file). The remote build uses
+  `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
+- The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
+- `scripts/check-bundles.ts`: the remote build holds no sample names. The prototype build holds no "supabase".
+
+## Data on screens
+- Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.
+- `app/readMap.ts` says which change kinds each read reads. The remote build keeps answers until a change signal names
+  them (`app/signals.ts`, `app/remote/channel.ts`).
+- A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
+
+## Routes and shell
+- Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
+  files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/inbox`, `/notifications`, `/search`,
+  `/settings`, `/admin`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
+- Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
+  on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
+- Focus mode is `?focus=<taskId>` with a 25-minute timer.
+- Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
+  Everyone sees all projects. Payments only for Admin, Management, Accounting. Agents never join a team.
+
+## Design rules (the short form of DESIGN.md)
+- Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
+- Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.
+- The signature is solid navy `#1F2A55` (dark `#C9D4FF`), never a gradient. It goes only on the one main button, the
+  open tab, the day ring and the timer.
+- The glow (three soft lights) sits only behind "Next for you" and in the logo tile.
+- 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`.
+- Status words are shape signs plus an ink word (no tinted pill). The stage steps line takes the status colour.
+- Red only for Late and errors. Gentle words: "3 days past due" in the attention colour, never a red "Overdue".
+- Calm rules (`expectCalm` in the Playwright suites): one title, at most one main button, no filter chip rows (one Filter
+  button), no grid view, no avatar stacks, "On track" never shows in lists. Only the tab pill keeps a blur.
+- Icons: animated Lucide icons from lucide-animated.com through `components/icons/AnimatedIcon.tsx`.
+- Logo: `MadarMark` ("Turning doors"), only in the sign-in frame and the app frame, never in a project list
+  (`MadarMark.test.tsx` lists the files).
+- RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
+- Every visible word comes from a word key (see `i18n/CLAUDE.md`).
+
+## Before you call a screen change done
+- Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
+- claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
+- The owner likes to choose a visual style from a side-by-side comparison artifact.
+
+## Screen test gotchas
+- Links are `#/...` (hash router).
+- A whole project page can take more than the 1 s `findBy` default. Use `{ timeout: 10_000 }`.
+- A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
+- `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
+- Run `npm test` alone. Next to a build or Playwright, screen tests time out.

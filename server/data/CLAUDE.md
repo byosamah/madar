@@ -1,0 +1,43 @@
+# Data layer
+
+The server keeps each record of the zod contract as one JSON row in Postgres. `runCall` loads the rows, runs the handler,
+and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
+
+## Files
+- `tables.ts`: the table of each zod collection. `rows.ts`, `whole.ts`: read rows and whole collections.
+- `save.ts`: the diff save. `officeCache.ts`: the office cache. `sql.ts`: the SQL helper. `loaders/`: the loader of each call.
+
+## Tables
+- Each entity table: `id text pk`, `ord bigserial`, `doc jsonb` (the whole zod record), generated key columns,
+  `search_text`, `chg` (`supabase/migrations/20261004000100_core.sql`).
+- A new zod collection needs a table in a new migration and an entry in `tables.ts`.
+- Server-only tables (`20261004000101_server_tables.sql`): office_meta, office_deletes, person_seq, platform_config, stories,
+  idempotency, outbox, upload_intents, agent_links, mail_log, mail_outbox, usage_month, usage_warnings, rate_limits, job_runs.
+- `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
+  event (`undoes`). The save never writes `undoneBy`.
+
+## Counters, stories, idempotency
+- Counters are a table under the office lock, so they have no gaps.
+- Story IDs: `sty_` + 22 base32 characters, under 24 hours old, the same actor.
+- Idempotency keys belong to the actor. The digest is sha256 of the call name and the input. The same key with another
+  input gives `conflict` `key_reused`.
+
+## Office cache
+- `officeCache.ts` keeps committed rows only, frozen, versioned by `office_meta.version`.
+- Any change to an office table raises the version, sets `chg` and records deletes in `office_deletes` (kept 7 days).
+
+## Loaders
+- Every call needs a loader entry in `loaders/`, or a test fails.
+- The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
+
+## Roles and access
+- madar_server owns nothing. RLS is on for every table, with one policy for madar_server only.
+- anon and authenticated have no grant. The Data API (PostgREST, GraphQL) is off.
+- New functions get no default EXECUTE. Grant each one by name.
+- `madar_private` security definer functions: `current_madar_user_id`, `agent_session_ok`, `agent_session_at`,
+  `agent_client`, `agent_authorization`, `storage_bytes`. Public: `madar_access_token_hook`.
+
+## SQL rules
+- Only `set local` on the pooler: `sql.ts` refuses a plain SET.
+- Never write `public.` in a table name.
+- Database TLS fails closed (see `server/CLAUDE.md`).
