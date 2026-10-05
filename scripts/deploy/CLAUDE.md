@@ -57,6 +57,11 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.
   `--password-stdin` reads the typed word and the password from one stdin.
 - `scripts/seed-test-office.ts` seeds madar-test only (load `.env.local` and `secrets/test-accounts.env`).
+- Test copy passwords: the owner edits `secrets/test-accounts.env` (8 characters or more, the Auth minimum). The seed
+  then sets them, and it also resets the sample office.
+- Sign-in check with no printed password: node writes `{email,password}` from the env, curl sends it with `--data @-`
+  to `$VITE_SUPABASE_URL/auth/v1/token?grant_type=password` with the publishable key and prints only `%{http_code}`.
+- `deploy.test.ts`: a production test calls `readyForConfigPush()`, `commitAll()` and `deployTest()` first.
 - `token-scope.sh` is the first step of `deploy.yml`: it stops the GitHub job if the token can reach production.
 - After a deploy, run the deploy suite on the test copy (see `tests/CLAUDE.md`), and write the result in proof.md,
   section "Deploy".

@@ -44,3 +44,5 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - Both projects today: current password required for a change, legacy API keys off, HS256 key revoked, SSL enforced,
   Realtime private only, the Data API off.
 - A new database password works on the pooler only after a few seconds.
+- Management API logs: `analytics/endpoints/logs.all` is gone (2026-09-23). `analytics/endpoints/logs` takes ClickHouse
+  SQL (`from logs where source_name = 'auth_logs'`). On 2026-10-05 it answered "Backend error", so it is not proven yet.

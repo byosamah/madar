@@ -67,6 +67,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
 - To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its
   shape without printing it. Never ask for a secret in chat: Supermemory also saves what is pasted in chat.
+  The sandbox blocks `open`: ask the owner to type `! open -a TextEdit <file>` in the prompt.
 - Rotated 2026-10-05: both database passwords, the Supabase token, and the Resend key in `.env.local` (the Resend keys
   are listed in `server/mail/CLAUDE.md`).
 - The backup private key is not on the Mac. The owner holds it (password manager and paper). Opening a backup needs him.
@@ -87,6 +88,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   --strictPort` and check that the page title is "Madar".
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
   `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
+- A one-off script in the sandbox: `node --import tsx <file>` needs no tsx pipe. Add `NODE_USE_ENV_PROXY=1` when the
+  script uses `fetch`. A script outside the repo needs the `.mts` ending.
+- A direct Postgres connection (the pooler, port 5432) fails in the sandbox with `ENOTFOUND`: run it with the sandbox off.
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
