@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useLang } from '../app/lang';
-import { formatDay, todayISO } from '../lib/dates';
-import { AnimatedIcon } from './icons/AnimatedIcon';
-import { XIcon } from './icons/animated/x';
+import { ClearDate, DateFace, dateInputClass, quietDay } from './DateField';
 
 type Props = {
   id: string;
@@ -29,9 +26,10 @@ const savable = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number(day.s
  *
  * The real date field always sits on top of the quiet look, without colour. So a tap on a phone opens the phone's own picker,
  * and a screen reader hears a date field with its label and value.
+ *
+ * A date in a form that saves with its own button is `DateField`. Both take the quiet look from `DateField.tsx`.
  */
 export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false }: Props) {
-  const { t } = useTranslation();
   const lang = useLang();
   const input = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value);
@@ -88,7 +86,8 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
     }
   };
 
-  const shown = savable(draft) ? formatDay(draft, lang, draft.slice(0, 4) === todayISO().slice(0, 4) ? 'short' : 'shortYear') : '';
+  const shown = savable(draft) ? quietDay(draft, lang) : '';
+  const canClear = Boolean(draft) && !disabled;
   const described = [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
@@ -102,7 +101,7 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
           disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={described}
-          className={typing ? 'field min-h-11' : 'peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-default'}
+          className={dateInputClass(typing)}
           onPointerDown={() => {
             pressed.current = true;
           }}
@@ -134,27 +133,15 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
             if (!typing && !['Tab', 'Shift', 'Escape'].includes(event.key)) setTyping(true);
           }}
         />
-        {!typing && (
-          <span
-            aria-hidden
-            className={`pointer-events-none flex min-h-11 items-center rounded-xl ps-3 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${draft ? 'pe-10' : 'pe-3'}`}
-          >
-            {shown ? <span className="tabular truncate text-ink">{shown}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
-          </span>
-        )}
-        {!typing && draft && !disabled && (
-          <button
-            type="button"
-            aria-label={t('dateField.clear', { label })}
-            onClick={() => {
+        {!typing && <DateFace shown={shown} roomForClear={canClear} invalid={Boolean(error)} />}
+        {!typing && canClear && (
+          <ClearDate
+            label={label}
+            onClear={() => {
               setDraft('');
               commit('');
             }}
-            // A quiet grey that still holds 3:1 (WCAG 1.4.11), so a column of set dates does not read as a column of buttons.
-            className="pressable absolute end-1 top-1/2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full text-chart-muted hover:bg-fill hover:text-ink"
-          >
-            <AnimatedIcon icon={XIcon} size={14} aria-hidden />
-          </button>
+          />
         )}
       </div>
       {hint && <p id={`${id}-hint`} className="text-caption text-ink-2">{hint}</p>}

@@ -6,7 +6,8 @@ type FieldProps = { id: string; label: string; error?: string; hint?: string; cl
 
 const CONTROL = 'field';
 
-function describedBy(id: string, hint?: string, error?: string, required?: boolean): string | undefined {
+/** The ids that describe a field: the hidden "required" word, the hint, the error. */
+export function describedBy(id: string, hint?: string, error?: string, required?: boolean): string | undefined {
   return [required ? `${id}-required` : '', hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
 }
 
@@ -26,8 +27,8 @@ function FieldLabel({ id, label, required }: { id: string; label: string; requir
   );
 }
 
-/** The label above, then the hint and the inline error below (spec 11.6). */
-function Shell({ id, label, error, hint, className = '', required, children }: FieldProps & { children: ReactNode }) {
+/** The label above, then the hint and the inline error below (spec 11.6). The date field (`DateField.tsx`) uses it too. */
+export function FieldShell({ id, label, error, hint, className = '', required, children }: FieldProps & { children: ReactNode }) {
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
       <FieldLabel id={id} label={label} required={required} />
@@ -40,26 +41,26 @@ function Shell({ id, label, error, hint, className = '', required, children }: F
 
 export function TextField({ id, label, error, hint, className, required, ...input }: FieldProps & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <Shell id={id} label={label} error={error} hint={hint} className={className} required={required}>
+    <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
       <input id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error, required)} {...input} className={`min-h-11 ${CONTROL}`} />
-    </Shell>
+    </FieldShell>
   );
 }
 
 export function TextArea({ id, label, error, hint, className, required, ...input }: FieldProps & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <Shell id={id} label={label} error={error} hint={hint} className={className} required={required}>
+    <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
       <textarea id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error, required)} {...input} className={`min-h-24 ${CONTROL}`} />
-    </Shell>
+    </FieldShell>
   );
 }
 
 export function SelectField({ id, label, error, hint, className, required, children, ...input }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <Shell id={id} label={label} error={error} hint={hint} className={className} required={required}>
+    <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
       <select id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error, required)} {...input} className={`min-h-11 ${CONTROL}`}>
         {children}
       </select>
-    </Shell>
+    </FieldShell>
   );
 }

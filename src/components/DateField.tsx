@@ -1,0 +1,148 @@
+import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLang } from '../app/lang';
+import { formatDay, todayISO, type Lang } from '../lib/dates';
+import { FieldShell, describedBy } from './Fields';
+import { AnimatedIcon } from './icons/AnimatedIcon';
+import { XIcon } from './icons/animated/x';
+
+/** The short date of a quiet date: "12 Oct", with the year only for a date in another year. Not a full date: no text. */
+export function quietDay(day: string, lang: Lang): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return '';
+  return formatDay(day, lang, day.slice(0, 4) === todayISO().slice(0, 4) ? 'short' : 'shortYear');
+}
+
+/** The real date field: on top of the quiet look without colour, or the full field while a person types a date. */
+export function dateInputClass(typing: boolean): string {
+  return typing ? 'field min-h-11' : 'peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-default';
+}
+
+/**
+ * The quiet look under the real date field: the short date, or "Set date…" in the quiet grey. It takes the hover fill and the focus
+ * ring of the date field above it. An invalid date gets a red edge, as every invalid field does.
+ */
+export function DateFace({ shown, roomForClear, invalid }: { shown: string; roomForClear: boolean; invalid?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      aria-hidden
+      className={`pointer-events-none flex min-h-11 items-center rounded-xl ps-3 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3'} ${invalid ? 'shadow-[inset_0_0_0_1px_var(--color-late)]' : ''}`}
+    >
+      {shown ? <span className="tabular truncate text-ink">{shown}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
+    </span>
+  );
+}
+
+/** The small control at the end of a set date that empties it. */
+export function ClearDate({ label, onClear }: { label: string; onClear: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      aria-label={t('dateField.clear', { label })}
+      onClick={onClear}
+      // A quiet grey that still holds 3:1 (WCAG 1.4.11), so a column of set dates does not read as a column of buttons.
+      className="pressable absolute end-1 top-1/2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full text-chart-muted hover:bg-fill hover:text-ink"
+    >
+      <AnimatedIcon icon={XIcon} size={14} aria-hidden />
+    </button>
+  );
+}
+
+type DateFieldProps = {
+  id: string;
+  label: string;
+  /** The date as YYYY-MM-DD, or '' for no date. */
+  value: string;
+  /** Each change goes to the form at once. The form saves with its own button. */
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  error?: string;
+  hint?: string;
+  required?: boolean;
+  disabled?: boolean;
+  min?: string;
+  max?: string;
+  className?: string;
+  /** The small clear control. By default only a date that is not required has it: a required date changes, it never goes empty. */
+  clearable?: boolean;
+  /** A message elsewhere on the form marks the field and describes it (the plan line of a template). */
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
+};
+
+/**
+ * A date in a form that saves with its own button (owner, 2026-10-05): the same quiet look as the dates that save themselves
+ * (`DateDraftField`). Empty: "Set date…" in the quiet grey. Set: the short date and a small clear control. A press opens the date
+ * picker of the browser. Where the browser has no picker, and when the keyboard comes to it, the full date field shows to type in.
+ *
+ * The real date field always sits on top of the quiet look, without colour. So a tap on a phone opens the phone's own picker, a
+ * screen reader hears a date field with its label and value, and the label, the asterisk, the hint and the error are the same as in
+ * every other field (`FieldShell`).
+ */
+export function DateField({
+  id, label, value, onChange, onBlur, error, hint, required, disabled, min, max, className, clearable = !required,
+  'aria-invalid': markedInvalid, 'aria-describedby': describedElsewhere,
+}: DateFieldProps) {
+  const lang = useLang();
+  const input = useRef<HTMLInputElement>(null);
+  // True while the person types the date in the full field.
+  const [typing, setTyping] = useState(false);
+  // A pointer press comes before the focus it gives. A focus with no press came from the keyboard (or from the form, to an error).
+  const pressed = useRef(false);
+
+  const openPicker = () => {
+    const field = input.current;
+    if (!field || typing || disabled) return;
+    try {
+      if (typeof field.showPicker !== 'function') throw new Error('No date picker in this browser.');
+      field.showPicker();
+    } catch {
+      // No picker here (or a page of another site holds Madar in a frame): the person types the date.
+      setTyping(true);
+    }
+  };
+
+  const invalid = markedInvalid ?? (error ? true : undefined);
+  const canClear = clearable && value !== '' && !disabled;
+  return (
+    <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
+      <div className="relative min-h-11">
+        <input
+          ref={input}
+          id={id}
+          type="date"
+          value={value}
+          min={min}
+          max={max}
+          disabled={disabled}
+          aria-invalid={invalid}
+          aria-describedby={describedElsewhere ?? describedBy(id, hint, error, required)}
+          className={dateInputClass(typing)}
+          onPointerDown={() => {
+            pressed.current = true;
+          }}
+          onFocus={() => {
+            if (!pressed.current) setTyping(true);
+            pressed.current = false;
+          }}
+          onClick={() => {
+            pressed.current = false;
+            openPicker();
+          }}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => {
+            setTyping(false);
+            onBlur?.();
+          }}
+          onKeyDown={(event) => {
+            // A key typed after a press: the person types, so the full field shows. Enter still sends the form.
+            if (!typing && !['Tab', 'Shift', 'Escape', 'Enter'].includes(event.key)) setTyping(true);
+          }}
+        />
+        {!typing && <DateFace shown={quietDay(value, lang)} roomForClear={canClear} invalid={Boolean(invalid)} />}
+        {!typing && canClear && <ClearDate label={label} onClear={() => onChange('')} />}
+      </div>
+    </FieldShell>
+  );
+}
