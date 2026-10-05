@@ -211,7 +211,9 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] New project and client forms: a field shows its message on blur only after a change (a blur message moved New client down and lost the first press)
 - [x] The New client box has a thin outline and no fill, so its grey fields stand out (8 shots, EN/AR, light/dark)
 - [x] The test office seed revokes the AI app grants of the 4 accounts (a leftover grant from a one-off check failed the walk once)
-- [ ] Follow-ups to production (owner OK, 2026-10-05): test copy, browser checks, push, production
+- [x] Follow-ups to production (owner OK, 2026-10-05): test copy at bfb599b and 02cd6a4, main pushed, all.sh production from 02cd6a4, the quick check passes
+- [ ] Z7, owner decision: the API accepts a browser token until it expires (up to 1 hour) after its Auth session ended, for example after "Password changed. Your other devices sign out." Options: a shorter jwt_expiry, or a session check in the API. Agent tokens already stop at once
+- [ ] Test copy: test mails count against the mail day quota (outbox driver) and the seed keeps mail_log, so a busy test day blocks invites until 03:00 Riyadh
 - [x] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a). Migration 20261005000100_project_templates.sql (checked in PGlite only)
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
 - [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
