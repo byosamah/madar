@@ -212,8 +212,9 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Owner OK (2026-10-05): main fast-forwarded to the batch; all.sh test deployed 228c01b (health 112 calls). The config push needed vector buckets off (402 on the free plan)
 - [x] Deploy suite on the test copy at 228c01b: walk 144 of 144 steps, agents.spec in full; 2 failures from a sign-out race, fixed (no call without a session, reason no_session). Result in proof.md, section Deploy
 - [x] The MCP icon showed vado.sa: the serverInfo now names the Madar logo, and public/favicon.ico holds it
-- [ ] Test copy again at the final commit: account.spec.ts repeated 3 times (the race), agents.spec, the MCP icon and /favicon.ico
-- [ ] Production (owner OK in chat, 2026-10-05): push main, all.sh production from the final test commit, the quick check
+- [x] Test copy again at 69e3be7: account.spec.ts repeated 3 times 28 of 28, agents.spec 10 of 10, the MCP icon and /favicon.ico
+- [x] Production (owner OK in chat, 2026-10-05): main pushed, all.sh production from 69e3be7, the quick check passes
+- [ ] Owner: the Claude connector may keep the old vado.sa icon in its cache; remove and add the connector again to refresh it
 - [ ] Look into: the config diff says api.enabled is true on madar-test after every push; the Data API answers PGRST002 (no data), so nothing leaks, but the setting does not change
 - [ ] Clean up: the unused words of the old stage template screens (stageTemplates.startFrom and others in en.json and ar.json)
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)

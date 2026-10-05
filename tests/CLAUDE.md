@@ -16,6 +16,7 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
+- The test copy shows timing races that the local stack hides. Repeat a suspect spec with `--repeat-each=3` there.
 
 ## Guards (`e2e-deploy/targets.ts`)
 - The suite never reads the production database and never names a production host. It reads madar-test or the local

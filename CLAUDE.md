@@ -92,6 +92,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   script uses `fetch`. A script outside the repo needs the `.mts` ending.
 - A direct Postgres connection (the pooler, port 5432) fails in the sandbox with `ENOTFOUND`: run it with the sandbox off.
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
+- `test:db` and `test:it` need Docker Desktop running. The sandbox blocks `open -a Docker`: ask the owner to start it.
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
   suites need MinIO (`server/it/minio.ts`).
@@ -140,6 +141,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Merge gate: rebase on main, typecheck, `npm test`, `npm run build`, `build:server`, `build:remote -- test`,
   `test:db`, `test:it`, and the prototype smoke at screen merges. No merge with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
+- Agent tool worktrees live in `.claude/worktrees/agent-*` and may start on an old commit: brief each agent to run
+  `git merge --ff-only <batch branch>` first. Removal: `git worktree remove --force`, then `git worktree prune` with the sandbox off.
+- Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5
   database backups run nightly, file backups wait for the owner's Backblaze B2 (the workflow is paused); Z6 seed done; Z7 security review; Z8

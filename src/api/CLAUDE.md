@@ -52,6 +52,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 5. An input in `server/core/everyCall.ts` if the loader sweep does not name it.
 6. Its read kinds in `src/app/readMap.ts` if it is a read.
 7. Words in English and Arabic for every new message.
+8. Raise the pinned call counts: `src/api/calls.test.ts`, `server/core/serverCallMap.test.ts`, `server/http/health.test.ts`,
+   `server/it/worker.it.test.ts`, and the MCP tool count tests.
 
 ## A new record type
 - A new zod collection needs a table in a new migration and an entry in `server/data/tables.ts`.
