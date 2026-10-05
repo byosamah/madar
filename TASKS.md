@@ -209,6 +209,9 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
 - [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
 - [x] Local stack: db reset applies the new migration; test:db 956 (24 skipped), test:it 240, deploy suite 159 passed (8 skipped), the walk 4 of 4 variants
-- [ ] Owner decision: merge fb/2026-10-05 into main, then the test copy deploy (scripts/deploy/all.sh test), then production
+- [x] Owner OK (2026-10-05): main fast-forwarded to the batch; all.sh test deployed 228c01b (health 112 calls). The config push needed vector buckets off (402 on the free plan)
+- [ ] Deploy suite on the test copy, result in proof.md section Deploy
+- [ ] Owner tries the batch on the test copy, then all.sh production from 228c01b (needs the typed word)
+- [ ] Look into: the config diff says api.enabled is true on madar-test after every push; the Data API answers PGRST002 (no data), so nothing leaks, but the setting does not change
 - [ ] Clean up: the unused words of the old stage template screens (stageTemplates.startFrom and others in en.json and ar.json)
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)
