@@ -12,7 +12,14 @@ after the commit of the call that asked for it.
 - `MAIL_DRIVER=resend` (the default, needs `RESEND_API_KEY`) or `outbox`. `MAIL_FROM` is required (`server/core/deps.ts`).
 - The local stack uses `outbox`: mail stays in the table `mail_outbox`.
 - Production sends with its own Resend key (sending only, vado.sa only) in `secrets/production.env`.
-- The Resend key in `.env.local` is account-wide and also serves Mazj. Never delete it.
+- The Resend keys of the account (2026-10-05):
+  - `Madar`: full access, in `.env.local`.
+  - `madar-production`: sending only, vado.sa only, in `secrets/production.env`.
+  - `MAZJ`: the Mazj apps use it. Never change or delete it.
+  - `VADO`: the old key. Its value leaked in chat and sits in Supermemory. Nothing uses it. The owner keeps it for now.
+  - `Onboarding`: not in use.
+- `GET https://api.resend.com/api-keys` gives the name, `created_at` and `last_used_at` of each key, never the token.
+  To find the row of a token: make one call with it, then see which `last_used_at` moves.
 
 ## Quota
 - The Resend free plan sends 100 mails a UTC day. `QUOTA_LIMITS` (`quota.ts`): notice 90, summary 90, signin 98, warning 98.

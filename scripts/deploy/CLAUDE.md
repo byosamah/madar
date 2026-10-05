@@ -43,3 +43,9 @@ only from the Mac, after the typed word `production`. The test copy is https://p
 - `token-scope.sh` is the first step of `deploy.yml`: it stops the GitHub job if the token can reach production.
 - After a deploy, run the deploy suite on the test copy (see `tests/CLAUDE.md`), and write the result in proof.md,
   section "Deploy".
+
+## Quick check of production
+- `curl -s -o /dev/null -w '%{http_code}' https://madar.vado.sa/` gives 200.
+- `POST https://madar.vado.sa/mcp` with no token gives 401 (the right answer).
+- `https://oprkvdjudjxxhvodkzgs.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1` gives 200.
+- `gh run list -R byosamah/madar --workflow "DB backup" --limit 1` shows the last nightly backup.

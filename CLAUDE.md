@@ -63,9 +63,10 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
 - To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its
-  shape without printing it. Never ask for a secret in chat.
-- Rotated 2026-10-05: both database passwords and the Supabase token. The Resend key in `.env.local` is account-wide and
-  also serves Mazj: never delete it.
+  shape without printing it. Never ask for a secret in chat: Supermemory also saves what is pasted in chat.
+- Rotated 2026-10-05: both database passwords, the Supabase token, and the Resend key in `.env.local` (the Resend keys
+  are listed in `server/mail/CLAUDE.md`).
+- The backup private key is not on the Mac. The owner holds it (password manager and paper). Opening a backup needs him.
 - Supabase (both Frankfurt): `madar-test` = `qdgwpnesxppnqsaabqzd`, production `madar` = `oprkvdjudjxxhvodkzgs`.
   The CLI login on this Mac belongs to another account (Halulu): always pass `SUPABASE_ACCESS_TOKEN` and `--project-ref`.
 - Cloudflare: wrangler as o.khalil@mazj.org, Pages project `madar`. GitHub: private `byosamah/madar`, backups
@@ -127,7 +128,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5
-  database backups run nightly, file backups wait for the owner's Backblaze B2; Z6 seed done; Z7 security review; Z8
+  database backups run nightly, file backups wait for the owner's Backblaze B2 (the workflow is paused); Z6 seed done; Z7 security review; Z8
   first Admin done, then a 2-week pilot.
 
 ## Owner decisions (history, newest wins)
@@ -144,4 +145,5 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   Sign-in with email and password. Start empty. AI agents (MCP) in version 1. No phone push; a mobile app comes later
   on the same API.
 - 2026-10-04: logo "Turning doors"; the mark at the top start of every screen; "Invited" until the first password.
-- 2026-10-05: production on madar.vado.sa; the short MCP address madar.vado.sa/mcp; one CLAUDE.md for each part.
+- 2026-10-05: production on madar.vado.sa; the short MCP address madar.vado.sa/mcp; one CLAUDE.md for each part; keep
+  the old Resend key VADO for now (unused, still live; do not ask again).
