@@ -236,4 +236,13 @@ describe('the New Project sheet: contract start date', () => {
     const main = within(sheet).getAllByRole('button').filter((button) => button.classList.contains('signature'));
     expect(main.map((button) => button.textContent)).toEqual(['Create project']);
   });
+
+  it('draws the New client box as an outlined group, so its grey fields stand out (2026-10-05)', async () => {
+    // Grey fields on a grey box looked faint. The box has a thin outline and no fill, like the cards of the template editor.
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    const box = await within(sheet).findByRole('group', { name: 'New client' });
+    expect(box.className.split(' ')).toEqual(expect.arrayContaining(['border', 'border-separator']));
+    expect(box.className.split(' ')).not.toContain('bg-fill');
+  });
 });

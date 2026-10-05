@@ -89,7 +89,8 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
         <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>
       </div>
       {adding && (
-        <div className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+        // An outline, not a fill: the grey fields on a grey box looked faint (2026-10-05). The same look as the template cards.
+        <div role="group" aria-label={t('projectForm.newClient')} className="flex flex-col gap-3 rounded-2xl border border-separator p-3">
           <ClientForm form={form} idPrefix="client" clients={clients} onEnter={add} />
           {/* A plain button: Create project stays the one main button of the sheet (calm rule, 2026-10-05). */}
           <Button className="sm:self-start" disabled={create.isPending} onClick={add}>
