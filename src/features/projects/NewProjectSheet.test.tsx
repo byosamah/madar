@@ -43,9 +43,10 @@ async function openSheet() {
 }
 
 describe('the New Project sheet', () => {
-  it('checks each field when the person leaves it', async () => {
+  it('checks each field when the person leaves it after a change', async () => {
     const { sheet } = await openSheet();
-    await userEvent.click(within(sheet).getByLabelText('Name'));
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'x');
+    await userEvent.clear(within(sheet).getByLabelText('Name'));
     await userEvent.tab();
     expect(within(sheet).getByText('Enter a name.')).toBeInTheDocument();
     fireEvent.change(within(sheet).getByLabelText('Start date'), { target: { value: '2026-10-10' } });
@@ -53,6 +54,18 @@ describe('the New Project sheet', () => {
     fireEvent.change(end, { target: { value: '2026-10-01' } });
     fireEvent.blur(end);
     expect(await within(sheet).findByText('The end date must be after the start date.')).toBeInTheDocument();
+  });
+
+  it('keeps a field quiet when the focus only passes through it, so the first press on New client opens the box (2026-10-05)', async () => {
+    // A message that came on blur moved New client 23 px down during the press, and the press was lost on a desk screen.
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByLabelText('Name'));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    expect(within(sheet).queryByText('Enter a name.')).toBeNull();
+    expect(await within(sheet).findByRole('button', { name: 'Add client' })).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByLabelText('Building type'));
+    await userEvent.tab();
+    expect(within(sheet).queryByText(/building type/i, { selector: '[id$="-error"], [role="alert"]' })).toBeNull();
   });
 
   it('shows every error on submit and creates nothing', async () => {

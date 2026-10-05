@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { XIcon } from '../../components/icons/animated/x';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client, ProjectTemplate, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
@@ -23,19 +23,26 @@ import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, typ
 
 const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', ...CODE_FIELDS];
 
-/** Form state that shows an error only after the person leaves the field, or on submit (spec 4.4). */
+/**
+ * Form state that shows an error only after the person changes a field and leaves it, or on submit (spec 4.4). A field that the
+ * focus only passes through stays quiet: a message on that blur moved New client down during the press (2026-10-05).
+ */
 export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRules = {}) {
   const [values, setValues] = useState(initial);
   const [touched, setTouched] = useState<Set<string>>(new Set());
+  const edited = useRef(new Set<string>());
   const all = validateProjectForm(values, rules);
   const errors = Object.fromEntries(Object.entries(all).filter(([field]) => touched.has(field))) as ProjectFormErrors;
   return {
     values,
     errors,
     set<K extends keyof ProjectFormValues>(key: K, value: ProjectFormValues[K]) {
+      edited.current.add(key);
       setValues((current) => ({ ...current, [key]: value }));
     },
+    /** Each error field has the name of its value, so a field shows its message on blur only after a change. */
     touch(field: keyof ProjectFormErrors) {
+      if (!edited.current.has(field)) return;
       setTouched((current) => new Set(current).add(field));
     },
     /** Shows every error. True when the form can go. */
@@ -44,6 +51,7 @@ export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRul
       return Object.keys(all).length === 0;
     },
     reset(next: ProjectFormValues) {
+      edited.current = new Set();
       setValues(next);
       setTouched(new Set());
     },

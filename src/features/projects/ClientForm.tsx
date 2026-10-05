@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
@@ -16,15 +16,19 @@ const FIELDS: (keyof ClientErrors)[] = ['name', 'initials', 'email'];
 export function useClientForm(initial: ClientDraft, options: { initialsOptional?: boolean } = {}) {
   const [values, setValues] = useState(initial);
   const [touched, setTouched] = useState<Set<string>>(new Set());
+  // A field shows its message on blur only after a change, like the project form (2026-10-05).
+  const edited = useRef(new Set<string>());
   const all = validateClientDraft(values, options);
   const errors = Object.fromEntries(Object.entries(all).filter(([field]) => touched.has(field))) as ClientErrors;
   return {
     values,
     errors,
     set<K extends keyof ClientDraft>(key: K, value: ClientDraft[K]) {
+      edited.current.add(key === 'nameAr' ? 'name' : key);
       setValues((current) => ({ ...current, [key]: value }));
     },
     touch(field: keyof ClientErrors) {
+      if (!edited.current.has(field)) return;
       setTouched((current) => new Set(current).add(field));
     },
     /** Shows every message. True when the client can go. */
@@ -33,6 +37,7 @@ export function useClientForm(initial: ClientDraft, options: { initialsOptional?
       return Object.keys(all).length === 0;
     },
     reset(next: ClientDraft) {
+      edited.current = new Set();
       setValues(next);
       setTouched(new Set());
     },

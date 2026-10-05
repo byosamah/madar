@@ -45,9 +45,14 @@ describe('the Project code group (item 6b)', () => {
     expect(Object.keys(store.state.projects)).toHaveLength(12);
   });
 
-  it('shows a message only after the person leaves the field', async () => {
+  it('shows a message only after the person changes the field and leaves it', async () => {
     const { sheet } = await openSheet();
     await userEvent.click(within(sheet).getByLabelText('Building type'));
+    await userEvent.tab();
+    // The focus only passed through: no message (2026-10-05).
+    expect(within(sheet).queryByText('Write the building type.')).toBeNull();
+    await userEvent.type(within(sheet).getByLabelText('Building type'), 'x');
+    await userEvent.clear(within(sheet).getByLabelText('Building type'));
     expect(within(sheet).queryByText('Write the building type.')).toBeNull();
     await userEvent.tab();
     expect(within(sheet).getByText('Write the building type.')).toBeInTheDocument();
