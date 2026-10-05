@@ -11,6 +11,7 @@ import '@fontsource/ibm-plex-sans-arabic/arabic-700.css';
 import './design/tokens.css';
 import type { Language } from './api/contract/entities';
 import { AppearanceSync } from './app/AppearanceSync';
+import { canonicalUrl } from './app/canonicalHost';
 import { REMOTE } from './app/mode';
 import { createAppRouter } from './app/routes';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
@@ -54,4 +55,7 @@ async function main(): Promise<void> {
   );
 }
 
-void main();
+// www.<host> moves to <host> first (src/app/canonicalHost.ts), so nothing starts on the address that the person leaves.
+const canonical = REMOTE ? canonicalUrl(window.location.href) : null;
+if (canonical) window.location.replace(canonical);
+else void main();
