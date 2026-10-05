@@ -22,6 +22,8 @@ any screen work.
 - `app/readMap.ts` says which change kinds each read reads. The remote build keeps answers until a change signal names
   them (`app/signals.ts`, `app/remote/channel.ts`).
 - A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
+- Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
+  (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
@@ -70,3 +72,5 @@ any screen work.
 - A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
 - Run `npm test` alone. Next to a build or Playwright, screen tests time out.
+- `DateDraftField` (`components/DateDraftField.tsx`): a change event with no focus counts as a pick from the date picker and
+  saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.

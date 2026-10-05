@@ -27,6 +27,9 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 - `goto.ts`: `settle(page)` waits for the network, then for every finite animation to end. Use it before a size check
   or a screenshot.
 - `steps.ts`: `signIn`, `expectCalm`, `expectNoSeriousA11y`, and the widths (390, 820, 1440), languages and themes.
+- The screens before sign-in are light unless the device saved a theme (owner, 2026-10-05). A dark run of them calls
+  `signedOutTheme(page, theme)` (`steps.ts`) as well as `emulateMedia`. The sample accounts keep the System theme, so
+  `emulateMedia` alone still drives them.
 - `accounts.ts`: the 4 sample accounts (Admin, Management, Accounting, Member). Local passwords are in `local.ts`.
 - A spec that leaves a grant or a setting behind removes it in a `finally` (as `agents.spec.ts` does), so the next run
   starts from the same office.

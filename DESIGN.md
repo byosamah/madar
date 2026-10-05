@@ -484,6 +484,9 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Fields** ({components.field}): one look for every input, dropdown and text area: 44 px, the grey fill, 12 px corners,
   14 px side padding, a 2 px blue focus ring. A read-only field drops the fill and shows a thin frame, with a hint that
   says why it cannot change. An invalid field gets a red edge and one sentence below it.
+- **Dates that save themselves** (stage dates, task dates): a quiet button, not a full field. Empty: "Set date…" in
+  secondary ink. Set: the short date and a small clear mark. A press opens the date picker of the browser; the keyboard
+  gets the full field to type in. The stage dates line up in Start and End columns with the column names once at the top.
 - **Panels** ({components.panel}): the white card for every group of content. Rows inside a panel separate with hairlines.
 - **Sheets** ({components.sheet}): a bottom sheet on a phone and a side or centred sheet on a desk; one title, one main
   action.
@@ -543,6 +546,7 @@ stands alone without a label or an accessible name.
   removes movement.
 - Every control is reachable by keyboard, with the visible blue focus ring.
 - Meaning never rests on colour alone: a shape, a word or a pattern carries it too (overlapping stages use a hatch).
+  Each person can turn the hatch off with the small switch beside its legend; the words about the overlap stay.
 
 ## Do's and Don'ts
 
