@@ -205,7 +205,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Track profile: profile picture (10), English and Arabic names for each person (12)
 - [x] Merge wave 1 (admin, lead, fix, clients, profile), register the Clients section. npm test 3705 passed; typecheck, build, build:server, build:remote test pass
 - [ ] Wave 1 gate on the local stack: test:db and test:it (Docker was not running on 2026-10-05), prototype smoke
-- [ ] Small follow-ups: a toast shows two dots when the building type ends with a dot; Team tab names cut at 390 px (old layout); the date fields that save with a form button still show dd/mm/yyyy (list in the fix track report)
+- [ ] Small follow-ups: (done: the created toast shows the project key, so no two dots) Team tab names cut at 390 px (old layout); the date fields that save with a form button still show dd/mm/yyyy (list in the fix track report)
 - [ ] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a)
 - [ ] Merge wave 2, register the Project templates section, full merge gate, local-stack walk, screenshots
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)

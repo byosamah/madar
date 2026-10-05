@@ -104,7 +104,7 @@ describe('the New Project sheet', () => {
     await waitFor(() => expect(within(sheet).getByLabelText('Client initials')).toHaveValue('HRB'));
     await fillCode(sheet);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    expect(await screen.findByText('260900HRB-COM-Offices created.')).toBeInTheDocument();
+    expect(await screen.findByText('260900HRB created.')).toBeInTheDocument();
     const project = Object.values(store.state.projects).find((p) => p.name === 'Harbour Gate Offices');
     expect(project?.leaderId).toBe('usr_002');
     expect(store.state.clients[project!.clientId!].name).toBe('Harbour Holding');

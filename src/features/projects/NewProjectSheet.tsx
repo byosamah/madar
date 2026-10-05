@@ -1,3 +1,4 @@
+import { projectKey } from '../../lib/projectCode';
 import { useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -88,7 +89,8 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         description: v.description.trim(),
         ...codeInput(v),
       });
-      toast.show({ message: t('projectForm.created', { code: detail.project.code }) });
+      // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
+      toast.show({ message: t('projectForm.created', { code: projectKey(detail.project.code) }) });
       fresh.current = true;
       onOpenChange(false);
       navigate(`/projects/${detail.project.id}`);
