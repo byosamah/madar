@@ -266,15 +266,16 @@ describe('the 18 places of AM 6', () => {
 
   it('row 15: a task thread of a person who only commented on it, with its unread count after the read mark', async () => {
     const state = office();
-    const task = Object.values(state.tasks).find((t) => t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+    const task = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+    const lead = task.ownerId as string;
     const add = (id: string, authorId: string, at: string) => {
       state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: `Note ${id}`, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
     };
-    add('cmt_901', task.ownerId, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_901', lead, '2026-10-01T09:00:00.000+03:00');
     add('cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00');
-    add('cmt_903', task.ownerId, '2026-10-03T09:00:00.000+03:00');
-    add('cmt_904', task.ownerId, '2026-10-03T11:00:00.000+03:00');
-    add('cmt_905', task.ownerId, '2026-10-03T12:00:00.000+03:00');
+    add('cmt_903', lead, '2026-10-03T09:00:00.000+03:00');
+    add('cmt_904', lead, '2026-10-03T11:00:00.000+03:00');
+    add('cmt_905', lead, '2026-10-03T12:00:00.000+03:00');
     state.chatReads[chatReadKey(task.id, 'usr_006')] = { conversationId: task.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
     const run = await same(state, 'chats.list', {}, 'usr_006');
     // Unread: after the own comment and after the mark, and not the newest only.
@@ -497,7 +498,7 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     // A notice the job wrote on an earlier run: the dedupe lookup must stop a second one.
     const key = `overdue:${late.id}:${late.dueDate}`;
     state.notifications.ntf_990 = {
-      id: 'ntf_990', userId: late.ownerId, trigger: 'overdue', actorId: null, targetType: 'task', targetId: late.id, read: false,
+      id: 'ntf_990', userId: late.ownerId!, trigger: 'overdue', actorId: null, targetType: 'task', targetId: late.id, read: false,
       createdAt: '2026-10-03T09:00:00.000+03:00', dedupeKey: `${key}:${late.ownerId}`,
     };
 
@@ -515,5 +516,26 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     const made = Object.values(whole.notifications).filter((n) => !state.notifications[n.id]);
     expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due']));
     expect(made.some((n) => n.dedupeKey === `${key}:${late.ownerId}`)).toBe(false);
+  });
+});
+
+describe('tasks with no lead (owner, 2026-10-05)', () => {
+  it('takes the lead off, lists, takes and gives back a task with the same answer as the whole office', async () => {
+    const state = office();
+    const leader = state.projects.prj_001.leaderId!;
+    const member = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== leader)!.userId;
+    const task = todo(state, 'prj_001')[0];
+    const off = await same(state, 'tasks.update', { id: task.id, patch: { ownerId: null } }, leader);
+    expect(off.outcome.error).toBeUndefined();
+    apply(state, 'tasks.update', { id: task.id, patch: { ownerId: null } }, leader);
+    const listed = await same(state, 'tasks.list', { projectId: 'prj_001', filter: 'no_lead', activeProjectsOnly: false }, member);
+    expect((listed.outcome.output as { task: Task }[]).map((row) => row.task.id)).toEqual([task.id]);
+    await same(state, 'tasks.list', { filter: 'no_lead' }, ADMIN);
+    await same(state, 'tasks.get', { id: task.id }, member);
+    const refused = await same(state, 'tasks.complete', { id: task.id }, leader);
+    expect(refused.outcome.error).toMatchObject({ code: 'invalid_input', message: 'This task has no lead. Give it a lead first.' });
+    const took = await same(state, 'tasks.take', { taskId: task.id }, member);
+    expect(took.outcome.output).toMatchObject({ task: { ownerId: member } });
+    await same(state, 'dashboard.get', {}, ADMIN);
   });
 });

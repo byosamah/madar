@@ -107,7 +107,8 @@ export type EventLineView = z.infer<typeof EventLineView>;
 
 export const TaskRow = z.object({
   task: Task,
-  owner: UserCard,
+  /** The lead, or null for a task with no lead. */
+  owner: UserCard.nullable(),
   /** The helpers beside the lead, in the order they were added. */
   helpers: z.array(UserCard),
   project: ProjectRef,
@@ -141,6 +142,8 @@ export const TaskDetail = TaskRow.extend({
     newVersion: z.boolean(),
     /** Saves the task as a template: the leader and the Admin. */
     saveTemplate: z.boolean(),
+    /** Takes the lead of an open task with no lead: a person on the project team (owner, 2026-10-05). */
+    take: z.boolean(),
   }),
   history: z.array(EventView),
 });
@@ -197,7 +200,7 @@ export const TrackerRow = z.object({
   people: z.array(UserCard),
   files: z.array(Attachment),
   /** The reply task of the entry, or null when it has none (or the task was deleted). The title lets the sheet name it (audit 2026-10-03, F-11). */
-  replyTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable(), owner: UserCard }).nullable(),
+  replyTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable(), owner: UserCard.nullable() }).nullable(),
   canClose: z.boolean(),
   canEdit: z.boolean(),
   canDelete: z.boolean(),

@@ -5,6 +5,7 @@ import { useMeeting } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Age } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
+import { NoLeadMark } from '../../components/NoLeadMark';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { RichText } from '../../components/RichText';
@@ -52,11 +53,11 @@ function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen
       {/* The whole item is one button: a press opens the task panel over the meeting. */}
       <button type="button" onClick={() => onOpen(row)} className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start">
         {/* The owner name is in the text below, so the picture stays out of the button name and the name starts with the title. */}
-        <span aria-hidden className="shrink-0"><Avatar user={row.owner} size={36} /></span>
+        <span aria-hidden className="shrink-0">{row.owner ? <Avatar user={row.owner} size={36} /> : <NoLeadMark size={36} />}</span>
         <span className="min-w-0 flex-1">
           <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
           <span className="block truncate text-[15px] text-ink-2">
-            <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+            <bdi>{row.owner?.name ?? t('lead.noLead')}</bdi>{label && <> · {label}</>}
           </span>
         </span>
         {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}

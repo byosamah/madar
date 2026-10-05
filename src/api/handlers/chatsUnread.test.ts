@@ -33,14 +33,15 @@ function office(): State {
   };
   add('msg_901', agent.id, agent.ownerId!, '2026-10-03T08:00:00.000+03:00');
   add('msg_902', 'usr_001', 'usr_001', '2026-10-03T09:00:00.000+03:00');
-  const thread = Object.values(state.tasks).find((t) => t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const thread = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const lead = thread.ownerId as string;
   const comment = (id: string, authorId: string, at: string) => {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
   };
-  comment('cmt_901', thread.ownerId, '2026-10-01T09:00:00.000+03:00');
+  comment('cmt_901', lead, '2026-10-01T09:00:00.000+03:00');
   comment('cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00');
-  comment('cmt_903', thread.ownerId, '2026-10-03T09:00:00.000+03:00');
-  comment('cmt_904', thread.ownerId, '2026-10-03T11:00:00.000+03:00');
+  comment('cmt_903', lead, '2026-10-03T09:00:00.000+03:00');
+  comment('cmt_904', lead, '2026-10-03T11:00:00.000+03:00');
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
   return state;
 }

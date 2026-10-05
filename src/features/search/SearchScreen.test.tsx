@@ -57,7 +57,7 @@ describe('search', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/dashboard'));
   });
 
-  it('creates a task from the New task command', async () => {
+  it('creates a task with no lead from the New task command (owner, 2026-10-05)', async () => {
     const { store } = await renderApp('/search', asSara);
     await userEvent.click(await screen.findByRole('option', { name: 'New task' }));
     const sheet = await screen.findByRole('dialog', { name: 'New task' });
@@ -65,7 +65,7 @@ describe('search', () => {
     await userEvent.type(within(sheet).getByLabelText('Title'), 'Fire exit check');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create task' }));
     expect(await screen.findByText('Task created.')).toBeInTheDocument();
-    expect(Object.values(store.state.tasks).some((task) => task.title === 'Fire exit check' && task.ownerId === 'usr_005' && task.stageId === 'stg_004')).toBe(true);
+    expect(Object.values(store.state.tasks).some((task) => task.title === 'Fire exit check' && task.ownerId === null && task.stageId === 'stg_004')).toBe(true);
   });
 
   it('opens a person with their active projects', async () => {

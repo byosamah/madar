@@ -11,6 +11,7 @@ import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
+import { NoLeadMark } from '../../../components/NoLeadMark';
 import { ProjectTile } from '../../../components/ProjectTile';
 import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
@@ -64,8 +65,15 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
   // A task that waits for another task or stage cannot be finished. The tick stays focusable and says why, in its name and in a toast.
   const waiting = !done && isWaiting(row);
   const names = waiting ? waitingNames(row, lang) : '';
+  // A task with no lead cannot be finished either, so its tick says the same way that it needs a lead (owner, 2026-10-05).
+  const noLead = row.owner === null;
+  const blocked = waiting || noLead;
   const tick = () => {
     if (!canTick || ticking) return;
+    if (noLead) {
+      toast.show({ message: t('lead.needsLeadToast') });
+      return;
+    }
     if (waiting) {
       toast.show({ message: t('tasks.waitingToast', { names }) });
       return;
@@ -93,10 +101,11 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           type="button"
           role="checkbox"
           aria-checked={ticking}
-          aria-label={waiting ? t('tasks.completeBlocked', { title: task.title, names }) : t('tasks.complete', { title: task.title })}
-          aria-disabled={waiting ? true : undefined}
+          aria-label={noLead ? t('lead.completeNeedsLead', { title: task.title })
+            : waiting ? t('tasks.completeBlocked', { title: task.title, names }) : t('tasks.complete', { title: task.title })}
+          aria-disabled={blocked ? true : undefined}
           onClick={tick}
-          className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${waiting ? 'opacity-60' : ''}`}
+          className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${blocked ? 'opacity-60' : ''}`}
         >
           <motion.span
             animate={ticking ? { scale: [1, 0.82, 1] } : { scale: 1 }}
@@ -127,7 +136,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           )}
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
-          {helping && <HelperLine name={row.owner.name} context={actorContext(me)} />}
+          {helping && row.owner && <HelperLine name={row.owner.name} context={actorContext(me)} />}
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {waiting && (
@@ -155,9 +164,11 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
       </button>
       {showProject
         ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
-        : <span className="pe-1">{row.helpers.length > 0
-          ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={20} leaderSize={28} />
-          : <Avatar user={row.owner} size={26} />}</span>}
+        : <span className="pe-1">{!row.owner
+          ? <NoLeadMark size={26} />
+          : row.helpers.length > 0
+            ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={20} leaderSize={28} />
+            : <Avatar user={row.owner} size={26} />}</span>}
     </motion.li>
   );
 }

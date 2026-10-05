@@ -68,7 +68,7 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
     await renderApp(`${TASK}&thread=1`, (state) => {
       staticTask(state);
       state.comments.cmt_900 = {
-        id: 'cmt_900', targetType: 'task', targetId: 'tsk_007', authorId: state.tasks.tsk_007.ownerId, body: 'Survey finished 4 working days late',
+        id: 'cmt_900', targetType: 'task', targetId: 'tsk_007', authorId: state.tasks.tsk_007.ownerId!, body: 'Survey finished 4 working days late',
         reactions: emptyReactions(), fileIds: [], createdAt: '2026-09-30T08:00:00.000Z', editedAt: null,
         dates: { from: { startDate: '2026-10-01', dueDate: '2026-10-07' }, to: { startDate: '2026-10-07', dueDate: '2026-10-13' }, byTaskId: 'tsk_001', byTaskTitle: 'Survey', lateDays: 4 },
       };

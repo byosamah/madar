@@ -19,7 +19,7 @@ export function personOption(person: Pick<User, 'id' | 'name' | 'gender'>, onTea
  * Everyone else sees the list as plain text.
  */
 export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChange }: {
-  helpers: UserCard[]; leadId: string; people: User[]; teamIds: Set<string>; canEdit: boolean; onChange: (helperIds: string[]) => void;
+  helpers: UserCard[]; leadId: string | null; people: User[]; teamIds: Set<string>; canEdit: boolean; onChange: (helperIds: string[]) => void;
 }) {
   const { t } = useTranslation();
   if (!canEdit && helpers.length === 0) return null;

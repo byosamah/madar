@@ -8,6 +8,7 @@ import { useLang } from '../../../app/lang';
 import { useAction, useCall } from '../../../app/runtime';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
+import { NoLeadMark } from '../../../components/NoLeadMark';
 import { Button } from '../../../components/Button';
 import { TextArea, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
@@ -22,6 +23,17 @@ import { FileChips } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
 import { DirectionMark, TypeIcon } from './marks';
 import { taskLink } from '../../../lib/params';
+
+/** A reply task whose lead was taken off (owner, 2026-10-05): the dashed mark and the words, where the person goes. */
+function NoLead() {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex min-h-8 items-center gap-2">
+      <NoLeadMark size={24} />
+      <span className="text-subheadline text-ink-2">{t('lead.noLead')}</span>
+    </span>
+  );
+}
 
 function Person({ user }: { user: UserCard }) {
   return (
@@ -171,7 +183,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
               >
                 <span dir="auto" className="text-subheadline font-semibold text-link">{row.replyTask.title}</span>
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline">
-                  <Person user={row.replyTask.owner} />
+                  {row.replyTask.owner ? <Person user={row.replyTask.owner} /> : <NoLead />}
                   {row.replyTask.dueDate && <span className="tabular text-ink-2">{t('tracker.replyDue', { date: formatDay(row.replyTask.dueDate, lang) })}</span>}
                   {row.replyTask.status === 'done' && <StatusSign state="completed">{t('tracker.replyDone')}</StatusSign>}
                 </span>

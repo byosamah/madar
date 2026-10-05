@@ -20,7 +20,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 36 tools (15 reads, 21 writes) in `MCP_ALLOW` (`tools.ts`). Every other call is in `MCP_DENY`. A test fails for a call
+- 37 tools (15 reads, 22 writes) in `MCP_ALLOW` (`tools.ts`). Every other call is in `MCP_DENY`. A test fails for a call
   in neither list, so every new shared call goes into one of them.
 - Each tool needs a title and a description in `TOOL_DOCS` (`docs.ts`). Write them short, exact, in plain English.
 - `madar.readFirst` gives the agent the instructions and the person it acts for.

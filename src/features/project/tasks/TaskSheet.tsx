@@ -252,8 +252,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   // (audit 2026-10-03, F-22).
   const leadJoins = useRef(false);
   const newLead = useUndoable('tasks.update', {
-    message: (output) => t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: output.owner.name, context: actorContext(output.owner) }),
+    message: (output) => (output.owner
+      ? t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: output.owner.name, context: actorContext(output.owner) })
+      : t('lead.removed')),
   });
+  // A person on the team takes a task with no lead in one press, and Undo gives it back (owner, 2026-10-05).
+  const take = useUndoable('tasks.take', { message: () => t('lead.taken') });
   const remove = useUndoable('tasks.delete', {
     message: () => t('taskSheet.deleted'),
     onSuccess: () => {
@@ -310,7 +314,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
     if (noteFirst && viewerCan.review) reviewBlock.current?.querySelector<HTMLElement>('#task-note')?.focus();
   }, [noteFirst, viewerCan.review]);
   const people = detail.members.map((member) => member.user);
-  if (!people.some((person) => person.id === data.owner.id)) people.push(data.owner);
+  if (data.owner && !people.some((person) => person.id === data.owner?.id)) people.push(data.owner);
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
   const teamIds = new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]);
   const pickable = (everyone.data ?? []).filter((person) => person.kind === 'human');
@@ -342,7 +346,14 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
       ) : (
         <TabPanel value="details" idPrefix="task-section">
           <div className="flex flex-col gap-5">
-            {!edit && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {!edit && !viewerCan.take && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {/* A task with no lead: one next step, Take it (owner, 2026-10-05). Nobody can finish the task before it has a lead. */}
+            {viewerCan.take && (
+              <section aria-label={t('lead.noLead')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                <p className="text-footnote text-label-2">{t('lead.takeHint')}</p>
+                <Button variant="primary" disabled={take.isPending} onClick={() => take.mutate({ taskId: task.id })}>{t('lead.takeIt')}</Button>
+              </section>
+            )}
             {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
             {/* After "Send back with a note" on the board, the note takes the focus, Send back is the main button and Approve
                 steps back to the end (audit 2026-10-03, F-8). */}
@@ -371,7 +382,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
               {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
                   {/* While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19). */}
-                  {BOARD_COLUMNS.filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview).includes(status))
+                  {BOARD_COLUMNS.filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview, task.ownerId !== null).includes(status))
                     .map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
@@ -379,15 +390,19 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
                 <SelectField
                   id="task-owner"
                   label={t('taskSheet.owner')}
-                  value={task.ownerId}
+                  value={task.ownerId ?? ''}
                   onChange={(event) => {
-                    leadJoins.current = !teamIds.has(event.target.value);
-                    newLead.mutate({ id: task.id, patch: { ownerId: event.target.value } });
+                    const next = event.target.value || null;
+                    leadJoins.current = next !== null && !teamIds.has(next);
+                    newLead.mutate({ id: task.id, patch: { ownerId: next } });
                   }}
                 >
-                  {(pickable.some((person) => person.id === task.ownerId) ? pickable : [...pickable, data.owner]).map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
+                  {/* "No lead" comes first (owner, 2026-10-05). A task in review or done keeps its lead, so it offers no "No lead". */}
+                  {(task.ownerId === null || task.status === 'todo' || task.status === 'in_progress') && <option value="">{t('lead.noLead')}</option>}
+                  {(data.owner && !pickable.some((person) => person.id === task.ownerId) ? [...pickable, data.owner] : pickable)
+                    .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
-              ) : <Fact label={t('taskSheet.owner')}><bdi>{data.owner.name}</bdi></Fact>}
+              ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{data.owner.name}</bdi> : t('lead.noLead')}</Fact>}
               {edit ? (
                 <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}

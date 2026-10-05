@@ -50,7 +50,7 @@ export function readSweep(office: State): SweepCall[] {
       ['events.list', { projectId: id, limit: 7 }, ADMIN],
     );
   }
-  for (const task of Object.values(office.tasks)) calls.push(['tasks.get', { id: task.id }, task.ownerId]);
+  for (const task of Object.values(office.tasks)) calls.push(['tasks.get', { id: task.id }, task.ownerId ?? ADMIN]);
   for (const comment of Object.values(office.comments)) calls.push(['comments.list', { targetType: comment.targetType, targetId: comment.targetId }, ADMIN]);
   for (const conversation of Object.values(office.conversations)) {
     for (const actor of humans) calls.push(['chats.messages', { conversationId: conversation.id, limit: 2 }, actor]);
@@ -141,10 +141,11 @@ export function trapOffice(seed: State): State {
   for (const id of ['msg_901', 'msg_902']) {
     state.messages[id] = { id, conversationId: 'cnv_001', authorId: leader, actingForId: leader, body: id, mentions: [], fileIds: [], createdAt: '2026-10-03T11:00:00.000+03:00', editedAt: null };
   }
-  const thread = Object.values(state.tasks).find((t) => t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const thread = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const lead = thread.ownerId as string;
   for (const [id, authorId, at] of [
-    ['cmt_901', thread.ownerId, '2026-10-01T09:00:00.000+03:00'], ['cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00'],
-    ['cmt_903', thread.ownerId, '2026-10-03T11:00:00.000+03:00'], ['cmt_904', thread.ownerId, '2026-10-03T11:00:00.000+03:00'],
+    ['cmt_901', lead, '2026-10-01T09:00:00.000+03:00'], ['cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00'],
+    ['cmt_903', lead, '2026-10-03T11:00:00.000+03:00'], ['cmt_904', lead, '2026-10-03T11:00:00.000+03:00'],
   ] as const) {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
   }

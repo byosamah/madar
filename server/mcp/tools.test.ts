@@ -24,9 +24,11 @@ function makeAjv(): Ajv2020 {
 describe('the MCP tool list (plan 5.6, change 20)', () => {
   const tools = mcpTools();
 
-  it('has the 36 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(36);
-    expect(new Set(MCP_ALLOW).size).toBe(36);
+  it('has the 37 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(37);
+    expect(new Set(MCP_ALLOW).size).toBe(37);
+    // An agent takes a task with no lead for its person (owner, 2026-10-05).
+    expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
   });
 
@@ -86,7 +88,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
       expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(14);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(15);
+    expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);
   });
 
   it('gives each write tool except story.start an optional storyId, and no read tool one', () => {
@@ -144,7 +147,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
 
 describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
   it('tells an agent the rules, stories, Undo, reasons and uploads', () => {
-    for (const word of ['madar.readFirst', 'story.start', 'storyId', 'events.undoStory', 'reason', 'dateReason', 'upload', 'act for', 'notification']) {
+    for (const word of ['madar.readFirst', 'story.start', 'storyId', 'events.undoStory', 'reason', 'dateReason', 'upload', 'act for', 'notification', 'no lead', 'tasks.take']) {
       expect(INSTRUCTIONS, word).toContain(word);
     }
   });

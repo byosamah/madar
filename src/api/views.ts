@@ -82,7 +82,7 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       if (entry?.waiting) detail.waiting = entry.waiting;
       if (typeof after.replyTaskId === 'string') {
         const reply = state.tasks[after.replyTaskId];
-        if (reply) detail.person = state.users[reply.ownerId]?.name ?? '';
+        if (reply?.ownerId) detail.person = state.users[reply.ownerId]?.name ?? '';
       }
       return { label: title, detail };
     }
@@ -242,7 +242,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
   const stage = state.stages[task.stageId];
   return {
     task,
-    owner: cardOf(state, task.ownerId),
+    owner: task.ownerId === null ? null : cardOf(state, task.ownerId),
     helpers: helpersOf(task).map((id) => cardOf(state, id)),
     project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
     stage: { id: task.stageId, name: stage?.name ?? '' },
@@ -276,6 +276,7 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       contribute: can(viewer, 'task.contribute', { ...r, helperIds: helpersOf(task) }),
       newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
       saveTemplate: can(viewer, 'task.updateAny', r),
+      take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
     },
     history,
   };
@@ -318,7 +319,7 @@ export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry
 /** The reply task of an entry. A task that was deleted counts as no task. */
 export function replyTaskOf(state: State, entry: TrackerEntry): TrackerRow['replyTask'] {
   const task = entry.replyTaskId ? state.tasks[entry.replyTaskId] : undefined;
-  return task ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, owner: cardOf(state, task.ownerId) } : null;
+  return task ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, owner: task.ownerId === null ? null : cardOf(state, task.ownerId) } : null;
 }
 
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {

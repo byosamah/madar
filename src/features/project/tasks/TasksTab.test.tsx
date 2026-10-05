@@ -49,11 +49,11 @@ describe('the Tasks tab list', () => {
     expect(screen.queryByRole('checkbox', { name: 'Complete Balady submission set' })).toBeNull();
   });
 
-  it('adds a task to a stage from its quick add row', async () => {
+  it('adds a task with no lead to a stage from its quick add row (owner, 2026-10-05)', async () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Add a task in Permits' }), 'Fire strategy report{Enter}');
     await waitFor(() => expect(Object.values(store.state.tasks)
-      .some((task) => task.title === 'Fire strategy report' && task.stageId === 'stg_005' && task.ownerId === 'usr_005')).toBe(true));
+      .some((task) => task.title === 'Fire strategy report' && task.stageId === 'stg_005' && task.ownerId === null)).toBe(true));
     expect(await screen.findByText('Fire strategy report')).toBeInTheDocument();
   });
 

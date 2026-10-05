@@ -124,7 +124,7 @@ describe("a helper's own list", () => {
     const t = world();
     t.as('usr_006');
     const [row] = await t.api.call('tasks.list', { filter: 'mine' });
-    expect(row.owner.id).toBe('usr_003');
+    expect(row.owner?.id).toBe('usr_003');
     expect(row.helpers.map((h) => h.id)).toEqual(['usr_006']);
     expect(row.canMove).toBe(false);
   });

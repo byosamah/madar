@@ -12,7 +12,10 @@ import { taskLink } from '../../lib/params';
 
 const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: null, dueDate: null };
 
-/** The "New task" command: a task for me on one of my projects, in its current stage unless I pick another. */
+/**
+ * The "New task" command: a task on one of my projects, in its current stage unless I pick another. Like every new task, it has
+ * no lead until a person takes it or the leader names one (owner, 2026-10-05).
+ */
 export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const toast = useToast();

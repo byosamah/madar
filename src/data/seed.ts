@@ -308,6 +308,7 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     .filter((t) => t.projectId === projectId && (t.status === 'in_review' || t.status === 'in_progress'))
     .slice(0, 2);
   for (const task of discussed) {
+    if (task.ownerId === null) continue;
     const askId = nextId(state, 'cmt');
     state.comments[askId] = {
       id: askId, targetType: 'task', targetId: task.id, authorId: leader.id, body: 'Please check the dimensions against the latest survey before Thursday.',

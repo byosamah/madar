@@ -6,7 +6,7 @@ import {
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
-import { assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
+import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
 import { notifyIn, reviewersOf } from '../notify';
 import { teamFilter } from '../pause';
@@ -68,9 +68,9 @@ function whenChanges(task: Task, when: When): Partial<Task> {
 }
 
 /** The helper list a call ends with. No repeats, never the lead. A person outside the team joins it when the leader or the Admin asks. */
-function checkHelpers(ctx: Ctx, projectId: string, leadId: string, helperIds: string[]): string[] {
+function checkHelpers(ctx: Ctx, projectId: string, leadId: string | null, helperIds: string[]): string[] {
   if (new Set(helperIds).size !== helperIds.length) throw invalid('helperIds', 'A person is in the helper list twice.', 'duplicate_helper');
-  if (helperIds.includes(leadId)) throw invalid('helperIds', 'The lead cannot also be a helper.', 'lead_is_helper');
+  if (leadId !== null && helperIds.includes(leadId)) throw invalid('helperIds', 'The lead cannot also be a helper.', 'lead_is_helper');
   for (const id of helperIds) ensureOnTeam(ctx, projectId, id, 'helperIds');
   return helperIds;
 }
@@ -125,7 +125,8 @@ export const tasksList = defineCall({
   input: z.object({
     projectId: ProjectId.optional(),
     ownerId: UserId.optional(),
-    filter: z.enum(['all', 'mine', 'overdue', 'flagged', 'review_for_me']).default('all'),
+    /** no_lead: only the tasks with no lead (owner, 2026-10-05). */
+    filter: z.enum(['all', 'mine', 'overdue', 'flagged', 'review_for_me', 'no_lead']).default('all'),
     status: z.array(TaskStatus).optional(),
     dueFrom: Day.optional(),
     dueTo: Day.optional(),
@@ -175,6 +176,8 @@ export const tasksList = defineCall({
           return task.flagged;
         case 'review_for_me':
           return task.status === 'in_review' && reviewersOf(state, task.projectId).includes(authority.id);
+        case 'no_lead':
+          return task.ownerId === null;
         default:
           return true;
       }
@@ -210,9 +213,10 @@ type NewTask = {
 function createTask(ctx: Ctx, input: NewTask): Task {
   const project = requireProject(ctx, input.projectId);
   const role = roleIn(ctx, project.id);
-  // A task always belongs to a person. An agent adds tasks for the person it acts for.
-  const ownerId = input.ownerId ?? ctx.authority.id;
-  assertCan(ctx, ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
+  // A new task has no lead unless the call names one (owner, 2026-10-05). Anyone on the team may add a task with no lead or for
+  // themselves; only the leader and the Admin name another person. An agent names the person it acts for as itself.
+  const ownerId = input.ownerId ?? null;
+  assertCan(ctx, ownerId === null || ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
   // Only "no review" needs the leader's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
   if ((input.needsReview === false && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
   // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
@@ -222,9 +226,9 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   requireStage(ctx, project.id, stageId);
   const watch = watchStage(ctx, project.id);
   const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
-  assertActive(ctx, ownerId, 'ownerId');
+  if (ownerId !== null) assertActive(ctx, ownerId, 'ownerId');
   for (const helperId of input.helperIds ?? []) assertActive(ctx, helperId, 'helperIds');
-  ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
+  if (ownerId !== null) ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
   const helperIds = checkHelpers(ctx, project.id, ownerId, input.helperIds ?? []);
   const id = nextId(ctx.state, 'tsk');
   const prerequisiteIds = input.prerequisiteIds ?? [];
@@ -321,7 +325,8 @@ export const tasksUpdate = defineCall({
       schedule: TaskSchedule.optional(),
       durationDays: DurationDays.nullable().optional(),
       stageId: StageId.optional(),
-      ownerId: UserId.optional(),
+      /** Null takes the lead off the task (owner, 2026-10-05). A task in review or done keeps its lead. */
+      ownerId: UserId.nullable().optional(),
       helperIds: HelperIds.optional(),
       prerequisiteIds: PrerequisiteIds.optional(),
       flagged: z.boolean().optional(),
@@ -359,16 +364,18 @@ export const tasksUpdate = defineCall({
       }
     }
     const watch = watchStage(ctx, task.projectId);
-    const leadId = patch.ownerId ?? task.ownerId;
+    const leadId = patch.ownerId !== undefined ? patch.ownerId : task.ownerId;
+    // A task in review or done keeps its lead, because a task with no lead cannot be finished (owner, 2026-10-05).
+    if (patch.ownerId === null && (task.status === 'in_review' || task.status === 'done')) assertHasLead({ ownerId: null });
     if (patch.ownerId) ensureOnTeam(ctx, task.projectId, patch.ownerId, 'ownerId');
     const reassigned = patch.ownerId !== undefined && patch.ownerId !== task.ownerId;
     // Only a person newly named must be active. A helper who left keeps their place on the task.
-    if (reassigned) assertActive(ctx, leadId, 'ownerId');
+    if (reassigned && leadId !== null) assertActive(ctx, leadId, 'ownerId');
     for (const helperId of patch.helperIds ?? []) if (!helpersOf(task).includes(helperId)) assertActive(ctx, helperId, 'helperIds');
     // A person who becomes the lead stops being a helper, so the lead is never in the list.
     const helperIds = patch.helperIds !== undefined
       ? checkHelpers(ctx, task.projectId, leadId, patch.helperIds)
-      : reassigned && helpersOf(task).includes(leadId) ? helpersOf(task).filter((id) => id !== leadId) : undefined;
+      : reassigned && leadId !== null && helpersOf(task).includes(leadId) ? helpersOf(task).filter((id) => id !== leadId) : undefined;
     const { startDate, schedule, durationDays, dueDate, helperIds: _helpers, ...rest } = patch;
     const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
     const changes: Partial<Task> = { ...rest, ...whenChanges(task, when) };
@@ -387,8 +394,31 @@ export const tasksUpdate = defineCall({
     // Moving an open task into an earlier stage moves the project back, and that needs a reason.
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     if (move && input.dateReason) insertComment(ctx, 'task', task.id, task.projectId, input.dateReason, [], move);
-    const told = [...(reassigned ? [task.ownerId] : []), ...added];
+    // The new lead hears of it. A lead taken off tells nobody.
+    const told = [...(reassigned && task.ownerId !== null ? [task.ownerId] : []), ...added];
     if (told.length > 0) notifyIn(ctx, { userIds: told, trigger: 'task_assigned', targetType: 'task', targetId: task.id });
+    touch(ctx, task.projectId);
+    return detail(ctx, task);
+  },
+});
+
+/**
+ * A person on the project team takes the lead of a task with no lead (owner, 2026-10-05). An agent takes it for the person it
+ * acts for. A taker who helps on the task stops being a helper. An Admin outside the team joins it, as for a change of lead.
+ * The change is a change of lead, so the History and the meeting summary name it, and the taker can give it back with Undo.
+ */
+export const tasksTake = defineCall({
+  input: z.object({ taskId: TaskId }),
+  output: TaskDetail,
+  run(input, ctx) {
+    const task = requireTask(ctx, input.taskId);
+    assertCan(ctx, 'task.take', { projectRole: roleIn(ctx, task.projectId) });
+    if (task.ownerId !== null) throw invalid('taskId', 'This task has a lead already.', 'has_lead');
+    const leadId = ctx.authority.id;
+    ensureOnTeam(ctx, task.projectId, leadId, 'ownerId');
+    const changes: Partial<Task> = { ownerId: leadId };
+    if (helpersOf(task).includes(leadId)) changes.helperIds = helpersOf(task).filter((id) => id !== leadId);
+    applyPatch(ctx, task, changes, { projectId: task.projectId, verb: 'task.reassigned', targetType: 'task', targetId: task.id });
     touch(ctx, task.projectId);
     return detail(ctx, task);
   },
@@ -541,6 +571,7 @@ export const taskCalls = {
   'tasks.create': tasksCreate,
   'tasks.createFromTemplate': tasksCreateFromTemplate,
   'tasks.update': tasksUpdate,
+  'tasks.take': tasksTake,
   'tasks.newVersion': tasksNewVersion,
   'tasks.complete': tasksComplete,
   'tasks.move': tasksMove,

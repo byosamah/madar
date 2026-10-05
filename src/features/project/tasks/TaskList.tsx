@@ -11,7 +11,7 @@ import { useStageBack } from './StageBack';
 import { TaskRowItem } from './TaskRowItem';
 import { TemplateMenu } from './TemplateMenu';
 
-/** "Add a task" at the top of a group. Enter creates it. The owner is the creator and the stage is the group's (spec 5.3). */
+/** "Add a task" at the top of a group. Enter creates it with no lead (owner, 2026-10-05), in the group's stage (spec 5.3). */
 function QuickAdd({ projectId, stage }: { projectId: string; stage: Stage }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');

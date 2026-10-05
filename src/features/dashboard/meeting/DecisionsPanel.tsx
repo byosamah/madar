@@ -58,7 +58,7 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
   const [userId, setUserId] = useDraft<string>(`actionWho:${projectId}`, () => '');
   const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
   // An action makes a real task for a person, so the toast says for whom, and Undo takes it back (browser audit 2026-10-03, BRW-14).
-  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner.name }), onSuccess: () => setTitle('') });
+  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner?.name ?? t('lead.noLead') }), onSuccess: () => setTitle('') });
   // A pick that left the list (the person turned inactive) gives way to the default.
   const who = members.some((member) => member.id === userId) ? userId : defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
@@ -103,7 +103,7 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const lines = [
     ...(posts.data ?? []).flatMap((item) => (item.kind === 'update' && item.decision && item.at >= startedAt ? [{ id: item.id, at: item.at, text: plainText(item.body) }] : [])),
     ...(tasks.data ?? []).flatMap((row) => (row.task.createdAt >= startedAt
-      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner.name, row.task.dueDate) }]
+      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner?.name ?? t('lead.noLead'), row.task.dueDate) }]
       : [])),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;

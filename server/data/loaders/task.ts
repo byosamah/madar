@@ -17,6 +17,11 @@ export async function taskCall(L: Load, input: Input): Promise<void> {
   await taskScope(L, str(input.id) ?? '');
 }
 
+/** tasks.take: the task by input.taskId, the same scope as the other task writes. */
+export async function tasksTake(L: Load, input: Input): Promise<void> {
+  await taskScope(L, str(input.taskId) ?? '');
+}
+
 /** tasks.create: every task of P. The new task has no tail yet. */
 export async function tasksCreate(L: Load, input: Input): Promise<void> {
   await tasksOf(L, [str(input.projectId) ?? '']);

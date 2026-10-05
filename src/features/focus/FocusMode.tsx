@@ -44,7 +44,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
   const state = task.status === 'done' ? t('taskStatus.done')
     : task.status === 'in_review' ? t('taskStatus.in_review')
     : waiting ? t('tasks.waitingFor', { names: waitingNames(data, lang) })
-    : !data.canMove ? `${t('taskSheet.owner')}: ${data.owner.name}`
+    : !data.canMove ? `${t('taskSheet.owner')}: ${data.owner?.name ?? t('lead.noLead')}`
     : null;
   useEffect(() => setItems(task.checklist), [task.checklist]);
   // Focus moves into the page at once; a late exit after Done never fires once the page is gone.

@@ -5,12 +5,14 @@ export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride'
   | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
+  | 'task.take'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
 
-export type Resource = { projectRole?: ProjectRole; ownerId?: string; helperIds?: string[]; authorId?: string; targetUserId?: string };
+/** ownerId is the lead of a task. Null: the task has no lead, so nobody holds the rights of its lead. */
+export type Resource = { projectRole?: ProjectRole; ownerId?: string | null; helperIds?: string[]; authorId?: string; targetUserId?: string };
 
 export function projectRoleOf(state: State, projectId: string, userId: string): ProjectRole {
   const project = state.projects[projectId];
@@ -70,6 +72,8 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     case 'task.createForSelf':
     case 'content.post':
     case 'chat.project':
+    // A person on the team takes the lead of a task with no lead (owner, 2026-10-05). The call checks that the task has none.
+    case 'task.take':
       return onProject;
     case 'task.updateOwn':
       return leads || (onProject && resource.ownerId === actor.id);
