@@ -13,6 +13,7 @@ import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { PROTOTYPE, REMOTE } from './mode';
 import { useSwitchLanguage } from './languageTurn';
+import { usePersonName } from './personName';
 import { useAction, useCall } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
@@ -25,6 +26,7 @@ import { useSignOut } from '../features/auth/signOut';
  */
 export function PersonMenu({ id }: { id: string }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const session = useCall('session.get', {}).data;
   const user = session?.user;
   // Management reaches the Admin page too, for the People section only.
@@ -48,20 +50,20 @@ export function PersonMenu({ id }: { id: string }) {
   const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-start text-body text-ink hover:bg-fill';
   return (
     <>
-      <button ref={ref} type="button" aria-label={user.name} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="pressable grid size-11 place-items-center rounded-full">
+      <button ref={ref} type="button" aria-label={nameOf(user)} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="pressable grid size-11 place-items-center rounded-full">
         <Avatar user={user} size={36} />
       </button>
       {open && ref.current && (
-        <Popover anchor={ref.current} label={user.name} onClose={close}>
+        <Popover anchor={ref.current} label={nameOf(user)} onClose={close}>
           <div className="flex items-center gap-3">
             <Avatar user={user} size={40} />
             <span className="min-w-0">
-              <span className="block truncate text-headline text-ink">{user.name}</span>
+              <span className="block truncate text-headline text-ink">{nameOf(user)}</span>
               <span className="block truncate text-footnote text-ink-2">{user.email}</span>
             </span>
           </div>
           {PROTOTYPE && <PreviewAs id={`preview-as-${id}`} />}
-          <nav aria-label={user.name} className="-mx-2 flex flex-col">
+          <nav aria-label={nameOf(user)} className="-mx-2 flex flex-col">
             {/* close() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3). */}
             <button type="button" onClick={() => { close(); switchLanguage(nextLanguage); }} className={row}>
               <AnimatedIcon icon={LanguagesIcon} size={18} className="text-ink-2" aria-hidden />

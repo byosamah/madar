@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TeamRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { fieldError } from '../../../app/errors';
+import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Avatar } from '../../../components/Avatar';
@@ -19,6 +20,8 @@ import { counted } from '../../../lib/grammar';
 /** Make or change one team: its name, and who is in it. A team holds people only. */
 function TeamSheet({ team, open, onOpenChange }: { team: TeamRow | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const toast = useToast();
   const users = useCall('users.list', {});
   const [name, setName] = useState('');
@@ -38,7 +41,7 @@ function TeamSheet({ team, open, onOpenChange }: { team: TeamRow | null; open: b
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, team]);
-  const people = (users.data ?? []).filter((user) => user.kind === 'human');
+  const people = (users.data ?? []).filter((user) => user.kind === 'human').sort(byName);
   const toggle = (id: string) => setMemberIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const error = team ? update.error : create.error;
   const submit = () => {
@@ -60,7 +63,7 @@ function TeamSheet({ team, open, onOpenChange }: { team: TeamRow | null; open: b
             <label key={user.id} className="flex min-h-11 items-center gap-3 text-body text-ink">
               <input type="checkbox" checked={memberIds.includes(user.id)} onChange={() => toggle(user.id)} className="size-5 accent-[var(--sig-from)]" />
               <Avatar user={user} size={28} />
-              <span className="min-w-0 flex-1 truncate"><bdi>{user.name}</bdi></span>
+              <span className="min-w-0 flex-1 truncate"><bdi>{nameOf(user)}</bdi></span>
               <span className="truncate text-footnote text-ink-2"><bdi>{user.discipline}</bdi></span>
             </label>
           ))}

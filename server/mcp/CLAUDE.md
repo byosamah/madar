@@ -23,7 +23,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - 37 tools (15 reads, 22 writes) in `MCP_ALLOW` (`tools.ts`). Every other call is in `MCP_DENY`. A test fails for a call
   in neither list, so every new shared call goes into one of them.
 - Each tool needs a title and a description in `TOOL_DOCS` (`docs.ts`). Write them short, exact, in plain English.
-- `madar.readFirst` gives the agent the instructions and the person it acts for.
+- `madar.readFirst` gives the agent the instructions and the person it acts for, by the English name.
+- `users.list` gives both names (`name`, `nameAr`) and leaves picture data out of `avatarUrl` (`run.ts`).
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.

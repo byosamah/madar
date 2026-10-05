@@ -185,6 +185,19 @@ describe('suite 12: the MCP server in process', () => {
     expect(JSON.parse(body.result.content[0].text)).toEqual(body.result.structuredContent);
   });
 
+  it('lists people with both names and leaves picture data out, so the agent context stays small (owner items 10 and 12)', async () => {
+    const before = seed.users.usr_002;
+    seed.users.usr_002 = { ...before, nameAr: 'فيصل الحربي', avatarUrl: `data:image/webp;base64,${'A'.repeat(8_000)}` };
+    try {
+      const { body } = await call(world(), 'users.list');
+      const faisal = (body.result.structuredContent.output as { id: string }[]).find((user) => user.id === 'usr_002');
+      expect(faisal).toMatchObject({ name: before.name, nameAr: 'فيصل الحربي', avatarUrl: null });
+      expect(body.result.content[0].text).not.toContain('data:image');
+    } finally {
+      seed.users.usr_002 = before;
+    }
+  });
+
   it('gives madar.readFirst the rules and the person the agent acts for', async () => {
     const { body } = await call(w, 'madar.readFirst');
     const text = body.result.content[0].text as string;

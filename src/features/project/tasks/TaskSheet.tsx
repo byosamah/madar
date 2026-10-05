@@ -11,6 +11,7 @@ import { useUndoable } from '../../../app/actions';
 import { errorMessage } from '../../../app/errors';
 import { downloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
@@ -167,6 +168,7 @@ function TaskFiles({ views }: { views: FileView[] }) {
 
 function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const lang = useLang();
   const toast = useToast();
   const undo = useAction('events.undo', { onSuccess: () => toast.show({ message: t('taskSheet.undone') }) });
@@ -179,7 +181,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
             <li key={event.id} className="flex items-center gap-2 text-footnote">
               <Avatar user={actor} size={24} />
               <p className="min-w-0 flex-1">
-                <bdi className="font-semibold">{actor.name}</bdi>{' '}
+                <bdi className="font-semibold">{nameOf(actor)}</bdi>{' '}
                 {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
                 <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
               </p>
@@ -198,6 +200,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
 function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const navigate = useNavigate();
   const toast = useToast();
   const session = useCall('session.get', {});
@@ -253,7 +256,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   const leadJoins = useRef(false);
   const newLead = useUndoable('tasks.update', {
     message: (output) => (output.owner
-      ? t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: output.owner.name, context: actorContext(output.owner) })
+      ? t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: nameOf(output.owner), context: actorContext(output.owner) })
       : t('lead.removed')),
   });
   // A person on the team takes a task with no lead in one press, and Undo gives it back (owner, 2026-10-05).
@@ -402,7 +405,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
                   {(data.owner && !pickable.some((person) => person.id === task.ownerId) ? [...pickable, data.owner] : pickable)
                     .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
-              ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{data.owner.name}</bdi> : t('lead.noLead')}</Fact>}
+              ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
               {edit ? (
                 <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -22,6 +23,7 @@ import { isLive } from '../../lib/overview';
 export function HomeScreen() {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const [params, setParams] = useSearchParams();
   const focus = useFocusLink();
   const today = todayISO();
@@ -67,7 +69,7 @@ export function HomeScreen() {
   const next = nextForYou({ review: review.data, mine: mine.data, today });
   const ring = dayRing(mine.data, today);
   const todayRows = dueByToday(mine.data, today);
-  const firstName = user.name.split(' ')[0];
+  const firstName = nameOf(user).split(' ')[0];
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (

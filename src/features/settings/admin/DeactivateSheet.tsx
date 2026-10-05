@@ -5,6 +5,7 @@ import type { User } from '../../../api/contract/entities';
 import type { ProjectSummary, TaskRow } from '../../../api/contract/views';
 import type { MadarApi } from '../../../api/calls';
 import { useUndoable } from '../../../app/actions';
+import { usePersonName } from '../../../app/personName';
 import { canRetry, errorMessage } from '../../../app/errors';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -40,10 +41,11 @@ async function openWorkOf(api: MadarApi, id: string): Promise<OpenWork> {
  */
 export function useDeactivate(): { ask: (user: User) => void; sheet: ReactNode } {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const { api } = useRuntime();
   const toast = useToast();
   const [warning, setWarning] = useState<{ user: User; work: OpenWork } | null>(null);
-  const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: user.name }) });
+  const deactivate = useUndoable('users.deactivate', { message: (user) => t('admin.deactivated', { name: nameOf(user) }) });
   const ask = (user: User) => {
     openWorkOf(api, user.id).then((work) => {
       if (work.projects.length === 0 && work.tasks.length === 0) deactivate.mutate({ id: user.id });
@@ -72,6 +74,7 @@ export function useDeactivate(): { ask: (user: User) => void; sheet: ReactNode }
 
 function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work: OpenWork; onClose: () => void; onConfirm: () => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const context = actorContext(user);
   const more = work.tasks.length - SHOWN;
   // Only an Admin or the project's own leader changes a leader. The leader is the person here, so any other viewer, Management
@@ -82,7 +85,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
     <Sheet
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
-      title={t('admin.deactivateTitle', { name: user.name })}
+      title={t('admin.deactivateTitle', { name: nameOf(user) })}
       // Only a leader reviews, so a person who leads no live project reads only the part about new work (audit 2026-10-03, warn repair).
       description={t(work.projects.length > 0 ? 'admin.deactivateBody' : 'admin.deactivateBodyTasks', { context })}
       footer={(

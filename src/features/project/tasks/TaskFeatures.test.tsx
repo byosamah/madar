@@ -215,7 +215,7 @@ describe('a lead with helpers', () => {
       state.users.usr_005.preferences.language = 'ar';
       state.tasks.tsk_007.helperIds = ['usr_005'];
     }));
-    expect(await rowOf('Stair details')).toHaveTextContent('مساعدة · المسؤول الرئيسي: Yousef Saleh');
+    expect(await rowOf('Stair details')).toHaveTextContent('مساعدة · المسؤول الرئيسي: يوسف صالح');
   });
 
   it('shows the lead and up to three helpers in the row, then +N', async () => {

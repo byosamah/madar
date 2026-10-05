@@ -8,6 +8,7 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { formatDay, localeFor, todayISO, type Lang } from '../../../lib/dates';
 import { actorContext, counted } from '../../../lib/grammar';
+import { localName, personName } from '../../../lib/personName';
 import { plainText } from '../../../lib/text';
 import { toTsv } from '../../../lib/trackerExport';
 import { FEED_EVENT_VERBS, feedText } from '../../projects/feed';
@@ -69,18 +70,19 @@ function sentenceOf({ event, actor, label, detail }: EventLineView, t: TFunction
   if (event.verb === 'task.updated') return taskChange(event, label, context, t, lang);
   // A change of lead names the new lead. A change to no lead says the lead went (owner, 2026-10-05).
   if (event.verb === 'task.reassigned') {
-    return detail.lead ? t('dashboard.meeting.summary.leadChanged', { label, lead: detail.lead, context }) : t('dashboard.meeting.summary.leadRemoved', { label, context });
+    const lead = localName(detail, 'lead', lang);
+    return lead ? t('dashboard.meeting.summary.leadChanged', { label, lead, context }) : t('dashboard.meeting.summary.leadRemoved', { label, context });
   }
   if (event.verb === 'tracker.closed') return t(detail.waiting === 'client' ? 'dashboard.meeting.summary.received' : 'dashboard.meeting.summary.answered', { label, context });
-  if (event.verb === 'tracker.reply_assigned') return t('dashboard.meeting.summary.replyAssigned', { label, person: detail.person ?? '', context });
+  if (event.verb === 'tracker.reply_assigned') return t('dashboard.meeting.summary.replyAssigned', { label, person: localName(detail, 'person', lang), context });
   // A new task is an action of the meeting. It names the person and the due date, as the meeting panel does (audit 2026-10-03, F-18).
   if (event.verb === 'task.created') {
     const dueDate = fieldsOf(event.after).dueDate;
-    return actionLine(t, lang, label, detail.lead || t('lead.noLead'), typeof dueDate === 'string' ? dueDate : null);
+    return actionLine(t, lang, label, localName(detail, 'lead', lang) || t('lead.noLead'), typeof dueDate === 'string' ? dueDate : null);
   }
   if (FEED_EVENT_VERBS.has(event.verb)) {
     const item: FeedItem = { kind: 'event', id: event.id, at: event.createdAt, author: actor, verb: event.verb, targetType: event.targetType, targetId: event.targetId, label, detail, canUndo: false };
-    return feedText(item, t);
+    return feedText(item, t, lang);
   }
   return label ? t('dashboard.meeting.summary.other', { label, context }) : t('feed.other', { context });
 }
@@ -130,8 +132,8 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
       if (sentence === null) continue;
       const reason = view.event.verb === 'task.updated' ? reasons.get(view.event.correlationId) : undefined;
       const what = reason ? t('dashboard.meeting.summary.withReason', { line: sentence, reason }) : sentence;
-      const owner = view.event.verb === 'task.created' ? view.detail.lead ?? '' : undefined;
-      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: view.actor.name, what, time: view.event.createdAt.slice(11, 16), owner }]);
+      const owner = view.event.verb === 'task.created' ? localName(view.detail, 'lead', lang) : undefined;
+      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: personName(view.actor, lang), what, time: view.event.createdAt.slice(11, 16), owner }]);
     }
     const nameOf = (id: string) => names.get(id) ?? everyProject.data?.find((row) => row.project.id === id)?.project.name ?? id;
     return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: nameOf(id), lines: byProject.get(id)! }));

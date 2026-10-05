@@ -182,6 +182,8 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
   it('keeps an English sender name and its colon together in an Arabic chat list, so it reads "Faisal:", not ":Faisal"', async () => {
     await renderApp('/inbox', (state) => {
       state.users.usr_001.preferences.language = 'ar';
+      // A person with an English name only, so the Arabic screen shows the English name (owner item 12).
+      state.users.usr_002.nameAr = undefined;
     });
     const sender = await screen.findByText('Faisal:');
     expect(sender.tagName).toBe('BDI');

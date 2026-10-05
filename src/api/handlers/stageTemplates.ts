@@ -4,6 +4,7 @@ import { Gender, StageName, StageTemplate, StageTemplateId } from '../contract/e
 import { forbidden, invalid, notFound } from '../errors';
 import { recordCreate, recordDelete } from '../events';
 import { nextId, stageTemplatesOf } from '../store';
+import { namesUnder } from '../views';
 import { assertCan } from './shared';
 
 const TemplateName = z.string().trim().min(1).max(60);
@@ -12,7 +13,9 @@ const TemplateName = z.string().trim().min(1).max(60);
  * A template as a screen reads it: the name of the person who saved it, and whether the current person may delete it.
  * The gender of that person picks the Arabic verb of "saved by" (audit 2026-10-03, SHL-17).
  */
-export const StageTemplateRow = StageTemplate.extend({ createdByName: z.string(), createdByGender: Gender.optional(), canDelete: z.boolean() });
+export const StageTemplateRow = StageTemplate.extend({
+  createdByName: z.string(), createdByNameAr: z.string().optional(), createdByGender: Gender.optional(), canDelete: z.boolean(),
+});
 
 function mayDelete(ctx: Ctx, template: StageTemplate): boolean {
   return ctx.authority.active && (ctx.authority.systemRole === 'admin' || template.createdBy === ctx.authority.id);
@@ -25,7 +28,7 @@ const stageTemplatesList = defineCall({
   run(_input, ctx) {
     return Object.values(stageTemplatesOf(ctx.state))
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((t) => ({ ...t, createdByName: ctx.state.users[t.createdBy]?.name ?? '', createdByGender: ctx.state.users[t.createdBy]?.gender, canDelete: mayDelete(ctx, t) }));
+      .map((t) => ({ ...t, ...namesUnder('createdByName', ctx.state.users[t.createdBy]), createdByGender: ctx.state.users[t.createdBy]?.gender, canDelete: mayDelete(ctx, t) }));
   },
 });
 
@@ -49,7 +52,7 @@ const stageTemplatesSave = defineCall({
     const template: StageTemplate = { id, name: input.name, stages: input.stages, createdBy: ctx.authority.id, createdAt: ctx.stamp };
     templates[id] = template;
     recordCreate(ctx, { projectId: null, verb: 'stageTemplate.created', targetType: 'stageTemplate', targetId: id, entity: template });
-    return { ...template, createdByName: ctx.authority.name, createdByGender: ctx.authority.gender, canDelete: true };
+    return { ...template, ...namesUnder('createdByName', ctx.authority), createdByGender: ctx.authority.gender, canDelete: true };
   },
 });
 

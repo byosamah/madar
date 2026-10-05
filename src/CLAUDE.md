@@ -64,6 +64,11 @@ any screen work.
 - A required field: `required` on `TextField`, `SelectField` or `TextArea` shows an asterisk after the label and a hidden
   "required" word in the description. The label text stays the field name, and the browser never checks the field.
 - A project code shows as its key (`projectKey`) in lists and rows, and in full in the project header and About.
+- A person has an English name (`name`) and maybe an Arabic name (`nameAr`). Every spot that shows a person's name uses
+  `usePersonName()` (`app/personName.ts`, the name of the screen language), and lists of people sort with
+  `useByPersonName()`. A name that the server writes into a detail has an `Ar` twin: read it with `localName`.
+- A person card (`UserCard`) carries no picture data. `Avatar` takes the picture from `users.list` through
+  `app/pictures.tsx` (the app frame and the meeting view mount it).
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

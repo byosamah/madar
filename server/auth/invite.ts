@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { User } from '../../src/api/contract/entities';
+import { personName } from '../../src/lib/personName';
 import type { OutboxRow } from '../core/effects';
 import { takeOfficeLock } from '../core/lock';
 import type { AuthAdminPort, Deps } from '../core/ports';
@@ -256,7 +257,7 @@ export async function sendInvitation(
   const mail = {
     to: user.email,
     ...renderSigninMail('invite', user.preferences.language, {
-      name: user.name, link: signinLink(deps.config.appUrl, 'welcome', link.tokenHash, link.type, renew),
+      name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'welcome', link.tokenHash, link.type, renew),
     }, user.gender, { appUrl: deps.config.appUrl }),
     tag: 'invite',
     idempotencyKey: mailKey(payload.inviteId),

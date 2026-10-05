@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { Button } from '../../components/Button';
 import { formatDay, stampDay, todayISO } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
@@ -11,6 +12,7 @@ import { PauseIcon } from '../../components/icons/animated/pause';
 /** A paused project says so at the top: who paused it, when, why, and when it restarts (owner, 2026-10-01). */
 export function PausedBanner({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const lang = useLang();
   const resume = useUndoable('projects.resume', { message: () => t('project.resumedToast') });
   const { project, pausedBy } = detail;
@@ -23,7 +25,7 @@ export function PausedBanner({ detail }: { detail: ProjectDetail }) {
         <h2 id="paused-title" className="text-headline text-ink">{pause.kind === 'client' ? t('status.awaiting_client') : t('project.pausedTitle')}</h2>
         <p dir="auto" className="text-subheadline text-ink">{pause.reason}</p>
         <p className="text-footnote text-ink-2">
-          {pausedBy && t('project.pausedBy', { name: pausedBy.name, context: actorContext(pausedBy), date: formatDay(stampDay(pause.at), lang, 'long') })}
+          {pausedBy && t('project.pausedBy', { name: nameOf(pausedBy), context: actorContext(pausedBy), date: formatDay(stampDay(pause.at), lang, 'long') })}
           {/* A restart date that passed says so in the Attention color, not "Restarts" in the present tense (audit 2026-10-03, PRJ-14). */}
           {pause.resumeOn && (pause.resumeOn < todayISO()
             ? <> <span className="text-attn">{t('project.restartWas', { date: formatDay(pause.resumeOn, lang, 'long') })}</span></>

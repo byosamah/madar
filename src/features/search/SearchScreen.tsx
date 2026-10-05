@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { useDebounced } from '../../app/useDebounced';
 import { Avatar } from '../../components/Avatar';
@@ -28,6 +29,7 @@ function Item({ value, onSelect, children }: { value: string; onSelect: () => vo
 
 function Results({ query, onPerson }: { query: string; onPerson: (person: UserCard) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const navigate = useNavigate();
   // The last results stay while the next ones load, so the list never flashes empty between key presses (audit PER-14).
   const results = useCall('search.query', { text: query }, { keepPrevious: true });
@@ -70,7 +72,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
           {people.map((person) => (
             <Item key={person.id} value={`person-${person.id}`} onSelect={() => onPerson(person)}>
               <span aria-hidden><Avatar user={person} size={24} /></span>
-              <bdi className="min-w-0 flex-1 truncate">{person.name}</bdi>
+              <bdi className="min-w-0 flex-1 truncate">{nameOf(person)}</bdi>
               <span className="text-footnote text-label-2">{person.discipline}</span>
             </Item>
           ))}

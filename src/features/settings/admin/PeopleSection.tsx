@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import { useUndoable } from '../../../app/actions';
+import { useByPersonName, usePersonName } from '../../../app/personName';
 import { REMOTE } from '../../../app/mode';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -18,6 +19,8 @@ import { PersonFormSheet } from './PersonFormSheet';
 
 export function PeopleSection() {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const users = useCall('users.list', { includeInactive: true });
   const session = useCall('session.get', {});
   const teams = useCall('teams.list', {});
@@ -31,7 +34,7 @@ export function PeopleSection() {
   // A person with live work gets a warning first (owner, 2026-10-03, API-7).
   const deactivate = useDeactivate();
   // A person deactivated by mistake can come back with their account and history (audit 2026-10-03, SHL-7).
-  const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: user.name }) });
+  const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: nameOf(user) }) });
   const me = session.data?.authority.id;
   const byId = new Map((users.data ?? []).map((user) => [user.id, user]));
   // Management cannot change an Admin, so an Admin's row has no actions for it.
@@ -49,7 +52,7 @@ export function PeopleSection() {
       </div>
       <LoadFailed query={users} />
       <ul className="flex flex-col">
-        {(users.data ?? []).map((user) => {
+        {[...(users.data ?? [])].sort(byName).map((user) => {
           // The office teams of this person, shown quietly after the discipline.
           const inTeams = (teams.data ?? []).filter((team) => team.members.some((member) => member.id === user.id)).map((team) => team.name);
           return (
@@ -57,7 +60,7 @@ export function PeopleSection() {
             <Avatar user={user} size={36} />
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2">
-                <bdi className="font-semibold">{user.name}</bdi>
+                <bdi className="font-semibold">{nameOf(user)}</bdi>
                 {user.kind === 'agent' && <AgentLabel />}
                 {!user.active && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('admin.inactive')}</span>}
                 {user.active && invited.has(user.id) && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('people.invited', { context: actorContext(user) })}</span>}
@@ -68,12 +71,12 @@ export function PeopleSection() {
               </p>
             </div>
             {(viewerIsAdmin || !holdsAdminRights(user)) && <Menu
-              label={t('admin.actions', { name: user.name })}
+              label={t('admin.actions', { name: nameOf(user) })}
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
                 {
                   label: t('people.resend'),
-                  onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.onItsWay', { name: user.name }) }) }),
+                  onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.onItsWay', { name: nameOf(user) }) }) }),
                   hidden: !user.active || !invited.has(user.id),
                 },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },

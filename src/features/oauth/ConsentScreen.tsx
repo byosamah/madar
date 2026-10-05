@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { Navigate, useSearchParams } from 'react-router';
 import { ApiError } from '../../api/errors';
 import { errorMessage } from '../../app/errors';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { AuthPage, FormError } from '../auth/AuthPage';
@@ -101,7 +102,9 @@ function Consent({ authorizationId }: { authorizationId: string }) {
 function Decide({ request, leave }: { request: ConsentRequest; leave: (url: string) => void }) {
   const { t } = useTranslation();
   const { port } = useOAuth();
-  const person = useCall('session.get', {}).data?.user.name;
+  const nameOf = usePersonName();
+  const me = useCall('session.get', {}).data?.user;
+  const person = me ? nameOf(me) : undefined;
   const [pending, setPending] = useState<'approve' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Madar refused Approve for an app that the person removed (TASKS.md, Wave 5 follow-ups, G calm screen).

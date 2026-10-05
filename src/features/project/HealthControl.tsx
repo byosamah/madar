@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { HealthValue } from '../../api/contract/entities';
 import type { ProjectDetail } from '../../api/contract/views';
+import { usePersonName } from '../../app/personName';
 import { useAction } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
@@ -41,13 +42,14 @@ function HealthPopover({ detail, anchor, onClose }: { detail: ProjectDetail; anc
 /** Late and At risk show as a soft word; On track says nothing, except to the person who may change it (redesign spec 2.4). */
 function HealthWord({ detail, canSet }: { detail: ProjectDetail; canSet: boolean }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const { health, healthSetBy } = detail;
   if (!health) return <ProjectSign project={detail.project} staleDays={detail.staleDays} />;
   if (health.value === 'on_track' && !canSet && !health.overridden) return null;
   return (
     <span title={health.overridden && health.reason ? health.reason : undefined} className="inline-flex items-center gap-2">
       <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign>
-      {health.overridden && healthSetBy && <span className="text-footnote text-ink-2">{t('health.setBy', { name: healthSetBy.name })}</span>}
+      {health.overridden && healthSetBy && <span className="text-footnote text-ink-2">{t('health.setBy', { name: nameOf(healthSetBy) })}</span>}
     </span>
   );
 }

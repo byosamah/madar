@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Sheet } from '../../components/Sheet';
@@ -9,11 +10,12 @@ import { projectKey } from '../../lib/projectCode';
 /** A person from search: their discipline, email and active projects (plan clarification 8). */
 export function PersonSheet({ person, onClose }: { person: UserCard; onClose: () => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const user = useCall('users.get', { id: person.id });
   const projects = useCall('projects.list', { status: 'active', sort: 'name' });
   const theirs = (projects.data ?? []).filter((summary) => summary.leader?.id === person.id || summary.team.some((member) => member.id === person.id));
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={person.name} description={person.discipline}>
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={nameOf(person)} description={person.discipline}>
       <div className="flex flex-col gap-4 pt-1">
         <div className="flex items-center gap-3">
           <Avatar user={person} size={56} />

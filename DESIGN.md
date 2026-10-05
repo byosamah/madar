@@ -497,7 +497,9 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Status sign:** the shape plus an ink word, for example "At risk". "On track" never shows in lists; a sign shows only
   when something needs attention.
 - **Notes** ({components.attention-note}, {components.late-note}): a soft tinted line for "3 days past due" or "Late".
-- **Avatars:** "Glow" pictures: two soft lights in one colour with ink letters; no stacks of faces in lists.
+- **Avatars:** the person's profile picture when there is one (a 128 px square that the browser makes, Settings), else a
+  "Glow" picture: two soft lights in one colour with ink letters (two Arabic letters, apart, for an Arabic name); no stacks
+  of faces in lists.
 - **Toasts:** solid, short, with Undo when the action can be undone. Ctrl or Cmd + Z runs the newest Undo.
 - **Empty states:** one sentence that says what will appear here and, at most, one action.
 

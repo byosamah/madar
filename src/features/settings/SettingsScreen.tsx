@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fieldError } from '../../app/errors';
 import { useSwitchLanguage } from '../../app/languageTurn';
 import { PROTOTYPE } from '../../app/mode';
 import { PreviewAs } from '../../app/PreviewAs';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
-import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
-import { TextField } from '../../components/Fields';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
@@ -16,6 +13,7 @@ import { Switch } from '../../components/Switch';
 import { AgentsSection } from './AgentsSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PasswordSection } from './PasswordSection';
+import { ProfileSection } from './ProfileSection';
 import { SettingsSection as Section } from './Section';
 
 export function SettingsScreen() {
@@ -24,7 +22,6 @@ export function SettingsScreen() {
   const session = useCall('session.get', {});
   const preferences = useAction('me.updatePreferences');
   const switchLanguage = useSwitchLanguage();
-  const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const simulate = useAction('session.setSimulateErrors');
   // Reset wipes the whole office in this browser and has no Undo, so it asks first, like Delete project (audit 2026-10-03, SHL-8).
   const [askReset, setAskReset] = useState(false);
@@ -35,14 +32,6 @@ export function SettingsScreen() {
     },
   });
   const user = session.data?.user;
-  const [name, setName] = useState('');
-  const [discipline, setDiscipline] = useState('');
-
-  useEffect(() => {
-    if (!user) return;
-    setName(user.name);
-    setDiscipline(user.discipline);
-  }, [user?.id, user?.name, user?.discipline]);
 
   if (!session.data || !user) return <ScreenTitle title={t('screens.settings')} />;
   const prefs = user.preferences;
@@ -51,40 +40,7 @@ export function SettingsScreen() {
     <div className="flex flex-col gap-6">
       <ScreenTitle title={t('screens.settings')} />
 
-      <Section title={t('settings.profile')}>
-        <div className="flex items-center gap-4">
-          <Avatar user={user} size={56} />
-          <span className="min-w-0 truncate text-footnote text-label-2">{user.email}</span>
-        </div>
-        <form
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
-          onSubmit={(event) => {
-            event.preventDefault();
-            profile.mutate({ name, discipline });
-          }}
-        >
-          {/* A refused field shows its message under it, as in the Admin forms (audit 2026-10-03, SHL-22). */}
-          <TextField
-            id="profile-name"
-            label={t('settings.name')}
-            value={name}
-            dir="auto"
-            className="flex-1"
-            error={fieldError(profile.error, 'name', t, t('admin.errors.name'))}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <TextField
-            id="profile-discipline"
-            label={t('settings.discipline')}
-            value={discipline}
-            dir="auto"
-            className="flex-1"
-            error={fieldError(profile.error, 'discipline', t, t('admin.errors.discipline'))}
-            onChange={(event) => setDiscipline(event.target.value)}
-          />
-          <Button type="submit">{t('settings.save')}</Button>
-        </form>
-      </Section>
+      <ProfileSection user={user} />
 
       <Section title={t('settings.language')}>
         <SegmentedControl

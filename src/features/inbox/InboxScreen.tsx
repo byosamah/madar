@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
+import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -14,11 +15,13 @@ import { ConversationPane } from './ConversationPane';
 /** Starts a direct chat: a person is picked, and the chat opens. */
 function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const navigate = useNavigate();
   const users = useCall('users.list', {}, { enabled: open });
   const session = useCall('session.get', {}, { enabled: open });
   const meId = session.data?.authority.id;
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId);
+  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId).sort(byName);
   const openChat = useAction('chats.openDirect', {
     onSuccess: ({ id }) => {
       onOpenChange(false);
@@ -39,7 +42,7 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
             >
               <Avatar user={person} size={36} />
               <span className="flex min-w-0 flex-col">
-                <bdi className="truncate text-subheadline font-medium text-ink">{person.name}</bdi>
+                <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
                 <span className="truncate text-footnote text-ink-2">{person.discipline}</span>
               </span>
             </button>

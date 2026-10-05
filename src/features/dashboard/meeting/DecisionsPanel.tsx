@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useMeeting } from '../../../app/meeting';
 import { useUndoable } from '../../../app/actions';
 import { useCall } from '../../../app/runtime';
@@ -52,13 +53,14 @@ function DecisionForm({ projectId }: { projectId: string }) {
 }
 
 /** A title, a person from the team and a due date. The task goes in the current stage. It is a first date, so no date reason is asked. */
-function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId: string; stageId: string; members: { id: string; name: string }[]; defaultUserId: string }) {
+function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId: string; stageId: string; members: { id: string; name: string; nameAr?: string }[]; defaultUserId: string }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const [title, setTitle] = useDraft<string>(`action:${projectId}`, () => '');
   const [userId, setUserId] = useDraft<string>(`actionWho:${projectId}`, () => '');
   const [dueDate, setDueDate] = useDraft<string>(`actionBy:${projectId}`, () => addWorkingDays(todayISO(), 2));
   // An action makes a real task for a person, so the toast says for whom, and Undo takes it back (browser audit 2026-10-03, BRW-14).
-  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner?.name ?? t('lead.noLead') }), onSuccess: () => setTitle('') });
+  const create = useUndoable('tasks.create', { message: (task) => t('dashboard.meeting.actionAdded', { name: task.owner ? nameOf(task.owner) : t('lead.noLead') }), onSuccess: () => setTitle('') });
   // A pick that left the list (the person turned inactive) gives way to the default.
   const who = members.some((member) => member.id === userId) ? userId : defaultUserId;
   const ready = title.trim() !== '' && who !== '' && dueDate !== '' && !create.isPending;
@@ -73,7 +75,7 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
       <TextField id={`meeting-action-${projectId}`} label={t('dashboard.meeting.writeAction')} dir="auto" value={title} onChange={(event) => setTitle(event.target.value)} />
       <div className="flex flex-wrap items-end gap-3">
         <SelectField id={`meeting-action-who-${projectId}`} label={t('dashboard.meeting.actionWho')} value={who} onChange={(event) => setUserId(event.target.value)} className="min-w-44 flex-1">
-          {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+          {members.map((member) => <option key={member.id} value={member.id}>{nameOf(member)}</option>)}
         </SelectField>
         <TextField id={`meeting-action-by-${projectId}`} type="date" label={t('dashboard.meeting.actionBy')} value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="min-w-40" />
         <Button variant="primary" type="submit" disabled={!ready}>{t('common.add')}</Button>
@@ -90,6 +92,7 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
 export function DecisionsPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const startedAt = useMeeting()?.startedAt ?? '';
   const detail = useCall('projects.get', { id: projectId });
   const posts = useCall('updates.list', { projectId, filter: 'posts' });
@@ -103,7 +106,7 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const lines = [
     ...(posts.data ?? []).flatMap((item) => (item.kind === 'update' && item.decision && item.at >= startedAt ? [{ id: item.id, at: item.at, text: plainText(item.body) }] : [])),
     ...(tasks.data ?? []).flatMap((row) => (row.task.createdAt >= startedAt
-      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner?.name ?? t('lead.noLead'), row.task.dueDate) }]
+      ? [{ id: row.task.id, at: row.task.createdAt, text: actionLine(t, lang, row.task.title, row.owner ? nameOf(row.owner) : t('lead.noLead'), row.task.dueDate) }]
       : [])),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;

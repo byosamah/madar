@@ -97,6 +97,17 @@ describe('POST /auth/forgot', () => {
     expect(deps.mail.sent[0].text).toContain('افتحي الرابط');
   });
 
+  it('names the person in the language of the reset mail (owner item 12)', async () => {
+    const { deps, post, users } = await setup();
+    users.usr_005.doc = { ...users.usr_005.doc, nameAr: 'سارة القحطاني' };
+    users.usr_002.doc = { ...users.usr_002.doc, nameAr: 'فيصل الحربي' };
+    expect((await post({ email: 'sara.al.qahtani@madar.test' })).status).toBe(200);
+    expect(deps.mail.sent[0].text).toContain('سارة القحطاني');
+    expect((await post({ email: 'faisal.al.harbi@madar.test' })).status).toBe(200);
+    expect(deps.mail.sent[1].text).toContain(users.usr_002.doc.name);
+    expect(deps.mail.sent[1].text).not.toContain('فيصل الحربي');
+  });
+
   it('starts the reset mail with the Madar mark at the app address and the name, as the N2 mails do (wave 6, V)', async () => {
     const { deps, post } = await setup();
     expect((await post({ email: 'sara.al.qahtani@madar.test' })).status).toBe(200);

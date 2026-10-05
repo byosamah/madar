@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import type { PauseKind, ProjectStatus } from '../../api/contract/entities';
 import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
+import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
@@ -24,6 +25,8 @@ type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: b
  */
 export function LeaderSheet({ detail, open, onOpenChange, pick }: SheetProps & { pick?: string }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const toast = useToast();
   const users = useCall('users.list', {});
   const [leaderId, setLeaderId] = useState(detail.project.leaderId ?? '');
@@ -36,7 +39,7 @@ export function LeaderSheet({ detail, open, onOpenChange, pick }: SheetProps & {
       onOpenChange(false);
     },
   });
-  const people = (users.data ?? []).filter((user) => user.kind === 'human');
+  const people = (users.data ?? []).filter((user) => user.kind === 'human').sort(byName);
   return (
     <Sheet
       open={open}
@@ -46,7 +49,7 @@ export function LeaderSheet({ detail, open, onOpenChange, pick }: SheetProps & {
     >
       <SelectField id="change-leader" label={t('projectForm.leader')} value={leaderId} onChange={(event) => setLeaderId(event.target.value)}>
         <option value="">{t('projectForm.leaderNone')}</option>
-        {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+        {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
       </SelectField>
     </Sheet>
   );

@@ -1,7 +1,9 @@
 import { useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UserCard } from '../api/contract/views';
-import { activeMention, normalizeForSearch } from '../lib/text';
+import { usePersonName } from '../app/personName';
+import { matchesPerson } from '../lib/personName';
+import { activeMention } from '../lib/text';
 import { Avatar } from './Avatar';
 
 /** A text box with an @mention picker (spec 5.2 and 7.2). The arrow keys move through the names, Enter picks one, Escape closes the list. */
@@ -20,22 +22,22 @@ export function MentionField({
   className?: string;
 }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = inputRef ?? own;
   const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const mention = activeMention(value, caret);
-  const matches = mention
-    ? people.filter((person) => normalizeForSearch(person.name).includes(normalizeForSearch(mention.query))).slice(0, 5)
-    : [];
+  // Both names match (owner item 12). The list and the inserted text use the name of the screen language.
+  const matches = mention ? people.filter((person) => matchesPerson(person, mention.query)).slice(0, 5) : [];
   const open = matches.length > 0 && dismissedAt !== mention?.start;
   const listId = `${id}-mentions`;
 
   const pick = (person: UserCard) => {
     if (!mention) return;
     const before = value.slice(0, mention.start);
-    const insert = `@${person.name} `;
+    const insert = `@${nameOf(person)} `;
     const position = before.length + insert.length;
     const next = before + insert + value.slice(caret);
     onChange(next);
@@ -107,7 +109,7 @@ export function MentionField({
               className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 ${i === active ? 'bg-fill' : ''}`}
             >
               <span aria-hidden><Avatar user={person} size={24} /></span>
-              <bdi>{person.name}</bdi>
+              <bdi>{nameOf(person)}</bdi>
             </li>
           ))}
         </ul>

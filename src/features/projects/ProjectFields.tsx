@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
+import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
@@ -125,6 +126,7 @@ export function StageList({
 
 function TeamPicker({ people, value, onChange }: { people: User[]; value: string[]; onChange: (ids: string[]) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="pb-1 text-footnote text-label-2">{t('projectForm.team')}</legend>
@@ -138,7 +140,7 @@ function TeamPicker({ people, value, onChange }: { people: User[]; value: string
               onChange={(event) => onChange(event.target.checked ? [...value, person.id] : value.filter((id) => id !== person.id))}
             />
             <Avatar user={person} size={28} />
-            <span className="min-w-0 flex-1 truncate">{person.name}</span>
+            <span className="min-w-0 flex-1 truncate">{nameOf(person)}</span>
             <span className="text-footnote text-label-2">{person.discipline}</span>
           </label>
         ))}
@@ -153,11 +155,13 @@ function TeamPicker({ people, value, onChange }: { people: User[]; value: string
  */
 export function ProjectFields({ form, mode, editCode = false }: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const meId = session.data?.authority.id;
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId);
+  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId).sort(byName);
   const { values, errors, set, touch } = form;
   const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
@@ -192,7 +196,7 @@ export function ProjectFields({ form, mode, editCode = false }: { form: ProjectF
       {mode === 'create' && (
         <SelectField id="project-leader" label={t('projectForm.leader')} value={values.leader} onChange={(event) => set('leader', event.target.value)}>
           <option value="me">{t('projectForm.leaderMe')}</option>
-          {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+          {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
           <option value="none">{t('projectForm.leaderNone')}</option>
         </SelectField>
       )}

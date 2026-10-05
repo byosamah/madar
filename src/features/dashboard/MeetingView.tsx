@@ -31,6 +31,8 @@ import type { DashboardData } from './Tiles';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { useHatchOn } from './hatch';
+import { PicturesProvider } from '../../app/pictures';
+import { usePersonName } from '../../app/personName';
 import { currentTone, DeadlineMarks, stageKind } from './scheduleMarks';
 
 // The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
@@ -196,9 +198,15 @@ function MeetingTaskSheet({ taskId, onClose }: { taskId: string; onClose: () => 
  * The meeting-room screen: every project on one big timeline (owner request, 2026-10-01).
  * It keeps the Dashboard filters from the link. Time runs toward the end side, so Arabic reads right to left.
  */
+/** The meeting view sits outside the app frame, so it reads the profile pictures itself (owner item 10, 2026-10-05). */
 export function MeetingView() {
+  return <PicturesProvider><MeetingScreen /></PicturesProvider>;
+}
+
+function MeetingScreen() {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // A phone has no room for the timeline bars, so the meeting opens on the project screens there (browser audit 2026-10-03, BRW-18).
@@ -394,7 +402,7 @@ export function MeetingView() {
 
   const filters = [
     status !== 'active' ? t('dashboard.meeting.status', { name: t(`status.${status}`) }) : null,
-    leader ? t('dashboard.meeting.leader', { name: users.data?.find((u) => u.id === leader)?.name ?? leader }) : null,
+    leader ? t('dashboard.meeting.leader', { name: ((found) => (found ? nameOf(found) : leader))(users.data?.find((u) => u.id === leader)) }) : null,
     team ? t('dashboard.meeting.team', { name: teams.data?.find((item) => item.id === team)?.name ?? team }) : null,
     client ? t('dashboard.meeting.client', { name: ((found) => (found ? clientName(found, lang) : client))(clients.data?.find((c) => c.id === client)) }) : null,
   ].filter((text): text is string => text !== null);

@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { formatDay } from '../../../lib/dates';
+import { personName } from '../../../lib/personName';
 import { renderApp } from '../../../test/render';
 import { openSummary } from './steps';
 
@@ -154,7 +155,8 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
       }
       const summary = await screen.findByRole('region', { name: /^(Meeting summary|ملخص الاجتماع)$/ });
       const group = within(await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' }));
-      return { ...rendered, group, lead: rendered.store.state.users[project.leaderId!].name };
+      // The lead in the language of the screen (owner item 12): the sample people have an Arabic name too.
+      return { ...rendered, group, lead: personName(rendered.store.state.users[project.leaderId!], arabic ? 'ar' : 'en') };
     }
 
     it('writes the action line as the panel does, in the summary, the table and the chat message', async () => {

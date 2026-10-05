@@ -21,7 +21,7 @@ describe('settings screen', () => {
 
   it('saves the profile', async () => {
     const { store } = await renderApp('/settings');
-    const name = await screen.findByLabelText('Name');
+    const name = await screen.findByLabelText('Name in English *');
     await userEvent.clear(name);
     await userEvent.type(name, 'Hala N.');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -31,11 +31,11 @@ describe('settings screen', () => {
 
   it('shows a refused profile field under the field (audit 2026-10-03, SHL-22)', async () => {
     await renderApp('/settings');
-    const name = await screen.findByLabelText('Name');
+    const name = await screen.findByLabelText('Name in English *');
     await userEvent.clear(name);
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true'));
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('Enter a name.');
+    await waitFor(() => expect(screen.getByLabelText('Name in English *')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByLabelText('Name in English *')).toHaveAccessibleDescription('Enter a name.');
     expect(screen.getByLabelText('Discipline')).not.toHaveAttribute('aria-invalid');
   });
 

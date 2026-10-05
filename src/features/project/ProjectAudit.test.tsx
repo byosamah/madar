@@ -319,7 +319,7 @@ describe('Arabic verbs agree with a woman (audit 2026-10-03, PRJ-11)', () => {
       state.projects.prj_001.healthOverride = { value: 'at_risk', reason: 'Client delay', setBy: 'usr_001', setAt: '2026-09-29T09:00:00.000+03:00' };
     });
     try {
-      expect(await screen.findByText('حدّدته Hala Nasser:')).toBeInTheDocument();
+      expect(await screen.findByText('حدّدته هالة ناصر:')).toBeInTheDocument();
     } finally {
       initI18n('en');
     }

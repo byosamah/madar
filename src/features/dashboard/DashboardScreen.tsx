@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -36,6 +37,7 @@ const SELECT = 'field mt-1.5 font-normal';
 export function DashboardScreen() {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const status = oneOf(params.get('status'), STATUSES, 'active');
@@ -71,11 +73,11 @@ export function DashboardScreen() {
   // project in the status the numbers count; "All statuses" shows active and paused projects (audit 2026-10-03, F-14).
   const inShown = (projectStatus: ProjectStatus) => (shown === 'all' ? isLive(projectStatus) : projectStatus === shown);
   const leaders = new Map<string, string>();
-  for (const summary of projects.data ?? []) if (summary.leader && inShown(summary.project.status)) leaders.set(summary.leader.id, summary.leader.name);
+  for (const summary of projects.data ?? []) if (summary.leader && inShown(summary.project.status)) leaders.set(summary.leader.id, nameOf(summary.leader));
   // A leader from the link stays in the list, so the choice that filters the numbers stays visible.
   const picked = (users.data ?? []).find((user) => user.id === leader);
-  if (picked) leaders.set(picked.id, picked.name);
-  const leaderOptions = [...leaders].sort(([, a], [, b]) => a.localeCompare(b));
+  if (picked) leaders.set(picked.id, nameOf(picked));
+  const leaderOptions = [...leaders].sort(([, a], [, b]) => a.localeCompare(b, lang));
   return (
     <div className="flex flex-col gap-5">
       <ScreenTitle title={t('screens.dashboard')} />

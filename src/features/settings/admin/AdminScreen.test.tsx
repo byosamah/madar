@@ -33,7 +33,8 @@ describe('the Admin page', () => {
     const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
-    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in English *'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in Arabic *'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
@@ -113,14 +114,14 @@ describe('the Admin page', () => {
       state.users.usr_001.preferences.language = 'ar';
       state.users.usr_001.gender = 'female';
     };
-    // Each template list has its own section now (owner, 2026-10-05).
+    // Each template list has its own section now (owner, 2026-10-05). The Arabic screen names her in Arabic (owner item 12).
     const stages = await renderApp('/admin/stage-templates', asArabicWoman);
-    expect((await screen.findAllByText('حفظته Hala Nasser')).length).toBeGreaterThan(0);
-    expect(screen.queryByText('حفظه Hala Nasser')).toBeNull();
+    expect((await screen.findAllByText('حفظته هالة ناصر')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('حفظه هالة ناصر')).toBeNull();
     stages.unmount();
     await renderApp('/admin/task-templates', asArabicWoman);
-    expect((await screen.findAllByText('حفظتها Hala Nasser')).length).toBeGreaterThan(0);
-    expect(screen.queryByText('حفظها Hala Nasser')).toBeNull();
+    expect((await screen.findAllByText('حفظتها هالة ناصر')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('حفظها هالة ناصر')).toBeNull();
   });
 
   it('saves the office settings', async () => {
@@ -196,7 +197,8 @@ describe('the Admin page', () => {
     const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
-    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in English *'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in Arabic *'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
     await userEvent.selectOptions(within(sheet).getByLabelText('Form of address in Arabic'), 'female');
@@ -399,7 +401,8 @@ describe('the Admin page for Management and Accounting', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     const role = within(sheet).getByLabelText('Role');
     expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Admin']);
-    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in English *'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in Arabic *'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Finance');
     await userEvent.selectOptions(role, 'accounting');
@@ -417,7 +420,8 @@ describe('the Admin page for Management and Accounting', () => {
     await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     expect(within(within(sheet).getByLabelText('Role')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting']);
-    await userEvent.type(within(sheet).getByLabelText('Name'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in English *'), 'Nora Salem');
+    await userEvent.type(within(sheet).getByLabelText('Name in Arabic *'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Landscape');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));

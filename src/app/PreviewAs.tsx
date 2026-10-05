@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { PROTOTYPE } from './mode';
+import { usePersonName } from './personName';
 import { useAction, useCall } from './runtime';
 
 /** Prototype control: shows the app as another person (spec 3.3). The real build has sign-in instead, so it draws nothing there. */
@@ -9,6 +10,7 @@ export function PreviewAs({ id }: { id: string }) {
 
 function PreviewAsControl({ id }: { id: string }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const session = useCall('session.get', {});
   const previewAs = useAction('session.previewAs');
   if (!session.data) return null;
@@ -26,7 +28,7 @@ function PreviewAsControl({ id }: { id: string }) {
       >
         {session.data.previewUsers.map((user) => (
           <option key={user.id} value={user.id}>
-            {`${user.name} · ${user.actingForName ? t('preview.agentFor', { name: user.actingForName }) : t(`preview.hint.${user.hint}`)}`}
+            {`${nameOf(user)} · ${user.actingForName ? t('preview.agentFor', { name: nameOf({ name: user.actingForName, nameAr: user.actingForNameAr }) }) : t(`preview.hint.${user.hint}`)}`}
           </option>
         ))}
       </select>

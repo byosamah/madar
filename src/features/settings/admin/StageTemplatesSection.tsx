@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useUndoable } from '../../../app/actions';
+import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
@@ -8,6 +9,7 @@ import { actorContext } from '../../../lib/grammar';
 /** The saved stage lists of the office. The Admin deletes any of them. */
 export function StageTemplatesSection() {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const templates = useCall('stageTemplates.list', {});
   const remove = useUndoable('stageTemplates.delete', { message: () => t('stageTemplates.deleted') });
   return (
@@ -21,7 +23,7 @@ export function StageTemplatesSection() {
             <div className="min-w-0 flex-1">
               <p className="font-semibold"><bdi>{template.name}</bdi></p>
               <p className="text-footnote text-ink-2"><bdi>{template.stages.join(' · ')}</bdi></p>
-              <p className="text-footnote text-ink-2">{t('stageTemplates.savedBy', { name: template.createdByName, context: actorContext({ gender: template.createdByGender }) })}</p>
+              <p className="text-footnote text-ink-2">{t('stageTemplates.savedBy', { name: nameOf({ name: template.createdByName, nameAr: template.createdByNameAr }), context: actorContext({ gender: template.createdByGender }) })}</p>
             </div>
             <Menu
               label={t('stageTemplates.actions', { name: template.name })}

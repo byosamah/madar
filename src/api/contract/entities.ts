@@ -85,11 +85,32 @@ export type Gender = z.infer<typeof Gender>;
 export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']);
 export type SystemRole = z.infer<typeof SystemRole>;
 
+/**
+ * The profile picture (owner item 10, 2026-10-05). The browser cuts it to a 128 px square and saves it as a data address,
+ * so no file store holds it. A data address of a WebP, JPEG or PNG picture, up to 24,000 characters.
+ */
+export const PICTURE_DATA = /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const PICTURE_DATA_MAX = 24_000;
+export const PICTURE_LINK_MAX = 2_000;
+/** A new picture value: picture data, an https address, or null for no picture. Every other value fails (no other scheme). */
+export const UserAvatarInput = z.union([
+  z.string().max(PICTURE_DATA_MAX).regex(PICTURE_DATA, 'Expected picture data of a WebP, JPEG or PNG picture.'),
+  z.string().max(PICTURE_LINK_MAX).regex(/^https:\/\/[^\s]+$/, 'Expected an https address.'),
+]).nullable();
+/** A saved picture value. A value saved before the rule above (up to 2,000 characters) still reads; the screens show only safe ones. */
+const UserAvatar = z.union([
+  z.string().max(PICTURE_DATA_MAX).regex(PICTURE_DATA),
+  z.string().max(PICTURE_LINK_MAX),
+]).nullable();
+
 export const User = z.object({
   id: UserId,
+  /** The English name. */
   name: z.string().trim().min(1).max(80),
+  /** The Arabic name (owner item 12, 2026-10-05). Optional, so people saved before it still read. An empty value means none. */
+  nameAr: z.string().trim().max(80).optional(),
   email: z.email(),
-  avatarUrl: z.string().max(2000).nullable(),
+  avatarUrl: UserAvatar,
   kind: z.enum(['human', 'agent']),
   systemRole: SystemRole,
   discipline: z.string().trim().min(1).max(40),
