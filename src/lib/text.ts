@@ -1,5 +1,9 @@
+import { KEY_PATTERN, OLD_CODE_PATTERN } from './projectCode';
+
 const MENTION = /@\[([^\]]{1,80})\]\((usr_\d{3,})\)/g;
-const PROJECT_LINK = /#([A-Z]{1,4}-\d{2}-\d{3,})\b/g;
+/** "#KH-26-014" (an old code) or "#260902AZT" (the key of a new code) links to the project (spec 7.2; owner, 2026-10-05). */
+const LINKED_CODE = `#(${OLD_CODE_PATTERN}|${KEY_PATTERN})\\b`;
+const PROJECT_LINK = new RegExp(LINKED_CODE, 'g');
 
 export function mentionedUserIds(body: string): string[] {
   return [...new Set([...body.matchAll(MENTION)].map((match) => match[2]))];
@@ -31,7 +35,7 @@ export type Segment =
   | { kind: 'mention'; name: string; userId: string }
   | { kind: 'project'; code: string };
 
-const TOKEN = /@\[([^\]]{1,80})\]\((usr_\d{3,})\)|#([A-Z]{1,4}-\d{2}-\d{3,})\b/g;
+const TOKEN = new RegExp(`${MENTION.source}|${LINKED_CODE}`, 'g');
 
 /** Splits a post into plain text, mentions and project links (spec 7.2), for display. */
 export function segmentsOf(body: string): Segment[] {
