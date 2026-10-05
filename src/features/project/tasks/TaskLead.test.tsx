@@ -40,6 +40,6 @@ describe('a new lead for a task (audit 2026-10-03, F-22)', () => {
     });
     const sheet = await screen.findByRole('dialog', { name: 'Facade details' });
     await userEvent.selectOptions(await within(sheet).findByLabelText('المسؤول الرئيسي'), 'usr_007');
-    expect(await screen.findByText(/^أصبحت Lina Mansour المسؤولة الرئيسية عن هذه المهمة/)).toBeInTheDocument();
+    expect(await screen.findByText(/^أصبحت لينا منصور المسؤولة الرئيسية عن هذه المهمة/)).toBeInTheDocument();
   });
 });

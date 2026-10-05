@@ -56,6 +56,11 @@ any screen work.
   English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
+- A person has an English name (`name`) and maybe an Arabic name (`nameAr`). Every spot that shows a person's name uses
+  `usePersonName()` (`app/personName.ts`, the name of the screen language), and lists of people sort with
+  `useByPersonName()`. A name that the server writes into a detail has an `Ar` twin: read it with `localName`.
+- A person card (`UserCard`) carries no picture data. `Avatar` takes the picture from `users.list` through
+  `app/pictures.tsx` (the app frame and the meeting view mount it).
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

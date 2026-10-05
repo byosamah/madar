@@ -7,6 +7,8 @@ const helpingInArabic = (state: State) => {
   state.session.currentUserId = 'usr_005';
   state.users.usr_005.preferences.language = 'ar';
   state.tasks.tsk_007.helperIds = ['usr_005'];
+  // A lead with an English name only, so the Arabic line holds a Latin name (owner item 12).
+  state.users.usr_006.nameAr = undefined;
 };
 const rowOf = async (title: string) => (await screen.findByText(title)).closest('li') as HTMLElement;
 

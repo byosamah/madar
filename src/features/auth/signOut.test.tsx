@@ -53,8 +53,9 @@ describe('sign out from the person menu (plan 5.1, client map 7.3)', () => {
       },
     });
     await waitFor(() => expect(document.documentElement.lang).toBe('ar'));
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'تسجيل الخروج' }));
+    // The Arabic screen names her in Arabic (owner item 12).
+    await userEvent.click((await screen.findAllByRole('button', { name: 'هالة ناصر' }))[0]);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'هالة ناصر' })).getByRole('button', { name: 'تسجيل الخروج' }));
     // The sign-in screen keeps the language of the tab.
     expect(await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول إلى مدار' })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('البريد الإلكتروني'), SAMPLE_ACCOUNTS.faisal.email);

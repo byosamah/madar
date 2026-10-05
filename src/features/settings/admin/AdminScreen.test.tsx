@@ -107,9 +107,10 @@ describe('the Admin page', () => {
       state.users.usr_001.preferences.language = 'ar';
       state.users.usr_001.gender = 'female';
     });
-    expect((await screen.findAllByText('حفظته Hala Nasser')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('حفظتها Hala Nasser').length).toBeGreaterThan(0);
-    expect(screen.queryByText('حفظه Hala Nasser')).toBeNull();
+    // The Arabic screen names her in Arabic (owner item 12).
+    expect((await screen.findAllByText('حفظته هالة ناصر')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('حفظتها هالة ناصر').length).toBeGreaterThan(0);
+    expect(screen.queryByText('حفظه هالة ناصر')).toBeNull();
   });
 
   it('saves the office settings', async () => {

@@ -20,21 +20,22 @@ function at(day: string, hour = 9, minute = 0): string {
 }
 
 // Invented people and clients. usr_001 to usr_008 in this order, then the agent as usr_009.
-const PEOPLE: { name: string; admin?: boolean; discipline: string; gender: 'female' | 'male' }[] = [
-  { name: 'Hala Nasser', admin: true, discipline: 'Architect', gender: 'female' },
-  { name: 'Faisal Al-Harbi', discipline: 'Architect', gender: 'male' },
-  { name: 'Reem Al-Ghamdi', discipline: 'Architect', gender: 'female' },
-  { name: 'Omar Haddad', discipline: 'Structural', gender: 'male' },
-  { name: 'Sara Al-Qahtani', discipline: 'Architect', gender: 'female' },
-  { name: 'Yousef Saleh', discipline: 'MEP', gender: 'male' },
-  { name: 'Lina Mansour', discipline: 'Interior', gender: 'female' },
-  { name: 'Khalid Al-Mutairi', discipline: 'Structural', gender: 'male' },
+// Each person has an English and an Arabic name (owner item 12, 2026-10-05).
+const PEOPLE: { name: string; nameAr: string; admin?: boolean; discipline: string; gender: 'female' | 'male' }[] = [
+  { name: 'Hala Nasser', nameAr: 'هالة ناصر', admin: true, discipline: 'Architect', gender: 'female' },
+  { name: 'Faisal Al-Harbi', nameAr: 'فيصل الحربي', discipline: 'Architect', gender: 'male' },
+  { name: 'Reem Al-Ghamdi', nameAr: 'ريم الغامدي', discipline: 'Architect', gender: 'female' },
+  { name: 'Omar Haddad', nameAr: 'عمر حداد', discipline: 'Structural', gender: 'male' },
+  { name: 'Sara Al-Qahtani', nameAr: 'سارة القحطاني', discipline: 'Architect', gender: 'female' },
+  { name: 'Yousef Saleh', nameAr: 'يوسف صالح', discipline: 'MEP', gender: 'male' },
+  { name: 'Lina Mansour', nameAr: 'لينا منصور', discipline: 'Interior', gender: 'female' },
+  { name: 'Khalid Al-Mutairi', nameAr: 'خالد المطيري', discipline: 'Structural', gender: 'male' },
 ];
 
 // The two office roles of colleague comments 6 and 13. They come after the agent, so the ids of the first nine users stay as they were.
-const OFFICE_ROLES: { name: string; role: 'management' | 'accounting'; discipline: string; gender: 'female' | 'male' }[] = [
-  { name: 'Turki Al-Otaibi', role: 'management', discipline: 'Management', gender: 'male' },
-  { name: 'Noura Al-Shammari', role: 'accounting', discipline: 'Accounting', gender: 'female' },
+const OFFICE_ROLES: { name: string; nameAr: string; role: 'management' | 'accounting'; discipline: string; gender: 'female' | 'male' }[] = [
+  { name: 'Turki Al-Otaibi', nameAr: 'تركي العتيبي', role: 'management', discipline: 'Management', gender: 'male' },
+  { name: 'Noura Al-Shammari', nameAr: 'نورة الشمري', role: 'accounting', discipline: 'Accounting', gender: 'female' },
 ];
 
 export function sampleEmail(name: string): string {
@@ -623,7 +624,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const humans = PEOPLE.map((person) => {
     const id = nextId(state, 'usr');
     const user: User = {
-      id, name: person.name, email: sampleEmail(person.name), avatarUrl: null, kind: 'human',
+      id, name: person.name, nameAr: person.nameAr, email: sampleEmail(person.name), avatarUrl: null, kind: 'human',
       systemRole: person.admin ? 'admin' : 'member', discipline: person.discipline, active: true, ownerId: null,
       preferences: defaultPreferences(), gender: person.gender,
     };
@@ -638,7 +639,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
   const accountant = OFFICE_ROLES.map((person) => {
     const id = nextId(state, 'usr');
     const user: User = {
-      id, name: person.name, email: sampleEmail(person.name), avatarUrl: null, kind: 'human', systemRole: person.role,
+      id, name: person.name, nameAr: person.nameAr, email: sampleEmail(person.name), avatarUrl: null, kind: 'human', systemRole: person.role,
       discipline: person.discipline, active: true, ownerId: null, preferences: defaultPreferences(), gender: person.gender,
     };
     state.users[id] = user;

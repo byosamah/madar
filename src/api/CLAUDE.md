@@ -13,6 +13,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `store.ts`, `persist.ts`: the prototype store in IndexedDB. `remote/`: the client of the real build (batcher, wire, keys).
 
 ## Rules
+- `User.avatarUrl` takes picture data (WebP, JPEG or PNG, up to 24,000 characters) or an https address (`UserAvatarInput`).
+  `userCard()` leaves picture data out, so lists stay small. `User.nameAr` is the Arabic name; an empty value means none.
 - `src/api` never imports `server/` or `src/app/`.
 - The output is checked inside the change, so a wrong shape rolls it back (`execute.ts`).
 - One permission function: `can()`. No screen and no handler checks a right another way. An agent acts with its owner's

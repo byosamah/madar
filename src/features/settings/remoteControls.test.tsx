@@ -84,7 +84,8 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     for (const language of ['en', 'ar'] as const) {
       const { container, unmount } = await renderAuth('/admin', { auth: signedIn(), routes: only(<PeopleSection />), answer: waiting, language });
       const people = await screen.findByRole('heading', { level: 2 });
-      const faisal = (await screen.findByText('Faisal Al-Harbi')).closest('li')!;
+      // An Arabic screen names him in Arabic (owner item 12).
+      const faisal = (await screen.findByText(language === 'ar' ? 'فيصل الحربي' : 'Faisal Al-Harbi')).closest('li')!;
       expect(await within(faisal).findByText(language === 'ar' ? 'مدعو' : 'Invited')).toBeInTheDocument();
       expect(screen.queryByRole('alert')).toBeNull();
       // One main button for the section (Add person); each row has only its Actions menu.
@@ -95,7 +96,7 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
       if (language === 'ar') {
         await userEvent.click(within(faisal).getByRole('button'));
         await userEvent.click(await screen.findByRole('menuitem', { name: 'إرسال الدعوة مرة أخرى' }));
-        expect(await screen.findByText('الدعوة في طريقها إلى Faisal Al-Harbi.')).toBeInTheDocument();
+        expect(await screen.findByText('الدعوة في طريقها إلى فيصل الحربي.')).toBeInTheDocument();
       }
       unmount();
     }
@@ -227,7 +228,7 @@ describe('Admin, People in the remote build: calm checks', () => {
     });
     expect(await screen.findByRole('heading', { level: 2, name: 'الأشخاص' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
-    await within((await screen.findByText('Faisal Al-Harbi')).closest('li')!).findByText('مدعو');
+    await within((await screen.findByText('فيصل الحربي')).closest('li')!).findByText('مدعو');
     expectCalm(arabic.container, { titleLevel: 2 });
   });
 
@@ -236,7 +237,7 @@ describe('Admin, People in the remote build: calm checks', () => {
       auth: signedIn(), routes: only(<PeopleSection />), language: 'ar',
       answer: (name) => (name === 'users.invites' ? [{ userId: 'usr_001', state: 'invited', sentAt: null }] : undefined),
     });
-    const hala = (await screen.findByText('Hala Nasser')).closest('li')!;
+    const hala = (await screen.findByText('هالة ناصر')).closest('li')!;
     expect(await within(hala).findByText('مدعوة')).toBeInTheDocument();
   });
 });
