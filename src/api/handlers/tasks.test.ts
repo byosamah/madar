@@ -20,7 +20,7 @@ describe('tasks.create', () => {
   it('lets a team member add a task for themselves', async () => {
     const t = testApi(taskCalls);
     t.as('usr_003');
-    const detail = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Roof plan' });
+    const detail = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Roof plan', ownerId: 'usr_003' });
     expect(detail.task).toMatchObject({ ownerId: 'usr_003', stageId: 'stg_001', status: 'todo', needsReview: true });
     expect(notices(t.store, 'task_assigned', 'usr_003')).toHaveLength(0);
   });
@@ -157,7 +157,7 @@ describe('agents', () => {
   it('act with the rights of their person', async () => {
     const t = withTask();
     t.as('usr_005');
-    const created = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Area check' });
+    const created = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Area check', ownerId: 'usr_003' });
     expect(created.task).toMatchObject({ ownerId: 'usr_003', createdBy: 'usr_005' });
     await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_002' })).rejects.toMatchObject({ code: 'forbidden' });
     expect((await t.api.call('tasks.complete', { id: 'tsk_001' })).result).toBe('in_review');

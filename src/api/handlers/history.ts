@@ -4,7 +4,7 @@ import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event,
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, NOT_UNDOABLE, undoEvent } from '../events';
-import { assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
+import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
@@ -111,6 +111,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'task.reply_unlinked') return need('content.post');
       if (event.verb === 'task.created' || event.verb === 'task.deleted') return need('task.delete');
       if (event.verb === 'task.approved') return need('task.review');
+      // The person who took a task with no lead may give it back (owner, 2026-10-05).
+      if (event.verb === 'task.reassigned' && fieldsOf(event.before).ownerId === null && fieldsOf(event.after).ownerId === ctx.authority.id) return need('task.take');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
       const current = ctx.state.tasks[event.targetId];
       // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.
@@ -260,6 +262,14 @@ function settle(ctx: Ctx, events: Event[], correlationId: string): void {
   for (const projectId of new Set(events.map((event) => event.projectId))) if (projectId) resyncStage(ctx, projectId);
 }
 
+/** An Undo never leaves a task in review or done with no lead (owner, 2026-10-05). The refusal rolls the whole call back. */
+function assertFinishedHaveLead(ctx: Ctx, events: Event[]): void {
+  for (const event of events) {
+    const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
+    if (task && (task.status === 'done' || task.status === 'in_review')) assertHasLead(task);
+  }
+}
+
 /** A story that is wholly taken back takes its notices with it, so no badge points at a change that did not happen (audit 2026-10-03, API-13). */
 function dropNotices(ctx: Ctx, correlationId: string): void {
   const kept = Object.values(ctx.state.events).some((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
@@ -274,6 +284,7 @@ export const eventsUndo = defineCall({
     const event = ctx.state.events[input.eventId];
     if (!event) throw notFound('Event', input.eventId);
     const view = undoOne(ctx, event, true);
+    assertFinishedHaveLead(ctx, [event]);
     settle(ctx, [event], event.correlationId);
     dropNotices(ctx, event.correlationId);
     return view;
@@ -308,6 +319,7 @@ export const eventsUndoStory = defineCall({
       const task = ctx.state.tasks[id];
       if (task && task.status !== status && (task.status === 'done' || task.status === 'in_review')) assertMayFinish(ctx.state, task);
     }
+    assertFinishedHaveLead(ctx, story);
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
     return { undone };

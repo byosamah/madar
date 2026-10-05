@@ -259,7 +259,7 @@ describe('the automatic stage tag', () => {
   it('keeps the saved value in step on every write that changes tasks', async () => {
     const t = world();
     const saved = () => t.store.state.projects.prj_001.currentStageId;
-    const a = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_002', title: 'One' });
+    const a = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_002', title: 'One', ownerId: 'usr_003' });
     expect(saved()).toBe('stg_002');
     await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_003', title: 'Two' });
     expect(saved()).toBe('stg_002');
@@ -315,7 +315,7 @@ describe('the reason for moving back', () => {
     put(t, 'tsk_002', { stageId: 'stg_002' });
     await t.api.call('tasks.update', { id: 'tsk_002', patch: { title: 'Renamed' } });
     await expect(t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_001', title: 'Early' })).rejects.toMatchObject({ details: { reason: 'stage_back_reason' } });
-    const made = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_001', title: 'Early', reason: 'A late brief item' });
+    const made = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_001', title: 'Early', reason: 'A late brief item', ownerId: 'usr_003' });
     expect(t.store.state.projects.prj_001.stageBack).toMatchObject({ toStageId: 'stg_001', reason: 'A late brief item' });
     await t.api.call('tasks.complete', { id: made.task.id });
     put(t, 'tsk_003', { stageId: 'stg_003' });

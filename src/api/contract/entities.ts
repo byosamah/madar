@@ -269,7 +269,8 @@ export const Task = z.object({
   stageId: StageId,
   title: z.string().trim().min(1).max(200),
   description: z.string().max(5000),
-  ownerId: UserId,
+  /** The lead. Null: the task has no lead yet (owner, 2026-10-05). A task with no lead cannot finish. Old records keep a string. */
+  ownerId: UserId.nullable(),
   status: TaskStatus,
   dueDate: Day.nullable(),
   // Optional, so an office saved before start dates still loads: missing means no start, static, no duration.

@@ -125,7 +125,7 @@ describe('Only a forward stage move tells the team (audit 2026-10-03, API-15)', 
     t.store.state.tasks.tsk_002 = makeTask({ id: 'tsk_002', stageId: 'stg_002', ownerId: 'usr_003', title: 'SD work' });
     t.store.state.counters.tsk = 2;
     t.as('usr_002');
-    const made = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_001', title: 'Fix a concept sketch', reason: 'Client asked for a change' });
+    const made = await t.api.call('tasks.create', { projectId: 'prj_001', stageId: 'stg_001', title: 'Fix a concept sketch', reason: 'Client asked for a change', ownerId: 'usr_002' });
     const told = () => Object.values(t.store.state.notifications).filter((n) => n.userId === 'usr_003' && n.trigger === 'stage_changed');
     expect(told()).toHaveLength(0);
     await t.api.call('tasks.complete', { id: made.task.id });

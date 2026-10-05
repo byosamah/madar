@@ -163,12 +163,13 @@ describe('tasks.createFromTemplate', () => {
     return t;
   }
 
-  it('makes the task with the template fields and the checklist unticked', async () => {
+  it('makes the task with the template fields, no lead, and the checklist unticked', async () => {
     const t = await withTemplate();
     t.as('usr_003');
     const made = await t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002' });
     expect(made.task).toMatchObject({
-      title: 'Floor plans set', description: 'All levels.', status: 'todo', ownerId: 'usr_003', stageId: 'stg_002', projectId: 'prj_001',
+      // A template names no person, so the task has no lead (owner, 2026-10-05).
+      title: 'Floor plans set', description: 'All levels.', status: 'todo', ownerId: null, stageId: 'stg_002', projectId: 'prj_001',
     });
     // Security: only the leader or the Admin may skip the review step, so a team member's task from a template keeps it.
     expect(made.task.needsReview).toBe(true);

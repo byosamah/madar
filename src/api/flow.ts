@@ -27,13 +27,20 @@ export function stageTag(state: State, projectId: string): Stage | null {
 const names = (items: { title?: string; name?: string }[]): string => items.map((item) => item.title ?? item.name ?? '').join(', ');
 
 /** A task is finished (done, or sent to review) only when every task and every stage it needs is done. The refusal names what is open. */
-/** True when no task and no stage that the task needs is open. */
+/** True when the task has a lead and no task and no stage that the task needs is open. */
 export function mayFinish(state: State, task: Task): boolean {
+  if (task.ownerId === null) return false;
   const tasks = tasksOfProject(state, task.projectId);
   return openPrerequisites(task, tasks).length === 0 && openPrerequisiteStages(task, stagesOf(state, task.projectId), tasks).length === 0;
 }
 
+/** A task with no lead cannot finish or wait for review (owner, 2026-10-05). Somebody must take it first. */
+export function assertHasLead(task: Pick<Task, 'ownerId'>): void {
+  if (task.ownerId === null) throw invalid('ownerId', 'This task has no lead. Give it a lead first.', 'needs_lead');
+}
+
 export function assertMayFinish(state: State, task: Task): void {
+  assertHasLead(task);
   const tasks = tasksOfProject(state, task.projectId);
   const open = openPrerequisites(task, tasks);
   if (open.length > 0) {
