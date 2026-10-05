@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../app/lang';
-import { ClearDate, DateFace, dateInputClass, quietDay } from './DateField';
+import { ClearDate, DATE_BOX, DateFace, dateInputClass, quietDay } from './DateField';
 
 type Props = {
   id: string;
@@ -92,7 +92,7 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
       <label htmlFor={id} className={hideLabel ? 'sr-only' : 'field-label'}>{label}</label>
-      <div className="relative min-h-11">
+      <div className={DATE_BOX}>
         <input
           ref={input}
           id={id}

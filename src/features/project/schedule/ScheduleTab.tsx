@@ -234,8 +234,8 @@ function StageDates({ detail }: TabProps) {
           {/* The column names, once. Each date field also has its full label ("Start of Permits") for a screen reader. */}
           <div aria-hidden className={`${DATE_ROW} mt-3 text-footnote font-medium text-ink-2`}>
             <span className="hidden sm:block" />
-            <span className="ps-3">{t('schedule.startColumn')}</span>
-            <span className="ps-3">{t('schedule.endColumn')}</span>
+            <span className="ps-[15px]">{t('schedule.startColumn')}</span>
+            <span className="ps-[15px]">{t('schedule.endColumn')}</span>
           </div>
           <ul className="hairline mt-1">
             {detail.stages.map((stage) => (

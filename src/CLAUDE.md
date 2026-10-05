@@ -65,8 +65,12 @@ any screen work.
   English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
-- A required field: `required` on `TextField`, `SelectField` or `TextArea` shows an asterisk after the label and a hidden
-  "required" word in the description. The label text stays the field name, and the browser never checks the field.
+- Dates: a date that saves itself uses `DateDraftField`. A date in a form that saves with its own button uses `DateField`
+  (`components/DateField.tsx`). Both show "Set date…" when empty. Only the Tracker quick log keeps a raw date field (its
+  date is never empty and has no label).
+- A required field: `required` on `TextField`, `SelectField`, `TextArea` or `DateField` shows an asterisk after the label
+  and a hidden "required" word in the description. The label text stays the field name, and the browser never checks
+  the field.
 - A project code shows as its key (`projectKey`) in lists and rows, and in full in the project header and About.
 - A person has an English name (`name`) and maybe an Arabic name (`nameAr`). Every spot that shows a person's name uses
   `usePersonName()` (`app/personName.ts`, the name of the screen language), and lists of people sort with
@@ -89,3 +93,5 @@ any screen work.
 - Run `npm test` alone. Next to a build or Playwright, screen tests time out.
 - `DateDraftField` (`components/DateDraftField.tsx`): a change event with no focus counts as a pick from the date picker and
   saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.
+- `DateField` gives every change to the form at once, so `fireEvent.change` on the input by its label works as before. A
+  focus with no press (the keyboard, or the form that moves to an error) shows the full field until the blur.

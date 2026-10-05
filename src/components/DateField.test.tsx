@@ -137,7 +137,7 @@ describe('DateField: a date in a form that saves with its own button', () => {
     const field = screen.getByLabelText('Start date');
     expect(field).toHaveAttribute('aria-invalid', 'true');
     expect(field).toHaveAccessibleDescription('The end date must be after the start date.');
-    expect(screen.getByText('Set date…').parentElement?.className).toMatch(/shadow-\[inset/);
+    expect(screen.getByText('Set date…').parentElement).toHaveClass('border-late');
   });
 
   it('takes a mark and a description from a message elsewhere on the form', () => {

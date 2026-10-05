@@ -12,6 +12,12 @@ export function quietDay(day: string, lang: Lang): string {
   return formatDay(day, lang, day.slice(0, 4) === todayISO().slice(0, 4) ? 'short' : 'shortYear');
 }
 
+/**
+ * The box of a date: the quiet look with the real date field on top. At most 12rem wide, so in a wide column the clear control
+ * stays near its date and does not float at the far end.
+ */
+export const DATE_BOX = 'relative min-h-11 max-w-48';
+
 /** The real date field: on top of the quiet look without colour, or the full field while a person types a date. */
 export function dateInputClass(typing: boolean): string {
   return typing ? 'field min-h-11' : 'peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-default';
@@ -20,13 +26,16 @@ export function dateInputClass(typing: boolean): string {
 /**
  * The quiet look under the real date field: the short date, or "Set date…" in the quiet grey. It takes the hover fill and the focus
  * ring of the date field above it. An invalid date gets a red edge, as every invalid field does.
+ *
+ * It has the box of a field without the fill: the same height, corners, 1 px edge and 14 px side space. So its text lines up with
+ * the text of the fields above and below it (owner, 2026-10-05: "and the alignment").
  */
 export function DateFace({ shown, roomForClear, invalid }: { shown: string; roomForClear: boolean; invalid?: boolean }) {
   const { t } = useTranslation();
   return (
     <span
       aria-hidden
-      className={`pointer-events-none flex min-h-11 items-center rounded-xl ps-3 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3'} ${invalid ? 'shadow-[inset_0_0_0_1px_var(--color-late)]' : ''}`}
+      className={`pointer-events-none flex min-h-11 items-center rounded-xl border ps-3.5 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3.5'} ${invalid ? 'border-late' : 'border-transparent'}`}
     >
       {shown ? <span className="tabular truncate text-ink">{shown}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
     </span>
@@ -107,7 +116,7 @@ export function DateField({
   const canClear = clearable && value !== '' && !disabled;
   return (
     <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
-      <div className="relative min-h-11">
+      <div className={DATE_BOX}>
         <input
           ref={input}
           id={id}
