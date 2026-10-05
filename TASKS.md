@@ -205,7 +205,9 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] Track profile: profile picture (10), English and Arabic names for each person (12)
 - [x] Merge wave 1 (admin, lead, fix, clients, profile), register the Clients section. npm test 3705 passed; typecheck, build, build:server, build:remote test pass
 - [x] Small follow-ups: the created toast shows the project key; Team tab names keep their width at 390 px (the discipline field takes its own line); Add client is a plain button, so Create project stays the one main button
-- [ ] The date fields that save with a form button get the "Set date..." look (fix-dates track)
+- [x] The date fields that save with a form button get the "Set date..." look (DateField; the Tracker quick log keeps its native date on purpose)
+- [x] Payments: a fixed field loses its message at once (it stayed until the next Save)
+- [ ] Follow-ups: prototype smoke and phone screenshots, then the test copy, then production after the owner's OK
 - [x] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a). Migration 20261005000100_project_templates.sql (checked in PGlite only)
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
 - [x] Prototype smoke on the batch branch: 87 of 87 (one spec took the Arabic name)
