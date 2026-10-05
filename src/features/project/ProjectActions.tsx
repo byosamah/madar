@@ -14,6 +14,7 @@ import { Sheet } from '../../components/Sheet';
 import { fieldError } from '../../app/errors';
 import { todayISO, addDays } from '../../lib/dates';
 import { EditProjectSheet } from '../projects/EditProjectSheet';
+import { projectKey } from '../../lib/projectCode';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -78,7 +79,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
         </>
       )}
     >
-      <p dir="auto" className="tabular text-subheadline text-label-2">{detail.project.code} · {detail.project.name}</p>
+      <p dir="auto" className="tabular text-subheadline text-label-2">{projectKey(detail.project.code)} · {detail.project.name}</p>
     </Sheet>
   );
 }

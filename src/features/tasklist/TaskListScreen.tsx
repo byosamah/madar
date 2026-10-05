@@ -13,6 +13,7 @@ import { dayParam, oneOf, teamParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
+import { projectKey } from '../../lib/projectCode';
 
 const FILTERS = ['all', 'overdue', 'flagged'] as const;
 const USER_ID = /^usr_\d{3,}$/;
@@ -60,7 +61,7 @@ function DeadlineList({ from, to }: { from?: string; to?: string }) {
             <li key={row.deadline.id}>
               <Link to={`/projects/${row.project.id}?tab=schedule`} className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-3 py-2 hover:bg-fill">
                 <span className="min-w-0 flex-1">
-                  <span className="tabular block text-footnote text-label-2">{row.project.code} · <bdi>{row.project.name}</bdi></span>
+                  <span className="tabular block text-footnote text-label-2">{projectKey(row.project.code)} · <bdi>{row.project.name}</bdi></span>
                 </span>
                 <NextDeadlineLabel deadline={{ id: row.deadline.id, name: row.deadline.name, date: row.deadline.date, daysLeft: row.daysLeft }} />
               </Link>

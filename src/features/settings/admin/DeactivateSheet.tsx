@@ -13,6 +13,7 @@ import { Sheet } from '../../../components/Sheet';
 import { actorContext, counted } from '../../../lib/grammar';
 import { taskLink } from '../../../lib/params';
 import { isLive } from '../../../lib/overview';
+import { projectKey } from '../../../lib/projectCode';
 
 /** The sheet names this many open tasks. The count in its heading tells the rest. */
 const SHOWN = 8;
@@ -103,7 +104,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
                 <li key={project.id}>
                   {/* The Team tab is where the leader changes. */}
                   <Link to={`/projects/${project.id}?tab=team`} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
-                    <span className="tabular text-footnote text-label-2">{project.code}</span>
+                    <span className="tabular text-footnote text-label-2">{projectKey(project.code)}</span>
                     <bdi className="min-w-0 flex-1 truncate">{project.name}</bdi>
                   </Link>
                 </li>

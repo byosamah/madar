@@ -18,6 +18,7 @@ import { ExportSheet } from './ExportSheet';
 import { History } from './History';
 import { OpenLoops } from './OpenLoops';
 import { QuickLog } from './QuickLog';
+import { projectKey } from '../../../lib/projectCode';
 
 type Filter = { type: TrackerType | 'all'; direction: TrackerDirection | 'all'; openOnly: boolean };
 const TYPES = ['all', ...TRACKER_TYPES] as const;
@@ -128,7 +129,7 @@ export function TrackerTab({ detail }: TabProps) {
       {exporting && (
         <ExportSheet
           projectId={projectId}
-          code={detail.project.code}
+          code={projectKey(detail.project.code)}
           type={filter.type === 'all' ? undefined : filter.type}
           side={filter.direction === 'all' ? undefined : filter.direction}
           onClose={() => setExporting(false)}
