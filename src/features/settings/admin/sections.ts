@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { SystemRole } from '../../../api/contract/entities';
 import { REMOTE } from '../../../app/mode';
+import { ClientsSection } from './ClientsSection';
 import { FeedbackSection } from './FeedbackSection';
 import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
@@ -37,6 +38,7 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin', 'management'], Component: PeopleSection },
   { id: 'teams', group: 'people', titleKey: 'teams.title', roles: ['admin', 'management'], Component: TeamsSection },
   { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], Component: OfficeSection },
+  { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], Component: ClientsSection },
   { id: 'stage-templates', group: 'templates', titleKey: 'stageTemplates.title', roles: ['admin'], Component: StageTemplatesSection },
   { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], Component: TaskTemplatesSection },
   { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], Component: FeedbackSection },

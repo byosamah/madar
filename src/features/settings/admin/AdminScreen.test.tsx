@@ -219,7 +219,7 @@ describe('the Admin side list', () => {
     await renderApp('/admin');
     expect(groupsOf(await sectionList())).toEqual([
       { group: 'People', rows: ['People', 'Teams'] },
-      { group: 'Office', rows: ['Office settings'] },
+      { group: 'Office', rows: ['Office settings', 'Clients'] },
       { group: 'Templates', rows: ['Stage templates', 'Task templates'] },
       // Usage is a section of the real build only.
       { group: 'System', rows: ['Requests and bugs'] },
@@ -250,7 +250,7 @@ describe('the Admin side list', () => {
   });
 
   it('gives each section its own link', async () => {
-    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/stage-templates', 'Stage templates'], ['/admin/task-templates', 'Task templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
+    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/clients', 'Clients'], ['/admin/stage-templates', 'Stage templates'], ['/admin/task-templates', 'Task templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
       const view = await renderApp(path);
       expect(await region(name as string)).toBeInTheDocument();
       expect(within(await sectionList()).getByRole('link', { current: 'page' })).toHaveAttribute('href', `#${path}`);
@@ -323,7 +323,7 @@ describe('the Admin side list', () => {
       phone();
       const { router } = await renderApp('/admin');
       const list = await sectionList();
-      expect(within(list).getAllByRole('link')).toHaveLength(6);
+      expect(within(list).getAllByRole('link')).toHaveLength(7);
       expect(within(list).queryByRole('link', { current: 'page' })).toBeNull();
       expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Admin']);
       expect(screen.queryByRole('region', { name: 'People' })).toBeNull();

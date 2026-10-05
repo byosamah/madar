@@ -26,8 +26,8 @@ describe('the Admin section registry', () => {
   });
 
   it('gives the Admin every section in group order, and Usage only in the real build', () => {
-    expect(ids(sectionsFor('admin', false))).toEqual(['people', 'teams', 'office', 'stage-templates', 'task-templates', 'feedback']);
-    expect(ids(sectionsFor('admin', true))).toEqual(['people', 'teams', 'office', 'stage-templates', 'task-templates', 'feedback', 'usage']);
+    expect(ids(sectionsFor('admin', false))).toEqual(['people', 'teams', 'office', 'clients', 'stage-templates', 'task-templates', 'feedback']);
+    expect(ids(sectionsFor('admin', true))).toEqual(['people', 'teams', 'office', 'clients', 'stage-templates', 'task-templates', 'feedback', 'usage']);
   });
 
   it('gives Management People and Teams only, and Accounting and a member nothing', () => {
@@ -39,7 +39,7 @@ describe('the Admin section registry', () => {
   it('orders the sections by group, whatever the place of a line in the list', () => {
     // A section added at the end of the list (as the merge lead adds Clients) still shows inside its own group.
     const late = { id: 'late', group: 'office' as const, titleKey: 'admin.office', roles: ['admin' as const], Component: () => null };
-    expect(ids(sectionsFor('admin', false, [...ADMIN_SECTIONS, late]))).toEqual(['people', 'teams', 'office', 'late', 'stage-templates', 'task-templates', 'feedback']);
+    expect(ids(sectionsFor('admin', false, [...ADMIN_SECTIONS, late]))).toEqual(['people', 'teams', 'office', 'clients', 'late', 'stage-templates', 'task-templates', 'feedback']);
   });
 
   it('groups the sections for the list, and leaves out a group with no section for the role', () => {
