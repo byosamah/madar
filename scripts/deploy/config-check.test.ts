@@ -50,4 +50,10 @@ describe('checkRemoteConfig', () => {
     expect(checkRemoteConfig(on + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/Data API/);
     expect(checkRemoteConfig(`${base + remote('test', TEST)}\n[remotes.test.api]\nenabled = true\n`, 'test', TEST, [HOOK]).join('\n')).toMatch(/Data API/);
   });
+
+  it('refuses vector buckets: the free plan has none, and the config push stops with 402 (2026-10-05)', () => {
+    const on = base.replace(/\[storage\.vector\]\nenabled = false/, '[storage.vector]\nenabled = true');
+    expect(on).not.toBe(base);
+    expect(checkRemoteConfig(on + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/vector buckets/);
+  });
 });

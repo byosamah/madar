@@ -155,8 +155,9 @@ max_catalogs = 2
 # [storage.analytics.buckets.my-warehouse]
 
 # Store vector embeddings in S3 for large and durable datasets
+# Madar: off. The free plan has no vector buckets, and a config push with them on stops with 402 (2026-10-05).
 [storage.vector]
-enabled = true
+enabled = false
 max_buckets = 10
 max_indexes = 5
 

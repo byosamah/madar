@@ -23,6 +23,7 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - `scripts/deploy/all.sh <test|production>` runs every step in this order. Each step also runs alone:
   1. `db.sh`: pushes the new migrations. It links the CLI, pushes, and unlinks again.
   2. `config.sh`: pushes `supabase/config.toml` through the `[remotes.<env>]` block (`config-check.ts` checks it first).
+     The check refuses the Data API and vector buckets (the free plan has none; a push with them on stops with 402).
   3. `secrets.ts`: from `secrets/<env>.env`. It writes the Vault secrets, `platform_config.mcp_url`, the madar_server
      password (as a SCRAM verifier), and the function secrets. It prints names, never a value.
   4. `functions.sh`: builds the server bundles and deploys `api`, `mcp`, `jobs`. Then it asks `api/health` in Frankfurt.

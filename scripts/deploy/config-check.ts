@@ -53,6 +53,10 @@ export function checkRemoteConfig(toml: string, target: string, ref: string, mig
   for (const table of ['api', `${block}.api`]) {
     if (tables.get(table)?.get('enabled') === 'true') errors.push(`[${table}] turns the Data API on. It stays off in every project (plan, change 14).`);
   }
+  // The free plan has no vector buckets: a push of storage.vector.enabled = true stops with 402 (2026-10-05).
+  for (const table of ['storage.vector', `${block}.storage.vector`]) {
+    if (tables.get(table)?.get('enabled') === 'true') errors.push(`[${table}] turns vector buckets on. The free plan has none, and Madar does not use them.`);
+  }
 
   const hook = tables.get('auth.hook.custom_access_token');
   if (hook?.get('enabled') === 'true') {
