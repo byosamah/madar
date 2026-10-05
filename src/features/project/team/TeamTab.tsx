@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
+import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Avatar } from '../../../components/Avatar';
@@ -19,12 +20,13 @@ type Member = ProjectDetail['members'][number];
 function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: ProjectDetail; onMakeLeader: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const toast = useToast();
   const { user } = member;
   const [discipline, setDiscipline] = useState(member.discipline);
   useEffect(() => setDiscipline(member.discipline), [member.discipline]);
   const save = useAction('members.update', { onSuccess: () => toast.show({ message: t('team.disciplineSaved') }) });
-  const remove = useUndoable('members.remove', { message: () => t('team.removed', { name: user.name }) });
+  const remove = useUndoable('members.remove', { message: () => t('team.removed', { name: nameOf(user) }) });
   const edit = detail.viewerCan.edit;
   const items: MenuItem[] = [
     // "Make leader" hands the project over and has no Undo, so it opens the leader sheet: a pick, then Save (audit 2026-10-03, PRJ-21).
@@ -40,14 +42,14 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
     <li className="flex flex-wrap items-center gap-3 px-2 py-2">
       <Avatar user={user} size={36} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold"><bdi>{user.name}</bdi></p>
+        <p className="truncate font-semibold"><bdi>{nameOf(user)}</bdi></p>
         <p className="flex flex-wrap gap-x-3 text-footnote text-label-2">
           <span>{t('team.openTasks', { n: member.openTasks })}</span>
         </p>
       </div>
       {edit ? (
         <input
-          aria-label={t('team.discipline', { name: user.name })}
+          aria-label={t('team.discipline', { name: nameOf(user) })}
           value={discipline}
           dir="auto"
           onChange={(event) => setDiscipline(event.target.value)}
@@ -59,7 +61,7 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
         />
       ) : <span className="text-subheadline text-label-2">{member.discipline}</span>}
       <div className="size-11 shrink-0">
-        <Menu label={t('team.actions', { name: user.name })} items={items} />
+        <Menu label={t('team.actions', { name: nameOf(user) })} items={items} />
       </div>
     </li>
   );
@@ -67,10 +69,12 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
 
 function AddMember({ detail }: TabProps) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const toast = useToast();
   const users = useCall('users.list', {});
   const onTeam = new Set(detail.members.map((member) => member.user.id));
-  const candidates = (users.data ?? []).filter((user) => user.kind === 'human' && !onTeam.has(user.id));
+  const candidates = (users.data ?? []).filter((user) => user.kind === 'human' && !onTeam.has(user.id)).sort(byName);
   const [userId, setUserId] = useState('');
   const [discipline, setDiscipline] = useState('');
   const add = useAction('members.add');
@@ -86,7 +90,7 @@ function AddMember({ detail }: TabProps) {
             if (!person) return;
             add.mutate({ projectId: detail.project.id, userId, discipline: discipline.trim() || undefined }, {
               onSuccess: () => {
-                toast.show({ message: t('team.added', { name: person.name }) });
+                toast.show({ message: t('team.added', { name: nameOf(person) }) });
                 setUserId('');
                 setDiscipline('');
               },
@@ -103,7 +107,7 @@ function AddMember({ detail }: TabProps) {
             }}
           >
             <option value="" disabled>{t('team.person')}</option>
-            {candidates.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            {candidates.map((user) => <option key={user.id} value={user.id}>{nameOf(user)}</option>)}
           </SelectField>
           <TextField id="add-discipline" label={t('team.newDiscipline')} value={discipline} dir="auto" onChange={(event) => setDiscipline(event.target.value)} />
           <Button type="submit" disabled={!userId || add.isPending}>{t('common.add')}</Button>

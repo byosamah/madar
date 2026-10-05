@@ -9,6 +9,7 @@ import { useUndoable } from '../../../app/actions';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { ProjectTile } from '../../../components/ProjectTile';
@@ -49,6 +50,7 @@ function HelperLine({ name, context }: { name: string; context: string | undefin
 export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const toast = useToast();
   const [ticking, setTicking] = useState(false);
   const complete = useUndoable('tasks.complete', {
@@ -127,7 +129,7 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
           )}
         </span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
-          {helping && <HelperLine name={row.owner.name} context={actorContext(me)} />}
+          {helping && <HelperLine name={nameOf(row.owner)} context={actorContext(me)} />}
           {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
           {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
           {waiting && (

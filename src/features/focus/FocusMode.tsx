@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { isWaiting, waitingNames } from '../../lib/waiting';
 import type { TaskDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
@@ -21,6 +22,7 @@ import { CircleIcon } from '../../components/icons/animated/circle';
 
 function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const { task, project } = data;
   const [finished, setFinished] = useState(false);
   const page = useRef<HTMLDivElement>(null);
@@ -44,7 +46,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
   const state = task.status === 'done' ? t('taskStatus.done')
     : task.status === 'in_review' ? t('taskStatus.in_review')
     : waiting ? t('tasks.waitingFor', { names: waitingNames(data, lang) })
-    : !data.canMove ? `${t('taskSheet.owner')}: ${data.owner.name}`
+    : !data.canMove ? `${t('taskSheet.owner')}: ${nameOf(data.owner)}`
     : null;
   useEffect(() => setItems(task.checklist), [task.checklist]);
   // Focus moves into the page at once; a late exit after Done never fires once the page is gone.

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskTemplateRow } from '../../../api/handlers/taskTemplates';
 import { useUndoable } from '../../../app/actions';
+import { usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/Fields';
@@ -9,7 +10,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { actorContext } from '../../../lib/grammar';
 
-type Row = Pick<TaskTemplateRow, 'id' | 'name' | 'stageName' | 'checklist' | 'createdByName' | 'createdByGender' | 'canEdit'>;
+type Row = Pick<TaskTemplateRow, 'id' | 'name' | 'stageName' | 'checklist' | 'createdByName' | 'createdByNameAr' | 'createdByGender' | 'canEdit'>;
 
 /** A new name for a template, in the row. Enter saves, Escape leaves. */
 function RenameForm({ template, onDone }: { template: Row; onDone: () => void }) {
@@ -40,6 +41,7 @@ function RenameForm({ template, onDone }: { template: Row; onDone: () => void })
 /** The saved tasks of the office, grouped by stage. The person who saved one, and the Admin, rename or delete it. */
 export function TaskTemplatesSection() {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const templates = useCall('taskTemplates.list', {});
   const remove = useUndoable('taskTemplates.delete', { message: () => t('taskTemplates.deleted') });
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export function TaskTemplatesSection() {
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold"><bdi>{template.name}</bdi></p>
                     {template.checklist.length > 0 && <p className="text-footnote text-ink-2"><bdi>{template.checklist.join(' · ')}</bdi></p>}
-                    <p className="text-footnote text-ink-2">{t('taskTemplates.savedBy', { name: template.createdByName, context: actorContext({ gender: template.createdByGender }) })}</p>
+                    <p className="text-footnote text-ink-2">{t('taskTemplates.savedBy', { name: nameOf({ name: template.createdByName, nameAr: template.createdByNameAr }), context: actorContext({ gender: template.createdByGender }) })}</p>
                   </div>
                 )}
                 {renaming !== template.id && (

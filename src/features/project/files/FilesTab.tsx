@@ -9,6 +9,7 @@ import { newStoryId, useUndoable } from '../../../app/actions';
 import { canRetry, errorMessage } from '../../../app/errors';
 import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -24,6 +25,7 @@ import { ShareFileSheet } from './ShareFileSheet';
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const runtime = useRuntime();
   const { api } = runtime;
   const toast = useToast();
@@ -67,7 +69,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
             {isCover && <span className="shrink-0 rounded-full bg-fill px-2 text-caption text-label-2">{t('files.isCover')}</span>}
           </p>
           <p className="truncate text-footnote text-label-2">
-            <bdi>{view.uploader.name}</bdi> · <span className="tabular">{formatDay(stampDay(latest.uploadedAt), lang)} · {size}</span>
+            <bdi>{nameOf(view.uploader)}</bdi> · <span className="tabular">{formatDay(stampDay(latest.uploadedAt), lang)} · {size}</span>
           </p>
         </div>
         {file.versions.length > 1 && (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import type { FileView } from '../../../api/contract/views';
+import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -18,6 +19,8 @@ type Kind = 'project_chat' | 'person' | 'task';
  */
 export function ShareFileSheet({ view, projectId, projectName, onClose }: { view: FileView; projectId: string; projectName: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const toast = useToast();
   const navigate = useNavigate();
   const session = useCall('session.get', {});
@@ -28,14 +31,14 @@ export function ShareFileSheet({ view, projectId, projectName, onClose }: { view
   const [taskId, setTaskId] = useState('');
   const [message, setMessage] = useState('');
   const me = session.data?.authority.id;
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== me);
+  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== me).sort(byName);
   // The toast says where the file went, and Open goes there: the chat, or the conversation of the task (audit 2026-10-03, F-20).
   const share = useAction('files.share', {
     onSuccess: (place) => {
       const message = place.kind === 'project_chat'
         ? t('files.sharedChat', { project: projectName })
         : place.kind === 'person'
-          ? t('files.sharedPerson', { name: people.find((person) => person.id === userId)?.name ?? '' })
+          ? t('files.sharedPerson', { name: ((found) => (found ? nameOf(found) : ''))(people.find((person) => person.id === userId)) })
           : t('files.sharedTask', { title: tasks.data?.find((row) => row.task.id === place.id)?.task.title ?? '' });
       const to = place.kind === 'task' ? taskLink(projectId, place.id, true) : `/inbox/${place.id}`;
       toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to), isUndo: false } });
@@ -75,7 +78,7 @@ export function ShareFileSheet({ view, projectId, projectName, onClose }: { view
         {kind === 'person' && (
           <SelectField id="share-person" label={t('files.pickPerson')} value={userId} onChange={(event) => setUserId(event.target.value)}>
             <option value="">{t('files.sharePickPerson')}</option>
-            {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+            {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
           </SelectField>
         )}
         {kind === 'task' && (

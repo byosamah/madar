@@ -8,6 +8,7 @@ import { Age } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
+import { usePersonName } from '../../app/personName';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 
 type Row = CallOutput<'chats.list'>[number];
@@ -18,9 +19,17 @@ function Lead({ row }: { row: Row }) {
   return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>;
 }
 
+/** The title of a row: a direct chat shows the other person's name in the screen language (owner item 12). */
+function useTitleOf(): (row: Row) => string {
+  const nameOf = usePersonName();
+  return (row) => (row.kind === 'direct' && row.person ? nameOf(row.person) : row.title);
+}
+
 function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
   const { t } = useTranslation();
-  const by = row.previewMine ? t('chat.you') : row.previewAuthor?.name.split(' ')[0] ?? '';
+  const nameOf = usePersonName();
+  const titleOf = useTitleOf();
+  const by = row.previewMine ? t('chat.you') : row.previewAuthor ? nameOf(row.previewAuthor).split(' ')[0] : '';
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
   return (
@@ -33,7 +42,7 @@ function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
         <Lead row={row} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-baseline justify-between gap-2">
-            <bdi className={`min-w-0 truncate text-subheadline ${row.unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{row.title}</bdi>
+            <bdi className={`min-w-0 truncate text-subheadline ${row.unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{titleOf(row)}</bdi>
             <span className="shrink-0 text-footnote text-ink-2"><Age stamp={row.lastAt} /></span>
           </span>
           <span className="flex items-center justify-between gap-2">
@@ -63,7 +72,8 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const needle = normalizeForSearch(query);
-  const shown = needle === '' ? rows : rows.filter((row) => normalizeForSearch(`${row.title} ${row.project?.name ?? ''}`).includes(needle));
+  // A direct chat matches both names of the person (owner item 12).
+  const shown = needle === '' ? rows : rows.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
   return (
     <>
       <div className="relative p-3">

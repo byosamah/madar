@@ -24,7 +24,7 @@ export function ExportSheet({ projectId, code, type, side, onClose }: { projectI
   const lang = useLang();
   const toast = useToast();
   const rows = useCall('tracker.export', { projectId, ...(type && { type }), ...(side && { side }) }).data;
-  const table = rows ? exportTable(rows, t) : null;
+  const table = rows ? exportTable(rows, t, lang) : null;
   const filtered = type !== undefined || side !== undefined;
 
   const copy = async () => {

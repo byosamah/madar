@@ -52,10 +52,14 @@ export function plainText(body: string): string {
   return body.replace(MENTION, (_match, name: string) => `@${name}`);
 }
 
-/** Turns "@Name" into mention markup for each picked person. Longer names go first, so "@Sara Al-Qahtani" wins over "@Sara". */
-export function withMentionMarkup(text: string, people: { id: string; name: string }[]): string {
+/**
+ * Turns "@Name" into mention markup for each picked person, with the English or the Arabic name (owner item 12). Longer names
+ * go first, so "@Sara Al-Qahtani" wins over "@Sara".
+ */
+export function withMentionMarkup(text: string, people: { id: string; name: string; nameAr?: string | null }[]): string {
+  const names = people.flatMap((person) => [person.name, person.nameAr?.trim() ?? ''].filter(Boolean).map((name) => ({ id: person.id, name })));
   let out = text;
-  for (const person of [...people].sort((a, b) => b.name.length - a.name.length)) {
+  for (const person of names.sort((a, b) => b.name.length - a.name.length)) {
     out = out.split(`@${person.name}`).join(mentionMarkup(person.name, person.id));
   }
   return out;

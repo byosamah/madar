@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { useLang } from '../../app/lang';
+import { useByPersonName, usePersonName } from '../../app/personName';
 import { Avatar } from '../../components/Avatar';
 import { addDays, formatDay, formatNumber } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
@@ -10,7 +11,11 @@ import { withTeam, type DashboardData } from './Tiles';
 export function Workload({ view, teamId }: { view: DashboardData; teamId?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { weeks, limit, rows } = view.workload;
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
+  const { weeks, limit } = view.workload;
+  // The rows in the order of the shown names (owner item 12).
+  const rows = [...view.workload.rows].sort((a, b) => byName(a.user, b.user));
   return (
     <section aria-labelledby="dash-workload" className="panel flex flex-col gap-2 p-5">
       <h2 id="dash-workload" className="text-headline text-ink">{t('dashboard.workload')}</h2>
@@ -29,13 +34,13 @@ export function Workload({ view, teamId }: { view: DashboardData; teamId?: strin
                 <th scope="row" className="p-2 text-start font-normal">
                   <span className="flex min-w-0 items-center gap-2">
                     <Avatar user={row.user} size={24} />
-                    <bdi className="truncate">{row.user.name}</bdi>
+                    <bdi className="truncate">{nameOf(row.user)}</bdi>
                   </span>
                 </th>
                 {row.counts.map((count, i) => {
                   const over = row.over[i];
                   // The count has its own key, so one task reads "1 task" and Arabic gets its noun forms (audit 2026-10-03, F-10).
-                  const label = t('dashboard.cell', { name: row.user.name, week: formatDay(weeks[i], lang), tasks: counted(t, 'dashboard.cellTasks', count) });
+                  const label = t('dashboard.cell', { name: nameOf(row.user), week: formatDay(weeks[i], lang), tasks: counted(t, 'dashboard.cellTasks', count) });
                   return (
                     <td key={weeks[i]} className="p-1 text-center">
                       <Link

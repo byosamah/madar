@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useMeeting } from '../../app/meeting';
 import { useCall } from '../../app/runtime';
 import { Age } from '../../components/Age';
@@ -45,6 +46,7 @@ export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
 function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen: (row: TaskRow) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   const when = word && row.task.dueDate ? dueText(word, t, lang, row.task.dueDate) : null;
   return (
@@ -56,7 +58,7 @@ function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen
         <span className="min-w-0 flex-1">
           <bdi className="block truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
           <span className="block truncate text-[15px] text-ink-2">
-            <bdi>{row.owner.name}</bdi>{label && <> · {label}</>}
+            <bdi>{nameOf(row.owner)}</bdi>{label && <> · {label}</>}
           </span>
         </span>
         {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
@@ -85,6 +87,7 @@ function Column({ title, empty = '', children, count }: { title: string; empty?:
 export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { row: Row; tasks: TaskRow[]; discussed?: boolean; onOpenTask: (taskId: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const today = todayISO();
   const work = meetingWork(tasks, row.project.id, today);
   const mine = tasks.filter((item) => item.project.id === row.project.id);
@@ -174,7 +177,7 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
                 <div className="flex flex-col gap-2">
                   <span className="flex items-center gap-2 text-[15px] text-ink-2">
                     <Avatar user={latest.author} size={24} />
-                    <bdi className="font-semibold text-ink">{latest.author.name}</bdi>
+                    <bdi className="font-semibold text-ink">{nameOf(latest.author)}</bdi>
                     <Age stamp={latest.at} />
                   </span>
                   <div dir="auto" className="line-clamp-5 text-[17px] text-ink"><RichText body={latest.body} /></div>

@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "nameEn": "Name in English",
+    "nameAr": "Name in Arabic",
+    "addPicture": "Add picture",
+    "changePicture": "Change picture",
+    "removePicture": "Remove picture",
+    "choosePicture": "Choose a picture",
+    "pictureSaved": "Picture saved.",
+    "pictureRemoved": "Picture removed.",
+    "pictureUnreadable": "Madar cannot read this picture. Choose a JPEG, PNG or WebP picture.",
+    "pictureTooBig": "Madar cannot make this picture small enough. Choose another picture.",
+    "errors": {
+      "nameAr": "Enter the name in Arabic."
+    }
+  }
+}

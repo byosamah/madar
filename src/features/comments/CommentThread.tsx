@@ -6,6 +6,7 @@ import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
 import { useDraftOwner, useDraftText } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
+import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Age } from '../../components/Age';
@@ -27,6 +28,7 @@ import { useMarkTaskRead } from './markRead';
 
 function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const session = useCall('session.get', {});
   const { comment, author, canEdit, files } = view;
   const [editing, setEditing] = useState(false);
@@ -58,7 +60,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
       ) : <Avatar user={author} size={28} />}
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 text-footnote">
-          <bdi className="font-semibold">{byMadar ? t('dateReason.madar') : author.name}</bdi>
+          <bdi className="font-semibold">{byMadar ? t('dateReason.madar') : nameOf(author)}</bdi>
           {!byMadar && author.kind === 'agent' && <AgentLabel />}
           <span className="text-label-2">
             <Age stamp={comment.createdAt} />

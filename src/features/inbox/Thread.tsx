@@ -7,6 +7,7 @@ import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useToast } from '../../app/toasts';
 import { AgentLabel } from '../../components/AgentLabel';
 import { Avatar } from '../../components/Avatar';
@@ -38,6 +39,7 @@ export function clockTime(stamp: string, lang: Lang): string {
 
 function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const lang = useLang();
   const { author, mine } = bubble;
   return (
@@ -51,9 +53,9 @@ function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
       <div className="flex min-w-0 flex-col gap-0.5">
         {(!mine || author.kind === 'agent') && (
           <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">
-            {!mine && <bdi className="font-semibold text-ink">{author.name}</bdi>}
+            {!mine && <bdi className="font-semibold text-ink">{nameOf(author)}</bdi>}
             {author.kind === 'agent' && <AgentLabel />}
-            {bubble.actingFor && <span>{t('chat.actingFor', { name: bubble.actingFor.name })}</span>}
+            {bubble.actingFor && <span>{t('chat.actingFor', { name: nameOf(bubble.actingFor) })}</span>}
           </p>
         )}
         <div

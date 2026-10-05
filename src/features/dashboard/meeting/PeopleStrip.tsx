@@ -2,19 +2,21 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { Avatar } from '../../../components/Avatar';
 import { Sheet } from '../../../components/Sheet';
 import { StatusSign } from '../../../components/StatusSign';
-import { todayISO } from '../../../lib/dates';
+import { todayISO, type Lang } from '../../../lib/dates';
 import { dueText, dueWord } from '../../../lib/due';
 import { counted } from '../../../lib/grammar';
 import { needsAttention } from '../../../lib/overview';
+import { byPersonName } from '../../../lib/personName';
 import { compareTasks } from '../../../lib/stageFlow';
 
 type Person = { owner: TaskRow['owner']; open: TaskRow[]; late: number };
 
 /** The leads of the open tasks of one project. The busiest person is first, then the one with more late tasks, then by name. */
-function peopleOf(rows: TaskRow[], today: string): Person[] {
+function peopleOf(rows: TaskRow[], today: string, lang: Lang): Person[] {
   const late = new Set(needsAttention(rows, today).pastDue.map((row) => row.task.id));
   const byId = new Map<string, Person>();
   for (const row of rows) {
@@ -26,15 +28,16 @@ function peopleOf(rows: TaskRow[], today: string): Person[] {
   }
   return [...byId.values()]
     .map((person) => ({ ...person, open: person.open.sort((a, b) => compareTasks(a.task, b.task)) }))
-    .sort((a, b) => b.open.length - a.open.length || b.late - a.late || a.owner.name.localeCompare(b.owner.name));
+    .sort((a, b) => b.open.length - a.open.length || b.late - a.late || byPersonName(lang)(a.owner, b.owner));
 }
 
 function PersonSheet({ person, onOpenTask, onClose }: { person: Person; onOpenTask: (taskId: string) => void; onClose: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const today = todayISO();
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={person.owner.name}>
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={nameOf(person.owner)}>
       <ul className="hairline pt-2">
         {person.open.map((row) => {
           const word = dueWord(row.task.dueDate, today, row.task.status);
@@ -60,8 +63,10 @@ function PersonSheet({ person, onOpenTask, onClose }: { person: Person; onOpenTa
  */
 export function PeopleStrip({ tasks, onOpenTask }: { tasks: TaskRow[]; onOpenTask: (taskId: string) => void }) {
   const { t } = useTranslation();
+  const lang = useLang();
+  const nameOf = usePersonName();
   const [openId, setOpenId] = useState<string | null>(null);
-  const people = peopleOf(tasks, todayISO());
+  const people = peopleOf(tasks, todayISO(), lang);
   if (people.length === 0) return null;
   const shown = people.find((person) => person.owner.id === openId);
   return (
@@ -73,7 +78,7 @@ export function PeopleStrip({ tasks, onOpenTask }: { tasks: TaskRow[]; onOpenTas
             <button type="button" onClick={() => setOpenId(person.owner.id)} className="pressable flex items-center gap-2 rounded-full bg-fill py-1.5 pe-4 ps-1.5 text-start">
               <span aria-hidden className="shrink-0"><Avatar user={person.owner} size={28} /></span>
               <span className="text-[15px] text-ink-2">
-                <bdi className="text-[17px] font-semibold text-ink">{person.owner.name}</bdi>{' '}
+                <bdi className="text-[17px] font-semibold text-ink">{nameOf(person.owner)}</bdi>{' '}
                 <span className="tabular">
                   {counted(t, 'dashboard.meeting.personOpen', person.open.length)}
                   {person.late > 0 && <> · <span className="text-attn">{counted(t, 'dashboard.meeting.personLate', person.late)}</span></>}

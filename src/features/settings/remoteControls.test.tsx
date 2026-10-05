@@ -52,7 +52,8 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     // The Admin reads Arabic; the labels stay English because the test renders in English.
     expect(language).toHaveValue('ar');
     expect(within(sheet).getByText('Madar uses this language for the invitation email and the first sign-in.')).toBeInTheDocument();
-    await userEvent.type(within(sheet).getByLabelText('Name'), 'Noura Al-Qahtani');
+    await userEvent.type(within(sheet).getByLabelText('Name in English *'), 'Noura Al-Qahtani');
+    await userEvent.type(within(sheet).getByLabelText('Name in Arabic *'), 'نورة القحطاني');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'noura@madar.test');
     await userEvent.type(within(sheet).getByLabelText('Discipline'), 'Interiors');
     await userEvent.selectOptions(language, 'en');

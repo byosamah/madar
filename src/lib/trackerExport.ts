@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next';
 import type { TrackerExportRow } from '../api/contract/views';
+import type { Lang } from './dates';
+import { personName } from './personName';
 import { AUTO_KEY } from './tracker';
 
 /** The columns of the export, in order. The headers come from the language on screen. */
@@ -19,14 +21,14 @@ function eventText(t: TFunction, row: TrackerExportRow): string {
   return t(`tracker.export.event.${row.event}`);
 }
 
-/** The header line and one line for each event, as plain text cells in the language of the screen. */
-export function exportTable(rows: TrackerExportRow[], t: TFunction): string[][] {
+/** The header line and one line for each event, as plain text cells in the language of the screen (names too, owner item 12). */
+export function exportTable(rows: TrackerExportRow[], t: TFunction, lang: Lang = 'en'): string[][] {
   const header = EXPORT_COLUMNS.map((column) => t(`tracker.export.col.${column}`));
   const lines = rows.map((row) => [
     row.date,
     row.time,
     eventText(t, row),
-    row.byAgent ? t('tracker.export.agentFor', { name: row.by }) : row.by,
+    ((name) => (row.byAgent ? t('tracker.export.agentFor', { name }) : name))(personName({ name: row.by, nameAr: row.byAr }, lang)),
     t(`tracker.type.${row.type}`),
     // The "None" side stays an empty cell: a blank reads better than a word in a sheet.
     row.direction === 'none' ? '' : t(`tracker.direction.${row.direction}`),

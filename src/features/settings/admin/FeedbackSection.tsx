@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { usePersonName } from '../../../app/personName';
 import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
@@ -42,6 +43,7 @@ function Screenshot({ id, index }: { id: string; index: number }) {
 /** The feature requests and bug reports from the person menu, for the Admin (owner, 2026-10-01). Open ones come first. */
 export function FeedbackSection() {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const list = useCall('feedback.list', {});
   const setStatus = useAction('feedback.setStatus');
   const rows = list.data ?? [];
@@ -62,7 +64,7 @@ export function FeedbackSection() {
                 <Avatar user={sender} size={32} />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 text-subheadline">
-                    <bdi className="font-semibold text-ink">{sender.name}</bdi>
+                    <bdi className="font-semibold text-ink">{nameOf(sender)}</bdi>
                     <span className="text-ink-2">{t(`feedback.kinds.${item.kind}`)}</span>
                     <span className="text-ink-2"><Age stamp={item.createdAt} /></span>
                     {done && <StatusSign state="completed">{t('feedback.done')}</StatusSign>}

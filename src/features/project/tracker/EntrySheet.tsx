@@ -5,6 +5,7 @@ import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../..
 import type { ProjectDetail, TrackerRow, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
@@ -24,10 +25,11 @@ import { DirectionMark, TypeIcon } from './marks';
 import { taskLink } from '../../../lib/params';
 
 function Person({ user }: { user: UserCard }) {
+  const nameOf = usePersonName();
   return (
     <span className="inline-flex min-h-8 items-center gap-2">
       <Avatar user={user} size={24} />
-      <bdi className="text-subheadline">{user.name}</bdi>
+      <bdi className="text-subheadline">{nameOf(user)}</bdi>
       {user.kind === 'agent' && <AgentLabel />}
     </span>
   );
@@ -44,6 +46,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDetail; onDone: () => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const { entry } = row;
   const [title, setTitle] = useState(entry.title);
   const [note, setNote] = useState(entry.note);
@@ -102,7 +105,7 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
               onChange={(event) => setPeopleIds((ids) => (event.target.checked ? [...ids, user.id] : ids.filter((id) => id !== user.id)))}
               className="size-5 accent-[var(--sig-from)]"
             />
-            <bdi>{user.name}</bdi>
+            <bdi>{nameOf(user)}</bdi>
           </label>
         ))}
       </fieldset>
@@ -139,6 +142,7 @@ function AssignReply({ row, members }: { row: TrackerRow; members: UserCard[] })
 export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: ProjectDetail; onClose: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const [editing, setEditing] = useState(false);
   const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const remove = useUndoable('tracker.delete', { message: () => t('tracker.deleted'), onSuccess: onClose });
@@ -183,7 +187,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
             <p className="flex flex-wrap items-center gap-2 pt-3">
               <StatusSign state="completed">{action}</StatusSign>
               <span className="text-footnote text-ink-2">
-                {t('tracker.closedBy', { name: row.closedBy.name, date: formatDay(stampDay(entry.closedAt), lang), context: actorContext(row.closedBy) })}
+                {t('tracker.closedBy', { name: nameOf(row.closedBy), date: formatDay(stampDay(entry.closedAt), lang), context: actorContext(row.closedBy) })}
               </span>
             </p>
           )}
@@ -192,7 +196,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
           {row.files.length > 0 && <Block title={t('tracker.files')}><FileChips files={row.files} /></Block>}
           <div className="flex flex-col gap-1 pt-5 text-footnote text-ink-2">
             <p>
-              {t('tracker.loggedBy', { name: row.createdBy.name, date: formatDay(stampDay(entry.createdAt), lang), context: actorContext(row.createdBy) })}
+              {t('tracker.loggedBy', { name: nameOf(row.createdBy), date: formatDay(stampDay(entry.createdAt), lang), context: actorContext(row.createdBy) })}
               {row.createdBy.kind === 'agent' && <> <AgentLabel /></>}
             </p>
             {entry.auto && AUTO_KEY[entry.auto] && <p>{t(AUTO_KEY[entry.auto] as string)}</p>}

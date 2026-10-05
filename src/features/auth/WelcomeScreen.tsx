@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { LinkType } from '../../app/auth';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
@@ -98,6 +99,7 @@ function NewResetLink() {
  */
 export function WelcomeScreen() {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const auth = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -172,7 +174,7 @@ export function WelcomeScreen() {
         >
           {user && (
             <div className="min-w-0">
-              <p className="text-headline text-ink">{t('auth.welcome.greeting', { name: user.name })}</p>
+              <p className="text-headline text-ink">{t('auth.welcome.greeting', { name: nameOf(user) })}</p>
               <p className="truncate text-footnote text-ink-2"><bdi dir="ltr">{user.email}</bdi></p>
             </div>
           )}

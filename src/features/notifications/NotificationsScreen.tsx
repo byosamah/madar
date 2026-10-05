@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useIsPhone } from '../../app/useIsPhone';
@@ -26,6 +27,7 @@ type NoticeView = CallOutput<'notifications.list'>[number];
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const phone = useIsPhone();
   const { notification: n, actor, target, project, link, canApprove, gone, dueDate } = view;
   const markRead = useAction('notifications.markRead');
@@ -49,7 +51,7 @@ function InboxItem({ view }: { view: NoticeView }) {
   // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
   const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project;
   const sentence = t(direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
-    actor: actor?.name ?? t('inbox.someone'),
+    actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
     target,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).

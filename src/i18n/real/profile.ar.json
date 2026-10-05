@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "nameEn": "الاسم بالإنجليزية",
+    "nameAr": "الاسم بالعربية",
+    "addPicture": "إضافة صورة",
+    "changePicture": "تغيير الصورة",
+    "removePicture": "إزالة الصورة",
+    "choosePicture": "اختر صورة",
+    "pictureSaved": "حُفظت الصورة.",
+    "pictureRemoved": "أُزيلت الصورة.",
+    "pictureUnreadable": "لا يستطيع مدار قراءة هذه الصورة. اختر صورة بصيغة أخرى.",
+    "pictureTooBig": "لا يستطيع مدار تصغير هذه الصورة بما يكفي. اختر صورة أخرى.",
+    "errors": {
+      "nameAr": "اكتب الاسم بالعربية."
+    }
+  }
+}

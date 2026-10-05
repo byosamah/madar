@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { UserCard } from '../api/contract/views';
+import { usePersonName } from '../app/personName';
 import { Avatar } from './Avatar';
 
 type Tip = { name: string; x: number; y: number };
@@ -17,6 +18,7 @@ export function AvatarStack({
   leader, team, max = 3, size = 28, leaderSize = size,
 }: { leader: UserCard | null; team: UserCard[]; max?: number; size?: number; leaderSize?: number }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const [tip, setTip] = useState<Tip | null>(null);
   const shown = [...(leader ? [leader] : []), ...team.slice(0, max)];
   const extra = team.length - Math.min(team.length, max);
@@ -30,7 +32,7 @@ export function AvatarStack({
       {shown.map((person, i) => (
         <span
           key={person.id}
-          onMouseEnter={show(person.name)}
+          onMouseEnter={show(nameOf(person))}
           onMouseLeave={() => setTip(null)}
           className={`rounded-full ring-2 ring-card ${slide} ${i > 0 ? '-ms-1 group-hover/stack:ms-1' : ''}`}
         >

@@ -7,6 +7,7 @@ import { projectsListLink } from './lastList';
 import { FocusMode } from '../features/focus/FocusMode';
 import { NAV, isNavActive } from './nav';
 import { PersonMenu } from './PersonMenu';
+import { PicturesProvider } from './pictures';
 import { StorageBanner } from './StorageBanner';
 import { BellButton, SearchButton, TabPill } from './TabPill';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
@@ -77,7 +78,12 @@ function usePersonTurn(): number {
   return turn.count;
 }
 
+/** The app frame. It reads the profile pictures of the office once, for every Avatar inside (owner item 10, 2026-10-05). */
 export function AppShell() {
+  return <PicturesProvider><Shell /></PicturesProvider>;
+}
+
+function Shell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();

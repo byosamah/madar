@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
+import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
@@ -75,6 +76,7 @@ function DeadlineList({ from, to }: { from?: string; to?: string }) {
 function TaskResults() {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const [params, setParams] = useSearchParams();
   const filter = oneOf(params.get('filter'), FILTERS, 'all');
   const owner = params.get('owner') ?? '';
@@ -109,7 +111,7 @@ function TaskResults() {
   const person = users.data?.find((user) => user.id === ownerId);
   const title = filter === 'overdue' ? t('taskList.overdue')
     : filter === 'flagged' ? t('taskList.flagged')
-      : person ? t('taskList.forPerson', { name: person.name }) : t('taskList.title');
+      : person ? t('taskList.forPerson', { name: nameOf(person) }) : t('taskList.title');
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
   const subtitle = [teamText, range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
 import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
@@ -30,6 +31,7 @@ const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-in
 function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id: string) => void; showOwner?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
   const when = word && row.task.dueDate ? dueText(word, t, lang, row.task.dueDate) : null;
   return (
@@ -37,7 +39,7 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
       <button type="button" onClick={() => onOpen(row.task.id)} className="pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start transition-colors hover:bg-fill/50">
         <span className="min-w-0 flex-1">
           <bdi className="block truncate text-subheadline font-medium text-ink">{row.task.title}</bdi>
-          {showOwner && <bdi className="block truncate text-footnote text-ink-2">{row.owner.name}</bdi>}
+          {showOwner && <bdi className="block truncate text-footnote text-ink-2">{nameOf(row.owner)}</bdi>}
         </span>
         {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-footnote text-ink-2">{when}</span>)}
       </button>
@@ -49,6 +51,7 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
 function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const { project, currentStage, stages, health, healthSetBy } = detail;
   const index = stages.findIndex((stage) => stage.id === currentStage.id);
   const standing = stageStanding(rows, currentStage, todayISO());
@@ -93,7 +96,7 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
       </dl>
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
-          <bdi>{healthSetBy ? t('overview.healthNote', { name: healthSetBy.name, context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
+          <bdi>{healthSetBy ? t('overview.healthNote', { name: nameOf(healthSetBy), context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
         </p>
       )}
     </section>
@@ -183,6 +186,7 @@ function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: strin
 
 function People({ detail, rows, onOpen }: TabProps & { rows: TaskRow[]; onOpen: (id: string) => void }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   return (
     <section aria-labelledby="overview-people" className="panel flex flex-col gap-1 p-5">
       <h2 id="overview-people" className={`${HEADING} pb-2`}>{t('overview.people')}</h2>
@@ -194,7 +198,7 @@ function People({ detail, rows, onOpen }: TabProps & { rows: TaskRow[]; onOpen: 
               <span className="flex min-w-0 items-center gap-3 sm:w-56 sm:shrink-0">
                 <Avatar user={member.user} size={32} />
                 <span className="min-w-0">
-                  <bdi className="block truncate text-subheadline font-semibold text-ink">{member.user.name}</bdi>
+                  <bdi className="block truncate text-subheadline font-semibold text-ink">{nameOf(member.user)}</bdi>
                   <span className="block truncate text-footnote text-ink-2">
                     {/* The discipline is a unit of its own, so in Arabic the count never joins an English name (2026-10-05). */}
                     {member.isLeader ? t('team.leader') : <bdi>{member.discipline}</bdi>} · {counted(t, 'overview.openTasks', work.open)}
@@ -239,6 +243,7 @@ function ComingUp({ detail }: TabProps) {
 
 function LatestUpdate({ detail }: TabProps) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const posts = useCall('updates.list', { projectId: detail.project.id, filter: 'posts' });
   const latest = posts.data?.find((item) => item.kind === 'update');
   return (
@@ -249,7 +254,7 @@ function LatestUpdate({ detail }: TabProps) {
         <div className="flex flex-col gap-2">
           <span className="flex items-center gap-2">
             <Avatar user={latest.author} size={24} />
-            <bdi className="truncate text-footnote font-semibold text-ink">{latest.author.name}</bdi>
+            <bdi className="truncate text-footnote font-semibold text-ink">{nameOf(latest.author)}</bdi>
             {latest.author.kind === 'agent' && <AgentLabel />}
             <span className="text-footnote text-ink-2"><Age stamp={latest.at} /></span>
           </span>

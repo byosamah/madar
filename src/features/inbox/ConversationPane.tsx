@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { MessageView } from '../../api/contract/views';
+import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
@@ -43,6 +44,7 @@ function bubblesOf(messages: MessageView[]): Bubble[] {
 /** A project chat or a direct chat. Opening it marks it read. */
 export function ChatPane({ id }: { id: string }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const thread = useCall('chats.messages', { conversationId: id });
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
@@ -65,7 +67,7 @@ export function ChatPane({ id }: { id: string }) {
   const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   return (
     <>
-      <Header lead={lead} title={<bdi>{chat.title}</bdi>} subtitle={subtitle} />
+      <Header lead={lead} title={<bdi>{chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title}</bdi>} subtitle={subtitle} />
       <MessageLog key={id} bubbles={bubblesOf(messages)} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
         <Composer

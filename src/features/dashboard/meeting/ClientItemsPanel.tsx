@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TrackerRow, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
@@ -47,6 +48,7 @@ function AssignSheet({ row, members, onClose }: { row: TrackerRow; members: User
 function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onAssign: (id: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = usePersonName();
   const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const { entry, replyTask } = row;
   const action = t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
@@ -60,7 +62,7 @@ function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onA
       </div>
       {replying && (
         <p className="text-[15px] text-ink-2">
-          {t('dashboard.meeting.replyLine', { name: replying.owner.name, date: replying.dueDate ? formatDay(replying.dueDate, lang) : '' })}
+          {t('dashboard.meeting.replyLine', { name: nameOf(replying.owner), date: replying.dueDate ? formatDay(replying.dueDate, lang) : '' })}
         </p>
       )}
       {canAct && (

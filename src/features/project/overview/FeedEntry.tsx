@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FeedItem, UserCard } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
+import { useLang } from '../../../app/lang';
+import { usePersonName } from '../../../app/personName';
 import { useAction } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
@@ -23,6 +25,7 @@ function PostCard({ item, projectId, people, canPost, startOpen }: {
   item: PostItem; projectId: string; people: UserCard[]; canPost: boolean; startOpen: boolean;
 }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
   const toast = useToast();
   const ref = useRef<HTMLLIElement>(null);
   const [showComments, setShowComments] = useState(startOpen);
@@ -46,7 +49,7 @@ function PostCard({ item, projectId, people, canPost, startOpen }: {
         <Avatar user={item.author} size={36} />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2">
-            <bdi className="truncate font-semibold">{item.author.name}</bdi>
+            <bdi className="truncate font-semibold">{nameOf(item.author)}</bdi>
             {item.author.kind === 'agent' && <AgentLabel />}
           </p>
           <p className="text-caption text-label-2">
@@ -106,15 +109,17 @@ type EventItem = Extract<FeedItem, { kind: 'event' }>;
 /** A system event as one quiet line. An agent change offers Undo to the people spec 10.7 names; the API says who. */
 function EventLine({ item }: { item: EventItem }) {
   const { t } = useTranslation();
+  const lang = useLang();
+  const nameOf = usePersonName();
   const toast = useToast();
   const undo = useAction('events.undo', { onSuccess: () => toast.show({ message: t('taskSheet.undone') }) });
   return (
     <li className="flex items-center gap-3 px-1">
       <Avatar user={item.author} size={28} />
       <p className="min-w-0 flex-1 text-subheadline">
-        <bdi className="font-semibold">{item.author.name}</bdi>{' '}
+        <bdi className="font-semibold">{nameOf(item.author)}</bdi>{' '}
         {item.author.kind === 'agent' && <><AgentLabel />{' '}</>}
-        <span className="text-label-2">{feedText(item, t)}</span>
+        <span className="text-label-2">{feedText(item, t, lang)}</span>
       </p>
       <span className="text-caption text-label-2"><Age stamp={item.at} /></span>
       {item.canUndo && (
