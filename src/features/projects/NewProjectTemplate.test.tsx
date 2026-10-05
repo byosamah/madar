@@ -117,7 +117,11 @@ describe('the New Project sheet with a project template', () => {
     date(sheet, 'Target end date', '2026-10-15');
     expect(within(sheet).getByRole('alert')).toHaveTextContent('The locked tasks need at least 17 working days. Choose a later end date, or let more tasks stretch.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    expect(await within(sheet).findByText('Choose a later end date.')).toBeInTheDocument();
+    // One message only: the line under the dates. The end date field is marked, and the focus goes to it.
+    const end = within(sheet).getByLabelText('Target end date');
+    await waitFor(() => expect(end).toHaveFocus());
+    expect(end).toHaveAttribute('aria-invalid', 'true');
+    expect(within(sheet).getAllByText(/Choose a later end date/)).toHaveLength(1);
     expect(Object.keys(store.state.projects)).toHaveLength(before);
     // A press on the tick of the Permits stage lets its tasks stretch, so the plan fits.
     await userEvent.click(within(sheet).getByText('Stretch or shrink'));

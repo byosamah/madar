@@ -68,7 +68,8 @@ describe('the Admin section Project templates', () => {
     await userEvent.click(await within(section).findByRole('button', { name: /^Villa, full design/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
     expect(within(sheet).getByText('Length: 60 working days')).toBeInTheDocument();
-    expect(within(sheet).getByText('Grey bars can stretch. Dark bars keep their length.')).toBeInTheDocument();
+    // The legend names the two kinds of bar, with no colour word: the colours change with the theme.
+    expect(within(within(sheet).getByRole('region', { name: 'Timeline' })).getByText('Keeps its length')).toBeInTheDocument();
     expect(within(sheet).getAllByLabelText('Task').map((field) => (field as HTMLInputElement).value)).toHaveLength(11);
     const name = within(sheet).getByLabelText('Template name');
     await userEvent.clear(name);

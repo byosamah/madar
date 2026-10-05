@@ -47,7 +47,7 @@
     "removeTask": "Remove the task {{title}}",
     "timeline": "Timeline",
     "timelineEmpty": "Add a task with a start day and working days to see the timeline.",
-    "timelineLegend": "Grey bars can stretch. Dark bars keep their length.",
+    "keepsLength": "Keeps its length",
     "length": "Length: {{days}}",
     "save": "Save template",
     "errors": {
@@ -74,8 +74,7 @@
     "stretch": "Stretch or shrink",
     "stretchHint": "Ticked tasks stretch or shrink to the end date. Untick a task to keep its length.",
     "errors": {
-      "startRequired": "A template needs a start date.",
-      "endTooEarly": "Choose a later end date."
+      "startRequired": "A template needs a start date."
     }
   },
   "errors": {

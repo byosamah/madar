@@ -40,9 +40,17 @@ export function TemplateTimeline({ draft }: { draft: TemplateDraft }) {
               );
             })}
           </ul>
-          <p className="flex flex-wrap gap-x-2 text-footnote text-ink-2">
+          {/* The legend shows a swatch of each bar, with no colour word: the colours change with the theme. */}
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-footnote text-ink-2">
             <span className="font-semibold text-ink">{t('projectTemplates.length', { days: counted(t, 'projectTemplates.dayCount', length) })}</span>
-            <span>{t('projectTemplates.timelineLegend')}</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-2.5 w-5 rounded-full bg-chart-muted" />
+              {t('projectTemplates.canStretch')}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-2.5 w-5 rounded-full bg-ink" />
+              {t('projectTemplates.keepsLength')}
+            </span>
           </p>
         </>
       )}

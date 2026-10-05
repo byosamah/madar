@@ -28,7 +28,8 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
 };
 
 /** Each value is a text key, so the form shows the message in the current language. */
-export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code', string>> & CodeErrors;
+/** "template" has no field text: the line under the dates says why the plan does not fit. It only stops the create. */
+export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template', string>> & CodeErrors;
 
 /**
  * Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. "templates" are the
@@ -68,7 +69,7 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
     // A template gives the stages. It needs a start date, and its locked tasks must fit before the end date.
     const template = rules.templates?.find((t) => t.id === values.templateId);
     if (!values.startDate) errors.startDate = 'templateUse.errors.startRequired';
-    else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.targetEndDate = 'templateUse.errors.endTooEarly';
+    else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.template = 'templateUse.tooShort';
   } else if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
   if (rules.create) Object.assign(errors, validateCodeValues(values));

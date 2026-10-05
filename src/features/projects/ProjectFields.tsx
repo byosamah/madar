@@ -20,7 +20,7 @@ import { ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
-const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', ...CODE_FIELDS];
+const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', ...CODE_FIELDS];
 
 /** Form state that shows an error only after the person leaves the field, or on submit (spec 4.4). */
 export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRules = {}) {
@@ -243,6 +243,8 @@ export function ProjectFields({
           type="date"
           label={t('projectForm.endDate')}
           hint={template ? t('templateUse.endHint') : undefined}
+          // The plan line (TemplateDetails) says why the locked tasks do not fit. The field only carries the mark, so the focus comes here.
+          {...(errors.template ? { 'aria-invalid': true, 'aria-describedby': 'project-end-hint template-plan-line' } : {})}
           value={values.targetEndDate}
           onChange={(event) => set('targetEndDate', event.target.value)}
           onBlur={() => touch('targetEndDate')}

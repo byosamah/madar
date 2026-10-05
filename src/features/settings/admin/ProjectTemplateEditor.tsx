@@ -144,21 +144,27 @@ function RoleRow({ role, n, people, onChange, onRemove }: {
 }) {
   const { t } = useTranslation();
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+    // A phone stacks the person under the name. A wider screen puts them side by side, under the column names.
+    <li className="grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem]">
       <input
         aria-label={t('projectTemplates.roleNameOf', { n })}
-        className="field min-h-11"
+        className="field col-start-1 row-start-1 min-h-11"
         dir="auto"
         autoComplete="off"
         maxLength={60}
         value={role.name}
         onChange={(event) => onChange({ ...role, name: event.target.value })}
       />
-      <select aria-label={t('projectTemplates.defaultPersonOf', { n })} className="field min-h-11" value={role.defaultUserId} onChange={(event) => onChange({ ...role, defaultUserId: event.target.value })}>
+      <select
+        aria-label={t('projectTemplates.defaultPersonOf', { n })}
+        className="field col-span-2 min-h-11 sm:col-span-1 sm:col-start-2 sm:row-start-1"
+        value={role.defaultUserId}
+        onChange={(event) => onChange({ ...role, defaultUserId: event.target.value })}
+      >
         <option value="">{t('projectTemplates.noDefault')}</option>
         {people.map((person) => <option key={person.id} value={person.id}>{person.label}</option>)}
       </select>
-      <IconButton label={t('projectTemplates.removeRole', { n })} onClick={onRemove}>
+      <IconButton label={t('projectTemplates.removeRole', { n })} className="col-start-2 row-start-1 sm:col-start-3" onClick={onRemove}>
         <AnimatedIcon icon={XIcon} size={16} aria-hidden />
       </IconButton>
     </li>
@@ -228,11 +234,11 @@ export function ProjectTemplateEditor({ template, onClose }: { template: Project
           <p className="text-footnote text-ink-2">{t('projectTemplates.rolesHint')}</p>
           {draft.roles.length > 0 && (
             <>
-              <div aria-hidden className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem] gap-2 text-caption text-ink-2">
+              <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem] gap-2 text-caption text-ink-2 sm:grid">
                 <span>{t('projectTemplates.roleName')}</span>
                 <span>{t('projectTemplates.defaultPerson')}</span>
               </div>
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-4 sm:gap-2">
                 {draft.roles.map((role, index) => (
                   <RoleRow key={role.id} role={role} n={index + 1} people={people} onChange={setRole} onRemove={() => setDraft(removeRole(draft, role.id))} />
                 ))}

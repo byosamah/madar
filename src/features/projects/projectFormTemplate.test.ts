@@ -29,7 +29,8 @@ describe('the project form with a project template (owner, 2026-10-05, item 6a)'
 
   it('refuses an end date that the locked tasks do not fit', () => {
     const early = { ...valid, templateId: 'ptp_003', startDate: '2026-10-04', targetEndDate: '2026-10-06' };
-    expect(validateProjectForm(early, rules)).toEqual({ targetEndDate: 'templateUse.errors.endTooEarly' });
+    // The line under the dates says why, so the error has no field text of its own: it only stops the create.
+    expect(validateProjectForm(early, rules)).toEqual({ template: 'templateUse.tooShort' });
     // When the person lets the locked task stretch, the plan fits.
     expect(validateProjectForm({ ...early, templateStretch: { t2: true } }, rules)).toEqual({});
   });

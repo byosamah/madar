@@ -72,7 +72,7 @@ export function TemplateDetails({ form, template, people }: { form: ProjectForm;
 
   return (
     <div className="flex flex-col gap-4">
-      <p role={plan && !plan.ok ? 'alert' : 'status'} className={`text-subheadline ${plan && !plan.ok ? 'text-attn' : 'text-ink-2'}`}>{line}</p>
+      <p id="template-plan-line" role={plan && !plan.ok ? 'alert' : 'status'} className={`text-subheadline ${plan && !plan.ok ? 'text-attn' : 'text-ink-2'}`}>{line}</p>
       {showStretch(template, values) && (
         <details className="rounded-2xl bg-fill px-3 py-2">
           <summary className="pressable flex min-h-11 cursor-pointer items-center font-semibold">{t('templateUse.stretch')}</summary>
