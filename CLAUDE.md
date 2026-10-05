@@ -58,6 +58,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Stop and ask only for: a delete of data or folders, a force-push, a change outside this repo, an email to a real
   person, any payment. Worktree folders are removed only with the owner's OK.
 - Never recommend paying Vercel or another Israeli or pro-Israel vendor (owner boycott). Vercel is out of the stack.
+- Fonts: Thmanyah Sans (free, font.thmanyah.com) since 2026-10-05. Its licence forbids any change to the files and any
+  copy outside the built product (see `src/design/CLAUDE.md`).
 
 ## Secrets and accounts
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
@@ -78,7 +80,12 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
 - `npm test` - the `unit` and `server` projects (about 3,400 tests). Run it alone: next to a build or Playwright,
-  screen tests time out.
+  screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
+  run: run the failed files alone before you call a test broken.
+- Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
+  --strictPort` and check that the page title is "Madar".
+- `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
+  `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
@@ -146,4 +153,5 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   on the same API.
 - 2026-10-04: logo "Turning doors"; the mark at the top start of every screen; "Invited" until the first password.
 - 2026-10-05: production on madar.vado.sa; the short MCP address madar.vado.sa/mcp; one CLAUDE.md for each part; keep
-  the old Resend key VADO for now (unused, still live; do not ask again).
+  the old Resend key VADO for now (unused, still live; do not ask again); the font Thmanyah Sans for English and
+  Arabic; in the Arabic screens, English text also sits on the right.

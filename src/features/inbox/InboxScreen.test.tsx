@@ -174,6 +174,17 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
     });
     const preview = await screen.findByText('Client moved the site visit.');
     expect(preview.tagName).toBe('BDI');
+    // The row follows the side of the page (owner, 2026-10-05); only the preview has its own direction.
+    expect(preview).toHaveAttribute('dir', 'auto');
+    expect(preview.parentElement).not.toHaveAttribute('dir');
+  });
+
+  it('keeps an English sender name and its colon together in an Arabic chat list, so it reads "Faisal:", not ":Faisal"', async () => {
+    await renderApp('/inbox', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const sender = await screen.findByText('Faisal:');
+    expect(sender.tagName).toBe('BDI');
   });
 
   it('keeps a half-typed message and its picked file for each chat (SHL-4)', async () => {

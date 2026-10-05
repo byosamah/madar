@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // Vitest runs from the repository root.
@@ -102,5 +103,98 @@ describe('the glow drift', () => {
 describe('floating layers', () => {
   it('keep a solid panel background, so menus and popups never show the page through them', () => {
     expect(css).toMatch(/\.float \{\n\s+background: var\(--c-panel\);/);
+  });
+});
+
+// The owner (2026-10-05): in the Arabic screens, English text also sits on the right (and Arabic text on the left in English).
+describe('text with its own direction', () => {
+  // Chrome and Safari know only -webkit-match-parent (CSS.supports is false for match-parent in Chrome); Firefox takes match-parent.
+  it('takes its side from the page: dir="auto", dir="ltr" and <bdi> keep only the order of the letters', () => {
+    expect(css).toMatch(
+      /body \[dir="auto"\],\n\s+body \[dir="ltr"\],\n\s+body bdi \{\n\s+text-align: -webkit-match-parent;\n\s+text-align: match-parent;\n\s+\}/,
+    );
+    // The rule sits outside a comment: the last comment before it is closed.
+    const before = css.slice(0, css.indexOf('body [dir="auto"]'));
+    expect(before.lastIndexOf('*/')).toBeGreaterThan(before.lastIndexOf('/*'));
+  });
+});
+
+describe('the font stacks', () => {
+  // The owner's font since 2026-10-05: Thmanyah Sans for Arabic and English (font.thmanyah.com, free, licence in each file).
+  const FACE = /@font-face \{[^}]*\}/g;
+  const faces = [...css.matchAll(FACE)].map((m) => m[0]);
+  const stacks = [...css.replace(FACE, '').matchAll(/(?:--font-sans|font-family):\s*([^;]+);/g)].map((m) => m[1].trim());
+
+  it('put "Thmanyah Sans" first in every stack (after the dot), with Inter and IBM Plex Sans Arabic after it as the fallback', () => {
+    expect(stacks).toEqual([
+      '"Madar Dot", "Thmanyah Sans", "Inter Variable", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif',
+      '"Madar Dot", "Thmanyah Sans", "Inter Variable", "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif',
+      '"Madar Dot", "Thmanyah Sans", "IBM Plex Sans Arabic", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif',
+      '"Madar Digits", var(--font-sans)',
+    ]);
+  });
+
+  // The Thmanyah middle dot is wide and round, so "5 أكتوبر · مراجعة" read like an Arabic zero. IBM Plex Sans Arabic has no
+  // middle dot, so the Arabic screens drew the Inter dot before Thmanyah too (owner, 2026-10-05).
+  it('takes only the middle dot from Inter, first in every stack', () => {
+    const dot = faces.filter((face) => face.includes('font-family: "Madar Dot";'));
+    expect(dot).toHaveLength(1);
+    expect(dot[0]).toContain('src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");');
+    expect(dot[0]).toContain('unicode-range: U+00B7;');
+  });
+
+  it('load Thmanyah Sans in the weights the screens use, and show the fallback until the file arrives', () => {
+    const thmanyah = faces.filter((face) => face.includes('font-family: "Thmanyah Sans";'));
+    expect(thmanyah.map((face) => [/font-weight: ([\d ]+);/.exec(face)?.[1], /url\("([^"]+)"\)/.exec(face)?.[1]])).toEqual([
+      ['400', './fonts/thmanyahsans-Regular.otf'],
+      ['500 600', './fonts/thmanyahsans-Medium.otf'],
+      ['700', './fonts/thmanyahsans-Bold.otf'],
+    ]);
+    for (const face of thmanyah) expect(face).toContain('font-display: swap;');
+  });
+
+  // The weight ladder: Bold for headings only, Medium for the emphasis in rows, labels and buttons (font-semibold asks 600),
+  // Regular for body text. Without it, every font-semibold spot took the Bold file and most of the screen looked bold.
+  it('give Bold only to the heading styles: every text style with its own weight is a heading and asks 700', () => {
+    const weights = Object.fromEntries([...css.matchAll(/--text-([a-z0-9-]+)--font-weight:\s*(\d+);/g)].map((m) => [m[1], m[2]]));
+    expect(weights).toEqual({
+      'page-title': '700',
+      section: '700',
+      'large-title': '700',
+      'title-1': '700',
+      'title-2': '700',
+      'title-3': '700',
+      headline: '700',
+    });
+  });
+
+  // The licence forbids any change to the files: no woff2 conversion, no subset. A new version from Thmanyah changes these hashes.
+  it('keep the font files byte for byte as Thmanyah ships them (version 1.003)', () => {
+    const sha = (name: string) => createHash('sha256').update(readFileSync(`src/design/fonts/${name}`)).digest('hex');
+    expect(readdirSync('src/design/fonts').sort()).toEqual(['thmanyahsans-Bold.otf', 'thmanyahsans-Medium.otf', 'thmanyahsans-Regular.otf']);
+    expect(sha('thmanyahsans-Regular.otf')).toBe('f45a420632384b42a37ec9b24298ddc6502faa52d55d973144779262ebc023dc');
+    expect(sha('thmanyahsans-Medium.otf')).toBe('f2762ffbe17351193e3d630dd10f0c3a965e6c873998dfdeda2bd0dcad7985c6');
+    expect(sha('thmanyahsans-Bold.otf')).toBe('72cc27021cc1a503e5c03b072df8b16d55c78983e5fd73a4cdf92b5a600af2f7');
+  });
+
+  // The licence allows the font only inside the built product, so no plain public path serves a font file.
+  it('serve no font file from public/', () => {
+    const files = readdirSync('public', { recursive: true }).map(String);
+    expect(files.filter((name) => /\.(otf|ttf|woff2?)$/i.test(name))).toEqual([]);
+  });
+
+  // Thmanyah Sans has no tabular figures (no tnum feature, and a 1 is narrower than a 0), so counts and timers would jump.
+  it('give the number spots the digits of Inter only, and keep Thmanyah Sans for their other letters', () => {
+    const digits = faces.filter((face) => face.includes('font-family: "Madar Digits";'));
+    expect(digits).toHaveLength(1);
+    expect(digits[0]).toContain('src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");');
+    expect(digits[0]).toContain('unicode-range: U+0030-0039;');
+    expect(css).toMatch(/\.tabular \{\n\s+font-family: "Madar Digits", var\(--font-sans\);\n\s+font-variant-numeric: tabular-nums;/);
+  });
+
+  it('load no other font: the only faces are Thmanyah Sans (3 weights), the Inter dot and the Inter digits', () => {
+    expect(faces.map((face) => /font-family: "([^"]+)";/.exec(face)?.[1])).toEqual([
+      'Thmanyah Sans', 'Thmanyah Sans', 'Thmanyah Sans', 'Madar Dot', 'Madar Digits',
+    ]);
   });
 });

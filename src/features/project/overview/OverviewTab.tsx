@@ -196,7 +196,8 @@ function People({ detail, rows, onOpen }: TabProps & { rows: TaskRow[]; onOpen: 
                 <span className="min-w-0">
                   <bdi className="block truncate text-subheadline font-semibold text-ink">{member.user.name}</bdi>
                   <span className="block truncate text-footnote text-ink-2">
-                    {member.isLeader ? t('team.leader') : member.discipline} · {counted(t, 'overview.openTasks', work.open)}
+                    {/* The discipline is a unit of its own, so in Arabic the count never joins an English name (2026-10-05). */}
+                    {member.isLeader ? t('team.leader') : <bdi>{member.discipline}</bdi>} · {counted(t, 'overview.openTasks', work.open)}
                   </span>
                 </span>
               </span>

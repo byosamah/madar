@@ -25,3 +25,31 @@ export function findPhysicalDirection(source: string): RtlFinding[] {
   });
   return findings;
 }
+
+/** The index of the ">" that closes the JSX tag that opens at start. A ">" inside braces (an arrow) does not close it. */
+function tagEnd(source: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}') depth--;
+    else if (source[i] === '>' && depth === 0) return i;
+  }
+  return source.length - 1;
+}
+
+/**
+ * Finds a flex or grid box, or a start or end alignment, on a tag with its own direction (dir="auto" or dir="ltr").
+ * Such a box puts its items on the side of its text, not of the page: an English name sits on the left of an Arabic
+ * screen (owner, 2026-10-05). Give the direction to the text inside the box instead.
+ */
+export function findDirectionBox(source: string): RtlFinding[] {
+  const findings: RtlFinding[] = [];
+  for (const dir of source.matchAll(/\sdir="(?:auto|ltr)"/g)) {
+    const start = source.lastIndexOf('<', dir.index);
+    const tag = source.slice(start, tagEnd(source, start) + 1);
+    const classes = /className=(?:"([^"]*)"|\{`([^`]*)`\})/.exec(tag);
+    const hit = (classes?.[1] ?? classes?.[2] ?? '').match(/(?<![\w-])(?:inline-flex|flex|inline-grid|grid|text-start|text-end)(?![\w-])/);
+    if (hit) findings.push({ line: source.slice(0, dir.index).split('\n').length, rule: 'Own direction on a box', match: hit[0] });
+  }
+  return findings;
+}

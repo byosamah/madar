@@ -50,6 +50,11 @@ export function PerStage({ view, teamId }: { view: DashboardData; teamId?: strin
   );
 }
 
+/** A number on the axis of the weekly chart. No "0": the bars start at the base line, and a "0" there touched the first week label. */
+export function yAxisTick(value: number): string {
+  return value === 0 ? '' : String(value);
+}
+
 const HEALTH = [
   { key: 'on_track', text: 'text-ink', to: '/projects?health=on_track' },
   { key: 'at_risk', text: 'text-attn', to: '/projects?health=at_risk' },
@@ -67,7 +72,7 @@ export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: stri
         <ul className="grid grid-cols-3 gap-2">
           {HEALTH.map((item) => (
             <li key={item.key}>
-              <Link to={withTeam(item.to, teamId)} className="pressable flex min-h-20 flex-col justify-center gap-1 rounded-2xl bg-fill/60 px-4 hover:bg-fill">
+              <Link to={withTeam(item.to, teamId)} className="pressable flex h-full min-h-20 flex-col justify-start gap-1 rounded-2xl bg-fill/60 px-4 py-3 hover:bg-fill">
                 <span className={`tabular text-title-2 font-bold ${item.text}`}>{formatNumber(mix[item.key], lang)}</span>
                 <span className="text-footnote font-medium text-ink-2">{t(`health.${item.key}`)}</span>
               </Link>
@@ -101,7 +106,7 @@ export function Throughput({ view, teamId }: { view: DashboardData; teamId?: str
               {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
               <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
                 <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis allowDecimals={false} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tickFormatter={yAxisTick} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
                 <Bar dataKey="created" fill="var(--c-chart-muted)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="done" fill="var(--c-ink)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
               </BarChart>

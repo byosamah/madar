@@ -67,66 +67,66 @@ colors:
   on-project-indigo: "#4338CA"
 typography:
   page-title:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 30px
     fontWeight: 700
     lineHeight: 1.12
     letterSpacing: -0.025em
   section-title:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 18px
     fontWeight: 700
     lineHeight: 1.3
     letterSpacing: -0.015em
   title-lg:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 28px
     fontWeight: 700
     lineHeight: 1.15
     letterSpacing: -0.015em
   title-md:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 22px
     fontWeight: 700
     lineHeight: 1.2
     letterSpacing: -0.01em
   title-sm:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 20px
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.25
   headline:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 17px
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.3
   body-md:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 17px
     fontWeight: 400
     lineHeight: 1.45
   body-md-desktop:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 15px
     fontWeight: 400
     lineHeight: 1.45
   label-lg:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 15px
-    fontWeight: 600
+    fontWeight: 500
     lineHeight: 1.35
   body-sm:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 15px
     fontWeight: 400
     lineHeight: 1.35
   label-md:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 13px
     fontWeight: 500
     lineHeight: 1.35
   label-sm:
-    fontFamily: Inter Variable
+    fontFamily: Thmanyah Sans
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.3
@@ -138,7 +138,7 @@ typography:
     lineHeight: 1.2
     fontFeature: '"tnum" 1'
   body-ar:
-    fontFamily: IBM Plex Sans Arabic
+    fontFamily: Thmanyah Sans
     fontSize: 18px
     fontWeight: 400
     lineHeight: 1.6
@@ -368,6 +368,8 @@ and no motion or colour that asks for attention without a reason. When a choice 
 - **Audience:** office staff on a laptop at the desk and on a phone on site; the Admin and Management run people,
   payments and settings; the meeting view runs on a big screen in the meeting room.
 - **Two languages:** English and Arabic, both first class. Arabic is full right-to-left, never a mirror added later.
+  In the Arabic screens, English text (a name, a note) also sits on the right; it keeps only its own letter order and
+  punctuation. In the English screens, Arabic text sits on the left.
 - **Two themes:** light by default, dark on request. Each token with a `-dark` pair takes that value in the dark theme.
 - **Source of truth for values:** `src/design/tokens.css`. This file explains them. If the two disagree, the code wins and
   this file gets a fix.
@@ -407,13 +409,19 @@ One ink, one signature, quiet states. Colour carries meaning, never decoration.
 
 One family per script, a short scale, and weight instead of size for emphasis.
 
-- **Latin:** Inter Variable, with optical sizing on.
-- **Arabic:** IBM Plex Sans Arabic (weights 400, 500, 600, 700). Arabic text renders one step larger: every size is
-  multiplied by 1.08 when the page language is Arabic.
-- **Scale (phone sizes):** page title 30/700, section title 18/700, titles 28, 22 and 20, headline 17/600, body 17/400,
+- **Family:** Thmanyah Sans (font.thmanyah.com, free, the owner's choice of 2026-10-05) for Latin and Arabic, in the
+  weights 400, 500 and 700. Inter Variable and IBM Plex Sans Arabic stay in the stack as the fallback. The middle dot
+  "·" comes from Inter, because the Thmanyah dot reads like an Arabic zero.
+- **Weights:** Bold (700) for titles and headings only. Medium (500) for the emphasis inside a row, a label, a button or
+  a tab. Regular (400) for body text and secondary lines. The font has no 600, so `font-semibold` renders Medium. Arabic text renders one step larger: every size is multiplied by 1.08 when the page language
+  is Arabic.
+- **The font files** stay as Thmanyah ships them (OTF). The licence forbids any change, so never convert them to woff2,
+  subset them or rename the family inside them. They load only through the built bundle, never from `public/`.
+- **Scale (phone sizes):** page title 30/700, section title 18/700, titles 28, 22 and 20, headline 17/700, body 17/400,
   subheadline 15, footnote 13, caption 12. From 1024 px wide the scale steps down (body 15), because a desk screen sits
   closer to the eye and holds more.
 - **Numbers** use tabular figures ({typography.number}) wherever digits line up: counts, dates in columns, money, timers.
+  Thmanyah Sans has no tabular figures, so these spots (the `.tabular` class) take only the digits 0 to 9 from Inter.
   Both languages use Western digits (0 to 9) and the Gregorian calendar
   (`ar-SA-u-ca-gregory-nu-latn`, `en-GB-u-ca-gregory-nu-latn`).
 - **Labels** of fields are 13/500 in secondary ink ({typography.label-md}). Nothing on screen is smaller than 12 px.
@@ -551,4 +559,4 @@ stands alone without a label or an accessible name.
   enough.
 - **Don't** stack avatars or show more than one picture style in one list.
 - **Don't** put the Madar mark inside a project list, or a project picture in the app frame.
-- **Don't** add a font file or a new font family. The stack stays Inter, IBM Plex Sans Arabic.
+- **Don't** add a font file or a new font family. The stack stays Thmanyah Sans, then Inter and IBM Plex Sans Arabic.

@@ -8,7 +8,8 @@ import { Avatar } from './Avatar';
 type Tip = { name: string; x: number; y: number };
 
 /**
- * The leader first (bigger when `leaderSize` is set), then up to three team members, then "+N" (spec 4.1).
+ * The leader first (bigger when `leaderSize` is set), then up to three team members, then "+N" (spec 4.1). The pictures
+ * overlap by 4 px only, so the ring of the next one never hides initials, and "+N" keeps its order in Arabic.
  * On hover the pictures slide apart and each one names its person (owner, 2026-10-01, after shadcn studio avatar-18).
  * The name label sits in the page layer, so a list with rounded, clipped corners never cuts it.
  */
@@ -31,14 +32,14 @@ export function AvatarStack({
           key={person.id}
           onMouseEnter={show(person.name)}
           onMouseLeave={() => setTip(null)}
-          className={`rounded-full ring-2 ring-card ${slide} ${i > 0 ? '-ms-1.5 group-hover/stack:ms-1' : ''}`}
+          className={`rounded-full ring-2 ring-card ${slide} ${i > 0 ? '-ms-1 group-hover/stack:ms-1' : ''}`}
         >
           <Avatar user={person} size={leader && i === 0 ? leaderSize : size} />
         </span>
       ))}
       {extra > 0 && (
-        <span style={{ width: size, height: size }} className={`-ms-1.5 inline-flex items-center justify-center rounded-full bg-fill-strong text-caption font-semibold text-label ring-2 ring-card group-hover/stack:ms-1 ${slide}`}>
-          {t('projects.morePeople', { n: extra })}
+        <span style={{ width: size, height: size }} className={`-ms-1 inline-flex items-center justify-center rounded-full bg-fill-strong text-caption font-semibold text-label ring-2 ring-card group-hover/stack:ms-1 ${slide}`}>
+          <bdi dir="ltr">{t('projects.morePeople', { n: extra })}</bdi>
         </span>
       )}
       {tip && createPortal(

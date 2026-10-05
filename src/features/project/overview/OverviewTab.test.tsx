@@ -32,6 +32,14 @@ describe('the project Overview', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
+  // In Arabic, "Structural · 3 open tasks" showed as "3 · Structural" and then the Arabic words: the count joined the English
+  // name. The name of the discipline is a unit of its own (2026-10-05).
+  it('keeps the name of a discipline apart from the count after it', async () => {
+    await renderApp('/projects/prj_001', as('usr_002'));
+    const people = await screen.findByRole('region', { name: 'Who is doing what' });
+    expect(within(people).getByText('Structural').tagName).toBe('BDI');
+  });
+
   it('keeps the log in the Activity tab', async () => {
     await renderApp('/projects/prj_001');
     await userEvent.click(await screen.findByRole('tab', { name: 'Activity' }));

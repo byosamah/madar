@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPhysicalDirection } from './rtl-check';
+import { findDirectionBox, findPhysicalDirection } from './rtl-check';
 
 const flagged = [
   'ml-4', 'mr-2', 'pl-3', 'pr-1', 'left-0', 'right-4', '-left-2', 'text-left', 'text-right', 'float-left',
@@ -27,5 +27,36 @@ describe('findPhysicalDirection', () => {
 
   it('skips a line marked rtl-ok', () => {
     expect(findPhysicalDirection('<rect style={{ left: 0 }} /> // rtl-ok')).toEqual([]);
+  });
+});
+
+// A flex or grid box with its own direction puts its items on the side of the text, not of the page:
+// an English name then sits on the left of an Arabic screen. Only the text inside the box takes dir="auto".
+describe('findDirectionBox', () => {
+  const flagged = [
+    '<span dir="auto" className="flex min-w-0 gap-1">',
+    '<div dir="ltr" className="inline-grid">',
+    '<p dir="auto" className="text-start">',
+    '<div\n  dir="auto"\n  className={`grid ${cols}`}\n>',
+    '<input onChange={(e) => set(e.target.value)} dir="auto" className="inline-flex" />',
+  ];
+  const allowed = [
+    '<bdi dir="auto" className="min-w-0 truncate">',
+    '<div className="flex items-center"><bdi dir="auto">Concept</bdi></div>',
+    '<p dir="auto" className="flex-1 text-body">',
+    '<input onChange={(e) => set(e.target.value)} dir="auto" className="field" />',
+    '<TextField id="name" dir="auto" label="Name" />',
+  ];
+
+  it.each(flagged)('flags %s', (text) => {
+    expect(findDirectionBox(text)).not.toEqual([]);
+  });
+
+  it.each(allowed)('allows %s', (text) => {
+    expect(findDirectionBox(text)).toEqual([]);
+  });
+
+  it('reports the line of dir', () => {
+    expect(findDirectionBox('a\n<span\n  dir="auto" className="flex">')[0]).toMatchObject({ line: 3, match: 'flex' });
   });
 });

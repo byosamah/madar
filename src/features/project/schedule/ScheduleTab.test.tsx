@@ -18,6 +18,16 @@ describe('the Schedule tab', () => {
     expect(within(screen.getByRole('region', { name: 'Deadlines' })).getByText('Balady submission')).toBeInTheDocument();
   });
 
+  // The owner (2026-10-05): in Arabic, an English name also sits on the right. The cell follows the page; only the name has its own direction.
+  it('gives only the stage name its own direction, so the cell follows the side of the page', async () => {
+    await renderApp(SCHEDULE);
+    const chart = await screen.findByRole('region', { name: 'Stage timeline' });
+    const name = within(chart).getByText('Construction Documents');
+    expect(name.tagName).toBe('BDI');
+    expect(name).toHaveAttribute('dir', 'auto');
+    expect(name.parentElement).not.toHaveAttribute('dir');
+  });
+
   it('draws every deadline diamond in the quiet grey of the Dashboard, not the Attention orange (audit 2026-10-03, V-24)', async () => {
     await renderApp(SCHEDULE);
     const chart = await screen.findByRole('region', { name: 'Stage timeline' });

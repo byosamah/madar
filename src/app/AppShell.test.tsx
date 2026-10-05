@@ -62,6 +62,20 @@ describe('app shell', () => {
     expect(label).toHaveClass('sm:whitespace-nowrap');
   });
 
+  // A wrapped label made its tab taller, and the centred content lifted its icon above the other four (2026-10-05).
+  it('lines up the phone tabs at the top with one height, so a two-line label never lifts its icon', async () => {
+    await renderApp('/dashboard', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
+    expect(nav).toHaveClass('max-sm:items-stretch');
+    for (const name of ['الرئيسية', 'المشاريع', 'المهام', 'لوحة المعلومات']) {
+      const tab = within(nav).getByRole('link', { name });
+      expect(tab).toHaveClass('max-sm:justify-start');
+      expect(tab).toHaveClass('max-sm:py-1.5');
+    }
+  });
+
   // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 280 and 300 px.
   it('keeps every phone tab inside the bar below 320 px: a smaller label, less padding, tabs that can shrink (audit 2026-10-03, F-2)', async () => {
     await renderApp('/dashboard');

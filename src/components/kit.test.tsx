@@ -59,6 +59,18 @@ describe('the display kit', () => {
     expect(screen.getByText('+1')).toBeInTheDocument();
   });
 
+  // In Arabic "+1" read "1+", and a 6 px overlap hid part of the initials of the picture under it (2026-10-05).
+  it('keeps "+1" in that order in Arabic, and overlaps the pictures by 4 px only, so no initials hide', () => {
+    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M')];
+    render(<div dir="rtl"><AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={team} /></div>);
+    const more = screen.getByText('+1');
+    expect(more.tagName).toBe('BDI');
+    expect(more).toHaveAttribute('dir', 'ltr');
+    const [, second] = screen.getAllByRole('img');
+    expect(second.parentElement).toHaveClass('-ms-1');
+    expect(second.parentElement).not.toHaveClass('-ms-1.5');
+  });
+
   it('can draw the leader bigger and names each picture on hover, in a label outside any clipping box', async () => {
     render(<div style={{ overflow: 'hidden' }}><AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={[person('usr_005', 'Sara A')]} size={26} leaderSize={30} /></div>);
     const [leader, member] = screen.getAllByRole('img');

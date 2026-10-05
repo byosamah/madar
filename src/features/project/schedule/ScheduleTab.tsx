@@ -143,7 +143,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
           const span = saved;
           return (
             <Fragment key={stage.id}>
-              <div dir="auto" className="flex min-h-11 items-center truncate text-subheadline">{stage.name}</div>
+              <div className="flex min-h-11 min-w-0 items-center text-subheadline"><bdi dir="auto" className="min-w-0 truncate">{stage.name}</bdi></div>
               <div className="relative min-h-11">
                 {todayLine}
                 {span ? (

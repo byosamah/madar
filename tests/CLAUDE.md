@@ -5,6 +5,8 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 
 ## The prototype smoke (`e2e/`)
 - `npx playwright test` (`playwright.config.ts`, port 4173). 87 of 87 must pass at each screen merge.
+  It runs `npm run build` first, so it rewrites `dist/` (about 8 minutes in all). Never serve `dist/` for screenshots
+  while it runs.
 
 ## The deploy suite (`e2e-deploy/`)
 - `npx playwright test -c playwright.deploy.config.ts`. It runs the real screens on the server.

@@ -47,12 +47,21 @@ any screen work.
 - Icons: animated Lucide icons from lucide-animated.com through `components/icons/AnimatedIcon.tsx`.
 - Logo: `MadarMark` ("Turning doors"), only in the sign-in frame and the app frame, never in a project list
   (`MadarMark.test.tsx` lists the files).
+- Fonts: Thmanyah Sans for English and Arabic (files in `design/fonts/`), then Inter and IBM Plex Sans Arabic as the
+  fallback. Number spots use the `tabular` class: it takes the digits from Inter. Weights: Bold (`font-bold`, the title
+  and headline styles) only for headings, Medium (`font-medium` or `font-semibold`, which renders Medium) for emphasis in
+  rows, labels and buttons, Regular for body text.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
+- Text with its own direction (`dir="auto"`, `dir="ltr"`, `<bdi>`) takes its side from the page (`tokens.css`), so an
+  English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
+  `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
 - claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
+- Prototype language and theme: the person menu (stored in IndexedDB, not localStorage). A switch takes a few seconds,
+  and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.
 
 ## Screen test gotchas
