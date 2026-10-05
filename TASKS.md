@@ -198,7 +198,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 
 Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts after the wave 1 merge.
 
-- [ ] Track fix: tab row scrollbar (7), Arabic sheet corner (5), empty dates "Set date..." and aligned columns (8), hatch switch (9), light theme for new people (11)
+- [x] Track fix: tab row scrollbar (7), Arabic sheet corner (5), empty dates "Set date..." and aligned columns (8), hatch switch (9), light theme for new people (11)
 - [x] Track lead: tasks with no lead, "Take it", no finish without a lead (2)
 - [ ] Track clients: client form asterisks and messages (1), Admin Clients section (3), the internal project code (6b)
 - [x] Track admin: the Admin side list with one section at a time (4)
