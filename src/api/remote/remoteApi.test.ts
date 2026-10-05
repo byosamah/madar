@@ -52,10 +52,15 @@ describe('the request', () => {
     expect(regionUrl('https://x.supabase.co/api/batch?forceFunctionRegion=eu-central-1')).toBe('https://x.supabase.co/api/batch?forceFunctionRegion=eu-central-1');
   });
 
-  it('sends no Authorization header when the person is signed out', async () => {
+  it('sends nothing when the person is signed out: the call fails at once with the reason no_session (2026-10-05)', async () => {
+    // A list that loads again after a sign-out must not reach the server: its late 401 opened "Your session ended" over the
+    // next sign-in on the test copy. The session listener hears nothing, because the sign-in status already says signed out.
     const { sent, fetch } = stubFetch();
-    await remote(fetch, { token: async () => null }).call('projects.get', PROJECT);
-    expect(sent[0].headers.Authorization).toBeUndefined();
+    const onAuthError = vi.fn();
+    const error = await remote(fetch, { token: async () => null, onAuthError }).call('projects.get', PROJECT).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: 'unauthenticated', details: { reason: 'no_session' } });
+    expect(sent).toHaveLength(0);
+    expect(onAuthError).not.toHaveBeenCalled();
   });
 
   it('sends the calls of one moment in one request and answers each from its own entry', async () => {
@@ -293,11 +298,11 @@ describe('a listener that throws (review of rb/R1)', () => {
     expect(sent[2].body.calls[0].story).toEqual({ ref: 'cor_ui_auth' });
   });
 
-  it('sends with no token when token() throws at once, and does not leave the call waiting', async () => {
+  it('counts a token() that throws at once as no session, and does not leave the call waiting', async () => {
     const { sent, fetch } = stubFetch();
     const token = (() => { throw new Error('token bug'); }) as unknown as RemoteApiOptions<Calls>['token'];
-    expect(await remote(fetch, { token }).call('projects.get', PROJECT)).toEqual({ name: 'projects.get' });
-    expect(sent[0].headers.Authorization).toBeUndefined();
+    await expect(remote(fetch, { token }).call('projects.get', PROJECT)).rejects.toMatchObject({ details: { reason: 'no_session' } });
+    expect(sent).toHaveLength(0);
   });
 
   it('fails every call of the batch with failed when send() itself throws, and the placeholder can go again', async () => {

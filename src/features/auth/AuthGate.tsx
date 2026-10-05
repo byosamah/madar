@@ -44,7 +44,9 @@ export function AuthGate() {
 
   useEffect(() => {
     const seen = (error: unknown) => {
-      if (!unauthenticated(error) || isLeaving()) return;
+      // A call that went with no session (no_session) is not the end of this session: it comes from before the sign-in, or
+      // the sign-in status has already said signed out, and the listener above opens the sheet for that.
+      if (!unauthenticated(error) || isLeaving() || error.details.reason === 'no_session') return;
       if (error.details.reason === 'account_off') void signOut('account_off');
       else setExpired(true);
     };

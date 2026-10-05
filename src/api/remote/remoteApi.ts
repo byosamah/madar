@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { Api, CallMap, CallMeta, CallResult } from '../client';
-import type { ApiError } from '../errors';
+import { ApiError } from '../errors';
 import { Batcher } from './batcher';
 import { fromEntry, fromStatus, noAnswer } from './errors';
 import { isRead, newKey } from './keys';
@@ -165,7 +165,19 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         ...(item.key ? { key: item.key } : {}),
       })),
     };
-    let reply = await post(body, await tokenOf(() => o.token()));
+    const token = await tokenOf(() => o.token());
+    if (!token) {
+      // No session: send nothing. A list that loads again after a sign-out must not reach the server, because its late 401 was
+      // read as the end of the next session (test copy, 2026-10-05). The sign-in status already says signed out, so the
+      // session listener hears nothing.
+      const error = new ApiError('unauthenticated', 'You are signed out.', { reason: 'no_session' });
+      for (const item of items) {
+        settleStory(item, undefined);
+        item.reject(error);
+      }
+      return;
+    }
+    let reply = await post(body, token);
     // One token refresh and one resend. The server ran nothing for a 401, so the writes go again with the same keys.
     if (reply.kind === 'status' && reply.status === 401) reply = await post(body, await tokenOf(o.refresh ?? o.token));
 

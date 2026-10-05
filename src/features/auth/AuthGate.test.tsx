@@ -95,6 +95,17 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     expect(screen.getByRole('textbox', { name: 'Post an update' })).toHaveValue('Kept');
   });
 
+  it('keeps the sheet shut for a late call that went with no session, from before this sign-in (test copy, 2026-10-05)', async () => {
+    let refuse: false | ApiError = false;
+    const { queryClient } = await renderRemoteApp(UPDATE, { refuse: () => refuse });
+    await typeUpdate('Kept');
+    refuse = new ApiError('unauthenticated', 'You are signed out.', { reason: 'no_session' });
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: ['api'] }); });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Post an update' })).toHaveValue('Kept');
+  });
+
   it('signs out a person whose account was turned off and tells them why', async () => {
     let refuse: false | ApiError = false;
     const { auth, router, queryClient } = await renderRemoteApp(UPDATE, { refuse: () => refuse });
