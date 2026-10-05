@@ -432,7 +432,7 @@ for (const { lang, width } of VARIANTS) {
     await step('invite', 'admin', async () => {
       const page = pages.admin;
       const [{ max }] = await q<{ max: string | null }>('select max(id)::text as max from mail_outbox');
-      await goto(page, '/admin');
+      await goto(page, '/admin/people');
       await page.getByRole('button', { name: w('admin.addPerson') }).click();
       const sheet = page.getByRole('dialog', { name: w('admin.addPerson') });
       await sheet.locator('#person-name').fill(invited.name);
@@ -453,7 +453,7 @@ for (const { lang, width } of VARIANTS) {
     const newEmail = `walk-new-${suffix}-${run}@madar.test`;
     await step('email', 'admin', async () => {
       const page = pages.admin;
-      await goto(page, '/admin');
+      await goto(page, '/admin/people');
       await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invited.name }) }));
       await page.getByRole('menuitem', { name: w('admin.edit') }).click();
       const sheet = page.getByRole('dialog').last();
@@ -468,7 +468,7 @@ for (const { lang, width } of VARIANTS) {
     });
     await step('email', 'management', async () => {
       const page = pages.management;
-      await goto(page, '/admin');
+      await goto(page, '/admin/people');
       await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invited.name }) }));
       await page.getByRole('menuitem', { name: w('admin.edit') }).click();
       const sheet = page.getByRole('dialog').last();
@@ -487,7 +487,7 @@ for (const { lang, width } of VARIANTS) {
     for (const role of ROLES) {
       await step('usage', role, async () => {
         const page = pages[role];
-        await goto(page, '/admin');
+        await goto(page, '/admin/usage');
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
         const heading = page.getByRole('heading', { level: 2, name: w('usage.title'), exact: true });
         if (role === 'admin') {

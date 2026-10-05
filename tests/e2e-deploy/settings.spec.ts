@@ -26,7 +26,7 @@ for (const width of WIDTHS) {
         await expectCalm(page, 'settings');
         await expectNoSeriousA11y(page, 'settings');
 
-        await goto(page, '/admin');
+        await goto(page, '/admin/people');
         await page.getByRole('button', { name: word(lang, 'admin.addPerson') }).click();
         const sheet = page.getByRole('dialog', { name: word(lang, 'admin.addPerson') });
         await expect(sheet.locator('#person-language')).toBeVisible();
