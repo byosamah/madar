@@ -5,7 +5,8 @@ The project management system of Osama's architecture office in Al Khobar (about
 - **The prototype**: the full app in the browser over a fake API (zod contract, IndexedDB). Published as a private
   artifact (https://claude.ai/artifact/QRj6nZQKmu6tBcCRMxtjrY).
 - **The real build**: the same screens over a TypeScript server on Supabase. Built in waves since 2026-10-03. Live since
-  2026-10-04: production https://madar-46r.pages.dev (empty office, first Admin o.khalil@mazj.org), test copy
+  2026-10-04: production https://madar.vado.sa (since 2026-10-05; www.madar.vado.sa and madar-46r.pages.dev also work;
+  empty office, first Admin o.khalil@mazj.org), test copy
   https://preview.madar-46r.pages.dev (the sample office, `secrets/test-accounts.env`). Record: proof.md section "Deploy".
 
 Live status and open items: `TASKS.md` (keep it current: tick what is done, add what you find).

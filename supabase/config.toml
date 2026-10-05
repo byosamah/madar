@@ -454,5 +454,6 @@ additional_redirect_urls = ["https://preview.madar-46r.pages.dev"]
 project_id = "oprkvdjudjxxhvodkzgs"
 
 [remotes.production.auth]
-site_url = "https://madar-46r.pages.dev"
-additional_redirect_urls = ["https://madar-46r.pages.dev"]
+# The owner's address since 2026-10-05; www.madar.vado.sa moves to it in the screens, and the Pages address keeps working.
+site_url = "https://madar.vado.sa"
+additional_redirect_urls = ["https://madar.vado.sa", "https://www.madar.vado.sa", "https://madar-46r.pages.dev"]
