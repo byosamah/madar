@@ -200,10 +200,12 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 
 - [x] Track fix: tab row scrollbar (7), Arabic sheet corner (5), empty dates "Set date..." and aligned columns (8), hatch switch (9), light theme for new people (11)
 - [x] Track lead: tasks with no lead, "Take it", no finish without a lead (2)
-- [ ] Track clients: client form asterisks and messages (1), Admin Clients section (3), the internal project code (6b)
+- [x] Track clients: client form asterisks and messages (1), Admin Clients section (3), the internal project code (6b)
 - [x] Track admin: the Admin side list with one section at a time (4)
-- [ ] Track profile: profile picture (10), English and Arabic names for each person (12)
-- [ ] Merge wave 1 (admin, fix, profile, lead, clients), register the Clients section, full merge gate, screenshots
+- [x] Track profile: profile picture (10), English and Arabic names for each person (12)
+- [x] Merge wave 1 (admin, lead, fix, clients, profile), register the Clients section. npm test 3705 passed; typecheck, build, build:server, build:remote test pass
+- [ ] Wave 1 gate on the local stack: test:db and test:it (Docker was not running on 2026-10-05), prototype smoke
+- [ ] Small follow-ups: a toast shows two dots when the building type ends with a dot; Team tab names cut at 390 px (old layout); the date fields that save with a form button still show dd/mm/yyyy (list in the fix track report)
 - [ ] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a)
 - [ ] Merge wave 2, register the Project templates section, full merge gate, local-stack walk, screenshots
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)
