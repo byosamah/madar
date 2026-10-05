@@ -28,13 +28,23 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
   }
   const { storyId, ...input } = args;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;
-  return ctx.runCall(ctx.deps, {
+  const result = await ctx.runCall(ctx.deps, {
     principal: ctx.principal,
     name: tool.name,
     input: tool.takesStory ? input : args,
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
+  return result.ok ? { ...result, output: withoutPictureData(tool.name, result.output) } : result;
+}
+
+/**
+ * users.list gives the profile picture of each person as data of up to 24,000 characters (owner item 10, 2026-10-05). An agent
+ * has no use for it, and 15 pictures would fill its context, so a picture saved as data leaves the answer (avatarUrl null).
+ */
+function withoutPictureData(name: string, output: unknown): unknown {
+  if (name !== 'users.list' || !Array.isArray(output)) return output;
+  return output.map((user: { avatarUrl?: unknown }) => (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('data:') ? { ...user, avatarUrl: null } : user));
 }
 
 export function errorResult(error: RunError, text?: string): CallToolResult {

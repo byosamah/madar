@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { User } from '../../src/api/contract/entities';
+import { personName } from '../../src/lib/personName';
 import { invalid } from '../../src/api/errors';
 import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
@@ -84,7 +85,7 @@ export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'no
     return 'none';
   }
   const mail = renderSigninMail('reset', user.preferences.language, {
-    name: user.name, link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
+    name: personName(user, user.preferences.language), link: signinLink(deps.config.appUrl, 'reset', link.tokenHash, 'recovery'),
   }, user.gender, { appUrl: deps.config.appUrl });
   // sendCounted finds the place that this key holds.
   const sent = await sendCounted(deps, 'signin', { to: user.email, ...mail, tag: 'reset', idempotencyKey: key }, { userId: row.id });

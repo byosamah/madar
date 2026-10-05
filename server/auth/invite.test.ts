@@ -306,6 +306,17 @@ describe('sendInvitation: the auth.invite effect (plan 5.1 and 4.12)', () => {
     expect(deps.mail.sent[0].html).toContain('dir="rtl"');
   });
 
+  it('names the person in the language of the mail: the Arabic name in Arabic, the English name in English (owner item 12)', async () => {
+    const arabic = setup([{ user: person({ name: 'Sara Ali', nameAr: 'سارة علي', preferences: { ...defaultPreferences(), language: 'ar' } }), authUserId: null }]);
+    await sendInvitation(arabic.payloadOf(inviteRow('usr_012')), arabic.deps, { store: arabic.mem.store });
+    expect(arabic.deps.mail.sent[0].text).toContain('سارة علي');
+    expect(arabic.deps.mail.sent[0].text).not.toContain('Sara Ali');
+    const english = setup([{ user: person({ name: 'Sara Ali', nameAr: 'سارة علي' }), authUserId: null }]);
+    await sendInvitation(english.payloadOf(inviteRow('usr_012')), english.deps, { store: english.mem.store });
+    expect(english.deps.mail.sent[0].text).toContain('Sara Ali');
+    expect(english.deps.mail.sent[0].text).not.toContain('سارة علي');
+  });
+
   it('a retry after a failed send uses the token hash of the first link, so the first mail never carries a dead link', async () => {
     const { deps, auth, mem, payloadOf } = setup([{ user: person(), authUserId: null }]);
     const row = inviteRow('usr_012');

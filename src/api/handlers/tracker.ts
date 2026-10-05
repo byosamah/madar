@@ -10,7 +10,7 @@ import { mayFinish, stageTag, watchStage } from '../flow';
 import { notifyIn } from '../notify';
 import { projectRoleOf } from '../permissions';
 import { nextId, trackerOf, type State } from '../store';
-import { attachmentsOf, mayDeleteTracker, trackerRowOf } from '../views';
+import { attachmentsOf, mayDeleteTracker, namesUnder, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
 import { assertActive, assertCan, requireProject, requireUser, roleIn, touch } from './shared';
@@ -321,7 +321,7 @@ const trackerExport = defineCall({
       // Every stamp is in office time, so the clock reads straight off the text: 2026-09-30T08:00:00.000+03:00.
       rows.push({ event, row: {
         date: event.createdAt.slice(0, 10), time: event.createdAt.slice(11, 19), event: kind, waiting: shown.waiting,
-        by: ctx.state.users[event.actingForId]?.name ?? '', byAgent: event.actorKind === 'agent',
+        ...namesUnder('by', ctx.state.users[event.actingForId]), byAgent: event.actorKind === 'agent',
         type: shown.type, direction: shown.direction, title: shown.title, note: shown.note,
         files: attachmentsOf(ctx.state, shown.fileIds).flatMap((file) => (file.name ? [file.name] : [])), auto: shown.auto,
       } });

@@ -186,7 +186,7 @@ export const searchQuery = defineCall({
         .slice(0, 5)
         .map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, projectCode: codeOf(t.projectId) })),
       people: Object.values(state.users)
-        .filter((u) => u.active && hit(u.name, u.discipline))
+        .filter((u) => u.active && hit(u.name, u.nameAr, u.discipline))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((u) => userCard(u)),

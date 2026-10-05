@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { User } from '../../src/api/contract/entities';
+import { personName } from '../../src/lib/personName';
 import type { SharedCallName } from '../../src/api/sharedCalls';
 import { processOutbox, registerEffect, registerOutbox, writeOutbox, type OutboxProducer, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
@@ -218,9 +219,12 @@ async function syncEmail(payload: Rec, deps: Deps, store: AuthStore, user: User,
   if (owed.owesInvite === true && !(now.confirmed && now.passwordSet)) await sendInvitation(owed, deps, { store });
   const owesNotice = owed.noticeQueued === undefined && owed.noticeSentAt === undefined;
   if (typeof owed.notifyOld === 'string' && owed.notifyOld !== email && owesNotice && inviteId) {
-    const by = typeof owed.byId === 'string' ? (await store.person(owed.byId))?.user.name : undefined;
+    // The names in the language of the person who gets the notice (owner item 12, 2026-10-05).
+    const lang = user.preferences.language;
+    const byUser = typeof owed.byId === 'string' ? (await store.person(owed.byId))?.user : undefined;
+    const by = byUser ? personName(byUser, lang) : undefined;
     const notice: Rec = {
-      userId: user.id, to: owed.notifyOld, email: user.email, name: user.name, language: user.preferences.language,
+      userId: user.id, to: owed.notifyOld, email: user.email, name: personName(user, lang), language: lang,
       gender: user.gender ?? null, key: `email-changed:${inviteId}`, ...(by ? { by } : {}),
     };
     const ids = await store.queueNotice(inviteId, [{ kind: AUTH_KINDS.emailNotice, payload: notice }]);

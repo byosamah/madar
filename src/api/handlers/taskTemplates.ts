@@ -4,6 +4,7 @@ import { DurationDays, Gender, StageName, TaskId, TaskSchedule, TaskTemplate, Ta
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, taskTemplatesOf } from '../store';
+import { namesUnder } from '../views';
 import { assertCan, requireTask, roleIn } from './shared';
 
 const Title = z.string().trim().min(1).max(200);
@@ -13,7 +14,9 @@ const ItemTitle = z.string().trim().min(1).max(200);
  * A template as a screen reads it: the name of the person who saved it, and whether the current person may rename or delete it.
  * The gender of that person picks the Arabic verb of "saved by" (audit 2026-10-03, SHL-17).
  */
-export const TaskTemplateRow = TaskTemplate.extend({ createdByName: z.string(), createdByGender: Gender.optional(), canEdit: z.boolean() });
+export const TaskTemplateRow = TaskTemplate.extend({
+  createdByName: z.string(), createdByNameAr: z.string().optional(), createdByGender: Gender.optional(), canEdit: z.boolean(),
+});
 export type TaskTemplateRow = z.infer<typeof TaskTemplateRow>;
 
 function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
@@ -21,7 +24,7 @@ function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
 }
 
 const rowOf = (ctx: Ctx, template: TaskTemplate) => ({
-  ...template, createdByName: ctx.state.users[template.createdBy]?.name ?? '', createdByGender: ctx.state.users[template.createdBy]?.gender, canEdit: mayEdit(ctx, template),
+  ...template, ...namesUnder('createdByName', ctx.state.users[template.createdBy]), createdByGender: ctx.state.users[template.createdBy]?.gender, canEdit: mayEdit(ctx, template),
 });
 
 const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();

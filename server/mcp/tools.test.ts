@@ -160,6 +160,17 @@ describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
     expect(readFirstAnswer({ name: 'Omar', systemRole: 'admin' })).toContain('Admin');
   });
 
+  it('names the person in English, also when the person has an Arabic name (owner item 12)', () => {
+    const person = { name: 'Sara Ali', nameAr: 'سارة علي', systemRole: 'member' as const };
+    const answer = readFirstAnswer(person);
+    expect(answer).toContain('You act for Sara Ali,');
+    expect(answer).not.toContain('سارة');
+  });
+
+  it('tells an agent that users.list gives both names', () => {
+    expect(TOOL_DOCS['users.list'].description).toContain('nameAr');
+  });
+
   it('holds no em dash', () => {
     const dash = String.fromCharCode(0x2014);
     expect(INSTRUCTIONS).not.toContain(dash);

@@ -7,7 +7,11 @@ import {
 
 export const UserCard = z.object({
   id: UserId,
+  /** The English name. */
   name: z.string(),
+  /** The Arabic name, when the person has one (owner item 12, 2026-10-05). The screens show the name of their language. */
+  nameAr: z.string().optional(),
+  /** An https picture only. Picture data stays out of the card, so long lists stay small: the screens read it from users.list. */
   avatarUrl: z.string().nullable(),
   kind: z.enum(['human', 'agent']),
   discipline: z.string(),
@@ -216,6 +220,8 @@ export const TrackerExportRow = z.object({
   waiting: TrackerWaiting.nullable(),
   /** The person. For an agent it is the person the agent acts for, and "byAgent" is true. */
   by: z.string(),
+  /** The Arabic name of the same person, when there is one (owner item 12, 2026-10-05). */
+  byAr: z.string().optional(),
   byAgent: z.boolean(),
   type: TrackerType,
   direction: TrackerDirection,

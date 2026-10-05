@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   Gender,
-  Client, ClientId, Glass, Language, Settings, SystemRole, Theme, User, UserId, defaultPreferences, type Preferences,
+  Client, ClientId, Glass, Language, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, defaultPreferences, type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
@@ -14,6 +14,8 @@ import { assertCan, byName, requireUser } from './shared';
 
 const Empty = z.object({});
 const Name = z.string().trim().min(1).max(80);
+/** The Arabic name in a change: an empty value takes it off (owner item 12, 2026-10-05). */
+const NameArPatch = z.string().trim().max(80);
 const Discipline = z.string().trim().min(1).max(40);
 const Kind = z.enum(['human', 'agent']);
 const ClientName = z.string().trim().max(120);
@@ -30,6 +32,8 @@ const PreviewUser = UserCard.extend({
   systemRole: SystemRole,
   hint: z.enum(['admin', 'management', 'accounting', 'leader', 'member', 'agent']),
   actingForName: z.string().nullable(),
+  /** The Arabic name of the person an agent acts for, when there is one. */
+  actingForNameAr: z.string().optional(),
 });
 
 export const sessionGet = defineCall({
@@ -52,6 +56,7 @@ export const sessionGet = defineCall({
         ...userCard(u),
         systemRole: u.systemRole,
         actingForName: u.kind === 'agent' && u.ownerId ? (ctx.state.users[u.ownerId]?.name ?? null) : null,
+        ...(u.kind === 'agent' && u.ownerId && ctx.state.users[u.ownerId]?.nameAr ? { actingForNameAr: ctx.state.users[u.ownerId]?.nameAr } : {}),
         hint: u.kind === 'agent' ? ('agent' as const) : u.systemRole !== 'member' ? u.systemRole : leaders.has(u.id) ? ('leader' as const) : ('member' as const),
       }));
     const actingFor = ctx.actor.kind === 'agent' ? userCard(ctx.authority) : null;
@@ -135,6 +140,8 @@ function assertMayTouch(ctx: Ctx, target: User | null, newRole: SystemRole | und
 export const usersCreate = defineCall({
   input: z.object({
     name: Name,
+    /** The Arabic name. Optional in the contract, so old callers work; the Admin form asks for it (owner item 12). */
+    nameAr: Name.optional(),
     email: z.email(),
     systemRole: SystemRole.default('member'),
     kind: Kind.default('human'),
@@ -160,8 +167,8 @@ export const usersCreate = defineCall({
     }
     const id = nextId(ctx.state, 'usr');
     const user: User = {
-      id, name: input.name, email: input.email, systemRole: input.systemRole, kind: input.kind, discipline: input.discipline,
-      ownerId, avatarUrl: null, active: true, gender: input.gender,
+      id, name: input.name, ...(input.nameAr ? { nameAr: input.nameAr } : {}), email: input.email, systemRole: input.systemRole, kind: input.kind,
+      discipline: input.discipline, ownerId, avatarUrl: null, active: true, gender: input.gender,
       preferences: { ...defaultPreferences(), language: input.language ?? ctx.authority.preferences.language },
     };
     ctx.state.users[id] = user;
@@ -175,10 +182,11 @@ export const usersUpdate = defineCall({
     id: UserId,
     patch: z.object({
       name: Name.optional(),
+      nameAr: NameArPatch.optional(),
       email: z.email().optional(),
       systemRole: SystemRole.optional(),
       discipline: Discipline.optional(),
-      avatarUrl: z.string().max(2000).nullable().optional(),
+      avatarUrl: UserAvatarInput.optional(),
       gender: Gender.optional(),
     }).strict(), // A person never becomes an agent, or back: that would break the owner rule of spec 17.
   }),
@@ -238,7 +246,7 @@ export const usersReactivate = defineCall({
 });
 
 export const meUpdateProfile = defineCall({
-  input: z.object({ name: Name.optional(), discipline: Discipline.optional(), avatarUrl: z.string().max(2000).nullable().optional() }),
+  input: z.object({ name: Name.optional(), nameAr: NameArPatch.optional(), discipline: Discipline.optional(), avatarUrl: UserAvatarInput.optional() }),
   output: User,
   run(input, ctx) {
     applyPatch(ctx, ctx.actor, input, { projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });

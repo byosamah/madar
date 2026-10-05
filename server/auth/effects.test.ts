@@ -225,6 +225,18 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     expect(deps.mail.sent[0].text).toContain('أخبري مدير النظام');
   });
 
+  it('names the person and the Admin in the language of the person who gets the notice (owner item 12)', async () => {
+    const { deps, auth, mem } = setup(person(), true);
+    const ar = { ...defaultPreferences(), language: 'ar' as const };
+    const accepted = await linkedPerson(auth, person(), true);
+    const sara = person({ name: 'Sara Ali', nameAr: 'سارة علي', email: 'sara.new@madar.test', gender: 'female', preferences: ar });
+    const store = memoryPeople([{ ...accepted, user: sara }, { ...ADMIN, user: { ...ADMIN.user, nameAr: 'فيصل الحربي' } }], mem.db);
+    await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_n', byId: 'usr_001' }, deps, store);
+    expect(mem.outbox[0].payload).toMatchObject({ name: 'سارة علي', by: 'فيصل الحربي' });
+    expect(deps.mail.sent[0].text).toContain('جاء التغيير من فيصل الحربي.');
+    expect(deps.mail.sent[0].text).not.toContain('Faisal');
+  });
+
   it('a notice whose send failed stays in the outbox for the job; a retry of auth.email queues no second notice', async () => {
     const { deps, auth, mem } = setup(person(), true);
     const accepted = await linkedPerson(auth, person(), true);

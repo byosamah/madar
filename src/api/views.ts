@@ -1,4 +1,4 @@
-import type { Comment, Deadline, Event, FileRec, Payment, Project, Stage, Task, TrackerEntry, Update, User } from './contract/entities';
+import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
 import type {
   Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
@@ -11,8 +11,23 @@ import { helpersOf, involves } from '../lib/taskPeople';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
 import { staleDaysOf } from './pause';
 
+/**
+ * The short form of a person in every view. Picture data (up to 24,000 characters) stays out: a list of 100 tasks would carry
+ * it 100 times. The screens take the picture of a person from users.list (app/pictures.tsx).
+ */
 export function userCard(user: User): UserCard {
-  return { id: user.id, name: user.name, avatarUrl: user.avatarUrl, kind: user.kind, discipline: user.discipline, gender: user.gender };
+  const avatarUrl = user.avatarUrl !== null && PICTURE_DATA.test(user.avatarUrl) ? null : user.avatarUrl;
+  return {
+    id: user.id, name: user.name, ...(user.nameAr ? { nameAr: user.nameAr } : {}), avatarUrl, kind: user.kind, discipline: user.discipline,
+    gender: user.gender,
+  };
+}
+
+/** Both names of a person under one key, for a text detail of an event: "key" holds the English name, "keyAr" the Arabic one. */
+export function namesUnder<K extends string>(key: K, user: User | undefined): Record<K, string> & Partial<Record<`${K}Ar`, string>> {
+  const names: Record<string, string> = { [key]: user?.name ?? '' };
+  if (user?.nameAr) names[`${key}Ar`] = user.nameAr;
+  return names as Record<K, string> & Partial<Record<`${K}Ar`, string>>;
 }
 
 export function cardOf(state: State, userId: string): UserCard {
@@ -71,7 +86,7 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       const detail: Record<string, string> = {};
       if (typeof after.status === 'string') detail.status = after.status;
       // A new lead, by name, for the meeting summary.
-      if (typeof after.ownerId === 'string') detail.lead = state.users[after.ownerId]?.name ?? '';
+      if (typeof after.ownerId === 'string') Object.assign(detail, namesUnder('lead', state.users[after.ownerId]));
       return { label: title, detail };
     }
     case 'tracker': {
@@ -82,7 +97,7 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       if (entry?.waiting) detail.waiting = entry.waiting;
       if (typeof after.replyTaskId === 'string') {
         const reply = state.tasks[after.replyTaskId];
-        if (reply) detail.person = state.users[reply.ownerId]?.name ?? '';
+        if (reply) Object.assign(detail, namesUnder('person', state.users[reply.ownerId]));
       }
       return { label: title, detail };
     }
@@ -94,14 +109,14 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       const name = state.projects[event.targetId]?.name ?? '';
       if (typeof after.currentStageId === 'string') return { label: name, detail: { stage: state.stages[after.currentStageId]?.name ?? '' } };
       if ('leaderId' in after) {
-        const leader = typeof after.leaderId === 'string' ? (state.users[after.leaderId]?.name ?? '') : '';
-        return { label: name, detail: { leader } };
+        return { label: name, detail: typeof after.leaderId === 'string' ? namesUnder('leader', state.users[after.leaderId]) : { leader: '' } };
       }
       return { label: name, detail: {} };
     }
     case 'member': {
       const userId = event.targetId.split(':')[1] ?? '';
-      return { label: state.users[userId]?.name ?? '', detail: {} };
+      const { label, labelAr } = namesUnder('label', state.users[userId]);
+      return { label, detail: labelAr ? { labelAr } : {} };
     }
     default:
       return { label: '', detail: {} };
