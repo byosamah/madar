@@ -193,3 +193,17 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 
 - [x] Staging (owner, 2026-10-05): the test copy is the staging step. No third copy (Supabase gives 2 free projects, Madar uses both) and no staging address for now. `all.sh test` records its commit, and production refuses any other commit, a change that is not committed, or a folder that is not a git checkout, before the typed word. Release steps: `scripts/deploy/CLAUDE.md`, Release flow. Tests: `scripts/deploy/deploy.test.ts`.
 - [ ] The next production deploy: run `scripts/deploy/all.sh test` from main first. Production runs 1b0180a, and main has only doc commits since, but the record starts empty.
+
+## 2026-10-05: owner feedback batch (spec docs/superpowers/specs/2026-10-05-owner-feedback-batch-design.md)
+
+Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts after the wave 1 merge.
+
+- [ ] Track fix: tab row scrollbar (7), Arabic sheet corner (5), empty dates "Set date..." and aligned columns (8), hatch switch (9), light theme for new people (11)
+- [ ] Track lead: tasks with no lead, "Take it", no finish without a lead (2)
+- [ ] Track clients: client form asterisks and messages (1), Admin Clients section (3), the internal project code (6b)
+- [ ] Track admin: the Admin side list with one section at a time (4)
+- [ ] Track profile: profile picture (10), English and Arabic names for each person (12)
+- [ ] Merge wave 1 (admin, fix, profile, lead, clients), register the Clients section, full merge gate, screenshots
+- [ ] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a)
+- [ ] Merge wave 2, register the Project templates section, full merge gate, local-stack walk, screenshots
+- [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)

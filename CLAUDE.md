@@ -130,6 +130,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A contract change is additive or keeps both forms. The test count only grows, except when the code a test checks
   is deleted.
 - Every visible word has an English and an Arabic key.
+- Every feature change updates the MCP side in the same commit: the allow or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
+  (`server/mcp/docs.ts`), and `INSTRUCTIONS` when a rule changes (owner, 2026-10-05).
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,
