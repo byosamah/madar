@@ -5,7 +5,7 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 36 tools: the reads and writes an
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 37 tools: the reads and writes an
  * agent can use for an office project. Every other call stays on the deny list: screen work (uploads, read marks, counts), the
  * prototype controls, and every Admin call. VS Code allows at most 128 tools in one request across all servers, and each tool
  * definition uses model context, so the list stays short. tools.test.ts fails when a call is in neither list.
@@ -18,8 +18,8 @@ export const MCP_ALLOW = [
   // Reads (15).
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list',
-  // Writes (21).
-  'story.start', 'tasks.create', 'tasks.update', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
+  // Writes (22).
+  'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
@@ -135,7 +135,7 @@ function build(name: McpToolName): ToolDef {
 
 let cache: ToolDef[] | null = null;
 
-/** The 36 tools in their fixed order. It reads sharedCalls and the server contracts, never the server code of a call. */
+/** The 37 tools in their fixed order. It reads sharedCalls and the server contracts, never the server code of a call. */
 export function mcpTools(): ToolDef[] {
   cache ??= [...MCP_ALLOW].sort(order).map(build);
   return [...cache];

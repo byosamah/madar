@@ -95,6 +95,10 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await write('tasks.create', { projectId: project.id, title: 'Check the site drainage levels', stageId, ownerId: project.leaderId, dueDate: addDays(TODAY, 7) });
     const newTask = added(before, s(), 'tasks');
     await write('tasks.update', { id: newTask, patch: { description: 'Compare the levels with the survey of August.', flagged: true } });
+    // The sample office has no task with no lead, so the script takes the lead off one open task before it takes it.
+    const unled = first(Object.values(s().tasks).filter((t) => t.projectId === project.id && t.status === 'todo' && t.id !== newTask), 'open task');
+    s().tasks[unled.id].ownerId = null;
+    await write('tasks.take', { taskId: unled.id });
     await write('tasks.move', { id: newTask, status: 'in_progress' });
     await write('tasks.complete', { id: newTask });
     await write('comments.create', { targetType: 'task', targetId: newTask, body: 'The levels match the survey.' });

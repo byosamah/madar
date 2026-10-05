@@ -27,6 +27,8 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   // Rules of the office after the earlier entries of the list (the sweep inputs of task C2).
   'tasks.update': 'forbidden',
   'tasks.sendBack': 'invalid_input',
+  // Every task of the sample office has a lead, so taking one is refused (has_lead). loaders.test.ts takes a task with no lead.
+  'tasks.take': 'invalid_input',
   'events.undoStory': 'forbidden',
   'payments.markReceived': 'invalid_input',
 };
@@ -73,6 +75,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'deadlines.delete': [{ id: Object.keys(office.deadlines)[1] }],
     'tasks.move': [{ id: task.id, status: 'in_progress', stageId: otherStage?.id ?? task.stageId }],
     'tasks.approve': [{ id: review?.id ?? task.id }],
+    'tasks.take': [{ taskId: task.id }],
     'events.undo': [{ eventId: ownEvent?.id ?? 'evt_001' }],
     'notifications.updateSettings': [{ channel: 'email', trigger: 'mention', on: false }],
     'chats.openDirect': [{ userId: 'usr_002' }],

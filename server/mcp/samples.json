@@ -35,7 +35,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_359"
+    "eventId": "evt_361"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_015"
@@ -119,6 +119,10 @@
   "tasks.sendBack": {
     "id": "tsk_023",
     "note": "Add the section through the stair, then send it again.",
+    "storyId": "cor_sample_015"
+  },
+  "tasks.take": {
+    "taskId": "tsk_009",
     "storyId": "cor_sample_015"
   },
   "tasks.update": {

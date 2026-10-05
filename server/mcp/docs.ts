@@ -1,6 +1,6 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
- * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 36 tools its title and description.
+ * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 37 tools its title and description.
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
@@ -24,6 +24,8 @@ export const INSTRUCTIONS = [
   'Reasons: some changes need a reason in words. A task change that moves the project back to an earlier stage needs "reason". A change of a task date that was already set needs "dateReason". When a call needs one, the server asks for it, or the call fails with a message that names the field. Ask your person for the reason, then call again with the same arguments plus that field. Never invent a reason.',
   '',
   'Files: you can list files and refer to them by ID. To upload a file, the person uses the Madar screens.',
+  '',
+  'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
 ].join('\n');
@@ -126,15 +128,15 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.create': {
     title: 'Add a task',
-    description: 'Adds a task to a project: a title, and optionally the stage, owner, helpers, prerequisites, start and due dates, description, flag and review need. A new open task in an earlier stage moves the project back, and then the call needs "reason".',
+    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A new open task in an earlier stage moves the project back, and then the call needs "reason".',
   },
   'tasks.get': {
     title: 'Get a task',
-    description: 'Returns one task by id (for example tsk_014): title, status, owner and helpers, stage, dates, checklist, prerequisites, review need and versions.',
+    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead.',
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me), status, due, created and done date ranges, includeDone, activeProjectsOnly, teamId. Without includeDone, done tasks are left out.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead), status, due, created and done date ranges, includeDone, activeProjectsOnly, teamId. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
   },
   'tasks.move': {
     title: 'Move a task',
@@ -144,9 +146,13 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
     title: 'Send a task back',
     description: 'Sends a task in review back to in_progress, with a note that says what to change. Only a reviewer (the project leader or the Admin) may do this. The note becomes a comment on the task, and the owner and helpers get a notification.',
   },
+  'tasks.take': {
+    title: 'Take a task',
+    description: 'Makes your person the lead of one task that has no lead (taskId, for example tsk_014). Your person must be on the project team; an Admin joins it. It fails with reason has_lead when the task has a lead already.',
+  },
   'tasks.update': {
     title: 'Change a task',
-    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". A change of a date that was already set needs "dateReason". A stage move back needs "reason".',
+    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. A change of a date that was already set needs "dateReason". A stage move back needs "reason".',
   },
   'tracker.close': {
     title: 'Close a tracker wait',
