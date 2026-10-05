@@ -484,9 +484,13 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Fields** ({components.field}): one look for every input, dropdown and text area: 44 px, the grey fill, 12 px corners,
   14 px side padding, a 2 px blue focus ring. A read-only field drops the fill and shows a thin frame, with a hint that
   says why it cannot change. An invalid field gets a red edge and one sentence below it.
-- **Dates that save themselves** (stage dates, task dates): a quiet button, not a full field. Empty: "Set date…" in
-  secondary ink. Set: the short date and a small clear mark. A press opens the date picker of the browser; the keyboard
-  gets the full field to type in. The stage dates line up in Start and End columns with the column names once at the top.
+- **Dates** (stage dates, task dates, and the dates in forms): a quiet button, not a full field. Empty: "Set date…" in
+  secondary ink. Set: the short date and a small clear mark (none on a date that the form always needs). The quiet button
+  has the box of a field without the fill, at most 12rem wide, so its text lines up with the text of the fields around it.
+  A press opens the date picker of the browser; the keyboard gets the full field to type in. A date that saves itself
+  saves the pick at once; a date in a form waits for the Save button. Two dates of one pair sit in two equal columns. The
+  stage dates line up in Start and End columns with the column names once at the top. The quick log of the Tracker keeps
+  the full field: its date is never empty and has no label.
 - **Panels** ({components.panel}): the white card for every group of content. Rows inside a panel separate with hairlines.
 - **Sheets** ({components.sheet}): a bottom sheet on a phone and a side or centred sheet on a desk; one title, one main
   action.

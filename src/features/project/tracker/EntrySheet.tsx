@@ -11,6 +11,7 @@ import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { NoLeadMark } from '../../../components/NoLeadMark';
 import { Button } from '../../../components/Button';
+import { DateField } from '../../../components/DateField';
 import { TextArea, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
@@ -105,7 +106,7 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
           />
         )}
       </div>
-      <TextField id="tracker-edit-date" type="date" label={t('tracker.date')} value={date} onChange={(event) => setDate(event.target.value)} />
+      <DateField id="tracker-edit-date" label={t('tracker.date')} clearable={false} value={date} onChange={setDate} />
       <Switch id="tracker-edit-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
       <fieldset className="flex flex-col">
         <legend className="field-label pb-1">{t('tracker.peopleField')}</legend>

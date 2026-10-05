@@ -6,6 +6,7 @@ import { useMeeting } from '../../../app/meeting';
 import { useUndoable } from '../../../app/actions';
 import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
+import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { addWorkingDays } from '../../../lib/workdays';
@@ -77,7 +78,7 @@ function ActionForm({ projectId, stageId, members, defaultUserId }: { projectId:
         <SelectField id={`meeting-action-who-${projectId}`} label={t('dashboard.meeting.actionWho')} value={who} onChange={(event) => setUserId(event.target.value)} className="min-w-44 flex-1">
           {members.map((member) => <option key={member.id} value={member.id}>{nameOf(member)}</option>)}
         </SelectField>
-        <TextField id={`meeting-action-by-${projectId}`} type="date" label={t('dashboard.meeting.actionBy')} value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="min-w-40" />
+        <DateField id={`meeting-action-by-${projectId}`} label={t('dashboard.meeting.actionBy')} clearable={false} value={dueDate} onChange={setDueDate} className="min-w-40" />
         <Button variant="primary" type="submit" disabled={!ready}>{t('common.add')}</Button>
       </div>
     </form>
