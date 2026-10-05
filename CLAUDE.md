@@ -38,7 +38,10 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
 ## Secrets and accounts
 - Secrets live only in `.env.local` (and `secrets/<env>.env`, git-ignored). Never open, print, commit or log them.
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
-- The 4 secrets in `.env.local` were pasted in chat: the owner rotates them at the end of the build.
+- Rotated 2026-10-05: both database passwords and the Supabase token. The Resend key in `.env.local` is account-wide and
+  also serves Mazj: never delete it. Production sends with its own key (sending only, vado.sa only) in `secrets/production.env`.
+- To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its shape
+  without printing it. Never ask for a secret in chat.
 - Supabase projects (both Frankfurt, eu-central-1): `madar-test` = `qdgwpnesxppnqsaabqzd`, production `madar` =
   `oprkvdjudjxxhvodkzgs`. Before the deploy phase, change only madar-test, never production.
 - The Supabase CLI login on this Mac belongs to another account (Halulu). Always pass `SUPABASE_ACCESS_TOKEN` from
@@ -210,7 +213,9 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
   (`server/mail/quota.ts`). Every invitation and reset counts as signin. A full day throws `QuotaFull`: the row waits
   until the next UTC midnight. `release()` gives back the place of a row that never made a link.
 - Notice and summary mail carry no client data (no task, project or comment text). Morning summary 07:30 Riyadh,
-  Sunday to Thursday. Arabic mail is right to left with `_female` forms. The sending domain waits for the owner.
+  Sunday to Thursday. Arabic mail is right to left with `_female` forms.
+- Deliverability: vado.sa has DKIM and SPF from Resend and DMARC `p=none` (since 2026-10-05). If mail lands in spam, check
+  `_dmarc.vado.sa` and the link hosts first; move DMARC to `p=quarantine` after a few clean weeks.
 
 ### Realtime, jobs, usage, backups
 - Change signals go out inside the save transaction (`realtime.send`, topics `office` and `person:<id>`). A rollback
@@ -260,7 +265,7 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
 - `scripts/check-bundles.ts`: the remote build must hold no sample names; the prototype build must hold no "supabase".
 
 ## Tests
-- The test layers are listed in Commands. Last counts: unit+server 3,367 passed; test:db 826; test:it 236.
+- The test layers are listed in Commands. Last counts: unit+server about 3,380 passed; test:db 826; test:it 237.
 - Prototype smoke: `playwright.config.ts` (`tests/e2e`, port 4173), 87 of 87 at each screen merge.
 - Deploy suite: `npx playwright test -c playwright.deploy.config.ts`. Local by default (needs
   `MADAR_LOCAL_PUBLISHABLE_KEY` and a fresh seed); `MADAR_DEPLOY_URL` points it at the test deployment. Flags:
@@ -268,21 +273,36 @@ Live status and open items: `TASKS.md` (keep it current: tick what is done, add 
 - Screen test gotchas: links are `#/...` (hash router). A whole project page can take more than the 1 s `findBy`
   default: use `{ timeout: 10_000 }`. A panel that waits for its own query (DecisionsPanel on `projects.get`) can come
   after the card: wait for the panel itself.
+- vite preview sends no CSP, so only the deploy suite on the test copy catches a policy break (zod runs jitless for that).
+- Deploy suite on the test copy: load `.env.local` and `secrets/test-accounts.env`, then set MADAR_DEPLOY_URL,
+  MADAR_E2E_SUPABASE_URL, MADAR_E2E_PUBLISHABLE_KEY (config/remote.test.env), MADAR_E2E_DATABASE_URL (madar-test session
+  pooler) and MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp. Seed before and after the run.
+- The conformance runner and the cron and worker suites serve their own functions: never run a shared
+  `supabase functions serve` next to `test:mcp` or `test:it`, and `db reset` between them.
 
 ## CI and deploy
 - `.github/workflows/`: `ci.yml` (every push: typecheck, unit, build, server tests, builds), `ci-stack.yml` (db and
   integration on the local stack), `db-backup.yml`, `files-backup.yml`, `restore-reminder.yml`, `deploy.yml` (by hand,
   test functions only, never screens).
 - Deploy scripts `scripts/deploy/`: `all.sh <env>` runs `db.sh`, `config.sh`, `secrets.ts`, `functions.sh`,
-  `pages.sh`. Production deploys only from the Mac and asks for the typed word `production`. `config.sh` refuses until
-  `supabase/config.toml` has `[remotes.test]` and `[remotes.production]` (they wait for the domain).
+  `pages.sh`. Production deploys only from the Mac and asks for the typed word `production`. `config.sh` needs the
+  `[remotes.test]` and `[remotes.production]` blocks of `supabase/config.toml` (both exist since 2026-10-04).
 - `scripts/seed-test-office.ts` seeds madar-test only (load `.env.local` and `secrets/test-accounts.env`). The Z steps
-  (plan Track Z): Z0a, Z0b done; Z1 mostly done (open: legacy keys and HS256 revoke by the owner, "require current
-  password"); Z2 R2 waits; Z3 sender vado.sa chosen; Z4 Pages done (own domain later); Z5 backups wait; Z6 seed done;
-  Z7 security review; Z8 first Admin done, then a 2-week pilot.
+  (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5 database
+  backups run nightly, file backups wait for the owner's Backblaze B2; Z6 seed done; Z7 security review; Z8 first Admin
+  done, then a 2-week pilot.
 - Server secrets of each project: `secrets/<env>.env` (git-ignored). `all.sh production` asks for the typed word; the
   auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat.
 - wrangler 4.147+ sends `pages project create` to the new Workers path; the project exists now, so `pages deploy` works.
+- Production steps without a terminal: `echo production | scripts/deploy/all.sh production` (or one step script);
+  `first-admin.ts --password-stdin` reads the word and the password from one stdin.
+- Pages custom domains go through the Cloudflare API with the wrangler login token (`npx wrangler whoami` refreshes it;
+  `oauth_token` in `~/Library/Preferences/.wrangler/config/default.toml`). vado.sa DNS is in a Vercel team the CLI cannot
+  see: the owner adds records himself.
+- Supabase settings by Management API with the token: `PATCH /v1/projects/{ref}/config/auth`, `/config/realtime`,
+  `/database/password` (the pooler takes a new password after a few seconds), `PUT /ssl-enforcement`,
+  `PUT /api-keys/legacy?enabled=false`, `PATCH /config/auth/signing-keys/{id}`.
+- Backups: `gh workflow run "DB backup"`; open one with `age -d -i <owner key>` to check it, then delete the opened copy.
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,
