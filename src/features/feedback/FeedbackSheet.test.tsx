@@ -39,7 +39,7 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
   });
 
   it('shows the reports to the Admin, who marks one done', async () => {
-    await renderApp('/admin', (state) => {
+    await renderApp('/admin/feedback', (state) => {
       state.feedback = {
         fbk_001: { id: 'fbk_001', kind: 'feature', message: 'Let me export the schedule.', page: '/dashboard', screenshots: [], status: 'new', createdBy: 'usr_003', createdAt: '2026-10-01T09:00:00.000Z', doneBy: null, doneAt: null },
       };
@@ -51,7 +51,7 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
   });
 
   it('never links a stored page that is not an in-app path (security review)', async () => {
-    await renderApp('/admin', (state) => {
+    await renderApp('/admin/feedback', (state) => {
       state.feedback = {
         fbk_001: { id: 'fbk_001', kind: 'bug', message: 'Odd page', page: 'javascript:alert(1)', screenshots: [], status: 'new', createdBy: 'usr_003', createdAt: '2026-10-01T09:00:00.000Z', doneBy: null, doneAt: null },
       };
@@ -62,7 +62,7 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
   });
 
   it('hides the reports from everyone but the Admin', async () => {
-    await renderApp('/admin', as('usr_010'));
+    await renderApp('/admin/feedback', as('usr_010'));
     await screen.findByRole('heading', { level: 1 });
     expect(screen.queryByRole('region', { name: /Requests and bugs/ })).toBeNull();
   });

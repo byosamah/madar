@@ -59,7 +59,7 @@ for (const v of VARIANTS) {
     test('the Admin adds the person, and the invitation mail lands in the outbox', async ({ page, baseURL }) => {
       const before = await lastMailId();
       await page.setViewportSize({ width: 1440, height: 900 });
-      await goto(page, '/admin');
+      await goto(page, '/admin/people');
       await page.getByRole('button', { name: 'Add person' }).click();
       const sheet = page.getByRole('dialog', { name: 'Add person' });
       await sheet.locator('#person-name').fill(person.name);

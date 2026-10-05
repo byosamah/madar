@@ -26,7 +26,10 @@ any screen work.
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
   files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/inbox`, `/notifications`, `/search`,
-  `/settings`, `/admin`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
+  `/settings`, `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
+- Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
+  `features/settings/admin/sections.ts`; a new section is one line there. A desk opens the first section at `/admin`; a
+  phone shows the list there. An unknown or forbidden section goes back to `/admin`.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.

@@ -21,7 +21,7 @@ for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await page.emulateMedia({ colorScheme: theme });
         if (lang === 'ar') await useLanguage(page, 'ar');
-        await goto(page, '/admin');
+        await goto(page, '/admin/usage');
         const heading = page.getByRole('heading', { level: 2, name: USAGE[lang].title, exact: true });
         await expect(heading).toBeVisible();
         const section = page.locator('section').filter({ has: heading });
@@ -41,7 +41,7 @@ test.describe('as a person who is not the Admin', () => {
   test.use(asRole('member'));
 
   test('Usage does not show', async ({ page }) => {
-    await goto(page, '/admin');
+    await goto(page, '/admin/usage');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Usage', exact: true })).toHaveCount(0);
   });

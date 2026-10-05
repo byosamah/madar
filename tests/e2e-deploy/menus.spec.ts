@@ -90,7 +90,7 @@ test('a "…" menu low in a long list stays open at 390 (Admin, People, about 20
   // closes the menu that the click opened, and aria-expanded stays false. openMenu waits for the scroll to settle first.
   await page.setViewportSize({ width: 390, height: 844 });
   const people = page.getByRole('region', { name: 'People', exact: true }).getByRole('button', { name: /^Actions for / });
-  await goto(page, '/admin');
+  await goto(page, '/admin/people');
   await expect(people.first()).toBeVisible();
   const missing = 20 - (await people.count());
   if (missing > 0) {
@@ -99,7 +99,7 @@ test('a "…" menu low in a long list stays open at 390 (Admin, People, about 20
       name: 'users.create', input: { name: `Menu Person ${n + 1} ${run}`, email: `menu-${run}-${n + 1}@madar.test`, discipline: 'Architect' },
     })));
     expect(results.map((r) => r.ok)).toEqual(Array.from({ length: missing }, () => true));
-    await goto(page, '/admin');
+    await goto(page, '/admin/people');
   }
   await expect.poll(() => people.count()).toBeGreaterThanOrEqual(20);
   const last = people.last();
