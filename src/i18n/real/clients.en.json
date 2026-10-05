@@ -1,0 +1,82 @@
+{
+  "fields": {
+    "required": "required"
+  },
+  "clientForm": {
+    "nameEn": "English name (or Arabic)",
+    "nameAr": "Arabic name (or English)",
+    "initials": "Initials",
+    "initialsHint": "3 or 4 capital Latin letters for the project code, for example {{example}}.",
+    "sameInitials": "{{name}} has these initials too.",
+    "errors": {
+      "name": "Write the client name in English or in Arabic.",
+      "initials": "Use 3 or 4 capital Latin letters.",
+      "email": "Enter a valid email, or leave it empty."
+    }
+  },
+  "clientsAdmin": {
+    "title": "Clients",
+    "search": "Search clients",
+    "noInitials": "No initials",
+    "count": "{{n}} projects",
+    "count_zero": "No projects",
+    "count_one": "1 project",
+    "count_other": "{{count}} projects",
+    "empty": "No clients yet. A new project can add one.",
+    "noMatch": "No client matches this search.",
+    "projects": "Projects",
+    "noProjects": "No projects for this client yet.",
+    "saved": "Client saved."
+  },
+  "projectCode": {
+    "group": "Project code",
+    "initials": "Client initials",
+    "initialsFromClient": "From the client. The Admin changes them in Clients.",
+    "initialsToClient": "The client gets these initials too.",
+    "classification": "Classification",
+    "choose": "Choose",
+    "classes": {
+      "RES": "Residential",
+      "COM": "Commercial",
+      "IND": "Industrial",
+      "INS": "Institutional (mosques too)",
+      "REC": "Recreational",
+      "AGR": "Agricultural",
+      "UTL": "Utility",
+      "MIX": "Mixed-use"
+    },
+    "type": "Building type",
+    "typeHint": "For example {{example}}.",
+    "preview": "The new code",
+    "typeByHand": "Type the code by hand",
+    "sameContract": "Same contract as another project",
+    "useParts": "Make the code from its parts",
+    "full": "Full project code",
+    "fullHint": "For example {{example}}.",
+    "sameAs": "The project of the same contract",
+    "chooseProject": "Choose a project",
+    "editHint": "Only the Admin corrects the code. The History keeps the old code.",
+    "errors": {
+      "initials": "Use 3 or 4 capital Latin letters.",
+      "classification": "Choose a classification.",
+      "type": "Write the building type.",
+      "full": "Use a code like {{example}}.",
+      "sameAs": "Choose the project of the same contract."
+    },
+    "sharedTitle": "Projects with this code",
+    "sharedBody": "These projects belong to one contract and share one code. Choose one.",
+    "searchHint": "Try a project name, a code such as {{example}}, a task, a person or a file name."
+  },
+  "errors": {
+    "reasons": {
+      "code_taken": "Another contract has this month and series. Check the code.",
+      "initials_mismatch": "Use the initials of the client.",
+      "code_series_full": "This month has no free series. Type the code by hand."
+    }
+  },
+  "feed": {
+    "project": {
+      "code_changed": "changed the project code to {{code}}"
+    }
+  }
+}

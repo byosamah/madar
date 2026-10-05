@@ -59,6 +59,8 @@ export const ViewerCan = z.object({
   createTaskForAnyone: z.boolean(), createTaskForSelf: z.boolean(), post: z.boolean(), review: z.boolean(),
   /** The viewer may read and change the payments of every project. */
   payments: z.boolean(),
+  /** The viewer may correct the project code: the Admin only (owner, 2026-10-05). Optional, so older answers still parse. */
+  editCode: z.boolean().optional(),
 });
 
 export const ProjectSummary = z.object({

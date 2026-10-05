@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   Gender,
-  Client, ClientId, Glass, Language, Settings, SystemRole, Theme, User, UserId, defaultPreferences, type Preferences,
+  Client, ClientId, ClientInitials, Glass, Language, Settings, SystemRole, Theme, User, UserId, defaultPreferences, type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
@@ -274,13 +274,18 @@ export const clientsList = defineCall({
 });
 
 export const clientsCreate = defineCall({
-  input: z.object({ name: ClientName.default(''), nameAr: ClientName.default(''), contactName: ContactName.default(''), phone: Phone.default(''), email: ClientEmail.default('') }),
+  input: z.object({
+    name: ClientName.default(''), nameAr: ClientName.default(''), contactName: ContactName.default(''), phone: Phone.default(''), email: ClientEmail.default(''),
+    /** Optional, so old callers still work. The new client form asks for it (owner, 2026-10-05). */
+    initials: ClientInitials.optional(),
+  }),
   output: Client,
   run(input, ctx) {
     assertCan(ctx, 'project.create');
     assertClientNamed(input);
     const id = nextId(ctx.state, 'cli');
-    const client: Client = { id, ...input };
+    const { initials, ...rest } = input;
+    const client: Client = { id, ...rest, ...(initials ? { initials } : {}) };
     ctx.state.clients[id] = client;
     recordCreate(ctx, { projectId: null, verb: 'client.created', targetType: 'client', targetId: id, entity: client });
     return client;
@@ -290,7 +295,11 @@ export const clientsCreate = defineCall({
 export const clientsUpdate = defineCall({
   input: z.object({
     id: ClientId,
-    patch: z.object({ name: ClientName.optional(), nameAr: ClientName.optional(), contactName: ContactName.optional(), phone: Phone.optional(), email: ClientEmail.optional() }),
+    patch: z.object({
+      name: ClientName.optional(), nameAr: ClientName.optional(), contactName: ContactName.optional(), phone: Phone.optional(), email: ClientEmail.optional(),
+      /** A change only: initials once given stay, because project codes name them. */
+      initials: ClientInitials.optional(),
+    }),
   }),
   output: Client,
   run(input, ctx) {

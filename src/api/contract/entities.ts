@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INITIALS_PATTERN, PROJECT_CODE_PATTERN } from '../../lib/projectCode';
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -98,6 +99,9 @@ export const User = z.object({
 });
 export type User = z.infer<typeof User>;
 
+/** The client initials in a project code: 3 or 4 capital Latin letters. */
+export const ClientInitials = z.string().regex(INITIALS_PATTERN, 'Use 3 or 4 capital Latin letters.');
+
 export const Client = z.object({
   id: ClientId,
   /** The English name. A client may have only an Arabic name, so either one may be empty, never both (colleague comment 11). */
@@ -107,6 +111,8 @@ export const Client = z.object({
   contactName: z.string().max(80),
   phone: z.string().max(40),
   email: z.union([z.email(), z.literal('')]),
+  /** 3 or 4 capital Latin letters for the project code (owner, 2026-10-05). Optional, so clients saved before still load. */
+  initials: ClientInitials.optional(),
 });
 export type Client = z.infer<typeof Client>;
 
@@ -160,9 +166,13 @@ export type ProjectLink = z.infer<typeof ProjectLink>;
 export const StageBack = z.object({ fromStageId: StageId, toStageId: StageId, reason: z.string().trim().min(1).max(280), by: UserId, at: Stamp });
 export type StageBack = z.infer<typeof StageBack>;
 
+/** A project code of the old or the new form. */
+export const ProjectCode = z.string().regex(PROJECT_CODE_PATTERN, 'Use a code like 260902AZT-RES-Villa.');
+
 export const Project = z.object({
   id: ProjectId,
-  code: z.string().regex(/^[A-Z]{1,4}-\d{2}-\d{3,}$/),
+  /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
+  code: ProjectCode,
   name: z.string().trim().min(1).max(120),
   clientId: ClientId.nullable(),
   status: ProjectStatus,

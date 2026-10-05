@@ -25,6 +25,7 @@ const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<
   ['project.changeLeader', [true, true, false, false], none],
   ['project.archive', [true, true, false, false], none],
   ['project.delete', [true, false, false, false], none],
+  ['project.editCode', [true, false, false, false], none],
   ['project.healthOverride', [true, true, false, false], none],
   ['task.createForAnyone', [true, true, false, false], none],
   ['task.createForSelf', [true, true, true, false], none],

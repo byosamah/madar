@@ -90,6 +90,7 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
   switch (event.targetType) {
     case 'project':
       if (event.verb === 'project.leader_changed') return need('project.changeLeader');
+      if (event.verb === 'project.code_changed') return need('project.editCode');
       // Deleting the cover file also clears the cover. Whoever may bring that file back may bring the cover back with it.
       if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
       if (event.verb === 'project.status_changed') return need('project.archive');
