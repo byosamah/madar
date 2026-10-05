@@ -48,7 +48,9 @@ async function guard(page: Page, found: string[]): Promise<void> {
 for (const v of VARIANTS) {
   test.describe.serial(`a new person in ${v.lang}, from the invitation to a reset password`, () => {
     const id = runId();
-    const person = { name: `Lina X2 ${v.lang} ${id}`, email: `x2-${v.lang}-${id}@madar.test` };
+    const person = { name: `Lina X2 ${v.lang} ${id}`, nameAr: `لينا ${v.lang} ${id}`, email: `x2-${v.lang}-${id}@madar.test` };
+    // The person's own screens show the name in the screen language (owner item 12).
+    const shownName = v.lang === 'ar' ? person.nameAr : person.name;
     const passwords = { first: `Welcome-${id}-pass`, second: `Changed-${id}-pass`, third: `Reset-${id}-pass` };
     const violations: string[] = [];
 
@@ -63,6 +65,8 @@ for (const v of VARIANTS) {
       await page.getByRole('button', { name: 'Add person' }).click();
       const sheet = page.getByRole('dialog', { name: 'Add person' });
       await sheet.locator('#person-name').fill(person.name);
+      // A new person needs both names (owner item 12).
+      await sheet.locator('#person-name-ar').fill(person.nameAr);
       await sheet.locator('#person-email').fill(person.email);
       await sheet.locator('#person-gender').selectOption('female');
       await sheet.locator('#person-language').selectOption(v.lang);
@@ -85,13 +89,13 @@ for (const v of VARIANTS) {
       await expect(page.getByRole('heading', { level: 1, name: word(v.lang, 'auth.welcome.title') })).toBeVisible();
       // The token is used only on this press, so a mail scanner that opens the link does not use it.
       await page.getByRole('button', { name: word(v.lang, 'auth.welcome.open') }).click();
-      await expect(page.getByText(word(v.lang, 'auth.welcome.greeting', { name: person.name }))).toBeVisible();
+      await expect(page.getByText(word(v.lang, 'auth.welcome.greeting', { name: shownName }))).toBeVisible();
       await page.locator('#welcome-password').fill(passwords.first);
       await page.locator('form button[type="submit"]').click();
       await expect(page).toHaveURL(/\/$/);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang', v.lang);
-      await signOut(page, person.name, v.lang);
+      await signOut(page, shownName, v.lang);
       await signIn(page, person.email, passwords.first);
       await page.context().close();
     });
@@ -110,7 +114,7 @@ for (const v of VARIANTS) {
       await page.locator('#password-current').fill(passwords.first);
       await page.getByRole('button', { name: word(v.lang, 'password.save') }).click();
       await expect(page.getByText(word(v.lang, 'password.changed'))).toBeVisible();
-      await signOut(page, person.name, v.lang);
+      await signOut(page, shownName, v.lang);
       await signIn(page, person.email, passwords.second);
       await page.context().close();
     });
@@ -130,7 +134,7 @@ for (const v of VARIANTS) {
       await page.locator('form button[type="submit"]').click();
       await expect(page).toHaveURL(/\/$/);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-      await signOut(page, person.name, v.lang);
+      await signOut(page, shownName, v.lang);
       // The old password no longer works; the new one does.
       await page.locator('#sign-in-email').fill(person.email);
       await page.locator('#sign-in-password').fill(passwords.second);

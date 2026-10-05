@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Browser, Page, Request } from '@playwright/test';
 import { DEPLOY_ACCOUNTS } from './accounts';
-import { expect, passwordOf, PERSON_OF, test } from './fixtures';
+import { expect, passwordOf, PERSON_AR_OF, PERSON_OF, test } from './fixtures';
 import { goto, urlPattern } from './goto';
 import { withClient } from './mail';
 import { closeTo, shownColors, WALK_PICTURE } from './picture';
@@ -103,6 +103,8 @@ for (const { lang, width } of VARIANTS) {
     const pageErrors: string[] = [];
     const run = runId();
     const ctx: Record<string, string> = {};
+    // The screens show the name of a person in the screen language (owner item 12).
+    const nameOf = (role: Role): string => (lang === 'ar' ? PERSON_AR_OF : PERSON_OF)[role];
 
     async function shot(name: string, role: Role): Promise<void> {
       await pages[role].waitForTimeout(600);
@@ -192,13 +194,18 @@ for (const { lang, width } of VARIANTS) {
       await page.getByRole('button', { name: w('projects.new') }).click();
       const sheet = page.getByRole('dialog', { name: w('projectForm.createTitle') });
       await sheet.getByLabel(w('projectForm.name'), { exact: true }).fill(projectName);
+      // A new project needs its code parts (owner, 2026-10-05, item 6b).
+      await sheet.getByLabel(w('projectCode.initials')).fill('WLK');
+      await sheet.getByLabel(w('projectCode.classification')).selectOption('RES');
+      await sheet.getByLabel(w('projectCode.type')).fill('Villa');
       await shot('project', 'admin');
       await sheet.getByRole('button', { name: w('projectForm.create') }).click();
       await expect(page.getByRole('heading', { level: 1, name: projectName })).toBeVisible();
-      const row = await waitRow<{ id: string; leader_id: string }>('project', "select id, leader_id from projects where doc->>'name' = $1", [projectName]);
+      const row = await waitRow<{ id: string; leader_id: string; code: string }>('project', "select id, leader_id, doc->>'code' as code from projects where doc->>'name' = $1", [projectName]);
       ctx.projectId = row.id;
       if (row.leader_id !== DEPLOY_ACCOUNTS.admin.userId) throw new Error(`DB: leader_id ${row.leader_id}`);
-      return `projects.id=${row.id} leader=${row.leader_id}`;
+      if (!/^\d{6}WLK-RES-Villa$/.test(row.code)) throw new Error(`DB: code ${row.code}`);
+      return `projects.id=${row.id} leader=${row.leader_id} code=${row.code}`;
     });
     await step('project', 'management', async () => {
       const page = pages.management;
@@ -270,7 +277,7 @@ for (const { lang, width } of VARIANTS) {
     await step('approve', 'member', async () => {
       const page = pages.member;
       await expect(page).toHaveURL(urlPattern('/notifications'));
-      await expect(page.getByText(w('inbox.trigger.task_approved_female', { actor: PERSON_OF.admin, target: taskA })).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(w('inbox.trigger.task_approved_female', { actor: nameOf('admin'), target: taskA })).first()).toBeVisible({ timeout: 20_000 });
       await shot('approve', 'member');
       return 'the notice arrived without a reload';
     });
@@ -308,7 +315,7 @@ for (const { lang, width } of VARIANTS) {
       await field.fill(`${updateText} `);
       await field.pressSequentially('@Fai');
       const list = page.getByRole('listbox', { name: w('overview.mentionList') });
-      await expect(list.getByRole('option', { name: PERSON_OF.member })).toBeVisible();
+      await expect(list.getByRole('option', { name: nameOf('member') })).toBeVisible();
       await field.press('Enter');
       await field.pressSequentially(' please check.');
       await shot('mention', 'admin');
@@ -322,7 +329,7 @@ for (const { lang, width } of VARIANTS) {
     await step('mention', 'member', async () => {
       const page = pages.member;
       await expect(page).toHaveURL(urlPattern('/notifications'));
-      await expect(page.getByText(w('inbox.trigger.mention_female', { actor: PERSON_OF.admin, target: projectName })).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(w('inbox.trigger.mention_female', { actor: nameOf('admin'), target: projectName })).first()).toBeVisible({ timeout: 20_000 });
       await shot('mention', 'member');
       return 'the mention notice arrived without a reload';
     });
@@ -335,7 +342,7 @@ for (const { lang, width } of VARIANTS) {
       await goto(page, '/inbox');
       await page.getByRole('button', { name: w('chat.newMessage') }).click();
       const sheet = page.getByRole('dialog', { name: w('chat.pickPerson') });
-      await sheet.getByRole('button', { name: new RegExp(PERSON_OF.admin) }).first().click();
+      await sheet.getByRole('button', { name: new RegExp(nameOf('admin')) }).first().click();
       await page.getByRole('textbox', { name: w('chat.composer') }).fill(chatText);
       await page.getByRole('button', { name: w('chat.send'), exact: true }).click();
       await expect(page.getByRole('log').getByText(chatText)).toBeVisible();
@@ -428,7 +435,9 @@ for (const { lang, width } of VARIANTS) {
     }
 
     // 12. The Admin invites a person; the mail lands in the outbox.
-    const invited = { name: `Lina Walk ${suffix} ${run}`, email: `walk-${suffix}-${run}@madar.test` };
+    const invited = { name: `Lina Walk ${suffix} ${run}`, nameAr: `لينا ${suffix} ${run}`, email: `walk-${suffix}-${run}@madar.test` };
+    // Arabic screens show the Arabic name of a person (owner item 12).
+    const invitedShown = lang === 'ar' ? invited.nameAr : invited.name;
     await step('invite', 'admin', async () => {
       const page = pages.admin;
       const [{ max }] = await q<{ max: string | null }>('select max(id)::text as max from mail_outbox');
@@ -436,6 +445,7 @@ for (const { lang, width } of VARIANTS) {
       await page.getByRole('button', { name: w('admin.addPerson') }).click();
       const sheet = page.getByRole('dialog', { name: w('admin.addPerson') });
       await sheet.locator('#person-name').fill(invited.name);
+      await sheet.locator('#person-name-ar').fill(invited.nameAr);
       await sheet.locator('#person-email').fill(invited.email);
       await sheet.locator('#person-gender').selectOption('female');
       await sheet.locator('#person-language').selectOption(lang);
@@ -454,7 +464,7 @@ for (const { lang, width } of VARIANTS) {
     await step('email', 'admin', async () => {
       const page = pages.admin;
       await goto(page, '/admin/people');
-      await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invited.name }) }));
+      await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invitedShown }) }));
       await page.getByRole('menuitem', { name: w('admin.edit') }).click();
       const sheet = page.getByRole('dialog').last();
       await sheet.locator('#person-email').fill(newEmail);
@@ -469,7 +479,7 @@ for (const { lang, width } of VARIANTS) {
     await step('email', 'management', async () => {
       const page = pages.management;
       await goto(page, '/admin/people');
-      await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invited.name }) }));
+      await openMenu(page.getByRole('button', { name: w('admin.actions', { name: invitedShown }) }));
       await page.getByRole('menuitem', { name: w('admin.edit') }).click();
       const sheet = page.getByRole('dialog').last();
       await expect(sheet.locator('#person-email')).toHaveAttribute('readonly', '');
@@ -527,8 +537,8 @@ for (const { lang, width } of VARIANTS) {
       await step('signout', role, async () => {
         const page = pages[role];
         await goto(page, '/');
-        await page.getByRole('button', { name: PERSON_OF[role], exact: true }).click();
-        await page.getByRole('dialog', { name: PERSON_OF[role] }).getByRole('button', { name: w('auth.signOut') }).click();
+        await page.getByRole('button', { name: nameOf(role), exact: true }).click();
+        await page.getByRole('dialog', { name: nameOf(role) }).getByRole('button', { name: w('auth.signOut') }).click();
         await expect(page).toHaveURL(urlPattern('/sign-in?reason=signed_out'));
         await expect(page.getByText(w('auth.reasons.signed_out'))).toBeVisible();
         await shot('signout', role);

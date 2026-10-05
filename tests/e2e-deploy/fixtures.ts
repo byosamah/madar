@@ -86,6 +86,14 @@ export const PERSON_OF: Record<DeployRole, string> = {
   member: 'Faisal Al-Harbi',
 };
 
+/** The Arabic name of the person of a role, as the Arabic screens show it (owner, 2026-10-05, item 12). */
+export const PERSON_AR_OF: Record<DeployRole, string> = {
+  admin: 'هالة ناصر',
+  management: 'تركي العتيبي',
+  accounting: 'نورة الشمري',
+  member: 'فيصل الحربي',
+};
+
 /** A check of Preview as: the prototype has it, the remote build has no such control (client map 6). */
 export function skipPreviewAs(): void {
   test.skip(REMOTE, 'Preview as is a prototype control. In the remote build a sign-in for each role replaces it.');
