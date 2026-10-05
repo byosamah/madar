@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
@@ -289,6 +289,33 @@ describe('the Admin side list', () => {
       expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
       view.unmount();
     }
+  });
+
+  it('keeps what the Admin typed in a section when the screen turns between phone and desk width', async () => {
+    // A phone that turns sideways passes 640 px. The open section stays, with its form as it was.
+    let isPhone = false;
+    const listeners = new Set<() => void>();
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      get matches() { return query === '(max-width: 639px)' && isPhone; }, media: query, onchange: null,
+      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+      addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
+    }) as unknown as MediaQueryList);
+    const turn = (phoneWidth: boolean) => act(() => {
+      isPhone = phoneWidth;
+      for (const listener of [...listeners]) listener();
+    });
+    await renderApp('/admin/office');
+    const limit = await within(await region('Office settings')).findByLabelText('Workload limit');
+    await userEvent.clear(limit);
+    await userEvent.type(limit, '12');
+    turn(true);
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '#/admin');
+    expect(screen.queryByRole('navigation', { name: 'Admin sections' })).toBeNull();
+    expect(within(await region('Office settings')).getByLabelText('Workload limit')).toBe(limit);
+    turn(false);
+    expect(await sectionList()).toBeInTheDocument();
+    expect(within(await region('Office settings')).getByLabelText('Workload limit')).toHaveValue('12');
   });
 
   describe('on a phone', () => {

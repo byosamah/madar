@@ -39,46 +39,30 @@ export function AdminScreen() {
       </>
     );
   }
-  if (phone && open) return <PhoneSection section={open} />;
-  if (phone) {
-    return (
-      <>
-        <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
-        <SectionList sections={sections} phone />
-      </>
-    );
-  }
-  if (!open) return <Navigate to={linkOf(sections[0])} replace />;
-  const Open = open.Component;
+  if (!open && !phone) return <Navigate to={linkOf(sections[0])} replace />;
+  const Open = open?.Component;
+  // One tree for both widths: a phone that turns sideways passes 640 px, and the open section keeps its place and its state.
   return (
     <>
-      <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
-      <div className="grid grid-cols-[13rem_minmax(0,1fr)] items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
-        <SectionList sections={sections} openId={open.id} />
-        <div className="min-w-0">
-          <Open />
-        </div>
+      {/* A phone section shows its own title once. The page title stays for screen readers. */}
+      <div className={phone && open ? 'sr-only' : undefined}>
+        <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
+      </div>
+      <div className={phone ? 'flex flex-col' : 'grid grid-cols-[13rem_minmax(0,1fr)] items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8'}>
+        {(!phone || !open) && <SectionList sections={sections} openId={phone ? undefined : open?.id} phone={phone} />}
+        {Open && (
+          <div className="flex min-w-0 flex-col gap-2">
+            {phone && (
+              <Link to="/admin" className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
+                <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
+                {t('admin.title')}
+              </Link>
+            )}
+            <Open />
+          </div>
+        )}
       </div>
     </>
-  );
-}
-
-/**
- * One section on a phone: a Back link to the list, then the section with its own title. The page title stays for screen readers,
- * so the screen shows one title and the section title does not repeat.
- */
-function PhoneSection({ section }: { section: AdminSection }) {
-  const { t } = useTranslation();
-  const Open = section.Component;
-  return (
-    <div className="flex flex-col gap-2">
-      <h1 className="sr-only">{t('admin.title')}</h1>
-      <Link to="/admin" className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
-        <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
-        {t('admin.title')}
-      </Link>
-      <Open />
-    </div>
   );
 }
 
