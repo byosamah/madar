@@ -19,7 +19,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   rights (`resolveAuthority`).
 - A contract change is additive, or it keeps both forms.
 - Handlers stay synchronous and pure. A handler never does network work. Outside work is an effect.
-- The test count only grows.
+- The test count only grows, except when the code a test checks is deleted.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

@@ -62,7 +62,7 @@ describe('languages', () => {
   it('switches the language and the direction', () => {
     const i18n = initI18n('ar');
     expect(i18n.t('nav.projects')).toBe('المشاريع');
-    expect(i18n.t('placeholder.body', { step: 2 })).toContain('2');
+    expect(i18n.t('health.setBy', { name: 'هلا' })).toBe('بتحديد هلا');
     applyLanguage(document.documentElement, 'ar');
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');

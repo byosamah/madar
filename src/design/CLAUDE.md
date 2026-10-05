@@ -21,7 +21,8 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 ## Rules
 - Screens take colours from the tokens. A new colour starts as a token here and in `DESIGN.md`.
 - No gradient on a button, and never a blue-to-violet gradient anywhere. The signature navy is always solid.
-- No new font file or font family (see "Do's and Don'ts" in `DESIGN.md`).
+- No new font file or font family (see "Do's and Don'ts" in `DESIGN.md`). `tokens.test.ts` lists the exact font
+  faces, so a new face fails it.
 - The Thmanyah licence (font.thmanyah.com/licenses) allows the font in a web app only inside the built product. So:
   never convert, subset or rename the files, never put them in `public/`, and get a new version only from
   font.thmanyah.com. `tokens.test.ts` checks the file hashes; a new version needs new hashes there.

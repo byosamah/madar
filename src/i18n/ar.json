@@ -39,10 +39,6 @@
     "settings": "الإعدادات",
     "notifications": "الإشعارات"
   },
-  "placeholder": {
-    "title": "هذه الشاشة قادمة",
-    "body": "تتوفر هذه الشاشة في خطوة البناء {{step}}."
-  },
   "routeError": {
     "missingTitle": "هذه الصفحة غير موجودة",
     "missing": "الرابط خاطئ أو قديم.",
@@ -268,7 +264,6 @@
     "showAll": "عرض كل المشاريع",
     "noDeadline": "لا يوجد موعد",
     "morePeople": "+{{n}}",
-    "stageOf": "المرحلة {{n}} من {{total}}: {{name}}",
     "menu": "إجراءات {{name}}",
     "open": "فتح",
     "postUpdate": "نشر تحديث",

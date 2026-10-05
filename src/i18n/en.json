@@ -31,10 +31,6 @@
     "settings": "Settings",
     "notifications": "Notifications"
   },
-  "placeholder": {
-    "title": "This screen comes next",
-    "body": "This screen arrives in build step {{step}}."
-  },
   "routeError": {
     "missingTitle": "This page does not exist",
     "missing": "The link is wrong or old.",
@@ -235,7 +231,6 @@
     "showAll": "Show all projects",
     "noDeadline": "No deadline",
     "morePeople": "+{{n}}",
-    "stageOf": "Stage {{n}} of {{total}}: {{name}}",
     "menu": "Actions for {{name}}",
     "open": "Open",
     "postUpdate": "Post update",

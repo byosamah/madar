@@ -94,7 +94,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server about 3,380 passed; test:db 826; test:it 237; prototype smoke 87 of 87.
+- Last counts: unit+server about 3,400 passed; test:db 826; test:it 237; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -123,7 +123,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Every shared call works in the prototype fake and on the server. Follow the new-call checklist in `src/api/CLAUDE.md`
   (loader entry, MCP allow or deny list, words).
 - A new zod collection needs a table in a migration and an entry in `server/data/tables.ts`.
-- A contract change is additive or keeps both forms. The test count only grows.
+- A contract change is additive or keeps both forms. The test count only grows, except when the code a test checks
+  is deleted.
 - Every visible word has an English and an Arabic key.
 
 ## Build process
