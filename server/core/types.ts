@@ -11,7 +11,8 @@ export type Principal = { userId: string; agent?: { clientId: string } };
 
 /** The office lists that the office cache keeps in memory (plan 4.7). */
 export const OFFICE_COLLECTIONS = [
-  'users', 'teams', 'settings', 'clients', 'stageTemplates', 'taskTemplates', 'projects', 'members', 'stages', 'deadlines', 'conversations',
+  'users', 'teams', 'settings', 'clients', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'projects', 'members', 'stages', 'deadlines',
+  'conversations',
 ] as const;
 export type OfficeCollection = (typeof OFFICE_COLLECTIONS)[number];
 /** One committed read of the office lists, at office_meta.version. Its objects are frozen: a call gets its own deep copy. */

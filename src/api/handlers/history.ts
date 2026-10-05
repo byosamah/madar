@@ -175,6 +175,14 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
       return;
     }
+    case 'projectTemplate': {
+      // Every undo of a project template follows the rule of a change: the person who saved it, or the Admin. A change keeps
+      // no author in its event, so the template itself names the author (owner, 2026-10-05, item 6a).
+      need('project.create');
+      const saved = (ctx.state.projectTemplates?.[event.targetId] ?? event.before ?? event.after) as { createdBy?: string } | null;
+      if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
+      return;
+    }
     case 'client':
       return need(event.verb === 'client.created' ? 'project.create' : 'admin.manage');
     case 'user':

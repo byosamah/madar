@@ -1,5 +1,6 @@
 import { addProjectConversation } from '../api/chatState';
-import { STATE_VERSION, type State } from '../api/store';
+import { projectTemplateFromStages } from '../api/projectTemplates';
+import { nextId, STATE_VERSION, type State } from '../api/store';
 import { pickMark } from '../lib/projectMark';
 import { recordTrackerHistory, SAMPLE_GENDERS } from './seed';
 
@@ -86,6 +87,19 @@ export function migrateState(state: State): State | null {
       }
     }
     state.version = 8;
+  }
+  if (state.version === 8) {
+    // Version 9: stage templates merge into project templates (owner, 2026-10-05, item 6a). Each stage template becomes a
+    // project template with its stages and no tasks, once. The old templates stay, so the stage template calls still answer.
+    state.projectTemplates ??= {};
+    const names = new Set(Object.values(state.projectTemplates).map((template) => template.name.toLowerCase()));
+    for (const old of Object.values(state.stageTemplates ?? {})) {
+      if (names.has(old.name.toLowerCase())) continue;
+      const id = nextId(state, 'ptp');
+      state.projectTemplates[id] = projectTemplateFromStages(old, id);
+      names.add(old.name.toLowerCase());
+    }
+    state.version = 9;
   }
   return state.version === STATE_VERSION ? state : null;
 }

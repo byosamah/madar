@@ -69,12 +69,15 @@ export function writeSweep(office: State): SweepCall[] {
   const payment = Object.values(office.payments ?? {})[0];
   const notice = Object.values(office.notifications)[0];
   const file = Object.values(office.files)[0];
+  const plan = Object.values(office.projectTemplates ?? {}).find((t) => t.tasks.length > 0)!;
   return [
     ['projects.update', { id: 'prj_001', patch: { name: 'Renamed', coverFileId: file.projectId === 'prj_001' ? file.id : null } }, ADMIN],
     // The project code (owner, 2026-10-05): a code from its parts writes the initials onto a client that has none, the same
     // contract copies a code, and the Admin corrects a code.
     ['projects.create', { name: 'Sweep Villas', clientId: 'cli_002', codeParts: { initials: 'DLD', classification: 'RES', type: 'Villa' } }, ADMIN],
     ['projects.create', { name: 'Sweep annex', sameContractAs: 'prj_001' }, ADMIN],
+    // A project from a project template (owner, 2026-10-05, item 6a): its stages and tasks with dates, and the people of its roles.
+    ['projects.create', { name: 'Sweep plan', template: { templateId: plan.id, startDate: '2026-10-11', endDate: '2026-11-26', roles: { [plan.roles[0].id]: 'usr_003' }, fixedTaskIds: [plan.tasks.at(-1)!.id] } }, ADMIN],
     ['projects.update', { id: 'prj_001', patch: { code: '261000GCH-COM-Office Tower' } }, ADMIN],
     ['clients.update', { id: 'cli_001', patch: { initials: 'GCH' } }, ADMIN],
     ['projects.setStatus', { id: 'prj_009', status: 'active' }, ADMIN],

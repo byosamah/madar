@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ClientId, ClientInitials, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, StageId, TeamId, UserId, type Deadline, type Project } from '../contract/entities';
+import {
+  ClientId, ClientInitials, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
+  TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
+} from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
@@ -8,11 +11,12 @@ import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
 import { teamFilter } from '../pause';
-import { projectRoleOf } from '../permissions';
-import { memberKey, nextId, paymentsOf, teamsOf, trackerOf, type State } from '../store';
+import { can, projectRoleOf } from '../permissions';
+import { memberKey, nextId, paymentsOf, projectTemplatesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import { buildProjectCode, CLASSIFICATIONS, codeMonth, contractOf, nextSeries, PROJECT_CODE_PATTERN, projectKey, TYPE_MAX } from '../../lib/projectCode';
+import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
@@ -91,6 +95,90 @@ function assertDates(start: string | null, end: string | null, field: string): v
 function assertLeader(ctx: Ctx, userId: string): void {
   const user = ctx.state.users[userId];
   if (!user || !user.active || user.kind !== 'human') throw invalid('leaderId', 'The leader must be an active person.');
+}
+
+/** A new project made from a project template (owner, 2026-10-05, item 6a). */
+const TemplateUse = z.object({
+  templateId: ProjectTemplateId,
+  startDate: Day,
+  /** The last day of the project. Empty keeps the template length. */
+  endDate: Day.nullable().optional(),
+  /** The person of each role, by role id. Null: the tasks of the role have no lead. A role not named takes its default person, when that person is active. */
+  roles: z.record(z.string(), UserId.nullable()).default({}),
+  /** The tasks, and the stages with no tasks, that keep their length when the plan stretches or shrinks. */
+  fixedTaskIds: z.array(z.string().max(24)).max(400).default([]),
+});
+type TemplateUse = z.output<typeof TemplateUse>;
+type TemplateMade = { use: TemplateUse; template: ProjectTemplate; plan: Extract<ProjectPlan, { ok: true }>; people: Record<string, string | null> };
+
+/** The person of each role: the one the call names, else the default person while active, else nobody. */
+function rolePeople(ctx: Ctx, template: ProjectTemplate, named: Record<string, string | null>): Record<string, string | null> {
+  const known = new Set(template.roles.map((role) => role.id));
+  for (const roleId of Object.keys(named)) if (!known.has(roleId)) throw invalid('template.roles', `The template has no role "${roleId}".`);
+  const people: Record<string, string | null> = {};
+  for (const role of template.roles) {
+    const pick = named[role.id];
+    if (pick === undefined) {
+      const fallback = role.defaultUserId ? ctx.state.users[role.defaultUserId] : undefined;
+      people[role.id] = fallback?.active && fallback.kind === 'human' ? fallback.id : null;
+      continue;
+    }
+    if (pick !== null) {
+      const person = ctx.state.users[pick];
+      if (!person || person.kind !== 'human') throw invalid('template.roles', 'The person of a role must be a person of the office. Agents act for a person.');
+      if (!person.active) throw invalid('template.roles', 'This person is no longer active. Pick someone else.', 'person_inactive');
+    }
+    people[role.id] = pick;
+  }
+  return people;
+}
+
+/**
+ * Checks the template part of projects.create before any change, and computes the plan with the helper that the screen uses
+ * (lib/projectPlan.ts). The locked tasks must fit before the end date.
+ */
+function templateMadeOf(ctx: Ctx, input: { template?: TemplateUse; stages?: string[]; startDate: string | null; targetEndDate: string | null }): TemplateMade | null {
+  const use = input.template;
+  if (!use) return null;
+  if (input.stages !== undefined || input.startDate !== null || input.targetEndDate !== null) {
+    throw invalid('template', 'With a template, the stages and the dates come from the template part. Leave out stages, startDate and targetEndDate.');
+  }
+  const template = projectTemplatesOf(ctx.state)[use.templateId];
+  if (!template) throw invalid('template.templateId', 'This template does not exist.');
+  if (use.endDate && use.endDate <= use.startDate) throw invalid('template.endDate', 'The end date must be after the start date.');
+  const parts = new Set([...template.tasks.map((task) => task.id), ...template.stages.map((stage) => stage.id)]);
+  for (const id of use.fixedTaskIds) if (!parts.has(id)) throw invalid('template.fixedTaskIds', `The template has no task or stage "${id}".`);
+  const people = rolePeople(ctx, template, use.roles);
+  const plan = planProject(template, { startDate: use.startDate, endDate: use.endDate, fixedIds: use.fixedTaskIds });
+  if (!plan.ok) {
+    throw new ApiError('invalid_input', `The locked tasks need at least ${plan.needs} working days. Choose a later end date, or let more tasks stretch.`, {
+      fields: ['template.endDate'], reason: 'template_too_short', names: String(plan.needs),
+    });
+  }
+  return { use, template, plan, people };
+}
+
+/**
+ * The tasks of a template in the new project: static dates from the plan, the person of the role as the lead, and the
+ * checklist with every item unticked. "No review" holds only for a person who may set it in this project (as task templates).
+ * The people of the roles had the one notice of their place on the team, so the tasks send no notice of their own.
+ */
+function addTemplateTasks(ctx: Ctx, projectId: string, stageIdOf: Map<string, string>, made: TemplateMade): void {
+  const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, projectId) });
+  for (const part of made.template.tasks) {
+    const id = nextId(ctx.state, 'tsk');
+    const dates = made.plan.tasks[part.id];
+    const task: Task = {
+      id, projectId, stageId: stageIdOf.get(part.stageId)!, title: part.title, description: part.description,
+      ownerId: part.roleId === null ? null : made.people[part.roleId] ?? null, status: 'todo',
+      startDate: dates.startDate, schedule: 'static', durationDays: null, dueDate: dates.dueDate,
+      flagged: false, needsReview: part.needsReview || !maySkipReview,
+      checklist: part.checklist.map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
+      createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
+    };
+    ctx.state.tasks[id] = task;
+    recordCreate(ctx, { projectId, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
+  }
 }
 
 const detail = (ctx: Ctx, project: Project) => detailOf(ctx.state, project, ctx.today, ctx.authority);
@@ -176,12 +264,15 @@ export const projectsCreate = defineCall({
     code: TypedCode.optional(),
     /** Another project of the same contract: the new project gets its code. */
     sameContractAs: ProjectId.optional(),
+    /** Start from a project template: its stages, its tasks with dates and leads, and the project start and end. No stages or dates beside it. */
+    template: TemplateUse.optional(),
   }),
   output: ProjectDetail,
   run(input, ctx) {
     assertCan(ctx, 'project.create');
     const { state, actor, stamp, today } = ctx;
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
+    const made = templateMadeOf(ctx, input);
     const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
     if (leaderId) assertLeader(ctx, leaderId);
     if (input.clientId && !state.clients[input.clientId]) throw invalid('clientId', 'This client does not exist.');
@@ -191,15 +282,24 @@ export const projectsCreate = defineCall({
     }
     const code = codeOfNew(ctx, input);
     const id = nextId(state, 'prj');
-    const stageIds = (input.stages ?? state.settings.defaultStages).map((name, order) => {
+    const stageParts = made
+      ? made.template.stages.map((stage) => ({ partId: stage.id, name: stage.name, dates: made.plan.stages[stage.id] }))
+      : (input.stages ?? state.settings.defaultStages).map((name) => ({ partId: '', name, dates: null }));
+    const stageIdOf = new Map<string, string>();
+    const stageIds = stageParts.map(({ partId, name, dates }, order) => {
       const stageId = nextId(state, 'stg');
-      state.stages[stageId] = { id: stageId, projectId: id, name, order, startDate: null, endDate: null };
+      state.stages[stageId] = { id: stageId, projectId: id, name, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null };
+      stageIdOf.set(partId, stageId);
       return stageId;
     });
+    // From a template: the start of the template part, and its end date, else the last due day of the plan (when it comes after the start).
+    const planEnd = made?.plan.endDate && made.plan.endDate > made.use.startDate ? made.plan.endDate : null;
+    const startDate = made ? made.use.startDate : input.startDate;
+    const targetEndDate = made ? made.use.endDate ?? planEnd : input.targetEndDate;
     const project: Project = {
       id, code, name: input.name, clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
-      startDate: input.startDate, targetEndDate: input.targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
+      startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
     };
@@ -210,9 +310,11 @@ export const projectsCreate = defineCall({
     if (client && !client.initials && input.codeParts) {
       applyPatch(ctx, client, { initials: input.codeParts.initials }, { projectId: null, verb: 'client.updated', targetType: 'client', targetId: client.id });
     }
-    const people = new Set([ctx.authority.id, ...(leaderId ? [leaderId] : []), ...input.teamIds]);
+    const rolePeopleIds = made ? Object.values(made.people).filter((userId): userId is string => userId !== null) : [];
+    const people = new Set([ctx.authority.id, ...(leaderId ? [leaderId] : []), ...input.teamIds, ...rolePeopleIds]);
     for (const userId of people) addMember(ctx, id, userId);
     addProjectConversation(state, id, stamp);
+    if (made) addTemplateTasks(ctx, id, stageIdOf, made);
     return detail(ctx, project);
   },
 });

@@ -22,8 +22,8 @@ export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(in
 /** The State collections that are kinds (wire.ts Kind without the two narrow kinds). */
 export const COLLECTION_KINDS = [
   'users', 'clients', 'projects', 'members', 'stages', 'deadlines', 'tasks', 'updates', 'comments', 'files', 'notifications',
-  'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'tracker', 'payments', 'feedback',
-  'teams', 'settings',
+  'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'tracker', 'payments',
+  'feedback', 'teams', 'settings',
 ] as const satisfies readonly Kind[];
 
 /** The kinds of a change that belongs to one person: they go only on that person's channel (plan, change 13). */
@@ -68,6 +68,7 @@ export const READS: Record<string, ReadRule> = {
   'teams.list': rule('office', ['teams', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
+  'projectTemplates.list': rule('office', ['projectTemplates', 'users']),
   'feedback.list': rule('office', ['feedback', 'users']),
   'session.get': rule('person', ['projects', 'users', 'preferences']),
   'notifications.list': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),

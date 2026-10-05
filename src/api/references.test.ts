@@ -45,7 +45,7 @@ function stateWith(collection: string, record: Record<string, unknown>): State {
 const TARGET_ID: Record<EventTarget, string> = {
   project: 'prj_900', member: 'prj_900:usr_900', stage: 'stg_900', deadline: 'ddl_900', task: 'tsk_900', update: 'upd_900', comment: 'cmt_900',
   file: 'fil_900', client: 'cli_900', user: 'usr_900', settings: 'settings', stageTemplate: 'stt_900', taskTemplate: 'ttp_900', tracker: 'trk_900',
-  payment: 'pay_900', feedback: 'fbk_900', team: 'tm_900',
+  payment: 'pay_900', feedback: 'fbk_900', team: 'tm_900', projectTemplate: 'ptp_900',
 };
 
 describe('the reference map', () => {

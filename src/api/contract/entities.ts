@@ -19,6 +19,7 @@ export const ConversationId = id('cnv');
 export const MessageId = id('msg');
 export const StageTemplateId = id('stt');
 export const TaskTemplateId = id('ttp');
+export const ProjectTemplateId = id('ptp');
 export const TrackerId = id('trk');
 export const PaymentId = id('pay');
 export const TeamId = id('tm');
@@ -53,6 +54,7 @@ export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
+  'projectTemplate',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
@@ -350,6 +352,69 @@ export const TaskTemplate = z.object({
   createdAt: Stamp,
 });
 export type TaskTemplate = z.infer<typeof TaskTemplate>;
+
+/** The id of a role, a stage or a task inside one project template. The editor makes it. It is unique in its template. */
+export const TemplatePartId = z.string().regex(/^[a-z][a-z0-9]{0,23}$/, 'Expected a short id like s1 or t12.');
+/** A working day of a template: day 0 is the first working day of the project. */
+export const TemplateOffset = z.number().int().min(0).max(2000);
+export const TEMPLATE_MAX_ROLES = 20;
+export const TEMPLATE_MAX_STAGES = 20;
+export const TEMPLATE_MAX_TASKS = 200;
+
+/** A role of a template, for example "Architect", with the person who takes it unless the new project names another one. */
+export const TemplateRole = z.object({
+  id: TemplatePartId,
+  name: z.string().trim().min(1).max(60),
+  /** Null: the role has no default person, so its tasks have no lead unless the new project names one. */
+  defaultUserId: UserId.nullable(),
+});
+export type TemplateRole = z.infer<typeof TemplateRole>;
+
+/**
+ * A stage of a template. A stage with tasks takes its dates from its tasks. A stage with no tasks may have its own start
+ * and length (both or none). A stage with no tasks and no numbers gets no dates.
+ */
+export const TemplateStage = z.object({
+  id: TemplatePartId,
+  name: StageName,
+  startOffset: TemplateOffset.nullable(),
+  durationDays: DurationDays.nullable(),
+});
+export type TemplateStage = z.infer<typeof TemplateStage>;
+
+/** A task of a template. Its start and length are working days. "flexible" is the first state of its "Can stretch" tick. */
+export const TemplateTask = z.object({
+  id: TemplatePartId,
+  stageId: TemplatePartId,
+  title: z.string().trim().min(1).max(200),
+  description: z.string().max(5000),
+  /** Item titles only: a task made from the template starts with every item unticked. */
+  checklist: z.array(z.string().trim().min(1).max(200)).max(100),
+  needsReview: z.boolean(),
+  /** The role whose person leads the task. Null: the task has no lead. */
+  roleId: TemplatePartId.nullable(),
+  startOffset: TemplateOffset,
+  durationDays: DurationDays,
+  flexible: z.boolean(),
+});
+export type TemplateTask = z.infer<typeof TemplateTask>;
+
+/**
+ * A project template (owner, 2026-10-05, item 6a): stages, tasks, roles and dates in working days from the project start.
+ * A new project made from it gets its stages, its tasks with dates and leads, and its start and end. Stage templates of
+ * before became project templates with stages and no tasks.
+ */
+export const ProjectTemplate = z.object({
+  id: ProjectTemplateId,
+  name: z.string().trim().min(1).max(60),
+  roles: z.array(TemplateRole).max(TEMPLATE_MAX_ROLES),
+  stages: z.array(TemplateStage).min(1).max(TEMPLATE_MAX_STAGES),
+  tasks: z.array(TemplateTask).max(TEMPLATE_MAX_TASKS),
+  createdBy: UserId,
+  createdAt: Stamp,
+  updatedAt: Stamp,
+});
+export type ProjectTemplate = z.infer<typeof ProjectTemplate>;
 
 export const Update = z.object({
   id: UpdateId,
