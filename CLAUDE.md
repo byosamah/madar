@@ -43,7 +43,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Real-build plan: `docs/superpowers/plans/2026-10-03-madar-real-build-plan.md`. Section 2b (owner changes) wins over
   the rest. Where the plan and the code differ, the code wins.
 - Proven facts (cloud probes, local stack): `docs/superpowers/real-build/proof.md`. Read the section before you change
-  that area. Each task appends only its own section.
+  that area. Each task appends only its own section. The cloud probes that proof.md names live in `scripts/proof/`. No
+  build runs them, but keep them.
 - Also in `docs/superpowers/real-build/`: `platform-facts.md`, `access-map.md`, `client-map.md`, `test-map.md`,
   `accounts.md` (refs and hosts, no secrets), `patches/` (merge lead patches).
 - Reviews: `docs/reviews/2026-10-01-colleague-comments.md`, `docs/reviews/2026-10-03-full-audit/README.md`.
