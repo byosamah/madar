@@ -630,3 +630,10 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 
 - **MCP:** https://madar.vado.sa/mcp is a Cloudflare Pages Function that forwards to the mcp function of the host's project with `x-region: eu-central-1`, after it drops the `cf-*` and client-address headers. MCP_URL of each project is the short address, so the 401 `WWW-Authenticate` and the resource metadata name it, and Auth gives tokens that audience. agents.spec through the test copy's short address: 10 of 10. The old Supabase function address still answers; its tokens now carry the short audience.
 - **Backup:** the first `DB backup` run by hand succeeded (release `madar-db-20261005-070349Z` in byosamah/madar-backups, about 14 KB); `age -d` with the owner's key opened it, and it holds roles.sql, schema.sql, data.sql and manifest.json. The opened copy was deleted at once.
+
+### Thmanyah Sans, the weight ladder and the direction rule (2026-10-05, 89ca770)
+
+- **Screens only:** `pages.sh test`, then `pages.sh production` with the typed word. No migration, setting, secret or function changed.
+- **Test copy:** the three OTF files serve as `font/otf` (241 KB each) under the real CSP (`font-src 'self' data:`); in Chrome the sign-in page loads Thmanyah Sans 400, 500 600 and 700 with no failed face.
+- **Production quick check:** page 200, `POST /mcp` with no token 401, `api/health` 200, the three font files 200 `font/otf`, the same CSS file as the test copy.
+- **Not run:** the deploy suite on the test copy. Local checks before the deploy: `npm test` 3,408 passed, the prototype smoke 87 of 87 (before the last five layout fixes), both builds.

@@ -123,11 +123,11 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 - [x] Fonts (owner, 2026-10-05): Thmanyah Sans for English and Arabic. Done: the OTF files
   (400, 500, 700) in `src/design/fonts/`, unchanged, `tokens.css` loads them, the number spots take the digits from
   Inter (Thmanyah Sans has no tabular figures), tests check the stacks and the file hashes. The weight ladder: Bold for
-  headings only, Medium for emphasis (`font-semibold` renders Medium), Regular for body. Not deployed yet.
+  headings only, Medium for emphasis (`font-semibold` renders Medium), Regular for body. Deployed 2026-10-05 (89ca770).
 - [x] Direction (owner, 2026-10-05): in the Arabic screens, English text also sits on the right. Done: one rule in
   `tokens.css` (`dir="auto"`, `dir="ltr"` and `<bdi>` take the side of the page), the Schedule stage cell and the Inbox
   preview row give the direction only to the text, the sender name and its colon are one `<bdi>`, and
-  `scripts/check-rtl.ts` now fails on `dir` on a flex or grid box. Not deployed yet.
+  `scripts/check-rtl.ts` now fails on `dir` on a flex or grid box. Deployed 2026-10-05 (89ca770).
 - [x] Arabic middle dot (found 2026-10-05 with Thmanyah Sans): the wide, round "·" read like an Arabic zero in
   "5 أكتوبر · مراجعة". Done: every stack takes only U+00B7 from Inter ("Madar Dot"), as the Arabic screens did before.
 - [x] Older layout issues at 390 px (found 2026-10-05; the old font showed them too). Done: the phone tabs share one
