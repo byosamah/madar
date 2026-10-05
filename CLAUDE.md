@@ -156,4 +156,6 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - 2026-10-04: logo "Turning doors"; the mark at the top start of every screen; "Invited" until the first password.
 - 2026-10-05: production on madar.vado.sa; the short MCP address madar.vado.sa/mcp; one CLAUDE.md for each part; keep
   the old Resend key VADO for now (unused, still live; do not ask again); the font Thmanyah Sans for English and
-  Arabic; in the Arabic screens, English text also sits on the right.
+  Arabic; in the Arabic screens, English text also sits on the right; the test copy is the staging step (no third copy,
+  no staging address for now), and production takes only the commit of the last full test deploy
+  (`scripts/deploy/CLAUDE.md`, Release flow).

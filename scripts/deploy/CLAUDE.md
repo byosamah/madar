@@ -3,6 +3,21 @@
 Production is live at https://madar.vado.sa with real people on it. A wrong step here reaches them. Production deploys
 only from the Mac, after the typed word `production`. The test copy is https://preview.madar-46r.pages.dev.
 
+## Release flow (owner, 2026-10-05)
+The test copy is the staging step. There is no third copy: Supabase gives 2 free projects, and Madar uses both.
+1. Commit the change on main, with every merge gate green.
+2. `scripts/deploy/all.sh test`. At its end it records the commit (`.git/madar-test-deploy`, shared by every worktree).
+3. Run the deploy suite on the test copy (`tests/CLAUDE.md`). It seeds the sample office again at its end.
+4. The owner tries the change on the test copy with a sample account (passwords in `secrets/test-accounts.env`).
+5. After the owner's OK: `scripts/deploy/all.sh production` from the same commit.
+- Production refuses, before the typed word: a commit that is not the recorded one, a change that is not committed (also
+  a new file), and a folder that is not a git checkout. A new commit (also a merge or a rebase) needs `all.sh test` again.
+- `all.sh test` removes the record before its first step, so a test deploy that stops part way blocks production. A
+  step alone (`db.sh test`, `deploy.yml` on GitHub) records nothing.
+- No switch skips the check. A hotfix also goes through `all.sh test` first (a few minutes).
+- The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
+- Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive.
+
 ## Steps
 - `scripts/deploy/all.sh <test|production>` runs every step in this order. Each step also runs alone:
   1. `db.sh`: pushes the new migrations. It links the CLI, pushes, and unlinks again.
@@ -15,7 +30,8 @@ only from the Mac, after the typed word `production`. The test copy is https://p
 - All CLIs come from `package.json`, never a global copy.
 
 ## Production rules
-- `all.sh production` asks once for the typed word. Without a terminal: `echo production | scripts/deploy/all.sh production`.
+- `all.sh production` asks once for the typed word, after the commit check of the release flow. Without a terminal:
+  `echo production | scripts/deploy/all.sh production`.
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.

@@ -62,10 +62,11 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** Runs one script with a clean environment: no CI, no token, unless the test gives them. */
-function run(script: string, args: string[], o: { input?: string; env?: Record<string, string> } = {}) {
-  const result = spawnSync(join(root, 'scripts/deploy', script), args, {
-    cwd: root,
+/** Runs one script with a clean environment: no CI, no token, unless the test gives them. `at` is another checkout (a worktree). */
+function run(script: string, args: string[], o: { input?: string; env?: Record<string, string>; at?: string } = {}) {
+  const at = o.at ?? root;
+  const result = spawnSync(join(at, 'scripts/deploy', script), args, {
+    cwd: at,
     input: o.input ?? '',
     encoding: 'utf8',
     env: { PATH: `${stubs}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, STUB_LOG: log, ...o.env },
@@ -86,6 +87,33 @@ function readyForConfigPush(): void {
   writeFileSync(join(root, 'supabase/config.toml'), withoutRemotes() + REMOTES('test', TEST) + REMOTES('production', PRODUCTION));
   writeFileSync(join(root, 'supabase/migrations/20261004000400_platform_auth_hook.sql'), HOOK_MIGRATION);
 }
+
+/** git in the copy, without the global hooks and the commit signature of this Mac. */
+function git(args: string[], cwd = root): string {
+  const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+/** Commits every file of the copy and gives the commit. The first call makes the copy a git checkout; the stubs and their log stay out. */
+function commitAll(message = 'deploy test'): string {
+  if (!existsSync(join(root, '.git'))) {
+    writeFileSync(join(root, '.gitignore'), `${readFileSync(join(repo, '.gitignore'), 'utf8')}\nstub.log\nstubs/\ncurl-input\n`);
+    git(['init', '-q']);
+  }
+  git(['add', '-A']);
+  git(['-c', 'user.name=Madar Test', '-c', 'user.email=test@madar.test', 'commit', '-q', '--allow-empty', '-m', message]);
+  return git(['rev-parse', 'HEAD']);
+}
+
+/** A full all.sh test, then an empty log, so a test sees only the commands of its own later run. */
+function deployTest(): void {
+  const result = run('all.sh', ['test'], { env: TOKENS });
+  expect(result.code, result.out).toBe(0);
+  writeFileSync(log, '');
+}
+
+const NEW_MIGRATION = 'supabase/migrations/20261005000000_new_table.sql';
 
 describe('every deploy script', () => {
   it('is executable, except the shared library', () => {
@@ -124,6 +152,9 @@ describe('every deploy script', () => {
 
 describe('all.sh production', () => {
   it('stops without the typed word, before any step', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
     for (const input of ['', '\n', 'yes\n', 'Production\n', 'test\n']) {
       const result = run('all.sh', ['production'], { input, env: TOKENS });
       expect(result.code, JSON.stringify(input)).toBe(1);
@@ -134,6 +165,9 @@ describe('all.sh production', () => {
   });
 
   it('asks even when MADAR_DEPLOY_CONFIRMED=production comes from the environment, so only a typed word deploys production', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
     const result = run('all.sh', ['production'], { input: '', env: { ...TOKENS, MADAR_DEPLOY_CONFIRMED: 'production' } });
     expect(result.code).toBe(1);
     expect(result.out).toContain('Type production to go on');
@@ -153,6 +187,8 @@ describe('all.sh production', () => {
 
   it('with the typed word, asks once and runs every step on the production project only', () => {
     readyForConfigPush();
+    commitAll();
+    deployTest();
     const result = run('all.sh', ['production'], { input: 'production\n', env: TOKENS });
     expect(result.out.match(/Type production to go on/g)).toHaveLength(1);
     expect(result.code, result.out).toBe(0);
@@ -177,6 +213,108 @@ describe('all.sh production', () => {
     ]);
     expect(result.calls.join('\n')).not.toContain(TEST);
     expect(result.calls.join('\n')).not.toContain('pg-prod-secret');
+  });
+});
+
+describe('production takes only the commit of the test copy (owner release flow, 2026-10-05)', () => {
+  const refused = (result: ReturnType<typeof run>, reason: string) => {
+    expect(result.code, result.out).toBe(1);
+    expect(result.out).toContain(reason);
+    expect(result.out).toContain('Nothing changed');
+    expect(result.out).not.toContain('Type production');
+    expect(result.calls).toEqual([]);
+  };
+  const NOT_TESTED = 'did not go to the test copy first';
+
+  it('refuses a commit that never went to the test copy, before the typed word, and runs nothing', () => {
+    readyForConfigPush();
+    commitAll();
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+  });
+
+  it('refuses a newer commit than the one on the test copy', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    writeFileSync(join(root, NEW_MIGRATION), 'select 1;\n');
+    commitAll('a new migration');
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+  });
+
+  it('refuses changes that are not committed, also a new file, on the commit of the test copy', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const tracked = join(root, 'supabase/migrations/20261004000400_platform_auth_hook.sql');
+    writeFileSync(tracked, `${HOOK_MIGRATION}select 2;\n`);
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), 'not committed');
+    git(['checkout', '--', 'supabase/migrations/20261004000400_platform_auth_hook.sql']);
+    writeFileSync(join(root, NEW_MIGRATION), 'select 1;\n');
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), 'not committed');
+  });
+
+  it('refuses a copy that is not a git checkout', () => {
+    readyForConfigPush();
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), 'git checkout');
+  });
+
+  it('records nothing when the test deploy had changes that are not committed', () => {
+    readyForConfigPush();
+    commitAll();
+    writeFileSync(join(root, NEW_MIGRATION), 'select 1;\n');
+    const test = run('all.sh', ['test'], { env: TOKENS });
+    expect(test.code, test.out).toBe(0);
+    expect(test.out).toContain('Not recorded for production');
+    rmSync(join(root, NEW_MIGRATION));
+    writeFileSync(log, '');
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+  });
+
+  it('forgets the old record when a test deploy stops part way, because the test copy then runs a mix', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const test = run('all.sh', ['test'], { env: { ...TOKENS, STUB_FAIL: 'pages deploy' } });
+    expect(test.code).not.toBe(0);
+    writeFileSync(log, '');
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+  });
+
+  it('records only a full all.sh test, never one step alone', () => {
+    readyForConfigPush();
+    commitAll();
+    const step = run('functions.sh', ['test'], { env: TOKENS });
+    expect(step.code, step.out).toBe(0);
+    writeFileSync(log, '');
+    refused(run('all.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+  });
+
+  it('checks a step that runs alone for production too, and lets it go on after the test deploy', () => {
+    readyForConfigPush();
+    commitAll();
+    refused(run('db.sh', ['production'], { input: 'production\n', env: TOKENS }), NOT_TESTED);
+    deployTest();
+    const step = run('db.sh', ['production'], { input: 'production\n', env: TOKENS });
+    expect(step.code, step.out).toBe(0);
+    expect(step.calls[0]).toBe(`supabase link --project-ref ${PRODUCTION}`);
+  });
+
+  it('reads one record for every worktree, so a test deploy from a worktree counts for main at the same commit', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const place = mkdtempSync(join(tmpdir(), 'madar-deploy-wt-'));
+    try {
+      const worktree = join(place, 'wt');
+      git(['worktree', 'add', '-q', '--detach', worktree]);
+      const result = run('all.sh', ['production'], { input: '', env: TOKENS, at: worktree });
+      expect(result.code).toBe(1);
+      expect(result.out).not.toContain(NOT_TESTED);
+      expect(result.out).toContain('Type production to go on');
+      expect(result.calls).toEqual([]);
+    } finally {
+      rmSync(place, { recursive: true, force: true });
+    }
   });
 });
 
@@ -328,6 +466,9 @@ describe('pages.sh', () => {
   });
 
   it('writes the production hosts and no other for production, after the typed word', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
     const result = run('pages.sh', ['production'], { input: 'production\n', env: {} });
     expect(result.code, result.out).toBe(0);
     expect(hosts(readFileSync(join(root, 'dist/_headers'), 'utf8'))).toEqual([`https://${PRODUCTION}.supabase.co`, `wss://${PRODUCTION}.supabase.co`]);
