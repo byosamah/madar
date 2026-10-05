@@ -12,7 +12,7 @@ import { codePreview, upperCodeHead, type CodeErrors, type CodeMode } from './co
 import type { ProjectForm } from './ProjectFields';
 
 /** The examples in the hints. They are code, so they stay in Latin letters in both languages. */
-const EXAMPLES = { initials: 'AZT', type: 'Villa, Multi-unit Dev.', code: '260902AZT-RES-Villa' };
+const EXAMPLES = { initials: 'AZT', type: 'Villa, Office Tower', code: '260902AZT-RES-Villa' };
 
 /**
  * The "Project code" group of the new-project form (owner, 2026-10-05, item 6b): the client initials (from the client and
