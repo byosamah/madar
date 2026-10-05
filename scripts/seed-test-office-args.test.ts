@@ -135,7 +135,7 @@ describe('seed-test-office: the tables', () => {
 
 // ---------- runSeed with a fake database and a fake Auth ----------
 
-type Fake = { sql: string[]; written: State[]; auth: string[] };
+type Fake = { sql: string[]; written: State[]; auth: string[]; revokePasswords?: string[] };
 
 function fakeDb(o: { present?: boolean; busyOn?: string } = {}) {
   const fake: Fake = { sql: [], written: [], auth: [] };
@@ -184,6 +184,13 @@ function fakeAuth(fake: Fake, users: AuthUserInfo[]): SeedAuth {
     },
     async deleteUser(authUserId) {
       fake.auth.push(`delete ${authUserId}`);
+    },
+    async revokeGrants(email, password) {
+      fake.auth.push(`revoke ${email}`);
+      fake.revokePasswords ??= [];
+      fake.revokePasswords.push(password);
+      // The Admin's account holds one AI app grant that a check left behind.
+      return email === 'admin@madar.test' ? 1 : 0;
     },
   };
 }
@@ -244,7 +251,10 @@ describe('seed-test-office: the run', () => {
     expect(fake.auth).toEqual([
       'list', `password ${HALA}`, 'create management@madar.test', 'create accounting@madar.test', 'create member@madar.test',
       `delete ${STRAY}`,
+      // Each account then signs in and revokes the AI app grants that a check left in Auth (2026-10-05).
+      'revoke admin@madar.test', 'revoke management@madar.test', 'revoke accounting@madar.test', 'revoke member@madar.test',
     ]);
+    expect(fake.revokePasswords).toEqual(DEPLOY_ROLES.map((role) => (PASSWORDS as Record<string, string>)[DEPLOY_ACCOUNTS[role].passwordSecret]));
     const writes = fake.sql.slice(fake.sql.indexOf('begin'));
     expect(SEED_LOCK_TIMEOUT_SQL).toBe("set local lock_timeout = '5s'");
     expect(writes.slice(0, 5)).toEqual(['begin', SEED_LOCK_TIMEOUT_SQL, 'select pg_advisory_xact_lock($1::bigint)', RECORD_DELETES_SQL, TRUNCATE_SQL]);
@@ -255,6 +265,7 @@ describe('seed-test-office: the run', () => {
     expect(text).toMatch(/Seeded madar-test \(qdgwpnesxppnqsaabqzd\)/);
     expect(text).toMatch(/Linked admin@madar\.test to usr_001/);
     expect(text).toMatch(/Removed the Auth user invited\.last\.run@madar\.test/);
+    expect(text).toMatch(/Revoked 1 AI app grant of admin@madar\.test/);
     for (const value of Object.values(PASSWORDS)) expect(text).not.toContain(value);
   });
 

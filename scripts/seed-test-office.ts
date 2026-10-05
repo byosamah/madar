@@ -10,7 +10,8 @@
 //      it), empties the Madar tables and the platform table agent_approvals, writes the sample office of today (writeState of
 //      buildSeed, without its agents: testOffice), and links the 4 accounts.
 //      A lock wait over 5 seconds stops the run with "madar-test is busy" and changes no table;
-//   4. removes every other Auth user: after step 3 no person in Madar has it.
+//   4. removes every other Auth user: after step 3 no person in Madar has it;
+//   5. signs in as each of the 4 accounts and revokes its AI app grants, so no app that a check approved stays in Settings.
 // --dry-run prints the plan and changes nothing.
 //
 // Values: load ~/dev/madar/.env.local first (set -a; . ~/dev/madar/.env.local; set +a); secrets/test.env is read too when it
@@ -208,6 +209,12 @@ export type SeedAuth = {
   /** A new password, a confirmed email, the password mark (PASSWORD_SET_MARK), and no ban. */
   setPassword(authUserId: string, password: string): Promise<void>;
   deleteUser(authUserId: string): Promise<void>;
+  /**
+   * Signs in as the account and revokes every AI app grant of it, then signs out. Gives the number revoked. A check that approved
+   * an app left a grant in Auth, and Settings, Agents showed it after a seed (2026-10-05). Auth has no admin call for one person's
+   * grant (proof.md H), so the account's own session revokes it, as the Remove button does.
+   */
+  revokeGrants(email: string, password: string): Promise<number>;
 };
 
 export function seedAuthPort(o: { supabaseUrl: string; secretKey: string; fetch?: typeof fetch }): SeedAuth {
@@ -229,6 +236,31 @@ export function seedAuthPort(o: { supabaseUrl: string; secretKey: string; fetch?
     createUser: (email, password) => admin.createUser(email, password),
     setPassword: (authUserId, password) => call('PUT', authUserId, { password, email_confirm: true, ban_duration: 'none', user_metadata: { [PASSWORD_SET_MARK]: true } }),
     deleteUser: (authUserId) => call('DELETE', authUserId),
+    async revokeGrants(email, password) {
+      const root = `${o.supabaseUrl.replace(/\/+$/, '')}/auth/v1`;
+      const base = { apikey: o.secretKey, 'Content-Type': 'application/json' };
+      const token = await send(`${root}/token?grant_type=password`, {
+        method: 'POST', headers: base, body: JSON.stringify({ email, password }), signal: AbortSignal.timeout(10_000),
+      });
+      if (!token.ok) throw new AuthAdminError(token.status, `http_${token.status}`, `Auth refused the sign-in of ${email} with ${token.status}.`);
+      const accessToken = String(((await token.json()) as { access_token?: unknown }).access_token ?? '');
+      const headers = { ...base, Authorization: `Bearer ${accessToken}` };
+      const list = await send(`${root}/user/oauth/grants`, { headers, signal: AbortSignal.timeout(10_000) });
+      // An Auth without the OAuth server has no grants to revoke.
+      const rows: unknown = list.status === 404 ? [] : await list.json();
+      if (!list.ok && list.status !== 404) throw new AuthAdminError(list.status, `http_${list.status}`, `Auth refused the grant list of ${email} with ${list.status}.`);
+      let revoked = 0;
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const clientId = (row as { client?: { id?: unknown } }).client?.id;
+        if (typeof clientId !== 'string' || clientId === '') continue;
+        const gone = await send(`${root}/user/oauth/grants?client_id=${encodeURIComponent(clientId)}`, { method: 'DELETE', headers, signal: AbortSignal.timeout(10_000) });
+        // 404: no active grant any more, so the access is gone already.
+        if (!gone.ok && gone.status !== 404) throw new AuthAdminError(gone.status, `http_${gone.status}`, `Auth refused to revoke a grant of ${email} with ${gone.status}.`);
+        revoked += 1;
+      }
+      await send(`${root}/logout?scope=local`, { method: 'POST', headers, signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
+      return revoked;
+    },
   };
 }
 
@@ -372,6 +404,10 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
   for (const user of plan.removeAuth) {
     await o.auth.deleteUser(user.authUserId);
     changes.push(`Removed the Auth user ${user.email ?? user.authUserId}.`);
+  }
+  for (const account of plan.accounts) {
+    const revoked = await o.auth.revokeGrants(account.email, o.env[account.passwordSecret]!);
+    if (revoked > 0) changes.push(`Revoked ${revoked} AI app grant${revoked === 1 ? '' : 's'} of ${account.email}.`);
   }
   o.log([`Seeded madar-test (${o.ref}) with the sample office of ${plan.today}:`, ...changes.map((line) => `  ${line}`)].join('\n'));
   return { changed: true, plan };

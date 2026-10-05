@@ -14,6 +14,7 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 - On the test copy: load `.env.local` and `secrets/test-accounts.env`, then set `MADAR_DEPLOY_URL`,
   `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
+  The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
 - The test copy shows timing races that the local stack hides. Repeat a suspect spec with `--repeat-each=3` there.
