@@ -1,0 +1,11 @@
+{
+  "adminNav": {
+    "label": "Admin sections",
+    "groups": {
+      "people": "People",
+      "office": "Office",
+      "templates": "Templates",
+      "system": "System"
+    }
+  }
+}

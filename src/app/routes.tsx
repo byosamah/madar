@@ -47,7 +47,8 @@ export function appRoutes(remote: boolean): RouteObject[] {
         { path: 'search', element: <SearchScreen /> },
         { path: 'tasks', element: <TaskListScreen /> },
         { path: 'settings', element: <SettingsScreen /> },
-        { path: 'admin', element: <AdminScreen /> },
+        // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
+        { path: 'admin/:section?', element: <AdminScreen /> },
         { path: '*', element: <NotFound /> },
       ].map((route) => ({ ...route, errorElement: <RouteError /> })),
     },

@@ -1,0 +1,11 @@
+{
+  "adminNav": {
+    "label": "أقسام الإدارة",
+    "groups": {
+      "people": "الأشخاص",
+      "office": "المكتب",
+      "templates": "القوالب",
+      "system": "النظام"
+    }
+  }
+}

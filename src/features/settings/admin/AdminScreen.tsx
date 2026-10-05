@@ -1,26 +1,37 @@
+import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { REMOTE } from '../../../app/mode';
+import { Link, Navigate, useParams } from 'react-router';
 import { useCall } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { EmptyState } from '../../../components/EmptyState';
 import { ScreenTitle } from '../../../components/ScreenTitle';
-import { OfficeSection } from './OfficeSection';
-import { PeopleSection } from './PeopleSection';
-import { StageTemplatesSection } from './StageTemplatesSection';
-import { TaskTemplatesSection } from './TaskTemplatesSection';
-import { FeedbackSection } from './FeedbackSection';
-import { TeamsSection } from './TeamsSection';
-import { UsageSection } from './UsageSection';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { ChevronLeftIcon } from '../../../components/icons/animated/chevron-left';
+import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
+import { spring } from '../../../design/motion';
+import { groupsFor, sectionsFor, type AdminSection } from './sections';
+
+const linkOf = (section: AdminSection) => `/admin/${section.id}`;
 
 /**
  * The Admin page (owner, 2026-10-01): the people of the office and the office settings, apart from personal Settings.
- * The Admin sees all of it. Management sees the People section only. The API refuses these changes for everyone else too.
+ * The page grows, so its sections sit in a grouped side list and one section shows at a time (owner, 2026-10-05, item 4).
+ * Each section has its own link, /admin/<id>. The sections and their roles are in sections.ts. The API refuses the calls of a
+ * section for every other role too.
+ * On a desk the list sits at the start side and /admin opens the first section. A phone shows only the list at /admin, a row
+ * opens its section, and Back returns to the list.
  */
 export function AdminScreen() {
   const { t } = useTranslation();
+  const { section: openId } = useParams();
+  const phone = useIsPhone();
   const session = useCall('session.get', {});
   if (!session.data) return null;
-  const role = session.data.authority.systemRole;
-  if (role !== 'admin' && role !== 'management') {
+  const sections = sectionsFor(session.data.authority.systemRole);
+  // An unknown section, or a section that the role may not see, goes back to /admin.
+  const open = sections.find((section) => section.id === openId);
+  if (openId !== undefined && !open) return <Navigate to="/admin" replace />;
+  if (sections.length === 0) {
     return (
       <>
         <ScreenTitle title={t('admin.title')} />
@@ -28,19 +39,95 @@ export function AdminScreen() {
       </>
     );
   }
+  if (phone && open) return <PhoneSection section={open} />;
+  if (phone) {
+    return (
+      <>
+        <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
+        <SectionList sections={sections} phone />
+      </>
+    );
+  }
+  if (!open) return <Navigate to={linkOf(sections[0])} replace />;
+  const Open = open.Component;
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
-      <PeopleSection />
-      {/* Management makes and changes the office teams too: they are about people. */}
-      <TeamsSection />
-      {/* The office settings and the templates stay with the Admin, and so do the requests and bug reports. */}
-      {role === 'admin' && <OfficeSection />}
-      {role === 'admin' && <StageTemplatesSection />}
-      {role === 'admin' && <TaskTemplatesSection />}
-      {role === 'admin' && <FeedbackSection />}
-      {/* The free plan meters exist only in the real build (plan 5.8). */}
-      {REMOTE && role === 'admin' && <UsageSection />}
+      <div className="grid grid-cols-[13rem_minmax(0,1fr)] items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+        <SectionList sections={sections} openId={open.id} />
+        <div className="min-w-0">
+          <Open />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * One section on a phone: a Back link to the list, then the section with its own title. The page title stays for screen readers,
+ * so the screen shows one title and the section title does not repeat.
+ */
+function PhoneSection({ section }: { section: AdminSection }) {
+  const { t } = useTranslation();
+  const Open = section.Component;
+  return (
+    <div className="flex flex-col gap-2">
+      <h1 className="sr-only">{t('admin.title')}</h1>
+      <Link to="/admin" className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
+        <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
+        {t('admin.title')}
+      </Link>
+      <Open />
     </div>
+  );
+}
+
+/**
+ * The grouped list of the sections. On a desk it stays in view at the start side, and the open row has the look of the open tab.
+ * On a phone each group is a panel of rows that open their section.
+ */
+function SectionList({ sections, openId, phone = false }: { sections: AdminSection[]; openId?: string; phone?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <nav aria-label={t('adminNav.label')} className={phone ? 'flex flex-col gap-5' : 'sticky top-24 flex flex-col gap-5'}>
+      {groupsFor(sections).map(({ group, sections: rows }) => (
+        <div key={group} className="flex flex-col gap-1.5">
+          {/* The group word is quiet. The list carries the same word as its name for screen readers. */}
+          <p aria-hidden className={`text-footnote font-medium text-ink-2 ${phone ? 'px-5' : 'px-4'}`}>{t(`adminNav.groups.${group}`)}</p>
+          <ul aria-label={t(`adminNav.groups.${group}`)} className={phone ? 'panel hairline overflow-hidden' : 'flex flex-col gap-0.5'}>
+            {rows.map((section) => (
+              <li key={section.id}>
+                {phone ? <PhoneRow section={section} /> : <DeskRow section={section} open={section.id === openId} />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function DeskRow({ section, open }: { section: AdminSection; open: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <Link
+      to={linkOf(section)}
+      aria-current={open ? 'page' : undefined}
+      className={`pressable relative isolate flex min-h-11 items-center rounded-full px-4 text-subheadline font-semibold ${open ? 'text-[var(--on-sig)]' : 'text-ink hover:bg-fill'}`}
+    >
+      {/* The open row carries the signature, as the open tab of the tab pill does, and it glides to the next open row. */}
+      {open && <motion.span layoutId="admin-open-row" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
+      <span className="min-w-0 truncate">{t(section.titleKey)}</span>
+    </Link>
+  );
+}
+
+function PhoneRow({ section }: { section: AdminSection }) {
+  const { t } = useTranslation();
+  return (
+    <Link to={linkOf(section)} className="pressable flex min-h-14 items-center gap-3 px-5 hover:bg-fill/50">
+      <span className="min-w-0 flex-1 text-subheadline font-medium text-ink">{t(section.titleKey)}</span>
+      <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
+    </Link>
   );
 }

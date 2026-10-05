@@ -62,8 +62,15 @@ function HomeMark({ className }: { className?: string }) {
   );
 }
 
-/** The chat is one screen: opening another conversation keeps the list, its search and its place. */
-const screenKey = (pathname: string): string => (pathname.startsWith('/inbox/') ? '/inbox' : pathname);
+/**
+ * The chat is one screen: opening another conversation keeps the list, its search and its place. The Admin page is one screen
+ * too: opening another section keeps the side list (owner, 2026-10-05, item 4).
+ */
+const screenKey = (pathname: string): string => {
+  if (pathname.startsWith('/inbox/')) return '/inbox';
+  if (pathname.startsWith('/admin/')) return '/admin';
+  return pathname;
+};
 
 /**
  * A number that goes up each time another person becomes current (Preview as, or Reset sample data while a preview is on, in the
