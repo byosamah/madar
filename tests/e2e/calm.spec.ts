@@ -3,14 +3,18 @@ import { expect, test, type Page } from '@playwright/test';
 
 const SWEEP = '/private/tmp/claude-501/-Users-osamakhalil/5721f5d8-5441-480d-b8e1-5ea30aba78f8/scratchpad/shots/sweep2';
 const USER = 'Hala Nasser';
+/** Arabic screens show the Arabic name of a person (owner, 2026-10-05, item 12). */
+const USER_AR = 'هالة ناصر';
 
 const homeRows = (page: Page) => page.getByRole('list', { name: 'Your projects' }).getByRole('listitem');
 const projectRows = (page: Page) => page.getByRole('list', { name: 'Projects' }).getByRole('listitem');
 
 /** Switches the language with the person menu (the avatar button), like a real person. */
 async function switchWithPersonMenu(page: Page, label: 'العربية' | 'English'): Promise<void> {
-  await page.getByRole('button', { name: USER }).click();
-  await page.getByRole('dialog', { name: USER }).getByRole('button', { name: label }).click();
+  // The menu shows the name in the language of the open screen: Arabic before a switch to English.
+  const name = label === 'English' ? USER_AR : USER;
+  await page.getByRole('button', { name }).click();
+  await page.getByRole('dialog', { name }).getByRole('button', { name: label }).click();
 }
 
 for (const width of [390, 820, 1440]) {
