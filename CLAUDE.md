@@ -133,6 +133,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Every visible word has an English and an Arabic key.
 - Every feature change updates the MCP side in the same commit: the allow or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
   (`server/mcp/docs.ts`), and `INSTRUCTIONS` when a rule changes (owner, 2026-10-05).
+- A feature that hides a record from some people gets an independent leak review before the test copy: probes as an
+  outsider on every read path, error texts and Realtime signals included (office tasks, 2026-10-06).
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,
@@ -142,7 +144,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   `test:db`, `test:it`, and the prototype smoke at screen merges. No merge with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
 - Agent tool worktrees live in `.claude/worktrees/agent-*` and may start on an old commit: brief each agent to run
-  `git merge --ff-only <batch branch>` first. Removal: `git worktree remove --force`, then `git worktree prune` with the sandbox off.
+  `git merge --ff-only <batch branch>` first. Removal: `git worktree remove --force`, `git worktree prune`, then `git branch -d`
+  its branch and its `worktree-agent-*` branch (sandbox off).
+- While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
+  on main.
+- A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5
