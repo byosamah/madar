@@ -5,7 +5,7 @@ import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
-import { can, holdsAdminRights, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, mayViewTask, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { assertCan, roleIn, touch } from './shared';
@@ -320,6 +320,13 @@ function assertFinishedHaveLead(ctx: Ctx, events: Event[]): void {
   }
 }
 
+/** True for a notice of an office task, live or deleted, that the person may not see: the rule of a gone notice (notifications.ts). */
+function noticeTaskHidden(ctx: Ctx, targetType: string, targetId: string, person: User): boolean {
+  if (targetType !== 'task') return false;
+  const task = ctx.state.tasks[targetId] ?? lastTaskCopy(ctx.state, targetId);
+  return task !== undefined && task.projectId === null && !mayViewTask(ctx.state, person, task);
+}
+
 /** A story that is wholly taken back takes its notices with it, so no badge points at a change that did not happen (audit 2026-10-03, API-13). */
 function dropNotices(ctx: Ctx, correlationId: string): void {
   const standing = Object.values(ctx.state.events).filter((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
@@ -328,6 +335,9 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
   for (const [id, notice] of Object.entries(ctx.state.notifications)) {
     if (notice.correlationId !== correlationId) continue;
     const owner = ctx.state.users[notice.userId];
+    // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
+    // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
+    if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     const kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
     if (!kept) delete ctx.state.notifications[id];
   }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import { makeTask, makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { mentionMarkup } from '../../lib/text';
 
 beforeEach(() => setNow(NOW));
 
@@ -210,5 +211,28 @@ describe('finding 6: events.undoStory of an office story reads as a missing stor
     await as(w, LEAD, () => w.t.api.call('events.undoStory', { correlationId: story }));
     const undone = await as(w, OUTSIDER, () => error(() => w.t.api.call('events.undoStory', { correlationId: story })));
     expect(undone).toEqual({ ...missing, message: missing!.message.replace('cor_none', story) });
+  });
+});
+
+describe('final check 3: a person taken off an office task keeps an old notice through a later Undo', () => {
+  it('never deletes the notice of a person who no longer sees its office task, so her list and count do not change', async () => {
+    const t = testApi(calls);
+    t.store.state.users.usr_006 = makeUser('usr_006', { name: 'Nour Member' });
+    t.store.state.counters.usr = 6;
+    t.as(MAKER);
+    const taskId = (await t.api.call('tasks.create', { title: 'Renew the office licence', ownerId: LEAD, helperIds: ['usr_006'] })).task.id;
+    await t.api.call('comments.create', { targetType: 'task', targetId: taskId, body: `Ask ${mentionMarkup('Nour Member', 'usr_006')} for the receipt.` });
+    const made = Object.values(t.store.state.events).filter((e) => e.verb === 'comment.created').at(-1)!;
+    const mention = Object.values(t.store.state.notifications).find((n) => n.userId === 'usr_006' && n.correlationId === made.correlationId)!;
+    expect(mention).toBeDefined();
+    await t.api.call('tasks.update', { id: taskId, patch: { helperIds: [] } });
+    t.as('usr_006');
+    const before = await t.api.call('notifications.count', {});
+    t.as(MAKER);
+    await t.api.call('events.undo', { eventId: made.id });
+    // The old rule deleted it, so Nour learned that a comment on a task she can no longer see was taken back, and when.
+    expect(t.store.state.notifications[mention.id]).toBeDefined();
+    t.as('usr_006');
+    expect(await t.api.call('notifications.count', {})).toEqual(before);
   });
 });
