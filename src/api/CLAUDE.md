@@ -43,6 +43,16 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 
+## Health and the Dashboard (owner, 2026-10-06)
+- `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.
+  `isOverdue` still counts it from day 1 ("Past-due tasks", the Past due column, `tasks.list` filter `overdue`).
+- `dashboard.get` returns `gaps` only for `can(admin.manage)` and `money` only for `can(payment.manage)`; anyone else, and an
+  agent of anyone else, gets null. Contract changes stay additive: `charts.healthMix` and `charts.throughput` stay for agents.
+- Each Dashboard number has a list that holds the same records: `tasks.list` and `deadlines.list` take `leaderId`, `clientId`
+  and `teamId` (`peopleFilter`, `pause.ts`); `tasks.list` `workOf` is the work of one person (open tasks that are not in
+  review, plus the reviews of that person); filters `no_date` (tasks), `no_area` and `stage_no_end` (projects).
+- `review.ts`: the day a task last went to review, from its events (the review wait and `finishedOn`).
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in

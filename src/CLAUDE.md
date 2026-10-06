@@ -39,6 +39,10 @@ any screen work.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.
+- Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
+  `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
+  pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
+  `dashboard.get` sends them (the server decides by role).
 - Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
   Everyone sees all projects. Payments only for Admin, Management, Accounting. Agents never join a team.
 
