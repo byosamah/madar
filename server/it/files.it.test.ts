@@ -232,6 +232,33 @@ describe('files on the local Supabase Storage, through runCall', () => {
   });
 });
 
+describe('the files of an office task (owner, 2026-10-06)', () => {
+  it('a file goes up under office/<task>, and only the people of the task get a link or an upload', async () => {
+    const [maker, lead, outsider] = Object.values(office.seed.users)
+      .filter((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && u.id !== PERSON_OFF).map((u) => u.id);
+    const made = okOf<{ task: { id: string } }>(await call(maker, 'tasks.create', { title: 'Renew the trade licence', ownerId: lead }));
+    const taskId = made.task.id;
+    const begin = okOf<Start>(await call(lead, 'files.uploadStart', { name: 'licence.pdf', size: 14, mimeType: 'application/pdf', taskId }));
+    expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 licen')).status).toBe(200);
+    const intent = await intentOf(begin.uploadId);
+    expect(intent.key).toBe(`office/${taskId.replace('_', '-')}/${begin.uploadId.replace('_', '-')}/file`);
+    const file = okOf<FileView>(await call(lead, 'files.upload', { name: 'licence.pdf', taskId, uploadId: begin.uploadId }));
+    expect(file.file).toMatchObject({ projectId: null, taskId });
+    expect(await store.head(intent.key)).toEqual({ size: 14, mimeType: 'application/pdf' });
+
+    signed.length = 0;
+    const link = await call(outsider, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
+    expect(link.ok ? 'signed' : link.error.code).toBe('forbidden');
+    const other = await call(outsider, 'files.uploadStart', { name: 'x.pdf', size: 1, mimeType: 'application/pdf', taskId });
+    expect(other.ok ? 'signed' : other.error.code).toBe('not_found');
+    const list = await call(outsider, 'files.list', { taskId });
+    expect(list.ok ? 'listed' : list.error.code).toBe('not_found');
+    expect(signed).toEqual([]);
+    expect(okOf<{ name: string }>(await call(maker, 'files.link', { id: file.file.id, variant: 'full', disposition: 'attachment' })).name).toBe('licence.pdf');
+    expect(okOf<FileView[]>(await call(ADMIN, 'files.list', { taskId })).map((view) => view.file.id)).toEqual([file.file.id]);
+  });
+});
+
 describe('no link for a person who may not see the file (plan 2b, point 7)', () => {
   let fileId = '';
 
