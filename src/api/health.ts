@@ -15,12 +15,23 @@ export function isOverdue(task: Task, today: string): boolean {
   return task.dueDate !== null && task.dueDate < today && (task.status === 'todo' || task.status === 'in_progress');
 }
 
+/**
+ * A past-due task marks its project At risk only from this many calendar days past due (owner, 2026-10-06). A task 1 or 2 days
+ * past due still counts as past due everywhere else, for example in the "Past-due tasks" number of the Dashboard.
+ */
+export const AT_RISK_DAYS_PAST_DUE = 3;
+
+/** A task that puts its project at risk: past due by AT_RISK_DAYS_PAST_DUE calendar days or more. */
+export function putsAtRisk(task: Task, today: string): boolean {
+  return isOverdue(task, today) && diffDays(task.dueDate as string, today) >= AT_RISK_DAYS_PAST_DUE;
+}
+
 function computeRaw(project: Project, stages: Stage[], tasks: Task[], today: string): HealthValue {
   const projectTasks = tasks.filter((task) => task.projectId === project.id);
   // The stage the project is in follows the tasks (owner, 2026-10-02), so it is computed and never read from the saved value.
   const current = stages.length > 0 ? stageTagOf(stages, projectTasks) : null;
   if (current?.endDate && today > current.endDate) return 'late';
-  if (projectTasks.some((task) => isOverdue(task, today))) return 'at_risk';
+  if (projectTasks.some((task) => putsAtRisk(task, today))) return 'at_risk';
   if (current?.endDate && diffDays(today, current.endDate) <= 7) {
     const stageTasks = projectTasks.filter((task) => task.stageId === current.id);
     const done = stageTasks.filter((task) => task.status === 'done').length;
@@ -29,7 +40,7 @@ function computeRaw(project: Project, stages: Stage[], tasks: Task[], today: str
   return 'on_track';
 }
 
-/** The health rule from spec section 4.2. Returns null for projects that are not active. */
+/** The health rule from spec section 4.2, with the 3-day rule for past-due tasks (owner, 2026-10-06). Null for a project that is not active. */
 export function computeHealth(input: { project: Project; stages: Stage[]; tasks: Task[] }, today: string): HealthResult | null {
   const { project, stages, tasks } = input;
   if (project.status !== 'active') return null;

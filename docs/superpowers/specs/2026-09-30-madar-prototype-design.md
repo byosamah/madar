@@ -148,13 +148,15 @@ The app computes the health from the data, in one function, `computeHealth(proje
 
 1. **Late:** the current stage has an end date, and today is after it.
 2. **At risk:** the project is not Late, and one of these is true:
-   - the project has one or more overdue tasks, or
+   - the project has one or more overdue tasks that are 3 or more calendar days past due (owner, 2026-10-06), or
    - the current stage ends within 7 days, and less than 70% of the tasks in that stage are Done.
 3. **On track:** all other cases.
 
 Definitions:
 
 - An **overdue task** has a due date before today and a status of To do or In progress. A task In review is not overdue.
+  A task 1 or 2 days past due still counts as overdue (for example in the "Past-due tasks" number), but it does not put
+  the project At risk (owner, 2026-10-06).
 - The **current stage** is the stage the leader marks as current. The app does not guess it from dates.
 
 Override:

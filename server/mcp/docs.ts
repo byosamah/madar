@@ -27,6 +27,8 @@ export const INSTRUCTIONS = [
   '',
   'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead.',
   '',
+  'Health: an active project is late when today is after the end date of its current stage. It is at risk when one of its open tasks is 3 or more days past due, or when the stage ends within 7 days and less than 70% of its tasks are done. A task 1 or 2 days past due still counts as past due (tasks.list filter overdue), but it does not put the project at risk.',
+  '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
   'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update.',

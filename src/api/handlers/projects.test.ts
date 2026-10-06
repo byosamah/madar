@@ -74,7 +74,10 @@ describe('projects.list and the card', () => {
     expect(byName.map((s) => s.project.name)).toEqual(['Alpha Villa', 'Test Tower']);
     t.as('usr_004');
     expect(await t.api.call('projects.list', { filter: 'mine' })).toHaveLength(0);
+    // 2 days past due: still on track. From 3 days past due the project is at risk (owner, 2026-10-06).
     t.store.state.tasks.tsk_001 = makeTask({ dueDate: '2026-09-28', status: 'in_progress' });
+    expect(await t.api.call('projects.list', { filter: 'at_risk' })).toHaveLength(0);
+    t.store.state.tasks.tsk_001 = makeTask({ dueDate: '2026-09-27', status: 'in_progress' });
     const risky = await t.api.call('projects.list', { filter: 'at_risk' });
     expect(risky.map((s) => s.project.id)).toEqual(['prj_001']);
     expect(risky[0].health?.value).toBe('at_risk');

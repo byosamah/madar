@@ -10,7 +10,8 @@ beforeEach(() => setNow(NOW));
 
 function world(): State {
   const state = makeWorld();
-  state.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', dueDate: '2026-09-28', status: 'in_progress' });
+  // 3 days past due, so the project is at risk (owner, 2026-10-06).
+  state.tasks.tsk_001 = makeTask({ id: 'tsk_001', ownerId: 'usr_003', dueDate: '2026-09-27', status: 'in_progress' });
   state.tasks.tsk_002 = makeTask({ id: 'tsk_002', ownerId: 'usr_003', dueDate: '2026-10-01', createdAt: '2026-09-01T09:00:00.000+03:00' });
   state.tasks.tsk_003 = makeTask({
     id: 'tsk_003', ownerId: 'usr_002', status: 'done', createdAt: '2026-09-20T09:00:00.000+03:00', completedAt: '2026-09-29T09:00:00.000+03:00',
@@ -56,6 +57,16 @@ describe('dashboard.get', () => {
     expect(d.charts.healthMix).toEqual({ on_track: 0, at_risk: 1, late: 0 });
     expect(d.charts.projectsPerStage).toEqual([{ stage: 'Schematic Design', count: 1 }]);
     expect(d.schedule.map((row) => row.project.code)).toEqual(['KH-26-001']);
+  });
+
+  // A task 1 or 2 days past due counts in "Past-due tasks" from day 1, but marks its project At risk only from day 3 (owner, 2026-10-06).
+  it('counts a task 2 days past due as past due, but not its project as at risk', async () => {
+    const state = world();
+    state.tasks.tsk_001.dueDate = '2026-09-28';
+    const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    expect(d.tiles.overdueTasks).toBe(1);
+    expect(d.tiles.atRiskOrLate).toBe(0);
+    expect(d.charts.healthMix).toEqual({ on_track: 1, at_risk: 0, late: 0 });
   });
 
   it('leaves out the area of a project in its own last stage, whatever its name (audit 2026-10-03, DSH-16, V-17)', async () => {
