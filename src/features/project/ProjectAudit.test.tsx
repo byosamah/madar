@@ -792,6 +792,27 @@ describe('a failed save shows the saved value (audit 2026-10-03, BRW-6)', () => 
     await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-26'));
   });
 
+  it('keeps the reason of a failed Save dates for the next move, also after Keep the old date (cleanup 2026-10-06)', async () => {
+    const fail = trap('tasks.update');
+    await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair, { failFirst: fail.match });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const moveDue = async (day: string) => {
+      fireEvent.change(within(sheet).getByLabelText('Due date'), { target: { value: day } });
+      fireEvent.blur(within(sheet).getByLabelText('Due date'));
+      return screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    };
+    const ask = await moveDue('2026-10-26');
+    await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'The survey came late');
+    fail.state.armed = true;
+    await userEvent.click(within(ask).getByRole('button', { name: 'Save dates' }));
+    await waitFor(() => expect(fail.state.hit).toBe(true));
+    const again = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
+    await userEvent.click(within(again).getByRole('button', { name: 'Keep the old date' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Why do the dates change?' })).toBeNull());
+    const next = await moveDue('2026-10-27');
+    expect(within(next).getByRole('textbox', { name: 'Reason' })).toHaveValue('The survey came late');
+  });
+
   it('offers the retry of a failed Save dates only in the reason sheet (audit 2026-10-03, V-14)', async () => {
     const fail = trap('tasks.update');
     await renderApp('/projects/prj_001?tab=tasks&task=tsk_007', staticStair, { failFirst: fail.match });

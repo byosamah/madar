@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DateMove } from '../../../api/contract/entities';
 import { ApiError } from '../../../api/errors';
@@ -60,6 +60,8 @@ export function useDateReason(onCancel?: () => void, draftKey?: string): {
   const retry = <I extends object>(input: I, resend: (next: I & { dateReason: string }) => void): boolean => {
     const reason = (input as { dateReason?: unknown }).dateReason;
     if (typeof reason !== 'string' || !lastMove.current) return false;
+    // The send cleared the draft. The reason goes back into it, so a close now keeps it for the next move.
+    keep(reason);
     setPending({ move: lastMove.current, reason, send: (dateReason) => resend({ ...input, dateReason }) });
     return true;
   };
@@ -90,11 +92,6 @@ function DateReasonSheet({ move, initial, onKeep, onSend, onClose }: {
   const lang = useLang();
   const meeting = useMeeting();
   const [reason, setReason] = useState(initial);
-  // Every typed letter stays in the drafts, so a close by any way keeps the reason for the next move (audit 2026-10-03, F-16).
-  useEffect(() => {
-    onKeep(reason);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reason]);
   const moved = (['startDate', 'dueDate'] as const).filter((key) => move.from[key] !== move.to[key]).length;
   return (
     <Sheet
@@ -137,7 +134,12 @@ function DateReasonSheet({ move, initial, onKeep, onSend, onClose }: {
           maxLength={280}
           rows={3}
           autoFocus
-          onChange={(event) => setReason(event.target.value)}
+          onChange={(event) => {
+            // Every typed letter goes into the drafts, so a close by any way keeps the reason for the next move (audit 2026-10-03,
+            // F-16). The write is part of the typing, not an effect after each render (cleanup 2026-10-06).
+            setReason(event.target.value);
+            onKeep(event.target.value);
+          }}
         />
       </form>
     </Sheet>
