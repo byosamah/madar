@@ -94,6 +94,34 @@ describe('the free checks of each db-mode call (TM 3.5, checks 2 to 5)', () => {
     ]);
   });
 
+  it('allows one id for the named part and one for the office task part of a save, and never lets the two parts meet', () => {
+    // A save with a project part and an office task part (review 2026-10-06): the office signal names the actor and the story,
+    // and the people of the office task get a person signal with its own id and no names.
+    const mixed = (): CallCheck => {
+      const check = goodWrite();
+      check.before.tasks.tsk_009 = makeTask({ id: 'tsk_009', projectId: null, stageId: null, ownerId: 'usr_003' });
+      check.after.tasks.tsk_009 = { ...makeTask({ id: 'tsk_009', projectId: null, stageId: null, ownerId: 'usr_003' }), title: 'Office title' };
+      check.after.events.evt_003 = event('evt_003', 3, { projectId: null, targetId: 'tsk_009', officeTaskId: 'tsk_009', correlationId: 'sty_b' });
+      const hidden = { id: 'sig_2', storyId: undefined, actorId: undefined };
+      check.signals = [signal(), signal({ ...hidden, channel: 'person:usr_003', people: ['usr_003'] })];
+      return check;
+    };
+    expect(callProblems(mixed())).toEqual([]);
+
+    const sameId = mixed();
+    sameId.signals[1] = { ...sameId.signals[1], id: 'sig_1' };
+    expect(callProblems(sameId)).toEqual(['tasks.update sent the office task part with the id of a signal that names the actor and the story.']);
+
+    const loud = mixed();
+    loud.signals[0] = { ...loud.signals[0], storyId: undefined, actorId: undefined, id: 'sig_2' };
+    loud.signals.pop();
+    expect(callProblems(loud)).toEqual(['tasks.update sent a signal with no names on the office channel.']);
+
+    const third = mixed();
+    third.signals.push(signal({ id: 'sig_3', storyId: undefined, actorId: undefined, channel: 'person:usr_001', people: ['usr_001'] }));
+    expect(callProblems(third)).toEqual(['tasks.update sent signals with more than one id.']);
+  });
+
   it('builds one checksum statement over every table of the schema, with the schema in each name, so no search_path counts', () => {
     const sql = checksumSql('madar_w2', ['users', 'events', 'office_meta']);
     expect(sql).toContain('from madar_w2.users t');

@@ -12,7 +12,8 @@ import { PERSONAL_KINDS, READS } from './readMap';
  *   into one batch request.
  * - All signals of one save share one id: the office signal and one signal on each person channel. The first one with an id
  *   applies whole. A later one with the same id adds only the people it names, so a person signal that comes after the office
- *   signal still reloads that person's own lists, and nothing applies twice.
+ *   signal still reloads that person's own lists, and nothing applies twice. A save that changes an office task sends that part
+ *   to the people of the task with a second id, so it applies as one more change (review 2026-10-06).
  * - Gaps: the seq of each Realtime channel counts up by one. A gap on the office channel reloads every list; a gap on the person
  *   channel reloads the person lists. The seq of an own answer never counts, because answers and Realtime do not share an order.
  * - A hidden tab only marks the lists. They reload when the tab shows again, and every list reloads after 60 seconds hidden.

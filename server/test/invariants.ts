@@ -97,7 +97,18 @@ export function callProblems(c: CallCheck): string[] {
     return problems;
   }
   if (c.signals.length === 0) return [`${c.name} saved a change and sent no change signal.`];
-  if (new Set(c.signals.map((s) => s.id)).size > 1) problems.push(`${c.name} sent signals with more than one id.`);
+  // A save that changes an office task sends that part with its own id and no names, so the id of a named signal never ties the
+  // actor or the story to it. Each part keeps one id (review 2026-10-06).
+  const named = c.signals.filter((s) => s.actorId !== undefined || s.storyId !== undefined);
+  const nameless = c.signals.filter((s) => s.actorId === undefined && s.storyId === undefined);
+  const parts = diff.privateChange ? [named, nameless] : [c.signals];
+  if (parts.some((part) => new Set(part.map((s) => s.id)).size > 1)) problems.push(`${c.name} sent signals with more than one id.`);
+  if (diff.privateChange) {
+    if (nameless.some((s) => named.some((one) => one.id === s.id))) {
+      problems.push(`${c.name} sent the office task part with the id of a signal that names the actor and the story.`);
+    }
+    if (nameless.some((s) => s.channel === 'office')) problems.push(`${c.name} sent a signal with no names on the office channel.`);
+  }
   const channels = c.signals.map((s) => s.channel);
   for (const channel of new Set(channels)) {
     if (channels.filter((one) => one === channel).length > 1) problems.push(`${c.name} sent more than one signal on the channel ${channel}.`);

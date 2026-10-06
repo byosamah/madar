@@ -17,7 +17,8 @@ export type Kind = Exclude<keyof State, 'version' | 'seededOn' | 'session' | 'co
 
 /**
  * One change signal (plan, change 13). The office channel carries office changes; each person:<userId> channel carries the
- * personal ones. All signals of one save share one id, so a screen that receives a change twice applies it once.
+ * personal ones. The signals of one save share one id, so a screen that receives a change twice applies it once. A save that
+ * changes an office task sends that part with a second id and no names, only to the people of the task (review 2026-10-06).
  */
 export type ChangeSignal = {
   v: 1;

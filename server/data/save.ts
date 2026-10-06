@@ -22,7 +22,8 @@ import { TABLES, type TableSpec } from './tables';
  *   the person channels. Any other change gets one office signal with the next office_meta.office_seq. Each person in "people"
  *   gets one signal on person:<userId> with the next person_seq. All signals of one save share one id and the same kinds,
  *   projects and office flag. The office signal names nobody (people is empty), so the office channel never tells who reads or
- *   chats with whom; a person signal names only its person.
+ *   chats with whom; a person signal names only its person. A save that changes an office task sends that part to the people
+ *   of the task and the Admins with a second id, every kind and no actor or story (see writeDiff, review 2026-10-06).
  */
 
 type Rec = Record<string, unknown>;
