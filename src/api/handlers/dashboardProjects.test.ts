@@ -52,3 +52,30 @@ describe('the Submissions chart of dashboard.get (owner, 2026-10-06)', () => {
     expect(led.charts.throughput).toHaveLength(12);
   });
 });
+
+describe('waitingForUs of dashboard.get (owner, 2026-10-06)', () => {
+  it('counts the open client items that wait for the office, per active project in the filters, the most first', async () => {
+    const state = world();
+    state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'KH-26-003', name: 'Paused Mall', status: 'on_hold' });
+    state.tracker = {
+      trk_001: entry('trk_001', { direction: 'in', waiting: 'us' }),
+      trk_002: entry('trk_002', { projectId: 'prj_002', direction: 'in', waiting: 'us' }),
+      trk_003: entry('trk_003', { projectId: 'prj_002', direction: 'in', waiting: 'us' }),
+      // Closed, waiting for the client, not a loop, or in a paused project: none counts.
+      trk_004: entry('trk_004', { direction: 'in', waiting: 'us', closedAt: STAMP, closedBy: 'usr_002' }),
+      trk_005: entry('trk_005', { waiting: 'client' }),
+      trk_006: entry('trk_006', { direction: 'in' }),
+      trk_007: entry('trk_007', { projectId: 'prj_003', direction: 'in', waiting: 'us' }),
+    };
+    const { api } = testApi(insightCalls, state);
+    const d = await api.call('dashboard.get', {});
+    expect(d.waitingForUs.map((row) => [row.project.id, row.count])).toEqual([['prj_002', 2], ['prj_001', 1]]);
+    expect(d.waitingForUs[0].project).toMatchObject({ code: 'KH-26-002', name: 'Second Villa' });
+    expect((await api.call('dashboard.get', { leaderId: 'usr_002' })).waitingForUs.map((row) => row.project.id)).toEqual(['prj_001']);
+    // Like every number, it counts the active projects of the status: a status of paused projects has none.
+    expect((await api.call('dashboard.get', { status: 'on_hold' })).waitingForUs).toEqual([]);
+    delete state.tracker;
+    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).waitingForUs).toEqual([]);
+  });
+});
+

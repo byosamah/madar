@@ -29,6 +29,15 @@
     "charts": {
       "submissions": "التسليمات للعملاء أسبوعيًا"
     },
-    "submissions": "التسليمات"
+    "submissions": "التسليمات",
+    "waitingForUs": {
+      "title": "بانتظار ردنا",
+      "items": "{{n}} بند بانتظار ردنا",
+      "items_one": "بند واحد بانتظار ردنا",
+      "items_two": "بندان بانتظار ردنا",
+      "items_few": "{{count}} بنود بانتظار ردنا",
+      "items_many": "{{count}} بندًا بانتظار ردنا",
+      "items_other": "{{count}} بند بانتظار ردنا"
+    }
   }
 }

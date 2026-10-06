@@ -23,6 +23,12 @@
     "charts": {
       "submissions": "Submissions to clients per week"
     },
-    "submissions": "Submissions"
+    "submissions": "Submissions",
+    "waitingForUs": {
+      "title": "Waiting for our reply",
+      "items": "{{n}} items wait for our reply",
+      "items_one": "1 item waits for our reply",
+      "items_other": "{{count}} items wait for our reply"
+    }
   }
 }

@@ -17,6 +17,7 @@ import { NumberRows, Numbers } from './Numbers';
 import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
 import { StaleProjects } from './StaleProjects';
+import { WaitingForUs } from './WaitingForUs';
 import { Workload } from './Workload';
 import { clientName } from '../../lib/clientName';
 
@@ -127,6 +128,7 @@ export function DashboardScreen() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {/* grid-cols-1: one auto column grows to its widest card and pushes a phone page sideways. */}
                 <div className="min-w-0 empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
+                <div className="min-w-0 empty:hidden lg:col-span-2"><WaitingForUs view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withFilters(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, filters) },

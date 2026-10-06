@@ -29,4 +29,8 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
   it('name the submissions chart', () => {
     expect(TOOL_DOCS['dashboard.get'].description).toContain('submissions');
   });
+
+  it('name the client items that wait for the office', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toContain('waitingForUs');
+  });
 });

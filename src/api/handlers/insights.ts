@@ -53,6 +53,8 @@ export const DashboardView = z.object({
     /** The open client items of the project (Tracker loops): the ones that wait for our reply and the ones that wait for the client. */
     openLoops: z.object({ us: Count, client: Count }),
   })),
+  /** The open client items that wait for the office's reply, for each active project in the filters, the most first (owner, 2026-10-06). */
+  waitingForUs: z.array(z.object({ project: Ref, count: Count })),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
   attention: z.object({
     stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
@@ -192,6 +194,9 @@ export const dashboardGet = defineCall({
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
           openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
         })),
+      waitingForUs: active
+        .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })
+        .sort((a, b) => b.count - a.count || a.project.name.localeCompare(b.project.name)),
       leaders,
     };
   },
