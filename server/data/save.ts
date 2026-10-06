@@ -1,5 +1,4 @@
 import type { Task } from '../../src/api/contract/entities';
-import { lastTaskCopy } from '../../src/api/events';
 import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
 import type { ChangeSignal, Kind } from '../core/types';
@@ -110,6 +109,18 @@ function recordsOf(state: State, spec: TableSpec): Map<string, Rec> {
   if (spec.collection === 'settings') return new Map(state.settings ? [['office', state.settings as Rec]] : []);
   const map = (state[spec.collection] ?? {}) as Record<string, Rec>;
   return new Map(Object.values(map).map((rec) => [spec.key(rec), rec]));
+}
+
+/**
+ * The last copy of a deleted task, from its newest delete event in the State (the rule of lastTaskCopy in src/api/events.ts). It
+ * lives here because the db test setup loads this file and must load no API module that a test may mock.
+ */
+function deletedTaskCopy(state: State, taskId: string): Task | undefined {
+  let found: State['events'][string] | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === 'task.deleted' && event.targetId === taskId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Task) : undefined;
 }
 
 function historyError(text: string): Error {
@@ -278,7 +289,7 @@ export function diffState(before: State, after: State): Diff {
   };
   for (const id of officeTasks) {
     const copies = [before.tasks[id], after.tasks[id]].filter((task): task is Task => task !== undefined);
-    for (const task of copies.length > 0 ? copies : [lastTaskCopy(after, id)].filter((task): task is Task => task !== undefined)) {
+    for (const task of copies.length > 0 ? copies : [deletedTaskCopy(after, id)].filter((task): task is Task => task !== undefined)) {
       privatePeople.add(principal(task.createdBy));
       if (task.ownerId) privatePeople.add(task.ownerId);
       for (const helper of task.helperIds ?? []) privatePeople.add(helper);
