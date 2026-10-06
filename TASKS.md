@@ -192,7 +192,7 @@ Spec: docs/superpowers/specs/2026-10-01-madar-calm-redesign-design.md. Plans 1 t
 ## 2026-10-05: staging
 
 - [x] Staging (owner, 2026-10-05): the test copy is the staging step. No third copy (Supabase gives 2 free projects, Madar uses both) and no staging address for now. `all.sh test` records its commit, and production refuses any other commit, a change that is not committed, or a folder that is not a git checkout, before the typed word. Release steps: `scripts/deploy/CLAUDE.md`, Release flow. Tests: `scripts/deploy/deploy.test.ts`.
-- [ ] The next production deploy: run `scripts/deploy/all.sh test` from main first. Production runs 1b0180a, and main has only doc commits since, but the record starts empty.
+- [x] The next production deploy: run `scripts/deploy/all.sh test` from main first. Done 2026-10-05: production took 69e3be7 and then 02cd6a4, each after a full test deploy of the same commit.
 
 ## 2026-10-05: owner feedback batch (spec docs/superpowers/specs/2026-10-05-owner-feedback-batch-design.md)
 
