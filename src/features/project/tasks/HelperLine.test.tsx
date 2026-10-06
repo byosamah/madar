@@ -26,3 +26,25 @@ describe('the helper line of a task row', () => {
     expect(name).toHaveClass('max-w-full');
   });
 });
+
+// Each task row asked session.get for itself, so a long list held one query observer for each row. The list asks once and gives
+// the person to its rows (cleanup 2026-10-06).
+describe('the person of the task rows', () => {
+  const observersOn = async (path: string, extraRows: number) => {
+    const view = await renderApp(path, (state) => {
+      const model = state.tasks.tsk_007;
+      // The lead of the task looks, so its rows show on My Work too.
+      state.session.currentUserId = model.ownerId as string;
+      for (let n = 1; n <= extraRows; n += 1) state.tasks[`tsk_9${n}0`] = { ...structuredClone(model), id: `tsk_9${n}0`, title: `Extra row ${n}` };
+    });
+    await screen.findByText('Stair details');
+    if (extraRows > 0) await screen.findByText(`Extra row ${extraRows}`);
+    const observers = view.queryClient.getQueryCache().find({ queryKey: ['api', 'session.get', {}] })?.getObserversCount() ?? 0;
+    view.unmount();
+    return observers;
+  };
+
+  it.each(['/projects/prj_001?tab=tasks', '/work'])('on %s comes from one session.get for the whole list', async (path) => {
+    expect(await observersOn(path, 4)).toBe(await observersOn(path, 0));
+  });
+});

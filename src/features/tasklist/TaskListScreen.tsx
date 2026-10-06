@@ -90,6 +90,8 @@ function TaskResults() {
   const doneTo = dayParam(params.get('doneTo'));
   const { teamId, teamText } = useTeam();
   const users = useCall('users.list', { includeInactive: true });
+  // One session.get for the whole list. Each row takes the person from here.
+  const me = useCall('session.get', {}).data?.authority;
   const tasks = useCall('tasks.list', {
     filter, ownerId, teamId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
@@ -128,7 +130,7 @@ function TaskResults() {
       {rows.length > 0 && (
         <ul className="surface overflow-hidden rounded-card py-1">
           <AnimatePresence initial={false}>
-            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => open(row, thread)} showProject />)}
+            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => open(row, thread)} showProject />)}
           </AnimatePresence>
         </ul>
       )}

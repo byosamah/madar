@@ -87,7 +87,7 @@ export function HomeScreen() {
           </span>
         </ScreenTitle>
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} onOpen={(row, thread) => open(row.project.id, row.task.id, thread)} />
+        <TodayPanel rows={todayRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project.id, row.task.id, thread)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">

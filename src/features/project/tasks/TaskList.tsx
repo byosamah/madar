@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
-import { useAction } from '../../../app/runtime';
+import { useAction, useCall } from '../../../app/runtime';
 import { EmptyState } from '../../../components/EmptyState';
 import { useStageBack } from './StageBack';
 import { TaskRowItem } from './TaskRowItem';
@@ -53,6 +53,8 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
   detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string, thread?: boolean) => void; doneCounts: Record<string, number>;
 }) {
   const { t } = useTranslation();
+  // One session.get for the whole list. Each row takes the person from here.
+  const me = useCall('session.get', {}).data?.authority;
   const groups = detail.stages
     .map((stage) => ({ stage, rows: rows.filter((row) => row.task.stageId === stage.id) }))
     .filter((group) => !filtered || group.rows.length > 0);
@@ -68,7 +70,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
           {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} />}
           <ul>
             <AnimatePresence initial={false}>
-              {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={onOpen} />)}
+              {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={onOpen} />)}
             </AnimatePresence>
           </ul>
           {stageRows.length === 0 && (

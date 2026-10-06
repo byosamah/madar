@@ -41,15 +41,16 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
   window.history.replaceState(null, '', `#${path}`);
   const router = createAppRouter();
   onTestFinished(() => router.dispose());
+  const queryClient = createQueryClient();
   const view = render(
-    <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+    <RuntimeProvider runtime={{ store, api }} queryClient={queryClient}>
       <ToastProvider>
         <AppearanceSync />
         <RouterProvider router={router} />
       </ToastProvider>
     </RuntimeProvider>,
   );
-  return { ...view, store, api, router };
+  return { ...view, store, api, router, queryClient };
 }
 
 /** Renders one component with the API, the toasts and the sample office, for hook tests. */

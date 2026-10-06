@@ -2,6 +2,7 @@ import { AnimatePresence } from 'motion/react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
+import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
 import { EmptyState } from '../../components/EmptyState';
@@ -11,13 +12,13 @@ import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { LoadFailed } from '../../components/LoadFailed';
 
-function TaskGroup({ id, title, rows, onOpen }: { id: string; title: string; rows: TaskRow[]; onOpen: (row: TaskRow, thread?: boolean) => void }) {
+function TaskGroup({ id, title, rows, me, onOpen }: { id: string; title: string; rows: TaskRow[]; me: User | undefined; onOpen: (row: TaskRow, thread?: boolean) => void }) {
   return (
     <section aria-labelledby={`work-${id}`} className="surface overflow-hidden rounded-card pb-2">
       <h2 id={`work-${id}`} className="px-4 pb-1 pt-3 text-headline">{title}</h2>
       <ul>
         <AnimatePresence initial={false}>
-          {rows.map((row) => <TaskRowItem key={row.task.id} row={row} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
+          {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
         </AnimatePresence>
       </ul>
     </section>
@@ -30,6 +31,8 @@ export function WorkTasks() {
   const [params, setParams] = useSearchParams();
   const mine = useCall('tasks.list', { filter: 'mine', includeDone: false });
   const review = useCall('tasks.list', { filter: 'review_for_me' });
+  // One session.get for every group. Each row takes the person from here.
+  const me = useCall('session.get', {}).data?.authority;
   const open = (row: TaskRow, thread = false) => setParams((current) => {
     const next = new URLSearchParams(current);
     next.set('task', row.task.id);
@@ -56,10 +59,10 @@ export function WorkTasks() {
   const projectId = params.get('project');
   return (
     <div className="flex flex-col gap-5">
-      {review.data.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review.data} onOpen={open} />}
+      {review.data.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review.data} me={me} onOpen={open} />}
       {groups.length === 0 && review.data.length === 0
         ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
-        : groups.map((group) => <TaskGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} onOpen={open} />)}
+        : groups.map((group) => <TaskGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={open} />)}
       {taskId && projectId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );

@@ -4,9 +4,9 @@ import { MessageCircleIcon } from '../../../components/icons/animated/message-ci
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
-import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
@@ -47,8 +47,12 @@ function HelperLine({ name, context }: { name: string; context: string | undefin
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
  * A tick fills the circle at once, and the call runs after 0.5 s, so the row slides away then (spec 5.5).
+ * "me" is the person who looks at the list (the authority of session.get). The list asks for it once and gives it to each row,
+ * so a long list does not hold one session.get for each row (cleanup 2026-10-06).
  */
-export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean }) {
+export function TaskRowItem({ row, me, onOpen, showProject = false }: {
+  row: TaskRow; me: User | undefined; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean;
+}) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -59,7 +63,6 @@ export function TaskRowItem({ row, onOpen, showProject = false }: { row: TaskRow
   });
   const { task } = row;
   // A helper cannot finish the task, so the row says that they help and who leads it (audit 2026-10-03, V-35).
-  const me = useCall('session.get', {}).data?.authority;
   const helping = Boolean(me && task.ownerId !== me.id && helpersOf(task).includes(me.id));
   const done = task.status === 'done';
   const inReview = task.status === 'in_review';
