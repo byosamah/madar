@@ -144,6 +144,12 @@ export const tasksList = defineCall({
     /** Only the tasks of the projects that this person leads, or of this client: the Dashboard filters (owner, 2026-10-06). */
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
+    /**
+     * The work of one person, as the People tab of the Dashboard counts it (owner, 2026-10-06): the open tasks the person leads
+     * or helps on that are not in review, and the tasks in review that the person reviews (reviewersOf). A task in review passes
+     * the due range only when the range holds today, because the Dashboard counts it in the first week.
+     */
+    workOf: UserId.optional(),
   }),
   output: z.array(TaskRow),
   readOnly: true,
@@ -159,8 +165,12 @@ export const tasksList = defineCall({
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;
       if (status && !status.includes(task.status)) return false;
-      if (dueFrom && (task.dueDate === null || task.dueDate < dueFrom)) return false;
-      if (dueTo && (task.dueDate === null || task.dueDate > dueTo)) return false;
+      const review = input.workOf !== undefined && task.status === 'in_review';
+      if (input.workOf && !(review ? reviewersOf(state, task.projectId).includes(input.workOf) : task.status !== 'done' && involves(task, input.workOf))) return false;
+      // A review is due now for its reviewer, so it passes a range that holds today.
+      const dueOn = review ? today : task.dueDate;
+      if (dueFrom && (dueOn === null || dueOn < dueFrom)) return false;
+      if (dueTo && (dueOn === null || dueOn > dueTo)) return false;
       const created = stampDay(task.createdAt);
       if (input.createdFrom && created < input.createdFrom) return false;
       if (input.createdTo && created > input.createdTo) return false;

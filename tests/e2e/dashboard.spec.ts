@@ -46,7 +46,8 @@ test('a tile and a workload cell open the lists behind them', async ({ page }) =
   await page.goBack();
   // Workload sits under the People tab.
   await page.getByRole('tab', { name: 'People' }).click();
-  await page.getByRole('region', { name: 'Workload' }).getByRole('link').first().click();
+  // The first cell of a row is Past due (owner, 2026-10-06). A week cell opens the person's tasks.
+  await page.getByRole('region', { name: 'Workload' }).getByRole('link', { name: /, week of / }).first().click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Tasks of');
 });
 

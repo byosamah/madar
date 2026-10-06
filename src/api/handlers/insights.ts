@@ -7,10 +7,11 @@ import {
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
+import { reviewersOf } from '../notify';
 import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
-import { addDays, stampDay, weekStartOf } from '../../lib/dates';
+import { addDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
 import { isLive } from '../../lib/overview';
@@ -35,7 +36,11 @@ export const DashboardView = z.object({
   workload: z.object({
     weeks: z.array(Day).length(4),
     limit: Count,
-    rows: z.array(z.object({ user: UserCard, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
+    /**
+     * overdue: the open tasks of the person that are past due (owner, 2026-10-06). counts: the open tasks due in each week, from
+     * today on, so nothing counts twice; week 1 also holds the tasks in review that the person reviews (reviewersOf).
+     */
+    rows: z.array(z.object({ user: UserCard, overdue: Count, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
   }),
   schedule: z.array(z.object({
     project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline),
@@ -126,11 +131,24 @@ export const dashboardGet = defineCall({
 
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
+    const activeTasks = tasks.filter((t) => activeIds.has(t.projectId));
+    // A task in review is work for its reviewers, not for the person who finished it (owner, 2026-10-06).
+    const reviewsOf = new Map<string, number>();
+    for (const task of activeTasks) {
+      if (task.status !== 'in_review') continue;
+      for (const id of reviewersOf(state, task.projectId)) reviewsOf.set(id, (reviewsOf.get(id) ?? 0) + 1);
+    }
     const workloadRows = humans.map((user) => {
-      // A person's tasks are the ones they lead or help on: the same rule as the Task list this number opens (audit PER-4).
-      const counts = weeks.map((ws) => tasks.filter((t) =>
-        involves(t, user.id) && t.status !== 'done' && t.dueDate !== null && t.dueDate >= ws && t.dueDate <= addDays(ws, 6) && activeIds.has(t.projectId)).length);
-      return { user: userCard(user), counts, over: counts.map((count) => count > limit) };
+      // A person's tasks are the ones they lead or help on: the same rule as the Task list each cell opens (audit PER-4).
+      const own = activeTasks.filter((t) => involves(t, user.id));
+      // Past due from day 1, the rule of the "Past-due tasks" number. The weeks start today, so a past-due task counts once.
+      const overdue = own.filter((t) => isOverdue(t, today)).length;
+      const counts = weeks.map((ws, i) => {
+        const from = maxDay(ws, today);
+        const due = own.filter((t) => (t.status === 'todo' || t.status === 'in_progress') && t.dueDate !== null && t.dueDate >= from && t.dueDate <= addDays(ws, 6)).length;
+        return due + (i === 0 ? reviewsOf.get(user.id) ?? 0 : 0);
+      });
+      return { user: userCard(user), overdue, counts, over: counts.map((count) => count > limit) };
     });
 
     return {

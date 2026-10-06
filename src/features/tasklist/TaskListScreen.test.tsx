@@ -17,6 +17,31 @@ describe('the Task list', () => {
     expect(screen.getByText('Due 18 Oct to 24 Oct')).toBeInTheDocument();
   });
 
+  // The Past due cell of the People tab opens this list for one person (owner, 2026-10-06).
+  it('names the person of a past-due list', async () => {
+    const { api } = await renderApp('/tasks?filter=overdue&owner=usr_005');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks of Sara Al-Qahtani' })).toBeInTheDocument();
+    const expected = await api.call('tasks.list', { filter: 'overdue', ownerId: 'usr_005', includeDone: false });
+    expect(expected.length).toBeGreaterThan(0);
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(expected.length));
+  });
+
+  // A week cell of the People tab opens the work of a person: the tasks to review count in the first week (owner, 2026-10-06).
+  it("shows a person's work for the first week, with the tasks the person reviews", async () => {
+    const { api } = await renderApp('/tasks?work=usr_002&from=2026-09-30&to=2026-10-03');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks of Faisal Al-Harbi' })).toBeInTheDocument();
+    expect(screen.getByText(/With the tasks to review/)).toBeInTheDocument();
+    const expected = await api.call('tasks.list', { workOf: 'usr_002', dueFrom: '2026-09-30', dueTo: '2026-10-03', includeDone: false });
+    expect(expected.some((row) => row.task.status === 'in_review')).toBe(true);
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(expected.length));
+  });
+
+  it('says nothing about reviews for a later week of a person', async () => {
+    await renderApp('/tasks?work=usr_002&from=2026-10-11&to=2026-10-17');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks of Faisal Al-Harbi' })).toBeInTheDocument();
+    expect(screen.queryByText(/With the tasks to review/)).toBeNull();
+  });
+
   it('lists deadlines and links each one to its project schedule', async () => {
     await renderApp('/tasks?mode=deadlines&from=2026-09-30&to=2026-10-14');
     expect(await screen.findByRole('heading', { level: 1, name: 'Deadlines' })).toBeInTheDocument();

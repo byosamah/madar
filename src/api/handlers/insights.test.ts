@@ -160,7 +160,9 @@ describe('dashboard.get', () => {
     const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
     expect(d.workload.weeks).toEqual(['2026-09-27', '2026-10-04', '2026-10-11', '2026-10-18']);
     const sara = d.workload.rows.find((row) => row.user.id === 'usr_003');
-    expect(sara?.counts).toEqual([3, 0, 0, 0]);
+    // tsk_001 is past due, so it counts in Overdue, not in a week (owner, 2026-10-06).
+    expect(sara?.overdue).toBe(1);
+    expect(sara?.counts).toEqual([2, 0, 0, 0]);
     expect(sara?.over).toEqual([true, false, false, false]);
   });
 

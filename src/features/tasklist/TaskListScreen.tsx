@@ -9,7 +9,7 @@ import { useCall } from '../../app/runtime';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { formatDay } from '../../lib/dates';
+import { formatDay, todayISO } from '../../lib/dates';
 import { clientName } from '../../lib/clientName';
 import { clientParam, dayParam, oneOf, teamParam, userParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
@@ -94,6 +94,8 @@ function TaskResults() {
   const [params, setParams] = useSearchParams();
   const filter = oneOf(params.get('filter'), FILTERS, 'all');
   const ownerId = userParam(params.get('owner'));
+  // The work of a person, from a week cell of the Dashboard: their open tasks and the tasks they review (owner, 2026-10-06).
+  const workOf = userParam(params.get('work'));
   const from = dayParam(params.get('from'));
   const to = dayParam(params.get('to'));
   const createdFrom = dayParam(params.get('createdFrom'));
@@ -105,7 +107,7 @@ function TaskResults() {
   // One session.get for the whole list. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   const tasks = useCall('tasks.list', {
-    filter, ownerId, teamId, leaderId, clientId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
+    filter, ownerId, workOf, teamId, leaderId, clientId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   const open = (row: TaskRow, thread = false) => setParams((current) => {
@@ -123,12 +125,15 @@ function TaskResults() {
     next.delete('thread');
     return next;
   }), [setParams]);
-  const person = users.data?.find((user) => user.id === ownerId);
-  const title = filter === 'overdue' ? t('taskList.overdue')
+  const person = users.data?.find((user) => user.id === (ownerId ?? workOf));
+  const title = filter === 'overdue' ? (person ? t('taskList.overdueOf', { name: nameOf(person) }) : t('taskList.overdue'))
     : filter === 'flagged' ? t('taskList.flagged')
       : person ? t('taskList.forPerson', { name: nameOf(person) }) : t('taskList.title');
+  // A task in review counts for its reviewer in a range that holds today, so the subtitle says the list has them.
+  const today = todayISO();
+  const reviews = workOf !== undefined && (!from || from <= today) && (!to || today <= to) ? t('taskList.withReviews') : '';
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
-  const subtitle = [scopeText, range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
+  const subtitle = [scopeText, range('taskList.dueRange', from, to), reviews, range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');
   const rows = tasks.data ?? [];
   const taskId = params.get('task');

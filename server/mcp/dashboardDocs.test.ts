@@ -15,4 +15,10 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
       for (const word of ['leaderId', 'clientId', 'teamId']) expect(TOOL_DOCS[name].description, `${name} ${word}`).toContain(word);
     }
   });
+
+  it('explain the People tab: overdue first, weeks from today, reviews for the reviewer, and the workOf list', () => {
+    const dashboard = TOOL_DOCS['dashboard.get'].description;
+    for (const word of ['overdue', 'from today', 'review']) expect(dashboard, word).toContain(word);
+    expect(TOOL_DOCS['tasks.list'].description).toContain('workOf');
+  });
 });

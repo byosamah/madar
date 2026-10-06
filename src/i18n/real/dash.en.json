@@ -7,6 +7,15 @@
   },
   "taskList": {
     "leader": "Leader: {{name}}",
-    "client": "Client: {{name}}"
+    "client": "Client: {{name}}",
+    "overdueOf": "Past-due tasks of {{name}}",
+    "withReviews": "With the tasks to review"
+  },
+  "dashboard": {
+    "overdueColumn": "Past due",
+    "overdueCell": "{{name}}, past due: {{tasks}}",
+    "idlePeople": "{{n}} people have no tasks in these weeks",
+    "idlePeople_one": "1 person has no tasks in these weeks",
+    "idlePeople_other": "{{count}} people have no tasks in these weeks"
   }
 }

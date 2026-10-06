@@ -803,7 +803,7 @@
     "week": "Week of {{date}}",
     "noData": "No data for these filters.",
     "workload": "Workload",
-    "workloadHint": "Open tasks due each week. A highlighted cell has more than {{n}}.",
+    "workloadHint": "Open tasks due each week from today, and in the first week the tasks to review. A highlighted cell has more than {{n}}.",
     "person": "Person",
     "over": "Over the limit",
     "overShort": "Over",

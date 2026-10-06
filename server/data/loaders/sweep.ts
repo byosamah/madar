@@ -24,6 +24,10 @@ export function readSweep(office: State): SweepCall[] {
     calls.push(
       ['tasks.list', { includeDone: false, activeProjectsOnly: false }, actor],
       ['tasks.list', { ownerId: actor, status: ['todo', 'in_review'] }, actor],
+      // The cells of the People tab of the Dashboard (owner, 2026-10-06).
+      ['tasks.list', { workOf: actor, includeDone: false }, actor],
+      ['tasks.list', { workOf: actor, dueFrom: '2026-10-04', dueTo: '2026-10-10', includeDone: false }, actor],
+      ['tasks.list', { filter: 'overdue', ownerId: actor, includeDone: false }, actor],
       ['notifications.list', {}, actor],
       ['notifications.list', { unreadOnly: true, limit: 3 }, actor],
       ['notifications.count', {}, actor],

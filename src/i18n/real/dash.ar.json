@@ -7,6 +7,18 @@
   },
   "taskList": {
     "leader": "القائد: {{name}}",
-    "client": "العميل: {{name}}"
+    "client": "العميل: {{name}}",
+    "overdueOf": "مهام {{name}} التي تجاوزت موعدها",
+    "withReviews": "مع المهام بانتظار المراجعة"
+  },
+  "dashboard": {
+    "overdueColumn": "تجاوزت موعدها",
+    "overdueCell": "{{name}}، تجاوزت موعدها: {{tasks}}",
+    "idlePeople": "{{n}} شخص ليس لديهم مهام في هذه الأسابيع",
+    "idlePeople_one": "شخص واحد ليس لديه مهام في هذه الأسابيع",
+    "idlePeople_two": "شخصان ليس لديهما مهام في هذه الأسابيع",
+    "idlePeople_few": "{{count}} أشخاص ليس لديهم مهام في هذه الأسابيع",
+    "idlePeople_many": "{{count}} شخصًا ليس لديهم مهام في هذه الأسابيع",
+    "idlePeople_other": "{{count}} شخص ليس لديهم مهام في هذه الأسابيع"
   }
 }

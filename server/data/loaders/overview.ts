@@ -64,6 +64,10 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
   const person = str(input.ownerId) ?? (input.filter === 'mine' ? L.authority?.id : undefined);
   const where: Cond[] = [{ col: 'project_id', in: ids }];
   if (person) where.push({ or: [{ col: 'owner_id', in: [person] }, { has: 'helperIds', value: person }] });
+  // The work of a person (owner, 2026-10-06): the tasks the person leads or helps on, and the tasks in review, of which the
+  // handler keeps the ones the person reviews.
+  const worker = str(input.workOf);
+  if (worker) where.push({ or: [{ col: 'owner_id', in: [worker] }, { has: 'helperIds', value: worker }, { col: 'status', in: ['in_review'] }] });
   if (input.filter === 'review_for_me') where.push({ col: 'status', in: ['in_review'] });
   if (Array.isArray(input.status)) where.push({ col: 'status', in: input.status as string[] });
   if (input.includeDone === false) where.push({ col: 'status', notIn: ['done'] });

@@ -56,7 +56,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Returns the office overview: number tiles, project health (on track, at risk, late), charts, the workload of each person, the schedule, what needs attention, and the people who lead a project in the status (leaders, a list for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use it for a summary, then the list tools for detail.',
+    description: 'Returns the office overview: number tiles, project health (on track, at risk, late), charts, the workload of each person (overdue: open tasks past due; counts: open tasks due in each of 4 weeks from today, with the tasks the person must review in week 1), the schedule, what needs attention, and the people who lead a project in the status (leaders, a list for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use it for a summary, then the list tools for detail.',
   },
   'deadlines.create': {
     title: 'Add a deadline',
@@ -140,7 +140,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
   },
   'tasks.move': {
     title: 'Move a task',

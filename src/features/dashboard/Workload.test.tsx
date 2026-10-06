@@ -9,7 +9,47 @@ describe('the workload grid', () => {
     const grid = await screen.findByRole('region', { name: 'Workload' });
     const [cell] = within(grid).getAllByRole('link', { name: /^Sara Al-Qahtani, week of/ });
     await userEvent.click(cell);
-    await waitFor(() => expect(window.location.hash).toContain('owner=usr_005'));
+    // The cell counts her work: her open tasks and the tasks she reviews (owner, 2026-10-06).
+    await waitFor(() => expect(window.location.hash).toContain('work=usr_005'));
+  });
+
+  // Overdue first, then the weeks from today, so a past-due task counts once (owner, 2026-10-06, item 1).
+  it('puts the past-due tasks of each person first, in the attention colour above 0, and opens them', async () => {
+    const { api } = await renderApp('/dashboard?view=people');
+    const grid = await screen.findByRole('region', { name: 'Workload' });
+    const headers = within(grid).getAllByRole('columnheader').map((th) => th.textContent);
+    expect(headers.slice(0, 3)).toEqual(['Person', 'Past due', '30 Sept']);
+    const d = await api.call('dashboard.get', {});
+    const late = d.workload.rows.find((row) => row.overdue > 0)!;
+    const calm = d.workload.rows.find((row) => row.overdue === 0 && row.counts.some((n) => n > 0))!;
+    const nameOf = (id: string) => d.workload.rows.find((row) => row.user.id === id)!.user.name;
+    const cell = within(grid).getByRole('link', { name: new RegExp(`^${nameOf(late.user.id)}, past due: `) });
+    expect(cell).toHaveClass('text-attn');
+    expect(within(grid).getByRole('link', { name: new RegExp(`^${nameOf(calm.user.id)}, past due: `) })).not.toHaveClass('text-attn');
+    await userEvent.click(cell);
+    await waitFor(() => expect(window.location.hash).toContain('filter=overdue'));
+    expect(window.location.hash).toContain(`owner=${late.user.id}`);
+    await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(late.overdue));
+  });
+
+  // A person with nothing in any column is noise on the tab (owner, 2026-10-06, item 7).
+  it('hides a person with nothing in any column, and says how many under the table', async () => {
+    const { api } = await renderApp('/dashboard?view=people');
+    const grid = await screen.findByRole('region', { name: 'Workload' });
+    const d = await api.call('dashboard.get', {});
+    const idle = d.workload.rows.filter((row) => row.overdue === 0 && row.counts.every((n) => n === 0));
+    expect(idle.length).toBe(2);
+    for (const row of idle) expect(within(grid).queryByText(row.user.name)).toBeNull();
+    expect(within(grid).getAllByRole('row')).toHaveLength(d.workload.rows.length - idle.length + 1);
+    expect(within(grid).getByText('2 people have no tasks in these weeks')).toBeInTheDocument();
+  });
+
+  it('says how many people have no tasks with the Arabic noun forms', async () => {
+    await renderApp('/dashboard?view=people', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const grid = await screen.findByRole('region', { name: 'عبء العمل' });
+    expect(within(grid).getByText('شخصان ليس لديهما مهام في هذه الأسابيع')).toBeInTheDocument();
   });
 
   it('names one task in the singular in the cell label (audit 2026-10-03, F-10)', async () => {
