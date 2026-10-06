@@ -75,10 +75,10 @@ export const DashboardView = z.object({
   })),
   /**
    * The data gaps of the active projects in the filters, for the Admin only (can admin.manage): open tasks with no due date or no
-   * lead, stages with no end date, and projects with no area. Null for anyone else, and for an agent that acts for anyone else
-   * (owner, 2026-10-06).
+   * lead, projects with a stage that has no end date, and projects with no area. Each count equals the list it opens. Null for
+   * anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
    */
-  gaps: z.object({ noDueDate: Count, noLead: Count, stagesNoEnd: Count, noArea: Count }).nullable(),
+  gaps: z.object({ noDueDate: Count, noLead: Count, projectsStageNoEnd: Count, noArea: Count }).nullable(),
   /**
    * The payments not yet received, past due and due in the next 30 days, for the projects of the leader, client and team filters,
    * whatever their status: a paused or finished project still owes its money. Only for the people who may handle payments (can
@@ -105,7 +105,8 @@ function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
   return {
     noDueDate: open.filter((t) => t.dueDate === null).length,
     noLead: open.filter((t) => t.ownerId === null).length,
-    stagesNoEnd: active.reduce((sum, p) => sum + stagesOf(state, p.id).filter((stage) => stage.endDate === null).length, 0),
+    // Projects, not stages: the number equals the projects.list filter stage_no_end that it opens (review, 2026-10-06).
+    projectsStageNoEnd: active.filter((p) => stagesOf(state, p.id).some((stage) => stage.endDate === null)).length,
     noArea: active.filter((p) => p.areaM2 === null).length,
   };
 }

@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { useLang } from '../../app/lang';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { formatNumber } from '../../lib/dates';
 import { AttentionCard, ROW } from './AttentionCard';
 import { withFilters, type DashboardData, type DashboardFilters } from './Tiles';
@@ -8,7 +10,7 @@ import { withFilters, type DashboardData, type DashboardFilters } from './Tiles'
 const GAPS = [
   { key: 'noDueDate', to: '/tasks?filter=no_date' },
   { key: 'noLead', to: '/tasks?filter=no_lead' },
-  { key: 'stagesNoEnd', to: '/projects?filter=stage_no_end' },
+  { key: 'projectsStageNoEnd', to: '/projects?filter=stage_no_end' },
   { key: 'noArea', to: '/projects?filter=no_area' },
 ] as const;
 
@@ -30,6 +32,8 @@ export function DataGaps({ view, filters }: { view: DashboardData; filters: Dash
           <Link to={withFilters(gap.to, filters)} className={ROW}>
             <span className="min-w-0 flex-1 text-subheadline text-ink">{t(`dashboard.gaps.${gap.key}`)}</span>
             <span className="tabular text-headline text-ink">{formatNumber(gaps[gap.key], lang)}</span>
+            {/* The chevron of the number rows, so a gap row looks pressable too (review, 2026-10-06). */}
+            <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
           </Link>
         </li>
       ))}

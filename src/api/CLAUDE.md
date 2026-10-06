@@ -50,7 +50,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   agent of anyone else, gets null. Contract changes stay additive: `charts.healthMix` and `charts.throughput` stay for agents.
 - Each Dashboard number has a list that holds the same records: `tasks.list` and `deadlines.list` take `leaderId`, `clientId`
   and `teamId` (`peopleFilter`, `pause.ts`); `tasks.list` `workOf` is the work of one person (open tasks that are not in
-  review, plus the reviews of that person); filters `no_date` (tasks), `no_area` and `stage_no_end` (projects).
+  review, plus the reviews of that person); filters `no_date` (tasks), `no_area` and `stage_no_end` (projects). So the gap
+  `projectsStageNoEnd` counts projects, never stages: it equals the `stage_no_end` list.
 - `review.ts`: the day a task last went to review, from its events (the review wait and `finishedOn`).
 
 ## A new call: the checklist

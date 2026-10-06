@@ -56,7 +56,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Returns the office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due in each of 4 weeks from today; week 1 adds tasks to review), waitingForUs (client items that wait for our reply), inReview (tasks in review by reviewer), schedule, attention, leaders. gaps (Admin only) and money (payments due: Admin, Management, Accounting only) are null for anyone else.',
+    description: 'Office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews), waitingForUs (client items waiting for our reply), inReview (by reviewer), schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea; Admin only) and money (payments due; Admin, Management, Accounting only) are null for anyone else.',
   },
 
   'deadlines.create': {

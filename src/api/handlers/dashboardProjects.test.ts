@@ -152,6 +152,8 @@ describe('gaps of dashboard.get, for the Admin only (owner, 2026-10-06, item 10)
     state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'KH-26-003', name: 'Paused Mall', status: 'on_hold', areaM2: null });
     state.stages.stg_009 = { id: 'stg_009', projectId: 'prj_002', name: 'Concept', order: 0, startDate: '2026-09-01', endDate: null };
     state.stages.stg_010 = { id: 'stg_010', projectId: 'prj_003', name: 'Concept', order: 0, startDate: null, endDate: null };
+    // A second open-ended stage of the same project: the gap counts the project once.
+    state.stages.stg_011 = { id: 'stg_011', projectId: 'prj_002', name: 'Permits', order: 1, startDate: null, endDate: null };
     state.tasks.tsk_001 = makeTask({ id: 'tsk_001', dueDate: null });
     state.tasks.tsk_002 = makeTask({ id: 'tsk_002', dueDate: null, ownerId: null });
     state.tasks.tsk_003 = makeTask({ id: 'tsk_003', dueDate: '2026-10-05', ownerId: null });
@@ -162,16 +164,27 @@ describe('gaps of dashboard.get, for the Admin only (owner, 2026-10-06, item 10)
     return state;
   }
 
-  it('counts the open tasks with no due date or no lead, the stages with no end date and the projects with no area', async () => {
+  it('counts the open tasks with no due date or no lead, the projects with a stage with no end date and the projects with no area', async () => {
     const t = testApi(calls, gapWorld());
     t.as('usr_001');
-    expect((await t.api.call('dashboard.get', {})).gaps).toEqual({ noDueDate: 2, noLead: 2, stagesNoEnd: 1, noArea: 1 });
-    expect((await t.api.call('dashboard.get', { leaderId: 'usr_002' })).gaps).toEqual({ noDueDate: 2, noLead: 2, stagesNoEnd: 0, noArea: 0 });
+    expect((await t.api.call('dashboard.get', {})).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 1, noArea: 1 });
+    expect((await t.api.call('dashboard.get', { leaderId: 'usr_002' })).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 0, noArea: 0 });
     // Each count opens a list that holds the same records.
     expect(await t.api.call('tasks.list', { filter: 'no_date', includeDone: false })).toHaveLength(2);
     expect(await t.api.call('tasks.list', { filter: 'no_lead', includeDone: false })).toHaveLength(2);
     expect((await t.api.call('projects.list', { filter: 'no_area' })).map((s) => s.project.id)).toEqual(['prj_002']);
     expect((await t.api.call('projects.list', { filter: 'stage_no_end' })).map((s) => s.project.id)).toEqual(['prj_002']);
+  });
+
+  // The number must equal the list it opens: two open-ended stages of one project are one project (review, 2026-10-06).
+  it('counts a project with a stage with no end date once, as the list it opens holds it once', async () => {
+    const t = testApi(calls, gapWorld());
+    t.as('usr_001');
+    for (const filters of [{}, { leaderId: 'usr_003' }, { clientId: 'cli_009' }]) {
+      const { gaps } = await t.api.call('dashboard.get', filters);
+      expect(gaps!.projectsStageNoEnd, JSON.stringify(filters)).toBe((await t.api.call('projects.list', { filter: 'stage_no_end', ...filters })).length);
+    }
+    expect((await t.api.call('dashboard.get', {})).gaps!.projectsStageNoEnd).toBe(1);
   });
 
   it('gives the gaps to the Admin and to an agent that acts for the Admin, and null to anyone else', async () => {

@@ -54,7 +54,7 @@
       "title": "Data gaps",
       "noDueDate": "Open tasks with no due date",
       "noLead": "Open tasks with no lead",
-      "stagesNoEnd": "Stages with no end date",
+      "projectsStageNoEnd": "Active projects with a stage with no end date",
       "noArea": "Active projects with no area"
     },
     "money": {

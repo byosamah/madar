@@ -96,9 +96,11 @@ describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
     expect(links.map((link) => link.textContent)).toEqual([
       ...(gaps!.noDueDate > 0 ? [`Open tasks with no due date${gaps!.noDueDate}`] : []),
       ...(gaps!.noLead > 0 ? [`Open tasks with no lead${gaps!.noLead}`] : []),
-      ...(gaps!.stagesNoEnd > 0 ? [`Stages with no end date${gaps!.stagesNoEnd}`] : []),
+      ...(gaps!.projectsStageNoEnd > 0 ? [`Active projects with a stage with no end date${gaps!.projectsStageNoEnd}`] : []),
       `Active projects with no area${gaps!.noArea}`,
     ]);
+    // Each row looks pressable, like the Deadlines and Area rows: it ends with the chevron (review, 2026-10-06).
+    for (const link of links) expect(link.querySelector('svg')).not.toBeNull();
     await userEvent.click(within(region).getByRole('link', { name: /Open tasks with no due date/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no due date' })).toBeInTheDocument();
     await waitFor(() => expect(listRows()).toHaveLength(2));
@@ -112,6 +114,18 @@ describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
     expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show all projects' }));
     await waitFor(() => expect(window.location.hash).not.toContain('filter='));
+  });
+
+  it('counts the projects with a stage with no end date, and opens exactly them', async () => {
+    const { api } = await renderApp('/dashboard', (state) => {
+      withGaps(state);
+      for (const stage of Object.values(state.stages).filter((s) => s.projectId === 'prj_003')) stage.endDate = null;
+    });
+    const { gaps } = await api.call('dashboard.get', {});
+    expect(gaps!.projectsStageNoEnd).toBe(1);
+    await userEvent.click(within(await card(/^Data gaps/)).getByRole('link', { name: /Active projects with a stage with no end date/ }));
+    expect(await screen.findByText('Projects with a stage with no end date')).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(1));
   });
 
   it('opens the tasks with no lead', async () => {
