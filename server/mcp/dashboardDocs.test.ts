@@ -37,4 +37,10 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
   it('name the tasks in review by reviewer', () => {
     expect(TOOL_DOCS['dashboard.get'].description).toContain('inReview');
   });
+
+  it('say that the gaps are for the Admin only, and name the filters that list them', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/gaps[^.]*Admin only[^.]*null/);
+    expect(TOOL_DOCS['tasks.list'].description).toContain('no_date');
+    for (const word of ['no_area', 'stage_no_end']) expect(TOOL_DOCS['projects.list'].description).toContain(word);
+  });
 });

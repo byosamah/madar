@@ -43,6 +43,11 @@ export function readSweep(office: State): SweepCall[] {
   }
   // The Leader and Client filters of the lists that the Dashboard opens (owner, 2026-10-06).
   const led = Object.values(office.projects).find((p) => p.status === 'active' && p.leaderId !== null && p.clientId !== null);
+  // The lists that the data gaps of the Dashboard open (owner, 2026-10-06).
+  calls.push(
+    ['projects.list', { filter: 'no_area' }, ADMIN], ['projects.list', { filter: 'stage_no_end', status: 'all' }, ADMIN],
+    ['tasks.list', { filter: 'no_date', includeDone: false }, ADMIN], ['tasks.list', { filter: 'no_lead', includeDone: false }, ADMIN],
+  );
   if (led) {
     calls.push(
       ['tasks.list', { filter: 'overdue', leaderId: led.leaderId, clientId: led.clientId }, ADMIN],

@@ -123,8 +123,8 @@ export const tasksList = defineCall({
   input: z.object({
     projectId: ProjectId.optional(),
     ownerId: UserId.optional(),
-    /** no_lead: only the tasks with no lead (owner, 2026-10-05). */
-    filter: z.enum(['all', 'mine', 'overdue', 'flagged', 'review_for_me', 'no_lead']).default('all'),
+    /** no_lead: only the tasks with no lead (owner, 2026-10-05). no_date: only the tasks with no due date (owner, 2026-10-06). */
+    filter: z.enum(['all', 'mine', 'overdue', 'flagged', 'review_for_me', 'no_lead', 'no_date']).default('all'),
     status: z.array(TaskStatus).optional(),
     dueFrom: Day.optional(),
     dueTo: Day.optional(),
@@ -189,6 +189,8 @@ export const tasksList = defineCall({
           return task.status === 'in_review' && reviewersOf(state, task.projectId).includes(authority.id);
         case 'no_lead':
           return task.ownerId === null;
+        case 'no_date':
+          return task.dueDate === null;
         default:
           return true;
       }

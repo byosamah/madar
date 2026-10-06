@@ -17,7 +17,8 @@ import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { projectKey } from '../../lib/projectCode';
 
-const FILTERS = ['all', 'overdue', 'flagged'] as const;
+/** no_lead and no_date: the data gaps that the Dashboard opens for the Admin (owner, 2026-10-06). */
+const FILTERS = ['all', 'overdue', 'flagged', 'no_lead', 'no_date'] as const;
 
 /**
  * The Dashboard filters in the link: the office team, the leader and the client. The Dashboard sends them, so the list holds the
@@ -128,7 +129,9 @@ function TaskResults() {
   const person = users.data?.find((user) => user.id === (ownerId ?? workOf));
   const title = filter === 'overdue' ? (person ? t('taskList.overdueOf', { name: nameOf(person) }) : t('taskList.overdue'))
     : filter === 'flagged' ? t('taskList.flagged')
-      : person ? t('taskList.forPerson', { name: nameOf(person) }) : t('taskList.title');
+      : filter === 'no_lead' ? t('taskList.noLead')
+        : filter === 'no_date' ? t('taskList.noDate')
+          : person ? t('taskList.forPerson', { name: nameOf(person) }) : t('taskList.title');
   // A task in review counts for its reviewer in a range that holds today, so the subtitle says the list has them.
   const today = todayISO();
   const reviews = workOf !== undefined && (!from || from <= today) && (!to || today <= to) ? t('taskList.withReviews') : '';

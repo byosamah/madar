@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
 import { projectKey } from '../../lib/projectCode';
 
@@ -66,6 +67,67 @@ describe('Waiting for review (owner, 2026-10-06, item 9)', () => {
     });
     await screen.findByRole('region', { name: 'Workload' });
     expect(screen.queryByRole('region', { name: /^Waiting for review/ })).toBeNull();
+  });
+});
+
+/** Hala is the Admin of the sample office. Sara (usr_005) is a Member. */
+const withGaps = (state: State) => {
+  state.projects.prj_001.areaM2 = null;
+  const open = Object.values(state.tasks).filter((task) => task.projectId === 'prj_002' && task.status !== 'done');
+  open[0].dueDate = null;
+  open[1].dueDate = null;
+};
+const listRows = () => within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem');
+
+describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
+  it('shows the gaps above 0, each opening its list', async () => {
+    const { api } = await renderApp('/dashboard', withGaps);
+    const { gaps } = await api.call('dashboard.get', {});
+    expect(gaps).toMatchObject({ noDueDate: 2, noArea: 1 });
+    const region = await card(/^Data gaps/);
+    const links = within(region).getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual([
+      ...(gaps!.noDueDate > 0 ? [`Open tasks with no due date${gaps!.noDueDate}`] : []),
+      ...(gaps!.noLead > 0 ? [`Open tasks with no lead${gaps!.noLead}`] : []),
+      ...(gaps!.stagesNoEnd > 0 ? [`Stages with no end date${gaps!.stagesNoEnd}`] : []),
+      `Active projects with no area${gaps!.noArea}`,
+    ]);
+    await userEvent.click(within(region).getByRole('link', { name: /Open tasks with no due date/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no due date' })).toBeInTheDocument();
+    await waitFor(() => expect(listRows()).toHaveLength(2));
+  });
+
+  it('opens the projects with no area, and offers the way back to all projects', async () => {
+    await renderApp('/dashboard', withGaps);
+    await userEvent.click(within(await card(/^Data gaps/)).getByRole('link', { name: /Active projects with no area/ }));
+    expect(await screen.findByText('Projects with no area')).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show all projects' }));
+    await waitFor(() => expect(window.location.hash).not.toContain('filter='));
+  });
+
+  it('opens the tasks with no lead', async () => {
+    const { api } = await renderApp('/tasks?filter=no_lead', (state) => {
+      Object.values(state.tasks).find((task) => task.projectId === 'prj_003' && task.status === 'todo')!.ownerId = null;
+    });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no lead' })).toBeInTheDocument();
+    const expected = await api.call('tasks.list', { filter: 'no_lead', includeDone: false });
+    expect(expected.length).toBeGreaterThan(0);
+    await waitFor(() => expect(listRows()).toHaveLength(expected.length));
+  });
+
+  it('shows no card with no gap, and none to a Member', async () => {
+    const first = await renderApp('/dashboard');
+    await card('Projects per stage');
+    expect(screen.queryByRole('region', { name: /^Data gaps/ })).toBeNull();
+    first.unmount();
+    await renderApp('/dashboard', (state) => {
+      withGaps(state);
+      state.session.currentUserId = 'usr_005';
+    });
+    await card('Projects per stage');
+    expect(screen.queryByRole('region', { name: /^Data gaps/ })).toBeNull();
   });
 });
 

@@ -13,6 +13,7 @@ import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { oneOf, teamParam } from '../../lib/params';
 import { PerStage, Submissions } from './Charts';
+import { DataGaps } from './DataGaps';
 import { NumberRows, Numbers } from './Numbers';
 import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
@@ -142,6 +143,7 @@ export function DashboardScreen() {
                 </div>
                 <PerStage view={view} filters={filters} />
                 <Submissions view={view} />
+                <div className="min-w-0 empty:hidden lg:col-span-2"><DataGaps view={view} filters={filters} /></div>
               </div>
             )}
             {section === 'people' && (

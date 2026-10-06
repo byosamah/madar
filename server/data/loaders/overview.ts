@@ -2,6 +2,7 @@ import type { Event, Task } from '../../../src/api/contract/entities';
 import { peopleFilter, teamFilter } from '../../../src/api/pause';
 import { can, projectRoleOf } from '../../../src/api/permissions';
 import { commentCountKey, fileCountKey } from '../../../src/api/store';
+import { stagesOf } from '../../../src/api/views';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
@@ -29,6 +30,8 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
   const ids = Object.values(L.office.projects)
     .filter((p) => status === 'all' || p.status === status)
     .filter((p) => input.filter !== 'mine' || (L.authority !== undefined && projectRoleOf(office, p.id, L.authority.id) !== 'other'))
+    .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
+    .filter((p) => input.filter !== 'stage_no_end' || stagesOf(office, p.id).some((stage) => stage.endDate === null))
     .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
     .filter((p) => !input.clientId || p.clientId === input.clientId)
     .filter(inTeam)

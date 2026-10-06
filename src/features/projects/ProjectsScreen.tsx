@@ -21,6 +21,8 @@ import { ProjectListRow } from './ProjectListRow';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
+/** The data gaps that the Dashboard opens for the Admin (owner, 2026-10-06). Only a link sets them, like the health. */
+const GAPS = ['no_area', 'stage_no_end'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
 const SELECT = 'field mt-1.5 font-normal';
@@ -37,6 +39,7 @@ export function ProjectsScreen() {
   useEffect(() => rememberProjectsList(search ? `?${search}` : ''), [search]);
   const stageName = params.get('stage') ?? undefined;
   const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
+  const gap = GAPS.find((value) => value === params.get('filter'));
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const teamId = teamParam(params.get('team'));
@@ -72,14 +75,14 @@ export function ProjectsScreen() {
   const list = useCall('projects.list', {
     status,
     sort,
-    filter: filterParam,
+    filter: gap ?? filterParam,
     stageName,
     health,
     teamId,
     leaderId,
     clientId,
   });
-  const active = [filterParam !== 'all', stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId].filter(Boolean).length;
+  const active = [filterParam !== 'all' || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId].filter(Boolean).length;
   const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
   const showAll = () => setParams({ status: 'all' }, { replace: true });
 
@@ -162,6 +165,12 @@ export function ProjectsScreen() {
             </select>
           </label>
         </FilterButton>
+        {gap && (
+          <p className="flex items-center gap-2 text-subheadline text-ink">
+            <span className="rounded-full bg-fill px-3 py-1.5">{t(`projects.gap.${gap}`)}</span>
+            <Button variant="plain" onClick={() => update((next) => next.delete('filter'))}>{t('projects.showAll')}</Button>
+          </p>
+        )}
         {health && (
           <p className="flex items-center gap-2 text-subheadline text-ink">
             <span className="rounded-full bg-fill px-3 py-1.5">{t('projects.healthFilter', { health: t(`health.${health}`) })}</span>

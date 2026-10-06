@@ -205,7 +205,8 @@ const SORTS: Record<'updated' | 'deadline' | 'name', Sorter> = {
 export const projectsList = defineCall({
   input: z.object({
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
-    filter: z.enum(['all', 'mine', 'at_risk']).default('all'),
+    /** no_area: the projects with no area. stage_no_end: the projects with a stage that has no end date (owner, 2026-10-06). */
+    filter: z.enum(['all', 'mine', 'at_risk', 'no_area', 'stage_no_end']).default('all'),
     stageName: z.string().optional(),
     /** One health value, so each number of the dashboard's health mix opens exactly its projects (spec 8.3). */
     health: HealthValue.optional(),
@@ -224,6 +225,8 @@ export const projectsList = defineCall({
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
+      .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
+      .filter((p) => input.filter !== 'stage_no_end' || stagesOf(state, p.id).some((stage) => stage.endDate === null))
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
       .filter(inTeam)

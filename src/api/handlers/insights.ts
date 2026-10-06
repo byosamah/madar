@@ -2,12 +2,13 @@ import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Project,
+  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Project, type Task,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOf } from '../notify';
+import { can } from '../permissions';
 import { sentToReviewOn } from '../review';
 import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
@@ -66,6 +67,12 @@ export const DashboardView = z.object({
     oldestDays: Count,
     tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId, projectCode: z.string(), days: Count })),
   })),
+  /**
+   * The data gaps of the active projects in the filters, for the Admin only (can admin.manage): open tasks with no due date or no
+   * lead, stages with no end date, and projects with no area. Null for anyone else, and for an agent that acts for anyone else
+   * (owner, 2026-10-06).
+   */
+  gaps: z.object({ noDueDate: Count, noLead: Count, stagesNoEnd: Count, noArea: Count }).nullable(),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
   attention: z.object({
     stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
@@ -79,6 +86,17 @@ export const DashboardView = z.object({
 export type DashboardView = z.infer<typeof DashboardView>;
 
 
+
+/** The data gaps of the active projects in scope: the Admin's list of what to fill in (owner, 2026-10-06). */
+function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
+  const open = activeTasks.filter((t) => t.status !== 'done');
+  return {
+    noDueDate: open.filter((t) => t.dueDate === null).length,
+    noLead: open.filter((t) => t.ownerId === null).length,
+    stagesNoEnd: active.reduce((sum, p) => sum + stagesOf(state, p.id).filter((stage) => stage.endDate === null).length, 0),
+    noArea: active.filter((p) => p.areaM2 === null).length,
+  };
+}
 
 export const dashboardGet = defineCall({
   input: z.object({
@@ -215,6 +233,7 @@ export const dashboardGet = defineCall({
           return { reviewer: cardOf(state, id), count: rows.length, oldestDays: ordered[0].days, tasks: ordered };
         })
         .sort((a, b) => b.oldestDays - a.oldestDays || b.count - a.count || a.reviewer.name.localeCompare(b.reviewer.name)),
+      gaps: can(actor, 'admin.manage') ? gapsOf(state, active, activeTasks) : null,
       waitingForUs: active
         .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })
         .sort((a, b) => b.count - a.count || a.project.name.localeCompare(b.project.name)),

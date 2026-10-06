@@ -4,7 +4,7 @@ import { insightCalls } from './insights';
 import type { State } from '../store';
 import type { TrackerEntry } from '../contract/entities';
 import { setNow } from '../../lib/dates';
-import { makeProject, makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
+import { makeProject, makeTask, makeUser, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 
 beforeEach(() => setNow(NOW));
 
@@ -141,6 +141,49 @@ describe('inReview of dashboard.get (owner, 2026-10-06, item 9)', () => {
     t.store.state.users.usr_002.active = false;
     const d = await t.api.call('dashboard.get', {});
     expect(d.inReview.map((row) => [row.reviewer.id, row.count])).toEqual([['usr_001', 2], ['usr_003', 1]]);
+  });
+});
+
+describe('gaps of dashboard.get, for the Admin only (owner, 2026-10-06, item 10)', () => {
+  function gapWorld(): State {
+    const state = world();
+    state.users.usr_006 = makeUser('usr_006', { name: 'Hala Assistant', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' });
+    state.projects.prj_002.areaM2 = null;
+    state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'KH-26-003', name: 'Paused Mall', status: 'on_hold', areaM2: null });
+    state.stages.stg_009 = { id: 'stg_009', projectId: 'prj_002', name: 'Concept', order: 0, startDate: '2026-09-01', endDate: null };
+    state.stages.stg_010 = { id: 'stg_010', projectId: 'prj_003', name: 'Concept', order: 0, startDate: null, endDate: null };
+    state.tasks.tsk_001 = makeTask({ id: 'tsk_001', dueDate: null });
+    state.tasks.tsk_002 = makeTask({ id: 'tsk_002', dueDate: null, ownerId: null });
+    state.tasks.tsk_003 = makeTask({ id: 'tsk_003', dueDate: '2026-10-05', ownerId: null });
+    state.tasks.tsk_004 = makeTask({ id: 'tsk_004', dueDate: null, status: 'done', completedAt: STAMP });
+    state.tasks.tsk_005 = makeTask({ id: 'tsk_005', projectId: 'prj_003', stageId: 'stg_010', dueDate: null, ownerId: null });
+    state.counters.tsk = 5;
+    state.counters.usr = 6;
+    return state;
+  }
+
+  it('counts the open tasks with no due date or no lead, the stages with no end date and the projects with no area', async () => {
+    const t = testApi(calls, gapWorld());
+    t.as('usr_001');
+    expect((await t.api.call('dashboard.get', {})).gaps).toEqual({ noDueDate: 2, noLead: 2, stagesNoEnd: 1, noArea: 1 });
+    expect((await t.api.call('dashboard.get', { leaderId: 'usr_002' })).gaps).toEqual({ noDueDate: 2, noLead: 2, stagesNoEnd: 0, noArea: 0 });
+    // Each count opens a list that holds the same records.
+    expect(await t.api.call('tasks.list', { filter: 'no_date', includeDone: false })).toHaveLength(2);
+    expect(await t.api.call('tasks.list', { filter: 'no_lead', includeDone: false })).toHaveLength(2);
+    expect((await t.api.call('projects.list', { filter: 'no_area' })).map((s) => s.project.id)).toEqual(['prj_002']);
+    expect((await t.api.call('projects.list', { filter: 'stage_no_end' })).map((s) => s.project.id)).toEqual(['prj_002']);
+  });
+
+  it('gives the gaps to the Admin and to an agent that acts for the Admin, and null to anyone else', async () => {
+    const t = testApi(calls, gapWorld());
+    for (const [id, sees] of [['usr_001', true], ['usr_006', true], ['usr_002', false], ['usr_003', false], ['usr_005', false]] as const) {
+      t.as(id);
+      const { gaps } = await t.api.call('dashboard.get', {});
+      expect(gaps === null, id).toBe(!sees);
+    }
+    t.store.state.users.usr_002.systemRole = 'management';
+    t.as('usr_002');
+    expect((await t.api.call('dashboard.get', {})).gaps).toBeNull();
   });
 });
 

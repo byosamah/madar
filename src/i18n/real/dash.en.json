@@ -3,13 +3,19 @@
     "leader": "Leader",
     "anyLeader": "Any leader",
     "client": "Client",
-    "anyClient": "Any client"
+    "anyClient": "Any client",
+    "gap": {
+      "no_area": "Projects with no area",
+      "stage_no_end": "Projects with a stage with no end date"
+    }
   },
   "taskList": {
     "leader": "Leader: {{name}}",
     "client": "Client: {{name}}",
     "overdueOf": "Past-due tasks of {{name}}",
-    "withReviews": "With the tasks to review"
+    "withReviews": "With the tasks to review",
+    "noLead": "Tasks with no lead",
+    "noDate": "Tasks with no due date"
   },
   "dashboard": {
     "overdueColumn": "Past due",
@@ -42,6 +48,13 @@
       "days_zero": "In review since today",
       "days_one": "1 day in review",
       "days_other": "{{count}} days in review"
+    },
+    "gaps": {
+      "title": "Data gaps",
+      "noDueDate": "Open tasks with no due date",
+      "noLead": "Open tasks with no lead",
+      "stagesNoEnd": "Stages with no end date",
+      "noArea": "Active projects with no area"
     }
   }
 }
