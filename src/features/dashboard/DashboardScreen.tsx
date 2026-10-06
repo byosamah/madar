@@ -14,6 +14,7 @@ import { counted } from '../../lib/grammar';
 import { oneOf, teamParam } from '../../lib/params';
 import { PerStage, Submissions } from './Charts';
 import { DataGaps } from './DataGaps';
+import { MoneyPanel } from './MoneyPanel';
 import { NumberRows, Numbers } from './Numbers';
 import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
@@ -131,6 +132,7 @@ export function DashboardScreen() {
                 {/* grid-cols-1: one auto column grows to its widest card and pushes a phone page sideways. */}
                 <div className="min-w-0 empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
                 <div className="min-w-0 empty:hidden lg:col-span-2"><WaitingForUs view={view} /></div>
+                <div className="min-w-0 empty:hidden lg:col-span-2"><MoneyPanel view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withFilters(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, filters) },

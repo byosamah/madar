@@ -131,3 +131,41 @@ describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
   });
 });
 
+describe('Payments to receive, for the people who handle payments (owner, 2026-10-06, item 11)', () => {
+  it('shows the payments past due and due in 30 days, each opening its payment', async () => {
+    const { api } = await renderApp('/dashboard');
+    const { money } = await api.call('dashboard.get', {});
+    expect(money!.pastDue.count).toBeGreaterThan(0);
+    expect(money!.next30.count).toBeGreaterThan(0);
+    const region = await card(/^Payments to receive/);
+    const past = within(region).getByRole('list', { name: /^Past due/ });
+    const soon = within(region).getByRole('list', { name: /^Due in the next 30 days/ });
+    expect(within(past).getAllByRole('link')).toHaveLength(money!.pastDue.count);
+    expect(within(soon).getAllByRole('link')).toHaveLength(money!.next30.count);
+    expect(region).toHaveTextContent(`SAR ${money!.pastDue.total.toLocaleString('en-US')}`);
+    const first = money!.pastDue.payments[0];
+    const link = within(past).getAllByRole('link')[0];
+    expect(link).toHaveAttribute('href', `#/projects/${first.projectId}?payment=${first.id}`);
+    expect(link).toHaveTextContent(first.name);
+    expect(link).toHaveTextContent(`SAR ${first.amount.toLocaleString('en-US')}`);
+    await userEvent.click(link);
+    expect(await screen.findByRole('dialog', { name: 'Edit payment' }, { timeout: 10_000 })).toBeInTheDocument();
+  });
+
+  it('shows the panel to Accounting too, and never to a Member', async () => {
+    let accounting = '';
+    const first = await renderApp('/dashboard', (state) => {
+      accounting = Object.values(state.users).find((user) => user.systemRole === 'accounting')!.id;
+      state.session.currentUserId = accounting;
+    });
+    expect(accounting).not.toBe('');
+    expect(await card(/^Payments to receive/)).toBeInTheDocument();
+    first.unmount();
+    await renderApp('/dashboard', (state) => {
+      state.session.currentUserId = 'usr_005';
+    });
+    await card('Projects per stage');
+    expect(screen.queryByRole('region', { name: /^Payments to receive/ })).toBeNull();
+  });
+});
+

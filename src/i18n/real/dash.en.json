@@ -55,6 +55,15 @@
       "noLead": "Open tasks with no lead",
       "stagesNoEnd": "Stages with no end date",
       "noArea": "Active projects with no area"
+    },
+    "money": {
+      "title": "Payments to receive",
+      "pastDue": "Past due",
+      "next30": "Due in the next 30 days",
+      "count": "{{n}} payments",
+      "count_zero": "None",
+      "count_one": "1 payment",
+      "count_other": "{{count}} payments"
     }
   }
 }

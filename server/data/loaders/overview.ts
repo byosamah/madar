@@ -42,16 +42,15 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
 }
 
 /**
- * dashboard.get: the tasks of the projects in scope, the changes of their tasks in review, and their Tracker entries that are open
- * client items (the loops) or that the office sent to the client (the Submissions chart, owner, 2026-10-06).
+ * dashboard.get: the tasks of the projects in scope, the changes of their tasks in review, their Tracker entries that are open
+ * client items (the loops) or that the office sent to the client (the Submissions chart), and for the people who handle payments
+ * the payments not yet received (owner, 2026-10-06).
  */
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
-  const inTeam = teamFilter(officeState(L), str(input.teamId));
+  const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId) });
   const status = str(input.status) ?? 'active';
-  const ids = Object.values(L.office.projects)
-    .filter((p) => (status === 'all' || p.status === status) && (!input.leaderId || p.leaderId === input.leaderId)
-      && (!input.clientId || p.clientId === input.clientId) && inTeam(p))
-    .map((p) => p.id);
+  const inPeople = Object.values(L.office.projects).filter(inFilters);
+  const ids = inPeople.filter((p) => status === 'all' || p.status === status).map((p) => p.id);
   const tasks = await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
   // The changes of the tasks in review, for the day each one went to review (owner, 2026-10-06).
   const review = tasks.filter((t) => t.status === 'in_review').map((t) => t.id);
@@ -61,6 +60,11 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
     where: [{ col: 'project_id', in: ids }, { or: [{ col: 'open', eq: true }, { field: 'direction', in: ['out'] }] }],
     pick: ['id', 'projectId', 'waiting', 'closedAt', 'direction', 'date'],
   });
+  // The money panel: the payments not yet received of every project in the people filters, whatever its status, for the people
+  // who may handle payments only (owner, 2026-10-06).
+  if (L.authority && can(L.authority, 'payment.manage')) {
+    await L.select({ c: 'payments', where: [{ col: 'project_id', in: inPeople.map((p) => p.id) }, { field: 'receivedOn', null: true }] });
+  }
 }
 
 /**

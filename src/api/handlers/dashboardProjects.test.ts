@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import { insightCalls } from './insights';
 import type { State } from '../store';
-import type { TrackerEntry } from '../contract/entities';
+import type { Payment, TrackerEntry } from '../contract/entities';
 import { setNow } from '../../lib/dates';
 import { makeProject, makeTask, makeUser, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 
@@ -184,6 +184,53 @@ describe('gaps of dashboard.get, for the Admin only (owner, 2026-10-06, item 10)
     t.store.state.users.usr_002.systemRole = 'management';
     t.as('usr_002');
     expect((await t.api.call('dashboard.get', {})).gaps).toBeNull();
+  });
+});
+
+describe('money of dashboard.get, for the people who handle payments (owner, 2026-10-06, item 11)', () => {
+  const pay = (id: string, projectId: string, amount: number, dueDate: string, receivedOn: string | null = null): Payment => ({
+    id, projectId, name: `Fee ${id}`, amount, dueDate, receivedOn, note: '', createdBy: 'usr_001', createdAt: STAMP,
+  });
+  function moneyWorld(): State {
+    const state = world();
+    state.users.usr_006 = makeUser('usr_006', { name: 'Hala Assistant', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' });
+    state.users.usr_007 = makeUser('usr_007', { name: 'Turki Management', systemRole: 'management' });
+    state.users.usr_008 = makeUser('usr_008', { name: 'Noura Accounting', systemRole: 'accounting' });
+    state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'KH-26-003', name: 'Paused Mall', status: 'on_hold' });
+    state.payments = {
+      pay_001: pay('pay_001', 'prj_001', 120000, '2026-09-20'),
+      pay_002: pay('pay_002', 'prj_001', 50000, '2026-09-25', '2026-09-26'),
+      pay_003: pay('pay_003', 'prj_002', 80000, '2026-10-10'),
+      pay_004: pay('pay_004', 'prj_002', 30000.5, '2026-10-30'),
+      pay_005: pay('pay_005', 'prj_002', 99000, '2026-10-31'),
+      // A paused project still owes its money.
+      pay_006: pay('pay_006', 'prj_003', 40000, '2026-09-01'),
+      // Due today: not past due yet.
+      pay_007: pay('pay_007', 'prj_001', 10000, '2026-09-30'),
+    };
+    state.counters.usr = 8;
+    return state;
+  }
+
+  it('sums the payments past due and the payments due in the next 30 days, the soonest first', async () => {
+    const t = testApi(calls, moneyWorld());
+    t.as('usr_001');
+    const { money } = await t.api.call('dashboard.get', {});
+    expect(money?.pastDue).toMatchObject({ count: 2, total: 160000 });
+    expect(money?.pastDue.payments.map((p) => p.id)).toEqual(['pay_006', 'pay_001']);
+    expect(money?.pastDue.payments[1]).toEqual({ id: 'pay_001', projectId: 'prj_001', projectCode: 'KH-26-001', name: 'Fee pay_001', amount: 120000, dueDate: '2026-09-20' });
+    expect(money?.next30).toMatchObject({ count: 3, total: 120000.5 });
+    expect(money?.next30.payments.map((p) => p.id)).toEqual(['pay_007', 'pay_003', 'pay_004']);
+    const led = (await t.api.call('dashboard.get', { leaderId: 'usr_003' })).money;
+    expect([led?.pastDue.count, led?.next30.count]).toEqual([0, 2]);
+  });
+
+  it('gives the money to the Admin, Management, Accounting and their agents, and null to anyone else', async () => {
+    const t = testApi(calls, moneyWorld());
+    for (const [id, sees] of [['usr_001', true], ['usr_006', true], ['usr_007', true], ['usr_008', true], ['usr_002', false], ['usr_003', false], ['usr_005', false]] as const) {
+      t.as(id);
+      expect((await t.api.call('dashboard.get', {})).money === null, id).toBe(!sees);
+    }
   });
 });
 

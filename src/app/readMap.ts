@@ -56,8 +56,8 @@ export const READS: Record<string, ReadRule> = {
   'tracker.export': rule('project', ['events', 'files', 'projects', 'tracker', 'users'], byProjectId),
   'events.list': rule('project', ['events', 'files', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
   'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
-  // events: the day each task in review went to review (owner, 2026-10-06).
-  'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'projects', 'settings', 'stages', 'tasks', 'teams', 'tracker', 'users']),
+  // events: the day each task in review went to review. payments: the money panel (owner, 2026-10-06).
+  'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'tasks', 'teams', 'tracker', 'users']),
   'deadlines.list': rule('office', ['deadlines', 'projects', 'users']),
   'search.query': rule('office', ['clients', 'files', 'projects', 'tasks', 'users']),
   'users.list': rule('office', ['users', 'preferences']),

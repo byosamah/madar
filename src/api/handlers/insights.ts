@@ -2,7 +2,7 @@ import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Project, type Task,
+  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, PaymentId, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Payment, type Project, type Task,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
@@ -10,7 +10,7 @@ import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOf } from '../notify';
 import { can } from '../permissions';
 import { sentToReviewOn } from '../review';
-import { trackerOf, type State } from '../store';
+import { paymentsOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
@@ -20,6 +20,12 @@ import { isLive } from '../../lib/overview';
 import { markOf } from '../../lib/projectMark';
 
 const Count = z.number().int().min(0);
+/** Payments not yet received: how many, their total in Saudi riyals, and each one, the soonest first. */
+const MoneyRows = z.object({
+  count: Count,
+  total: z.number().nonnegative(),
+  payments: z.array(z.object({ id: PaymentId, projectId: ProjectId, projectCode: z.string(), name: z.string(), amount: z.number().positive(), dueDate: Day })),
+});
 const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
 
 export const DashboardView = z.object({
@@ -73,6 +79,12 @@ export const DashboardView = z.object({
    * (owner, 2026-10-06).
    */
   gaps: z.object({ noDueDate: Count, noLead: Count, stagesNoEnd: Count, noArea: Count }).nullable(),
+  /**
+   * The payments not yet received, past due and due in the next 30 days, for the projects of the leader, client and team filters,
+   * whatever their status: a paused or finished project still owes its money. Only for the people who may handle payments (can
+   * payment.manage: Admin, Management, Accounting); null for anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
+   */
+  money: z.object({ pastDue: MoneyRows, next30: MoneyRows }).nullable(),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
   attention: z.object({
     stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
@@ -95,6 +107,22 @@ function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
     noLead: open.filter((t) => t.ownerId === null).length,
     stagesNoEnd: active.reduce((sum, p) => sum + stagesOf(state, p.id).filter((stage) => stage.endDate === null).length, 0),
     noArea: active.filter((p) => p.areaM2 === null).length,
+  };
+}
+
+/** The money that clients owe: past due, and due from today to 30 days from today (owner, 2026-10-06). */
+function moneyOf(state: State, inFilters: (project: Project) => boolean, today: string) {
+  const open = Object.values(paymentsOf(state))
+    .filter((p) => p.receivedOn === null && state.projects[p.projectId] !== undefined && inFilters(state.projects[p.projectId]))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id));
+  const rows = (list: Payment[]) => ({
+    count: list.length,
+    total: list.reduce((sum, p) => sum + p.amount, 0),
+    payments: list.map((p) => ({ id: p.id, projectId: p.projectId, projectCode: state.projects[p.projectId].code, name: p.name, amount: p.amount, dueDate: p.dueDate })),
+  });
+  return {
+    pastDue: rows(open.filter((p) => p.dueDate < today)),
+    next30: rows(open.filter((p) => p.dueDate >= today && p.dueDate <= addDays(today, 30))),
   };
 }
 
@@ -234,6 +262,7 @@ export const dashboardGet = defineCall({
         })
         .sort((a, b) => b.oldestDays - a.oldestDays || b.count - a.count || a.reviewer.name.localeCompare(b.reviewer.name)),
       gaps: can(actor, 'admin.manage') ? gapsOf(state, active, activeTasks) : null,
+      money: can(actor, 'payment.manage') ? moneyOf(state, inFilters, today) : null,
       waitingForUs: active
         .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })
         .sort((a, b) => b.count - a.count || a.project.name.localeCompare(b.project.name)),
