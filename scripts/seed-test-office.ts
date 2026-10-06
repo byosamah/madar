@@ -6,9 +6,10 @@
 // among them. A run:
 //   1. reads the plan: the Madar tables with their rows now and after, the 4 accounts, and the other Auth users;
 //   2. sets the 4 Auth accounts (one for each office role): a new password on an Auth user that exists, or a new Auth user;
+//      then uploads the sample files to Storage, each under a real object key (the pictures as PNG, scripts/seed-pictures.ts);
 //   3. in one transaction as postgres under the office lock: records every office row as deleted (so a warm office cache drops
 //      it), empties the Madar tables and the platform table agent_approvals, writes the sample office of today (writeState of
-//      buildSeed, without its agents: testOffice), and links the 4 accounts.
+//      buildSeed, without its agents: testOffice), and links the 4 accounts. With MAIL_DRIVER=outbox it also empties mail_log;
 //      A lock wait over 5 seconds stops the run with "madar-test is busy" and changes no table;
 //   4. removes every other Auth user: after step 3 no person in Madar has it;
 //   5. signs in as each of the 4 accounts and revokes its AI app grants, so no app that a check approved stays in Settings.
@@ -31,10 +32,13 @@ import { authAdminPort, AuthAdminError } from '../server/auth/admin';
 import { LOCK_TIMEOUT_CODE, takeOfficeLock } from '../server/core/lock';
 import type { AuthUserInfo, Query } from '../server/core/ports';
 import { setAuthUserId } from '../server/data/officeCache';
+import { assertObjectKey, isObjectKey, objectKey } from '../server/files/keys';
+import { storedMimeType } from '../server/files/links';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES } from '../server/data/tables';
 import { writeState } from '../server/data/whole';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES, type DeployAccount } from '../tests/e2e-deploy/accounts';
 import { clientDb, cloudTarget, OFFICE_LOCK_KEY, secretKeyFromApi, type FirstAdminDb } from './first-admin';
+import { PNG_PICTURES } from './seed-pictures';
 
 /** madar-test, the only project this script changes. */
 export const TEST_REF = 'qdgwpnesxppnqsaabqzd';
@@ -114,6 +118,13 @@ export const TRUNCATE_TABLES: readonly string[] = [
   ...PLATFORM_SEED_TABLES,
 ];
 
+/**
+ * The mail count of the day, emptied when madar-test sends no mail (MAIL_DRIVER=outbox: every mail stays in mail_outbox). Its
+ * count then only blocks the test invitations after a busy test day, until 03:00 Riyadh (2026-10-06). With any other driver the
+ * reseed keeps it, because the Resend day quota counts real sends.
+ */
+export const CLEAR_MAIL_LOG_SQL = 'truncate mail_log';
+
 /** One statement for every table, so the project foreign keys need no order. No table name carries a schema (TM 5). */
 export const TRUNCATE_SQL = `truncate ${TRUNCATE_TABLES.join(', ')} restart identity`;
 
@@ -186,6 +197,64 @@ export function testOffice(state: State): State {
     }
   }
   return office;
+}
+
+// ---------- The files ----------
+
+/**
+ * The office with a real object key on every file version, and the uploads that give each key its content. buildSeed names a
+ * version with a prototype key (blob_seed_001 and the like), which no store accepts (server/files/keys.ts), so on madar-test every
+ * sample file and cover picture failed to open (2026-10-06). The new key is objectKey of the project, the file and the version
+ * number. Every other record that names the old key (the file events of the History) gets the new one too. The given State does
+ * not change.
+ */
+export function withObjectKeys(state: State, blobs: ReadonlyMap<string, Blob>): { office: State; uploads: { key: string; blob: Blob }[] } {
+  const office = structuredClone(state);
+  const keys = new Map<string, string>();
+  const uploads: { key: string; blob: Blob }[] = [];
+  for (const file of Object.values(office.files)) {
+    file.versions.forEach((version, i) => {
+      if (isObjectKey(version.blobKey)) return;
+      const blob = blobs.get(version.blobKey);
+      if (!blob) throw new Error(`The sample file ${file.id} names ${version.blobKey}, but the sample office made no content for it.`);
+      const key = objectKey(file.projectId, file.id, i + 1);
+      keys.set(version.blobKey, key);
+      uploads.push({ key, blob });
+    });
+  }
+  const swap = (value: unknown): unknown => {
+    if (typeof value === 'string') return keys.get(value) ?? value;
+    if (value && typeof value === 'object') {
+      for (const [field, inner] of Object.entries(value)) (value as Record<string, unknown>)[field] = swap(inner);
+    }
+    return value;
+  };
+  swap(office);
+  return { office, uploads };
+}
+
+/** The Storage call of the seed: one sample file into the bucket of the real store. */
+export type SeedFiles = { put(key: string, blob: Blob): Promise<void> };
+
+/**
+ * Puts a file with the secret key, and replaces the object of an earlier seed (x-upsert). The object keeps the type that the
+ * real store keeps (storedMimeType): a download-only type such as SVG goes as application/octet-stream.
+ */
+export function seedFilesPort(o: { supabaseUrl: string; secretKey: string; bucket: string; fetch?: typeof fetch }): SeedFiles {
+  const send = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  const base = `${o.supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${o.bucket}`;
+  return {
+    async put(key, blob) {
+      assertObjectKey(key);
+      const response = await send(`${base}/${key}`, {
+        method: 'POST',
+        headers: { apikey: o.secretKey, Authorization: `Bearer ${o.secretKey}`, 'Content-Type': storedMimeType(blob.type), 'x-upsert': 'true' },
+        body: blob,
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new Error(`Storage refused the sample file ${key} with ${response.status}.`);
+    },
+  };
 }
 
 // ---------- The accounts ----------
@@ -278,6 +347,10 @@ export type SeedPlan = {
   removeAuth: { authUserId: string; email: string | null }[];
   missingSecrets: string[];
   shortSecrets: string[];
+  /** The sample files that the run uploads to Storage. */
+  uploads: number;
+  /** True with MAIL_DRIVER=outbox: the run empties mail_log (CLEAR_MAIL_LOG_SQL). */
+  clearMailLog: boolean;
 };
 
 export function planText(plan: SeedPlan): string {
@@ -287,7 +360,9 @@ export function planText(plan: SeedPlan): string {
   } else {
     lines.push('Tables (one transaction as postgres, under the office lock):');
     for (const t of plan.tables) lines.push(t.kept ? `  ${t.table}: ${t.rowsNow} rows, kept` : `  ${t.table}: ${t.rowsNow} rows now, ${t.rowsAfter} after`);
+    if (plan.clearMailLog) lines.push('  The mail count of the day starts again: madar-test sends no mail (MAIL_DRIVER=outbox).');
   }
+  if (plan.uploads > 0) lines.push(`Upload ${plan.uploads} sample files to Storage, so they open on madar-test.`);
   lines.push('Accounts:');
   for (const a of plan.accounts) {
     const what = a.authUserId ? 'set a new password on the existing Auth user' : 'make a new Auth user';
@@ -304,7 +379,10 @@ export function planText(plan: SeedPlan): string {
   return lines.join('\n');
 }
 
-async function readPlan(o: { q: Query; auth: SeedAuth; seed: State; ref: string; env: Record<string, string | undefined>; dryRun: boolean }): Promise<SeedPlan> {
+async function readPlan(o: {
+  q: Query; auth: SeedAuth; seed: State; ref: string; env: Record<string, string | undefined>; dryRun: boolean; uploads: number;
+}): Promise<SeedPlan> {
+  const clearMailLog = o.env.MAIL_DRIVER === 'outbox';
   const accounts = seedAccounts(o.seed);
   const present = await o.q<{ t: string; present: boolean }>(PRESENT_SQL, [ALL_TABLES]);
   const missingTables = present.filter((row) => !row.present).map((row) => row.t);
@@ -312,7 +390,7 @@ async function readPlan(o: { q: Query; auth: SeedAuth; seed: State; ref: string;
   if (missingTables.length === 0) for (const row of await o.q<{ t: string; n: number }>(countSql(ALL_TABLES))) counts.set(row.t, Number(row.n));
   const after = rowsAfter(o.seed);
   const tables = ALL_TABLES.map((table) => {
-    const kept = (KEEP_TABLES as readonly string[]).includes(table);
+    const kept = (KEEP_TABLES as readonly string[]).includes(table) && !(clearMailLog && table === 'mail_log');
     const rowsNow = counts.get(table) ?? 0;
     return { table, rowsNow, rowsAfter: kept ? rowsNow : (after.get(table) ?? 0), ...(kept ? { kept } : {}) };
   });
@@ -329,6 +407,7 @@ async function readPlan(o: { q: Query; auth: SeedAuth; seed: State; ref: string;
     removeAuth: users.filter((user) => !mine.has(user.authUserId)).map((user) => ({ authUserId: user.authUserId, email: user.email })),
     missingSecrets: accounts.filter((a) => !o.env[a.passwordSecret]).map((a) => a.passwordSecret),
     shortSecrets: accounts.filter((a) => (o.env[a.passwordSecret] ?? '').length > 0 && o.env[a.passwordSecret]!.length < MIN_PASSWORD).map((a) => a.passwordSecret),
+    uploads: o.uploads, clearMailLog,
   };
 }
 
@@ -348,13 +427,17 @@ export type SeedOptions = {
   lockKey: number;
   log: (line: string) => void;
   writeOffice?: (q: Query, state: State) => Promise<unknown>;
+  /** The content of each prototype file key of the seed (the PutBlob of buildSeed). With it the run uploads the files (files). */
+  blobs?: ReadonlyMap<string, Blob>;
+  files?: SeedFiles;
 };
 
 /** Prints the plan, and without dryRun makes it so. It refuses (SeedRefused) before any change when a check fails. */
 export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan: SeedPlan }> {
   if (o.ref !== TEST_REF) throw new SeedRefused(`This script runs only on madar-test (${TEST_REF}), not on the project ${o.ref}.`);
-  const office = testOffice(o.seed);
-  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: office, ref: o.ref, env: o.env, dryRun: o.dryRun });
+  const { office, uploads } = o.blobs ? withObjectKeys(testOffice(o.seed), o.blobs) : { office: testOffice(o.seed), uploads: [] };
+  if (uploads.length > 0 && !o.files) throw new Error('The run has sample files to upload, but no Storage port.');
+  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: office, ref: o.ref, env: o.env, dryRun: o.dryRun, uploads: uploads.length });
   o.log(planText(plan));
   if (o.dryRun) {
     o.log('Nothing changed (dry run).');
@@ -379,6 +462,10 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
     }
   }
 
+  // Before the tables, so no row names an object that is not there yet. A key of an earlier seed gets the new content.
+  for (const upload of uploads) await o.files!.put(upload.key, upload.blob);
+  if (uploads.length > 0) changes.push(`Uploaded ${uploads.length} sample files to Storage.`);
+
   const writeOffice = o.writeOffice ?? writeState;
   try {
     await o.db.tx(async (q) => {
@@ -386,6 +473,7 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
       await takeOfficeLock(q, o.lockKey);
       await q(RECORD_DELETES_SQL);
       await q(TRUNCATE_SQL);
+      if (plan.clearMailLog) await q(CLEAR_MAIL_LOG_SQL);
       await writeOffice(q, office);
       for (const link of links) {
         if (!(await setAuthUserId(q, link.userId, link.authUserId))) throw new Error(`The users row ${link.userId} is missing after the seed.`);
@@ -435,14 +523,19 @@ async function main(): Promise<void> {
   const secretKey = process.env.MADAR_SECRET_KEY ?? (token ? await secretKeyFromApi(target.ref, token) : '');
   if (!secretKey) throw new Error('MADAR_SECRET_KEY and SUPABASE_ACCESS_TOKEN are missing: load ~/dev/madar/.env.local first.');
   const now = new Date();
-  const seed = settleFuture(await buildSeed(todayISO(now), async () => undefined), now);
+  const blobs = new Map<string, Blob>();
+  const seed = settleFuture(await buildSeed(todayISO(now), async (key, blob) => void blobs.set(key, blob), PNG_PICTURES), now);
+  // Only Supabase Storage gets the sample files. With another store (r2) the files stay without content, as before.
+  const store = (process.env.MADAR_FILE_STORE ?? 'supabase') === 'supabase'
+    ? { blobs, files: seedFilesPort({ supabaseUrl: target.supabaseUrl, secretKey, bucket: process.env.FILES_BUCKET ?? 'madar-files' }) }
+    : {};
   const client = new pg.Client(cloud.pg);
   await client.connect();
   try {
     const lockText = process.env.MADAR_LOCK_KEY;
     await runSeed({
       db: clientDb(client), auth: seedAuthPort({ supabaseUrl: target.supabaseUrl, secretKey }), seed, ref: target.ref, env: process.env,
-      dryRun: args.dryRun, lockKey: lockText ? Number(lockText) : OFFICE_LOCK_KEY, log: (line) => console.log(line),
+      dryRun: args.dryRun, lockKey: lockText ? Number(lockText) : OFFICE_LOCK_KEY, log: (line) => console.log(line), ...store,
     });
   } finally {
     await client.end().catch(() => undefined);

@@ -5,9 +5,10 @@ import { emptyState, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import {
-  KEEP_TABLES, PLATFORM_SEED_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL, TRUNCATE_TABLES, parseArgs,
-  planText, runSeed, seedAccounts, seedAuthPort, seedTarget, testOffice, type SeedAuth,
+  CLEAR_MAIL_LOG_SQL, KEEP_TABLES, PLATFORM_SEED_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL,
+  TRUNCATE_TABLES, parseArgs, planText, runSeed, seedAccounts, seedAuthPort, seedFilesPort, seedTarget, testOffice, withObjectKeys, type SeedAuth,
 } from './seed-test-office';
+import { isObjectKey } from '../server/files/keys';
 import { OFFICE_LOCK_KEY } from './first-admin';
 import { AUTH_LINK_SQL } from '../server/data/officeCache';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES } from '../server/data/tables';
@@ -368,10 +369,125 @@ describe('seed-test-office: the plan text', () => {
       ref: TEST_REF, today: '2026-10-04', dryRun: true, missingTables: [],
       tables: [{ table: 'users', rowsNow: 3, rowsAfter: 11 }, { table: 'mail_log', rowsNow: 5, rowsAfter: 5, kept: true }],
       accounts: [{ ...DEPLOY_ACCOUNTS.admin, secretSet: true, authUserId: null }],
-      removeAuth: [], missingSecrets: [], shortSecrets: [],
+      removeAuth: [], missingSecrets: [], shortSecrets: [], uploads: 0, clearMailLog: false,
     });
     expect(text).toMatch(/users: 3 rows now, 11 after/);
     expect(text).toMatch(/mail_log: 5 rows, kept/);
     expect(text).toMatch(/sample office of 2026-10-04/);
+  });
+});
+
+describe('seed-test-office: the sample files (2026-10-06)', () => {
+  let filled: { state: State; blobs: Map<string, Blob> } | undefined;
+  const withBlobs = async () => {
+    if (filled) return filled;
+    const blobs = new Map<string, Blob>();
+    filled = { state: await buildSeed('2026-10-04', async (key, blob) => void blobs.set(key, blob)), blobs };
+    return filled;
+  };
+
+  it('gives every file version a real object key and its content to upload; the History names the new keys too', async () => {
+    const { state, blobs } = await withBlobs();
+    const before = JSON.stringify(state);
+    const { office, uploads } = withObjectKeys(testOffice(state), blobs);
+    expect(JSON.stringify(state)).toBe(before);
+    const versions = Object.values(office.files).flatMap((file) => file.versions);
+    expect(versions.length).toBeGreaterThan(0);
+    expect(versions.every((version) => isObjectKey(version.blobKey))).toBe(true);
+    expect(uploads).toHaveLength(versions.length);
+    expect(office.files.fil_001.versions[0].blobKey).toBe('prj-001/fil-001/1/file');
+    expect(uploads.find((upload) => upload.key === 'prj-001/fil-001/1/file')?.blob).toBe(blobs.get(state.files.fil_001.versions[0].blobKey));
+    const twice = Object.values(office.files).find((file) => file.versions.length === 2)!;
+    expect(twice.versions.map((version) => version.blobKey)).toEqual([1, 2].map((n) => `${twice.projectId.replace('_', '-')}/${twice.id.replace('_', '-')}/${n}/file`));
+    // A prototype key (blob_seed_001) never reaches madar-test, also not in the file events.
+    expect(JSON.stringify(office)).not.toMatch(/blob_seed_/);
+  });
+
+  it('refuses an office whose file names content that the sample office did not make', async () => {
+    const { state } = await withBlobs();
+    expect(() => withObjectKeys(testOffice(state), new Map())).toThrow(/fil_001.*no content/);
+  });
+
+  it('uploads the files after the accounts and before the tables, and the dry run only counts them', async () => {
+    const { state, blobs } = await withBlobs();
+    const order: string[] = [];
+    const files = { async put(key: string) { order.push(`put ${key}`); } };
+    const dry = fakeDb();
+    const dryLines: string[] = [];
+    await runSeed({
+      db: dry.db, auth: fakeAuth(dry.fake, EXISTING), seed: state, ref: TEST_REF, env: PASSWORDS, dryRun: true, lockKey: OFFICE_LOCK_KEY,
+      log: (line) => dryLines.push(line), writeOffice: async () => undefined, blobs, files,
+    });
+    expect(order).toEqual([]);
+    const count = Object.values(state.files).reduce((n, file) => n + file.versions.length, 0);
+    expect(dryLines.join('\n')).toMatch(new RegExp(`Upload ${count} sample files to Storage`));
+
+    const { fake, db } = fakeDb();
+    const lines: string[] = [];
+    const auth = fakeAuth(fake, EXISTING);
+    const tracked: SeedAuth = { ...auth, async createUser(email, password) { order.push('account'); return auth.createUser(email, password); } };
+    const realQ = db.tx;
+    db.tx = async (work) => { order.push('tables'); return realQ(work); };
+    await runSeed({
+      db, auth: tracked, seed: state, ref: TEST_REF, env: PASSWORDS, dryRun: false, lockKey: OFFICE_LOCK_KEY,
+      log: (line) => lines.push(line), writeOffice: async (_q, written) => void fake.written.push(written), blobs, files,
+    });
+    expect(order.filter((step) => step.startsWith('put '))).toHaveLength(count);
+    expect(order.lastIndexOf('account')).toBeLessThan(order.indexOf(`put prj-001/fil-001/1/file`));
+    expect(order.at(-1)).toBe('tables');
+    expect(fake.written[0].files.fil_001.versions[0].blobKey).toBe('prj-001/fil-001/1/file');
+    expect(lines.join('\n')).toMatch(new RegExp(`Uploaded ${count} sample files to Storage`));
+  });
+
+  it('puts a file into the bucket with the secret key, upsert, and the type that the store keeps; an SVG goes as a download', async () => {
+    const seen: { url: string; headers: Headers; method?: string }[] = [];
+    const fetch = (async (url: string, init?: RequestInit) => {
+      seen.push({ url, headers: new Headers(init?.headers), method: init?.method });
+      return seen.length === 3 ? new Response('{"error":"nope"}', { status: 403 }) : Response.json({ Key: 'x' });
+    }) as typeof globalThis.fetch;
+    const store = seedFilesPort({ supabaseUrl: TEST_URL, secretKey: 'sb_secret_k', bucket: 'madar-files', fetch });
+    await store.put('prj-001/fil-001/1/file', new Blob(['png'], { type: 'image/png' }));
+    expect(seen[0].method).toBe('POST');
+    expect(seen[0].url).toBe(`${TEST_URL}/storage/v1/object/madar-files/prj-001/fil-001/1/file`);
+    expect(seen[0].headers.get('authorization')).toBe('Bearer sb_secret_k');
+    expect(seen[0].headers.get('x-upsert')).toBe('true');
+    expect(seen[0].headers.get('content-type')).toBe('image/png');
+    await store.put('prj-001/fil-002/1/file', new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+    expect(seen[1].headers.get('content-type')).toBe('application/octet-stream');
+    const error = await store.put('prj-001/fil-003/1/file', new Blob(['%PDF'], { type: 'application/pdf' })).catch((e: unknown) => e as Error);
+    expect(String(error)).toMatch(/403/);
+    expect(String(error)).not.toContain('sb_secret_k');
+    await expect(store.put('blob_seed_001', new Blob(['x']))).rejects.toThrow(/not a valid object key/);
+    expect(seen).toHaveLength(3);
+  });
+});
+
+describe('seed-test-office: the mail count of the day (2026-10-06)', () => {
+  it('empties mail_log when madar-test sends no mail (MAIL_DRIVER=outbox), so a busy test day does not block the next invitations', async () => {
+    const { fake, db } = fakeDb();
+    const lines: string[] = [];
+    await runSeed({
+      db, auth: fakeAuth(fake, EXISTING), seed: await seed(), ref: TEST_REF, env: { ...PASSWORDS, MAIL_DRIVER: 'outbox' }, dryRun: false,
+      lockKey: OFFICE_LOCK_KEY, log: (line) => lines.push(line), writeOffice: async () => undefined,
+    });
+    expect(CLEAR_MAIL_LOG_SQL).toBe('truncate mail_log');
+    const writes = fake.sql.slice(fake.sql.indexOf('begin'));
+    expect(writes.indexOf(CLEAR_MAIL_LOG_SQL)).toBe(writes.indexOf(TRUNCATE_SQL) + 1);
+    const text = lines.join('\n');
+    expect(text).toMatch(/mail_log: 3 rows now, 0 after/);
+    expect(text).toMatch(/madar-test sends no mail \(MAIL_DRIVER=outbox\)/);
+  });
+
+  it('keeps mail_log when madar-test may send real mail: the Resend day quota counts it', async () => {
+    for (const env of [PASSWORDS, { ...PASSWORDS, MAIL_DRIVER: 'resend' }]) {
+      const { fake, db } = fakeDb();
+      const lines: string[] = [];
+      await runSeed({
+        db, auth: fakeAuth(fake, EXISTING), seed: await seed(), ref: TEST_REF, env, dryRun: false, lockKey: OFFICE_LOCK_KEY,
+        log: (line) => lines.push(line), writeOffice: async () => undefined,
+      });
+      expect(fake.sql).not.toContain(CLEAR_MAIL_LOG_SQL);
+      expect(lines.join('\n')).toMatch(/mail_log: 3 rows, kept/);
+    }
   });
 });

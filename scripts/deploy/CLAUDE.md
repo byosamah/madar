@@ -20,6 +20,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive.
+- The seed uploads the sample files to Storage under real object keys, the pictures as PNG (`scripts/seed-pictures.ts`;
+  the real store serves an SVG only as a download). With `MAIL_DRIVER=outbox` it also empties `mail_log`, so the day count
+  of test mail starts again.
 
 ## Steps
 - `scripts/deploy/all.sh <test|production>` runs every step in this order. Each step also runs alone:

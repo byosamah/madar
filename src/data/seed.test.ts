@@ -153,3 +153,36 @@ describe('the sample dependencies, overlap and stage tag (owner, 2026-10-02)', (
     expect(overlapping.map((p) => p.code)).toEqual(['KH-26-003']);
   });
 });
+
+describe('the sample pictures (SeedPicture, 2026-10-06)', () => {
+  it('draws SVG pictures by default, and the given maker for the test office of madar-test, with the same names in .png', async () => {
+    const { state: plain } = await seed();
+    const blobs = new Map<string, Blob>();
+    const made: [number, number][] = [];
+    const picture = {
+      extension: 'png' as const, type: 'image/png' as const,
+      render: (hue: number, variant: number) => {
+        made.push([hue, variant]);
+        return new Uint8Array([137, 80, 78, 71, variant]);
+      },
+    };
+    const state = await buildSeed(TODAY, async (key, blob) => void blobs.set(key, blob), picture);
+    const names = (s: typeof state) => Object.values(s.files).map((f) => f.name);
+    const pictures = Object.values(state.files).filter((f) => f.name.endsWith('.png'));
+    expect(names(plain).filter((n) => n.endsWith('.svg'))).toHaveLength(pictures.length);
+    expect(names(state).filter((n) => n.endsWith('.svg'))).toEqual([]);
+    expect(names(state)).toEqual(names(plain).map((n) => n.replace(/\.svg$/, '.png')));
+    expect(made).toHaveLength(pictures.length);
+    for (const file of pictures) {
+      const version = file.versions[0];
+      expect(version.mimeType).toBe('image/png');
+      expect(version.size).toBe(5);
+      expect(blobs.get(version.blobKey)?.type).toBe('image/png');
+    }
+    // The cover picture stays the first file of its project, now a PNG.
+    const cover = Object.values(state.projects).find((p) => p.coverFileId);
+    expect(state.files[cover!.coverFileId!].name).toBe('Cover render.png');
+    // The PDF drawings do not change.
+    expect(Object.values(state.files).filter((f) => f.name.endsWith('.pdf')).every((f) => f.versions.every((v) => v.mimeType === 'application/pdf'))).toBe(true);
+  });
+});

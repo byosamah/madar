@@ -15,6 +15,12 @@ import { drawingPdf, renderSvg } from './assets';
 
 export type PutBlob = (key: string, blob: Blob) => Promise<void>;
 
+/**
+ * Another maker for the sample pictures. Without it they are SVG (the prototype shows them). The test office of madar-test
+ * passes PNG (scripts/seed-pictures.ts): the real file store serves an SVG only as a download, so it never shows as a picture.
+ */
+export type SeedPicture = { extension: 'png'; type: 'image/png'; render(hue: number, variant: number): Uint8Array };
+
 /** A timestamp in office time on a given day. */
 function at(day: string, hour = 9, minute = 0): string {
   return `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000+03:00`;
@@ -146,10 +152,10 @@ const FILES: { name: string; kind: 'svg' | 'pdf'; versions: number; daysAgo: num
   { name: 'Facade study.svg', kind: 'svg', versions: 1, daysAgo: 3 },
 ];
 
-type SeedCtx = { state: State; today: string; humans: User[]; clientIds: string[]; saveBlob: (blob: Blob) => string };
+type SeedCtx = { state: State; today: string; humans: User[]; clientIds: string[]; saveBlob: (blob: Blob) => string; picture?: SeedPicture };
 
 function addProject(seed: SeedCtx, plan: Plan, index: number): void {
-  const { state, today, humans, clientIds, saveBlob } = seed;
+  const { state, today, humans, clientIds, saveBlob, picture } = seed;
   const leader = humans[plan.leader];
   const team = plan.team.map((i) => humans[i]);
   const owners = [leader, ...team];
@@ -264,12 +270,15 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
 
   FILES.forEach((spec, n) => {
     const id = nextId(state, 'fil');
-    const name = n === 0 && !plan.cover ? 'Street view.svg' : spec.name;
-    const title = name.replace(/\.(svg|pdf)$/, '');
+    const svgName = n === 0 && !plan.cover ? 'Street view.svg' : spec.name;
+    const name = spec.kind === 'svg' && picture ? svgName.replace(/\.svg$/, `.${picture.extension}`) : svgName;
+    const title = name.replace(/\.(svg|png|pdf)$/, '');
     const versions: FileVersion[] = Array.from({ length: spec.versions }, (_, v) => {
       const letter = String.fromCharCode(65 + v);
       const blob = spec.kind === 'svg'
-        ? new Blob([renderSvg(plan.name, `${plan.code} · ${title}`, plan.hue, n)], { type: 'image/svg+xml' })
+        ? picture
+          ? new Blob([new Uint8Array(picture.render(plan.hue, n))], { type: picture.type })
+          : new Blob([renderSvg(plan.name, `${plan.code} · ${title}`, plan.hue, n)], { type: 'image/svg+xml' })
         : new Blob([drawingPdf([`${plan.code} ${plan.name}`, title, `Revision ${letter}`])], { type: 'application/pdf' });
       return {
         letter, blobKey: saveBlob(blob), mimeType: blob.type, size: blob.size, uploadedBy: owners[(n + v) % owners.length].id,
@@ -614,7 +623,7 @@ function addPayments(state: State, today: string, accountant: User): void {
   }
 }
 
-export async function buildSeed(today: string, putBlob: PutBlob): Promise<State> {
+export async function buildSeed(today: string, putBlob: PutBlob, picture?: SeedPicture): Promise<State> {
   const state = emptyState(today);
   const blobJobs: Promise<void>[] = [];
   const saveBlob = (blob: Blob): string => {
@@ -733,7 +742,7 @@ export async function buildSeed(today: string, putBlob: PutBlob): Promise<State>
     return id;
   });
 
-  const seed: SeedCtx = { state, today, humans, clientIds, saveBlob };
+  const seed: SeedCtx = { state, today, humans, clientIds, saveBlob, ...(picture ? { picture } : {}) };
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
   addAgentSummaries(state, today, agentId);
   addChatTalk(state, today, humans);
