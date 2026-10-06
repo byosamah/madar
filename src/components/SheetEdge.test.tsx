@@ -57,3 +57,32 @@ describe('the bottom sheet of a phone and the toasts (owner, 2026-10-06, layout)
     expect(sheet).not.toHaveClass('max-h-[92dvh]');
   });
 });
+
+// The owner (2026-10-06, layout): at 1440 px the task panel floated 12 px from the top and covered the end of the tab pill,
+// where the bell and its red count sit (English: right; Arabic: left). A sheet on a desk now starts below the pill, so the
+// whole pill stays in view and the bell stays pressable next to the panel. jsdom has no layout, so the test checks the rule.
+describe('the top of a sheet on a computer (owner, 2026-10-06, layout)', () => {
+  const BELOW_PILL = '[:root:has([data-pill])_&]:top-[5.25rem]';
+
+  it('starts the non-blocking task panel below the tab pill', async () => {
+    render(<Sheet open onOpenChange={() => undefined} title="Renew the licence" blocking={false}>Fields</Sheet>);
+    const panel = await screen.findByRole('dialog', { name: 'Renew the licence' });
+    expect(panel).toHaveClass(BELOW_PILL, 'top-3', 'bottom-3', 'end-3');
+    expect(panel).not.toHaveClass('inset-y-3');
+  });
+
+  it('starts the blocking sheet below the tab pill too, in English and in Arabic', async () => {
+    for (const dir of ['ltr', 'rtl']) {
+      document.documentElement.dir = dir;
+      try {
+        const view = render(<Sheet open onOpenChange={() => undefined} title="Export the log">Rows</Sheet>);
+        const sheet = await screen.findByRole('dialog', { name: 'Export the log' });
+        expect(sheet).toHaveClass(BELOW_PILL, 'top-3', 'bottom-3', 'end-3');
+        expect(sheet).not.toHaveClass('inset-y-3');
+        view.unmount();
+      } finally {
+        document.documentElement.dir = 'ltr';
+      }
+    }
+  });
+});

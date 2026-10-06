@@ -107,6 +107,13 @@ export function escapeIsInner(event: Event, sheet: Element | null): boolean {
 const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 /**
+ * The place of a sheet on a desk: 12 px from the end, the top and the bottom of the screen. On a screen with the tab pill
+ * (16 px from the top, 56 px high) the sheet starts 12 px below the pill. Before, a panel covered the end of the pill, with
+ * the bell and its count, and the person could not press the bell next to the task panel (owner, 2026-10-06). Both kinds of
+ * sheet use it. The meeting view has no pill, so there a sheet keeps the 12 px.
+ */
+const DESK_EDGE = 'top-3 [:root:has([data-pill])_&]:top-[5.25rem] bottom-3 end-3';
+/**
  * A bottom sheet on a phone leaves a strip at the top of the screen, 72 px below the safe area. While a sheet is open, the
  * toasts show in that strip, so a toast covers no field of the sheet (owner, 2026-10-06, see the ToastProvider).
  */
@@ -173,7 +180,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
           animate={{ x: 0 }}
           exit={{ x: away }}
           transition={spring.standard}
-          className={`float fixed inset-y-3 end-3 z-50 flex flex-col rounded-sheet outline-none ${widthOf(wide)}`}
+          className={`float fixed ${DESK_EDGE} z-50 flex flex-col rounded-sheet outline-none ${widthOf(wide)}`}
         >
           <Frame
             heading={(
@@ -216,7 +223,7 @@ export function Sheet(props: SheetProps) {
   // corners (owner, 2026-10-05, item 5).
   const shape = phone
     ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
-    : `inset-y-3 end-3 rounded-sheet after:hidden ${widthOf(wide)}`;
+    : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal handleOnly={!phone}>
