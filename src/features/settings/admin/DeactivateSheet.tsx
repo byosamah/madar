@@ -29,7 +29,8 @@ async function openWorkOf(api: MadarApi, id: string): Promise<OpenWork> {
   const live = new Set(projects.filter((summary) => isLive(summary.project.status)).map((summary) => summary.project.id));
   return {
     projects: projects.filter((summary) => summary.project.leaderId === id && live.has(summary.project.id)),
-    tasks: tasks.filter((row) => live.has(row.project.id)),
+    // The open office tasks of the person need a new lead too (owner, 2026-10-06).
+    tasks: tasks.filter((row) => row.project === null || live.has(row.project.id)),
   };
 }
 
@@ -116,9 +117,9 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
             <ul>
               {work.tasks.slice(0, SHOWN).map(({ task, project }) => (
                 <li key={task.id}>
-                  <Link to={taskLink(project.id, task.id)} onClick={onClose} className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1 hover:bg-fill">
+                  <Link to={taskLink(project?.id ?? null, task.id)} onClick={onClose} className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1 hover:bg-fill">
                     <bdi className="truncate">{task.title}</bdi>
-                    <bdi className="truncate text-footnote text-label-2">{project.name}</bdi>
+                    <bdi className="truncate text-footnote text-label-2">{project ? project.name : t('office.word')}</bdi>
                   </Link>
                 </li>
               ))}

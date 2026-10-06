@@ -35,7 +35,8 @@ export function HomeScreen() {
   const admin = session.data?.user.systemRole === 'admin';
   const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
   const projects = { ...listed, data: listed.data?.filter((summary) => isLive(summary.project.status)) };
-  const open = useCallback((projectId: string, taskId: string, thread = false) => setParams({ project: projectId, task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
+  // An office task has no project, so its link names the task alone (owner, 2026-10-06).
+  const open = useCallback((projectId: string | null, taskId: string, thread = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -87,7 +88,7 @@ export function HomeScreen() {
           </span>
         </ScreenTitle>
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project.id, row.task.id, thread)} />
+        <TodayPanel rows={todayRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project?.id ?? null, row.task.id, thread)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">
@@ -107,7 +108,7 @@ export function HomeScreen() {
         )}
         <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
       </section>
-      {taskId && projectId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
+      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );
 }

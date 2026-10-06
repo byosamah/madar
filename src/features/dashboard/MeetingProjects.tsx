@@ -34,7 +34,7 @@ const HEADING = 'text-[15px] font-semibold uppercase tracking-[0.06em] text-ink-
  * before flagged, and never again under In progress. The counts on the timeline use the same lists, so the numbers match.
  */
 export function meetingWork(rows: TaskRow[], projectId: string, today: string) {
-  const mine = rows.filter((row) => row.project.id === projectId);
+  const mine = rows.filter((row) => row.project?.id === projectId);
   const { pastDue, review, flagged } = needsAttention(mine, today);
   const seen = new Set<string>();
   const once = (list: TaskRow[]) => list.filter((row) => !seen.has(row.task.id) && Boolean(seen.add(row.task.id)));
@@ -91,7 +91,7 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   const nameOf = usePersonName();
   const today = todayISO();
   const work = meetingWork(tasks, row.project.id, today);
-  const mine = tasks.filter((item) => item.project.id === row.project.id);
+  const mine = tasks.filter((item) => item.project?.id === row.project.id);
   const stageIndex = row.stages.findIndex((stage) => stage.id === row.currentStageId);
   const stage = row.stages[stageIndex];
   const next = row.deadlines.filter((deadline) => deadline.date >= today).slice(0, 4);

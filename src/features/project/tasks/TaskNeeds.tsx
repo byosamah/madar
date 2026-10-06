@@ -38,7 +38,7 @@ function Line({ title, status, onRemove, removeLabel }: { title: string; status:
 export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEdit: boolean; onChange: (prerequisiteIds: string[]) => void }) {
   const { t } = useTranslation();
   const { task, needsFirst, unlocks } = data;
-  const project = useCall('tasks.list', { projectId: task.projectId, activeProjectsOnly: false }, { enabled: canEdit });
+  const project = useCall('tasks.list', { projectId: task.projectId ?? undefined, activeProjectsOnly: false }, { enabled: canEdit && task.projectId !== null });
   const ids = needsFirst.map((need) => need.id);
   // A task that waits for this one cannot also be needed first: the server would refuse it as a cycle.
   const blocked = new Set([task.id, ...ids, ...unlocks.map((unlock) => unlock.id)]);
@@ -102,7 +102,7 @@ export function DateNotes({ data }: { data: TaskDetail }) {
   const { t } = useTranslation();
   const lang = useLang();
   const notes = data.task.dateNotes ?? [];
-  const project = useCall('tasks.list', { projectId: data.task.projectId, activeProjectsOnly: false }, { enabled: notes.length > 0 });
+  const project = useCall('tasks.list', { projectId: data.task.projectId ?? undefined, activeProjectsOnly: false }, { enabled: notes.length > 0 && data.task.projectId !== null });
   if (notes.length === 0) return null;
   const titleOf = (id: string | undefined) => (project.data ?? []).find((row) => row.task.id === id)?.task.title;
   return (

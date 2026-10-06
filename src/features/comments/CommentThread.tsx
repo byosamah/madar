@@ -123,7 +123,8 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
   );
 }
 
-type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string; stageId?: string | null; people: UserCard[]; canPost: boolean };
+/** projectId is null for an office task (owner, 2026-10-06): its files go to the task alone. */
+type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string | null; stageId?: string | null; people: UserCard[]; canPost: boolean };
 
 /**
  * Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author.

@@ -49,8 +49,9 @@ export const READS: Record<string, ReadRule> = {
   'tasks.list': rule('project', ['comments', 'files', 'members', 'projects', 'stages', 'tasks', 'users'], byProjectId),
   'tasks.get': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'users'],
     (_input, data) => field(typeof data === 'object' && data !== null ? (data as { task?: unknown }).task : undefined, 'projectId')),
-  'comments.list': rule('project', ['comments', 'files', 'tasks', 'updates', 'users']),
-  'files.list': rule('project', ['files', 'members', 'projects', 'users'], byProjectId),
+  // The view rule of a task reads its project and team, and the people of an office task (owner, 2026-10-06).
+  'comments.list': rule('project', ['comments', 'files', 'members', 'projects', 'tasks', 'updates', 'users']),
+  'files.list': rule('project', ['files', 'members', 'projects', 'tasks', 'users'], byProjectId),
   'payments.list': rule('project', ['payments', 'projects', 'users'], byProjectId),
   'tracker.list': rule('project', ['files', 'members', 'projects', 'tracker', 'users'], byProjectId),
   'tracker.export': rule('project', ['events', 'files', 'projects', 'tracker', 'users'], byProjectId),

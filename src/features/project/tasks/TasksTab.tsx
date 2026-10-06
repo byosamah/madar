@@ -34,7 +34,7 @@ export function TasksTab({ detail }: TabProps) {
   const unledCount = leads ? unled.data?.length ?? 0 : 0;
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
-  for (const row of rows) if (row.task.status === 'done') doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
+  for (const row of rows) if (row.task.status === 'done' && row.task.stageId) doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
   // Open adds one history step and Close goes back over it, so Back closes the panel and a panel costs no extra Back
   // (audit 2026-10-03, PRJ-9, V-36).
   const panel = usePanelLink(TASK_PANEL);

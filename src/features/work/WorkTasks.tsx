@@ -11,6 +11,7 @@ import { groupMyTasks } from '../../lib/myWork';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { LoadFailed } from '../../components/LoadFailed';
+import { openTask } from '../../lib/params';
 
 function TaskGroup({ id, title, rows, me, onOpen }: { id: string; title: string; rows: TaskRow[]; me: User | undefined; onOpen: (row: TaskRow, thread?: boolean) => void }) {
   return (
@@ -25,7 +26,7 @@ function TaskGroup({ id, title, rows, me, onOpen }: { id: string; title: string;
   );
 }
 
-/** My open tasks from all projects, by date, with the leader's review queue first (spec 6.1). */
+/** My open tasks from all projects and the office, by date, with the leader's review queue first (spec 6.1). */
 export function WorkTasks() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
@@ -33,14 +34,8 @@ export function WorkTasks() {
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // One session.get for every group. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
-  const open = (row: TaskRow, thread = false) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('task', row.task.id);
-    next.set('project', row.project.id);
-    if (thread) next.set('thread', '1');
-    else next.delete('thread');
-    return next;
-  });
+  // An office task has no project, so its link names the task alone (owner, 2026-10-06).
+  const open = (row: TaskRow, thread = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread));
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -63,7 +58,7 @@ export function WorkTasks() {
       {groups.length === 0 && review.data.length === 0
         ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
         : groups.map((group) => <TaskGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={open} />)}
-      {taskId && projectId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
+      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );
 }

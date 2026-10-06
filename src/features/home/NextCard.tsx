@@ -7,7 +7,7 @@ import type { NextItem } from '../../lib/home';
 import { TimerIcon } from '../../components/icons/animated/timer';
 
 /** "Next for you": one thing to do, on the glow (redesign spec 3.2). */
-export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOpen: (projectId: string, taskId: string) => void; onFocus: (taskId: string) => void; left: number | null }) {
+export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOpen: (projectId: string | null, taskId: string) => void; onFocus: (taskId: string) => void; left: number | null }) {
   const { t } = useTranslation();
   let line = t('home.next.clear');
   let context = '';
@@ -15,8 +15,9 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
   if (item.kind !== 'clear') {
     const { task, project } = item.row;
     line = t(item.kind === 'review' ? 'home.next.reviewLine' : `home.next.${item.kind}`, { title: task.title });
-    context = project.name;
-    action = { label: t(item.kind === 'review' ? 'home.next.review' : 'home.next.open'), run: () => onOpen(project.id, task.id) };
+    // An office task has no project: the line under it says Office (owner, 2026-10-06).
+    context = project ? project.name : t('office.word');
+    action = { label: t(item.kind === 'review' ? 'home.next.review' : 'home.next.open'), run: () => onOpen(project?.id ?? null, task.id) };
   }
   return (
     <section aria-labelledby="next-title" className="glow flex flex-col gap-1.5 overflow-hidden p-5 sm:p-6">

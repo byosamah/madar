@@ -40,7 +40,8 @@ export function ReviewWaits({ view }: { view: DashboardData }) {
                     <span className="min-w-0 flex-1">
                       <bdi className="block truncate text-subheadline text-ink">{task.title}</bdi>
                       <span className="tabular block truncate text-footnote text-ink-2">
-                        <bdi>{projectKey(task.projectCode)}</bdi> · {counted(t, 'dashboard.inReview.days', task.days)}
+                        {/* An office task shows the word Office where a project key shows (owner, 2026-10-06). */}
+                        <bdi>{task.projectId === null ? t('office.word') : projectKey(task.projectCode)}</bdi> · {counted(t, 'dashboard.inReview.days', task.days)}
                       </span>
                     </span>
                   </Link>

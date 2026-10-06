@@ -191,7 +191,7 @@ function MeetingTaskSheet({ taskId, onClose }: { taskId: string; onClose: () => 
     if (task.error) onClose();
   }, [task.error, onClose]);
   if (!task.data) return null;
-  return <ProjectTaskSheet projectId={task.data.project.id} taskId={taskId} onClose={onClose} />;
+  return <ProjectTaskSheet projectId={task.data.project?.id ?? null} taskId={taskId} onClose={onClose} />;
 }
 
 /**

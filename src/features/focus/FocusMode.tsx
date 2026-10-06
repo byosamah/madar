@@ -69,10 +69,13 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
   return (
     <div ref={page} className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))] sm:pt-16">
       <div className="flex items-center gap-3">
-        <span className="flex min-w-0 items-center gap-3">
-          <ProjectTile id={project.id} mark={project.mark} size={32} />
-          <bdi className="truncate text-subheadline font-semibold text-ink-2">{project.name}</bdi>
-        </span>
+        {/* An office task has no project: the word Office takes its place (owner, 2026-10-06). */}
+        {project ? (
+          <span className="flex min-w-0 items-center gap-3">
+            <ProjectTile id={project.id} mark={project.mark} size={32} />
+            <bdi className="truncate text-subheadline font-semibold text-ink-2">{project.name}</bdi>
+          </span>
+        ) : <span className="text-subheadline font-semibold text-ink-2">{t('office.word')}</span>}
       </div>
       <div className="flex flex-col gap-4">
         <p className="text-footnote font-semibold uppercase tracking-[0.06em] text-[var(--sig-text)]">{t('focus.label')}</p>

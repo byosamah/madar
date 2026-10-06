@@ -44,7 +44,7 @@ import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
 import { useQueryClient } from '@tanstack/react-query';
 
-type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'stageId' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>>;
+type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>> & { stageId?: string };
 
 /** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -196,14 +196,15 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
   );
 }
 
-function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
+/** detail is null for an office task, which has no project (owner, 2026-10-06): no stage, no prerequisites, no team. */
+function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
   const navigate = useNavigate();
   const toast = useToast();
   const session = useCall('session.get', {});
-  const files = useCall('files.list', { projectId: detail.project.id, taskId: data.task.id });
+  const files = useCall('files.list', detail ? { projectId: detail.project.id, taskId: data.task.id } : { taskId: data.task.id });
   const { task, viewerCan } = data;
   // Reopening a task, or moving it into an earlier stage, can move the project back. The server then asks why (owner, 2026-10-02).
   const back = useStageBack();
@@ -315,13 +316,18 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   useEffect(() => {
     if (noteFirst && viewerCan.review) reviewBlock.current?.querySelector<HTMLElement>('#task-note')?.focus();
   }, [noteFirst, viewerCan.review]);
-  const people = detail.members.map((member) => member.user);
+  const pickable = (everyone.data ?? []).filter((person) => person.kind === 'human');
+  // An office task has no team: its people are its maker, its lead and its helpers, and only they read its Conversation.
+  const maker = everyone.data?.find((person) => person.id === data.task.createdBy);
+  const makerId = maker?.kind === 'agent' && maker.ownerId ? maker.ownerId : data.task.createdBy;
+  const officePeople = pickable.filter((person) => person.id === makerId || person.id === data.task.ownerId || data.helpers.some((helper) => helper.id === person.id));
+  const people = detail ? detail.members.map((member) => member.user) : officePeople;
   if (data.owner && !people.some((person) => person.id === data.owner?.id)) people.push(data.owner);
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
-  const teamIds = new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]);
-  const pickable = (everyone.data ?? []).filter((person) => person.kind === 'human');
+  // An office task has no team, so nobody joins one.
+  const teamIds = detail ? new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(pickable.map((person) => person.id));
   const me = session.data?.authority.id;
-  const canUndoAgent = (actingForId: string) => detail.viewerCan.review || actingForId === me;
+  const canUndoAgent = (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me;
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
   const [params] = useSearchParams();
   const panel = usePanelLink(TASK_PANEL);
@@ -343,12 +349,17 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
       />
       {section === 'conversation' ? (
         <TabPanel value="conversation" idPrefix="task-section">
-          <CommentThread targetType="task" targetId={task.id} projectId={detail.project.id} stageId={task.stageId} people={people} canPost={detail.viewerCan.post} />
+          <CommentThread
+            targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
+            canPost={detail ? detail.viewerCan.post : viewerCan.contribute}
+          />
         </TabPanel>
       ) : (
         <TabPanel value="details" idPrefix="task-section">
           <div className="flex flex-col gap-5">
-            {!edit && !viewerCan.take && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t('taskSheet.readOnly')}</p>}
+            {/* An office task says who sees it (owner, 2026-10-06). */}
+            {!detail && <p className="text-footnote text-label-2">{t('office.sheetNote')}</p>}
+            {!edit && !viewerCan.take && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>}
             {/* A task with no lead: one next step, Take it (owner, 2026-10-05). Nobody can finish the task before it has a lead. */}
             {viewerCan.take && (
               <section aria-label={t('lead.noLead')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
@@ -405,11 +416,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
                     .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
-              {edit ? (
-                <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId} onChange={(event) => patch({ stageId: event.target.value })}>
+              {/* An office task has no stage. */}
+              {detail && (edit ? (
+                <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId ?? ''} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                 </SelectField>
-              ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage.name}</bdi></Fact>}
+              ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage?.name ?? ''}</bdi></Fact>)}
             </div>
             <TaskHelpers
               helpers={data.helpers}
@@ -419,7 +431,8 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
             />
-            <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />
+            {/* An office task waits for no task. */}
+            {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
             {edit ? (
               <TaskTiming
@@ -478,8 +491,8 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
   );
 }
 
-/** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). */
-export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { taskId: string; detail: ProjectDetail; onClose: () => void; noteFirst?: boolean }) {
+/** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). detail is null for an office task. */
+export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { taskId: string; detail: ProjectDetail | null; onClose: () => void; noteFirst?: boolean }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
   const focus = useFocusLink();
@@ -509,9 +522,10 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
   );
 }
 
-/** The task panel outside its project screen, for example over My Work. */
-export function ProjectTaskSheet({ projectId, taskId, onClose }: { projectId: string; taskId: string; onClose: () => void }) {
-  const detail = useCall('projects.get', { id: projectId });
+/** The task panel outside its project screen, for example over My Work. An office task has no project (projectId null). */
+export function ProjectTaskSheet({ projectId, taskId, onClose }: { projectId: string | null; taskId: string; onClose: () => void }) {
+  const detail = useCall('projects.get', { id: projectId ?? '' }, { enabled: projectId !== null });
+  if (projectId === null) return <TaskSheet taskId={taskId} detail={null} onClose={onClose} />;
   if (!detail.data) return null;
   return <TaskSheet taskId={taskId} detail={detail.data} onClose={onClose} />;
 }

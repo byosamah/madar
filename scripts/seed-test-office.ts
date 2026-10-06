@@ -217,7 +217,7 @@ export function withObjectKeys(state: State, blobs: ReadonlyMap<string, Blob>): 
       if (isObjectKey(version.blobKey)) return;
       const blob = blobs.get(version.blobKey);
       if (!blob) throw new Error(`The sample file ${file.id} names ${version.blobKey}, but the sample office made no content for it.`);
-      const key = objectKey(file.projectId, file.id, i + 1);
+      const key = objectKey(file.projectId!, file.id, i + 1);
       keys.set(version.blobKey, key);
       uploads.push({ key, blob });
     });

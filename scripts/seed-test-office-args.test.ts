@@ -398,7 +398,7 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
     expect(office.files.fil_001.versions[0].blobKey).toBe('prj-001/fil-001/1/file');
     expect(uploads.find((upload) => upload.key === 'prj-001/fil-001/1/file')?.blob).toBe(blobs.get(state.files.fil_001.versions[0].blobKey));
     const twice = Object.values(office.files).find((file) => file.versions.length === 2)!;
-    expect(twice.versions.map((version) => version.blobKey)).toEqual([1, 2].map((n) => `${twice.projectId.replace('_', '-')}/${twice.id.replace('_', '-')}/${n}/file`));
+    expect(twice.versions.map((version) => version.blobKey)).toEqual([1, 2].map((n) => `${twice.projectId!.replace('_', '-')}/${twice.id.replace('_', '-')}/${n}/file`));
     // A prototype key (blob_seed_001) never reaches madar-test, also not in the file events.
     expect(JSON.stringify(office)).not.toMatch(/blob_seed_/);
   });

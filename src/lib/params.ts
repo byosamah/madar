@@ -26,6 +26,20 @@ export function clientParam(value: string | null): string | undefined {
 }
 
 /**
+ * The link of a list screen with one task panel open over it (Tasks, Home, the Task list). An office task has no project, so the
+ * link names the task alone (owner, 2026-10-06).
+ */
+export function openTask(current: URLSearchParams, taskId: string, projectId: string | null = null, thread = false): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('task', taskId);
+  if (projectId) next.set('project', projectId);
+  else next.delete('project');
+  if (thread) next.set('thread', '1');
+  else next.delete('thread');
+  return next;
+}
+
+/**
  * The link that opens a task panel in its project. "thread" opens the Conversation of the task. An office task (no project) opens
  * on the Tasks page (owner, 2026-10-06).
  */

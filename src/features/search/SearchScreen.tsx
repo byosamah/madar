@@ -62,7 +62,8 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
           {tasks.map((task) => (
             <Item key={task.id} value={`task-${task.id}`} onSelect={() => navigate(taskLink(task.projectId, task.id))}>
               <bdi className="min-w-0 flex-1 truncate">{task.title}</bdi>
-              <span className="tabular text-footnote text-label-2">{projectKey(task.projectCode)}</span>
+              {/* An office task shows the word Office where a project key shows (owner, 2026-10-06). */}
+              <span className="tabular text-footnote text-label-2">{task.projectId === null ? t('office.word') : projectKey(task.projectCode)}</span>
             </Item>
           ))}
         </Command.Group>
@@ -81,9 +82,14 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
       {files.length > 0 && (
         <Command.Group heading={t('search.files')} className={GROUP}>
           {files.map((file) => (
-            <Item key={file.id} value={`file-${file.id}`} onSelect={() => navigate(`/projects/${file.projectId}?tab=files&file=${file.id}`)}>
+            <Item
+              key={file.id}
+              value={`file-${file.id}`}
+              // A file of an office task opens on its task, which holds its files (owner, 2026-10-06).
+              onSelect={() => navigate(file.projectId === null ? taskLink(null, file.taskId ?? '') : `/projects/${file.projectId}?tab=files&file=${file.id}`)}
+            >
               <bdi className="min-w-0 flex-1 truncate">{file.name}</bdi>
-              <span className="tabular text-footnote text-label-2">{projectKey(file.projectCode)}</span>
+              <span className="tabular text-footnote text-label-2">{file.projectId === null ? t('office.word') : projectKey(file.projectCode)}</span>
             </Item>
           ))}
         </Command.Group>

@@ -66,8 +66,8 @@ describe('sample data', () => {
   it('links every task to its project stage and team', async () => {
     const { state } = await seed();
     for (const task of Object.values(state.tasks)) {
-      expect(state.stages[task.stageId]?.projectId).toBe(task.projectId);
-      const project = state.projects[task.projectId];
+      expect(state.stages[task.stageId!]?.projectId!).toBe(task.projectId!);
+      const project = state.projects[task.projectId!];
       expect(project.leaderId === task.ownerId || Boolean(state.members[`${task.projectId}:${task.ownerId}`])).toBe(true);
     }
   });

@@ -86,8 +86,11 @@ export function ChatPane({ id }: { id: string }) {
 export function TaskPane({ id }: { id: string }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
-  const projectId = task.data?.project.id;
+  // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
+  const office = task.data !== undefined && task.data.project === null;
+  const projectId = task.data?.project?.id;
   const project = useCall('projects.get', { id: projectId ?? 'prj_000' }, { enabled: projectId !== undefined });
+  const users = useCall('users.list', {}, { enabled: office });
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
@@ -100,17 +103,25 @@ export function TaskPane({ id }: { id: string }) {
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null,
   }));
-  const canPost = project.data?.viewerCan.post ?? false;
-  const people = (project.data?.members ?? []).map((member) => member.user).filter((user) => user.id !== me);
+  const where = task.data.project;
+  const canPost = where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute;
+  const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
+  const makerId = maker?.kind === 'agent' && maker.ownerId ? maker.ownerId : task.data.task.createdBy;
+  const officePeople = [
+    ...(users.data ?? []).filter((user) => user.id === makerId && user.kind === 'human'),
+    ...(task.data.owner ? [task.data.owner] : []), ...task.data.helpers,
+  ];
+  const people = (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
+    .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
   return (
     <>
       <Header
         lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
         title={<bdi>{task.data.task.title}</bdi>}
-        subtitle={`${t('chat.taskThread')} · ${task.data.project.name}`}
+        subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
         action={(
           <Link
-            to={taskLink(task.data.project.id, id)}
+            to={taskLink(where?.id ?? null, id)}
             className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
           >
             {t('chat.openTask')}
@@ -123,7 +134,7 @@ export function TaskPane({ id }: { id: string }) {
           id={id}
           people={people}
           pending={create.isPending}
-          upload={{ projectId: task.data.project.id, stageId: task.data.task.stageId, taskId: id }}
+          upload={{ projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id }}
           onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}

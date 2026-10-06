@@ -13,6 +13,7 @@ import { formatDay, todayISO } from '../../lib/dates';
 import { clientName } from '../../lib/clientName';
 import { clientParam, dayParam, oneOf, teamParam, userParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
+import { openTask } from '../../lib/params';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { projectKey } from '../../lib/projectCode';
@@ -111,14 +112,8 @@ function TaskResults() {
     filter, ownerId, workOf, teamId, leaderId, clientId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
-  const open = (row: TaskRow, thread = false) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set('task', row.task.id);
-    next.set('project', row.project.id);
-    if (thread) next.set('thread', '1');
-    else next.delete('thread');
-    return next;
-  });
+  // An office task has no project, so its link names the task alone (owner, 2026-10-06).
+  const open = (row: TaskRow, thread = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread));
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -154,7 +149,7 @@ function TaskResults() {
           </AnimatePresence>
         </ul>
       )}
-      {taskId && projectId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
+      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </>
   );
 }

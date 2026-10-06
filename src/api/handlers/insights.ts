@@ -283,7 +283,8 @@ export const SearchView = z.object({
   projects: z.array(Ref).max(5),
   tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId.nullable(), projectCode: z.string() })).max(5),
   people: z.array(UserCard).max(5),
-  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string() })).max(5),
+  /** taskId: the task of the file. A file of an office task (projectId null) opens on its task (owner, 2026-10-06). */
+  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), taskId: TaskId.nullable() })).max(5),
 });
 
 export const searchQuery = defineCall({
@@ -316,7 +317,7 @@ export const searchQuery = defineCall({
       files: Object.values(state.files)
         .filter((f) => (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
-        .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId) })),
+        .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
     };
   },
 });

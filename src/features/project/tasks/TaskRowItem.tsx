@@ -152,7 +152,8 @@ export function TaskRowItem({ row, me, onOpen, showProject = false }: {
           )}
           {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={12} aria-hidden />{t('tasks.flagged')}</span>}
           {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={AttachFileIcon} size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
-          {showProject && <bdi className="truncate">{row.project.name}</bdi>}
+          {/* An office task shows the word Office where a project shows (owner, 2026-10-06). */}
+          {showProject && (row.project ? <bdi className="truncate">{row.project.name}</bdi> : <span>{t('office.word')}</span>)}
         </span>
       </button>
       {/* The task's conversation, one press away (owner, 2026-10-01). The count shows when there are comments. */}
@@ -167,7 +168,7 @@ export function TaskRowItem({ row, me, onOpen, showProject = false }: {
           <span aria-hidden className="tabular absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-ink px-1 text-[10px] font-semibold leading-none text-panel">{row.commentCount}</span>
         )}
       </button>
-      {showProject
+      {showProject && row.project
         ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
         : <span className="pe-1">{!row.owner
           ? <NoLeadMark size={26} />

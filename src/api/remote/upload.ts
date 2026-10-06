@@ -112,7 +112,8 @@ async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
 const SHARED_FIELDS = ['projectId', 'name', 'stageId', 'taskId', 'asCover', 'receivedFromClient'] as const;
 
 type ScreenUpload = {
-  projectId: string;
+  /** None: a file of the office task taskId (owner, 2026-10-06). */
+  projectId?: string;
   name: string;
   blob: Blob;
   stageId?: string | null;
@@ -152,7 +153,7 @@ export function uploadAdapter(o: {
 
     // Step 1: the server checks the rights and the size, and signs the uploads.
     const start = (await ctx.call('files.uploadStart', {
-      projectId: input.projectId,
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       name: input.name,
       size: blob.size,
       mimeType: blob.type || 'application/octet-stream',
