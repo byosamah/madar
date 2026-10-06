@@ -18,6 +18,8 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
 - The test copy shows timing races that the local stack hides. Repeat a suspect spec with `--repeat-each=3` there.
+- Many `ERR_INTERNET_DISCONNECTED` failures in one run mean the Mac lost its connection. Check the test copy with
+  `curl -sI`, then run the suite again. It is not a code fault.
 
 ## Guards (`e2e-deploy/targets.ts`)
 - The suite never reads the production database and never names a production host. It reads madar-test or the local

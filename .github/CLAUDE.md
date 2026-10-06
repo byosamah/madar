@@ -28,6 +28,8 @@ branch, and a push that changes only `docs/` runs nothing.
 - `ci.yml` takes about 15 minutes. A push before it ends cancels the older run, so that commit gets no full result.
   Wait for the result before the next push when the commit changes code.
 - `gh run list --commit` needs the full SHA. A short SHA gives an empty list, which looks like "no run".
+- A red `db` job with every test passed is the speed gate (`GATE_RUN_MS`, `server/test/global-setup.ts`, 180 s). Read
+  the job log before you look for a broken test.
 
 ## Backups by hand
 - `gh workflow run "DB backup"`.

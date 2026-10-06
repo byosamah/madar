@@ -11,6 +11,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 4. The owner tries the change on the test copy with a sample account: admin@, management@, accounting@ or
    member@madar.test (passwords in `secrets/test-accounts.env`).
 5. After the owner's OK: `scripts/deploy/all.sh production` from the same commit.
+- The deploy suite takes about 45 minutes. Tell the owner before you start it. When the owner asks for production while
+  it runs, stop it, deploy the recorded commit, and write the unfinished suite in the proof.md record.
 - Production refuses, before the typed word: a commit that is not the recorded one, a change that is not committed (also
   a new file), and a folder that is not a git checkout. A new commit (also a merge or a rebase) needs `all.sh test` again.
 - `all.sh test` removes the record before its first step, so a test deploy that stops part way blocks production. A
