@@ -795,7 +795,6 @@
     "areaValue": "{{n}} m²",
     "charts": {
       "perStage": "Projects per stage",
-      "health": "Health mix",
       "throughput": "Tasks done and created per week"
     },
     "created": "Created",

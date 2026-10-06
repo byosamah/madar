@@ -55,35 +55,6 @@ export function yAxisTick(value: number): string {
   return value === 0 ? '' : String(value);
 }
 
-const HEALTH = [
-  { key: 'on_track', text: 'text-ink', to: '/projects?health=on_track' },
-  { key: 'at_risk', text: 'text-attn', to: '/projects?health=at_risk' },
-  { key: 'late', text: 'text-late', to: '/projects?health=late' },
-] as const;
-
-export function HealthMix({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
-  const { t } = useTranslation();
-  const lang = useLang();
-  const mix = view.charts.healthMix;
-  const total = mix.on_track + mix.at_risk + mix.late;
-  return (
-    <Card title={t('dashboard.charts.health')}>
-      {total === 0 ? <NoData /> : (
-        <ul className="grid grid-cols-3 gap-2">
-          {HEALTH.map((item) => (
-            <li key={item.key}>
-              <Link to={withFilters(item.to, filters)} className="pressable flex h-full min-h-20 flex-col justify-start gap-1 rounded-2xl bg-fill/60 px-4 py-3 hover:bg-fill">
-                <span className={`tabular text-title-2 font-bold ${item.text}`}>{formatNumber(mix[item.key], lang)}</span>
-                <span className="text-footnote font-medium text-ink-2">{t(`health.${item.key}`)}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
 export function Throughput({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();

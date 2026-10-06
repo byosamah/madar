@@ -15,22 +15,11 @@ describe('the Dashboard charts', () => {
     expect(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('combobox', { name: 'Stage' })).toHaveValue('Construction Documents');
   });
 
-  it('shows the health mix with a word and a number for each color', async () => {
+  // The Health mix card repeated the "At risk or late" number, so it left the screen. dashboard.get keeps healthMix for agents (owner, 2026-10-06).
+  it('shows no Health mix card', async () => {
     await renderApp('/dashboard');
-    const health = await chart('Health mix');
-    expect(within(health).getByRole('link', { name: /Late/ })).toHaveTextContent('2');
-    expect(within(health).getByRole('link', { name: /At risk/ })).toHaveTextContent('3');
-  });
-
-  // In Arabic "معرّض للتأخر" wraps in the middle tile; centred tiles then put its number higher than the others (2026-10-05).
-  it('puts the three health numbers on one line, also when a word wraps', async () => {
-    await renderApp('/dashboard');
-    for (const link of within(await chart('Health mix')).getAllByRole('link')) {
-      expect(link).toHaveClass('justify-start');
-      expect(link).not.toHaveClass('justify-center');
-      // The three tiles share one height, also when one word wraps.
-      expect(link).toHaveClass('h-full');
-    }
+    await chart('Projects per stage');
+    expect(screen.queryByRole('region', { name: 'Health mix' })).toBeNull();
   });
 
   // The "0" at the foot of the axis touched the first week label ("19 يوليو" in Arabic). The bars start at the base line.
@@ -51,18 +40,10 @@ describe('the Dashboard charts', () => {
   it('says so in every chart and the schedule when the filters leave nothing to draw', async () => {
     const first = await renderApp('/dashboard?client=cli_999');
     await chart('Projects per stage');
-    expect(screen.getAllByText('No data for these filters.')).toHaveLength(3);
+    expect(screen.getAllByText('No data for these filters.')).toHaveLength(2);
     first.unmount();
     await renderApp('/dashboard?client=cli_999&view=schedule');
     expect(await within(await screen.findByRole('region', { name: 'Office schedule' })).findByText('No data for these filters.')).toBeInTheDocument();
   });
 
-  it('opens exactly the projects behind each health number', async () => {
-    for (const [word, n] of [['Late', 2], ['At risk', 3], ['On track', 4]] as const) {
-      const view = await renderApp('/dashboard');
-      await userEvent.click(within(await chart('Health mix')).getByRole('link', { name: new RegExp(word) }));
-      await waitFor(() => expect(within(screen.getByRole('list', { name: 'Projects' })).getAllByRole('listitem')).toHaveLength(n));
-      view.unmount();
-    }
-  });
 });

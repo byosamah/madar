@@ -76,8 +76,7 @@ describe('the Dashboard', () => {
 
   it('keeps the Team filter in the chart links and the Area in design row (audit 2026-10-03, DSH-7)', async () => {
     await renderApp('/dashboard?team=tm_003');
-    for (const link of within(await screen.findByRole('region', { name: 'Health mix' })).getAllByRole('link')) expect(link.getAttribute('href')).toContain('team=tm_003');
-    for (const link of within(screen.getByRole('region', { name: 'Projects per stage' })).getAllByRole('link')) expect(link.getAttribute('href')).toContain('team=tm_003');
+    for (const link of within(await screen.findByRole('region', { name: 'Projects per stage' })).getAllByRole('link')) expect(link.getAttribute('href')).toContain('team=tm_003');
     expect((await tile(/Area in design/)).getAttribute('href')).toContain('team=tm_003');
   });
 
