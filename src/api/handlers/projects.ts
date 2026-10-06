@@ -10,7 +10,7 @@ import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
-import { teamFilter } from '../pause';
+import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
 import { memberKey, nextId, paymentsOf, projectTemplatesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
@@ -828,17 +828,20 @@ export const deadlinesList = defineCall({
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
     /** Only the deadlines of the projects that this office team works on, as the Dashboard counts them (audit 2026-10-03, V-37a). */
     teamId: TeamId.optional(),
+    /** Only the deadlines of the projects that this person leads, or of this client: the Dashboard filters (owner, 2026-10-06). */
+    leaderId: UserId.optional(),
+    clientId: ClientId.optional(),
   }),
   output: z.array(DeadlineRow),
   readOnly: true,
   run(input, ctx) {
     const { state, today } = ctx;
-    const inTeam = teamFilter(state, input.teamId);
+    const inFilters = peopleFilter(state, input);
     return Object.values(state.deadlines)
       .filter((d) => {
         const project = state.projects[d.projectId];
         if (!project || (input.status !== 'all' && project.status !== input.status)) return false;
-        if (!inTeam(project)) return false;
+        if (!inFilters(project)) return false;
         return (!input.from || d.date >= input.from) && (!input.to || d.date <= input.to);
       })
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))

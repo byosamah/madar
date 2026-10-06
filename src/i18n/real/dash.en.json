@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "leader": "Leader",
+    "anyLeader": "Any leader",
+    "client": "Client",
+    "anyClient": "Any client"
+  },
+  "taskList": {
+    "leader": "Leader: {{name}}",
+    "client": "Client: {{name}}"
+  }
+}

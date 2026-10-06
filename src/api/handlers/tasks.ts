@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ChecklistItem, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
+  ChecklistItem, ClientId, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
@@ -9,7 +9,7 @@ import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
 import { notifyIn, reviewersOf } from '../notify';
-import { teamFilter } from '../pause';
+import { peopleFilter } from '../pause';
 import { can } from '../permissions';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
@@ -141,17 +141,20 @@ export const tasksList = defineCall({
      * opens agree. A team that does not exist matches nothing (audit 2026-10-03, V-37a).
      */
     teamId: TeamId.optional(),
+    /** Only the tasks of the projects that this person leads, or of this client: the Dashboard filters (owner, 2026-10-06). */
+    leaderId: UserId.optional(),
+    clientId: ClientId.optional(),
   }),
   output: z.array(TaskRow),
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
-    const inTeam = teamFilter(state, input.teamId);
+    const inFilters = peopleFilter(state, input);
     const tasks = Object.values(state.tasks).filter((task) => {
       const project = state.projects[task.projectId];
       if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
-      if (!inTeam(project)) return false;
+      if (!inFilters(project)) return false;
       if (projectId && task.projectId !== projectId) return false;
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;

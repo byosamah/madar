@@ -5,10 +5,10 @@ import { Link } from 'react-router';
 import { useLang } from '../../app/lang';
 import { CountUp } from '../../components/CountUp';
 import { formatNumber } from '../../lib/dates';
-import { withTeam, type DashboardData } from './Tiles';
+import { withFilters, type DashboardData, type DashboardFilters } from './Tiles';
 
 /** Three numbers in one panel (redesign spec 3.6). Each one opens the list behind it. */
-export function Numbers({ view, teamId }: { view: DashboardData; teamId?: string }) {
+export function Numbers({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { tiles } = view;
@@ -19,20 +19,20 @@ export function Numbers({ view, teamId }: { view: DashboardData; teamId?: string
   return (
     <ul className="panel grid grid-cols-1 divide-y divide-hairline overflow-hidden sm:grid-cols-3 sm:divide-x sm:divide-y-0 rtl:sm:divide-x-reverse">
       <li>
-        <Link to={withTeam('/projects?status=active', teamId)} className={cell}>
+        <Link to={withFilters('/projects?status=active', filters)} className={cell}>
           <span className={label}>{t('dashboard.tiles.activeProjects')}</span>
           <span className={`${big} text-ink`}><CountUp id="dash-active" value={tiles.activeProjects} format={count} /></span>
         </Link>
       </li>
       <li>
-        <Link to={withTeam('/projects?filter=at_risk', teamId)} className={cell}>
+        <Link to={withFilters('/projects?filter=at_risk', filters)} className={cell}>
           <span className={label}>{t('dashboard.tiles.atRiskOrLate')}</span>
           <span className={`${big} ${tiles.atRiskOrLate > 0 ? 'text-attn' : 'text-ink'}`}><CountUp id="dash-attention" value={tiles.atRiskOrLate} format={count} /></span>
         </Link>
       </li>
       <li>
         {/* The Task list reads the team, so the list has the tasks this number counts (audit 2026-10-03, V-37b). */}
-        <Link to={withTeam('/tasks?filter=overdue', teamId)} className={cell}>
+        <Link to={withFilters('/tasks?filter=overdue', filters)} className={cell}>
           <span className={label}>{t('dashboard.tiles.overdueTasks')}</span>
           <span className={`${big} ${tiles.overdueTasks > 0 ? 'text-attn' : 'text-ink'}`}><CountUp id="dash-past-due" value={tiles.overdueTasks} format={count} /></span>
         </Link>

@@ -15,6 +15,16 @@ export function teamParam(value: string | null): string | undefined {
   return value && /^tm_\d{3,}$/.test(value) ? value : undefined;
 }
 
+/** A person from the link, when it has the form of a person id. */
+export function userParam(value: string | null): string | undefined {
+  return value && /^usr_\d{3,}$/.test(value) ? value : undefined;
+}
+
+/** A client from the link, when it has the form of a client id. */
+export function clientParam(value: string | null): string | undefined {
+  return value && /^cli_\d{3,}$/.test(value) ? value : undefined;
+}
+
 /** The link that opens a task panel in its project. "thread" opens the Conversation of the task. */
 export function taskLink(projectId: string, taskId: string, thread = false): string {
   return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;

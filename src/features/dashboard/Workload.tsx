@@ -5,10 +5,10 @@ import { useByPersonName, usePersonName } from '../../app/personName';
 import { Avatar } from '../../components/Avatar';
 import { addDays, formatDay, formatNumber } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
-import { withTeam, type DashboardData } from './Tiles';
+import { withFilters, type DashboardData, type DashboardFilters } from './Tiles';
 
 /** People and the next 4 weeks: open tasks due in each week. Above the limit, the cell says "Over" in the attention color (redesign spec 2.3). */
-export function Workload({ view, teamId }: { view: DashboardData; teamId?: string }) {
+export function Workload({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -45,7 +45,7 @@ export function Workload({ view, teamId }: { view: DashboardData; teamId?: strin
                     <td key={weeks[i]} className="p-1 text-center">
                       <Link
                         // A cell counts the tasks of the team's projects, so its list carries the team (audit 2026-10-03, V-37b).
-                        to={withTeam(`/tasks?owner=${row.user.id}&from=${weeks[i]}&to=${addDays(weeks[i], 6)}`, teamId)}
+                        to={withFilters(`/tasks?owner=${row.user.id}&from=${weeks[i]}&to=${addDays(weeks[i], 6)}`, filters)}
                         aria-label={over ? `${label}, ${t('dashboard.over')}` : label}
                         className={`pressable inline-flex min-h-11 min-w-14 flex-col items-center justify-center rounded-xl px-2 leading-tight ${over ? 'bg-attn-bg font-bold text-attn ring-1 ring-inset ring-attn/40' : 'bg-fill text-ink'}`}
                       >

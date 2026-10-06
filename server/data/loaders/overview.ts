@@ -1,5 +1,5 @@
 import type { Event, Task } from '../../../src/api/contract/entities';
-import { teamFilter } from '../../../src/api/pause';
+import { peopleFilter, teamFilter } from '../../../src/api/pause';
 import { can, projectRoleOf } from '../../../src/api/permissions';
 import { commentCountKey, fileCountKey } from '../../../src/api/store';
 import { normalizeForSearch } from '../../../src/lib/text';
@@ -57,9 +57,9 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
  */
 export async function tasksList(L: Load, input: Input): Promise<void> {
   const office = officeState(L);
-  const inTeam = teamFilter(office, str(input.teamId));
+  const inFilters = peopleFilter(office, { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId) });
   const ids = Object.values(L.office.projects)
-    .filter((p) => (input.activeProjectsOnly === false || p.status === 'active') && inTeam(p) && (!input.projectId || p.id === input.projectId))
+    .filter((p) => (input.activeProjectsOnly === false || p.status === 'active') && inFilters(p) && (!input.projectId || p.id === input.projectId))
     .map((p) => p.id);
   const person = str(input.ownerId) ?? (input.filter === 'mine' ? L.authority?.id : undefined);
   const where: Cond[] = [{ col: 'project_id', in: ids }];

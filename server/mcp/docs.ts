@@ -64,7 +64,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'deadlines.list': {
     title: 'List deadlines',
-    description: 'Lists the deadlines of all projects that you may see, in date order. Filters: from and to (YYYY-MM-DD), project status, teamId. Each line names its project and stage.',
+    description: 'Lists the deadlines of all projects that you may see, in date order. Filters: from and to (YYYY-MM-DD), project status, and the project filters of dashboard.get: leaderId, clientId, teamId. Each line names its project and stage.',
   },
   'deadlines.update': {
     title: 'Change a deadline',
@@ -140,7 +140,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead), status, due, created and done date ranges, includeDone, activeProjectsOnly, teamId. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
   },
   'tasks.move': {
     title: 'Move a task',

@@ -10,26 +10,39 @@ import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay } from '../../lib/dates';
-import { dayParam, oneOf, teamParam } from '../../lib/params';
+import { clientName } from '../../lib/clientName';
+import { clientParam, dayParam, oneOf, teamParam, userParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { projectKey } from '../../lib/projectCode';
 
 const FILTERS = ['all', 'overdue', 'flagged'] as const;
-const USER_ID = /^usr_\d{3,}$/;
 
 /**
- * The office team in the link. The Dashboard sends it, so the list holds the tasks it counted, and the subtitle names the team
- * (audit 2026-10-03, V-37a).
+ * The Dashboard filters in the link: the office team, the leader and the client. The Dashboard sends them, so the list holds the
+ * tasks it counted, and the subtitle names each one (audit 2026-10-03, V-37a; owner, 2026-10-06, item 3).
  */
-function useTeam(): { teamId?: string; teamText: string } {
+function useScope(): { teamId?: string; leaderId?: string; clientId?: string; scopeText: string } {
   const { t } = useTranslation();
+  const lang = useLang();
+  const nameOf = usePersonName();
   const [params] = useSearchParams();
   const teamId = teamParam(params.get('team'));
+  const leaderId = userParam(params.get('leader'));
+  const clientId = clientParam(params.get('client'));
   const teams = useCall('teams.list', {}, { enabled: teamId !== undefined });
-  const name = teams.data?.find((item) => item.id === teamId)?.name;
-  return { teamId, teamText: name ? t('taskList.team', { name }) : '' };
+  const users = useCall('users.list', { includeInactive: true }, { enabled: leaderId !== undefined });
+  const clients = useCall('clients.list', {}, { enabled: clientId !== undefined });
+  const team = teams.data?.find((item) => item.id === teamId);
+  const leader = users.data?.find((user) => user.id === leaderId);
+  const client = clients.data?.find((item) => item.id === clientId);
+  const scopeText = [
+    team ? t('taskList.team', { name: team.name }) : '',
+    leader ? t('taskList.leader', { name: nameOf(leader) }) : '',
+    client ? t('taskList.client', { name: clientName(client, lang) }) : '',
+  ].filter(Boolean).join(' · ');
+  return { teamId, leaderId, clientId, scopeText };
 }
 
 function Subtitle({ text }: { text: string }) {
@@ -45,14 +58,14 @@ function BackToDashboard() {
 function DeadlineList({ from, to }: { from?: string; to?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { teamId, teamText } = useTeam();
-  const deadlines = useCall('deadlines.list', { from, to, teamId });
+  const { teamId, leaderId, clientId, scopeText } = useScope();
+  const deadlines = useCall('deadlines.list', { from, to, teamId, leaderId, clientId });
   const rows = deadlines.data ?? [];
   const range = from && to ? t('taskList.dateRange', { from: formatDay(from, lang), to: formatDay(to, lang) }) : '';
   return (
     <>
       <ScreenTitle title={t('taskList.deadlinesTitle')} />
-      <Subtitle text={[teamText, range].filter(Boolean).join(' · ')} />
+      <Subtitle text={[scopeText, range].filter(Boolean).join(' · ')} />
       {deadlines.error && <LoadFailed error={deadlines.error} onRetry={() => void deadlines.refetch()} />}
       {/* The list draws only with data, so a failed or loading list shows no empty panel; an empty list says where to go (audit PER-18). */}
       {deadlines.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.emptyDeadlines')} action={<BackToDashboard />} />}
@@ -80,20 +93,19 @@ function TaskResults() {
   const nameOf = usePersonName();
   const [params, setParams] = useSearchParams();
   const filter = oneOf(params.get('filter'), FILTERS, 'all');
-  const owner = params.get('owner') ?? '';
-  const ownerId = USER_ID.test(owner) ? owner : undefined;
+  const ownerId = userParam(params.get('owner'));
   const from = dayParam(params.get('from'));
   const to = dayParam(params.get('to'));
   const createdFrom = dayParam(params.get('createdFrom'));
   const createdTo = dayParam(params.get('createdTo'));
   const doneFrom = dayParam(params.get('doneFrom'));
   const doneTo = dayParam(params.get('doneTo'));
-  const { teamId, teamText } = useTeam();
+  const { teamId, leaderId, clientId, scopeText } = useScope();
   const users = useCall('users.list', { includeInactive: true });
   // One session.get for the whole list. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   const tasks = useCall('tasks.list', {
-    filter, ownerId, teamId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
+    filter, ownerId, teamId, leaderId, clientId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   const open = (row: TaskRow, thread = false) => setParams((current) => {
@@ -116,7 +128,7 @@ function TaskResults() {
     : filter === 'flagged' ? t('taskList.flagged')
       : person ? t('taskList.forPerson', { name: nameOf(person) }) : t('taskList.title');
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
-  const subtitle = [teamText, range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
+  const subtitle = [scopeText, range('taskList.dueRange', from, to), range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');
   const rows = tasks.data ?? [];
   const taskId = params.get('task');

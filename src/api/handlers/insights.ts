@@ -6,7 +6,7 @@ import {
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
-import { pauseKindOf, staleDaysOf, teamFilter } from '../pause';
+import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
@@ -69,9 +69,8 @@ export const dashboardGet = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority: actor } = ctx;
-    const inTeam = teamFilter(state, input.teamId);
-    // The people filters apply to every number.
-    const inFilters = (p: Project) => (!input.leaderId || p.leaderId === input.leaderId) && (!input.clientId || p.clientId === input.clientId) && inTeam(p);
+    // The people filters apply to every number, and the lists that the numbers open take the same filters (owner, 2026-10-06).
+    const inFilters = peopleFilter(state, input);
     const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
     const active = projects.filter((p) => p.status === 'active');
     const inScope = new Set(projects.map((p) => p.id));

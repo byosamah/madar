@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { useLang } from '../../app/lang';
 import { addDays, formatDay, formatNumber } from '../../lib/dates';
-import { withTeam, type DashboardData } from './Tiles';
+import { withFilters, type DashboardData, type DashboardFilters } from './Tiles';
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
@@ -36,7 +36,7 @@ function BarRow({ to, label, value, max, detail }: { to: string; label: string; 
   );
 }
 
-export function PerStage({ view, teamId }: { view: DashboardData; teamId?: string }) {
+export function PerStage({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();
   const rows = view.charts.projectsPerStage;
@@ -44,7 +44,7 @@ export function PerStage({ view, teamId }: { view: DashboardData; teamId?: strin
   return (
     <Card title={t('dashboard.charts.perStage')}>
       {rows.length === 0 ? <NoData /> : (
-        <ul>{rows.map((row) => <BarRow key={row.stage} to={withTeam(`/projects?stage=${encodeURIComponent(row.stage)}`, teamId)} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
+        <ul>{rows.map((row) => <BarRow key={row.stage} to={withFilters(`/projects?stage=${encodeURIComponent(row.stage)}`, filters)} label={row.stage} value={row.count} max={max} detail={formatNumber(row.count, lang)} />)}</ul>
       )}
     </Card>
   );
@@ -61,7 +61,7 @@ const HEALTH = [
   { key: 'late', text: 'text-late', to: '/projects?health=late' },
 ] as const;
 
-export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: string }) {
+export function HealthMix({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();
   const mix = view.charts.healthMix;
@@ -72,7 +72,7 @@ export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: stri
         <ul className="grid grid-cols-3 gap-2">
           {HEALTH.map((item) => (
             <li key={item.key}>
-              <Link to={withTeam(item.to, teamId)} className="pressable flex h-full min-h-20 flex-col justify-start gap-1 rounded-2xl bg-fill/60 px-4 py-3 hover:bg-fill">
+              <Link to={withFilters(item.to, filters)} className="pressable flex h-full min-h-20 flex-col justify-start gap-1 rounded-2xl bg-fill/60 px-4 py-3 hover:bg-fill">
                 <span className={`tabular text-title-2 font-bold ${item.text}`}>{formatNumber(mix[item.key], lang)}</span>
                 <span className="text-footnote font-medium text-ink-2">{t(`health.${item.key}`)}</span>
               </Link>
@@ -84,14 +84,14 @@ export function HealthMix({ view, teamId }: { view: DashboardData; teamId?: stri
   );
 }
 
-export function Throughput({ view, teamId }: { view: DashboardData; teamId?: string }) {
+export function Throughput({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
   const lang = useLang();
   const navigate = useNavigate();
   const rows = view.charts.throughput.map((week) => ({ ...week, label: formatDay(week.weekStart, lang), end: addDays(week.weekStart, 6) }));
   // The weeks count the tasks of the team's projects, so the Task list gets the team too (audit 2026-10-03, V-37b).
-  const doneLink = (row: (typeof rows)[number]) => withTeam(`/tasks?doneFrom=${row.weekStart}&doneTo=${row.end}`, teamId);
-  const createdLink = (row: (typeof rows)[number]) => withTeam(`/tasks?createdFrom=${row.weekStart}&createdTo=${row.end}`, teamId);
+  const doneLink = (row: (typeof rows)[number]) => withFilters(`/tasks?doneFrom=${row.weekStart}&doneTo=${row.end}`, filters);
+  const createdLink = (row: (typeof rows)[number]) => withFilters(`/tasks?createdFrom=${row.weekStart}&createdTo=${row.end}`, filters);
   const rtl = lang === 'ar';
   return (
     <Card title={t('dashboard.charts.throughput')}>

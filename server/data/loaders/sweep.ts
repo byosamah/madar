@@ -37,6 +37,15 @@ export function readSweep(office: State): SweepCall[] {
       ['session.get', {}, actor],
     );
   }
+  // The Leader and Client filters of the lists that the Dashboard opens (owner, 2026-10-06).
+  const led = Object.values(office.projects).find((p) => p.status === 'active' && p.leaderId !== null && p.clientId !== null);
+  if (led) {
+    calls.push(
+      ['tasks.list', { filter: 'overdue', leaderId: led.leaderId, clientId: led.clientId }, ADMIN],
+      ['tasks.list', { leaderId: led.leaderId, teamId: 'tm_001' }, ADMIN],
+      ['deadlines.list', { leaderId: led.leaderId, clientId: led.clientId }, ADMIN],
+    );
+  }
   for (const project of Object.values(office.projects)) {
     const id = project.id;
     calls.push(['projects.get', { id }, ADMIN]);

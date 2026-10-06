@@ -2,8 +2,15 @@ import type { CallOutput } from '../../api/calls';
 
 export type DashboardData = CallOutput<'dashboard.get'>;
 
+/** The Leader, Client and Team filters of the Dashboard. Each number counts only the projects that pass them. */
+export type DashboardFilters = { leaderId?: string; clientId?: string; teamId?: string };
+
 /**
- * A Projects link that keeps the Team filter of the Dashboard, so the list shows the projects that the number counts
- * (audit 2026-10-03, DSH-7). The Projects screen has no leader or client filter. Every Projects link has a query already.
+ * A link to a list that keeps the Leader, Client and Team filters of the Dashboard, so the list shows what the number counts
+ * (audit 2026-10-03, DSH-7; owner, 2026-10-06, item 3). Every link to a list has a query already.
  */
-export const withTeam = (to: string, teamId: string | undefined) => (teamId ? `${to}&team=${teamId}` : to);
+export function withFilters(to: string, filters: DashboardFilters): string {
+  const parts = ([['leader', filters.leaderId], ['client', filters.clientId], ['team', filters.teamId]] as const)
+    .flatMap(([key, value]) => (value ? [`${key}=${value}`] : []));
+  return parts.length > 0 ? `${to}&${parts.join('&')}` : to;
+}

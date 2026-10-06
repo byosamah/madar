@@ -33,3 +33,12 @@ export function teamFilter(state: State, teamId: string | undefined): (project: 
   const team = teamsOf(state)[teamId];
   return (project) => team !== undefined && projectTouchesTeam(state, project, team.memberIds);
 }
+
+/**
+ * The project test for the Leader, Client and Team filters of the Dashboard. The lists that the Dashboard opens take the same
+ * filters, so a number and its list agree (owner, 2026-10-06). A leader, a client or a team that does not exist matches nothing.
+ */
+export function peopleFilter(state: State, filters: { leaderId?: string; clientId?: string; teamId?: string }): (project: Project) => boolean {
+  const inTeam = teamFilter(state, filters.teamId);
+  return (project) => (!filters.leaderId || project.leaderId === filters.leaderId) && (!filters.clientId || project.clientId === filters.clientId) && inTeam(project);
+}

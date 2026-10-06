@@ -13,7 +13,7 @@ import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { oneOf, teamParam } from '../../lib/params';
 import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
-import { withTeam } from './Tiles';
+import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
 import { StaleProjects } from './StaleProjects';
 import { Workload } from './Workload';
@@ -113,7 +113,7 @@ export function DashboardScreen() {
       )}
       {view && (
         <>
-          <Numbers view={view} teamId={teamId} />
+          <Numbers view={view} filters={filters} />
           <Tabs
             label={t('dashboard.sections')}
             idPrefix="dash-section"
@@ -128,17 +128,17 @@ export function DashboardScreen() {
                 <div className="min-w-0 empty:hidden lg:col-span-2"><StaleProjects view={view} /></div>
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
-                    { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withTeam(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, teamId) },
-                    { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: withTeam('/projects?status=active', teamId) },
+                    { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withFilters(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, filters) },
+                    { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: withFilters('/projects?status=active', filters) },
                   ]} />
                 </div>
-                <PerStage view={view} teamId={teamId} />
-                <HealthMix view={view} teamId={teamId} />
-                <div className="lg:col-span-2"><Throughput view={view} teamId={teamId} /></div>
+                <PerStage view={view} filters={filters} />
+                <HealthMix view={view} filters={filters} />
+                <div className="lg:col-span-2"><Throughput view={view} filters={filters} /></div>
               </div>
             )}
             {section === 'people' && (
-              <Workload view={view} teamId={teamId} />
+              <Workload view={view} filters={filters} />
             )}
             {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}
             {section === 'schedule' && scheduled.data && <OfficeSchedule view={scheduled.data} />}

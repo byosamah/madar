@@ -7,12 +7,15 @@ import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
 import { rememberProjectsList } from '../../app/lastList';
 import { errorMessage } from '../../app/errors';
+import { useLang } from '../../app/lang';
+import { useByPersonName, usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { oneOf, teamParam } from '../../lib/params';
+import { clientName } from '../../lib/clientName';
+import { clientParam, oneOf, teamParam, userParam } from '../../lib/params';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
 
@@ -26,6 +29,9 @@ const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 /** Every project as one calm list, with one filter button (redesign spec 3.3). */
 export function ProjectsScreen() {
   const { t } = useTranslation();
+  const lang = useLang();
+  const nameOf = usePersonName();
+  const byName = useByPersonName();
   const [params, setParams] = useSearchParams();
   const search = params.toString();
   useEffect(() => rememberProjectsList(search ? `?${search}` : ''), [search]);
@@ -34,6 +40,9 @@ export function ProjectsScreen() {
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
   const teamId = teamParam(params.get('team'));
+  // The Dashboard opens this list with its Leader and Client filters too, so the list holds the projects it counted (owner, 2026-10-06).
+  const leaderId = userParam(params.get('leader'));
+  const clientId = clientParam(params.get('client'));
   const healthParam = params.get('health');
   const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
@@ -57,6 +66,9 @@ export function ProjectsScreen() {
   const [creating, setCreating] = useState(false);
   const settings = useCall('settings.get', {});
   const teams = useCall('teams.list', {});
+  const users = useCall('users.list', {});
+  const clients = useCall('clients.list', {});
+  const people = (users.data ?? []).filter((user) => user.kind === 'human').sort(byName);
   const list = useCall('projects.list', {
     status,
     sort,
@@ -64,8 +76,11 @@ export function ProjectsScreen() {
     stageName,
     health,
     teamId,
+    leaderId,
+    clientId,
   });
-  const active = [filterParam !== 'all', stageName, status !== 'active', sort !== 'updated', teamId].filter(Boolean).length;
+  const active = [filterParam !== 'all', stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId].filter(Boolean).length;
+  const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
   const showAll = () => setParams({ status: 'all' }, { replace: true });
 
   let body = null;
@@ -118,6 +133,20 @@ export function ProjectsScreen() {
             <select value={teamId ?? ''} onChange={(event) => update((next) => (event.target.value ? next.set('team', event.target.value) : next.delete('team')))} className={SELECT}>
               <option value="">{t('projects.anyTeam')}</option>
               {(teams.data ?? []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            </select>
+          </label>
+          <label className={LEGEND}>
+            {t('projects.leader')}
+            <select value={leaderId ?? ''} onChange={(event) => setParam('leader', event.target.value)} className={SELECT}>
+              <option value="">{t('projects.anyLeader')}</option>
+              {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
+            </select>
+          </label>
+          <label className={LEGEND}>
+            {t('projects.client')}
+            <select value={clientId ?? ''} onChange={(event) => setParam('client', event.target.value)} className={SELECT}>
+              <option value="">{t('projects.anyClient')}</option>
+              {(clients.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
             </select>
           </label>
           <label className={LEGEND}>

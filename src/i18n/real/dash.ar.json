@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "leader": "القائد",
+    "anyLeader": "أي قائد",
+    "client": "العميل",
+    "anyClient": "أي عميل"
+  },
+  "taskList": {
+    "leader": "القائد: {{name}}",
+    "client": "العميل: {{name}}"
+  }
+}
