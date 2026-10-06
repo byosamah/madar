@@ -386,7 +386,7 @@ function fullName(task: TestContext['task']): string {
 
 if (process.env.MADAR_DB === '1') {
   // A call on the database takes far longer than in memory, and the sample-office tests make many. The speed gate of TM 4.1
-  // (120 s, 25 ms a call) is in the global teardown (speedGate); this limit only keeps a slow machine from failing a test that is right.
+  // (180 s, 25 ms a call) is in the global teardown (speedGate); this limit only keeps a slow machine from failing a test that is right.
   vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
   const worker = new Worker();
   const gate = createGate();

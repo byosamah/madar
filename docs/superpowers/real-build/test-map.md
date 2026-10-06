@@ -148,7 +148,7 @@ There is no Postgres on this Mac yet, so these are estimates. Step 2 of the buil
 | `supabase start` with Postgres only, image download included | | 30 to 60 s |
 | **Whole db job** with `npm ci` and Vitest start | | **about 2 to 3 minutes** |
 
-Gate: the db job fails when the db-mode tests take more than 120 seconds, or when a call takes more than 25 ms on average. This catches a slow load step early.
+Gate: the db job fails when the db-mode tests take more than 180 seconds (120 until 2026-10-06: the run time grows with the tests, and the shared CI machines vary by about 20%), or when a call takes more than 25 ms on average. The call average catches a slow load step early.
 
 The same mirror for the screen tests would write the 942-record office before each of 675 tests and add 12,945 calls. That is 2 to 9 more minutes, for tests that check the screen, not the store. They stay in memory.
 
