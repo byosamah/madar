@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_ATTACHMENTS } from '../../api/contract/entities';
 import type { Attachment } from '../../api/contract/views';
-import { errorMessage } from '../../app/errors';
 import { downloadFile, isRemote, tooLargeText, useFileLimit } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { useRuntime } from '../../app/runtime';
@@ -125,7 +124,7 @@ export function FileChips({ files }: { files: Attachment[] }) {
             <button
               type="button"
               aria-label={t('attachments.download', { name: file.name })}
-              onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }))}
+              onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error))}
               className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
             >
               <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />

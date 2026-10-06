@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import type { FileView } from '../../../api/contract/views';
-import { errorMessage } from '../../../app/errors';
 import { downloadFile, isRemote, useFileUrl, usePictureTest } from '../../../app/files';
 import { useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -31,7 +30,7 @@ export function PreviewSheet({ views, index, onIndex, onClose }: { views: FileVi
   const url = useFileUrl(shown ? view.file.id : null, view.latest.letter);
   const download = () => {
     downloadFile(runtime.api, view.file.id, view.latest.letter, { remote: isRemote(runtime) })
-      .catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+      .catch((error: unknown) => toast.failed(error));
   };
   let body = <p className="text-subheadline text-label-2">{t('files.noPreview')}</p>;
   if (refusedPicture) {

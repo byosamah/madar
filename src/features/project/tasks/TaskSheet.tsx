@@ -8,7 +8,6 @@ import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/enti
 import type { FileView, ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { ApiError } from '../../../api/errors';
 import { useUndoable } from '../../../app/actions';
-import { errorMessage } from '../../../app/errors';
 import { downloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
@@ -139,7 +138,7 @@ function TaskFiles({ views }: { views: FileView[] }) {
   const [preview, setPreview] = useState<FileView | null>(null);
   const open = (view: FileView) => {
     if (canPreview(view.latest.mimeType)) setPreview(view);
-    else downloadFile(api, view.file.id).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+    else downloadFile(api, view.file.id).catch((error: unknown) => toast.failed(error));
   };
   return (
     <section className="flex flex-col gap-1">
@@ -219,7 +218,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail;
       // A failed save with a date reason opens the reason sheet again with the typed reason (audit 2026-10-03, BRW-6). The toast
       // still says why, but with no Retry: the sheet's Save dates is the one place to try again (audit 2026-10-03, V-14).
       if (dates.retry(input, (next) => update.mutate(next))) {
-        toast.show({ tone: 'error', message: errorMessage(error, t) });
+        toast.failed(error);
         return true;
       }
       // The title goes back to the saved one. A description keeps the typed text, marked "Not saved", so no work is lost (audit 2026-10-03, BRW-6).

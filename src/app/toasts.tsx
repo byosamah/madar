@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { canRetry, errorMessage } from './errors';
 
 export type ToastInput = {
   message: string;
@@ -139,8 +141,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useToast(): { show: (toast: ToastInput) => void } {
+export type Toasts = {
+  show: (toast: ToastInput) => void;
+  /** A change that Undo takes back: the message and an Undo button. Ctrl+Z or Cmd+Z runs the newest one too. */
+  undo: (message: string, run: () => void) => void;
+  /**
+   * A failed call: the text of the error, or the screen's own text when it says more (the name of a file). Retry shows only
+   * when the screen gives "retry" and the same call may work again (canRetry).
+   */
+  failed: (error: unknown, options?: { retry?: () => void; message?: string }) => void;
+};
+
+/** The toasts, with the two kinds that most screens show written once (cleanup 2026-10-06). */
+export function useToast(): Toasts {
   const context = useContext(ToastContext);
   if (!context) throw new Error('ToastProvider is missing.');
-  return context;
+  const { t } = useTranslation();
+  const { show } = context;
+  return useMemo(() => ({
+    show,
+    undo: (message, run) => show({ message, action: { label: t('common.undo'), run, isUndo: true } }),
+    failed: (error, { retry, message } = {}) => show({
+      tone: 'error',
+      message: message ?? errorMessage(error, t),
+      action: retry && canRetry(error) ? { label: t('common.retry'), run: retry, isUndo: false } : undefined,
+    }),
+  }), [show, t]);
 }

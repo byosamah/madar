@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import type { UserCard } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
-import { errorMessage } from '../../../app/errors';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -78,7 +77,7 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
       try {
         fileIds = await attachments.upload({ projectId }, { correlationId: newStoryId() });
       } catch (error) {
-        toast.show({ tone: 'error', message: errorMessage(error, t) });
+        toast.failed(error);
         return;
       } finally {
         setUploading(false);

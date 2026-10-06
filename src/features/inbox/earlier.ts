@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { MessageView } from '../../api/contract/views';
-import { errorMessage } from '../../app/errors';
 import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 
@@ -20,7 +18,6 @@ export const EARLIER_PAGE = 200;
 export function useEarlierMessages(conversationId: string, newest: MessageView[] | undefined) {
   const { api } = useRuntime();
   const toast = useToast();
-  const { t } = useTranslation();
   const [older, setOlder] = useState<MessageView[]>([]);
   const [ended, setEnded] = useState(false);
   const [pending, setPending] = useState(false);
@@ -49,7 +46,7 @@ export function useEarlierMessages(conversationId: string, newest: MessageView[]
       if (answer.messages.length < EARLIER_PAGE) setEnded(true);
       return true;
     } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
+      toast.failed(error);
       return false;
     } finally {
       setPending(false);

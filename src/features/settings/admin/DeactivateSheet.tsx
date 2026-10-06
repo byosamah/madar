@@ -6,7 +6,6 @@ import type { ProjectSummary, TaskRow } from '../../../api/contract/views';
 import type { MadarApi } from '../../../api/calls';
 import { useUndoable } from '../../../app/actions';
 import { usePersonName } from '../../../app/personName';
-import { canRetry, errorMessage } from '../../../app/errors';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -51,11 +50,7 @@ export function useDeactivate(): { ask: (user: User) => void; sheet: ReactNode }
       if (work.projects.length === 0 && work.tasks.length === 0) deactivate.mutate({ id: user.id });
       else setWarning({ user, work });
     }, (error: unknown) => {
-      toast.show({
-        tone: 'error',
-        message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => ask(user), isUndo: false } : undefined,
-      });
+      toast.failed(error, { retry: () => ask(user) });
     });
   };
   const sheet = warning && (

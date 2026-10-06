@@ -6,7 +6,6 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
-import { canRetry, errorMessage } from '../../../app/errors';
 import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
@@ -44,7 +43,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
   const download = (letter?: string) => {
-    downloadFile(api, file.id, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.show({ tone: 'error', message: errorMessage(error, t) }));
+    downloadFile(api, file.id, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
   };
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
@@ -136,11 +135,7 @@ export function FilesTab({ detail }: TabProps) {
       setReceived(false);
     } catch (error) {
       const rest = queue.slice(sent);
-      toast.show({
-        tone: 'error',
-        message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadQueue(rest, meta), isUndo: false } : undefined,
-      });
+      toast.failed(error, { retry: () => void uploadQueue(rest, meta), message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang) });
     } finally {
       setUploading(false);
     }

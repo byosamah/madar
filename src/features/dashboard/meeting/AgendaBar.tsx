@@ -57,7 +57,7 @@ export function AgendaBar({ session, name, onOpenSummary }: { session: MeetingSe
     if (!currentId) return;
     const wasDiscussed = session.discussed.has(currentId);
     session.done();
-    toast.show({ message: t('dashboard.meeting.discussedToast', { name }), action: { label: t('common.undo'), run: () => session.undoDone(currentId, wasDiscussed), isUndo: true } });
+    toast.undo(t('dashboard.meeting.discussedToast', { name }), () => session.undoDone(currentId, wasDiscussed));
   };
   // Skip moved the project quietly to the end, so a wrong press looked like a lost project. The toast says where it went
   // and Undo puts it back in its place (audit 2026-10-03, F-21).
@@ -66,7 +66,7 @@ export function AgendaBar({ session, name, onOpenSummary }: { session: MeetingSe
     const index = session.meetingIds.indexOf(currentId);
     const wasSkipped = session.skipped.has(currentId);
     session.skip();
-    toast.show({ message: t('dashboard.meeting.skippedToast', { name }), action: { label: t('common.undo'), run: () => session.undoSkip(currentId, index, wasSkipped), isUndo: true } });
+    toast.undo(t('dashboard.meeting.skippedToast', { name }), () => session.undoSkip(currentId, index, wasSkipped));
   };
   return (
     <>

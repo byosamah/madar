@@ -2,7 +2,6 @@ import { projectKey } from '../../lib/projectCode';
 import { useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import { canRetry, errorMessage } from '../../app/errors';
 import { tooLargeText, uploadErrorMessage, useFileLimit } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { useCall, useRuntime } from '../../app/runtime';
@@ -60,11 +59,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     try {
       await api.call('files.upload', { projectId, name: file.name, blob: file, stageId, asCover: true });
     } catch (error) {
-      toast.show({
-        tone: 'error',
-        message: uploadErrorMessage(error, file.name, t, lang),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => void uploadCover(projectId, stageId, file), isUndo: false } : undefined,
-      });
+      toast.failed(error, { retry: () => void uploadCover(projectId, stageId, file), message: uploadErrorMessage(error, file.name, t, lang) });
     }
   };
 
@@ -105,7 +100,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       if (cover && cover.size > limit) toast.show({ tone: 'error', message: tooLargeText(cover.name, limit, t, lang) });
       else if (cover) void uploadCover(detail.project.id, detail.currentStage.id, cover);
     } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
+      toast.failed(error);
     } finally {
       setSaving(false);
     }

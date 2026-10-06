@@ -1,9 +1,7 @@
 import { useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput } from '../api/calls';
 import type { CallResult } from '../api/client';
-import { canRetry, errorMessage } from './errors';
 import { useAttemptKeys, useRetryableMutate, useRuntime } from './runtime';
 import { useToast } from './toasts';
 
@@ -29,7 +27,6 @@ export function useUndoable<N extends CallName>(
 ) {
   const { api } = useRuntime();
   const toast = useToast();
-  const { t } = useTranslation();
   const latest = useRef(options);
   latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
@@ -43,26 +40,13 @@ export function useUndoable<N extends CallName>(
       latest.current.onSuccess?.(output);
       // An action that changed nothing gets no toast: there is nothing to report and nothing to undo.
       if (!changed) return;
-      toast.show({
-        message: latest.current.message(output),
-        action: {
-          label: t('common.undo'),
-          isUndo: true,
-          run: () => {
-            api.call('events.undoStory', { correlationId: storyId }).then(() => latest.current.onUndo?.(), (error: unknown) => {
-              toast.show({ tone: 'error', message: errorMessage(error, t) });
-            });
-          },
-        },
+      toast.undo(latest.current.message(output), () => {
+        api.call('events.undoStory', { correlationId: storyId }).then(() => latest.current.onUndo?.(), (error: unknown) => toast.failed(error));
       });
     },
     onError: (error, input) => {
       if (latest.current.onRefused?.(error, input)) return;
-      toast.show({
-        tone: 'error',
-        message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input), isUndo: false } : undefined,
-      });
+      toast.failed(error, { retry: () => retry.current(input) });
     },
   });
   const steps = useRetryableMutate(mutation.mutate, attempts);

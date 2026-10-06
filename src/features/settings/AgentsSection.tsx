@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { Language } from '../../api/contract/entities';
-import { errorMessage } from '../../app/errors';
 import { REMOTE } from '../../app/mode';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -92,7 +91,7 @@ function Agents() {
     try {
       if (item.agentId !== null) await api.call('agents.remove', { agentId: item.agentId });
     } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
+      toast.failed(error);
       setBusy(null);
       return;
     }

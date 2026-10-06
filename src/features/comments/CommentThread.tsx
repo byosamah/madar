@@ -5,7 +5,6 @@ import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';
 import { useDraftOwner, useDraftText } from '../../app/drafts';
-import { errorMessage } from '../../app/errors';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -165,7 +164,7 @@ function CommentThreadFor({
       const fileIds = await attachments.upload({ projectId, stageId, taskId: targetType === 'task' ? targetId : null }, { correlationId: newStoryId() });
       create.mutate({ targetType, targetId, body: text, fileIds });
     } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
+      toast.failed(error);
     } finally {
       setUploading(false);
     }

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { newStoryId } from '../../../app/actions';
-import { errorMessage } from '../../../app/errors';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -52,7 +51,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
       attachments.clear();
       toast.show({ message: t('overview.posted') });
     } catch (error) {
-      toast.show({ tone: 'error', message: errorMessage(error, t) });
+      toast.failed(error);
     } finally {
       setPosting(false);
     }

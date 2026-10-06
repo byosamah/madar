@@ -143,10 +143,9 @@ export function NotificationsScreen() {
       const undo = () => {
         for (let start = 0; start < ids.length; start += 200) markUnread.mutate({ ids: ids.slice(start, start + 200) });
       };
-      toast.show({
-        message: counted(t, 'inbox.markedRead', ids.length),
-        action: ids.length > 0 ? { label: t('common.undo'), run: undo, isUndo: true } : undefined,
-      });
+      const message = counted(t, 'inbox.markedRead', ids.length);
+      if (ids.length > 0) toast.undo(message, undo);
+      else toast.show({ message });
     },
   });
   const today = todayISO();

@@ -1,11 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import { AttemptKeys } from '../api/remote/keys';
 import type { Store } from '../api/store';
 import type { AuthPort } from './auth';
-import { canRetry, errorMessage } from './errors';
 import { READS } from './readMap';
 import { connectChanges, type ChangeSource } from './signals';
 import { useToast } from './toasts';
@@ -120,7 +118,6 @@ export function useAction<N extends CallName>(
 ) {
   const { api } = useRuntime();
   const toast = useToast();
-  const { t } = useTranslation();
   const latest = useRef(options);
   latest.current = options;
   const retry = useRef<(input: CallInput<N>) => void>(() => undefined);
@@ -131,11 +128,7 @@ export function useAction<N extends CallName>(
     onSuccess: (output) => options.onSuccess?.(output),
     onError: (error, input) => {
       if (latest.current.onRefused?.(error, input)) return;
-      toast.show({
-        tone: 'error',
-        message: errorMessage(error, t),
-        action: canRetry(error) ? { label: t('common.retry'), run: () => retry.current(input), isUndo: false } : undefined,
-      });
+      toast.failed(error, { retry: () => retry.current(input) });
     },
   });
   const steps = useRetryableMutate(mutation.mutate, attempts);

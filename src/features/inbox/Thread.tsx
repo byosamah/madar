@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
-import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useToast } from '../../app/toasts';
@@ -192,7 +191,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
       try {
         fileIds = await attachments.upload(upload, { correlationId: newStoryId() });
       } catch (error) {
-        toast.show({ tone: 'error', message: errorMessage(error, t) });
+        toast.failed(error);
         return;
       } finally {
         setUploading(false);
