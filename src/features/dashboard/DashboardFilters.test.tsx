@@ -84,12 +84,22 @@ describe('the Area in design row', () => {
     expect(await tile(/Area in design/)).toHaveTextContent(/m² · 2 projects have no area/);
   });
 
-  // The label keeps one line on a phone; the number and the note wrap under each other at the end instead (2026-10-06).
-  it('keeps the label on one line and lets the number and the note wrap', async () => {
+  // The label keeps one line on a phone; the number and the note go under each other at the end instead (2026-10-06).
+  it('keeps the label on one line, and puts the note under the number on a phone', async () => {
     await renderApp('/dashboard', noArea);
     const row = await tile(/Area in design/);
     expect(row.firstElementChild).toHaveClass('shrink-0');
-    expect(row.children[1]).toHaveClass('flex-wrap', 'min-w-0', 'flex-1');
+    expect(row.children[1]).toHaveClass('min-w-0', 'flex-1', 'flex-col', 'sm:flex-row');
+  });
+
+  // A note on its own line starts with no lone dot; beside the number on a desk the dot separates them (review, 2026-10-06).
+  it('shows the separator dot only beside the number', async () => {
+    await renderApp('/dashboard', noArea);
+    const note = within(await tile(/Area in design/)).getByText(/2 projects have no area/);
+    const dot = note.querySelector('[aria-hidden]');
+    expect(dot?.textContent?.trim()).toBe('·');
+    expect(dot).toHaveClass('hidden', 'sm:inline');
+    expect(note.textContent?.replace(dot?.textContent ?? '', '').trim()).toBe('2 projects have no area');
   });
 
   it('stays as before with no gap', async () => {

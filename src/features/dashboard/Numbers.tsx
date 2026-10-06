@@ -51,11 +51,16 @@ export function NumberRows({ rows }: { rows: { key: string; label: string; value
       {rows.map((row) => (
         <li key={row.key}>
           <Link to={row.to} className="pressable flex min-h-14 items-center gap-3 px-5 py-2 hover:bg-fill/50">
-            {/* The label keeps its line; on a phone the number and its note wrap under each other at the end. */}
+            {/* The label keeps its line. On a phone the note goes under the number; on a desk it sits beside it, after a dot. */}
             <span className="shrink-0 text-subheadline font-medium text-ink">{row.label}</span>
-            <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-end gap-x-1.5 text-end">
+            <span className="flex min-w-0 flex-1 flex-col items-end text-end sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-end sm:gap-x-1.5">
               <span className="tabular text-headline text-ink">{row.value}</span>
-              {row.note && <span className="text-footnote text-ink-2">{` · ${row.note}`}</span>}
+              {row.note && (
+                <span className="text-footnote text-ink-2">
+                  {/* A note on its own line starts with no lone dot (review, 2026-10-06). */}
+                  {' '}<span aria-hidden className="hidden sm:inline">· </span>{row.note}
+                </span>
+              )}
             </span>
             <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
           </Link>
