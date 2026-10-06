@@ -1,7 +1,7 @@
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { XIcon } from './icons/animated/x';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
@@ -66,6 +66,30 @@ export const focusLost = (sheet: HTMLElement | null) => {
   return !active || active === document.body || Boolean(sheet?.contains(active));
 };
 
+/**
+ * Notes the control that has the focus when a sheet opens, and returns the step that gives the focus back when it closes
+ * (focusBack). The blocking sheet and the non-blocking panel both use it, so both follow one rule (cleanup 2026-10-06).
+ * The note is taken as the sheet opens, before the focus moves. Radix gives the focus back to a Dialog.Trigger only, and the app
+ * opens sheets from its own buttons (audit 2026-10-03, BRW-2). A run that finds the focus already in the sheet keeps the note:
+ * a field inside took the focus first (autoFocus, audit 2026-10-03, V-10), or React StrictMode ran the effects a second time
+ * (audit 2026-10-03, sheet repair).
+ */
+function useFocusReturn(open: boolean, sheet: RefObject<HTMLElement | null>): () => void {
+  // The control, and the panel or dialog that held it: a removed control has no parents left to ask.
+  const noted = useRef<{ control: HTMLElement; holder: HTMLElement | null } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && sheet.current?.contains(active)) return;
+    noted.current = active instanceof HTMLElement && active !== document.body
+      ? { control: active, holder: active.closest<HTMLElement>('[role="dialog"]') }
+      : null;
+  }, [open, sheet]);
+  return useCallback(() => {
+    if (focusLost(sheet.current)) focusBack(noted.current?.control ?? null, noted.current?.holder ?? null);
+  }, [sheet]);
+}
+
 const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 
@@ -102,16 +126,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onOpenChange);
   close.current = onOpenChange;
-  // The control that opened the panel, noted before the focus moves into it. React StrictMode runs each effect twice in
-  // development. The second run found the focus in the panel and took the panel for the opener, so Escape left the focus
-  // on the page body. A run that finds the focus in the panel now keeps the first note (audit 2026-10-03, sheet repair).
-  const opener = useRef<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    if (!open) return;
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && panel.current?.contains(active)) return;
-    opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
-  }, [open]);
+  const giveFocusBack = useFocusReturn(open, panel);
   useEffect(() => {
     if (!open) return undefined;
     // The focus moves into the panel, so Tab reaches its controls next. A control inside that took the focus keeps it.
@@ -126,9 +141,9 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      if (focusLost(panel.current) && opener.current?.isConnected) opener.current.focus();
+      giveFocusBack();
     };
-  }, [open]);
+  }, [open, giveFocusBack]);
   const away = isRtl() ? '-110%' : '110%';
   return createPortal(
     <AnimatePresence>
@@ -176,20 +191,8 @@ export function Sheet(props: SheetProps) {
   const modal = phone || blocking;
   usePanelOpen(open && modal);
   const content = useRef<HTMLDivElement>(null);
-  // The control that had the focus when the sheet opened. Radix gives the focus back to a Dialog.Trigger only, and the app
-  // opens sheets from its own buttons, so the sheet gives it back itself (audit 2026-10-03, BRW-2).
-  const returnTo = useRef<HTMLElement | null>(null);
-  // The panel or dialog that held the opener: a removed opener has no parents left to ask.
-  const returnHolder = useRef<HTMLElement | null>(null);
-  // The opener is noted as the sheet opens, before the focus moves. Radix skips onOpenAutoFocus when a field inside took the
-  // focus first (autoFocus), so it cannot note it there (audit 2026-10-03, V-10).
-  useLayoutEffect(() => {
-    if (!open || !modal) return;
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement) || active === document.body || content.current?.contains(active)) return;
-    returnTo.current = active;
-    returnHolder.current = active.closest<HTMLElement>('[role="dialog"]');
-  }, [open, modal]);
+  // Radix skips onOpenAutoFocus when a field inside took the focus first (autoFocus), so the note is taken as the sheet opens.
+  const giveFocusBack = useFocusReturn(open && modal, content);
   if (!modal) return <SidePanel {...props} />;
   // Vaul draws a strip in the colour of the sheet on the side of the screen edge, for a pull past the end. The bottom sheet keeps
   // it. A side sheet floats 12 px from the edge and has no pull, so there the strip only filled the gap beside the rounded
@@ -211,10 +214,7 @@ export function Sheet(props: SheetProps) {
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            const [opener, holder] = [returnTo.current, returnHolder.current];
-            returnTo.current = null;
-            returnHolder.current = null;
-            if (focusLost(content.current)) focusBack(opener, holder);
+            giveFocusBack();
           }}
           // A press on a toast (its Undo) is not a press outside the sheet, so the sheet stays open (audit 2026-10-03, SHL-3).
           // The toast can be gone from the page when Radix asks, so the check uses the press itself (audit 2026-10-03, V-11).

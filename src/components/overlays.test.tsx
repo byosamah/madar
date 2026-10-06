@@ -291,6 +291,30 @@ describe('overlays after the audit of 2026-10-03', () => {
     expect(screen.getByText('Open task')).toHaveFocus();
   });
 
+  // The task panel noted only its opener. When the row that opened it was gone (a task ticked done in the panel), the focus fell
+  // to the page body, and the next Tab went to Home. Both kinds of sheet now share one rule (cleanup 2026-10-06).
+  it('gives the focus to the page title when the opener of a non-blocking panel is gone, never to the body', async () => {
+    function Demo() {
+      const [open, setOpen] = useState(false);
+      return (
+        <main>
+          <h1>Corniche Office Tower</h1>
+          {!open && <button type="button" onClick={() => setOpen(true)}>Open task</button>}
+          <Sheet open={open} onOpenChange={setOpen} title="Task panel" blocking={false}>
+            <button type="button">Inside</button>
+          </Sheet>
+        </main>
+      );
+    }
+    render(<Demo />);
+    await userEvent.click(screen.getByText('Open task'));
+    await screen.findByRole('dialog', { name: 'Task panel' });
+    screen.getByText('Inside').focus();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
   function UndoInside({ run }: { run: () => void }) {
     const toast = useToast();
     return <button type="button" onClick={() => toast.show({ message: 'Deleted.', action: { label: 'Undo', run, isUndo: true } })}>Delete</button>;
