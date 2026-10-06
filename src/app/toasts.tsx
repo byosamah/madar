@@ -25,6 +25,32 @@ export const isToastPress = (event: Event | undefined): boolean => event !== und
 let nextToastId = 1;
 const STAY_MS = 5000;
 
+/**
+ * The open sheets, the blocking sheet and the side panel alike (owner, 2026-10-06). When a sheet opens, the toasts without
+ * Undo close at once: each one answered a step that the person has now moved past. A toast with Undo stays, so Undo stays in
+ * reach (its button and Ctrl+Z). While a sheet is open on a phone, the toasts show at the top of the screen, in the strip that
+ * the bottom sheet leaves free, so no toast covers a field of the sheet. A toast that comes while the sheet is open stays.
+ */
+let openSheets = 0;
+const sheetWatchers = new Set<(opened: boolean) => void>();
+
+/** Each Sheet calls it with its open state, so the toasts know when a sheet opens and closes. */
+export function useSheetToasts(open: boolean): void {
+  useEffect(() => {
+    if (!open) return undefined;
+    openSheets += 1;
+    for (const watch of sheetWatchers) watch(true);
+    return () => {
+      openSheets -= 1;
+      for (const watch of sheetWatchers) watch(false);
+    };
+  }, [open]);
+}
+
+/** The toasts sit at the bottom. While a sheet is open on a phone, they sit at the top, above the sheet. */
+const LANE = 'pointer-events-none fixed inset-x-0 bottom-24 z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6';
+const LANE_OVER_SHEET = 'max-sm:bottom-auto max-sm:top-[calc(env(safe-area-inset-top)_+_0.75rem)]';
+
 /** Inputs that take no typing. A tick box, a radio or a button has nothing for Ctrl+Z to undo. */
 const NOT_TYPED = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image', 'range', 'color', 'hidden']);
 
@@ -102,13 +128,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => {
     for (const timer of timers.current.values()) window.clearTimeout(timer.handle);
   }, []);
+  const [overSheet, setOverSheet] = useState(() => openSheets > 0);
+  useEffect(() => {
+    const watch = (opened: boolean) => {
+      setOverSheet(openSheets > 0);
+      if (!opened) return;
+      for (const toast of latest.current) if (!toast.action?.isUndo) dismiss(toast.id);
+    };
+    sheetWatchers.add(watch);
+    // A sheet that opened before this effect ran (a child's effect runs first) still moves the toasts.
+    setOverSheet(openSheets > 0);
+    return () => {
+      sheetWatchers.delete(watch);
+    };
+  }, [dismiss]);
   const value = useMemo(() => ({ show }), [show]);
   return (
     <ToastContext.Provider value={value}>
       {children}
       {/* A live region: sheets hide the rest of the page from screen readers, but never a live region, so toasts stay heard. */}
       {/* A press here never counts as a press outside an open sheet: see isToastPress (audit 2026-10-03, V-11). */}
-      <div aria-live="polite" onPointerDownCapture={(event) => toastPresses.add(event.nativeEvent)} className="pointer-events-none fixed inset-x-0 bottom-24 z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6">
+      <div data-toasts aria-live="polite" onPointerDownCapture={(event) => toastPresses.add(event.nativeEvent)} className={`${LANE} ${overSheet ? LANE_OVER_SHEET : ''}`}>
         {toasts.map((toast) => (
           <div
             key={toast.id}

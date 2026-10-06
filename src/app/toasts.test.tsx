@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../api/errors';
+import { Sheet } from '../components/Sheet';
 import { initI18n } from '../i18n';
 import { ToastProvider, useToast } from './toasts';
 
@@ -52,5 +54,72 @@ describe('the toast helpers', () => {
     await userEvent.click(screen.getByText('Upload'));
     expect(screen.getByRole('alert')).toHaveTextContent('Plan.pdf did not upload.');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+// The owner (2026-10-06, layout): after "Add", the toast "Task created. Open" stayed. The person opened the task from its row,
+// and on a phone the toast covered the Start date field of the task sheet.
+describe('toasts and an open sheet (owner, 2026-10-06, layout)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function phoneWidth() {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(max-width: 639px)', media: query, onchange: null,
+      addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+    }) as MediaQueryList);
+  }
+
+  function Screen() {
+    const toast = useToast();
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => toast.show({ message: 'Task created.', action: { label: 'Open', run: () => setOpen(true), isUndo: false } })}>Add</button>
+        <button type="button" onClick={() => toast.show({ message: 'Link copied.' })}>Copy</button>
+        <button type="button" onClick={() => toast.undo('Task deleted.', () => undefined)}>Delete</button>
+        <button type="button" onClick={() => setOpen(true)}>Open the task</button>
+        <Sheet open={open} onOpenChange={setOpen} title="Renew the licence">
+          <button type="button" onClick={() => toast.show({ message: 'Saved.' })}>Save</button>
+        </Sheet>
+      </>
+    );
+  }
+  const lane = () => document.querySelector<HTMLElement>('[data-toasts]');
+
+  it('closes the toasts without Undo when a sheet opens, and keeps the toast with Undo', async () => {
+    initI18n('en');
+    render(<ToastProvider><Screen /></ToastProvider>);
+    await userEvent.click(screen.getByText('Add'));
+    await userEvent.click(screen.getByText('Copy'));
+    await userEvent.click(screen.getByText('Delete'));
+    expect(lane()).toHaveTextContent('Task created.');
+    expect(lane()).toHaveTextContent('Link copied.');
+    await userEvent.click(screen.getByText('Open the task'));
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the licence' });
+    expect(lane()).not.toHaveTextContent('Task created.');
+    expect(lane()).not.toHaveTextContent('Link copied.');
+    expect(within(lane()!).getByText('Task deleted.')).toBeInTheDocument();
+    expect(within(lane()!).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    // A toast that a step inside the open sheet shows is new, so it stays.
+    await userEvent.click(within(sheet).getByText('Save'));
+    expect(lane()).toHaveTextContent('Saved.');
+  });
+
+  it('shows the toasts at the top of a phone screen while a sheet is open, above the sheet, and at the bottom again after', async () => {
+    initI18n('en');
+    phoneWidth();
+    render(<ToastProvider><Screen /></ToastProvider>);
+    const bottom = ['bottom-24'];
+    const top = ['max-sm:bottom-auto', 'max-sm:top-[calc(env(safe-area-inset-top)_+_0.75rem)]'];
+    expect(lane()).toHaveClass(...bottom);
+    expect(lane()).not.toHaveClass(...top);
+    await userEvent.click(screen.getByText('Delete'));
+    await userEvent.click(screen.getByText('Open the task'));
+    await screen.findByRole('dialog', { name: 'Renew the licence' });
+    expect(lane()).toHaveClass(...top);
+    expect(within(lane()!).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(lane()).not.toHaveClass(...top));
+    expect(lane()).toHaveClass(...bottom);
   });
 });

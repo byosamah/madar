@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
 import { usePanelOpen } from '../app/panelOpen';
-import { isToastPress } from '../app/toasts';
+import { isToastPress, useSheetToasts } from '../app/toasts';
 import { useIsPhone } from '../app/useIsPhone';
 import { spring } from '../design/motion';
 
@@ -106,6 +106,11 @@ export function escapeIsInner(event: Event, sheet: Element | null): boolean {
 
 const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
+/**
+ * A bottom sheet on a phone leaves a strip at the top of the screen, 72 px below the safe area. While a sheet is open, the
+ * toasts show in that strip, so a toast covers no field of the sheet (owner, 2026-10-06, see the ToastProvider).
+ */
+const PHONE_HEIGHT = 'max-h-[calc(100dvh_-_4.5rem_-_env(safe-area-inset-top))]';
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
@@ -200,6 +205,8 @@ export function Sheet(props: SheetProps) {
   const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
   usePanelOpen(open && modal);
+  // The toasts make way for every open sheet, the panel too: see useSheetToasts (owner, 2026-10-06).
+  useSheetToasts(open);
   const content = useRef<HTMLDivElement>(null);
   // Radix skips onOpenAutoFocus when a field inside took the focus first (autoFocus), so the note is taken as the sheet opens.
   const giveFocusBack = useFocusReturn(open && modal, content);
@@ -208,7 +215,7 @@ export function Sheet(props: SheetProps) {
   // it. A side sheet floats 12 px from the edge and has no pull, so there the strip only filled the gap beside the rounded
   // corners (owner, 2026-10-05, item 5).
   const shape = phone
-    ? 'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-sheet pb-[env(safe-area-inset-bottom)]'
+    ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
     : `inset-y-3 end-3 rounded-sheet after:hidden ${widthOf(wide)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (

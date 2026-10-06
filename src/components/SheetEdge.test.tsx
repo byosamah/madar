@@ -45,3 +45,15 @@ describe('the edge of a sheet (owner, 2026-10-05, item 5)', () => {
     expect(sheet).not.toHaveClass('after:hidden');
   });
 });
+
+// The owner (2026-10-06, layout): on a phone a toast covered the Start date field of a task sheet. While a sheet is open, the
+// toasts show at the top of the screen (see toasts.test.tsx), so the bottom sheet leaves that strip free.
+describe('the bottom sheet of a phone and the toasts (owner, 2026-10-06, layout)', () => {
+  it('leaves a strip at the top of the screen, where the toasts show while a sheet is open', async () => {
+    phoneWidth();
+    render(<Sheet open onOpenChange={() => undefined} title="Export the log">Rows</Sheet>);
+    const sheet = await screen.findByRole('dialog', { name: 'Export the log' });
+    expect(sheet).toHaveClass('max-h-[calc(100dvh_-_4.5rem_-_env(safe-area-inset-top))]');
+    expect(sheet).not.toHaveClass('max-h-[92dvh]');
+  });
+});
