@@ -108,9 +108,9 @@ const isRtl = () => typeof document !== 'undefined' && document.documentElement.
 const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 /**
  * The place of a sheet on a desk: 12 px from the end, the top and the bottom of the screen. On a screen with the tab pill
- * (16 px from the top, 56 px high) the sheet starts 12 px below the pill. Before, a panel covered the end of the pill, with
- * the bell and its count, and the person could not press the bell next to the task panel (owner, 2026-10-06). Both kinds of
- * sheet use it. The meeting view has no pill, so there a sheet keeps the 12 px.
+ * (16 px from the top, 58 px high) the sheet starts 84 px from the top, 10 px below the pill. Before, a panel covered the
+ * end of the pill, with the bell and its count, and the person could not press the bell next to the task panel (owner,
+ * 2026-10-06). Both kinds of sheet use it. The meeting view has no pill, so there a sheet keeps the 12 px.
  */
 const DESK_EDGE = 'top-3 [:root:has([data-pill])_&]:top-[5.25rem] bottom-3 end-3';
 /**
