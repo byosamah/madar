@@ -51,6 +51,17 @@ describe('checkRemoteConfig', () => {
     expect(checkRemoteConfig(`${base + remote('test', TEST)}\n[remotes.test.api]\nenabled = true\n`, 'test', TEST, [HOOK]).join('\n')).toMatch(/Data API/);
   });
 
+  it('refuses a token life above 15 minutes: a browser keeps its token after its session ends (Z7, 2026-10-06)', () => {
+    const long = base.replace(/^jwt_expiry = \d+$/m, 'jwt_expiry = 3600');
+    expect(long).toMatch(/^jwt_expiry = 3600$/m);
+    expect(checkRemoteConfig(long + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/jwt_expiry/);
+    const noValue = base.replace(/^jwt_expiry = \d+\n/m, '');
+    expect(noValue).not.toMatch(/^jwt_expiry/m);
+    expect(checkRemoteConfig(noValue + remote('test', TEST), 'test', TEST, [HOOK]).join('\n')).toMatch(/jwt_expiry/);
+    const remoteLong = `${base + remote('test', TEST)}jwt_expiry = 3600\n`;
+    expect(checkRemoteConfig(remoteLong, 'test', TEST, [HOOK]).join('\n')).toMatch(/jwt_expiry/);
+  });
+
   it('refuses vector buckets: the free plan has none, and the config push stops with 402 (2026-10-05)', () => {
     const on = base.replace(/\[storage\.vector\]\nenabled = false/, '[storage.vector]\nenabled = true');
     expect(on).not.toBe(base);

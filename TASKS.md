@@ -212,7 +212,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] The New client box has a thin outline and no fill, so its grey fields stand out (8 shots, EN/AR, light/dark)
 - [x] The test office seed revokes the AI app grants of the 4 accounts (a leftover grant from a one-off check failed the walk once)
 - [x] Follow-ups to production (owner OK, 2026-10-05): test copy at bfb599b and 02cd6a4, main pushed, all.sh production from 02cd6a4, the quick check passes
-- [ ] Z7, owner decision: the API accepts a browser token until it expires (up to 1 hour) after its Auth session ended, for example after "Password changed. Your other devices sign out." Options: a shorter jwt_expiry, or a session check in the API. Agent tokens already stop at once
+- [x] Z7, owner decision: the API accepts a browser token until it expires (up to 1 hour) after its Auth session ended, for example after "Password changed. Your other devices sign out." Options: a shorter jwt_expiry, or a session check in the API. Agent tokens already stop at once. Done 2026-10-06 (owner: "do them all"): jwt_expiry = 900 in both projects, so the gap is 15 minutes at most; config-check.ts refuses more, and signin.spec.ts checks the token of the target
 - [ ] Test copy: test mails count against the mail day quota (outbox driver) and the seed keeps mail_log, so a busy test day blocks invites until 03:00 Riyadh
 - [x] Track templates: project templates with roles, offsets, stretch and shrink; stage templates merge in (6a). Migration 20261005000100_project_templates.sql (checked in PGlite only)
 - [x] Merge wave 2 (clean). npm test 3772 passed; typecheck, build, build:server, build:remote test pass
@@ -223,7 +223,7 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] The MCP icon showed vado.sa: the serverInfo now names the Madar logo, and public/favicon.ico holds it
 - [x] Test copy again at 69e3be7: account.spec.ts repeated 3 times 28 of 28, agents.spec 10 of 10, the MCP icon and /favicon.ico
 - [x] Production (owner OK in chat, 2026-10-05): main pushed, all.sh production from 69e3be7, the quick check passes
-- [ ] Owner: the Claude connector may keep the old vado.sa icon in its cache; remove and add the connector again to refresh it
+- [x] The Claude connector icon (2026-10-06): claude.ai shows Google's favicon of the main domain vado.sa, not the serverInfo icons, so a remove and add changes nothing. It stays until the owner changes the vado.sa icon or Claude reads the server icons (server/mcp/CLAUDE.md)
 - [x] The Data API: off in both projects by db_schema = '' (PGRST002); the api.enabled line of the config diff is a CLI report only (supabase/CLAUDE.md)
 - [x] Clean up: the 13 unused stageTemplates words left en.json and ar.json
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)

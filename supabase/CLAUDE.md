@@ -19,6 +19,7 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - `config.toml` holds the values of the local stack. A push sends them to a hosted project unless its `[remotes.test]` or
   `[remotes.production]` block replaces them. `scripts/deploy/config-check.ts` refuses a push without that block.
 - `otp_expiry = 3600`. Never 86400 (see `server/auth/CLAUDE.md`).
+- `jwt_expiry = 900` (15 minutes, Z7). `config-check.ts` refuses more (see `server/auth/CLAUDE.md`).
 - The token hook `public.madar_access_token_hook` comes from a migration, never from `seed.sql`.
 - A change to `config.toml` needs `npx supabase stop` and `npx supabase start`.
 

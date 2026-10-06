@@ -1,4 +1,5 @@
-import { DEPLOY_ACCOUNTS } from './accounts';
+import { readFileSync } from 'node:fs';
+import { DEPLOY_ACCOUNTS, storageStateOf } from './accounts';
 import { expect, passwordOf, test, useLanguage } from './fixtures';
 import { goto, urlPattern } from './goto';
 import { expectCalm, expectNoSeriousA11y, LANGS, NO_SESSION, runId, signedOutLanguage, signedOutTheme, signIn, THEMES, WIDTHS } from './steps';
@@ -142,3 +143,15 @@ for (const lang of LANGS) {
     });
   }
 }
+
+test('the Auth of the target gives a browser token of 15 minutes or less (Z7, 2026-10-06)', () => {
+  // A browser token stays good after its Auth session ends (a sign-out elsewhere), until it expires. The setup project signed
+  // in on the target, so the saved session holds a token of its Auth. The test reads only the times, never prints the token.
+  type Saved = { origins: { localStorage: { name: string; value: string }[] }[] };
+  const saved = (JSON.parse(readFileSync(storageStateOf(admin.role), 'utf8')) as Saved).origins
+    .flatMap((origin) => origin.localStorage).find((item) => item.name === 'madar.auth');
+  expect(saved, 'the Admin session of the setup project').toBeTruthy();
+  const token = (JSON.parse(saved!.value) as { access_token: string }).access_token;
+  const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as { iat: number; exp: number };
+  expect(claims.exp - claims.iat).toBeLessThanOrEqual(900);
+});

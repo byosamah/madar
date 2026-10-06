@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
  * The check that scripts/deploy/config.sh runs before `supabase config push` (plan 5.9):
  *   node scripts/deploy/config-check.ts <test|production> <ref>
  * supabase/config.toml holds the values of the local stack. A push sends them to the hosted project unless a [remotes.<env>]
- * block for that project replaces them, so the check wants that block, https sign-in addresses, the Data API off, and the
- * function of the token hook in a migration (supabase/seed.sql never runs on a hosted project).
+ * block for that project replaces them, so the check wants that block, https sign-in addresses, a token life of 15 minutes or
+ * less, the Data API off, and the function of the token hook in a migration (supabase/seed.sql never runs on a hosted project).
  */
 
 type Tables = Map<string, Map<string, string>>;
@@ -31,6 +31,9 @@ function tablesOf(toml: string): Tables {
   return tables;
 }
 
+/** The longest life of an Auth token: 15 minutes (owner, 2026-10-06, Z7). */
+export const MAX_TOKEN_SECONDS = 900;
+
 const strings = (value: string | undefined): string[] => [...(value ?? '').matchAll(/"([^"]*)"/g)].map((match) => match[1]);
 const goodAddress = (url: string) => /^https:\/\/[^/\s]+/.test(url) && !/^https:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(url);
 
@@ -49,6 +52,12 @@ export function checkRemoteConfig(toml: string, target: string, ref: string, mig
   if (site.length !== 1 || !goodAddress(site[0])) errors.push(`[${block}.auth] needs site_url, the https address of the screens of ${target}.`);
   const redirects = strings(auth?.get('additional_redirect_urls'));
   if (redirects.length === 0 || !redirects.every(goodAddress)) errors.push(`[${block}.auth] needs additional_redirect_urls with https addresses only.`);
+
+  // A browser token stays good after its Auth session ends, until it expires (Z7, 2026-10-06). Auth's default is 3600.
+  const expiry = Number(auth?.get('jwt_expiry') ?? tables.get('auth')?.get('jwt_expiry') ?? 3600);
+  if (!(expiry > 0 && expiry <= MAX_TOKEN_SECONDS)) {
+    errors.push(`[auth] needs jwt_expiry = ${MAX_TOKEN_SECONDS} or less: a browser token stays good after a sign-out elsewhere until it expires.`);
+  }
 
   for (const table of ['api', `${block}.api`]) {
     if (tables.get(table)?.get('enabled') === 'true') errors.push(`[${table}] turns the Data API on. It stays off in every project (plan, change 14).`);

@@ -12,6 +12,9 @@ mail itself, through Resend (see `server/mail/CLAUDE.md`).
 ## Rules
 - `otp_expiry = 3600` in `supabase/config.toml`. Never 86400: Auth has one life for every email link, so a reset link
   would live a day too.
+- `jwt_expiry = 900` (owner, 2026-10-06, Z7). The API checks no Auth session for a browser token, so after a sign-out
+  elsewhere (for example a password change) an open browser keeps working until its token expires: 15 minutes at most.
+  An agent token stops at once (`agent_session_ok`). `config-check.ts` refuses a longer life; `signin.spec.ts` checks it.
 - Invitation (`invite.ts`): an `invite` link while the Auth user is unconfirmed, a `recovery` link after (Auth answers 422
   `email_exists`). Call `generate_link` only for an email that a users row holds.
 - Renew key ("Send me a new link", `renew.ts`): random, 52 base32 characters. Madar keeps only its sha256 after the send. A
