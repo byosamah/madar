@@ -50,6 +50,11 @@ export type Diff = {
   /** Comments whose target neither State holds. writeDiff looks up their project with one query. */
   unresolvedComments: { id: string; targetType: string; targetId: string }[];
   meta: SignalMeta;
+  /**
+   * True when the change touched an office task, its comments or its files (owner, 2026-10-06): its signals go to every person,
+   * so they name no actor and no story (review 2026-10-06).
+   */
+  privateChange: boolean;
 };
 
 export type SaveResult = {
@@ -112,6 +117,7 @@ export function diffState(before: State, after: State): Diff {
   let office = false;
   let officeRows = false;
   let meta: SignalMeta | undefined;
+  let privateChange = false;
 
   const addProject = (projectId: unknown) => {
     if (typeof projectId === 'string' && projectId !== '') projects.add(projectId);
@@ -205,12 +211,17 @@ export function diffState(before: State, after: State): Diff {
       change.upserts.push(row);
       touched(spec, old, rec, row);
       if (isEvents && !meta) meta = { storyId: rec.correlationId as string, actorId: rec.actorId as string };
+      // A change of an office task, its comments or its files writes an event that names it; a task or a file with no project tells too.
+      if ((isEvents && typeof rec.officeTaskId === 'string') || ((spec.collection === 'tasks' || spec.collection === 'files') && (rec.projectId === null || old?.projectId === null))) {
+        privateChange = true;
+      }
     }
     for (const [id, old] of was) {
       if (now.has(id)) continue;
       if (isEvents) throw historyError(`the event ${id} is gone.`);
       change.deleted.push(id);
       touched(spec, old, undefined, undefined);
+      if ((spec.collection === 'tasks' || spec.collection === 'files') && old.projectId === null) privateChange = true;
     }
     if (change.upserts.length > 0 || change.deleted.length > 0) {
       tables.push(change);
@@ -226,7 +237,7 @@ export function diffState(before: State, after: State): Diff {
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
   return {
     tables, counters, kinds, projects, office: personal ? false : office, people, officeRows, personal, unresolvedComments,
-    meta: meta ?? { storyId: '', actorId: '' },
+    meta: meta ?? { storyId: '', actorId: '' }, privateChange,
   };
 }
 
@@ -313,8 +324,11 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
 
   const signals: ChangeSignal[] = [];
   if (signalsOn && diff.kinds.size > 0) {
+    // A signal of an office task change goes to every person, so it names nobody: no actor and no story (review 2026-10-06).
+    // The screens match their own changes by the signal id, which stays.
     const base = {
-      v: 1 as const, id: crypto.randomUUID(), projects: [...projects].sort(), office, kinds: [...diff.kinds].sort(), storyId: story.storyId, actorId: story.actorId,
+      v: 1 as const, id: crypto.randomUUID(), projects: [...projects].sort(), office, kinds: [...diff.kinds].sort(),
+      ...(diff.privateChange ? {} : { storyId: story.storyId, actorId: story.actorId }),
     };
     if (officeSignal) signals.push({ ...base, channel: 'office', seq: officeSeq, people: [] });
     for (const userId of people) signals.push({ ...base, channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });

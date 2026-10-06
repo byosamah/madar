@@ -87,7 +87,8 @@ const filesLink = defineCall({
     // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3). A file of
     // an office task shows only to the people of that task (owner, 2026-10-06).
     const viewer = p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor;
-    if (!mayViewFile(p.state, viewer, file)) throw forbidden('You cannot do this.', { action: file.projectId === null ? 'task.view' : 'project.view' });
+    // A file of an office task that the person does not see reads as missing (review 2026-10-06).
+    if (!mayViewFile(p.state, viewer, file)) throw file.projectId === null ? notFound('File', input.id) : forbidden('You cannot do this.', { action: 'project.view' });
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
@@ -105,7 +106,7 @@ const filesLink = defineCall({
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
     if (file.projectId === null) {
-      if (!mayViewFile(ctx.state, ctx.authority, file)) throw forbidden('You cannot do this.', { action: 'task.view' });
+      if (!mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     } else assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };

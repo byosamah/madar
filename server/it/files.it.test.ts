@@ -248,7 +248,7 @@ describe('the files of an office task (owner, 2026-10-06)', () => {
 
     signed.length = 0;
     const link = await call(outsider, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
-    expect(link.ok ? 'signed' : link.error.code).toBe('forbidden');
+    expect(link.ok ? 'signed' : link.error.code).toBe('not_found');
     const other = await call(outsider, 'files.uploadStart', { name: 'x.pdf', size: 1, mimeType: 'application/pdf', taskId });
     expect(other.ok ? 'signed' : other.error.code).toBe('not_found');
     const list = await call(outsider, 'files.list', { taskId });

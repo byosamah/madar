@@ -67,6 +67,17 @@ Owner decisions of 2026-10-06. A person adds a task on the Tasks page that belon
 - An office task shows the word "Office" (Arabic "المكتب") where a project key shows. Its sheet has no stage field, no
   prerequisites and no "Save as template". A link to an office task opens it on the Tasks page (`/work?task=<id>`).
 
+## Privacy review (2026-10-06)
+- A hidden office record reads exactly as a missing one: a task, a comment (`comments.update`, `.delete`,
+  `reactions.toggle`), a file (the attach rules give `file_missing`, `files.link` gives `not_found`) and a story
+  (`events.undoStory`).
+- An undo event takes the `officeTaskId` of the event it undoes. A comment or a file of a deleted office task reads its
+  last task copy (`lastTaskCopy`, `events.ts`), so no change of it becomes public.
+- A Realtime signal of an office task change goes to every person, so it names no actor and no story. The screens match
+  their own changes by the signal id.
+- Known limit, accepted by the owner: the ids count up for the whole office (`tsk_`, `cmt_`, `fil_`) and so does the event
+  `seq`. A gap in the ids or the seqs that a person sees shows that hidden records exist, but never what they are.
+
 ## Tests
 - The privacy rule for each read path: a Member who is not on an office task never sees it, its comments, its files, its
   events, its notices or its count; the Admin sees it; an agent of a Member sees what the Member sees.

@@ -309,15 +309,6 @@ export function attachmentsOf(state: State, fileIds: string[] | undefined): Atta
   return (fileIds ?? []).map((id) => ({ id, name: state.files[id]?.name ?? null }));
 }
 
-/** The last copy of a deleted task, from its newest delete event that stands. Undefined when no such event is in the state. */
-export function lastTaskCopy(state: State, taskId: string): Task | undefined {
-  let found: Event | undefined;
-  for (const event of Object.values(state.events)) {
-    if (event.verb === 'task.deleted' && event.targetId === taskId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
-  }
-  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Task) : undefined;
-}
-
 /**
  * The resource of a comment or a file of an office task: the people of that task (owner, 2026-10-06). A task that is gone leaves
  * an office resource with nobody on it, so only the Admin holds rights there.

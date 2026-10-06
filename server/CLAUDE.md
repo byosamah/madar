@@ -65,6 +65,8 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 ## Realtime, jobs, usage
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and
   `person:<id>`). A rollback sends nothing. A failed send only warns, and the sender counts it.
+- A save that changes an office task, its comments or its files (`Diff.privateChange`, `data/save.ts`) sends signals with
+  no `actorId` and no `storyId`: they reach every person (review 2026-10-06).
 - pg_cron calls `jobs/run` every 15 minutes, with the secret header `x-madar-jobs-secret`. Steps (`jobs/steps/`):
   heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`.

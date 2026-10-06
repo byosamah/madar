@@ -28,8 +28,9 @@ export type ChangeSignal = {
   office: boolean;
   kinds: Kind[];
   people: string[];
-  storyId: string;
-  actorId: string;
+  /** Absent on a signal of an office task change, which names nobody (review 2026-10-06). */
+  storyId?: string;
+  actorId?: string;
 };
 
 export type WireCall = { i: number; name: string; input: unknown; story?: StoryRef; key?: string };

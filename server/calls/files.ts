@@ -12,7 +12,7 @@ import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, re
 import { officeUploadKey, officeUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { projectOfTask, readFile, readTask } from '../files/records';
-import { assertMayPost, assertMayView, assertMayViewOfficeTask, authorityOf, mayViewOfficeTask } from '../files/rights';
+import { assertMayPost, assertMayView, assertMayViewOfficeFile, authorityOf, mayViewOfficeTask } from '../files/rights';
 
 /**
  * The file calls of the server (plan 5.2; plan 2b, points 1 and 7; proof.md, Z0a item 6; task F2), on the active store
@@ -90,7 +90,7 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   const file = await readFile(deps.db, input.id);
   if (!file) throw notFound('File', input.id);
   // A file of an office task: the view right on that task, right before the signing (owner, 2026-10-06).
-  if (file.projectId === null) assertMayViewOfficeTask(office, userId, file.taskId ? await readTask(deps.db, file.taskId) : undefined);
+  if (file.projectId === null) assertMayViewOfficeFile(office, userId, file.taskId ? await readTask(deps.db, file.taskId) : undefined, file.id);
   else {
     if (!office.lists.projects[file.projectId]) throw notFound('Project', file.projectId);
     assertMayView(office, userId, file.projectId);

@@ -276,6 +276,27 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('keeps the own write of an office task right, though its signal names no actor and no story (review 2026-10-06)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { filter: 'mine' });
+    await settle();
+    const office = sig({ kinds: ['events', 'tasks'], office: true, seq: 8 });
+    delete office.actorId;
+    delete office.storyId;
+    app.send([office], 'own');
+    await settle();
+    expect(tasks()).toBe(2);
+    // Realtime sends the same signal back: the id tells it apart, so the list loads no third time.
+    app.send([office]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(tasks()).toBe(2);
+    // The same change of another person still reloads the list.
+    app.send([{ ...office, id: 'sig_other', seq: 9 }]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(tasks()).toBe(3);
+    app.stop();
+  });
+
   it('reloads at once when an own write comes back on Realtime before its answer', async () => {
     const app = setup();
     const tasks = app.show('tasks.list', { projectId: 'prj_001' });

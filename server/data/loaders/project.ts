@@ -1,6 +1,6 @@
 import type { Payment, TrackerEntry } from '../../../src/api/contract/entities';
 import type { Load } from './build';
-import { covers, feed, fileById, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
+import { attachedFiles, covers, feed, fileById, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
 
 /**
  * The project loader (plan 4.6): the calls that work on one project P. Each loads the project view of P when the call returns it
@@ -94,12 +94,13 @@ export async function trackerList(L: Load, input: Input): Promise<void> {
 /** tracker.log: the tasks of P (a reply task joins the stage tag) and the files the entry names. */
 export async function trackerLog(L: Load, input: Input): Promise<void> {
   await tasksOf(L, [str(input.projectId) ?? '']);
-  await L.byKey('files', (input.fileIds as string[] | undefined) ?? []);
+  await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
 }
 
 /** tracker.close, update, delete and assignReply: the entry, its reply task, the tasks of P, and every file named. */
 export async function trackerCall(L: Load, input: Input): Promise<void> {
   await trackerScope(L, str(input.id) ?? '', (input.fileIds as string[] | undefined) ?? []);
+  await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
 }
 
 /**

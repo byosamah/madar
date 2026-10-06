@@ -3,10 +3,10 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { DERIVED, FOLLOW_ON, NOT_UNDOABLE, undoEvent } from '../events';
+import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { can, holdsAdminRights, principalOf, taskResource, type Action, type Resource } from '../permissions';
-import { eventLabel, eventViewOf, lastTaskCopy, mayDeleteTracker, officeResource } from '../views';
+import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { assertCan, roleIn, touch } from './shared';
 
@@ -344,7 +344,8 @@ export const eventsUndoStory = defineCall({
   output: z.object({ undone: z.array(EventView) }),
   run(input, ctx) {
     const all = Object.values(ctx.state.events).filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb));
-    if (all.length === 0) throw notFound('Story', input.correlationId);
+    // A story with a change that the person does not see reads as a missing story, before any other rule (review 2026-10-06).
+    if (all.length === 0 || all.some((e) => !seesEvent(ctx, e, true))) throw notFound('Story', input.correlationId);
     // A change of the story that was undone on its own stays undone. The rest of the story comes back (review 2026-10-03).
     const story = all.filter((e) => !e.undoneBy).sort((a, b) => b.seq - a.seq);
     if (story.length === 0) throw new ApiError('conflict', 'This change is already undone.');

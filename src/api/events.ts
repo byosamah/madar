@@ -1,4 +1,4 @@
-import type { Event, EventTarget, User } from './contract/entities';
+import type { Event, EventTarget, Task, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
 import { isReferenced } from './references';
 import { nextId, type State } from './store';
@@ -33,13 +33,14 @@ const fieldsOf = (value: unknown): Fields | undefined => (value !== null && type
 function officeTaskOf(state: State, input: { targetType: EventTarget; targetId: string; before: unknown; after: unknown }): string | undefined {
   const record = (key: keyof State): Fields | undefined =>
     fieldsOf((state[key] as Record<string, unknown> | undefined)?.[input.targetId]) ?? fieldsOf(input.after) ?? fieldsOf(input.before);
+  // A task that is gone keeps its office link through its last copy, so a later change of its comment stays private (review 2026-10-06).
   const officeTask = (taskId: unknown): string | undefined => {
     if (typeof taskId !== 'string') return undefined;
-    const task = state.tasks[taskId];
+    const task = state.tasks[taskId] ?? lastTaskCopy(state, taskId);
     return task && task.projectId === null ? taskId : undefined;
   };
   if (input.targetType === 'task') {
-    const task = record('tasks');
+    const task = record('tasks') ?? lastTaskCopy(state, input.targetId);
     return task && task.projectId === null ? input.targetId : undefined;
   }
   if (input.targetType === 'comment') {
@@ -53,8 +54,21 @@ function officeTaskOf(state: State, input: { targetType: EventTarget; targetId: 
   return undefined;
 }
 
-export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string }): Event {
-  const officeTaskId = officeTaskOf(ec.state, input);
+/** The last copy of a deleted task, from its newest delete event that stands. Undefined when no such event is in the state. */
+export function lastTaskCopy(state: State, taskId: string): Task | undefined {
+  let found: Event | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === 'task.deleted' && event.targetId === taskId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Task) : undefined;
+}
+
+/**
+ * Writes one event. An event about an office record names its office task: the one the caller gives (an undo takes the office
+ * task of the event it undoes), else the one its record shows.
+ */
+export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string; officeTaskId?: string }): Event {
+  const officeTaskId = input.officeTaskId ?? officeTaskOf(ec.state, input);
   const id = nextId(ec.state, 'evt');
   const event: Event = {
     id, seq: ec.state.counters.evt, projectId: input.projectId, actorId: ec.actor.id, actorKind: ec.actor.kind,
@@ -132,7 +146,11 @@ export function undoEvent(ec: EventContext, eventId: string, options: { derived?
     (e) => e.seq > event.seq && e.targetType === event.targetType && e.targetId === event.targetId && e.undoneBy === null && e.verb !== 'undo',
   );
   // The undo event names the event it undoes. The server stores only that link and fills undoneBy from it (plan 4.3, AM 7.8).
-  const meta = { projectId: event.projectId, verb: 'undo', targetType: event.targetType, targetId: event.targetId, undoes: event.id };
+  // The undo of a change of an office record is private as the change was (review 2026-10-06).
+  const meta = {
+    projectId: event.projectId, verb: 'undo', targetType: event.targetType, targetId: event.targetId, undoes: event.id,
+    ...(event.officeTaskId ? { officeTaskId: event.officeTaskId } : {}),
+  };
   let undo: Event;
   if (event.before === null) {
     if (!current || later.length > 0) throw conflict();

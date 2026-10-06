@@ -289,6 +289,51 @@ function recorder(o: { version?: number; officeSeq?: number; personSeq?: Record<
   return { q, sql };
 }
 
+describe('the signals of an office task (review 2026-10-06)', () => {
+  /** An office task that usr_004 made, with the event of its change. */
+  function officeChange(): State {
+    const after = copy();
+    const first = Object.values(after.tasks)[0];
+    after.tasks.tsk_900 = { ...first, id: 'tsk_900', projectId: null, stageId: null, title: 'Renew the trade licence', createdBy: 'usr_004', ownerId: 'usr_005' };
+    event(after, { id: 'evt_950', correlationId: 'sty_office', actorId: 'usr_004', verb: 'task.created', targetId: 'tsk_900', officeTaskId: 'tsk_900' });
+    return after;
+  }
+
+  it('names no actor and no story on any signal of a save that changes an office task, so nobody learns who works on it', async () => {
+    const after = officeChange();
+    after.notifications.ntf_950 = {
+      id: 'ntf_950', userId: 'usr_005', trigger: 'task_assigned', actorId: 'usr_004', targetType: 'task', targetId: 'tsk_900', read: false,
+      createdAt: '2026-10-04T10:00:00.000+03:00', dedupeKey: null,
+    };
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(seed, after));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['office', 'person:usr_005']);
+    for (const signal of result.signals) {
+      expect(signal).not.toHaveProperty('actorId');
+      expect(signal).not.toHaveProperty('storyId');
+      expect(signal).toMatchObject({ office: true, projects: [] });
+    }
+  });
+
+  it('names no actor for a change of a comment or a file of an office task, which only its event tells', async () => {
+    const after = copy();
+    event(after, { id: 'evt_951', correlationId: 'sty_office', actorId: 'usr_005', verb: 'comment.edited', targetType: 'comment', targetId: 'cmt_001', officeTaskId: 'tsk_900' });
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(seed, after));
+    expect(result.signals.length).toBeGreaterThan(0);
+    for (const signal of result.signals) expect(signal).not.toHaveProperty('actorId');
+  });
+
+  it('keeps the actor and the story on the signal of a project change', async () => {
+    const after = copy();
+    Object.values(after.tasks)[0].title = 'Renamed';
+    event(after, { id: 'evt_952', correlationId: 'sty_project', actorId: 'usr_002' });
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(seed, after));
+    for (const signal of result.signals) expect(signal).toMatchObject({ actorId: 'usr_002', storyId: 'sty_project' });
+  });
+});
+
 describe('writeDiff', () => {
   it('writes nothing and sends no signal for no change', async () => {
     const { q, sql } = recorder();

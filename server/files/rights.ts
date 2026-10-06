@@ -1,5 +1,5 @@
 import type { Task, User } from '../../src/api/contract/entities';
-import { ApiError, forbidden } from '../../src/api/errors';
+import { ApiError, forbidden, notFound } from '../../src/api/errors';
 import { can, projectRoleOf, taskResource } from '../../src/api/permissions';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
@@ -63,10 +63,13 @@ export function mayViewOfficeTask(office: OfficeSnapshot, userId: string, task: 
   return { authority, sees: can(authority, 'task.view', resource) };
 }
 
-/** assertCan(ctx, 'task.view', ...) for a file of an office task, right before a link is signed. */
-export function assertMayViewOfficeTask(office: OfficeSnapshot, userId: string, task: Task | undefined): User {
+/**
+ * assertCan(ctx, 'task.view', ...) for a file of an office task, right before a link is signed. A person who does not see the task
+ * gets the answer of a missing file, so no answer tells that the file exists (review 2026-10-06).
+ */
+export function assertMayViewOfficeFile(office: OfficeSnapshot, userId: string, task: Task | undefined, fileId: string): User {
   const { authority, sees } = mayViewOfficeTask(office, userId, task);
-  if (!sees) throw forbidden('You cannot do this.', { action: 'task.view' });
+  if (!sees) throw notFound('File', fileId);
   return authority;
 }
 

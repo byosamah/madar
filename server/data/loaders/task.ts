@@ -1,7 +1,7 @@
 import type { Comment, Message, Stage, Update } from '../../../src/api/contract/entities';
 import { chatReadKey } from '../../../src/api/store';
 import type { Load } from './build';
-import { commentsOn, namedFiles, newestMessages, taskScope, tasksOf } from './steps';
+import { attachedFiles, commentsOn, namedFiles, newestMessages, taskScope, tasksOf } from './steps';
 
 /**
  * The task loader (plan 4.6) and the content loader: a task call loads every task of the project of T (stage tag, prerequisites,
@@ -55,7 +55,7 @@ export async function commentsList(L: Load, input: Input): Promise<void> {
 /** comments.create: the target and the files the new comment names. */
 export async function commentsCreate(L: Load, input: Input): Promise<void> {
   await target(L, input.targetType, input.targetId);
-  await L.byKey('files', (input.fileIds as string[] | undefined) ?? []);
+  await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
 }
 
 /** comments.update, comments.delete and reactions.toggle: the comment, its target and its files. */
@@ -65,6 +65,10 @@ export async function commentCall(L: Load, input: Input): Promise<void> {
   const comment = L.get<Comment>('comments', id);
   if (!comment) return;
   await target(L, comment.targetType, comment.targetId);
+  // A task that is gone: its delete event holds its last copy, which tells whether the comment was on a private office task.
+  if (comment.targetType === 'task' && !L.get('tasks', comment.targetId)) {
+    await L.select({ c: 'events', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: [comment.targetId] }, { col: 'verb', in: ['task.deleted'] }] });
+  }
   await namedFiles(L, [comment]);
 }
 
@@ -111,7 +115,7 @@ async function roomsForPost(L: Load, roomIds: readonly string[]): Promise<Messag
 
 /** chats.send: the files the message names, and the newest message of the room (the read mark of the sender). */
 export async function chatsSend(L: Load, input: Input): Promise<Message[]> {
-  await L.byKey('files', (input.fileIds as string[] | undefined) ?? []);
+  await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
   return roomsForPost(L, [str(input.conversationId) ?? '']);
 }
 

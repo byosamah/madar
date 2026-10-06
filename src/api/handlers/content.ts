@@ -3,9 +3,9 @@ import { defineCall, type Ctx } from '../registry';
 import { CommentId, FileId, MAX_ATTACHMENTS, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
 import { CommentView, FeedItem } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, recordDelete } from '../events';
+import { applyPatch, lastTaskCopy, recordCreate, recordDelete } from '../events';
 import { notifyIn } from '../notify';
-import { principalOf, type Resource } from '../permissions';
+import { mayViewTask, principalOf, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { mayUndoAgentChange } from './history';
@@ -23,9 +23,17 @@ function requireUpdate(ctx: Ctx, id: string): Update {
   return update;
 }
 
+/**
+ * A comment by id. A comment of an office task that the person does not see (live, or deleted with its last copy) reads exactly as a
+ * missing comment, so no answer tells that it exists (review 2026-10-06).
+ */
 function requireComment(ctx: Ctx, id: string): Comment {
   const comment = ctx.state.comments[id];
   if (!comment) throw notFound('Comment', id);
+  if (comment.targetType === 'task') {
+    const task = ctx.state.tasks[comment.targetId] ?? lastTaskCopy(ctx.state, comment.targetId);
+    if (task && task.projectId === null && !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Comment', id);
+  }
   return comment;
 }
 

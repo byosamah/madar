@@ -23,8 +23,8 @@ server checks the final object, then saves the record.
   the preflight takes it only for the task that the call names (`checkIntent`, `officeTaskId`).
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
-- Check `project.view` (for a file of an office task: `task.view` on that task, `assertMayViewOfficeTask`), and that the
-  person is active, right before you sign any link (`rights.ts`).
+- Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). For a file of an
+  office task: `task.view` on that task (`assertMayViewOfficeFile`), which answers not_found, as for a missing file.
 - Never put a signed link in a message or a mail.
 
 ## Tests

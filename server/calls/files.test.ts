@@ -292,8 +292,8 @@ describe('the files of an office task (owner, 2026-10-06)', () => {
       await expect(filesLink({ id: 'fil_050', variant: 'full', disposition: 'inline' }, ctx(userId)), userId).resolves.toMatchObject({ output: { name: 'Licence.pdf' } });
     }
     const { ctx, gets } = setup();
-    await expect(filesLink({ id: 'fil_050', variant: 'full', disposition: 'inline' }, ctx('usr_005'))).rejects.toMatchObject({ code: 'forbidden', details: { action: 'task.view' } });
-    await expect(filesLink({ id: 'fil_051', variant: 'full', disposition: 'inline' }, ctx('usr_004'))).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(filesLink({ id: 'fil_050', variant: 'full', disposition: 'inline' }, ctx('usr_005'))).rejects.toMatchObject({ code: 'not_found', message: 'File fil_050 does not exist.' });
+    await expect(filesLink({ id: 'fil_051', variant: 'full', disposition: 'inline' }, ctx('usr_004'))).rejects.toMatchObject({ code: 'not_found', message: 'File fil_051 does not exist.' });
     expect(gets).toEqual([]);
     await expect(filesLink({ id: 'fil_051', variant: 'full', disposition: 'inline' }, ctx('usr_001'))).resolves.toBeDefined();
   });

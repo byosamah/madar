@@ -545,6 +545,23 @@ describe('office tasks (owner, 2026-10-06)', () => {
     for (const id of ids) expect(admin).toContain(id);
   });
 
+  it('an Undo of a comment change after the delete of its office task stays private on the scoped load (review 2026-10-06)', async () => {
+    const traps = trapOffice(seed);
+    const task = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId !== null)!;
+    const created = Object.values(traps.events).find((e) => e.verb === 'comment.created' && e.officeTaskId === task.id)!;
+    const comment = created.targetId;
+    apply(traps, 'tasks.delete', { id: task.id }, task.createdBy);
+    // The outsider: a comment of the deleted office task reads as a missing comment, on both loads.
+    const hidden = await same(traps, 'comments.update', { id: comment, body: 'x' }, 'usr_003');
+    expect(hidden.outcome.error).toEqual({ code: 'not_found', message: `Comment ${comment} does not exist.` });
+    const run = await same(traps, 'events.undo', { eventId: created.id }, created.actingForId);
+    expect(run.outcome.error).toBeUndefined();
+    expect(docs(run, 'events').map((doc) => doc.officeTaskId)).toEqual([task.id]);
+    apply(traps, 'events.undo', { eventId: created.id }, created.actingForId);
+    const seen = await same(traps, 'events.list', { limit: 500 }, 'usr_003');
+    expect(JSON.stringify(seen.outcome.output)).not.toContain(task.id);
+  });
+
   it('the jobs load brings the open office tasks, so their people get the due reminders', async () => {
     const traps = trapOffice(seed);
     const whole = structuredClone(traps);

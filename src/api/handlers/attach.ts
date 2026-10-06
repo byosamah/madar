@@ -2,11 +2,13 @@ import type { Ctx } from '../registry';
 import type { FileRec } from '../contract/entities';
 import { invalid } from '../errors';
 import { can, projectRoleOf } from '../permissions';
+import { mayViewFile } from '../views';
 
+/** The files by id. A file of an office task that the person does not see reads as missing, before any other rule (review 2026-10-06). */
 function requireFiles(ctx: Ctx, fileIds: string[]): FileRec[] {
   return fileIds.map((id) => {
     const file = ctx.state.files[id];
-    if (!file) throw invalid('fileIds', 'A file does not exist.', 'file_missing');
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw invalid('fileIds', 'A file does not exist.', 'file_missing');
     return file;
   });
 }

@@ -50,6 +50,16 @@ export async function officeTasks(L: Load, more: readonly Cond[] = [], o: { pick
   return (await L.select({ c: 'tasks', where: [...officeTaskConds(L), ...more], ...o })) as Task[];
 }
 
+/**
+ * The files by id that a write attaches, and the office task of each file with no project: the attach rules read its view rule
+ * (attach.ts, owner 2026-10-06).
+ */
+export async function attachedFiles(L: Load, fileIds: readonly (string | null | undefined)[]): Promise<void> {
+  await L.byKey('files', fileIds);
+  const office = fileIds.map((id) => L.get<FileRec>('files', id)).filter((file) => file?.projectId === null);
+  await L.byKey('tasks', office.map((file) => file!.taskId));
+}
+
 /** The files that these records name by id: attachments of posts, comments, messages and Tracker entries. */
 export async function namedFiles(L: Load, records: readonly { fileIds?: string[] }[], more: readonly (string | null | undefined)[] = []): Promise<void> {
   await L.byKey('files', [...records.flatMap((record) => record.fileIds ?? []), ...more]);
