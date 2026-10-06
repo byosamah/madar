@@ -430,6 +430,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
               teamIds={teamIds}
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
+              hint={detail ? undefined : t('office.helpersHint')}
             />
             {/* An office task waits for no task. */}
             {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
@@ -452,8 +453,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             {edit
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
-            {viewerCan.editAll && (
-              <Switch id="task-review" label={t('taskSheet.needsReview')} description={t('taskSheet.needsReviewHint')} checked={task.needsReview} onChange={(on) => patch({ needsReview: on })} />
+            {/* The maker reviews an office task, so a task that its maker leads has no review to turn on (owner, 2026-10-06). */}
+            {viewerCan.editAll && (detail || task.ownerId !== makerId) && (
+              <Switch
+                id="task-review" label={t('taskSheet.needsReview')} description={t(detail ? 'taskSheet.needsReviewHint' : 'office.needsReviewHint')}
+                checked={task.needsReview} onChange={(on) => patch({ needsReview: on })}
+              />
             )}
             {edit ? (
               <TextArea

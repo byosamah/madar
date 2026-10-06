@@ -5,7 +5,9 @@
     "add": "Add task",
     "private": "Only you, its lead, its helpers and the Admin see this task.",
     "sheetNote": "Office task. Only its people and the Admin see it.",
-    "readOnly": "You can view this task. Only its lead and the person who made it can change it."
+    "readOnly": "You can view this task. Only its lead and the person who made it can change it.",
+    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the task.",
+    "needsReviewHint": "The person who made the task checks it before it is done."
   },
   "errors": {
     "reasons": {

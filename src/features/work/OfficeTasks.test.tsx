@@ -67,6 +67,27 @@ describe('office tasks on the Tasks page', () => {
     expect(within(sheet).queryByRole('button', { name: 'Save as template' })).toBeNull();
   });
 
+  it('gives the maker the hints of an office task: no team to join, and the maker reviews', async () => {
+    await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_004')(state);
+      withOfficeTask(state);
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    expect(within(sheet).getByText('Helpers tick checklist items and comment. Only the lead finishes the task.')).toBeInTheDocument();
+    expect(within(sheet).queryByText(/joins it/)).toBeNull();
+    expect(within(sheet).getByText('The person who made the task checks it before it is done.')).toBeInTheDocument();
+  });
+
+  it('shows no review switch when the maker leads the task', async () => {
+    await renderApp('/work?task=tsk_900', (state) => {
+      as('usr_004')(state);
+      withOfficeTask(state, { ownerId: 'usr_004', needsReview: false });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Renew the trade licence' }, { timeout: 10_000 });
+    await within(sheet).findByText('Helpers tick checklist items and comment. Only the lead finishes the task.');
+    expect(within(sheet).queryByRole('switch', { name: /review/i })).toBeNull();
+  });
+
   it('never shows an office task to a person who is not on it', async () => {
     await renderApp('/work', (state) => {
       as('usr_006')(state);

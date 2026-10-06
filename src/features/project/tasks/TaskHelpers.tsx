@@ -27,10 +27,10 @@ export function personOption(
 /**
  * The people who help the lead (colleague comment 9). They tick checklist items and comment; the lead finishes the task.
  * The leader and the Admin add and remove them, and may pick someone outside the team, who then joins it.
- * Everyone else sees the list as plain text.
+ * Everyone else sees the list as plain text. An office task has no team, so its hint says nothing of one (hint, owner 2026-10-06).
  */
-export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChange }: {
-  helpers: UserCard[]; leadId: string | null; people: User[]; teamIds: Set<string>; canEdit: boolean; onChange: (helperIds: string[]) => void;
+export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChange, hint }: {
+  helpers: UserCard[]; leadId: string | null; people: User[]; teamIds: Set<string>; canEdit: boolean; onChange: (helperIds: string[]) => void; hint?: string;
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -58,7 +58,7 @@ export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChang
         <SelectField
           id="task-add-helper"
           label={t('taskSheet.addHelper')}
-          hint={t('taskSheet.helpersHint')}
+          hint={hint ?? t('taskSheet.helpersHint')}
           value=""
           onChange={(event) => {
             if (event.target.value) onChange([...ids, event.target.value]);
