@@ -56,7 +56,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Returns the office overview: tiles (inDesignWithoutArea: projects in design with no area), health counts, charts, the workload of each person (overdue: open tasks past due; counts: open tasks due in each of 4 weeks from today, with the tasks the person must review in week 1), the schedule, what needs attention, and leaders (choices for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use the list tools for detail.',
+    description: 'Returns the office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (each person: overdue, then open tasks due in each of 4 weeks from today; week 1 adds the tasks the person must review), the schedule, attention, and leaders (choices for leaderId). Use the list tools for detail.',
   },
 
   'deadlines.create': {

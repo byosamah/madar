@@ -19,6 +19,10 @@
     "idlePeople_other": "{{count}} people have no tasks in these weeks",
     "noArea": "{{n}} projects have no area",
     "noArea_one": "1 project has no area",
-    "noArea_other": "{{count}} projects have no area"
+    "noArea_other": "{{count}} projects have no area",
+    "charts": {
+      "submissions": "Submissions to clients per week"
+    },
+    "submissions": "Submissions"
   }
 }

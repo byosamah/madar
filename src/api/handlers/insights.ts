@@ -34,6 +34,8 @@ export const DashboardView = z.object({
     projectsPerStage: z.array(z.object({ stage: z.string(), count: Count })),
     healthMix: z.object({ on_track: Count, at_risk: Count, late: Count }),
     throughput: z.array(z.object({ weekStart: Day, created: Count, done: Count })).length(12),
+    /** The Tracker entries that the office sent to the client (direction out), by their own date, for 12 weeks (owner, 2026-10-06). */
+    submissions: z.array(z.object({ weekStart: Day, count: Count })).length(12),
   }),
   workload: z.object({
     weeks: z.array(Day).length(4),
@@ -119,6 +121,11 @@ export const dashboardGet = defineCall({
       return { weekStart: start, created: scopedTasks.filter((t) => inWeek(t.createdAt)).length, done: scopedTasks.filter((t) => inWeek(t.completedAt)).length };
     });
 
+    const sent = Object.values(trackerOf(state)).filter((entry) => entry.direction === 'out' && inScope.has(entry.projectId));
+    const submissions = throughput.map(({ weekStart: start }) => ({
+      weekStart: start, count: sent.filter((entry) => entry.date >= start && entry.date <= addDays(start, 6)).length,
+    }));
+
     // The open client items of each project, for the meeting agenda.
     const loops = new Map<string, { us: number; client: number }>();
     for (const entry of Object.values(trackerOf(state))) {
@@ -169,6 +176,7 @@ export const dashboardGet = defineCall({
           .sort((a, b) => rank(a.stage) - rank(b.stage) || a.stage.localeCompare(b.stage)),
         healthMix,
         throughput,
+        submissions,
       },
       workload: { weeks, limit, rows: workloadRows },
       attention: {

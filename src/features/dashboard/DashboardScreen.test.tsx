@@ -85,9 +85,6 @@ describe('the Dashboard', () => {
     await renderApp('/dashboard?team=tm_003');
     expect((await tile(/Past-due tasks/)).getAttribute('href')).toContain('team=tm_003');
     expect((await tile(/Deadlines, next 14 days/)).getAttribute('href')).toContain('team=tm_003');
-    const week = within(screen.getByRole('region', { name: 'Tasks done and created per week' })).getAllByRole('link');
-    expect(week.length).toBeGreaterThan(0);
-    for (const link of week) expect(link.getAttribute('href')).toContain('team=tm_003');
     await userEvent.click(screen.getByRole('tab', { name: 'People' }));
     const cells = within(await screen.findByRole('region', { name: 'Workload' })).getAllByRole('link');
     expect(cells.length).toBeGreaterThan(0);

@@ -25,4 +25,8 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
   it('name the count of projects in design with no area', () => {
     expect(TOOL_DOCS['dashboard.get'].description).toContain('inDesignWithoutArea');
   });
+
+  it('name the submissions chart', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toContain('submissions');
+  });
 });

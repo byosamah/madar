@@ -38,7 +38,10 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
   await covers(L, ids);
 }
 
-/** dashboard.get: the tasks of the projects in scope, and their open client items (the Tracker loops). */
+/**
+ * dashboard.get: the tasks of the projects in scope, and their Tracker entries that are open client items (the loops) or that the
+ * office sent to the client (the Submissions chart, owner, 2026-10-06).
+ */
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
   const inTeam = teamFilter(officeState(L), str(input.teamId));
   const status = str(input.status) ?? 'active';
@@ -47,7 +50,11 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
       && (!input.clientId || p.clientId === input.clientId) && inTeam(p))
     .map((p) => p.id);
   await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
-  await L.select({ c: 'tracker', where: [{ col: 'project_id', in: ids }, { col: 'open', eq: true }], pick: ['id', 'projectId', 'waiting', 'closedAt'] });
+  await L.select({
+    c: 'tracker',
+    where: [{ col: 'project_id', in: ids }, { or: [{ col: 'open', eq: true }, { field: 'direction', in: ['out'] }] }],
+    pick: ['id', 'projectId', 'waiting', 'closedAt', 'direction', 'date'],
+  });
 }
 
 /**

@@ -29,12 +29,18 @@ describe('the Dashboard charts', () => {
     expect(yAxisTick(32)).toBe('32');
   });
 
-  it('gives the weekly chart a table with 12 weeks and links', async () => {
-    await renderApp('/dashboard');
-    const throughput = await chart('Tasks done and created per week');
-    expect(within(throughput).getAllByRole('row')).toHaveLength(13);
-    await userEvent.click(within(throughput).getAllByRole('link', { name: /Done/ })[11]);
-    await waitFor(() => expect(window.location.hash).toContain('doneFrom='));
+  // The chart of done and created tasks gave way to the submissions to clients (owner, 2026-10-06). No office-wide Tracker list
+  // exists, so a week has no link.
+  it('shows the submissions to clients per week, with a table of 12 weeks and no links', async () => {
+    const { api } = await renderApp('/dashboard');
+    const weekly = await chart('Submissions to clients per week');
+    expect(screen.queryByRole('region', { name: 'Tasks done and created per week' })).toBeNull();
+    const rows = within(weekly).getAllByRole('row');
+    expect(rows).toHaveLength(13);
+    expect(within(weekly).queryAllByRole('link')).toHaveLength(0);
+    const { submissions } = (await api.call('dashboard.get', {})).charts;
+    expect(submissions.some((week) => week.count > 0)).toBe(true);
+    expect(rows.slice(1).map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(submissions.map((week) => String(week.count)));
   });
 
   it('says so in every chart and the schedule when the filters leave nothing to draw', async () => {

@@ -12,7 +12,7 @@ import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { oneOf, teamParam } from '../../lib/params';
-import { PerStage, Throughput } from './Charts';
+import { PerStage, Submissions } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
@@ -138,7 +138,7 @@ export function DashboardScreen() {
                   ]} />
                 </div>
                 <PerStage view={view} filters={filters} />
-                <div className="lg:col-span-2"><Throughput view={view} filters={filters} /></div>
+                <Submissions view={view} />
               </div>
             )}
             {section === 'people' && (

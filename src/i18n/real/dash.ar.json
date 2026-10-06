@@ -25,6 +25,10 @@
     "noArea_two": "مشروعان بلا مساحة",
     "noArea_few": "{{count}} مشاريع بلا مساحة",
     "noArea_many": "{{count}} مشروعًا بلا مساحة",
-    "noArea_other": "{{count}} مشروع بلا مساحة"
+    "noArea_other": "{{count}} مشروع بلا مساحة",
+    "charts": {
+      "submissions": "التسليمات للعملاء أسبوعيًا"
+    },
+    "submissions": "التسليمات"
   }
 }

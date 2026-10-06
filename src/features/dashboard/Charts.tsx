@@ -1,9 +1,9 @@
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { useLang } from '../../app/lang';
-import { addDays, formatDay, formatNumber } from '../../lib/dates';
+import { formatDay, formatNumber } from '../../lib/dates';
 import { withFilters, type DashboardData, type DashboardFilters } from './Tiles';
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
@@ -55,58 +55,48 @@ export function yAxisTick(value: number): string {
   return value === 0 ? '' : String(value);
 }
 
-export function Throughput({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
+/**
+ * The Tracker entries that the office sent to its clients, by week, for 12 weeks (owner, 2026-10-06). No office-wide Tracker list
+ * exists, so a bar opens nothing.
+ */
+export function Submissions({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const navigate = useNavigate();
-  const rows = view.charts.throughput.map((week) => ({ ...week, label: formatDay(week.weekStart, lang), end: addDays(week.weekStart, 6) }));
-  // The weeks count the tasks of the team's projects, so the Task list gets the team too (audit 2026-10-03, V-37b).
-  const doneLink = (row: (typeof rows)[number]) => withFilters(`/tasks?doneFrom=${row.weekStart}&doneTo=${row.end}`, filters);
-  const createdLink = (row: (typeof rows)[number]) => withFilters(`/tasks?createdFrom=${row.weekStart}&createdTo=${row.end}`, filters);
+  const rows = view.charts.submissions.map((week) => ({ ...week, label: formatDay(week.weekStart, lang) }));
   const rtl = lang === 'ar';
   return (
-    <Card title={t('dashboard.charts.throughput')}>
-      {rows.every((row) => row.created === 0 && row.done === 0) ? <NoData /> : (
+    <Card title={t('dashboard.charts.submissions')}>
+      {rows.every((row) => row.count === 0) ? <NoData /> : (
         <>
-          <div className="flex gap-4 text-footnote text-ink-2" aria-hidden>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-chart-muted" />{t('dashboard.created')}</span>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-ink" />{t('dashboard.done')}</span>
-          </div>
           <div aria-hidden className="h-52">
             <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
-              {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers and links. */}
+              {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers. */}
               <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>
                 <XAxis dataKey="label" reversed={rtl} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis allowDecimals={false} tickFormatter={yAxisTick} orientation={rtl ? 'right' : 'left'} width={28} tick={{ fill: 'var(--c-ink-2)', fontSize: 11 }} tickLine={false} axisLine={false} />
-                <Bar dataKey="created" fill="var(--c-chart-muted)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="done" fill="var(--c-ink)" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(bar) => navigate(doneLink(bar.payload as (typeof rows)[number]))} />
+                <Bar dataKey="count" fill="var(--c-ink)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          {/* The same numbers as a table, for keyboard and screen reader use. It shows when a link in it gets the focus. */}
-          <div className="sr-only focus-within:not-sr-only">
-            <table className="w-full text-footnote">
-              <thead>
-                <tr>
-                  <th scope="col" className="text-start">{t('dashboard.week', { date: '' })}</th>
-                  <th scope="col">{t('dashboard.created')}</th>
-                  <th scope="col">{t('dashboard.done')}</th>
+          {/* The same numbers as a table, for screen readers. */}
+          <table className="sr-only">
+            <thead>
+              <tr>
+                <th scope="col">{t('dashboard.week', { date: '' })}</th>
+                <th scope="col">{t('dashboard.submissions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.weekStart}>
+                  <th scope="row">{t('dashboard.week', { date: row.label })}</th>
+                  <td className="tabular">{formatNumber(row.count, lang)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.weekStart}>
-                    <th scope="row" className="text-start font-normal">{t('dashboard.week', { date: row.label })}</th>
-                    <td className="text-center"><Link to={createdLink(row)} aria-label={`${t('dashboard.created')} ${row.created}`} className="tabular">{row.created}</Link></td>
-                    <td className="text-center"><Link to={doneLink(row)} aria-label={`${t('dashboard.done')} ${row.done}`} className="tabular">{row.done}</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </>
       )}
     </Card>
   );
 }
-

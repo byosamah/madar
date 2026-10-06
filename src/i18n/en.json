@@ -794,11 +794,8 @@
     },
     "areaValue": "{{n}} m²",
     "charts": {
-      "perStage": "Projects per stage",
-      "throughput": "Tasks done and created per week"
+      "perStage": "Projects per stage"
     },
-    "created": "Created",
-    "done": "Done",
     "week": "Week of {{date}}",
     "noData": "No data for these filters.",
     "workload": "Workload",
