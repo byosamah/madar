@@ -5,7 +5,7 @@ import { ChatRow, ChatThread, MessageView } from '../contract/views';
 import { addDirectConversation, canSeeConversation, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
-import { can, principalOf } from '../permissions';
+import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
@@ -75,11 +75,14 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
   return comments.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
 }
 
-type TaskThread = { task: Task; project: Project; comments: Comment[] };
+/** project is null for an office task. */
+type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
 
 /**
  * Tasks I own, lead or commented on, that have at least one comment, with their comments in time order. The comments are
  * grouped by task in one pass. Reading follows the rule of comments.list, so a thread never shows what the comments call would refuse.
+ * An office task is a thread of its lead, its maker (who holds the leader's place) and a person who commented, while that person
+ * sees the task (owner, 2026-10-06).
  * Only the newest TASK_THREAD_LIMIT threads count, for the list and for the unread number alike (plan 4.13, A5).
  */
 function taskThreads(state: State, viewer: User): TaskThread[] {
@@ -94,9 +97,11 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
   const threads: TaskThread[] = [];
   for (const [taskId, comments] of byTask) {
     const task = state.tasks[taskId];
-    const project = task && state.projects[task.projectId];
-    if (!task || !project) continue;
-    const involved = task.ownerId === viewer.id || project.leaderId === viewer.id
+    if (!task) continue;
+    const project = task.projectId === null ? null : state.projects[task.projectId];
+    if (project === undefined || (task.projectId === null && !mayViewTask(state, viewer, task))) continue;
+    const leads = project ? project.leaderId === viewer.id : principalOf(state, task.createdBy) === viewer.id;
+    const involved = task.ownerId === viewer.id || leads
       || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
     if (!involved) continue;
     comments.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
@@ -111,7 +116,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
   return taskThreads(state, viewer).map(({ task, project, comments }) => {
     const last = comments[comments.length - 1];
     return {
-      kind: 'task', id: task.id, title: task.title, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, person: null,
+      kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
     };
@@ -230,7 +235,9 @@ export const chatsSend = defineCall({
 
 /** A task thread read now: every comment in it so far counts as read. Reading follows the rule of comments.list. */
 function markTaskReadNow(ctx: Ctx, taskId: string): void {
-  if (!ctx.state.tasks[taskId]) throw notFound('Task', taskId);
+  const task = ctx.state.tasks[taskId];
+  // An office task that the person does not see reads as missing (owner, 2026-10-06).
+  if (!task || !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Task', taskId);
   if (!can(ctx.authority, 'comment.read')) throw forbidden('You cannot read these comments.', { action: 'comment.read' });
   const last = Object.values(ctx.state.comments)
     .filter((c) => c.targetType === 'task' && c.targetId === taskId)

@@ -1,4 +1,5 @@
-import type { Notification, NotificationTarget, Preferences, Trigger, User } from './contract/entities';
+import type { Notification, NotificationTarget, Preferences, Task, Trigger, User } from './contract/entities';
+import { mayViewTask, principalOf } from './permissions';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -36,13 +37,18 @@ export function morningSummaryOn(prefs: Preferences): boolean {
  */
 export type NotifyOptions = { dedupeUsed?(key: string): boolean };
 
-/** Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, and repeats of a dedupe key. */
+/**
+ * Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, repeats of
+ * a dedupe key, and a person who does not see the office task of the notice (owner, 2026-10-06).
+ */
 export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput, options: NotifyOptions = {}): Notification[] {
   const used = options.dedupeUsed ?? ((key: string) => Object.values(state.notifications).some((n) => n.dedupeKey === key));
   const created: Notification[] = [];
+  const task = input.targetType === 'task' ? state.tasks[input.targetId] : undefined;
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
+    if (task && task.projectId === null && !mayViewTask(state, user, task)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
     if (!user.preferences.notifications[input.trigger]) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;
@@ -72,6 +78,17 @@ export function reviewersOf(state: State, projectId: string): string[] {
   return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
 }
 
+/**
+ * The reviewers of one task. A project task: the reviewers of its project. An office task: its maker, or every active Admin when
+ * the maker left the office (owner, 2026-10-06).
+ */
+export function reviewersOfTask(state: State, task: Pick<Task, 'projectId' | 'createdBy'>): string[] {
+  if (task.projectId !== null) return reviewersOf(state, task.projectId);
+  const maker = principalOf(state, task.createdBy);
+  if (state.users[maker]?.active) return [maker];
+  return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
+}
+
 export function projectPeople(state: State, projectId: string): string[] {
   const ids = Object.values(state.members).filter((m) => m.projectId === projectId).map((m) => m.userId);
   const leaderId = state.projects[projectId]?.leaderId;
@@ -93,7 +110,8 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
   const stamp = nowStamp(at);
   let count = 0;
   for (const task of Object.values(state.tasks)) {
-    if (state.projects[task.projectId]?.status !== 'active') continue;
+    // An office task has no project, so its reminders always run (owner, 2026-10-06).
+    if (task.projectId !== null && state.projects[task.projectId]?.status !== 'active') continue;
     if (!task.dueDate || (task.status !== 'todo' && task.status !== 'in_progress')) continue;
     // From the last working day before the due day, so nobody gets it first on a day off. Madar runs this only while it is open,
     // so a reminder that nobody saw on that day still goes out before the due day (audit 2026-10-03, API-11).

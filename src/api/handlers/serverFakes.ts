@@ -3,9 +3,11 @@ import { MAX_FILE_BYTES, type FileVersion, type User } from '../contract/entitie
 import { FREE_PLAN_LIMITS, UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contract/server';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
-import { can, projectRoleOf } from '../permissions';
+import { principalOf } from '../permissions';
+import { mayViewFile } from '../views';
+import { officeTaskOfCall } from './files';
 import { nowStamp } from '../../lib/dates';
-import { assertCan, requireProject, requireStage, roleIn } from './shared';
+import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
  * Fake versions of the 9 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
@@ -54,10 +56,17 @@ const storyStart = defineCall({
 const filesUploadStart = defineCall({
   ...c['files.uploadStart'],
   run(input, ctx) {
-    const project = requireProject(ctx, input.projectId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
-    if (input.stageId) requireStage(ctx, project.id, input.stageId);
-    if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
+    if (input.projectId === undefined) {
+      // A file of an office task: a person who sees the task adds it (owner, 2026-10-06).
+      const task = officeTaskOfCall(ctx, input.taskId);
+      assertCan(ctx, 'content.post', taskRole(ctx, task));
+      if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
+    } else {
+      const project = requireProject(ctx, input.projectId);
+      assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+      if (input.stageId) requireStage(ctx, project.id, input.stageId);
+      if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
+    }
     if (input.size > MAX_FILE_BYTES) {
       throw new ApiError('invalid_input', 'This file is larger than the limit.', { fields: ['size'], reason: 'file_too_large', limit: MAX_FILE_BYTES });
     }
@@ -75,8 +84,10 @@ const filesLink = defineCall({
   async prepare(input, p): Promise<{ url: string; version: FileVersion }> {
     const file = p.state.files[input.id];
     if (!file) throw notFound('File', input.id);
-    // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3).
-    if (!can(p.actor, 'project.view', { projectRole: projectRoleOf(p.state, file.projectId, p.actor.id) })) throw forbidden('You cannot do this.', { action: 'project.view' });
+    // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3). A file of
+    // an office task shows only to the people of that task (owner, 2026-10-06).
+    const viewer = p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor;
+    if (!mayViewFile(p.state, viewer, file)) throw forbidden('You cannot do this.', { action: file.projectId === null ? 'task.view' : 'project.view' });
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
@@ -93,7 +104,9 @@ const filesLink = defineCall({
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
-    assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
+    if (file.projectId === null) {
+      if (!mayViewFile(ctx.state, ctx.authority, file)) throw forbidden('You cannot do this.', { action: 'task.view' });
+    } else assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };
   },

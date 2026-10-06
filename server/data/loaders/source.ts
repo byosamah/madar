@@ -24,7 +24,11 @@ export interface Source {
    * leads the project of (led), or commented on (as a person of "me"). The newest "limit" by the stamp of their last comment,
    * with ties, each with that stamp and the stamp of the newest comment by "me". Newest first, then by task id from the end.
    */
-  threads(o: { owner: string; led: readonly string[]; me: readonly string[]; limit: number }): Promise<{ id: string; last: string; mine: string | null }[]>;
+  /*
+   * An office task (no project) is a thread of its lead, its maker (createdBy in "me") and a person of "me" who commented, while
+   * that person sees it: the Admin ("admin"), or its lead, a helper or its maker (owner, 2026-10-06).
+   */
+  threads(o: { owner: string; led: readonly string[]; me: readonly string[]; limit: number; admin: boolean }): Promise<{ id: string; last: string; mine: string | null }[]>;
   /** Every counter (plan, change 4). Only a write reads them, inside the lock. */
   counters(): Promise<Record<string, number>>;
 }

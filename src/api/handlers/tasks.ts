@@ -8,17 +8,17 @@ import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
-import { notifyIn, reviewersOf } from '../notify';
+import { notifyIn, reviewersOfTask } from '../notify';
 import { peopleFilter } from '../pause';
 import { sentToReviewOn } from '../review';
-import { can } from '../permissions';
+import { can, mayViewTask, principalOf } from '../permissions';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
-import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, roleIn, touch } from './shared';
+import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, requireUser, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
@@ -68,12 +68,39 @@ function whenChanges(task: Task, when: When): Partial<Task> {
   return changes;
 }
 
+/** Only a person leads or helps on an office task: never an agent, which acts for a person (owner, 2026-10-06). */
+function assertPerson(ctx: Ctx, userId: string, field: 'ownerId' | 'helperIds'): void {
+  if (requireUser(ctx, userId).kind === 'agent') throw invalid(field, 'Only a person can lead or help on a task.', 'not_a_person');
+}
+
+/**
+ * A person who leads or helps on a task: on the team of a project task (ensureOnTeam), and a person, not an agent, on an office
+ * task, which has no team.
+ */
+function ensureMayWork(ctx: Ctx, projectId: string | null, userId: string, field: 'ownerId' | 'helperIds'): void {
+  if (projectId === null) assertPerson(ctx, userId, field);
+  else ensureOnTeam(ctx, projectId, userId, field);
+}
+
 /** The helper list a call ends with. No repeats, never the lead. A person outside the team joins it when the leader or the Admin asks. */
-function checkHelpers(ctx: Ctx, projectId: string, leadId: string | null, helperIds: string[]): string[] {
+function checkHelpers(ctx: Ctx, projectId: string | null, leadId: string | null, helperIds: string[]): string[] {
   if (new Set(helperIds).size !== helperIds.length) throw invalid('helperIds', 'A person is in the helper list twice.', 'duplicate_helper');
   if (leadId !== null && helperIds.includes(leadId)) throw invalid('helperIds', 'The lead cannot also be a helper.', 'lead_is_helper');
-  for (const id of helperIds) ensureOnTeam(ctx, projectId, id, 'helperIds');
+  for (const id of helperIds) ensureMayWork(ctx, projectId, id, 'helperIds');
   return helperIds;
+}
+
+/** The maker of a task: the person who made it, or the person of the agent that made it. The maker reviews an office task. */
+const makerOf = (ctx: Ctx, task: Pick<Task, 'createdBy'>): string => principalOf(ctx.state, task.createdBy);
+
+/** An office task needs review only when its maker is not its lead (owner, 2026-10-06). */
+function reviewByMaker(): ApiError {
+  return invalid('needsReview', 'The maker reviews an office task, so a task that its maker leads needs no review.', 'review_by_maker');
+}
+
+/** An office task has no stage (owner, 2026-10-06). */
+function officeNoStage(): ApiError {
+  return invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
 }
 
 /** A helper ticks items. Adding, removing, renaming or moving an item is for the lead, the leader and the Admin. */
@@ -83,10 +110,14 @@ function assertTicksOnly(current: ChecklistItem[], next: ChecklistItem[]): void 
 
 const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.authority);
 
-/** Spec 5.5, with clarification 2: the leader and the Admin are the reviewers, so their tick lands on Done. */
+/**
+ * Spec 5.5, with clarification 2: the leader and the Admin are the reviewers, so their tick lands on Done. An office task goes to its
+ * maker, so the tick of the maker (or the Admin) lands on Done, and a task that its maker leads needs no review.
+ */
 function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
-  const reviewer = can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
-  return !task.needsReview || reviewer ? 'done' : 'in_review';
+  const reviewer = can(ctx.authority, 'task.review', taskRole(ctx, task));
+  const needs = task.needsReview && !(task.projectId === null && task.ownerId === makerOf(ctx, task));
+  return !needs || reviewer ? 'done' : 'in_review';
 }
 
 /**
@@ -114,7 +145,7 @@ export function changeStatus(ctx: Ctx, task: Task, status: TaskStatus, verb = 't
   if (status === 'done') shiftDependents(ctx, task, cause.id, finishDay);
   if (status === 'done') replyTaskDone(ctx, task);
   if (status === 'in_review') {
-    notifyIn(ctx, { userIds: reviewersOf(ctx.state, task.projectId), trigger: 'review_requested', targetType: 'task', targetId: task.id });
+    notifyIn(ctx, { userIds: reviewersOfTask(ctx.state, task), trigger: 'review_requested', targetType: 'task', targetId: task.id });
   }
   touch(ctx, task.projectId);
 }
@@ -155,16 +186,22 @@ export const tasksList = defineCall({
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
     const inFilters = peopleFilter(state, input);
+    // An office task belongs to no project, so a project filter leaves it out. It shows only to its people and the Admin (owner, 2026-10-06).
+    const officeIn = !projectId && !input.leaderId && !input.clientId && !input.teamId;
     const tasks = Object.values(state.tasks).filter((task) => {
-      const project = state.projects[task.projectId];
-      if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
-      if (!inFilters(project)) return false;
-      if (projectId && task.projectId !== projectId) return false;
+      if (task.projectId === null) {
+        if (!officeIn || !mayViewTask(state, authority, task)) return false;
+      } else {
+        const project = state.projects[task.projectId];
+        if (!project || (input.activeProjectsOnly && project.status !== 'active')) return false;
+        if (!inFilters(project)) return false;
+        if (projectId && task.projectId !== projectId) return false;
+      }
       if (ownerId && !involves(task, ownerId)) return false;
       if (!input.includeDone && task.status === 'done') return false;
       if (status && !status.includes(task.status)) return false;
       const review = input.workOf !== undefined && task.status === 'in_review';
-      if (input.workOf && !(review ? reviewersOf(state, task.projectId).includes(input.workOf) : task.status !== 'done' && involves(task, input.workOf))) return false;
+      if (input.workOf && !(review ? reviewersOfTask(state, task).includes(input.workOf) : task.status !== 'done' && involves(task, input.workOf))) return false;
       // A review is due now for its reviewer, so it passes a range that holds today.
       const dueOn = review ? today : task.dueDate;
       if (dueFrom && (dueOn === null || dueOn < dueFrom)) return false;
@@ -186,7 +223,7 @@ export const tasksList = defineCall({
         case 'flagged':
           return task.flagged;
         case 'review_for_me':
-          return task.status === 'in_review' && reviewersOf(state, task.projectId).includes(authority.id);
+          return task.status === 'in_review' && reviewersOfTask(state, task).includes(authority.id);
         case 'no_lead':
           return task.ownerId === null;
         case 'no_date':
@@ -198,9 +235,9 @@ export const tasksList = defineCall({
     // Time order (owner, 2026-10-02): start date, then due date, then the stage's place in time, then the title.
     const rank = new Map<string, number>();
     for (const projectKey of new Set(tasks.map((task) => task.projectId))) {
-      stagesChrono(stagesOf(state, projectKey)).forEach((stage, index) => rank.set(stage.id, index));
+      if (projectKey !== null) stagesChrono(stagesOf(state, projectKey)).forEach((stage, index) => rank.set(stage.id, index));
     }
-    tasks.sort((a, b) => compareTasks(a, b, (id) => rank.get(id) ?? 0));
+    tasks.sort((a, b) => compareTasks(a, b, (id) => (id === null ? 0 : rank.get(id) ?? 0)));
     return tasks.map((task) => taskRowOf(state, task, today, authority));
   },
 });
@@ -215,15 +252,50 @@ export const tasksGet = defineCall({
 });
 
 type NewTask = {
-  projectId: string; title: string; stageId?: string; ownerId?: string; helperIds?: string[]; dueDate?: string | null; startDate?: string | null;
+  /** None: an office task (owner, 2026-10-06). */
+  projectId?: string; title: string; stageId?: string; ownerId?: string; helperIds?: string[]; dueDate?: string | null; startDate?: string | null;
   schedule?: Task['schedule']; durationDays?: number | null; description: string; flagged: boolean; needsReview?: boolean; checklist?: string[];
   prerequisiteIds?: string[]; reason?: string; logInTracker?: boolean;
   /** The review setting comes from a template a leader saved, so a team member may use it without the right to set it. */
   fromTemplate?: boolean;
 };
 
+/**
+ * An office task (owner, 2026-10-06): no project, no stage, no prerequisites, so no stage move and no Tracker entry. Anyone makes
+ * one for anyone: the person who makes it is its maker and reviews it, when another person leads it.
+ */
+function createOfficeTask(ctx: Ctx, input: NewTask): Task {
+  if (input.stageId) throw officeNoStage();
+  if ((input.prerequisiteIds ?? []).length > 0) throw invalid('prerequisiteIds', 'An office task waits for no other task.', 'office_no_prerequisites');
+  const maker = ctx.authority.id;
+  const ownerId = input.ownerId ?? null;
+  assertCan(ctx, ownerId === null || ownerId === maker ? 'task.createForSelf' : 'task.createForAnyone', { office: true, makerId: maker });
+  if (ownerId !== null) assertPerson(ctx, ownerId, 'ownerId');
+  for (const helperId of input.helperIds ?? []) assertPerson(ctx, helperId, 'helperIds');
+  if (ownerId !== null) assertActive(ctx, ownerId, 'ownerId');
+  for (const helperId of input.helperIds ?? []) assertActive(ctx, helperId, 'helperIds');
+  const helperIds = checkHelpers(ctx, null, ownerId, input.helperIds ?? []);
+  // The maker reviews, so the review need is on only when another person leads it, unless the call says otherwise.
+  const needsReview = input.needsReview ?? (ownerId !== null && ownerId !== maker);
+  if (needsReview && ownerId === maker) throw reviewByMaker();
+  const when = resolveWhen({ startDate: null, schedule: 'static', durationDays: null, dueDate: null }, input);
+  const id = nextId(ctx.state, 'tsk');
+  const task: Task = {
+    id, projectId: null, stageId: null, title: input.title, description: input.description, ownerId, status: 'todo',
+    ...when, flagged: input.flagged, needsReview,
+    checklist: (input.checklist ?? []).map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
+    createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
+  };
+  if (helperIds.length > 0) task.helperIds = helperIds;
+  ctx.state.tasks[id] = task;
+  recordCreate(ctx, { projectId: null, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
+  notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_assigned', targetType: 'task', targetId: id });
+  return task;
+}
+
 /** One way to make a task, for tasks.create and tasks.createFromTemplate. The rules live here. */
 function createTask(ctx: Ctx, input: NewTask): Task {
+  if (input.projectId === undefined) return createOfficeTask(ctx, input);
   const project = requireProject(ctx, input.projectId);
   const role = roleIn(ctx, project.id);
   // A new task has no lead unless the call names one (owner, 2026-10-05). Anyone on the team may add a task with no lead or for
@@ -265,7 +337,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
 
 export const tasksCreate = defineCall({
   input: z.object({
-    projectId: ProjectId,
+    /** None: an office task, which belongs to no project (owner, 2026-10-06). */
+    projectId: ProjectId.optional(),
     title: Title,
     stageId: StageId.optional(),
     ownerId: UserId.optional(),
@@ -354,7 +427,7 @@ export const tasksUpdate = defineCall({
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
     const { patch } = input;
-    const resource = { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId, helperIds: helpersOf(task) };
+    const resource = taskRole(ctx, task);
     const needsAny = patch.ownerId !== undefined || patch.needsReview !== undefined || patch.helperIds !== undefined || patch.prerequisiteIds !== undefined;
     const given = Object.keys(patch).filter((key) => patch[key as keyof typeof patch] !== undefined);
     if (needsAny) assertCan(ctx, 'task.updateAny', resource);
@@ -363,7 +436,8 @@ export const tasksUpdate = defineCall({
       assertCan(ctx, 'task.contribute', resource);
       if (!can(ctx.authority, 'task.updateOwn', resource) && patch.checklist) assertTicksOnly(task.checklist, patch.checklist);
     } else assertCan(ctx, 'task.updateOwn', resource);
-    if (patch.stageId) requireStage(ctx, task.projectId, patch.stageId);
+    if (task.projectId === null && patch.stageId !== undefined) throw officeNoStage();
+    if (patch.stageId && task.projectId !== null) requireStage(ctx, task.projectId, patch.stageId);
     if (patch.prerequisiteIds !== undefined) {
       assertTaskPrerequisites(ctx.state, task, patch.prerequisiteIds);
       // A finished task cannot start to wait for an open one: reopen it first.
@@ -380,7 +454,7 @@ export const tasksUpdate = defineCall({
     const leadId = patch.ownerId !== undefined ? patch.ownerId : task.ownerId;
     // A task in review or done keeps its lead, because a task with no lead cannot be finished (owner, 2026-10-05).
     if (patch.ownerId === null && (task.status === 'in_review' || task.status === 'done')) assertHasLead({ ownerId: null });
-    if (patch.ownerId) ensureOnTeam(ctx, task.projectId, patch.ownerId, 'ownerId');
+    if (patch.ownerId) ensureMayWork(ctx, task.projectId, patch.ownerId, 'ownerId');
     const reassigned = patch.ownerId !== undefined && patch.ownerId !== task.ownerId;
     // Only a person newly named must be active. A helper who left keeps their place on the task.
     if (reassigned && leadId !== null) assertActive(ctx, leadId, 'ownerId');
@@ -392,6 +466,11 @@ export const tasksUpdate = defineCall({
     const { startDate, schedule, durationDays, dueDate, helperIds: _helpers, ...rest } = patch;
     const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
     const changes: Partial<Task> = { ...rest, ...whenChanges(task, when) };
+    // An office task that its maker leads needs no review: a new lead who is the maker turns the review need off (owner, 2026-10-06).
+    if (task.projectId === null && (patch.needsReview ?? task.needsReview) && leadId === makerOf(ctx, task)) {
+      if (patch.needsReview === true) throw reviewByMaker();
+      changes.needsReview = false;
+    }
     const move = dateMoveOf(task, changes);
     if (move && !input.dateReason) {
       // The refusal carries the move, so the screen can show what changes while it asks why.
@@ -425,12 +504,14 @@ export const tasksTake = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.taskId);
-    assertCan(ctx, 'task.take', { projectRole: roleIn(ctx, task.projectId) });
+    assertCan(ctx, 'task.take', taskRole(ctx, task));
     if (task.ownerId !== null) throw invalid('taskId', 'This task has a lead already.', 'has_lead');
     const leadId = ctx.authority.id;
-    ensureOnTeam(ctx, task.projectId, leadId, 'ownerId');
+    ensureMayWork(ctx, task.projectId, leadId, 'ownerId');
     const changes: Partial<Task> = { ownerId: leadId };
     if (helpersOf(task).includes(leadId)) changes.helperIds = helpersOf(task).filter((id) => id !== leadId);
+    // The maker who takes an office task needs nobody's review but their own, so the review need goes off (owner, 2026-10-06).
+    if (task.projectId === null && task.needsReview && leadId === makerOf(ctx, task)) changes.needsReview = false;
     applyPatch(ctx, task, changes, { projectId: task.projectId, verb: 'task.reassigned', targetType: 'task', targetId: task.id });
     touch(ctx, task.projectId);
     return detail(ctx, task);
@@ -455,7 +536,7 @@ export const tasksNewVersion = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
+    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
     if (task.status !== 'done') throw invalid('id', 'Only a finished task gets a new version.', 'not_done');
     const { startDate, schedule, durationDays, dueDate } = input;
     const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
@@ -473,9 +554,12 @@ export const tasksNewVersion = defineCall({
     reopenDependents(ctx, task, opened.id);
     // The reason for the new version is also the reason the project moves back, when it does.
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
-    addTrackerEntry(ctx, {
-      projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
-    });
+    // An office task has no client, so it has no Tracker (owner, 2026-10-06).
+    if (task.projectId !== null) {
+      addTrackerEntry(ctx, {
+        projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
+      });
+    }
     touch(ctx, task.projectId);
     return detail(ctx, task);
   },
@@ -492,14 +576,14 @@ function approve(ctx: Ctx, task: Task): void {
   notifyIn(ctx, { userIds: peopleOfTask(task), trigger: 'task_approved', targetType: 'task', targetId: task.id });
 }
 
-const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
+const reviews = (ctx: Ctx, task: Task): boolean => task.status === 'in_review' && can(ctx.authority, 'task.review', taskRole(ctx, task));
 
 export const tasksComplete = defineCall({
   input: z.object({ id: TaskId }),
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
+    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
@@ -517,7 +601,7 @@ export const tasksMove = defineCall({
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', { projectRole: roleIn(ctx, task.projectId), ownerId: task.ownerId });
+    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
@@ -540,7 +624,7 @@ export const tasksApprove = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
+    assertCan(ctx, 'task.review', taskRole(ctx, task));
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
     approve(ctx, task);
     return detail(ctx, task);
@@ -552,7 +636,7 @@ export const tasksSendBack = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.review', { projectRole: roleIn(ctx, task.projectId) });
+    assertCan(ctx, 'task.review', taskRole(ctx, task));
     if (task.status !== 'in_review') throw invalid('id', 'This task is not waiting for review.');
     const watch = watchStage(ctx, task.projectId);
     changeStatus(ctx, task, 'in_progress', 'task.sent_back');
@@ -568,7 +652,7 @@ export const tasksDelete = defineCall({
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.delete', { projectRole: roleIn(ctx, task.projectId) });
+    assertCan(ctx, 'task.delete', taskRole(ctx, task));
     const watch = watchStage(ctx, task.projectId);
     recordDelete(ctx, { projectId: task.projectId, verb: 'task.deleted', targetType: 'task', targetId: task.id, entity: task });
     delete ctx.state.tasks[task.id];

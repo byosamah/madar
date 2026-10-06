@@ -23,7 +23,38 @@ export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'proj
  */
 export const FOLLOW_ON = new Set(['task.reopened', 'task.dates_shifted']);
 
+type Fields = Record<string, unknown>;
+const fieldsOf = (value: unknown): Fields | undefined => (value !== null && typeof value === 'object' ? (value as Fields) : undefined);
+
+/**
+ * The office task of a change: the task itself, the task of a comment, or the task of a file, when that task has no project
+ * (owner, 2026-10-06). The record comes from the state, or from the event for a record that the change made or removed.
+ */
+function officeTaskOf(state: State, input: { targetType: EventTarget; targetId: string; before: unknown; after: unknown }): string | undefined {
+  const record = (key: keyof State): Fields | undefined =>
+    fieldsOf((state[key] as Record<string, unknown> | undefined)?.[input.targetId]) ?? fieldsOf(input.after) ?? fieldsOf(input.before);
+  const officeTask = (taskId: unknown): string | undefined => {
+    if (typeof taskId !== 'string') return undefined;
+    const task = state.tasks[taskId];
+    return task && task.projectId === null ? taskId : undefined;
+  };
+  if (input.targetType === 'task') {
+    const task = record('tasks');
+    return task && task.projectId === null ? input.targetId : undefined;
+  }
+  if (input.targetType === 'comment') {
+    const comment = record('comments');
+    return comment?.targetType === 'task' ? officeTask(comment.targetId) : undefined;
+  }
+  if (input.targetType === 'file') {
+    const file = record('files');
+    return file && file.projectId === null && typeof file.taskId === 'string' ? file.taskId : undefined;
+  }
+  return undefined;
+}
+
 export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string }): Event {
+  const officeTaskId = officeTaskOf(ec.state, input);
   const id = nextId(ec.state, 'evt');
   const event: Event = {
     id, seq: ec.state.counters.evt, projectId: input.projectId, actorId: ec.actor.id, actorKind: ec.actor.kind,
@@ -34,6 +65,7 @@ export function writeEvent(ec: EventContext, input: EventMeta & { before: unknow
     createdAt: ec.stamp, undoneBy: null,
     ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
     ...(input.undoes ? { undoes: input.undoes } : {}),
+    ...(officeTaskId ? { officeTaskId } : {}),
   };
   ec.state.events[id] = event;
   return event;

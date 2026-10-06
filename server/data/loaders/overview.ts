@@ -6,7 +6,7 @@ import { stagesOf } from '../../../src/api/views';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
-import { covers, eventTargets, feed, officeState, tasksOf } from './steps';
+import { covers, eventTargets, feed, officeState, officeTasks, tasksOf } from './steps';
 
 /**
  * The overview loader (plan 4.6): the calls that read across projects. The project filters of each call read only the office,
@@ -19,8 +19,14 @@ const str = (value: unknown): string | undefined => (typeof value === 'string' &
 
 /** The task fields that summaryOf, computeHealth, the stage tag and the feed labels read (projects.list). */
 export const PROJECT_LIST_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'title'] as const;
-/** The task fields of the dashboard: health, stage tag, overdue, throughput, workload and the review rows (insights.ts). */
-export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title'] as const;
+/**
+ * The task fields of the dashboard: health, stage tag, overdue, throughput, workload and the review rows (insights.ts). The maker
+ * (createdBy) reviews an office task and is one of its people (owner, 2026-10-06).
+ */
+export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title', 'createdBy'] as const;
+
+/** True when a call names no project filter, so the office tasks that the person sees join its list (owner, 2026-10-06). */
+const officeIn = (input: Input): boolean => !str(input.projectId) && !str(input.leaderId) && !str(input.clientId) && !str(input.teamId);
 
 /** projects.list: the projects that pass the filters on the project, each with its tasks, its newest 2 posts and events, and its cover. */
 export async function projectsList(L: Load, input: Input): Promise<void> {
@@ -51,7 +57,11 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
   const status = str(input.status) ?? 'active';
   const inPeople = Object.values(L.office.projects).filter(inFilters);
   const ids = inPeople.filter((p) => status === 'all' || p.status === status).map((p) => p.id);
-  const tasks = await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
+  const tasks = [
+    ...await tasksOf(L, ids, DASHBOARD_TASK_FIELDS),
+    // The office tasks that the person sees count in the numbers of people (owner, 2026-10-06).
+    ...(officeIn(input) ? await officeTasks(L, [], { pick: DASHBOARD_TASK_FIELDS }) : []),
+  ];
   // The changes of the tasks in review, for the day each one went to review (owner, 2026-10-06).
   const review = tasks.filter((t) => t.status === 'in_review').map((t) => t.id);
   await L.select({ c: 'events', where: [{ col: 'target_type', in: ['task'] }, { col: 'target_id', in: review }] });
@@ -79,7 +89,8 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
     .filter((p) => (input.activeProjectsOnly === false || p.status === 'active') && inFilters(p) && (!input.projectId || p.id === input.projectId))
     .map((p) => p.id);
   const person = str(input.ownerId) ?? (input.filter === 'mine' ? L.authority?.id : undefined);
-  const where: Cond[] = [{ col: 'project_id', in: ids }];
+  // The narrowing conditions, for the tasks of the projects and for the office tasks alike.
+  const where: Cond[] = [];
   if (person) where.push({ or: [{ col: 'owner_id', in: [person] }, { has: 'helperIds', value: person }] });
   // The work of a person (owner, 2026-10-06): the tasks the person leads or helps on, and the tasks in review, of which the
   // handler keeps the ones the person reviews.
@@ -89,8 +100,12 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
   if (Array.isArray(input.status)) where.push({ col: 'status', in: input.status as string[] });
   if (input.includeDone === false) where.push({ col: 'status', notIn: ['done'] });
   if (input.filter === 'flagged') where.push({ field: 'flagged', in: ['true'] });
-  const tasks = (await L.select({ c: 'tasks', where })) as Task[];
-  const waiting = tasks.filter((t) => t.status !== 'done'
+  const tasks = [
+    ...(await L.select({ c: 'tasks', where: [{ col: 'project_id', in: ids }, ...where] })) as Task[],
+    // The office tasks that the person sees, when no project filter is set (owner, 2026-10-06).
+    ...(officeIn(input) ? await officeTasks(L, where) : []),
+  ];
+  const waiting = tasks.filter((t) => t.status !== 'done' && t.stageId !== null
     && ((t.prerequisiteIds ?? []).length > 0 || (L.office.stages[t.stageId]?.prerequisiteIds ?? []).length > 0));
   await tasksOf(L, waiting.map((t) => t.projectId));
   await L.counts('comments', 'target_id', tasks.map((t) => t.id), commentCountKey);
@@ -102,9 +117,18 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   const query = normalizeForSearch(String(input.text ?? '').replace(/^[#@]+/, ''));
   if (!query) return;
   const active = Object.values(L.office.projects).filter((p) => p.status === 'active').map((p) => p.id);
+  // The first 5 of each kind hold the first 5 of both together, which the handler cuts again (owner, 2026-10-06).
   await L.select({ c: 'tasks', where: [{ col: 'project_id', in: active }, { col: 'search_text', contains: query }], limit: 5 });
-  await L.select({ c: 'files', where: [{ col: 'search_text', contains: query }], limit: 5 });
+  await officeTasks(L, [{ col: 'search_text', contains: query }], { limit: 5 });
+  // Every file of a project, and the files of the office tasks that the person sees. A file with a project names one that exists.
+  const projects = Object.keys(L.office.projects);
+  await L.select({ c: 'files', where: [{ col: 'project_id', in: projects }, { col: 'search_text', contains: query }], limit: 5 });
+  const seen = (await officeTasks(L, [], { pick: OFFICE_TASK_PEOPLE })).map((task) => task.id);
+  await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seen }, { col: 'search_text', contains: query }], limit: 5 });
 }
+
+/** The fields of an office task that its view rule reads (taskResource). */
+const OFFICE_TASK_PEOPLE = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
 
 /** events.list: the newest "limit" events that pass the filter and that the person may read, with the rows their labels name. */
 export async function eventsList(L: Load, input: Input): Promise<void> {
@@ -118,6 +142,12 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   }
   const since = str(input.since);
   if (since) where.push({ col: 'created_at', atOrAfter: since });
+  // A change of an office task shows only to a person who sees that task, so the limit counts only those (owner, 2026-10-06).
+  // The live office tasks that the person sees come whole, because the labels of their changes name them.
+  if (!can(L.authority, 'task.view', { office: true })) {
+    const seen = (await officeTasks(L)).map((task) => task.id);
+    where.push({ or: [{ field: 'officeTaskId', null: true }, { field: 'officeTaskId', in: seen }] });
+  }
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);
 }

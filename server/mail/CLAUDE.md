@@ -30,7 +30,8 @@ after the commit of the call that asked for it.
 
 ## Content
 - Notice and summary mail carry no client data: no task, project or comment text.
-- The morning summary goes at 07:30 Riyadh, Sunday to Thursday.
+- The morning summary goes at 07:30 Riyadh, Sunday to Thursday. Its counts include office tasks: those the person leads or
+  helps on, and those in review that the person made (owner, 2026-10-06).
 - Arabic mail is right to left and uses the `_female` forms for a woman.
 - A mail names a person in the language of the person who gets it (`personName` of `src/lib/personName.ts`).
 - Every word comes from the word files, in English and Arabic. Never use an em-dash.

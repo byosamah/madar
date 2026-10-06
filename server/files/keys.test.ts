@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertObjectKey, isObjectKey, isStagingKey, objectKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
+import { assertObjectKey, isObjectKey, isStagingKey, objectKey, officeUploadKey, officeUploadPrefix, officeUploadThumbKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
 
 const KEY_FORM = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
@@ -52,6 +52,16 @@ describe('the object keys (plan 5.2)', () => {
     expect(uploadThumbKey('prj_001', 'upl_9f3a')).toBe('prj-001/upl-9f3a/thumb');
     expect(isStagingKey(uploadKey('prj_001', 'upl_9f3a'))).toBe(false);
     expect(() => uploadKey('prj_001', '../x')).toThrow(/not a valid id/);
+  });
+
+  it('keep the uploads of an office task under office/<task>/<intent>, a place that no project id can take (owner, 2026-10-06)', () => {
+    expect(officeUploadKey('tsk_014', 'upl_9f3a')).toBe('office/tsk-014/upl-9f3a/file');
+    expect(officeUploadThumbKey('tsk_014', 'upl_9f3a')).toBe('office/tsk-014/upl-9f3a/thumb');
+    expect(officeUploadKey('tsk_014', 'upl_9f3a').startsWith(officeUploadPrefix('tsk_014'))).toBe(true);
+    expect(officeUploadKey('tsk_0140', 'upl_9f3a').startsWith(officeUploadPrefix('tsk_014'))).toBe(false);
+    expect(isStagingKey(officeUploadKey('tsk_014', 'upl_9f3a'))).toBe(false);
+    expect(officeUploadKey('tsk_014', 'upl_9f3a')).toMatch(KEY_FORM);
+    expect(() => officeUploadKey('../x', 'upl_9f3a')).toThrow(/not a valid id/);
   });
 
   it('tell a key of the key form from any other value, without a throw', () => {

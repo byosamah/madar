@@ -34,6 +34,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 
 ## Loaders
 - Every call needs a loader entry in `loaders/`, or a test fails.
+- Office tasks (no project, owner 2026-10-06): `officeTaskConds` (`steps.ts`) is the view rule in SQL. A read with a limit
+  loads each kind with its own limit (search), or filters in SQL first (`events.list`: `officeTaskId` of the tasks the
+  person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks for the sweep.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
 
 ## Roles and access

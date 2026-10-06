@@ -17,16 +17,30 @@ export function mayShareProjectFile(ctx: Ctx, projectId: string, userId: string)
   return user !== undefined && can(user, 'chat.project', { projectRole: projectRoleOf(ctx.state, projectId, userId) });
 }
 
-/** A comment or a project chat message carries only files of its own project. */
-export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: string): void {
+/** A file of an office task stays on its task: no chat and no other task carries it (owner, 2026-10-06). */
+function officeFileStays(): never {
+  throw invalid('fileIds', 'A file of an office task stays on its task.', 'file_office_task');
+}
+
+/**
+ * A comment or a project chat message carries only files of its own project. A comment on an office task (projectId null, with
+ * officeTaskId) carries only files of that task.
+ */
+export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: string | null, officeTaskId?: string): void {
   for (const file of requireFiles(ctx, fileIds)) {
-    if (file.projectId !== projectId) throw invalid('fileIds', 'A file is not in this project.', 'file_other_project');
+    if (projectId === null) {
+      if (file.projectId !== null || file.taskId !== officeTaskId) officeFileStays();
+    } else if (file.projectId !== projectId) {
+      if (file.projectId === null) officeFileStays();
+      throw invalid('fileIds', 'A file is not in this project.', 'file_other_project');
+    }
   }
 }
 
 /** A direct message may carry a file when the sender and every other person of the chat both belong to the project of the file. */
 export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: string[]): void {
   for (const file of requireFiles(ctx, fileIds)) {
+    if (file.projectId === null) officeFileStays();
     if (!mayShareProjectFile(ctx, file.projectId, ctx.authority.id)) {
       throw invalid('fileIds', 'You cannot see the project of this file.', 'file_not_visible');
     }

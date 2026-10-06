@@ -3,7 +3,8 @@ import { defineCall } from '../registry';
 import { FileId, MESSAGE_MAX, TaskId, UserId } from '../contract/entities';
 import { canSeeConversation } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
-import { assertCan, insertComment, requireTask, roleIn, touch } from './shared';
+import { assertCan, insertComment, requireTask, taskRole, touch } from './shared';
+import { mayViewFile } from '../views';
 import { assertFilesForDirect } from './attach';
 import { directWith, postMessage, requireDirectPartner } from './chats';
 
@@ -22,17 +23,21 @@ export const filesShare = defineCall({
   output: z.object({ kind: z.enum(['project_chat', 'person', 'task']), id: z.string() }),
   run(input, ctx) {
     const file = ctx.state.files[input.fileId];
-    if (!file) throw notFound('File', input.fileId);
+    // A file of an office task that the person does not see reads as missing (owner, 2026-10-06).
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.fileId);
     const body = input.message || file.name;
     const { target } = input;
     if (target.kind === 'task') {
       const task = requireTask(ctx, target.taskId);
+      // A file of an office task goes only into the Conversation of its own task.
+      if (file.projectId === null && task.id !== file.taskId) throw invalid('taskId', 'A file of an office task stays on its task.', 'file_office_task');
       if (task.projectId !== file.projectId) throw invalid('taskId', 'This task is not in the project of the file.', 'file_other_project');
-      assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, task.projectId) });
+      assertCan(ctx, 'content.post', taskRole(ctx, task));
       insertComment(ctx, 'task', task.id, task.projectId, body, [file.id]);
       touch(ctx, task.projectId);
       return { kind: 'task' as const, id: task.id };
     }
+    if (file.projectId === null) throw invalid('target', 'A file of an office task stays on its task.', 'file_office_task');
     if (target.kind === 'project_chat') {
       const room = Object.values(ctx.state.conversations).find((c) => c.kind === 'project' && c.projectId === file.projectId);
       if (!room) throw notFound('Conversation', file.projectId);

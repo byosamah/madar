@@ -9,21 +9,29 @@ import { renderMail } from './templates';
  * them, and a link. No titles and no project names (plan 2, change 22). Nothing to say means no mail. The key
  * summary-<day>-<person> keeps one place in the quota and one mail, also when the job runs twice.
  *
- * The counts follow the screens: a task due today is open (to do or in progress), in an active project, and the person leads it
- * or helps with it (the rule of the due reminders, src/api/notify.ts). A review waits for the person when the task is in review
- * in an active project (the review list of tasks.list keeps only active projects) and the person reviews its project: the active
- * leader, or every active Admin when the project has none (reviewersOf).
+ * The counts follow the screens: a task due today is open (to do or in progress), in an active project or an office task, and the
+ * person leads it or helps with it (the rule of the due reminders, src/api/notify.ts). A review waits for the person when the task
+ * is in review in an active project (the review list of tasks.list keeps only active projects) and the person reviews its project:
+ * the active leader, or every active Admin when the project has none (reviewersOf). An office task in review waits for its maker
+ * (the person, or the person of the agent that made it), or for every active Admin when the maker left (reviewersOfTask; owner,
+ * 2026-10-06).
  */
 
 /** $1 the person, $2 the day "YYYY-MM-DD". */
 export const SUMMARY_COUNTS_SQL = `select
-  (select count(*)::integer from tasks t join projects p on p.id = t.project_id
-    where p.status = 'active' and t.due_date = $2 and t.status in ('todo', 'in_progress')
+  (select count(*)::integer from tasks t left join projects p on p.id = t.project_id
+    where (t.project_id is null or p.status = 'active') and t.due_date = $2 and t.status in ('todo', 'in_progress')
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
     left join users l on l.id = p.leader_id and l.active
     where p.status = 'active' and t.status = 'in_review'
       and case when l.id is not null then l.id = $1
+        else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end)
+  + (select count(*)::integer from tasks t
+    left join users c on c.id = t.doc->>'createdBy'
+    left join users m on m.id = (case when c.kind = 'agent' and c.owner_id is not null then c.owner_id else t.doc->>'createdBy' end) and m.active
+    where t.project_id is null and t.status = 'in_review'
+      and case when m.id is not null then m.id = $1
         else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end) as reviews_waiting`;
 
 /** The people who get the summary: active humans whose Morning summary is on or never set. */

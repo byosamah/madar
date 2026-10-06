@@ -2,7 +2,9 @@ import type { Comment, Event, FileRec, Message, Task, TrackerEntry, Update } fro
 import { COLLECTION } from '../../../src/api/events';
 import { commentCountKey, emptyState, fileCountKey, type State } from '../../../src/api/store';
 import { FEED_VERBS } from '../../../src/api/views';
+import { can } from '../../../src/api/permissions';
 import type { TableCollection } from '../tables';
+import type { Cond } from './query';
 import type { Load } from './build';
 
 /**
@@ -19,8 +21,33 @@ export function officeState(L: Load): State {
 }
 
 /** Every task of these projects. A read may take only some fields (pick, AM 9). */
-export async function tasksOf(L: Load, projectIds: readonly string[], pick?: readonly string[]): Promise<Task[]> {
-  return (await L.select({ c: 'tasks', where: [{ col: 'project_id', in: [...new Set(projectIds)] }], ...(pick ? { pick } : {}) })) as Task[];
+export async function tasksOf(L: Load, projectIds: readonly (string | null)[], pick?: readonly string[]): Promise<Task[]> {
+  const ids = [...new Set(projectIds.filter((id): id is string => id !== null))];
+  return (await L.select({ c: 'tasks', where: [{ col: 'project_id', in: ids }], ...(pick ? { pick } : {}) })) as Task[];
+}
+
+/** A person and the person's agents: a record that one of them made is the person's own (principalOf). */
+export function selfAndAgents(L: Load, userId: string): string[] {
+  return [userId, ...Object.values(L.office.users).filter((user) => user.kind === 'agent' && user.ownerId === userId).map((user) => user.id)];
+}
+
+/**
+ * The office tasks that the person of the call sees, as conditions on the tasks table (owner, 2026-10-06): no project, and for
+ * anyone but the Admin, the person leads it, helps on it or made it (the person or one of their agents). The rule of
+ * can('task.view'); the handler checks it again on the rows.
+ */
+export function officeTaskConds(L: Load): Cond[] {
+  const nobody: Cond[] = [{ col: 'id', in: [] }];
+  if (!L.authority) return nobody;
+  const me = L.authority.id;
+  if (can(L.authority, 'task.view', { office: true })) return [{ col: 'project_id', eq: null }];
+  if (!L.authority.active) return nobody;
+  return [{ col: 'project_id', eq: null }, { or: [{ col: 'owner_id', in: [me] }, { has: 'helperIds', value: me }, { field: 'createdBy', in: selfAndAgents(L, me) }] }];
+}
+
+/** The office tasks that the person sees, with more conditions. A read may take only some fields. */
+export async function officeTasks(L: Load, more: readonly Cond[] = [], o: { pick?: readonly string[]; limit?: number } = {}): Promise<Task[]> {
+  return (await L.select({ c: 'tasks', where: [...officeTaskConds(L), ...more], ...o })) as Task[];
 }
 
 /** The files that these records name by id: attachments of posts, comments, messages and Tracker entries. */
@@ -133,6 +160,7 @@ export async function taskScope(L: Load, taskId: string): Promise<Task | undefin
   await L.byKey('tasks', [taskId]);
   const task = L.get<Task>('tasks', taskId);
   if (!task) return undefined;
+  // An office task has no project, so it needs no other task (owner, 2026-10-06).
   await tasksOf(L, [task.projectId]);
   await taskTail(L, [taskId]);
   return task;

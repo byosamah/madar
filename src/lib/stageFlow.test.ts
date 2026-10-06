@@ -12,7 +12,7 @@ describe('stage and task order', () => {
   });
 
   it('puts tasks in time order: start, due, stage, title; an unset date comes last', () => {
-    const rank = (id: string) => (id === 's1' ? 0 : 1);
+    const rank = (id: string | null) => (id === 's1' ? 0 : 1);
     const a = task('a', 's2', 'todo', { startDate: '2026-10-01', dueDate: '2026-10-05', title: 'Zeta' });
     const b = task('b', 's1', 'todo', { startDate: '2026-10-01', dueDate: '2026-10-05', title: 'Alpha' });
     const c = task('c', 's1', 'todo', { startDate: null, dueDate: '2026-09-01' });

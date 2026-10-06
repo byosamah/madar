@@ -7,12 +7,12 @@ import {
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
-import { reviewersOf } from '../notify';
-import { can } from '../permissions';
+import { reviewersOfTask } from '../notify';
+import { can, mayViewTask } from '../permissions';
 import { sentToReviewOn } from '../review';
 import { paymentsOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
-import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
+import { cardOf, deadlinesOf, mayViewFile, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
@@ -71,7 +71,7 @@ export const DashboardView = z.object({
     reviewer: UserCard,
     count: Count,
     oldestDays: Count,
-    tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId, projectCode: z.string(), days: Count })),
+    tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), days: Count })),
   })),
   /**
    * The data gaps of the active projects in the filters, for the Admin only (can admin.manage): open tasks with no due date or no
@@ -142,9 +142,14 @@ export const dashboardGet = defineCall({
     const inFilters = peopleFilter(state, input);
     const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
     const active = projects.filter((p) => p.status === 'active');
-    const inScope = new Set(projects.map((p) => p.id));
-    const activeIds = new Set(active.map((p) => p.id));
+    // Project ids only: an office task (projectId null) is never in a project number (owner, 2026-10-06).
+    const inScope = new Set<string | null>(projects.map((p) => p.id));
+    const activeIds = new Set<string | null>(active.map((p) => p.id));
     const tasks = Object.values(state.tasks);
+    // The office tasks that the person sees count in the numbers of people: the past-due tiles, the workload, the reviews and the
+    // gaps. They have no leader, client or team, so a people filter leaves them out, as in the lists the numbers open.
+    const officeIn = !input.leaderId && !input.clientId && !input.teamId;
+    const officeTasks = officeIn ? tasks.filter((t) => t.projectId === null && mayViewTask(state, actor, t)) : [];
     const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: tasks.filter((t) => t.projectId === p.id) }, today));
     // The stage of a project follows its tasks (owner, 2026-10-02), so it is computed here and never read from the saved value.
     const tagOf = (p: Project) => stageTag(state, p.id);
@@ -201,15 +206,17 @@ export const dashboardGet = defineCall({
 
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
-    const activeTasks = tasks.filter((t) => activeIds.has(t.projectId));
+    // The tasks of people: the tasks of the active projects in scope, and the office tasks the person sees.
+    const activeTasks = [...tasks.filter((t) => activeIds.has(t.projectId)), ...officeTasks];
     // A task in review is work for its reviewers, not for the person who finished it (owner, 2026-10-06).
     const reviewing = activeTasks.filter((task) => task.status === 'in_review');
     const sentOn = sentToReviewOn(state, new Set(reviewing.map((task) => task.id)));
-    const reviews = new Map<string, { id: string; title: string; projectId: string; projectCode: string; days: number }[]>();
+    const reviews = new Map<string, { id: string; title: string; projectId: string | null; projectCode: string; days: number }[]>();
     for (const task of reviewing) {
       const sent = sentOn.get(task.id);
-      const row = { id: task.id, title: task.title, projectId: task.projectId, projectCode: state.projects[task.projectId].code, days: sent ? Math.max(0, diffDays(sent, today)) : 0 };
-      for (const id of reviewersOf(state, task.projectId)) reviews.set(id, [...(reviews.get(id) ?? []), row]);
+      const code = task.projectId === null ? '' : state.projects[task.projectId].code;
+      const row = { id: task.id, title: task.title, projectId: task.projectId, projectCode: code, days: sent ? Math.max(0, diffDays(sent, today)) : 0 };
+      for (const id of reviewersOfTask(state, task)) reviews.set(id, [...(reviews.get(id) ?? []), row]);
     }
     const reviewsOf = new Map([...reviews].map(([id, rows]) => [id, rows.length]));
     const workloadRows = humans.map((user) => {
@@ -229,7 +236,7 @@ export const dashboardGet = defineCall({
       tiles: {
         activeProjects: active.length,
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
-        overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
+        overdueTasks: activeTasks.filter((t) => isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
         areaInDesign: inDesign.reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
         inDesignWithoutArea: inDesign.filter((p) => p.areaM2 === null).length,
@@ -274,9 +281,9 @@ export const dashboardGet = defineCall({
 
 export const SearchView = z.object({
   projects: z.array(Ref).max(5),
-  tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId, projectCode: z.string() })).max(5),
+  tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId.nullable(), projectCode: z.string() })).max(5),
   people: z.array(UserCard).max(5),
-  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId, projectCode: z.string() })).max(5),
+  files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string() })).max(5),
 });
 
 export const searchQuery = defineCall({
@@ -289,15 +296,16 @@ export const searchQuery = defineCall({
     const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
     if (!query) return { projects: [], tasks: [], people: [], files: [] };
     const hit = (...parts: (string | undefined)[]) => normalizeForSearch(parts.filter(Boolean).join(' ')).includes(query);
-    const codeOf = (projectId: string) => state.projects[projectId]?.code ?? '';
+    const codeOf = (projectId: string | null) => (projectId === null ? '' : state.projects[projectId]?.code ?? '');
     return {
       projects: Object.values(state.projects)
         .filter((p) => hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((p) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) })),
+      // The tasks of active projects, and the office tasks that the person sees (owner, 2026-10-06).
       tasks: Object.values(state.tasks)
-        .filter((t) => state.projects[t.projectId]?.status === 'active' && hit(t.title))
+        .filter((t) => (t.projectId === null ? mayViewTask(state, ctx.authority, t) : state.projects[t.projectId]?.status === 'active') && hit(t.title))
         .slice(0, 5)
         .map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, projectCode: codeOf(t.projectId) })),
       people: Object.values(state.users)
@@ -306,7 +314,7 @@ export const searchQuery = defineCall({
         .slice(0, 5)
         .map((u) => userCard(u)),
       files: Object.values(state.files)
-        .filter((f) => hit(f.name))
+        .filter((f) => (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId) })),
     };

@@ -1,0 +1,12 @@
+{
+  "errors": {
+    "reasons": {
+      "not_a_person": "Only a person can lead or help on a task. An agent acts for its person.",
+      "office_no_stage": "An office task belongs to no project, so it has no stage.",
+      "office_no_prerequisites": "An office task does not wait for other tasks.",
+      "review_by_maker": "The person who made this task reviews it. A task that this person leads needs no review.",
+      "file_office_task": "A file of an office task stays on its task.",
+      "office_needs_task": "Choose the project or the office task of this file."
+    }
+  }
+}

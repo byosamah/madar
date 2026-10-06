@@ -22,7 +22,7 @@ describe('the Leader and Client filters of the lists that the Dashboard opens (o
       const { tiles } = await api.call('dashboard.get', { leaderId });
       const rows = await api.call('tasks.list', { filter: 'overdue', includeDone: false, leaderId });
       expect(rows.length, leaderId).toBe(tiles.overdueTasks);
-      for (const row of rows) expect(store.state.projects[row.project.id].leaderId).toBe(leaderId);
+      for (const row of rows) expect(store.state.projects[row.project!.id].leaderId).toBe(leaderId);
       some += rows.length;
     }
     expect(some).toBeGreaterThan(0);
@@ -33,7 +33,7 @@ describe('the Leader and Client filters of the lists that the Dashboard opens (o
     const clientId = Object.values(store.state.projects).find((p) => p.status === 'active' && p.clientId !== null)!.clientId as string;
     const rows = await api.call('tasks.list', { clientId });
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(store.state.projects[row.project.id].clientId).toBe(clientId);
+    for (const row of rows) expect(store.state.projects[row.project!.id].clientId).toBe(clientId);
     const all = await api.call('tasks.list', {});
     expect(rows.length).toBeLessThan(all.length);
     // A client that does not exist matches nothing, like a team that does not exist.

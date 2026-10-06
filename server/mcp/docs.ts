@@ -27,6 +27,8 @@ export const INSTRUCTIONS = [
   '',
   'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead.',
   '',
+  'Office tasks: a task with no project (projectId null) is an office task. tasks.create without projectId makes one, and your person is its maker. It may name any active person as lead (ownerId) and helpers. It has no stage and no prerequisites, and it changes no project. Only its maker, its lead, its helpers and the Admin see it, its comments, its files and its changes; for anyone else every call answers not_found. Its maker reviews it when another person leads it; the lead and the maker change it; the maker or the Admin changes its lead or helpers and deletes it. files.list with taskId alone lists its files.',
+  '',
   'Health: an active project is late when today is after the end date of its current stage. It is at risk when one of its open tasks is 3 or more days past due, or when the stage ends within 7 days and less than 70% of its tasks are done. A task 1 or 2 days past due still counts as past due (tasks.list filter overdue), but it does not put the project at risk.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
@@ -85,7 +87,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'files.list': {
     title: 'List files',
-    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). Each file has its versions and their letters. You cannot read file contents or upload here: the person does that in the Madar screens.',
+    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). For an office task (no project), send taskId alone. Each file has its versions and their letters. You cannot read file contents or upload here: the person does that in the Madar screens.',
   },
   'payments.create': {
     title: 'Add a payment',
@@ -133,15 +135,15 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.create': {
     title: 'Add a task',
-    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A new open task in an earlier stage moves the project back, and then the call needs "reason".',
+    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A new open task in an earlier stage moves the project back, and then the call needs "reason". Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it.',
   },
   'tasks.get': {
     title: 'Get a task',
-    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead.',
+    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead. project and stage are null for an office task.',
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead. An office task (project null) shows only with no project filter.',
   },
   'tasks.move': {
     title: 'Move a task',
@@ -189,7 +191,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'comments.create': {
     title: 'Add a comment',
-    description: 'Adds a comment to a task or an update (targetType and targetId): a body in words, and optionally files (fileIds). Only the project team may comment. People named with @ get a notification.',
+    description: 'Adds a comment to a task or an update (targetType and targetId): a body in words, and optionally files (fileIds). Only the project team may comment; on an office task, only its people. People named with @ get a notification when they may see the task.',
   },
   'comments.list': {
     title: 'List comments',

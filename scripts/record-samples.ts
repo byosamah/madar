@@ -104,7 +104,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await write('comments.create', { targetType: 'task', targetId: newTask, body: 'The levels match the survey.' });
     await write('updates.create', { projectId: project.id, body: 'The drainage check is done. The levels match the survey.' });
 
-    const inReview = Object.values(s().tasks).filter((t) => t.status === 'in_review' && s().projects[t.projectId]?.status === 'active');
+    const inReview = Object.values(s().tasks).filter((t) => t.status === 'in_review' && s().projects[t.projectId!]?.status === 'active');
     await write('tasks.approve', { id: first(inReview, 'task in review').id });
     await write('tasks.sendBack', { id: first(inReview.slice(1), 'second task in review').id, note: 'Add the section through the stair, then send it again.' });
 

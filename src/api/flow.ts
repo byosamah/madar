@@ -30,6 +30,8 @@ const names = (items: { title?: string; name?: string }[]): string => items.map(
 /** True when the task has a lead and no task and no stage that the task needs is open. */
 export function mayFinish(state: State, task: Task): boolean {
   if (task.ownerId === null) return false;
+  // An office task waits for no task and no stage (owner, 2026-10-06).
+  if (task.projectId === null) return true;
   const tasks = tasksOfProject(state, task.projectId);
   return openPrerequisites(task, tasks).length === 0 && openPrerequisiteStages(task, stagesOf(state, task.projectId), tasks).length === 0;
 }
@@ -41,6 +43,7 @@ export function assertHasLead(task: Pick<Task, 'ownerId'>): void {
 
 export function assertMayFinish(state: State, task: Task): void {
   assertHasLead(task);
+  if (task.projectId === null) return;
   const tasks = tasksOfProject(state, task.projectId);
   const open = openPrerequisites(task, tasks);
   if (open.length > 0) {
@@ -69,6 +72,7 @@ function reaches(start: string[], target: string, next: (id: string) => string[]
 
 /** The prerequisites of a task must be other tasks of its project, none twice, and no task may need itself through a chain. */
 export function assertTaskPrerequisites(state: State, task: Pick<Task, 'id' | 'projectId'>, ids: string[]): void {
+  if (task.projectId === null) throw invalid('prerequisiteIds', 'An office task waits for no other task.', 'office_no_prerequisites');
   if (new Set(ids).size !== ids.length) throw invalid('prerequisiteIds', 'A task is in the list twice.', 'duplicate_prerequisite');
   for (const id of ids) {
     if (state.tasks[id]?.projectId !== task.projectId) throw invalid('prerequisiteIds', 'A prerequisite must be a task of the same project.', 'prerequisite_not_in_project');
@@ -91,6 +95,7 @@ export function assertStagePrerequisites(state: State, stage: Pick<Stage, 'id' |
 
 /** The tasks that need this one first, in time order. */
 export function dependentsOf(state: State, task: Task): Task[] {
+  if (task.projectId === null) return [];
   const found = tasksOfProject(state, task.projectId).filter((other) => (other.prerequisiteIds ?? []).includes(task.id));
   return tasksChrono(found, stagesOf(state, task.projectId));
 }
@@ -129,6 +134,9 @@ const workingDays = (n: number): string => `${n} working ${n === 1 ? 'day' : 'da
  * "causeEventId" is the finish: each move names it (audit 2026-10-03, V-2).
  */
 export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, finishDay = ctx.today): Task[] {
+  // Only a task of a project has dependents: they are tasks of the same project.
+  const projectId = task.projectId;
+  if (projectId === null) return [];
   const dependents = dependentsOf(ctx.state, task);
   const byId = new Map(dependents.map((dependent) => [dependent.id, dependent]));
   const moved: Task[] = [];
@@ -148,7 +156,7 @@ export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, fini
       from: note.from, to: note.to, byTaskId: task.id, byTaskTitle: task.title.slice(0, 200), lateDays: late,
     });
     addTrackerEntry(ctx, {
-      projectId: dependent.projectId, type: 'other', direction: 'none', auto: 'shift',
+      projectId, type: 'other', direction: 'none', auto: 'shift',
       title: `${dependent.title.slice(0, 160)} moved ${workingDays(move.lateDays)}`,
       note: `It needs "${task.title.slice(0, 160)}", which finished ${workingDays(late)} late. Due date moved from ${when(from)} to ${when(dueDate)}.`,
     });
@@ -185,7 +193,9 @@ function logStageBack(ctx: Ctx, projectId: string, reason: string): void {
  * until the tag moves forward again. A call that cannot move the tag back, or a change by Undo, passes ask false.
  * "logInTracker" also logs a move back in the Tracker. It does nothing when the tag does not move back.
  */
-export function watchStage(ctx: Ctx, projectId: string): { finish(options?: { reason?: string; ask?: boolean; logInTracker?: boolean }): void } {
+export function watchStage(ctx: Ctx, projectId: string | null): { finish(options?: { reason?: string; ask?: boolean; logInTracker?: boolean }): void } {
+  // An office task has no project, so it never moves a stage tag (owner, 2026-10-06).
+  if (projectId === null) return { finish: () => undefined };
   const before = stageTag(ctx.state, projectId);
   return {
     finish({ reason, ask = true, logInTracker = false } = {}) {

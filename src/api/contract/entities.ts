@@ -301,8 +301,10 @@ export type DateNote = z.infer<typeof DateNote>;
 
 export const Task = z.object({
   id: TaskId,
-  projectId: ProjectId,
-  stageId: StageId,
+  /** Null: an office task, which belongs to no project (owner, 2026-10-06). Only its maker, its lead, its helpers and the Admin see it. */
+  projectId: ProjectId.nullable(),
+  /** Null for an office task. A project task always has a stage. */
+  stageId: StageId.nullable(),
   title: z.string().trim().min(1).max(200),
   description: z.string().max(5000),
   /** The lead. Null: the task has no lead yet (owner, 2026-10-05). A task with no lead cannot finish. Old records keep a string. */
@@ -587,7 +589,8 @@ export type FileVersion = z.infer<typeof FileVersion>;
 
 export const FileRec = z.object({
   id: FileId,
-  projectId: ProjectId,
+  /** Null: a file of an office task (owner, 2026-10-06). Its taskId names that task. */
+  projectId: ProjectId.nullable(),
   stageId: StageId.nullable(),
   taskId: TaskId.nullable(),
   name: z.string().trim().min(1).max(200),
@@ -635,6 +638,11 @@ export const Event = z.object({
   causeEventId: EventId.optional(),
   /** The real build: on an undo event, the event it undoes. The loader fills undoneBy from it (plan 4.3). Optional, so older events load. */
   undoes: EventId.optional(),
+  /**
+   * The office task of a change of an office task, of its comments or of its files (owner, 2026-10-06). Only a person who sees
+   * that task reads the event. Absent on every other event.
+   */
+  officeTaskId: TaskId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 

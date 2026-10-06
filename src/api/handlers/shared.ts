@@ -1,6 +1,6 @@
 import type { Ctx } from '../registry';
 import { emptyReactions, type Comment, type DateMove, type Project, type Stage, type Task, type User } from '../contract/entities';
-import { can, projectRoleOf, type Action, type ProjectRole, type Resource } from '../permissions';
+import { can, mayViewTask, projectRoleOf, taskResource, type Action, type ProjectRole, type Resource } from '../permissions';
 import { forbidden, invalid, notFound } from '../errors';
 import { recordCreate } from '../events';
 import { notifyIn } from '../notify';
@@ -11,8 +11,13 @@ export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): vo
   if (!can(ctx.authority, action, resource)) throw forbidden('You cannot do this.', { action });
 }
 
-export function roleIn(ctx: Ctx, projectId: string): ProjectRole {
+export function roleIn(ctx: Ctx, projectId: string | null): ProjectRole {
   return projectRoleOf(ctx.state, projectId, ctx.authority.id);
+}
+
+/** The resource of a task for the person of the call: their role in its project, or the people of an office task. */
+export function taskRole(ctx: Ctx, task: Task): Resource {
+  return taskResource(ctx.state, task, ctx.authority.id);
 }
 
 export function requireUser(ctx: Ctx, id: string): User {
@@ -27,9 +32,13 @@ export function requireProject(ctx: Ctx, id: string): Project {
   return project;
 }
 
+/**
+ * A task by id that the person of the call may see. An office task that the person does not see reads as missing, so no call
+ * tells that it exists (owner, 2026-10-06). Every task call reads its task here, so a write checks the view first.
+ */
 export function requireTask(ctx: Ctx, id: string): Task {
   const task = ctx.state.tasks[id];
-  if (!task) throw notFound('Task', id);
+  if (!task || !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Task', id);
   return task;
 }
 
@@ -39,8 +48,9 @@ export function requireStage(ctx: Ctx, projectId: string, stageId: string): Stag
   return stage;
 }
 
-/** Marks the project as updated, for the "last update" sort. */
-export function touch(ctx: Ctx, projectId: string): void {
+/** Marks the project as updated, for the "last update" sort. An office task has no project, so it touches nothing. */
+export function touch(ctx: Ctx, projectId: string | null): void {
+  if (projectId === null) return;
   const project = ctx.state.projects[projectId];
   if (project) project.updatedAt = ctx.stamp;
 }
@@ -54,7 +64,7 @@ export function activeMentions(state: State, body: string): string[] {
 }
 
 export function insertComment(
-  ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string, body: string, fileIds: string[] = [], dates?: DateMove,
+  ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string | null, body: string, fileIds: string[] = [], dates?: DateMove,
 ): Comment {
   const id = nextId(ctx.state, 'cmt');
   const comment: Comment = {

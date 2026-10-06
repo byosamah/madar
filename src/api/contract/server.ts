@@ -57,7 +57,8 @@ const storyStart = {
 
 const filesUploadStart = {
   input: z.object({
-    projectId: ProjectId,
+    /** None: a file of the office task taskId (owner, 2026-10-06). */
+    projectId: ProjectId.optional(),
     name: z.string().trim().min(1).max(200),
     /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
     size: z.number().int().min(0),

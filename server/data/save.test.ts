@@ -86,7 +86,7 @@ describe('diffState', () => {
     const diff = diffState(seed, after);
     expect(table(diff, 'tasks')!.upserts[0].columns).toEqual({ search_text: 'floor plans' });
     expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: after.tasks[comment.targetId].projectId });
-    expect(diff.projects.has(after.tasks[comment.targetId].projectId)).toBe(true);
+    expect(diff.projects.has(after.tasks[comment.targetId].projectId!)).toBe(true);
     expect(diff.unresolvedComments).toEqual([]);
   });
 

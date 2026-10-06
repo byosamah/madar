@@ -3,7 +3,7 @@ import { OUTBOX_INSERT_SQL, type OutboxRow } from '../core/effects';
 import type { Db, Query } from '../core/ports';
 import { KEYS_IN_USE_SQL, PROJECT_KEYS_SQL } from './effects';
 import { INTENT_INSERT_SQL, INTENTS_SELECT_SQL, INTENTS_USE_SQL, type Intent } from './intents';
-import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, TASK_PROJECT_SQL, USERS_SQL } from './records';
+import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, TASK_DOC_SQL, TASK_PROJECT_SQL, USERS_SQL } from './records';
 
 /**
  * A database in memory for the unit tests of track F (task F2). It answers only the statements of server/files and server/calls
@@ -12,7 +12,7 @@ import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, TASK_PROJECT_SQL, USERS_SQL } from './r
  */
 
 type Rec = Record<string, unknown>;
-type FileDoc = { id: string; projectId: string; versions: Rec[] } & Rec;
+type FileDoc = { id: string; projectId: string | null; versions: Rec[] } & Rec;
 type EventDoc = { projectId: string; targetType: string; before: unknown; after: unknown };
 
 export type FakeFilesDb = Db & {
@@ -33,7 +33,7 @@ export function fakeFilesDb(o: {
   users?: Record<string, User>;
   files?: Record<string, FileDoc>;
   feedback?: Record<string, Rec>;
-  tasks?: Record<string, { projectId: string }>;
+  tasks?: Record<string, { projectId: string | null } & Rec>;
   events?: EventDoc[];
 } = {}): FakeFilesDb {
   const intents = new Map<string, Intent>();
@@ -83,6 +83,10 @@ export function fakeFilesDb(o: {
       case TASK_PROJECT_SQL: {
         const task = o.tasks?.[String(values[0])];
         return task ? [{ project_id: task.projectId }] : [];
+      }
+      case TASK_DOC_SQL: {
+        const task = o.tasks?.[String(values[0])];
+        return task ? [{ doc: { id: String(values[0]), ...task } }] : [];
       }
       case KEYS_IN_USE_SQL:
         return (values[0] as string[]).filter((key) =>

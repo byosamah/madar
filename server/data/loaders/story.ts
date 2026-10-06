@@ -38,6 +38,11 @@ export async function storyCall(L: Load, input: Input): Promise<void> {
   for (const [targetType, ids] of targets) {
     await L.select({ c: 'events', where: [{ col: 'target_type', eq: targetType }, { col: 'target_id', in: [...ids] }] });
   }
+  // The office task of each change of the story, and every change of that task: the view rule reads the task, or the last copy of
+  // a deleted one (owner, 2026-10-06).
+  const office = [...new Set(story.flatMap((event) => (event.officeTaskId ? [event.officeTaskId] : [])))];
+  if (office.length > 0) await L.select({ c: 'events', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: office }] });
+  await L.byKey('tasks', office);
   const events = L.list<Event>('events');
   await eventTargets(L, events);
   await tasksOf(L, events.flatMap((event) => (event.projectId ? [event.projectId] : [])));

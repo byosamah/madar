@@ -172,9 +172,16 @@ export function memorySource(state: State): Source {
       const found: { id: string; last: string; mine: string | null }[] = [];
       for (const [id, comments] of byTask) {
         const task = state.tasks[id];
-        if (!task || !state.projects[task.projectId]) continue;
+        if (!task) continue;
         const mine = comments.filter((comment) => o.me.includes(String(comment.authorId))).map((comment) => String(comment.createdAt));
-        if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && mine.length === 0) continue;
+        if (task.projectId === null) {
+          const made = o.me.includes(task.createdBy);
+          const sees = o.admin || task.ownerId === o.owner || (task.helperIds ?? []).includes(o.owner) || made;
+          if (!sees || (task.ownerId !== o.owner && !made && mine.length === 0)) continue;
+        } else {
+          if (!state.projects[task.projectId]) continue;
+          if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && mine.length === 0) continue;
+        }
         const last = comments.map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));
         found.push({ id, last, mine: mine.length > 0 ? mine.reduce((a, b) => (b > a ? b : a)) : null });
       }

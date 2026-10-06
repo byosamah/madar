@@ -11,7 +11,7 @@ import { changesOf, runBoth, runOn, type Run } from './compare';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { readSweep, trapOffice, writeSweep } from './sweep';
+import { OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -266,7 +266,7 @@ describe('the 18 places of AM 6', () => {
 
   it('row 15: a task thread of a person who only commented on it, with its unread count after the read mark', async () => {
     const state = office();
-    const task = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+    const task = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId!].leaderId !== 'usr_006')!;
     const lead = task.ownerId as string;
     const add = (id: string, authorId: string, at: string) => {
       state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: `Note ${id}`, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };
@@ -516,6 +516,51 @@ describe('the jobs loader (plan 4.6, for track N3)', () => {
     const made = Object.values(whole.notifications).filter((n) => !state.notifications[n.id]);
     expect(new Set(made.map((n) => n.trigger))).toEqual(new Set(['due_tomorrow', 'overdue', 'resume_due']));
     expect(made.some((n) => n.dedupeKey === `${key}:${late.ownerId}`)).toBe(false);
+  });
+});
+
+describe('office tasks (owner, 2026-10-06)', () => {
+  it('the writes of the people of an office task succeed with the same answer on the scoped load; the outsider gets not_found', async () => {
+    const traps = trapOffice(seed);
+    const writes = officeWrites(traps);
+    expect(writes.length).toBeGreaterThan(10);
+    for (const [name, input, actor, prepared] of writes) {
+      const run = await same(traps, name, input, actor, { prepared });
+      if (actor === 'usr_003') expect(run.outcome.error, name).toMatchObject({ code: 'not_found' });
+      else expect(run.outcome.error, `${name} ${JSON.stringify(input)}`).toBeUndefined();
+    }
+  });
+
+  it('the reads of the outsider hold nothing of an office task; the reads of its agent hold what its person reads', async () => {
+    const traps = trapOffice(seed);
+    const ids = new Set(Object.values(traps.tasks).filter((t) => t.projectId === null).map((t) => t.id));
+    expect(ids.size).toBe(2);
+    const text = async (actor: string, name: SharedCallName, input: unknown) => JSON.stringify((await same(traps, name, input, actor)).outcome.output);
+    for (const [name, input] of [['tasks.list', {}], ['search.query', { text: 'licence' }], ['events.list', { limit: 500 }], ['chats.list', {}], ['notifications.list', {}]] as const) {
+      const seen = await text('usr_003', name, input);
+      for (const id of ids) expect(seen, `${name} ${id}`).not.toContain(id);
+      expect(await text(OFFICE_AGENT, name, input), name).toBe(await text('usr_005', name, input));
+    }
+    const admin = await text(ADMIN, 'tasks.list', {});
+    for (const id of ids) expect(admin).toContain(id);
+  });
+
+  it('the jobs load brings the open office tasks, so their people get the due reminders', async () => {
+    const traps = trapOffice(seed);
+    const whole = structuredClone(traps);
+    const wholeBefore = structuredClone(whole);
+    const count = runScheduledTriggers(whole, NOW);
+    const loaded = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    const scoped = structuredClone(loaded);
+    const dedupeUsed = (k: string) => Object.values(traps.notifications).some((n) => n.dedupeKey === k);
+    expect(runScheduledTriggers(scoped, NOW, { dedupeUsed })).toBe(count);
+    expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
+    const paper = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId === null)!;
+    // The task with no lead has nobody to remind; the licence task waits in review. A lead makes the reminder go.
+    apply(traps, 'tasks.take', { taskId: paper.id }, paper.createdBy);
+    const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
+    runScheduledTriggers(again, NOW, { dedupeUsed });
+    expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
   });
 });
 

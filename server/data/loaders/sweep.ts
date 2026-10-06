@@ -69,6 +69,24 @@ export function readSweep(office: State): SweepCall[] {
     );
   }
   for (const task of Object.values(office.tasks)) calls.push(['tasks.get', { id: task.id }, task.ownerId ?? ADMIN]);
+  // Office tasks (owner, 2026-10-06): every person reads each one, its comments and its files, and each agent reads the lists of
+  // its person. A person who does not see one gets the same refusal both ways.
+  for (const task of Object.values(office.tasks).filter((t) => t.projectId === null)) {
+    for (const actor of humans) {
+      calls.push(
+        ['tasks.get', { id: task.id }, actor], ['files.list', { taskId: task.id }, actor],
+        ['comments.list', { targetType: 'task', targetId: task.id }, actor],
+      );
+    }
+  }
+  const agents = Object.values(office.users).filter((u) => u.kind === 'agent' && u.active).map((u) => u.id);
+  for (const actor of [...humans, ...agents]) calls.push(['search.query', { text: 'licence' }, actor]);
+  for (const actor of agents) {
+    calls.push(
+      ['tasks.list', { filter: 'mine' }, actor], ['tasks.list', {}, actor], ['events.list', { limit: 20 }, actor], ['chats.list', {}, actor],
+      ['dashboard.get', {}, actor], ['notifications.list', {}, actor],
+    );
+  }
   for (const comment of Object.values(office.comments)) calls.push(['comments.list', { targetType: comment.targetType, targetId: comment.targetId }, ADMIN]);
   for (const conversation of Object.values(office.conversations)) {
     for (const actor of humans) calls.push(['chats.messages', { conversationId: conversation.id, limit: 2 }, actor]);
@@ -138,20 +156,72 @@ export function writeSweep(office: State): SweepCall[] {
     ['events.undoStory', { correlationId: Object.values(office.events).at(-1)!.correlationId }, ADMIN],
     ['taskTemplates.save', { fromTaskId: task.id, name: 'From a task' }, ADMIN],
     ['feedback.send', { kind: 'feature', message: 'An idea' }, ADMIN, { shots: [] }],
+    // An office task (owner, 2026-10-06), on any office.
+    ['tasks.create', { title: 'Office errand', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004'],
+    ...officeWrites(office),
   ];
 }
 
-function apply(state: State, name: SharedCallName, input: unknown, actorId: string, story: string): void {
-  const outcome = runOn(state, name, sharedCalls[name].input.parse(input), actorId, { now: NOW, correlationId: story });
+/** The writes on the office tasks of trapOffice, by their people: none on an office without them. */
+export function officeWrites(office: State): SweepCall[] {
+  const led = Object.values(office.tasks).find((t) => t.projectId === null && t.ownerId !== null);
+  const open = Object.values(office.tasks).find((t) => t.projectId === null && t.ownerId === null);
+  const file = Object.values(office.files).find((f) => f.projectId === null);
+  const comment = Object.values(office.comments).find((c) => c.targetId === led?.id);
+  if (!led || !open || !file || !comment) return [];
+  const maker = led.createdBy;
+  return [
+    ['tasks.update', { id: led.id, patch: { ownerId: 'usr_006', helperIds: [] } }, maker],
+    ['tasks.approve', { id: led.id }, maker],
+    ['tasks.sendBack', { id: led.id, note: 'Add the stamp' }, maker],
+    ['tasks.take', { taskId: open.id }, open.createdBy],
+    ['tasks.delete', { id: led.id }, maker],
+    ['tasks.update', { id: led.id, patch: { title: 'Not mine' } }, 'usr_003'],
+    ['comments.create', { targetType: 'task', targetId: led.id, body: 'Paid', fileIds: [file.id] }, 'usr_006'],
+    ['comments.update', { id: comment.id, body: 'Edited' }, comment.authorId],
+    ['reactions.toggle', { commentId: comment.id, emoji: '👍' }, maker],
+    ['files.upload', { name: file.name, taskId: led.id, uploadId: 'upl_2' }, 'usr_006', { blobKey: 'blob_sweep_office', mimeType: 'application/pdf', size: 4 }],
+    ['files.delete', { id: file.id }, maker],
+    ['files.share', { fileId: file.id, target: { kind: 'task', taskId: led.id } }, 'usr_006'],
+    ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_005'],
+    ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_003'],
+    ['chats.markRead', { conversationId: led.id }, 'usr_005'],
+  ];
+}
+
+function apply(state: State, name: SharedCallName, input: unknown, actorId: string, story: string, prepared?: unknown): unknown {
+  const outcome = runOn(state, name, sharedCalls[name].input.parse(input), actorId, { now: NOW, correlationId: story, prepared });
   if (outcome.error) throw new Error(`Setup ${name} failed: ${outcome.error.message}`);
+  return outcome.output;
+}
+
+/** The agent of the lead of the office task of trapOffice: it sees what its person sees. */
+export const OFFICE_AGENT = 'usr_090';
+
+/**
+ * Office tasks (owner, 2026-10-06): usr_004 makes one that usr_005 leads and usr_006 helps on, past due, with a comment that
+ * mentions usr_003, a file, and a review that waits for usr_004; usr_006 makes one with no lead. usr_003 is on neither. usr_090 is
+ * the agent of usr_005.
+ */
+function officeTraps(state: State): void {
+  state.users[OFFICE_AGENT] = {
+    ...state.users.usr_009, id: OFFICE_AGENT, name: 'Sara Assistant', email: 'sara.assistant@madar.test', ownerId: 'usr_005',
+  };
+  const made = apply(state, 'tasks.create', { title: 'Renew the trade licence', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-01' }, 'usr_004', 'cor_trap_office') as { task: { id: string } };
+  const id = made.task.id;
+  apply(state, 'comments.create', { targetType: 'task', targetId: id, body: 'Ask @[Reem](usr_003) about the fee.' }, 'usr_005', 'cor_trap_office_comment');
+  apply(state, 'files.upload', { name: 'Licence.pdf', taskId: id, uploadId: 'upl_trap' }, 'usr_005', 'cor_trap_office_file', { blobKey: 'blob_trap_office', mimeType: 'application/pdf', size: 7 });
+  apply(state, 'tasks.complete', { id }, 'usr_005', 'cor_trap_office_review');
+  apply(state, 'tasks.create', { title: 'Order paper for the licence', dueDate: '2026-10-02' }, 'usr_006', 'cor_trap_office_paper');
 }
 
 /**
- * The sample office with records that the reads of the loaders must find: an undo pair, a helper and a flag, a decision, a direct
- * message with a project file, two messages with the same stamp, and a task thread with a read mark.
+ * The sample office with records that the reads of the loaders must find: office tasks, an undo pair, a helper and a flag, a
+ * decision, a direct message with a project file, two messages with the same stamp, and a task thread with a read mark.
  */
 export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
+  officeTraps(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
   apply(state, 'tasks.update', { id: task.id, patch: { title: 'Undone title' } }, leader, 'cor_trap_edit');
@@ -168,7 +238,7 @@ export function trapOffice(seed: State): State {
   for (const id of ['msg_901', 'msg_902']) {
     state.messages[id] = { id, conversationId: 'cnv_001', authorId: leader, actingForId: leader, body: id, mentions: [], fileIds: [], createdAt: '2026-10-03T11:00:00.000+03:00', editedAt: null };
   }
-  const thread = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const thread = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
   const lead = thread.ownerId as string;
   for (const [id, authorId, at] of [
     ['cmt_901', lead, '2026-10-01T09:00:00.000+03:00'], ['cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00'],

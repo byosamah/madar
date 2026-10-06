@@ -3,7 +3,7 @@ import type {
   Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
-import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
+import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, type State } from './store';
 import { diffDays } from '../lib/dates';
 import { markOf } from '../lib/projectMark';
@@ -243,8 +243,9 @@ export function eventViewOf(state: State, event: Event): EventView {
   return { event, actor: cardOf(state, event.actorId) };
 }
 
-/** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. */
+/** What an open task waits for. A done task waits for nothing, and a task with no prerequisites skips the scan. An office task waits for nothing. */
 function waitingOf(state: State, task: Task): TaskRow['waitingFor'] {
+  if (task.projectId === null || task.stageId === null) return { tasks: [], stages: [] };
   const stage = state.stages[task.stageId];
   if (task.status === 'done' || ((task.prerequisiteIds ?? []).length === 0 && (stage?.prerequisiteIds ?? []).length === 0)) return { tasks: [], stages: [] };
   const tasks = Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
@@ -255,44 +256,48 @@ function waitingOf(state: State, task: Task): TaskRow['waitingFor'] {
 }
 
 export function taskRowOf(state: State, task: Task, today: string, viewer: User): TaskRow {
-  const project = state.projects[task.projectId];
-  const stage = state.stages[task.stageId];
+  const project = task.projectId === null ? undefined : state.projects[task.projectId];
+  const stage = task.stageId === null ? undefined : state.stages[task.stageId];
   return {
     task,
     owner: task.ownerId === null ? null : cardOf(state, task.ownerId),
     helpers: helpersOf(task).map((id) => cardOf(state, id)),
-    project: { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
-    stage: { id: task.stageId, name: stage?.name ?? '' },
+    // An office task has no project and no stage (owner, 2026-10-06).
+    project: task.projectId === null ? null : { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
+    stage: task.stageId === null ? null : { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
     fileCount: countFiles(state, task.id),
     overdue: isOverdue(task, today),
-    canMove: can(viewer, 'task.updateOwn', { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId }),
+    canMove: can(viewer, 'task.updateOwn', taskResource(state, task, viewer.id)),
     waitingFor: waitingOf(state, task),
   };
 }
 
 export function taskDetailOf(state: State, task: Task, today: string, viewer: User): TaskDetail {
-  const r = { projectRole: projectRoleOf(state, task.projectId, viewer.id), ownerId: task.ownerId };
+  const r = taskResource(state, task, viewer.id);
   const history = Object.values(state.events)
     .filter((e) => e.targetType === 'task' && e.targetId === task.id)
     .sort((a, b) => b.seq - a.seq)
     .map((e) => eventViewOf(state, e));
   const link = (t: Task) => ({ id: t.id, title: t.title, status: t.status });
-  const inProject = Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
+  // An office task needs no task and unlocks none (owner, 2026-10-06).
+  const inProject = task.projectId === null ? [] : Object.values(state.tasks).filter((t) => t.projectId === task.projectId);
+  const stages = task.projectId === null ? [] : stagesOf(state, task.projectId);
   const ids = new Set(task.prerequisiteIds ?? []);
   return {
     ...taskRowOf(state, task, today, viewer),
-    needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stagesOf(state, task.projectId)).map(link),
-    unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stagesOf(state, task.projectId)).map(link),
+    needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stages).map(link),
+    unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stages).map(link),
     viewerCan: {
       edit: can(viewer, 'task.updateOwn', r),
       editAll: can(viewer, 'task.updateAny', r),
       complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       delete: can(viewer, 'task.delete', r),
-      contribute: can(viewer, 'task.contribute', { ...r, helperIds: helpersOf(task) }),
+      contribute: can(viewer, 'task.contribute', r),
       newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
-      saveTemplate: can(viewer, 'task.updateAny', r),
+      // A template belongs to a stage, so an office task never becomes one.
+      saveTemplate: task.stageId !== null && can(viewer, 'task.updateAny', r),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
     },
     history,
@@ -304,21 +309,51 @@ export function attachmentsOf(state: State, fileIds: string[] | undefined): Atta
   return (fileIds ?? []).map((id) => ({ id, name: state.files[id]?.name ?? null }));
 }
 
+/** The last copy of a deleted task, from its newest delete event that stands. Undefined when no such event is in the state. */
+export function lastTaskCopy(state: State, taskId: string): Task | undefined {
+  let found: Event | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === 'task.deleted' && event.targetId === taskId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Task) : undefined;
+}
+
+/**
+ * The resource of a comment or a file of an office task: the people of that task (owner, 2026-10-06). A task that is gone leaves
+ * an office resource with nobody on it, so only the Admin holds rights there.
+ */
+export function officeResource(state: State, taskId: string | null, viewerId: string): Resource {
+  const task = taskId === null ? undefined : state.tasks[taskId];
+  return task ? taskResource(state, task, viewerId) : { office: true };
+}
+
 export function commentViewOf(state: State, comment: Comment, viewer: User): CommentView {
   const target = comment.targetType === 'task' ? state.tasks[comment.targetId] : state.updates[comment.targetId];
+  const authorId = principalOf(state, comment.authorId);
   return {
     comment,
     author: cardOf(state, comment.authorId),
-    canEdit: target ? canEditContent(state, target.projectId, comment.authorId, viewer) : false,
+    canEdit: !target ? false : target.projectId === null
+      ? can(viewer, 'content.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
+      : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
   };
 }
 
-/** The person who uploaded the file (or the person their agent acted for) while still on the project, the leader or the Admin. */
+/**
+ * The person who uploaded the file (or the person their agent acted for) while still on the project, the leader or the Admin. For
+ * a file of an office task: its uploader while on the task, the maker of the task or the Admin (owner, 2026-10-06).
+ */
 export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
-  const projectRole = projectRoleOf(state, file.projectId, viewer.id);
-  return can(viewer, 'task.delete', { projectRole })
-    || can(viewer, 'content.editOwn', { projectRole, authorId: principalOf(state, file.versions[0].uploadedBy) });
+  const resource = file.projectId === null ? officeResource(state, file.taskId, viewer.id) : { projectRole: projectRoleOf(state, file.projectId, viewer.id) };
+  return can(viewer, 'task.delete', resource)
+    || can(viewer, 'content.editOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
+}
+
+/** True when the person may see a file: every file of a project, and a file of an office task only for the people of that task. */
+export function mayViewFile(state: State, viewer: User, file: FileRec): boolean {
+  if (file.projectId !== null) return can(viewer, 'project.view', { projectRole: projectRoleOf(state, file.projectId, viewer.id) });
+  return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
 }
 
 export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {

@@ -1,5 +1,6 @@
 import { ApiError, invalid, notFound } from '../../src/api/errors';
 import type { Db, FileStoreKind, Query } from '../core/ports';
+import { officeUploadPrefix } from './keys';
 import { intentLifeSeconds } from './links';
 
 /**
@@ -95,11 +96,15 @@ export async function readIntents(db: Db, ids: string[]): Promise<Map<string, In
  */
 export function checkIntent(
   intent: Intent | undefined,
-  o: { id: string; actorId: string; now: Date; field: string; projectId: string | null; allowUsed?: boolean },
+  o: { id: string; actorId: string; now: Date; field: string; projectId: string | null; officeTaskId?: string; allowUsed?: boolean },
 ): Intent {
   if (!intent || intent.actorId !== o.actorId) throw notFound('Upload', o.id);
   const screenshot = intent.projectId === null && intent.key.startsWith('feedback/');
-  if (o.projectId === null && !screenshot) throw invalid(o.field, 'This upload is not a screenshot.');
+  // An upload of an office task has no project, and its key sits in the folder of that task (owner, 2026-10-06).
+  const officeFile = intent.projectId === null && o.officeTaskId !== undefined && intent.key.startsWith(officeUploadPrefix(o.officeTaskId));
+  if (o.officeTaskId !== undefined) {
+    if (o.projectId !== null || !officeFile) throw invalid(o.field, 'This upload belongs to another task.');
+  } else if (o.projectId === null && !screenshot) throw invalid(o.field, 'This upload is not a screenshot.');
   if (o.projectId !== null && intent.projectId !== o.projectId) throw invalid(o.field, 'This upload belongs to another project.');
   if (intent.usedAt !== null && !o.allowUsed) throw new ApiError('conflict', 'This upload is already used.');
   if (intent.expiresAt.getTime() <= o.now.getTime()) throw invalid(o.field, 'This upload has ended. Upload the file again.');

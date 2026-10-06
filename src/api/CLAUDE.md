@@ -54,6 +54,19 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `projectsStageNoEnd` counts projects, never stages: it equals the `stage_no_end` list.
 - `review.ts`: the day a task last went to review, from its events (the review wait and `finishedOn`).
 
+## Office tasks (owner, 2026-10-06)
+- A task with `projectId` and `stageId` null is an office task. `tasks.create` without `projectId` makes one. It has no stage,
+  no prerequisites, no Tracker entry and no stage move. `FileRec.projectId` is null for its files (`taskId` names the task).
+- One view rule: `can(actor, 'task.view', taskResource(state, task, viewerId))` (`permissions.ts`), or `mayViewTask`. A project
+  task shows to everyone. An office task shows to its maker (`principalOf(createdBy)`), its lead, its helpers and the Admin.
+  The maker holds the leader's rights there (lead, helpers, review need, review, delete); the lead changes and finishes it.
+- `requireTask` answers `not_found` for an office task the person does not see, so every task write checks the view first.
+  `mayViewFile` does the same for files, `seesEvent` (`handlers/history.ts`) for events, `notify` for notices.
+- Every event of an office task, its comments and its files carries `officeTaskId` (`events.ts`), so a loader filters on it.
+- Review: only when the maker is not the lead; `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins when the maker left.
+- Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get`, only
+  with no people filter. They never count in a project number.
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in

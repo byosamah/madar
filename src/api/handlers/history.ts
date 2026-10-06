@@ -5,13 +5,29 @@ import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
-import { can, holdsAdminRights, principalOf, type Action, type Resource } from '../permissions';
-import { eventLabel, eventViewOf, mayDeleteTracker } from '../views';
+import { can, holdsAdminRights, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { eventLabel, eventViewOf, lastTaskCopy, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { assertCan, roleIn, touch } from './shared';
 
 type Fields = Record<string, unknown>;
 const fieldsOf = (value: unknown): Fields => (value !== null && typeof value === 'object' ? (value as Fields) : {});
+
+/**
+ * The rights of a change of an office task, of its comments or of its files: the people of that task (owner, 2026-10-06). A list
+ * reads the live task only, so the changes of a deleted office task show to the Admin alone. An Undo also reads the last copy of
+ * a deleted task, so its maker may take the delete back.
+ */
+function officeOf(ctx: Ctx, event: Event, undo: boolean): Resource {
+  const id = event.officeTaskId!;
+  const task = ctx.state.tasks[id] ?? (undo ? lastTaskCopy(ctx.state, id) : undefined);
+  return task ? taskResource(ctx.state, task, ctx.authority.id) : officeResource(ctx.state, null, ctx.authority.id);
+}
+
+/** True when the person sees the change: every change but one of an office task that the person does not see. */
+export function seesEvent(ctx: Ctx, event: Event, undo = false): boolean {
+  return !event.officeTaskId || can(ctx.authority, 'task.view', officeOf(ctx, event, undo));
+}
 
 export const eventsList = defineCall({
   input: z.object({
@@ -35,6 +51,7 @@ export const eventsList = defineCall({
     return Object.values(ctx.state.events)
       .filter((e) => (seesPayments || e.targetType !== 'payment')
         && (seesFeedback || e.targetType !== 'feedback')
+        && seesEvent(ctx, e)
         && (!input.projectId || e.projectId === input.projectId)
         && (!input.targetType || e.targetType === input.targetType)
         && (!input.targetId || e.targetId === input.targetId)
@@ -100,7 +117,9 @@ function isTickOnly(event: Event): boolean {
 /** An undo is a new change: the person must have the right to make it now, under the same rules as the original call. */
 function assertMayUndo(ctx: Ctx, event: Event): void {
   const projectRole = event.projectId ? roleIn(ctx, event.projectId) : 'other';
-  const need = (action: Action, resource: Resource = {}) => assertCan(ctx, action, { projectRole, ...resource });
+  // A change of an office task follows the rights of the people of that task (owner, 2026-10-06).
+  const base: Resource = event.officeTaskId ? officeOf(ctx, event, true) : { projectRole };
+  const need = (action: Action, resource: Resource = {}) => assertCan(ctx, action, { ...base, ...resource });
   const record = { ...fieldsOf(event.before), ...fieldsOf(event.after) };
   switch (event.targetType) {
     case 'project':
@@ -146,8 +165,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'file': {
       const file = (ctx.state.files[event.targetId] ?? event.before) as FileRec | null;
       const uploader = file?.versions?.[0]?.uploadedBy ?? '';
-      const allowed = can(ctx.authority, 'task.delete', { projectRole })
-        || can(ctx.authority, 'content.editOwn', { projectRole, authorId: principalOf(ctx.state, uploader) });
+      const allowed = can(ctx.authority, 'task.delete', base)
+        || can(ctx.authority, 'content.editOwn', { ...base, authorId: principalOf(ctx.state, uploader) });
       if (!allowed) throw forbidden('Only the uploader or the project leader can undo this.');
       return;
     }
@@ -219,8 +238,10 @@ function changesEmail(event: Event): boolean {
 function assertUndoRight(ctx: Ctx, event: Event): void {
   // Your own changes and your agent's changes are yours to undo: the event names the person each acted for.
   const own = event.actingForId === ctx.authority.id;
-  const agentChange = event.actorKind === 'agent' && event.projectId !== null
-    && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) });
+  // The maker of an office task holds the leader's place there (owner, 2026-10-06).
+  const agentChange = event.actorKind === 'agent' && (event.officeTaskId
+    ? can(ctx.authority, 'event.undoAgent', officeOf(ctx, event, true))
+    : event.projectId !== null && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) }));
   if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
 }
 
@@ -243,6 +264,8 @@ export function mayUndoAgentChange(ctx: Ctx, event: Event): boolean {
  * "followOn" is true for a follow-on change in a story with the change that caused it: the person's right to that change covers it.
  */
 function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
+  // A change that the person does not see reads as missing, before any other rule (owner, 2026-10-06).
+  if (!seesEvent(ctx, event, true)) throw notFound('Event', event.id);
   assertUndoRight(ctx, event);
   if (!followOn) assertMayUndo(ctx, event);
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;

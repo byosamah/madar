@@ -26,6 +26,7 @@ const USERS: Record<string, User> = {
   usr_002: user('usr_002'),
   usr_003: user('usr_003', { active: false }),
   usr_004: user('usr_004'),
+  usr_005: user('usr_005'),
   usr_009: user('usr_009', { kind: 'agent', ownerId: 'usr_001' }),
   usr_010: user('usr_010', { kind: 'agent', ownerId: 'usr_003' }),
 };
@@ -44,8 +45,15 @@ const version = (letter: string, o: Record<string, unknown> = {}) => ({
 function setup(o: { kind?: 'supabase' | 'r2' } = {}) {
   const db = fakeFilesDb({
     users: USERS,
-    tasks: { tsk_001: { projectId: 'prj_001' }, tsk_009: { projectId: 'prj_002' } },
+    tasks: {
+      tsk_001: { projectId: 'prj_001' }, tsk_009: { projectId: 'prj_002' },
+      // An office task (owner, 2026-10-06): usr_004 made it, usr_002 leads it. usr_005 is on no office task.
+      tsk_050: { id: 'tsk_050', projectId: null, createdBy: 'usr_004', ownerId: 'usr_002', helperIds: [] },
+    },
     files: {
+      fil_050: { id: 'fil_050', projectId: null, taskId: 'tsk_050', name: 'Licence.pdf', versions: [version('A', { blobKey: 'office/tsk-050/upl-o/file' })] },
+      // A file whose office task is gone.
+      fil_051: { id: 'fil_051', projectId: null, taskId: 'tsk_404', name: 'Old.pdf', versions: [version('A', { blobKey: 'office/tsk-404/upl-p/file' })] },
       fil_001: { id: 'fil_001', projectId: 'prj_001', name: 'مخطط الطابق الأرضي.pdf', versions: [version('A'), version('B', { thumbKey: 'prj-001/upl-b/thumb', size: 20 })] },
       fil_002: { id: 'fil_002', projectId: 'prj_001', name: 'page.html', versions: [version('A', { mimeType: 'text/html', blobKey: 'prj-001/upl-h/file' })] },
     },
@@ -247,6 +255,66 @@ describe('the prepare hook of projects.delete', () => {
     expect(prepared.blobKeys.sort()).toEqual(['prj-001/upl-a/file', 'prj-001/upl-b/file', 'prj-001/upl-b/thumb', 'prj-001/upl-h/file']);
     const [producer] = EFFECTS_OF['projects.delete'] ?? [];
     expect(await producer({ deleted: true }, {} as never, db.q)).toEqual([{ kind: 'r2.delete', payload: { keys: prepared.blobKeys } }]);
+  });
+});
+
+describe('the files of an office task (owner, 2026-10-06)', () => {
+  const OFFICE_START = { name: 'licence.pdf', size: 1200, mimeType: 'application/pdf', taskId: 'tsk_050' };
+
+  it('files.uploadStart writes an intent with no project and a final key under office/<task>', async () => {
+    const { db, ctx } = setup();
+    const { output } = await filesUploadStart({ ...OFFICE_START, thumb: { size: 300, mimeType: 'image/webp' } }, ctx('usr_002'));
+    const part = output.uploadId.replace('_', '-');
+    expect(db.intents.get(output.uploadId)).toMatchObject({
+      projectId: null, stagingKey: `up/${part}/file`, key: `office/tsk-050/${part}/file`, thumbKey: `office/tsk-050/${part}/thumb`,
+    });
+    for (const userId of ['usr_004', 'usr_001', 'usr_009']) await expect(filesUploadStart(OFFICE_START, ctx(userId)), userId).resolves.toBeDefined();
+  });
+
+  it('files.uploadStart refuses a person who does not see the task, a project task, a missing task and a stage, before it signs', async () => {
+    const cases: [string, Record<string, unknown>, Record<string, unknown>][] = [
+      ['usr_005', {}, { code: 'not_found' }],
+      ['usr_002', { taskId: 'tsk_404' }, { code: 'not_found' }],
+      ['usr_002', { taskId: 'tsk_001' }, { code: 'invalid_input', details: { reason: 'office_needs_task' } }],
+      ['usr_002', { taskId: undefined }, { code: 'invalid_input', details: { reason: 'office_needs_task' } }],
+      ['usr_002', { stageId: 'stg_001' }, { code: 'invalid_input', details: { reason: 'office_no_stage' } }],
+    ];
+    for (const [userId, more, error] of cases) {
+      const { db, deps, ctx } = setup();
+      await expect(filesUploadStart({ ...OFFICE_START, ...more } as never, ctx(userId)), JSON.stringify(more)).rejects.toMatchObject(error);
+      expect([deps.files.calls, db.intents.size]).toEqual([[], 0]);
+    }
+  });
+
+  it('files.link signs only for the people of the task and the Admin; a file whose task is gone, for the Admin only', async () => {
+    for (const userId of ['usr_002', 'usr_004', 'usr_001', 'usr_009']) {
+      const { ctx } = setup();
+      await expect(filesLink({ id: 'fil_050', variant: 'full', disposition: 'inline' }, ctx(userId)), userId).resolves.toMatchObject({ output: { name: 'Licence.pdf' } });
+    }
+    const { ctx, gets } = setup();
+    await expect(filesLink({ id: 'fil_050', variant: 'full', disposition: 'inline' }, ctx('usr_005'))).rejects.toMatchObject({ code: 'forbidden', details: { action: 'task.view' } });
+    await expect(filesLink({ id: 'fil_051', variant: 'full', disposition: 'inline' }, ctx('usr_004'))).rejects.toMatchObject({ code: 'forbidden' });
+    expect(gets).toEqual([]);
+    await expect(filesLink({ id: 'fil_051', variant: 'full', disposition: 'inline' }, ctx('usr_001'))).resolves.toBeDefined();
+  });
+
+  it('the preflight of files.upload takes an office intent only for its own task, and never for a project', async () => {
+    const office: Intent = {
+      id: 'upl_a', actorId: 'usr_002', projectId: null, stagingKey: 'up/upl-a/file', key: 'office/tsk-050/upl-a/file', thumbKey: null, size: 12,
+      mimeType: 'application/pdf', expiresAt: new Date('2026-10-04T08:00:00Z'), usedAt: null,
+    };
+    const upload = { uploadId: 'upl_a', name: 'licence.pdf', stageId: null, taskId: 'tsk_050', asCover: false, receivedFromClient: false };
+    const run = async (intent: Intent, input: Record<string, unknown>) => {
+      const s = setup();
+      await insertIntents(s.db, [intent]);
+      s.deps.files.objects.set('up/upl-a/file', { size: 12, mimeType: 'application/pdf' });
+      return filesUploadHooks.preflight!(input, { actorId: 'usr_002', now: NOW, deps: s.deps });
+    };
+    await expect(run(office, upload)).resolves.toMatchObject({ blobKey: 'office/tsk-050/upl-a/file' });
+    await expect(run(office, { ...upload, taskId: 'tsk_051' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(run(office, { ...upload, projectId: 'prj_001' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(run({ ...office, projectId: 'prj_001', key: 'prj-001/upl-a/file' }, upload)).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(run({ ...office, key: 'feedback/upl-a/file' }, upload)).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });
 

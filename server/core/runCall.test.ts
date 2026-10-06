@@ -97,7 +97,8 @@ describe('runCall: finding and parsing the call (plan 4.5, steps 1 and 2)', () =
 
   it('refuses a wrong input with invalid_input and the fields, as the fake API does', async () => {
     const { call, mem } = setup();
-    const error = errorOf(await call(ADMIN, 'tasks.create', { title: 'No project' }));
+    // A task with no project is an office task (owner, 2026-10-06), so the wrong input is a project id of the wrong form.
+    const error = errorOf(await call(ADMIN, 'tasks.create', { projectId: 'project-1', title: 'Wrong project id' }));
     expect(error.code).toBe('invalid_input');
     expect(error.details?.fields).toContain('projectId');
     expect(mem.txCount).toEqual({ read: 0, write: 0 });

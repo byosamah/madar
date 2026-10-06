@@ -46,7 +46,8 @@ async function threadsOf(L: Load, userId: string, kept: Kept): Promise<void> {
   if (!L.authority || !can(L.authority, 'comment.read')) return;
   const me = meOf(L, userId);
   const led = Object.values(L.office.projects).filter((project) => project.leaderId === userId).map((project) => project.id);
-  const threads = await L.src.threads({ owner: userId, led, me, limit: TASK_THREAD_LIMIT });
+  // The Admin sees every office task, so an office thread the Admin commented on is the Admin's too (owner, 2026-10-06).
+  const threads = await L.src.threads({ owner: userId, led, me, limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) });
   if (threads.length === 0) return;
   const ids = threads.map((thread) => thread.id);
   await L.byKey('tasks', ids);

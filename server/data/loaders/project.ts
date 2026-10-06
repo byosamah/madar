@@ -43,22 +43,34 @@ export async function updatesList(L: Load, input: Input): Promise<void> {
   await feed(L, [projectId], (input.filter as FeedFilter | undefined) ?? 'all', (input.limit as number | undefined) ?? 50);
 }
 
-/** files.list: every file of P (the filters run in the handler). */
+/**
+ * The files of an office task, for a file call with no project (owner, 2026-10-06): the task (its view rule) and every file of it,
+ * because a file of the same name on that task gets the next version.
+ */
+async function officeFiles(L: Load, taskId: string | undefined): Promise<void> {
+  await L.byKey('tasks', [taskId]);
+  await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: [taskId ?? ''] }] });
+}
+
+/** files.list: every file of P (the filters run in the handler), or every file of one office task. */
 export async function filesList(L: Load, input: Input): Promise<void> {
+  if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   await L.select({ c: 'files', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] });
 }
 
 /** files.upload: every file of P, because a file of the same name gets the next version (AM 6, row 12), and the task it names. */
 export async function filesUpload(L: Load, input: Input): Promise<void> {
+  if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   const projectId = str(input.projectId) ?? '';
   await L.select({ c: 'files', where: [{ col: 'project_id', in: [projectId] }] });
   await L.byKey('tasks', [str(input.taskId)]);
   await covers(L, [projectId]);
 }
 
-/** files.delete and files.markDelivered: the file by id. Its project and cover are in the office. */
+/** files.delete and files.markDelivered: the file by id, and the office task of a file with no project. Projects are in the office. */
 export async function fileCall(L: Load, input: Input): Promise<void> {
-  await fileById(L, str(input.id) ?? '');
+  const file = await fileById(L, str(input.id) ?? '');
+  if (file?.projectId === null) await L.byKey('tasks', [file.taskId]);
 }
 
 /** payments.list and payments.create: the payments of P. */

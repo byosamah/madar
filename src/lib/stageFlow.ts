@@ -4,7 +4,7 @@ import { dueFromDuration, firstWorkingDay, isWorkingDay } from './workdays';
 /** The parts of a stage that the order and the tag need. */
 export type StageShape = { id: string; order: number; startDate: string | null; endDate: string | null; prerequisiteIds?: string[] };
 /** The parts of a task that the order, the tag and the waiting rules need. */
-export type TaskShape = { id: string; stageId: string; title: string; status: string; startDate?: string | null; dueDate: string | null; prerequisiteIds?: string[] };
+export type TaskShape = { id: string; stageId: string | null; title: string; status: string; startDate?: string | null; dueDate: string | null; prerequisiteIds?: string[] };
 
 const LATE = '9999-12-31';
 
@@ -18,7 +18,7 @@ export function stagesChrono<S extends StageShape>(stages: S[]): S[] {
 }
 
 /** Tasks in time order: start date, then due date, then the stage's place in time, then the title. A date that is not set comes last. */
-export function compareTasks(a: TaskShape, b: TaskShape, stageRank: (stageId: string) => number = () => 0): number {
+export function compareTasks(a: TaskShape, b: TaskShape, stageRank: (stageId: string | null) => number = () => 0): number {
   return (a.startDate ?? LATE).localeCompare(b.startDate ?? LATE)
     || (a.dueDate ?? LATE).localeCompare(b.dueDate ?? LATE)
     || stageRank(a.stageId) - stageRank(b.stageId)
@@ -29,7 +29,7 @@ export function compareTasks(a: TaskShape, b: TaskShape, stageRank: (stageId: st
 /** A project's tasks in time order, given its stages. */
 export function tasksChrono<T extends TaskShape>(tasks: T[], stages: StageShape[]): T[] {
   const rank = new Map(stagesChrono(stages).map((stage, index) => [stage.id, index]));
-  return [...tasks].sort((a, b) => compareTasks(a, b, (id) => rank.get(id) ?? 0));
+  return [...tasks].sort((a, b) => compareTasks(a, b, (id) => (id === null ? 0 : rank.get(id) ?? 0)));
 }
 
 /**
@@ -51,7 +51,7 @@ export function openPrerequisites<T extends TaskShape>(task: TaskShape, tasks: T
 }
 
 /** The stages that a stage needs first and that still have an open task. */
-export function openStagesNeededBy<S extends StageShape>(stageId: string, stages: S[], tasks: Pick<TaskShape, 'stageId' | 'status'>[]): S[] {
+export function openStagesNeededBy<S extends StageShape>(stageId: string | null, stages: S[], tasks: Pick<TaskShape, 'stageId' | 'status'>[]): S[] {
   const ids = new Set(stages.find((stage) => stage.id === stageId)?.prerequisiteIds ?? []);
   return stagesChrono(stages).filter((stage) => ids.has(stage.id) && tasks.some((other) => other.stageId === stage.id && other.status !== 'done'));
 }

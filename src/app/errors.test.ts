@@ -36,6 +36,18 @@ describe('errorMessage', () => {
     }
     expect(API_ERROR_CODES).toContain('unauthenticated');
   });
+
+  it('has a text in both languages for every refusal of office tasks (owner, 2026-10-06)', () => {
+    const reasons = ['not_a_person', 'office_no_stage', 'office_no_prerequisites', 'review_by_maker', 'file_office_task', 'office_needs_task'];
+    for (const language of ['en', 'ar'] as const) {
+      const i18n = initI18n(language);
+      const t = i18n.t.bind(i18n);
+      for (const reason of reasons) {
+        expect({ language, reason, exists: i18n.exists(`errors.reasons.${reason}`) }).toEqual({ language, reason, exists: true });
+        expect(errorMessage(invalid('x', 'x', reason), t)).toBe(t(`errors.reasons.${reason}`));
+      }
+    }
+  });
 });
 
 

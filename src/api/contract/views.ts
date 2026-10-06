@@ -117,8 +117,10 @@ export const TaskRow = z.object({
   owner: UserCard.nullable(),
   /** The helpers beside the lead, in the order they were added. */
   helpers: z.array(UserCard),
-  project: ProjectRef,
-  stage: z.object({ id: StageId, name: z.string() }),
+  /** Null for an office task, which belongs to no project (owner, 2026-10-06). */
+  project: ProjectRef.nullable(),
+  /** Null for an office task. */
+  stage: z.object({ id: StageId, name: z.string() }).nullable(),
   commentCount: z.number().int().min(0),
   fileCount: z.number().int().min(0),
   overdue: z.boolean(),

@@ -33,7 +33,7 @@ function office(): State {
   };
   add('msg_901', agent.id, agent.ownerId!, '2026-10-03T08:00:00.000+03:00');
   add('msg_902', 'usr_001', 'usr_001', '2026-10-03T09:00:00.000+03:00');
-  const thread = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId].leaderId !== 'usr_006')!;
+  const thread = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId!].leaderId !== 'usr_006')!;
   const lead = thread.ownerId as string;
   const comment = (id: string, authorId: string, at: string) => {
     state.comments[id] = { id, targetType: 'task', targetId: thread.id, authorId, body: id, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null };

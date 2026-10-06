@@ -1,6 +1,6 @@
-import type { User } from '../../src/api/contract/entities';
+import type { Task, User } from '../../src/api/contract/entities';
 import { ApiError, forbidden } from '../../src/api/errors';
-import { can, projectRoleOf } from '../../src/api/permissions';
+import { can, projectRoleOf, taskResource } from '../../src/api/permissions';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
 import type { OfficeSnapshot } from '../core/types';
@@ -50,6 +50,23 @@ export function assertMayView(office: OfficeSnapshot, userId: string, projectId:
 export function assertMayPost(office: OfficeSnapshot, userId: string, projectId: string): User {
   const authority = assertMayView(office, userId, projectId);
   if (!can(authority, 'content.post', { projectRole: roleIn(office, projectId, authority.id) })) throw forbidden('You cannot do this.', { action: 'content.post' });
+  return authority;
+}
+
+/**
+ * The view right on an office task, for a file of that task (owner, 2026-10-06): its maker, its lead, its helpers and the Admin.
+ * A task that is gone leaves its files to the Admin. The person check comes first, as for a project.
+ */
+export function mayViewOfficeTask(office: OfficeSnapshot, userId: string, task: Task | undefined): { authority: User; sees: boolean } {
+  const authority = authorityOf(officeUsers(office), userId);
+  const resource = task ? taskResource(office.lists as unknown as State, task, authority.id) : { office: true };
+  return { authority, sees: can(authority, 'task.view', resource) };
+}
+
+/** assertCan(ctx, 'task.view', ...) for a file of an office task, right before a link is signed. */
+export function assertMayViewOfficeTask(office: OfficeSnapshot, userId: string, task: Task | undefined): User {
+  const { authority, sees } = mayViewOfficeTask(office, userId, task);
+  if (!sees) throw forbidden('You cannot do this.', { action: 'task.view' });
   return authority;
 }
 

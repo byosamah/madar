@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Project, Task, User } from '../../src/api/contract/entities';
-import { morningSummaryOn, reviewersOf } from '../../src/api/notify';
+import { morningSummaryOn, reviewersOf, reviewersOfTask } from '../../src/api/notify';
 import type { State } from '../../src/api/store';
 import { peopleOfTask } from '../../src/lib/taskPeople';
 import { processOutbox } from '../core/effects';
@@ -169,21 +169,26 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     });
     // Pausing a project keeps its tasks in review, and the review list of the screens hides them: the summary must hide them too.
     const before = await load();
-    const reviewed = before.tasks.find((t) => t.status === 'in_review' && before.projects[t.projectId]?.status === 'active'
-      && reviewersOf({ projects: before.projects, users: before.users } as unknown as State, t.projectId).length > 0)!;
+    const reviewed = before.tasks.find((t) => t.status === 'in_review' && before.projects[t.projectId!]?.status === 'active'
+      && reviewersOf({ projects: before.projects, users: before.users } as unknown as State, t.projectId!).length > 0)!;
     const admin = Object.values(before.users).find((u) => u.active && u.kind === 'human' && u.systemRole === 'admin')!;
     okOf(await call(admin.id, 'projects.pause', { id: reviewed.projectId, reason: 'Wait for the client.' }));
+    // Office tasks (owner, 2026-10-06): one due today, and one in review that waits for its maker.
+    const [maker, lead] = Object.values(before.users).filter((u) => u.active && u.kind === 'human' && u.systemRole === 'member');
+    okOf(await call(maker.id, 'tasks.create', { title: 'Renew the trade licence', ownerId: lead.id, dueDate: TODAY }));
+    const paper = okOf<{ task: { id: string } }>(await call(maker.id, 'tasks.create', { title: 'Order paper', ownerId: lead.id }));
+    okOf(await call(lead.id, 'tasks.complete', { id: paper.task.id }));
     await office.sql('truncate mail_log, mail_outbox, outbox');
     const { tasks, projects, users } = await load();
-    expect(projects[reviewed.projectId].status).toBe('on_hold');
+    expect(projects[reviewed.projectId!].status).toBe('on_hold');
     const state = { projects, users } as unknown as State;
     const people = Object.values(users).filter((u) => u.active && u.kind === 'human');
+    const liveTask = (t: Task) => t.projectId === null || projects[t.projectId]?.status === 'active';
     let withSomething = 0;
     for (const person of people) {
-      const dueToday = tasks.filter((t) => projects[t.projectId]?.status === 'active' && t.dueDate === TODAY
+      const dueToday = tasks.filter((t) => liveTask(t) && t.dueDate === TODAY
         && (t.status === 'todo' || t.status === 'in_progress') && peopleOfTask(t).includes(person.id)).length;
-      const reviewsWaiting = tasks.filter((t) => projects[t.projectId]?.status === 'active' && t.status === 'in_review'
-        && reviewersOf(state, t.projectId).includes(person.id)).length;
+      const reviewsWaiting = tasks.filter((t) => liveTask(t) && t.status === 'in_review' && reviewersOfTask(state, t).includes(person.id)).length;
       // The review list that Work and Home show this person.
       expect({ id: person.id, reviews: okOf<unknown[]>(await call(person.id, 'tasks.list', { filter: 'review_for_me' })).length })
         .toEqual({ id: person.id, reviews: reviewsWaiting });
@@ -196,8 +201,8 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
       Object.values(users).filter((u) => u.active && u.kind === 'human' && morningSummaryOn(u.preferences)).map((u) => u.id).sort(),
     );
     // One person with something to say: two runs of the job give one mail.
-    const someone = people.find((p) => tasks.some((t) => t.dueDate === TODAY && peopleOfTask(t).includes(p.id) && projects[t.projectId]?.status === 'active' && (t.status === 'todo' || t.status === 'in_progress')))
-      ?? people.find((p) => tasks.some((t) => t.status === 'in_review' && projects[t.projectId]?.status === 'active' && reviewersOf(state, t.projectId).includes(p.id)))!;
+    const someone = people.find((p) => tasks.some((t) => t.dueDate === TODAY && peopleOfTask(t).includes(p.id) && projects[t.projectId!]?.status === 'active' && (t.status === 'todo' || t.status === 'in_progress')))
+      ?? people.find((p) => tasks.some((t) => t.status === 'in_review' && projects[t.projectId!]?.status === 'active' && reviewersOf(state, t.projectId!).includes(p.id)))!;
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect(await sendSummary(live(), someone.id, TODAY)).toBe('sent');
     expect((await mails()).map((m) => [m.to_email, m.tag, m.idempotency_key])).toEqual([[someone.email, 'summary', `summary-${TODAY}-${someone.id}`]]);

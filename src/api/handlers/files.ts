@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { defineCall } from '../registry';
-import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version } from '../contract/entities';
+import { defineCall, type Ctx } from '../registry';
+import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { nextId } from '../store';
-import { fileViewOf, mayDeleteFile, trackerRowOf } from '../views';
-import { assertCan, requireProject, requireStage, roleIn, touch } from './shared';
+import { fileViewOf, mayDeleteFile, mayViewFile, trackerRowOf } from '../views';
+import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
 /** A, B, ... Z, AA, AB: the version letters. */
@@ -23,14 +23,28 @@ export function nextLetter(previous: string): string {
   return out;
 }
 
+/**
+ * The office task of a file call with no project: the task must be an office task that the person sees (owner, 2026-10-06). A call
+ * names a project, or an office task alone.
+ */
+export function officeTaskOfCall(ctx: Ctx, taskId: string | null | undefined): Task {
+  if (!taskId) throw invalid('projectId', 'Name the project, or the office task of the file.', 'office_needs_task');
+  const task = requireTask(ctx, taskId);
+  if (task.projectId !== null) throw invalid('projectId', 'This task belongs to a project. Name the project.', 'office_needs_task');
+  return task;
+}
+
 export const filesList = defineCall({
-  input: z.object({ projectId: ProjectId, stageId: StageId.optional(), taskId: TaskId.optional() }),
+  /** No projectId: the files of one office task (taskId) that the person sees (owner, 2026-10-06). */
+  input: z.object({ projectId: ProjectId.optional(), stageId: StageId.optional(), taskId: TaskId.optional() }),
   output: z.array(FileView),
   readOnly: true,
   run(input, ctx) {
-    requireProject(ctx, input.projectId);
+    const projectId = input.projectId ?? null;
+    if (projectId === null) officeTaskOfCall(ctx, input.taskId);
+    else requireProject(ctx, projectId);
     return Object.values(ctx.state.files)
-      .filter((f) => f.projectId === input.projectId && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
+      .filter((f) => f.projectId === projectId && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
       .map((f) => fileViewOf(ctx.state, f, ctx.authority))
       .sort((a, b) => b.latest.uploadedAt.localeCompare(a.latest.uploadedAt));
   },
@@ -51,14 +65,15 @@ export const filesGet = defineCall({
   },
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
-    if (!file) throw notFound('File', input.id);
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     return { file: fileViewOf(ctx.state, file, ctx.authority), version: prepared.version, blob: prepared.blob };
   },
 });
 
 /** The fields of an upload that both forms share. */
 const UploadFields = z.object({
-  projectId: ProjectId,
+  /** None: a file of the office task taskId (owner, 2026-10-06). */
+  projectId: ProjectId.optional(),
   name: z.string().trim().min(1).max(200),
   stageId: StageId.nullable().default(null),
   taskId: TaskId.nullable().default(null),
@@ -66,6 +81,40 @@ const UploadFields = z.object({
   /** The client sent this file: the upload also logs a File entry on the tracker. */
   receivedFromClient: z.boolean().default(false),
 });
+
+/** A new file or a new version: the same name on the same place (a project, or one office task) adds the next letter. */
+function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string | null; taskId: string | null }, name: string, version: Version): FileRec {
+  const same = Object.values(ctx.state.files).find((f) => f.projectId === place.projectId
+    && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase());
+  if (same) {
+    version.letter = nextLetter(same.versions[same.versions.length - 1].letter);
+    const before = { versions: structuredClone(same.versions) };
+    same.versions.push(version);
+    writeEvent(ctx, { projectId: place.projectId, verb: 'file.version_added', targetType: 'file', targetId: same.id, before, after: { versions: structuredClone(same.versions) } });
+    return same;
+  }
+  const id = nextId(ctx.state, 'fil');
+  const file: FileRec = { id, projectId: place.projectId, stageId: place.stageId, taskId: place.taskId, name, versions: [version] };
+  ctx.state.files[id] = file;
+  recordCreate(ctx, { projectId: place.projectId, verb: 'file.added', targetType: 'file', targetId: id, entity: file });
+  return file;
+}
+
+/**
+ * A file of an office task (owner, 2026-10-06): a person who sees the task adds it. It has no stage, no cover and no Tracker entry.
+ */
+function uploadOfficeFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean }, prepared: UploadPrepared): FileView {
+  const task = officeTaskOfCall(ctx, input.taskId);
+  assertCan(ctx, 'content.post', taskRole(ctx, task));
+  if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
+  if (input.asCover || input.receivedFromClient) throw invalid(input.asCover ? 'asCover' : 'receivedFromClient', 'A file of an office task stays on its task.', 'file_office_task');
+  const version: Version = {
+    letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
+    uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
+  };
+  const file = addVersion(ctx, { projectId: null, stageId: null, taskId: task.id }, input.name, version);
+  return fileViewOf(ctx.state, file, ctx.authority);
+}
 
 /**
  * What run() needs from the stored data. The prototype makes it from the blob in "prepare"; the real build makes it from the upload intent
@@ -91,6 +140,7 @@ export const filesUpload = defineCall({
     return { blobKey, size: input.blob.size, mimeType: input.blob.type || 'application/octet-stream' };
   },
   run(input, ctx, prepared) {
+    if (input.projectId === undefined) return uploadOfficeFile(ctx, input, prepared);
     const project = requireProject(ctx, input.projectId);
     const role = roleIn(ctx, project.id);
     assertCan(ctx, 'content.post', { projectRole: role });
@@ -102,20 +152,7 @@ export const filesUpload = defineCall({
       letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
       uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
     };
-    const same = Object.values(ctx.state.files).find((f) => f.projectId === project.id && f.name.toLowerCase() === input.name.toLowerCase());
-    let file: FileRec;
-    if (same) {
-      version.letter = nextLetter(same.versions[same.versions.length - 1].letter);
-      const before = { versions: structuredClone(same.versions) };
-      same.versions.push(version);
-      writeEvent(ctx, { projectId: project.id, verb: 'file.version_added', targetType: 'file', targetId: same.id, before, after: { versions: structuredClone(same.versions) } });
-      file = same;
-    } else {
-      const id = nextId(ctx.state, 'fil');
-      file = { id, projectId: project.id, stageId: input.stageId, taskId: input.taskId, name: input.name, versions: [version] };
-      ctx.state.files[id] = file;
-      recordCreate(ctx, { projectId: project.id, verb: 'file.added', targetType: 'file', targetId: id, entity: file });
-    }
+    const file = addVersion(ctx, { projectId: project.id, stageId: input.stageId, taskId: input.taskId }, input.name, version);
     if (input.asCover) {
       applyPatch(ctx, project, { coverFileId: file.id }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }
@@ -135,7 +172,9 @@ export const filesMarkDelivered = defineCall({
   output: TrackerRow,
   run(input, ctx) {
     const file = ctx.state.files[input.id];
-    if (!file) throw notFound('File', input.id);
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+    // An office task has no client, so its files are never delivered (owner, 2026-10-06).
+    if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, file.projectId) });
     const letter = file.versions[file.versions.length - 1].letter;
     const entry = addTrackerEntry(ctx, {
@@ -150,9 +189,9 @@ export const filesDelete = defineCall({
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
     const file = ctx.state.files[input.id];
-    if (!file) throw notFound('File', input.id);
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
-    const project = ctx.state.projects[file.projectId];
+    const project = file.projectId === null ? undefined : ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {
       applyPatch(ctx, project, { coverFileId: null }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }

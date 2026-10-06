@@ -1,4 +1,4 @@
-import type { Feedback, FileRec, User } from '../../src/api/contract/entities';
+import type { Feedback, FileRec, Task, User } from '../../src/api/contract/entities';
 import type { Db } from '../core/ports';
 
 /**
@@ -9,6 +9,7 @@ import type { Db } from '../core/ports';
 export const USERS_SQL = 'select doc from users where id = any($1::text[])';
 export const FILE_DOC_SQL = 'select doc from files where id = $1';
 export const TASK_PROJECT_SQL = 'select project_id from tasks where id = $1';
+export const TASK_DOC_SQL = 'select doc from tasks where id = $1';
 export const FEEDBACK_DOC_SQL = 'select doc from feedback where id = $1';
 
 export async function readUsers(db: Db, ids: string[]): Promise<Map<string, User>> {
@@ -25,6 +26,12 @@ export async function readFile(db: Db, id: string): Promise<FileRec | undefined>
 export async function projectOfTask(db: Db, id: string): Promise<string | undefined> {
   const [row] = await db.statement<{ project_id: string | null }>('read', TASK_PROJECT_SQL, [id]);
   return row?.project_id ?? undefined;
+}
+
+/** A task by id, for the rights on the files of an office task (owner, 2026-10-06). */
+export async function readTask(db: Db, id: string): Promise<Task | undefined> {
+  const [row] = await db.statement<{ doc: Task }>('read', TASK_DOC_SQL, [id]);
+  return row?.doc;
 }
 
 export async function readFeedback(db: Db, id: string): Promise<Feedback | undefined> {

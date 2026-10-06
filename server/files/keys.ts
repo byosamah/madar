@@ -6,6 +6,7 @@
  *   <project>/<intent>/file       one confirmed upload    <project>/<intent>/thumb      its picture
  *   up/<intent>/file              a staging upload        up/<intent>/thumb             its staging picture
  *   feedback/<intent>/file        a feedback screenshot
+ *   office/<task>/<intent>/file   a confirmed upload of an office task (owner, 2026-10-06), with office/<task>/<intent>/thumb
  *
  * The server names a confirmed upload by its intent (task F2): the preflight copies the object before the lock, and the file id
  * and the version letter come later, from run() inside the lock. An intent id is unique, so the key is too.
@@ -60,6 +61,22 @@ export function stagingKey(intentId: string): string {
 
 export function stagingThumbKey(intentId: string): string {
   return `${STAGING}/${part(intentId)}/thumb`;
+}
+
+/**
+ * The folder of the uploads of one office task. An office task has no project, so its files sit under "office", which is never
+ * the key part of a project id (prj-...). The task part keeps the files of two tasks apart.
+ */
+export function officeUploadPrefix(taskId: string): string {
+  return `office/${part(taskId)}/`;
+}
+
+export function officeUploadKey(taskId: string, intentId: string): string {
+  return `${officeUploadPrefix(taskId)}${part(intentId)}/file`;
+}
+
+export function officeUploadThumbKey(taskId: string, intentId: string): string {
+  return `${officeUploadPrefix(taskId)}${part(intentId)}/thumb`;
 }
 
 export function screenshotKey(intentId: string): string {

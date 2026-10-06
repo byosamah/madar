@@ -594,7 +594,7 @@ export const projectsDelete = defineCall({
       if (event.targetType === 'task') taskIds.add(event.targetId);
       if (event.targetType === 'update') updateIds.add(event.targetId);
     }
-    const drop = <T extends { projectId: string }>(records: Record<string, T>) => {
+    const drop = <T extends { projectId: string | null }>(records: Record<string, T>) => {
       for (const [key, value] of Object.entries(records)) if (value.projectId === pid) delete records[key];
     };
     drop(state.stages);

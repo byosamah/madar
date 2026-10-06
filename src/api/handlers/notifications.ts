@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, Notification, NotificationId, Trigger, User, type Event } from '../contract/entities';
+import { Day, Notification, NotificationId, Trigger, User, type Event, type Task } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
 import { applyPatch } from '../events';
 import type { State } from '../store';
-import { can, projectRoleOf } from '../permissions';
+import { can, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 import { taskLink } from '../../lib/params';
@@ -48,9 +48,19 @@ function deletedCopy(state: State, targetType: string, id: string): Copy | null 
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+/**
+ * A task of a notice that the viewer may not see: an office task that the viewer is no longer on, live or deleted (owner,
+ * 2026-10-06). Its notice reads as gone and names nothing.
+ */
+function hiddenTask(state: State, n: Notification, viewer: User): boolean {
+  if (n.targetType !== 'task') return false;
+  const task = state.tasks[n.targetId] ?? (deletedCopy(state, 'task', n.targetId) as Task | null);
+  return task !== null && task.projectId === null && !mayViewTask(state, viewer, task);
+}
+
 /** True when the item of a notice is gone, or is a chat the viewer can no longer see. It builds no text, so the badge count stays cheap. */
 function isGone(state: State, n: Notification, viewer: User): boolean {
-  if (n.targetType === 'task') return !state.tasks[n.targetId];
+  if (n.targetType === 'task') return !state.tasks[n.targetId] || hiddenTask(state, n, viewer);
   if (n.targetType === 'update') return !state.updates[n.targetId];
   if (n.targetType === 'project') return !state.projects[n.targetId];
   if (n.targetType === 'chat') {
@@ -68,7 +78,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let canApprove = false;
   const gone = isGone(state, n, viewer);
   let dueDate: string | null = null;
-  if (n.targetType === 'task') {
+  if (n.targetType === 'task' && hiddenTask(state, n, viewer)) {
+    // Nothing of an office task that the viewer no longer sees: no title, no day, no link (owner, 2026-10-06).
+  } else if (n.targetType === 'task') {
     const task = state.tasks[n.targetId];
     const copy: Copy | null = task ?? deletedCopy(state, 'task', n.targetId);
     const project = state.projects[text(copy?.projectId)];
@@ -79,7 +91,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     // A reminder saved before it kept its day names the due day of the task.
     if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
-      && can(viewer, 'task.review', { projectRole: projectRoleOf(state, task.projectId, viewer.id) });
+      && can(viewer, 'task.review', taskResource(state, task, viewer.id));
   } else if (n.targetType === 'update') {
     const update = state.updates[n.targetId];
     const copy: Copy | null = update ?? deletedCopy(state, 'update', n.targetId);

@@ -51,6 +51,13 @@ describe('buildSummary', () => {
     expect(SUMMARY_COUNTS_SQL).toMatch(/'in_review'/);
   });
 
+  it('counts the office tasks of the person, and the reviews of the office tasks that the person made (owner, 2026-10-06)', () => {
+    const [due, reviews] = SUMMARY_COUNTS_SQL.split('as due_today');
+    expect(due).toMatch(/t\.project_id is null or p\.status = 'active'/);
+    expect(reviews).toMatch(/t\.project_id is null and t\.status = 'in_review'/);
+    expect(reviews).toContain("t.doc->>'createdBy'");
+  });
+
   it('counts a review only in an active project, as the review list of Work and Home does', () => {
     const reviews = SUMMARY_COUNTS_SQL.split('as due_today')[1];
     expect(reviews).toMatch(/'in_review'/);

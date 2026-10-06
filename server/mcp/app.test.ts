@@ -122,7 +122,7 @@ const call = (w: World, name: string, args: Record<string, unknown> = {}, o: Par
 /** A done task in a stage before its project's current stage: reopening it moves the project back (stage_back_reason). */
 function backTask(state: State): { id: string; stageName: string } {
   for (const task of Object.values(state.tasks)) {
-    const project = state.projects[task.projectId];
+    const project = state.projects[task.projectId!];
     const stage = state.stages[task.stageId ?? ''];
     const current = state.stages[project?.currentStageId ?? ''];
     if (task.status === 'done' && stage && current && stage.order < current.order && project.status === 'active') return { id: task.id, stageName: stage.name };
@@ -133,10 +133,10 @@ function backTask(state: State): { id: string; stageName: string } {
 /** An open task with a due date, and an earlier stage of its project: moving the task there and its due date asks for both reasons. */
 function dateAndBackTask(state: State): { id: string; stageId: string; dueDate: string } {
   for (const task of Object.values(state.tasks)) {
-    const project = state.projects[task.projectId];
+    const project = state.projects[task.projectId!];
     if (!project || project.status !== 'active' || task.status === 'done' || task.status === 'in_review' || !task.dueDate) continue;
     const stages = Object.values(state.stages).filter((s) => s.projectId === task.projectId).sort((a, b) => a.order - b.order);
-    const tag = stageTag(state, task.projectId);
+    const tag = stageTag(state, task.projectId!);
     if (stages.length < 2 || !tag || tag.id === stages[0].id || task.stageId === stages[0].id) continue;
     const due = new Date(`${task.dueDate}T00:00:00Z`);
     due.setUTCDate(due.getUTCDate() + 7);
@@ -299,7 +299,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(three.body.result.isError, JSON.stringify(three.body)).toBeUndefined();
       const state = w.mem.tables.state;
       expect(state.tasks[target.id]).toMatchObject({ stageId: target.stageId, dueDate: target.dueDate });
-      expect(state.projects[state.tasks[target.id].projectId].stageBack?.reason).toBe('The client changed the brief.');
+      expect(state.projects[state.tasks[target.id].projectId!].stageBack?.reason).toBe('The client changed the brief.');
       expect(Object.values(state.comments).some((c) => c.targetId === target.id && c.body === 'The survey came late.')).toBe(true);
     });
 

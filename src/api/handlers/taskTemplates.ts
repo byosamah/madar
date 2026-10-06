@@ -69,6 +69,8 @@ const taskTemplatesSave = defineCall({
     let base: Partial<TaskTemplate> = {};
     if (input.fromTaskId) {
       const task = requireTask(ctx, input.fromTaskId);
+      // A template belongs to a stage, so an office task never becomes one (owner, 2026-10-06).
+      if (task.stageId === null) throw invalid('fromTaskId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
       assertCan(ctx, 'task.updateAny', { projectRole: roleIn(ctx, task.projectId) });
       base = {
         name: task.title, stageName: ctx.state.stages[task.stageId]?.name, description: task.description, checklist: task.checklist.map((item) => item.text),

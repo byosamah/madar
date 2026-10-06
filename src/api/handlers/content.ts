@@ -5,11 +5,11 @@ import { CommentView, FeedItem } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { notifyIn } from '../notify';
-import { principalOf } from '../permissions';
+import { principalOf, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { mayUndoAgentChange } from './history';
-import { activeMentions, assertCan, insertComment, requireProject, roleIn, touch } from './shared';
+import { activeMentions, assertCan, insertComment, requireProject, requireTask, roleIn, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 import { assertFilesInProject } from './attach';
 
@@ -29,10 +29,18 @@ function requireComment(ctx: Ctx, id: string): Comment {
   return comment;
 }
 
-function projectOfTarget(ctx: Ctx, targetType: 'task' | 'update', targetId: string): string {
-  const target = targetType === 'task' ? ctx.state.tasks[targetId] : ctx.state.updates[targetId];
-  if (!target) throw notFound(targetType === 'task' ? 'Task' : 'Update', targetId);
-  return target.projectId;
+/**
+ * The target of a comment: its project (null for an office task) and the resource of the rights there. A task comes through
+ * requireTask, so an office task that the person does not see reads as missing (owner, 2026-10-06).
+ */
+function targetOf(ctx: Ctx, targetType: 'task' | 'update', targetId: string): { projectId: string | null; officeTaskId?: string; resource: Resource } {
+  if (targetType === 'task') {
+    const task = requireTask(ctx, targetId);
+    return { projectId: task.projectId, ...(task.projectId === null ? { officeTaskId: task.id } : {}), resource: taskRole(ctx, task) };
+  }
+  const update = ctx.state.updates[targetId];
+  if (!update) throw notFound('Update', targetId);
+  return { projectId: update.projectId, resource: { projectRole: roleIn(ctx, update.projectId) } };
 }
 
 function newMentions(ctx: Ctx, before: string, after: string): string[] {
@@ -105,8 +113,7 @@ export const commentsList = defineCall({
   output: z.array(CommentView),
   readOnly: true,
   run(input, ctx) {
-    projectOfTarget(ctx, input.targetType, input.targetId);
-    assertCan(ctx, 'comment.read');
+    assertCan(ctx, 'comment.read', targetOf(ctx, input.targetType, input.targetId).resource);
     return Object.values(ctx.state.comments)
       .filter((c) => c.targetType === input.targetType && c.targetId === input.targetId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
@@ -118,9 +125,9 @@ export const commentsCreate = defineCall({
   input: Target.extend({ body: Body, fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]) }),
   output: CommentView,
   run(input, ctx) {
-    const projectId = projectOfTarget(ctx, input.targetType, input.targetId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
-    assertFilesInProject(ctx, input.fileIds, projectId);
+    const { projectId, officeTaskId, resource } = targetOf(ctx, input.targetType, input.targetId);
+    assertCan(ctx, 'content.post', resource);
+    assertFilesInProject(ctx, input.fileIds, projectId, officeTaskId);
     const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds);
     touch(ctx, projectId);
     return commentViewOf(ctx.state, comment, ctx.authority);
@@ -132,8 +139,8 @@ export const commentsUpdate = defineCall({
   output: CommentView,
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
-    const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
+    const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
+    assertCan(ctx, 'content.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
     // Madar wrote the words of its own date message, so nobody changes them. A person may fix the words of their own reason.
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
@@ -148,8 +155,8 @@ export const commentsDelete = defineCall({
   output: Deleted,
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
-    const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, projectId), authorId: principalOf(ctx.state, comment.authorId) });
+    const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
+    assertCan(ctx, 'content.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
     // The record of why the dates of a task moved stays in the Conversation (owner, 2026-10-02).
     if (comment.dates) throw forbidden('A message about a date change stays in the Conversation.', { commentId: comment.id });
     recordDelete(ctx, { projectId, verb: 'comment.deleted', targetType: 'comment', targetId: comment.id, entity: comment });
@@ -163,8 +170,8 @@ export const reactionsToggle = defineCall({
   output: CommentView,
   run(input, ctx) {
     const comment = requireComment(ctx, input.commentId);
-    const projectId = projectOfTarget(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
+    const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
+    assertCan(ctx, 'content.post', resource);
     const list = comment.reactions[input.emoji];
     const next = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
     // One event for each change, with the agent and the person it acts for (spec 17.2, audit 2026-10-03, API-19).

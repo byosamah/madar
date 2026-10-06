@@ -151,12 +151,16 @@ export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): So
            select c.target_id as id, max(c.created_at ${C}) as last,
                   max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
            from comments c join tasks k on k.id = c.target_id
-           where c.target_type = 'task' and (k.owner_id = $1::text or k.project_id = any($2::text[]) or c.target_id in (select target_id from mine))
+           where c.target_type = 'task'
+             and (k.owner_id = $1::text or k.project_id = any($2::text[]) or c.target_id in (select target_id from mine)
+               or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
+             and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
+               or k.doc->>'createdBy' = any($3::text[]))
            group by c.target_id
          ),
          ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)
          select id, last, mine from ranked where r <= $4::int order by last ${C} desc, id ${C} desc`,
-        [o.owner, o.led, o.me, o.limit],
+        [o.owner, o.led, o.me, o.limit, o.admin],
       );
     },
 
