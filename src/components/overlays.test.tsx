@@ -5,6 +5,7 @@ import { StrictMode, useState } from 'react';
 import { ToastProvider, useToast } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { TextField } from './Fields';
+import { MentionField } from './MentionField';
 import { ContextMenu, Menu, useContextMenu } from './Menu';
 import { Popover } from './Popover';
 import { SegmentedControl } from './SegmentedControl';
@@ -313,6 +314,27 @@ describe('overlays after the audit of 2026-10-03', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  // Escape belongs to the layer that holds the focus: an open list of names, a menu or a popover closes first, and the sheet
+  // stays open with the typed text (cleanup 2026-10-06).
+  it('closes only the list of names with Escape inside a blocking sheet, and the sheet stays open', async () => {
+    const onOpenChange = vi.fn();
+    function Box() {
+      const [value, setValue] = useState('');
+      return <MentionField id="box" label="Comment" value={value} onChange={setValue} people={[{ id: 'usr_005', name: 'Sara Al-Qahtani', avatarUrl: null, kind: 'human', discipline: 'Architect' }]} />;
+    }
+    render(<Sheet open onOpenChange={onOpenChange} title="Task"><Box /></Sheet>);
+    const dialog = await screen.findByRole('dialog', { name: 'Task' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Comment' }), 'Ask @Sa');
+    expect(within(dialog).getByRole('listbox')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(within(dialog).queryByRole('listbox')).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole('dialog', { name: 'Task' })).toBeInTheDocument();
+    // The next Escape belongs to the sheet.
+    await userEvent.keyboard('{Escape}');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   function UndoInside({ run }: { run: () => void }) {

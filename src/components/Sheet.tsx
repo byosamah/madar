@@ -90,6 +90,20 @@ function useFocusReturn(open: boolean, sheet: RefObject<HTMLElement | null>): ()
   }, [sheet]);
 }
 
+/**
+ * Escape belongs to the layer that holds the focus (cleanup 2026-10-06). True when an Escape belongs to a layer inside this sheet:
+ * a menu, a field with its list of names open (MentionField), or another dialog. A layer that took the Escape already
+ * (defaultPrevented) owns it too. Then the sheet stays open.
+ */
+export function escapeIsInner(event: Event, sheet: Element | null): boolean {
+  if (event.defaultPrevented) return true;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return false;
+  if (target.matches('[aria-autocomplete][aria-controls]')) return true;
+  const layer = target.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+  return layer !== null && layer !== sheet;
+}
+
 const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 
@@ -132,11 +146,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
     // The focus moves into the panel, so Tab reaches its controls next. A control inside that took the focus keeps it.
     if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      // Escape in a menu, a list or another dialog belongs to that layer.
-      const layer = event.target instanceof Element ? event.target.closest('[role="dialog"], [role="menu"], [role="listbox"]') : null;
-      if (layer && layer !== panel.current) return;
-      close.current(false);
+      if (event.key === 'Escape' && !escapeIsInner(event, panel.current)) close.current(false);
     };
     document.addEventListener('keydown', onKey);
     return () => {
@@ -221,9 +231,10 @@ export function Sheet(props: SheetProps) {
           onPointerDownOutside={(event) => {
             if (keepOnOutsidePress || isToastPress(event.detail.originalEvent)) event.preventDefault();
           }}
-          // Escape in a "…" menu inside the sheet closes the menu only (audit 2026-10-03, SHL-1).
+          // Escape in a "…" menu or an open list of names inside the sheet closes that layer only (audit 2026-10-03, SHL-1). Radix
+          // asks before the layer itself hears the key, so the rule looks at where the key was pressed.
           onEscapeKeyDown={(event) => {
-            if (event.target instanceof Element && event.target.closest('[role="menu"]')) event.preventDefault();
+            if (escapeIsInner(event, content.current)) event.preventDefault();
           }}
           className={`float fixed z-50 flex flex-col outline-none ${shape}`}
         >
