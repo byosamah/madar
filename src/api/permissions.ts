@@ -30,8 +30,9 @@ export function principalOf(state: State, userId: string): string {
 /**
  * True when a user is an Admin, or an agent that acts for an Admin. An agent acts with the rights of its person,
  * so an agent of an Admin holds the Admin's rights. Management never makes or changes either kind.
+ * It reads only the people, so the Admin screen asks the same rule with the people of users.list.
  */
-export function holdsAdminRights(state: State, user: User | null | undefined): boolean {
+export function holdsAdminRights(state: Pick<State, 'users'>, user: User | null | undefined): boolean {
   if (!user) return false;
   if (user.systemRole === 'admin') return true;
   return user.kind === 'agent' && user.ownerId !== null && state.users[user.ownerId]?.systemRole === 'admin';

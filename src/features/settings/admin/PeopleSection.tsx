@@ -3,6 +3,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
+import { holdsAdminRights } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { REMOTE } from '../../../app/mode';
@@ -36,11 +37,11 @@ export function PeopleSection() {
   // A person deactivated by mistake can come back with their account and history (audit 2026-10-03, SHL-7).
   const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: nameOf(user) }) });
   const me = session.data?.authority.id;
-  const byId = new Map((users.data ?? []).map((user) => [user.id, user]));
+  const people = { users: Object.fromEntries((users.data ?? []).map((user) => [user.id, user])) };
   // Management cannot change an Admin, so an Admin's row has no actions for it.
   const viewerIsAdmin = session.data?.authority.systemRole === 'admin';
-  // An agent acts with the rights of its person, so the agent of an Admin holds Admin rights too, as the API rule says (audit 2026-10-03, SHL-9).
-  const holdsAdminRights = (user: User) => user.systemRole === 'admin' || (user.kind === 'agent' && byId.get(user.ownerId ?? '')?.systemRole === 'admin');
+  // An agent acts with the rights of its person, so the agent of an Admin holds Admin rights too. The screen asks the API rule
+  // itself (audit 2026-10-03, SHL-9).
   return (
     <section aria-labelledby="admin-people" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -70,7 +71,7 @@ export function PeopleSection() {
                 {inTeams.length > 0 && <> · <bdi>{inTeams.join(', ')}</bdi></>}
               </p>
             </div>
-            {(viewerIsAdmin || !holdsAdminRights(user)) && <Menu
+            {(viewerIsAdmin || !holdsAdminRights(people, user)) && <Menu
               label={t('admin.actions', { name: nameOf(user) })}
               items={[
                 { label: t('admin.edit'), onSelect: () => setEditing(user) },
@@ -81,7 +82,7 @@ export function PeopleSection() {
                 },
                 { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },
                 // An agent comes back only while its person is active, as the API asks.
-                { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !byId.get(user.ownerId ?? '')?.active) },
+                { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !people.users[user.ownerId ?? '']?.active) },
               ]}
             />}
           </li>
