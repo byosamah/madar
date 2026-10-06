@@ -77,6 +77,27 @@ describe('Waiting for review (owner, 2026-10-06, item 9)', () => {
   });
 });
 
+// The owner (2026-10-06, layout): at 390 px the Stale sign at the end of the row took the room of the name, so "Tamr Staff
+// Housing" showed as "Tamr Staff Ho...". jsdom has no layout, so the test checks the rule that the browser follows.
+describe('Stale projects on a narrow card (owner, 2026-10-06, layout)', () => {
+  it('never cuts the project name: the name and the sign share one box that wraps, so the sign moves under the name', async () => {
+    await renderApp('/dashboard');
+    const region = await card(/^Stale projects/);
+    const row = within(region).getByRole('link', { name: /Tamr Staff Housing/ });
+    const name = within(row).getByText('Tamr Staff Housing');
+    expect(name).not.toHaveClass('truncate');
+    const sign = row.querySelector('[data-sign="stale"]');
+    expect(sign).not.toBeNull();
+    const box = sign!.parentElement!;
+    expect(box).toHaveClass('flex-wrap');
+    expect(box).toContainElement(name);
+    // The text starts from its own width and grows to fill the row: on a wide card the sign stays at the end, as before. A
+    // start of 0 (flex-1) would never let the box wrap, and the name would wrap in a narrow strip beside the sign.
+    expect(name.parentElement).toHaveClass('flex-auto');
+    expect(name.parentElement).not.toHaveClass('flex-1');
+  });
+});
+
 /** Hala is the Admin of the sample office. Sara (usr_005) is a Member. */
 const withGaps = (state: State) => {
   state.projects.prj_001.areaM2 = null;
