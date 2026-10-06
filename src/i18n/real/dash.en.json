@@ -47,7 +47,8 @@
       "days": "{{n}} days in review",
       "days_zero": "In review since today",
       "days_one": "1 day in review",
-      "days_other": "{{count}} days in review"
+      "days_other": "{{count}} days in review",
+      "waits": "waits {{days}}"
     },
     "gaps": {
       "title": "Data gaps",

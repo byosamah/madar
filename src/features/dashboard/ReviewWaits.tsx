@@ -29,7 +29,7 @@ export function ReviewWaits({ view }: { view: DashboardData }) {
               <span className="min-w-0 flex-1">
                 <bdi className="block truncate text-subheadline font-semibold text-ink">{name}</bdi>
                 <span className="tabular block truncate text-footnote text-ink-2">
-                  {counted(t, 'dashboard.cellTasks', row.count)} · {t('dashboard.inReview.oldest', { days: counted(t, 'dashboard.inReview.age', row.oldestDays) })}
+                  {counted(t, 'dashboard.cellTasks', row.count)} · {t(row.count > 1 ? 'dashboard.inReview.oldest' : 'dashboard.inReview.waits', { days: counted(t, 'dashboard.inReview.age', row.oldestDays) })}
                 </span>
               </span>
             </div>
@@ -40,7 +40,7 @@ export function ReviewWaits({ view }: { view: DashboardData }) {
                     <span className="min-w-0 flex-1">
                       <bdi className="block truncate text-subheadline text-ink">{task.title}</bdi>
                       <span className="tabular block truncate text-footnote text-ink-2">
-                        {projectKey(task.projectCode)} · {counted(t, 'dashboard.inReview.days', task.days)}
+                        <bdi>{projectKey(task.projectCode)}</bdi> · {counted(t, 'dashboard.inReview.days', task.days)}
                       </span>
                     </span>
                   </Link>

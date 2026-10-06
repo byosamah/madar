@@ -84,6 +84,14 @@ describe('the Area in design row', () => {
     expect(await tile(/Area in design/)).toHaveTextContent(/m² · 2 projects have no area/);
   });
 
+  // The label keeps one line on a phone; the number and the note wrap under each other at the end instead (2026-10-06).
+  it('keeps the label on one line and lets the number and the note wrap', async () => {
+    await renderApp('/dashboard', noArea);
+    const row = await tile(/Area in design/);
+    expect(row.firstElementChild).toHaveClass('shrink-0');
+    expect(row.children[1]).toHaveClass('flex-wrap', 'min-w-0', 'flex-1');
+  });
+
   it('stays as before with no gap', async () => {
     await renderApp('/dashboard');
     expect(await tile(/Area in design/)).not.toHaveTextContent(/no area/);

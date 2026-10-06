@@ -32,7 +32,7 @@ function MoneyRow({ label, rows, late }: { label: string; rows: Money['pastDue']
                 <span className="min-w-0 flex-1">
                   <bdi className="block truncate text-subheadline text-ink">{payment.name}</bdi>
                   <span className="tabular block truncate text-footnote text-ink-2">
-                    {projectKey(payment.projectCode)} · {t('payments.due', { date: formatDay(payment.dueDate, lang) })}
+                    <bdi>{projectKey(payment.projectCode)}</bdi> · {t('payments.due', { date: formatDay(payment.dueDate, lang) })}
                   </span>
                 </span>
                 <span className="tabular shrink-0 text-subheadline text-ink">{amountText(t, lang, payment.amount)}</span>

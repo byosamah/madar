@@ -68,7 +68,8 @@ export function Submissions({ view }: { view: DashboardData }) {
     <Card title={t('dashboard.charts.submissions')}>
       {rows.every((row) => row.count === 0) ? <NoData /> : (
         <>
-          <div aria-hidden className="h-52">
+          {/* The chart fills its card, so it lines up with the stage list next to it on a desk. */}
+          <div aria-hidden className="min-h-52 flex-1">
             <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 208 }}>
               {/* No keyboard layer: the chart is hidden from screen readers, and the table below carries the same numbers. */}
               <BarChart data={rows} margin={{ top: 4, bottom: 0 }} accessibilityLayer={false}>

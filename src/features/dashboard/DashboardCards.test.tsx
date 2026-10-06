@@ -57,6 +57,13 @@ describe('Waiting for review (owner, 2026-10-06, item 9)', () => {
     expect(links[0]).toHaveTextContent(first.title);
     expect(links[0]).toHaveTextContent(projectKey(first.projectCode));
     expect(links[0]).toHaveTextContent(first.days === 1 ? '1 day in review' : first.days === 0 ? 'In review since today' : `${first.days} days in review`);
+    // The key is its own run of text, so an Arabic line keeps the key and the days apart.
+    expect([...links[0].querySelectorAll('bdi')].map((bdi) => bdi.textContent)).toContain(projectKey(first.projectCode));
+    // One task has no "oldest": the line says how long it waits.
+    const single = inReview.find((row) => row.count === 1)!;
+    expect(region).toHaveTextContent(`1 task · waits ${single.oldestDays === 1 ? '1 day' : `${single.oldestDays} days`}`);
+    const several = inReview.find((row) => row.count > 1)!;
+    expect(region).toHaveTextContent(`${several.count} tasks · the oldest waits ${several.oldestDays} days`);
     await userEvent.click(links[0]);
     await waitFor(() => expect(window.location.hash).toContain(`task=${first.id}`));
   });
@@ -148,6 +155,7 @@ describe('Payments to receive, for the people who handle payments (owner, 2026-1
     expect(link).toHaveAttribute('href', `#/projects/${first.projectId}?payment=${first.id}`);
     expect(link).toHaveTextContent(first.name);
     expect(link).toHaveTextContent(`SAR ${first.amount.toLocaleString('en-US')}`);
+    expect([...link.querySelectorAll('bdi')].map((bdi) => bdi.textContent)).toContain(projectKey(first.projectCode));
     await userEvent.click(link);
     expect(await screen.findByRole('dialog', { name: 'Edit payment' }, { timeout: 10_000 })).toBeInTheDocument();
   });

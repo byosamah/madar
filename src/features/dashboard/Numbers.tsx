@@ -51,8 +51,9 @@ export function NumberRows({ rows }: { rows: { key: string; label: string; value
       {rows.map((row) => (
         <li key={row.key}>
           <Link to={row.to} className="pressable flex min-h-14 items-center gap-3 px-5 py-2 hover:bg-fill/50">
-            <span className="min-w-0 flex-1 text-subheadline font-medium text-ink">{row.label}</span>
-            <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 text-end">
+            {/* The label keeps its line; on a phone the number and its note wrap under each other at the end. */}
+            <span className="shrink-0 text-subheadline font-medium text-ink">{row.label}</span>
+            <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-end gap-x-1.5 text-end">
               <span className="tabular text-headline text-ink">{row.value}</span>
               {row.note && <span className="text-footnote text-ink-2">{` · ${row.note}`}</span>}
             </span>
