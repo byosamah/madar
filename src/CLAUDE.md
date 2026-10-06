@@ -39,6 +39,11 @@ any screen work.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.
+- Tasks (`/work`): one main button, New office task (`features/work/NewOfficeTaskSheet.tsx`: title, lead, due date). A list
+  screen opens a task panel with `?task=<id>` and, for a project task, `&project=<id>` (`openTask`, `lib/params.ts`).
+  `taskLink(null, id)` sends an office task to `/work?task=<id>`. An office task has no project: the word Office
+  (`office.word`) shows where a project shows, and its panel (`TaskSheet` with `detail` null) has no stage and no
+  prerequisites (owner, 2026-10-06).
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
