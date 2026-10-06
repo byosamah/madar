@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { groupClose } from '../../lib/schedule';
 import type { DashboardData } from './Tiles';
@@ -67,26 +67,34 @@ function DeadlineMark({ group, place }: { group: Mark[]; place: string }) {
 }
 
 /**
- * The deadline diamonds of one row. The row measures its own width, so close deadlines share a diamond at every screen size.
- * `place` sets the height of the diamonds in the row.
+ * The width of one element, measured again when its size changes. Give the ref to the element. A schedule measures its time
+ * scale once and gives the width to every row, so it needs one ResizeObserver, not one for each row (cleanup 2026-10-06).
  */
-export function DeadlineMarks({ marks, place = 'bottom-px' }: { marks: Mark[]; place?: string }) {
-  const ruler = useRef<HTMLSpanElement>(null);
+export function useWidth<T extends HTMLElement>(): [(node: T | null) => (() => void) | undefined, number] {
   const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const node = ruler.current;
-    if (!node) return;
+  const ref = useCallback((node: T | null) => {
+    if (!node) return undefined;
     const measure = () => setWidth(node.getBoundingClientRect().width);
     measure();
-    if (typeof ResizeObserver === 'undefined') return;
+    if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const gap = width > 0 ? (MARK_GAP_PX / width) * 100 : 0;
+  return [ref, width];
+}
+
+/**
+ * The deadline diamonds of one row, so close deadlines share a diamond at every screen size. `width` is the width of the row
+ * when the screen measured it already. Without it, the row measures its own width. `place` sets the height of the diamonds.
+ */
+export function DeadlineMarks({ marks, place = 'bottom-px', width }: { marks: Mark[]; place?: string; width?: number }) {
+  const [ruler, own] = useWidth<HTMLSpanElement>();
+  const measured = width ?? own;
+  const gap = measured > 0 ? (MARK_GAP_PX / measured) * 100 : 0;
   return (
     <>
-      <span ref={ruler} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0" />
+      {width === undefined && <span ref={ruler} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0" />}
       {groupClose(marks, gap).map((group) => <DeadlineMark key={group[0].id} group={group} place={place} />)}
     </>
   );

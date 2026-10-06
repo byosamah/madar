@@ -12,7 +12,7 @@ import { formatDay, formatMonth, todayISO } from '../../lib/dates';
 import { clipSpan, midPct, offsetPct, scheduleWindow, widthPct, ZOOMS, type Span } from '../../lib/schedule';
 import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
 import { HatchSwitch, useHatchOverlap } from './hatch';
-import { currentTone, DeadlineMarks, stageKind, type StageKind } from './scheduleMarks';
+import { currentTone, DeadlineMarks, stageKind, useWidth, type StageKind } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
 import { projectKey } from '../../lib/projectCode';
 
@@ -106,6 +106,8 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
   const todayAt = { insetInlineStart: `${offsetPct(span, today)}%` };
   const paused = view.schedule.find((row) => row.pause)?.pause ?? null;
   const [hatch, setHatch] = useHatchOverlap();
+  // Every row has the width of the time scale above it, so one measure serves the deadline marks of all rows.
+  const [scale, scaleWidth] = useWidth<HTMLDivElement>();
   return (
     <section aria-labelledby="dash-schedule" className="panel flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -143,7 +145,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
         <div className="overflow-x-auto">
           <div className="grid min-w-[44rem] grid-cols-[14rem_minmax(0,1fr)] gap-x-3">
             <div />
-            <div aria-hidden className="relative h-6">
+            <div ref={scale} aria-hidden className="relative h-6">
               {ticks.map((tick) => (
                 <span key={tick} style={{ insetInlineStart: `${offsetPct(span, tick)}%` }} className="absolute top-0 whitespace-nowrap border-s border-separator ps-1 text-caption text-ink-2">
                   {zoom === 'month' ? formatDay(tick, lang) : formatMonth(tick, lang)}
@@ -192,6 +194,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                     {/* The deadlines of the meeting timeline: a button to reach with the keyboard, with the name and the date (audit 2026-10-03, DSH-14). */}
                     <DeadlineMarks
                       place="top-2.5"
+                      width={scaleWidth}
                       marks={row.deadlines.filter((d) => d.date >= span.start && d.date <= span.end).map((d) => ({
                         id: d.id, name: d.name, when: formatDay(d.date, lang), at: midPct(span, d.date),
                         label: t('dashboard.meeting.deadline', { name: d.name, date: formatDay(d.date, lang) }),

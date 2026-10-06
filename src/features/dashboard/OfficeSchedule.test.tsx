@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
@@ -27,6 +27,21 @@ describe('the office schedule', () => {
     await userEvent.click(school);
     expect(school).toHaveAttribute('aria-expanded', 'false');
     expect(within(schedule).queryByText('Design Development')).toBeNull();
+  });
+
+  // Every row has the width of the time scale, so one measure serves them all, not one ResizeObserver for each row (cleanup 2026-10-06).
+  it('measures the time scale once for every row', async () => {
+    const observed: Element[] = [];
+    vi.stubGlobal('ResizeObserver', class {
+      observe(node: Element): void { observed.push(node); }
+      unobserve(): void {}
+      disconnect(): void {}
+    });
+    onTestFinished(() => { vi.unstubAllGlobals(); });
+    await renderApp('/dashboard?view=schedule');
+    const schedule = await screen.findByRole('region', { name: 'Office schedule' });
+    expect(within(schedule).getAllByRole('link')).toHaveLength(9);
+    expect(observed.filter((node) => schedule.contains(node))).toHaveLength(1);
   });
 
   it('keeps the zoom for the next visit', async () => {
