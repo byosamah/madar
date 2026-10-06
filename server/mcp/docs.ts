@@ -56,8 +56,9 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Returns the office overview: number tiles, project health (on track, at risk, late), charts, the workload of each person (overdue: open tasks past due; counts: open tasks due in each of 4 weeks from today, with the tasks the person must review in week 1), the schedule, what needs attention, and the people who lead a project in the status (leaders, a list for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use it for a summary, then the list tools for detail.',
+    description: 'Returns the office overview: tiles (inDesignWithoutArea: projects in design with no area), health counts, charts, the workload of each person (overdue: open tasks past due; counts: open tasks due in each of 4 weeks from today, with the tasks the person must review in week 1), the schedule, what needs attention, and leaders (choices for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use the list tools for detail.',
   },
+
   'deadlines.create': {
     title: 'Add a deadline',
     description: 'Adds a deadline to a project: a name and a date (YYYY-MM-DD), and optionally the stage it belongs to (stageId). The project leader and the Admin may add deadlines.',

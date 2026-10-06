@@ -41,15 +41,21 @@ export function Numbers({ view, filters }: { view: DashboardData; filters: Dashb
   );
 }
 
-/** Rows with a number that open a list: deadlines in 14 days and the area in design. */
-export function NumberRows({ rows }: { rows: { key: string; label: string; value: string; to: string }[] }) {
+/**
+ * Rows with a number that open a list: deadlines in 14 days and the area in design. A note after the number says what the number
+ * leaves out, for example the projects with no area (owner, 2026-10-06). On a phone the note goes under the number.
+ */
+export function NumberRows({ rows }: { rows: { key: string; label: string; value: string; note?: string; to: string }[] }) {
   return (
     <ul className="panel hairline overflow-hidden">
       {rows.map((row) => (
         <li key={row.key}>
-          <Link to={row.to} className="pressable flex min-h-14 items-center gap-3 px-5 hover:bg-fill/50">
+          <Link to={row.to} className="pressable flex min-h-14 items-center gap-3 px-5 py-2 hover:bg-fill/50">
             <span className="min-w-0 flex-1 text-subheadline font-medium text-ink">{row.label}</span>
-            <span className="tabular text-headline text-ink">{row.value}</span>
+            <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 text-end">
+              <span className="tabular text-headline text-ink">{row.value}</span>
+              {row.note && <span className="text-footnote text-ink-2">{` · ${row.note}`}</span>}
+            </span>
             <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
           </Link>
         </li>

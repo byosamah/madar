@@ -27,6 +27,8 @@ export const DashboardView = z.object({
     overdueTasks: Count,
     deadlinesNext14: Count,
     areaInDesign: z.number(),
+    /** The active projects in design with no area, so a person knows the area in design reads low (owner, 2026-10-06). */
+    inDesignWithoutArea: Count,
   }),
   charts: z.object({
     projectsPerStage: z.array(z.object({ stage: z.string(), count: Count })),
@@ -102,6 +104,7 @@ export const dashboardGet = defineCall({
       const own = stagesOf(state, p.id);
       return own.length > 1 && tagOf(p)?.id === own[own.length - 1].id;
     };
+    const inDesign = active.filter((p) => !onSite(p));
     const perStage = new Map<string, number>();
     for (const p of active) {
       const name = tagOf(p)?.name ?? '';
@@ -157,7 +160,8 @@ export const dashboardGet = defineCall({
         atRiskOrLate: healths.filter((h) => h !== null && h.value !== 'on_track').length,
         overdueTasks: tasks.filter((t) => activeIds.has(t.projectId) && isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
-        areaInDesign: active.filter((p) => !onSite(p)).reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        areaInDesign: inDesign.reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
+        inDesignWithoutArea: inDesign.filter((p) => p.areaM2 === null).length,
       },
       charts: {
         projectsPerStage: [...perStage.entries()]

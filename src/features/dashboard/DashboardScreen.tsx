@@ -10,6 +10,7 @@ import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
+import { counted } from '../../lib/grammar';
 import { oneOf, teamParam } from '../../lib/params';
 import { HealthMix, PerStage, Throughput } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
@@ -129,7 +130,11 @@ export function DashboardScreen() {
                 <div className="lg:col-span-2">
                   <NumberRows rows={[
                     { key: 'deadlines', label: t('dashboard.tiles.deadlines'), value: formatNumber(view.tiles.deadlinesNext14, lang), to: withFilters(`/tasks?mode=deadlines&from=${today}&to=${addDays(today, 14)}`, filters) },
-                    { key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }), to: withFilters('/projects?status=active', filters) },
+                    {
+                      key: 'area', label: t('dashboard.tiles.area'), value: t('dashboard.areaValue', { n: formatNumber(view.tiles.areaInDesign, lang) }),
+                      note: view.tiles.inDesignWithoutArea > 0 ? counted(t, 'dashboard.noArea', view.tiles.inDesignWithoutArea) : undefined,
+                      to: withFilters('/projects?status=active', filters),
+                    },
                   ]} />
                 </div>
                 <PerStage view={view} filters={filters} />

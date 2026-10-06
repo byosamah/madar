@@ -52,7 +52,7 @@ describe('dashboard.get', () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.tiles).toEqual({
       activeProjects: 1, atRiskOrLate: 1, overdueTasks: 1, deadlinesNext14: 1,
-      areaInDesign: 1000,
+      areaInDesign: 1000, inDesignWithoutArea: 0,
     });
     expect(d.charts.healthMix).toEqual({ on_track: 0, at_risk: 1, late: 0 });
     expect(d.charts.projectsPerStage).toEqual([{ stage: 'Schematic Design', count: 1 }]);
@@ -81,6 +81,19 @@ describe('dashboard.get', () => {
     expect(await area(renamed)).toBe(0);
     // A name that only this project uses.
     expect(await area(onSite(world(), 'Site supervision'))).toBe(0);
+  });
+
+  // The area in design reads low when a project has no area, so the Dashboard says how many (owner, 2026-10-06, item 4).
+  it('counts the projects in design that have no area', async () => {
+    const state = world();
+    const d = await testApi(insightCalls, state).api.call('dashboard.get', {});
+    expect(d.tiles.inDesignWithoutArea).toBe(0);
+    state.projects.prj_001.areaM2 = null;
+    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles).toMatchObject({ areaInDesign: 0, inDesignWithoutArea: 1 });
+    // On site, or paused: not in design, so not a gap of this number.
+    expect((await testApi(insightCalls, onSite(structuredClone(state), 'Supervision')).api.call('dashboard.get', {})).tiles.inDesignWithoutArea).toBe(0);
+    state.projects.prj_001.status = 'on_hold';
+    expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).tiles.inDesignWithoutArea).toBe(0);
   });
 
   it('takes the last stage of the project list, so a stage with no dates yet never becomes the last stage (audit 2026-10-03, V-17)', async () => {

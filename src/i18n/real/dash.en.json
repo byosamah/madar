@@ -16,6 +16,9 @@
     "overdueCell": "{{name}}, past due: {{tasks}}",
     "idlePeople": "{{n}} people have no tasks in these weeks",
     "idlePeople_one": "1 person has no tasks in these weeks",
-    "idlePeople_other": "{{count}} people have no tasks in these weeks"
+    "idlePeople_other": "{{count}} people have no tasks in these weeks",
+    "noArea": "{{n}} projects have no area",
+    "noArea_one": "1 project has no area",
+    "noArea_other": "{{count}} projects have no area"
   }
 }

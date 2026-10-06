@@ -21,4 +21,8 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
     for (const word of ['overdue', 'from today', 'review']) expect(dashboard, word).toContain(word);
     expect(TOOL_DOCS['tasks.list'].description).toContain('workOf');
   });
+
+  it('name the count of projects in design with no area', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toContain('inDesignWithoutArea');
+  });
 });

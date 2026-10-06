@@ -19,6 +19,12 @@
     "idlePeople_two": "شخصان ليس لديهما مهام في هذه الأسابيع",
     "idlePeople_few": "{{count}} أشخاص ليس لديهم مهام في هذه الأسابيع",
     "idlePeople_many": "{{count}} شخصًا ليس لديهم مهام في هذه الأسابيع",
-    "idlePeople_other": "{{count}} شخص ليس لديهم مهام في هذه الأسابيع"
+    "idlePeople_other": "{{count}} شخص ليس لديهم مهام في هذه الأسابيع",
+    "noArea": "{{n}} مشروع بلا مساحة",
+    "noArea_one": "مشروع واحد بلا مساحة",
+    "noArea_two": "مشروعان بلا مساحة",
+    "noArea_few": "{{count}} مشاريع بلا مساحة",
+    "noArea_many": "{{count}} مشروعًا بلا مساحة",
+    "noArea_other": "{{count}} مشروع بلا مساحة"
   }
 }

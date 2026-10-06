@@ -71,3 +71,30 @@ describe('the Leader and Client filters reach the lists (owner, 2026-10-06)', ()
     await waitFor(() => expect(listRows()).toHaveLength(tiles.deadlinesNext14));
   });
 });
+
+/** The area in design reads low when a project has no area, so the row says how many (owner, 2026-10-06, item 4). */
+describe('the Area in design row', () => {
+  const noArea = (state: Parameters<NonNullable<Parameters<typeof renderApp>[1]>>[0]) => {
+    state.projects.prj_001.areaM2 = null;
+    state.projects.prj_002.areaM2 = null;
+  };
+
+  it('says how many projects in design have no area', async () => {
+    await renderApp('/dashboard', noArea);
+    expect(await tile(/Area in design/)).toHaveTextContent(/m² · 2 projects have no area/);
+  });
+
+  it('stays as before with no gap', async () => {
+    await renderApp('/dashboard');
+    expect(await tile(/Area in design/)).not.toHaveTextContent(/no area/);
+  });
+
+  it('uses the Arabic noun forms', async () => {
+    await renderApp('/dashboard', (state) => {
+      noArea(state);
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    expect(await tile(/المساحة قيد التصميم/)).toHaveTextContent('مشروعان بلا مساحة');
+  });
+});
+
