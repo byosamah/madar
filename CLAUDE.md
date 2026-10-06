@@ -168,3 +168,6 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   Arabic; in the Arabic screens, English text also sits on the right; the test copy is the staging step (no third copy,
   no staging address for now), and production takes only the commit of the last full test deploy
   (`scripts/deploy/CLAUDE.md`, Release flow).
+- 2026-10-06: a 15-minute sign-in token (Z7); the Dashboard shows what is past due, waits for review or for our reply,
+  the money to receive (payment roles) and the data gaps (Admin); a past-due task marks its project At risk only from 3 days;
+  the accountant keeps the books in Daftra (a link waits for his answers, `TASKS.md`).
