@@ -61,6 +61,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Prototype data
 - `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 9 (`store.ts`).
+- `src/api` never imports `src/data/`. `session.resetSampleData` takes the sample office from the runtime (`createApi` option
+  `sampleOffice`, `src/data/sampleOffice.ts`), so the server bundles hold none. `settleFuture` runs only on sample data: the
+  prototype, the test office seed (madar-test only) and the local seed.
 - Each version has a step in `src/data/migrate.ts`. A newer or unreadable saved office is never wiped.
 
 ## Tests

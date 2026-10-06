@@ -42,6 +42,9 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - Workers (`entries/worker.ts`): one Db for each request, the database through the Hyperdrive binding `DB`.
 - `wrangler dev` uses esbuild with no `import.meta.glob`, so server code reads word files with plain JSON imports
   (`workerGraph.test.ts` checks it).
+- The bundles run on the real office, so they hold no sample office and no `settleFuture` (it moves every later stamp to
+  before now). `workerGraph.test.ts` checks that no entry loads `src/data/`, and `build:server` ends with
+  `check-bundles.ts server`. The prototype runtime gives the sample office to `session.resetSampleData`.
 
 ## Ports
 - `core/ports.ts`: Db, Clock, FilesPort, MailPort, SignalPort, AuthAdminPort, MeterPort. Fakes in `test/fakes`.

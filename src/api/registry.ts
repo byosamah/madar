@@ -13,6 +13,11 @@ export type PrepareCtx = {
   state: State; persister: Persister; actor: User; now: Date;
   /** The real build: the stored data keys of this list that another record still uses. "after" keeps those (plan 4.13, A2). */
   blobKeysInUse?(keys: string[]): Promise<Set<string>>;
+  /**
+   * The prototype: the sample office as of "now" (src/data/sampleOffice.ts). The runtime gives it, so the API code never loads
+   * the sample office, and the server bundles hold none (cleanup 2026-10-06).
+   */
+  sampleOffice?(now: Date, putBlob: (key: string, blob: Blob) => Promise<void>): Promise<State>;
 };
 
 /** One API call. "run" must be synchronous. Only "prepare" may wait, for example for file data. */

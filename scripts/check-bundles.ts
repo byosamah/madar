@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
  * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * prototype: no Supabase code and no _headers file, so the artifact stays a static page with the fake API.
+ * server: no sample office and no settleFuture in the function bundles, which run on the real office (cleanup 2026-10-06).
  * It prints every search, so a search with no match is visible.
  */
-export type BundleKind = 'remote' | 'prototype';
+export type BundleKind = 'remote' | 'prototype' | 'server';
 export type BundleCheck = { ok: boolean; lines: string[] };
 
 function walk(dir: string): string[] {
@@ -41,8 +42,12 @@ export function checkBundles(kind: BundleKind, dir: string): BundleCheck {
     }
   };
 
-  if (kind === 'remote') {
-    report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, texts.filter((f) => SEED_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name));
+  const seedHits = () => texts.filter((f) => SEED_MARKERS.some((m) => f.text.includes(m))).map((f) => f.name);
+  if (kind === 'server') {
+    report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
+    report("'settleFuture'", texts.filter((f) => f.text.includes('settleFuture')).map((f) => f.name));
+  } else if (kind === 'remote') {
+    report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
     const index = texts.find((f) => f.name === 'index.html');
     if (!index) {
       ok = false;
@@ -60,13 +65,16 @@ export function checkBundles(kind: BundleKind, dir: string): BundleCheck {
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const kind = process.argv[2];
-  if (kind !== 'remote' && kind !== 'prototype') {
-    console.error('Usage: node scripts/check-bundles.ts <remote|prototype> [dist folder]');
+  if (kind !== 'remote' && kind !== 'prototype' && kind !== 'server') {
+    console.error('Usage: node scripts/check-bundles.ts <remote|prototype|server> [dist folder]');
     process.exit(2);
   }
   const root = fileURLToPath(new URL('..', import.meta.url));
-  const result = checkBundles(kind, process.argv[3] ?? join(root, 'dist'));
-  for (const line of result.lines) (result.ok ? console.log : console.error)(line);
-  console.log(result.ok ? `Bundle check (${kind}) passed.` : `Bundle check (${kind}) failed.`);
-  process.exit(result.ok ? 0 : 1);
+  // The server check reads both outputs of npm run build:server: the Supabase functions and the Workers fallback.
+  const folders = process.argv[3] ? [process.argv[3]] : kind === 'server' ? [join(root, 'supabase/functions/_build'), join(root, 'dist-server')] : [join(root, 'dist')];
+  const results = folders.map((folder) => checkBundles(kind, folder));
+  const ok = results.every((result) => result.ok);
+  for (const result of results) for (const line of result.lines) (result.ok ? console.log : console.error)(line);
+  console.log(ok ? `Bundle check (${kind}) passed.` : `Bundle check (${kind}) failed.`);
+  process.exit(ok ? 0 : 1);
 }

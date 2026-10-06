@@ -37,3 +37,16 @@ describe('the Workers entry and esbuild', () => {
     expect(glob).toEqual([]);
   });
 });
+
+/**
+ * settleFuture moves every stamp later than now to before now. It is right for the sample office and wrong for a real one, so
+ * the server bundles hold neither the sample office nor that step: no path on a real office can run them (cleanup 2026-10-06).
+ * The prototype runtime gives the sample office to session.resetSampleData (src/data/sampleOffice.ts).
+ */
+describe('the server entries and the sample office', () => {
+  it.each(['server/entries/deno-api.ts', 'server/entries/deno-mcp.ts', 'server/entries/deno-jobs.ts', 'server/entries/worker.ts'])('%s loads no sample office and no settleFuture', (entry) => {
+    const graph = staticGraph(entry);
+    expect(graph).toContain('src/api/handlers/system.ts');
+    expect([...graph].filter((file) => file.startsWith('src/data/'))).toEqual([]);
+  });
+});

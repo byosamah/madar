@@ -8,6 +8,7 @@ import { createApi } from '../api/client';
 import { memoryPersister } from '../api/persist';
 import { Store, type State } from '../api/store';
 import { buildSeed } from '../data/seed';
+import { sampleOffice } from '../data/sampleOffice';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
 import { RuntimeProvider, createQueryClient } from '../app/runtime';
@@ -23,7 +24,7 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
   const store = new Store(state, memoryPersister());
-  const api = createApi(calls, { store, latencyMs: options.latencyMs ?? 0 });
+  const api = createApi(calls, { store, latencyMs: options.latencyMs ?? 0, sampleOffice });
   if (options.failFirst) {
     const original = api.call.bind(api);
     let failed = false;
@@ -59,7 +60,7 @@ export async function renderWithRuntime(ui: ReactElement, prepare?: (state: Stat
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
   const store = new Store(state, memoryPersister());
-  const api = createApi(calls, { store, latencyMs: 0, failureRate: options.failureRate });
+  const api = createApi(calls, { store, latencyMs: 0, failureRate: options.failureRate, sampleOffice });
   initI18n('en');
   const content = options.path === undefined
     ? ui

@@ -5,6 +5,7 @@ import { memoryPersister, openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
+import { sampleOffice } from '../data/sampleOffice';
 import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
 import { alwaysSignedIn } from './auth';
@@ -45,6 +46,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
   });
   const api = createApi(calls, {
     store,
+    sampleOffice,
     latencyMs: options.latencyMs,
     failureRate: () => (store.state.session.simulateErrors ? 0.2 : 0),
   });

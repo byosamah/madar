@@ -72,6 +72,23 @@ describe('checkBundles', () => {
     expect(result.lines.join('\n')).toContain('assets/a.js');
   });
 
+  // The server bundles run on the real office, so they hold no sample office and no settleFuture (cleanup 2026-10-06).
+  it('passes a clean server bundle and prints what it searched', () => {
+    const result = checkBundles('server', dist({ 'api.js': 'export default app;', 'mcp.js': '', 'jobs.js': '' }));
+    expect(result.ok).toBe(true);
+    expect(result.lines.join('\n')).toContain('settleFuture');
+    for (const marker of SEED_MARKERS) expect(result.lines.join('\n')).toContain(marker);
+  });
+
+  it('fails a server bundle that holds the sample office or settleFuture', () => {
+    const seed = checkBundles('server', dist({ 'api.js': 'const people = [{ name: "Hala Nasser" }];' }));
+    expect(seed.ok).toBe(false);
+    expect(seed.lines.join('\n')).toContain('api.js');
+    const settle = checkBundles('server', dist({ 'jobs.js': 'function settleFuture(state, at) { return state; }' }));
+    expect(settle.ok).toBe(false);
+    expect(settle.lines.join('\n')).toContain('jobs.js');
+  });
+
   it('fails when the folder does not exist, so a missing build never passes', () => {
     const result = checkBundles('prototype', join(tmpdir(), 'madar-no-such-dist'));
     expect(result.ok).toBe(false);

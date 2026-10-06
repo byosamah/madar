@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ApiError } from './errors';
 import { executeParsed, resolveAuthority } from './execute';
-import type { AnyCall } from './registry';
+import type { AnyCall, PrepareCtx } from './registry';
 import type { State, Store } from './store';
 import { now as clockNow } from '../lib/dates';
 
@@ -33,6 +33,8 @@ export type ApiOptions = {
   latencyMs?: number;
   failureRate?: () => number;
   random?: () => number;
+  /** The prototype: the sample office for session.resetSampleData (src/data/sampleOffice.ts). */
+  sampleOffice?: PrepareCtx['sampleOffice'];
 };
 
 function storyEvents(state: State, storyId: string): number {
@@ -42,7 +44,7 @@ function storyEvents(state: State, storyId: string): number {
 }
 
 export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api<M> {
-  const { store, latencyMs = 120, failureRate = () => 0, random = Math.random } = options;
+  const { store, latencyMs = 120, failureRate = () => 0, random = Math.random, sampleOffice } = options;
 
   // call() returns this function's promise without an extra await, so it resolves on the same tick as before
   // (screen tests depend on that order).
@@ -60,7 +62,7 @@ export function createApi<M extends CallMap>(calls: M, options: ApiOptions): Api
     const correlationId = parsedMeta.data.correlationId ?? newCorrelationId();
     const at = clockNow();
     const prepared = def.prepare
-      ? await def.prepare(parsed.data, { state: store.state, persister: store.persister, actor, now: at })
+      ? await def.prepare(parsed.data, { state: store.state, persister: store.persister, actor, now: at, sampleOffice })
       : undefined;
     const base = { actorId, authorityId: authority.id, correlationId, now: at, persistent: store.persistent };
     const execute = (state: State) => executeParsed(def, name, parsed.data, state, base, prepared);
