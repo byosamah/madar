@@ -18,8 +18,6 @@ import { OfficeSchedule } from './OfficeSchedule';
 import { StaleProjects } from './StaleProjects';
 import { Workload } from './Workload';
 import { clientName } from '../../lib/clientName';
-import { isLive } from '../../lib/overview';
-import type { ProjectStatus } from '../../api/contract/entities';
 
 // Completed and Archived are not choices: every number counts active projects only, so they changed nothing a person reads.
 // A link that still carries one of them reads as Active (audit 2026-10-03, DSH-13).
@@ -55,7 +53,6 @@ export function DashboardScreen() {
   const dashboard = useCall('dashboard.get', { status: 'active', ...filters });
   const scheduled = useCall('dashboard.get', { status: shown, ...filters });
   const users = useCall('users.list', {});
-  const projects = useCall('projects.list', { status: 'all' });
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
   const set = (key: string, value: string, fallback: string) => setParams((current) => {
@@ -71,9 +68,9 @@ export function DashboardScreen() {
   const today = todayISO();
   // A person who leads no project in the status gave an empty Dashboard. The Leader list offers only the people who lead a
   // project in the status the numbers count; "All statuses" shows active and paused projects (audit 2026-10-03, F-14).
-  const inShown = (projectStatus: ProjectStatus) => (shown === 'all' ? isLive(projectStatus) : projectStatus === shown);
+  // dashboard.get names them, so the screen loads no summary of every project (cleanup 2026-10-06).
   const leaders = new Map<string, string>();
-  for (const summary of projects.data ?? []) if (summary.leader && inShown(summary.project.status)) leaders.set(summary.leader.id, nameOf(summary.leader));
+  for (const person of scheduled.data?.leaders ?? []) leaders.set(person.id, nameOf(person));
   // A leader from the link stays in the list, so the choice that filters the numbers stays visible.
   const picked = (users.data ?? []).find((user) => user.id === leader);
   if (picked) leaders.set(picked.id, nameOf(picked));

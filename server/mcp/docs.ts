@@ -54,7 +54,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Returns the office overview: number tiles, project health (on track, at risk, late), charts, the workload of each person, the schedule, and what needs attention. Filters: status (default active), leaderId, clientId, teamId. Use it for a summary, then the list tools for detail.',
+    description: 'Returns the office overview: number tiles, project health (on track, at risk, late), charts, the workload of each person, the schedule, what needs attention, and the people who lead a project in the status (leaders, a list for leaderId). Filters: status (default active), leaderId, clientId, teamId. Use it for a summary, then the list tools for detail.',
   },
   'deadlines.create': {
     title: 'Add a deadline',

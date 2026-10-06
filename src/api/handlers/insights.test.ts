@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { insightCalls } from './insights';
 import type { State } from '../store';
-import { makeStage, makeTask, makeWorld, NOW, STAMP, testApi, TODAY } from '../../test/factories';
+import { makeProject, makeStage, makeTask, makeWorld, NOW, STAMP, testApi, TODAY } from '../../test/factories';
 import { calls } from '../calls';
 import { buildSeed } from '../../data/seed';
 import { setNow } from '../../lib/dates';
@@ -31,6 +31,22 @@ function onSite(state: State, lastStageName: string): State {
 }
 
 describe('dashboard.get', () => {
+  // The Leader filter of the Dashboard reads this list, so the screen loads no summary of every project (cleanup 2026-10-06).
+  it('names the people who lead a project in the status, whatever the leader, client and team filters say', async () => {
+    const state = world();
+    state.projects.prj_002 = makeProject({ id: 'prj_002', code: 'KH-26-002', leaderId: 'usr_003', status: 'on_hold' });
+    state.projects.prj_003 = makeProject({ id: 'prj_003', code: 'KH-26-003', leaderId: 'usr_004', status: 'completed' });
+    state.projects.prj_004 = makeProject({ id: 'prj_004', code: 'KH-26-004', leaderId: 'usr_002', clientId: null });
+    state.counters.prj = 4;
+    const { api } = testApi(insightCalls, state);
+    const leaders = async (input: Parameters<typeof api.call<'dashboard.get'>>[1]) => (await api.call('dashboard.get', input)).leaders.map((user) => user.id);
+    expect(await leaders({})).toEqual(['usr_002']);
+    expect(await leaders({ status: 'on_hold' })).toEqual(['usr_003']);
+    // All statuses: the active and the paused projects, as the schedule rows.
+    expect(await leaders({ status: 'all' })).toEqual(['usr_002', 'usr_003']);
+    expect(await leaders({ status: 'all', leaderId: 'usr_003', clientId: 'cli_009' })).toEqual(['usr_002', 'usr_003']);
+  });
+
   it('counts the tiles and the health mix', async () => {
     const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
     expect(d.tiles).toEqual({

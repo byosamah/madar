@@ -9,10 +9,11 @@ import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, staleDaysOf, teamFilter } from '../pause';
 import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
-import { deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
+import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
+import { isLive } from '../../lib/overview';
 import { markOf } from '../../lib/projectMark';
 
 const Count = z.number().int().min(0);
@@ -47,6 +48,11 @@ export const DashboardView = z.object({
   attention: z.object({
     stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
   }),
+  /**
+   * The people who lead a project in the status ("all": an active or a paused project), for the Leader filter. The leader, client
+   * and team filters do not apply here, so every choice stays in the list (audit 2026-10-03, F-14; cleanup 2026-10-06).
+   */
+  leaders: z.array(UserCard),
 });
 export type DashboardView = z.infer<typeof DashboardView>;
 
@@ -115,6 +121,10 @@ export const dashboardGet = defineCall({
       loops.set(entry.projectId, count);
     }
 
+    const inStatus = (p: Project) => (input.status === 'all' ? isLive(p.status) : p.status === input.status);
+    const leaderIds = new Set(Object.values(state.projects).filter(inStatus).flatMap((p) => (p.leaderId ? [p.leaderId] : [])));
+    const leaders = [...leaderIds].map((id) => cardOf(state, id)).sort((a, b) => a.name.localeCompare(b.name));
+
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
     const limit = state.settings.workloadLimit;
     const workloadRows = humans.map((user) => {
@@ -153,6 +163,7 @@ export const dashboardGet = defineCall({
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
           openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
         })),
+      leaders,
     };
   },
 });

@@ -123,6 +123,14 @@ describe('the Dashboard', () => {
       expect(await leaderOptions()).toEqual(['Any leader', ...leadersOf(seed as State, ['on_hold'])]);
     });
 
+    it('takes the leaders from dashboard.get, so it loads no summary of every project (cleanup 2026-10-06)', async () => {
+      const names: string[] = [];
+      await renderApp('/dashboard?view=schedule&status=all', undefined, { failFirst: (name) => { names.push(name); return false; } });
+      await leaderOptions();
+      expect(names).toContain('dashboard.get');
+      expect(names).not.toContain('projects.list');
+    });
+
     it('keeps a leader from the link in the list, so the choice stays visible', async () => {
       // Khalid (usr_008) leads no project in the sample office.
       await renderApp('/dashboard?leader=usr_008');
