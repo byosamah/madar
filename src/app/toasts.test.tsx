@@ -78,6 +78,15 @@ describe('toasts and an open sheet (owner, 2026-10-06, layout)', () => {
         <button type="button" onClick={() => toast.show({ message: 'Link copied.' })}>Copy</button>
         <button type="button" onClick={() => toast.undo('Task deleted.', () => undefined)}>Delete</button>
         <button type="button" onClick={() => setOpen(true)}>Open the task</button>
+        <button
+          type="button"
+          onClick={() => {
+            toast.show({ tone: 'error', message: 'The dates did not save.' });
+            setOpen(true);
+          }}
+        >
+          Save dates
+        </button>
         <Sheet open={open} onOpenChange={setOpen} title="Renew the licence">
           <button type="button" onClick={() => toast.show({ message: 'Saved.' })}>Save</button>
         </Sheet>
@@ -103,6 +112,14 @@ describe('toasts and an open sheet (owner, 2026-10-06, layout)', () => {
     // A toast that a step inside the open sheet shows is new, so it stays.
     await userEvent.click(within(sheet).getByText('Save'));
     expect(lane()).toHaveTextContent('Saved.');
+  });
+
+  it('keeps a toast that came in the same step as the sheet, as when a failed Save dates opens its sheet again (audit V-14)', async () => {
+    initI18n('en');
+    render(<ToastProvider><Screen /></ToastProvider>);
+    await userEvent.click(screen.getByText('Save dates'));
+    await screen.findByRole('dialog', { name: 'Renew the licence' });
+    expect(within(lane()!).getByRole('alert')).toHaveTextContent('The dates did not save.');
   });
 
   it('shows the toasts at the top of a phone screen while a sheet is open, above the sheet, and at the bottom again after', async () => {

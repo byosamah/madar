@@ -11,7 +11,8 @@ export type ToastInput = {
    */
   action?: { label: string; run: () => void; isUndo: boolean };
 };
-type ToastItem = ToastInput & { id: number };
+/** step: the step of the person that showed the toast (see "steps" in the ToastProvider). */
+type ToastItem = ToastInput & { id: number; step: number };
 
 const ToastContext = createContext<{ show: (toast: ToastInput) => void } | null>(null);
 
@@ -27,8 +28,8 @@ const STAY_MS = 5000;
 
 /**
  * The open sheets, the blocking sheet and the side panel alike (owner, 2026-10-06). When a sheet opens, the toasts without
- * Undo close at once: each one answered a step that the person has now moved past. A toast with Undo stays, so Undo stays in
- * reach (its button and Ctrl+Z). While a sheet is open on a phone, the toasts show at the top of the screen, in the strip that
+ * Undo of an earlier step close at once: each one answered a step that the person has now moved past. A toast with Undo
+ * stays, so Undo stays in reach (its button and Ctrl+Z). While a sheet is open on a phone, the toasts show at the top of the screen, in the strip that
  * the bottom sheet leaves free, so no toast covers a field of the sheet. A toast that comes while the sheet is open stays.
  */
 let openSheets = 0;
@@ -75,6 +76,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const timers = useRef(new Map<number, { left: number; started: number; handle: number }>());
   // The toast that holds the pointer or the focus, so its hold ends when it goes away (audit 2026-10-03, V-15).
   const holder = useRef<Holder>({ pointer: null, focus: null });
+  // The steps of the person: each press or key starts a new step, and a toast belongs to the step that showed it. A sheet that
+  // opens closes only the toasts of an earlier step. A failed Save dates shows its error and opens the reason sheet again in
+  // one step, so that toast stays (audit 2026-10-03, V-14).
+  const steps = useRef(0);
+  useEffect(() => {
+    const next = () => {
+      steps.current += 1;
+    };
+    window.addEventListener('pointerdown', next, true);
+    window.addEventListener('keydown', next, true);
+    return () => {
+      window.removeEventListener('pointerdown', next, true);
+      window.removeEventListener('keydown', next, true);
+    };
+  }, []);
   const dismiss = useCallback((id: number) => {
     window.clearTimeout(timers.current.get(id)?.handle);
     timers.current.delete(id);
@@ -85,7 +101,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [dismiss]);
   const show = useCallback((toast: ToastInput) => {
     const id = nextToastId++;
-    setToasts((all) => [...all.slice(-2), { ...toast, id }]);
+    setToasts((all) => [...all.slice(-2), { ...toast, id, step: steps.current }]);
     if (isHeld(holder.current)) timers.current.set(id, { left: STAY_MS, started: 0, handle: 0 });
     else run(id, STAY_MS);
   }, [run]);
@@ -133,7 +149,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const watch = (opened: boolean) => {
       setOverSheet(openSheets > 0);
       if (!opened) return;
-      for (const toast of latest.current) if (!toast.action?.isUndo) dismiss(toast.id);
+      for (const toast of latest.current) if (!toast.action?.isUndo && toast.step < steps.current) dismiss(toast.id);
     };
     sheetWatchers.add(watch);
     // A sheet that opened before this effect ran (a child's effect runs first) still moves the toasts.
