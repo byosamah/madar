@@ -654,3 +654,12 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Test copy at 02cd6a4:** the seed step 5 revoked a planted grant ("Revoked 1 AI app grant of member@madar.test"); agents.spec 10, projects.spec 17; the walk 36 of 36 at 1440 px in both languages. At 390 px the invite step found the mail day quota of madar-test full (98 mails today, outbox driver), the designed QuotaFull answer, so those two variants wait for the next day.
 - **Production at 02cd6a4:** `all.sh production`, health 112 calls; page 200, `POST /mcp` with no token 401, `/favicon.ico` 200 icon.
 - **Found:** the seed ends every Auth session of the 4 sample accounts (the password set of step 2), so a signed-in device must sign in again. The API accepts a browser token until it expires (jwt_expiry 3600) even after its Auth session is gone; agent tokens stop at once.
+
+### Z7: a token of 15 minutes (2026-10-06, 746d694)
+
+- **What:** `jwt_expiry = 900` in both projects. A browser token stays good after its Auth session ends (the API checks no session for it), so the gap after "Your other devices sign out" is 15 minutes at most. `config-check.ts` refuses a value above 900, and `signin.spec.ts` reads the token of the target.
+- **Local:** `config-check.test.ts` 9 of 9.
+- **Test copy at 746d694:** a sample sign-in gives `exp - iat` = 900. The deploy suite (AFTER_G, AFTER_M, WALK, a seed before and after): 165 passed, 3 skipped (the prototype-only "Preview as"), 0 failed; the walk 36 of 36 steps in each of the 4 variants.
+- **A member session of 17 minutes on the test copy:** supabase-js renewed the token at 13 min 5 s (the renew answered 200). An Admin update reached the member page 1.8 s after the save, with no reload and no request from the member page since minute 5, so it came on Realtime. Then My Work loaded with 200 answers. All 14 `api/batch` answers were 200; no session sheet and no "No connection" banner in 34 checks; no console error.
+- **Production at 746d694:** the config push changed `auth.jwt_expiry` from 3600 to 900; `GET /config/auth` gives `jwt_exp` 900. `db_schema` stays '' and `/rest/v1/` answers 401. Quick check: page 200, `POST /mcp` with no token 401, `api/health` 200.
+- **Found:** the test office seed writes file rows (keys `blob_seed_*`) but no Storage objects (0 of 81 objects in `madar-files`), so on the test copy every sample file and the cover picture of prj_001 fail `files.link`. Production is not affected: real files come through `files.uploadStart`.
