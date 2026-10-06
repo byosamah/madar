@@ -53,7 +53,8 @@ describe('the bottom sheet of a phone and the toasts (owner, 2026-10-06, layout)
     phoneWidth();
     render(<Sheet open onOpenChange={() => undefined} title="Export the log">Rows</Sheet>);
     const sheet = await screen.findByRole('dialog', { name: 'Export the log' });
-    expect(sheet).toHaveClass('max-h-[calc(100dvh_-_4.5rem_-_env(safe-area-inset-top))]');
+    // A toast with Undo is 62 px high and sits 12 px from the top, so the strip is 84 px (5.25rem) below the safe area.
+    expect(sheet).toHaveClass('max-h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]');
     expect(sheet).not.toHaveClass('max-h-[92dvh]');
   });
 });

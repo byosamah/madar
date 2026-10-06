@@ -114,10 +114,11 @@ const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' :
  */
 const DESK_EDGE = 'top-3 [:root:has([data-pill])_&]:top-[5.25rem] bottom-3 end-3';
 /**
- * A bottom sheet on a phone leaves a strip at the top of the screen, 72 px below the safe area. While a sheet is open, the
- * toasts show in that strip, so a toast covers no field of the sheet (owner, 2026-10-06, see the ToastProvider).
+ * A bottom sheet on a phone leaves a strip at the top of the screen, 84 px below the safe area. While a sheet is open, the
+ * toasts show in that strip, so a toast covers no field of the sheet (owner, 2026-10-06, see the ToastProvider). A toast with
+ * Undo is 62 px high and sits 12 px from the top, so 10 px stay free between the toast and the sheet.
  */
-const PHONE_HEIGHT = 'max-h-[calc(100dvh_-_4.5rem_-_env(safe-area-inset-top))]';
+const PHONE_HEIGHT = 'max-h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]';
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
