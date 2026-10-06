@@ -29,6 +29,19 @@
       "items": "{{n}} items wait for our reply",
       "items_one": "1 item waits for our reply",
       "items_other": "{{count}} items wait for our reply"
+    },
+    "inReview": {
+      "title": "Waiting for review",
+      "of": "Waiting for the review of {{name}}",
+      "oldest": "the oldest waits {{days}}",
+      "age": "{{n}} days",
+      "age_zero": "less than 1 day",
+      "age_one": "1 day",
+      "age_other": "{{count}} days",
+      "days": "{{n}} days in review",
+      "days_zero": "In review since today",
+      "days_one": "1 day in review",
+      "days_other": "{{count}} days in review"
     }
   }
 }

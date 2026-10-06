@@ -38,6 +38,25 @@
       "items_few": "{{count}} بنود بانتظار ردنا",
       "items_many": "{{count}} بندًا بانتظار ردنا",
       "items_other": "{{count}} بند بانتظار ردنا"
+    },
+    "inReview": {
+      "title": "بانتظار المراجعة",
+      "of": "بانتظار مراجعة {{name}}",
+      "oldest": "أقدمها ينتظر منذ {{days}}",
+      "age": "{{n}} يوم",
+      "age_zero": "أقل من يوم",
+      "age_one": "يوم واحد",
+      "age_two": "يومين",
+      "age_few": "{{count}} أيام",
+      "age_many": "{{count}} يومًا",
+      "age_other": "{{count}} يوم",
+      "days": "{{n}} يوم في المراجعة",
+      "days_zero": "في المراجعة منذ اليوم",
+      "days_one": "يوم واحد في المراجعة",
+      "days_two": "يومان في المراجعة",
+      "days_few": "{{count}} أيام في المراجعة",
+      "days_many": "{{count}} يومًا في المراجعة",
+      "days_other": "{{count}} يوم في المراجعة"
     }
   }
 }

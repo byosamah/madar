@@ -10,6 +10,7 @@ import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependen
 import { isOverdue } from '../health';
 import { notifyIn, reviewersOf } from '../notify';
 import { peopleFilter } from '../pause';
+import { sentToReviewOn } from '../review';
 import { can } from '../permissions';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
@@ -94,10 +95,7 @@ function landingStatus(ctx: Ctx, task: Task): 'done' | 'in_review' {
  */
 function finishedOn(ctx: Ctx, task: Task): string {
   if (task.status !== 'in_review') return ctx.today;
-  const sent = Object.values(ctx.state.events)
-    .filter((e) => e.targetType === 'task' && e.targetId === task.id && e.verb !== 'undo' && !e.undoneBy && (e.after as { status?: string } | null)?.status === 'in_review')
-    .sort((a, b) => b.seq - a.seq)[0];
-  return sent ? stampDay(sent.createdAt) : ctx.today;
+  return sentToReviewOn(ctx.state, new Set([task.id])).get(task.id) ?? ctx.today;
 }
 
 /**

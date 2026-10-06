@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { calls } from '../calls';
 import { insightCalls } from './insights';
 import type { State } from '../store';
 import type { TrackerEntry } from '../contract/entities';
 import { setNow } from '../../lib/dates';
-import { makeProject, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
+import { makeProject, makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
 
 beforeEach(() => setNow(NOW));
 
@@ -76,6 +77,70 @@ describe('waitingForUs of dashboard.get (owner, 2026-10-06)', () => {
     expect((await api.call('dashboard.get', { status: 'on_hold' })).waitingForUs).toEqual([]);
     delete state.tracker;
     expect((await testApi(insightCalls, state).api.call('dashboard.get', {})).waitingForUs).toEqual([]);
+  });
+});
+
+describe('inReview of dashboard.get (owner, 2026-10-06, item 9)', () => {
+  /** Sara finishes two tasks of the tower (Faisal reviews), and Omar one of the villa (Sara reviews). */
+  async function reviews() {
+    const state = world();
+    state.members['prj_002:usr_004'] = { projectId: 'prj_002', userId: 'usr_004', discipline: 'Structural' };
+    state.tasks.tsk_001 = makeTask({ id: 'tsk_001', title: 'Facade details' });
+    state.tasks.tsk_002 = makeTask({ id: 'tsk_002', title: 'Roof plan' });
+    state.tasks.tsk_003 = makeTask({ id: 'tsk_003', projectId: 'prj_002', ownerId: 'usr_004', title: 'Stair details' });
+    state.stages.stg_009 = { id: 'stg_009', projectId: 'prj_002', name: 'Concept', order: 0, startDate: null, endDate: null };
+    state.tasks.tsk_003.stageId = 'stg_009';
+    state.counters.tsk = 3;
+    state.counters.stg = 9;
+    const t = testApi(calls, state);
+    setNow(new Date('2026-09-25T06:00:00Z'));
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    setNow(new Date('2026-09-29T06:00:00Z'));
+    await t.api.call('tasks.complete', { id: 'tsk_002' });
+    t.as('usr_004');
+    await t.api.call('tasks.complete', { id: 'tsk_003' });
+    setNow(NOW);
+    t.as('usr_001');
+    return t;
+  }
+
+  it('groups the tasks in review by reviewer, with the count and the oldest wait, the longest wait first', async () => {
+    const { api } = await reviews();
+    const d = await api.call('dashboard.get', {});
+    expect(d.inReview.map((row) => [row.reviewer.id, row.count, row.oldestDays])).toEqual([['usr_002', 2, 5], ['usr_003', 1, 1]]);
+    expect(d.inReview[0].tasks).toEqual([
+      { id: 'tsk_001', title: 'Facade details', projectId: 'prj_001', projectCode: 'KH-26-001', days: 5 },
+      { id: 'tsk_002', title: 'Roof plan', projectId: 'prj_001', projectCode: 'KH-26-001', days: 1 },
+    ]);
+  });
+
+  it('follows the filters and leaves out the paused projects', async () => {
+    const t = await reviews();
+    expect((await t.api.call('dashboard.get', { leaderId: 'usr_003' })).inReview.map((row) => row.reviewer.id)).toEqual(['usr_003']);
+    t.store.state.projects.prj_001.status = 'on_hold';
+    expect((await t.api.call('dashboard.get', {})).inReview.map((row) => row.reviewer.id)).toEqual(['usr_003']);
+  });
+
+  it('counts the wait from the last move to review, and 0 days when no change names it', async () => {
+    const t = await reviews();
+    // Sent back, then sent to review again today: the wait starts again.
+    t.as('usr_002');
+    await t.api.call('tasks.sendBack', { id: 'tsk_001', note: 'Fix the joints' });
+    t.as('usr_003');
+    await t.api.call('tasks.complete', { id: 'tsk_001' });
+    t.store.state.tasks.tsk_004 = makeTask({ id: 'tsk_004', title: 'Old review', status: 'in_review' });
+    t.as('usr_001');
+    const faisal = (await t.api.call('dashboard.get', {})).inReview.find((row) => row.reviewer.id === 'usr_002')!;
+    expect(faisal.tasks.map((task) => [task.id, task.days])).toEqual([['tsk_002', 1], ['tsk_001', 0], ['tsk_004', 0]]);
+    expect(faisal.oldestDays).toBe(1);
+  });
+
+  it('gives one row to each Admin when the project has no active leader (reviewersOf)', async () => {
+    const t = await reviews();
+    t.store.state.users.usr_002.active = false;
+    const d = await t.api.call('dashboard.get', {});
+    expect(d.inReview.map((row) => [row.reviewer.id, row.count])).toEqual([['usr_001', 2], ['usr_003', 1]]);
   });
 });
 

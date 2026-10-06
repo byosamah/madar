@@ -18,8 +18,8 @@ const str = (value: unknown): string | undefined => (typeof value === 'string' &
 
 /** The task fields that summaryOf, computeHealth, the stage tag and the feed labels read (projects.list). */
 export const PROJECT_LIST_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'title'] as const;
-/** The task fields of the dashboard: health, stage tag, overdue, throughput and workload (insights.ts). */
-export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt'] as const;
+/** The task fields of the dashboard: health, stage tag, overdue, throughput, workload and the review rows (insights.ts). */
+export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title'] as const;
 
 /** projects.list: the projects that pass the filters on the project, each with its tasks, its newest 2 posts and events, and its cover. */
 export async function projectsList(L: Load, input: Input): Promise<void> {
@@ -39,8 +39,8 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
 }
 
 /**
- * dashboard.get: the tasks of the projects in scope, and their Tracker entries that are open client items (the loops) or that the
- * office sent to the client (the Submissions chart, owner, 2026-10-06).
+ * dashboard.get: the tasks of the projects in scope, the changes of their tasks in review, and their Tracker entries that are open
+ * client items (the loops) or that the office sent to the client (the Submissions chart, owner, 2026-10-06).
  */
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
   const inTeam = teamFilter(officeState(L), str(input.teamId));
@@ -49,7 +49,10 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
     .filter((p) => (status === 'all' || p.status === status) && (!input.leaderId || p.leaderId === input.leaderId)
       && (!input.clientId || p.clientId === input.clientId) && inTeam(p))
     .map((p) => p.id);
-  await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
+  const tasks = await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
+  // The changes of the tasks in review, for the day each one went to review (owner, 2026-10-06).
+  const review = tasks.filter((t) => t.status === 'in_review').map((t) => t.id);
+  await L.select({ c: 'events', where: [{ col: 'target_type', in: ['task'] }, { col: 'target_id', in: review }] });
   await L.select({
     c: 'tracker',
     where: [{ col: 'project_id', in: ids }, { or: [{ col: 'open', eq: true }, { field: 'direction', in: ['out'] }] }],

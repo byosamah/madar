@@ -16,6 +16,7 @@ import { PerStage, Submissions } from './Charts';
 import { NumberRows, Numbers } from './Numbers';
 import { withFilters } from './Tiles';
 import { OfficeSchedule } from './OfficeSchedule';
+import { ReviewWaits } from './ReviewWaits';
 import { StaleProjects } from './StaleProjects';
 import { WaitingForUs } from './WaitingForUs';
 import { Workload } from './Workload';
@@ -144,7 +145,10 @@ export function DashboardScreen() {
               </div>
             )}
             {section === 'people' && (
-              <Workload view={view} filters={filters} />
+              <div className="flex flex-col gap-4">
+                <ReviewWaits view={view} />
+                <Workload view={view} filters={filters} />
+              </div>
             )}
             {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}
             {section === 'schedule' && scheduled.data && <OfficeSchedule view={scheduled.data} />}

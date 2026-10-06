@@ -8,10 +8,11 @@ import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOf } from '../notify';
+import { sentToReviewOn } from '../review';
 import { trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, stagesInTime, stagesOf, userCard } from '../views';
-import { addDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
+import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
 import { isLive } from '../../lib/overview';
@@ -55,6 +56,16 @@ export const DashboardView = z.object({
   })),
   /** The open client items that wait for the office's reply, for each active project in the filters, the most first (owner, 2026-10-06). */
   waitingForUs: z.array(z.object({ project: Ref, count: Count })),
+  /**
+   * The tasks in review of the active projects in the filters, one row for each reviewer (reviewersOf), the longest wait first.
+   * days: whole days since the task last went to review, 0 when no change names it (owner, 2026-10-06).
+   */
+  inReview: z.array(z.object({
+    reviewer: UserCard,
+    count: Count,
+    oldestDays: Count,
+    tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId, projectCode: z.string(), days: Count })),
+  })),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
   attention: z.object({
     stale: z.array(z.object({ project: Ref, days: Count, kind: PauseKind })),
@@ -145,11 +156,15 @@ export const dashboardGet = defineCall({
     const limit = state.settings.workloadLimit;
     const activeTasks = tasks.filter((t) => activeIds.has(t.projectId));
     // A task in review is work for its reviewers, not for the person who finished it (owner, 2026-10-06).
-    const reviewsOf = new Map<string, number>();
-    for (const task of activeTasks) {
-      if (task.status !== 'in_review') continue;
-      for (const id of reviewersOf(state, task.projectId)) reviewsOf.set(id, (reviewsOf.get(id) ?? 0) + 1);
+    const reviewing = activeTasks.filter((task) => task.status === 'in_review');
+    const sentOn = sentToReviewOn(state, new Set(reviewing.map((task) => task.id)));
+    const reviews = new Map<string, { id: string; title: string; projectId: string; projectCode: string; days: number }[]>();
+    for (const task of reviewing) {
+      const sent = sentOn.get(task.id);
+      const row = { id: task.id, title: task.title, projectId: task.projectId, projectCode: state.projects[task.projectId].code, days: sent ? Math.max(0, diffDays(sent, today)) : 0 };
+      for (const id of reviewersOf(state, task.projectId)) reviews.set(id, [...(reviews.get(id) ?? []), row]);
     }
+    const reviewsOf = new Map([...reviews].map(([id, rows]) => [id, rows.length]));
     const workloadRows = humans.map((user) => {
       // A person's tasks are the ones they lead or help on: the same rule as the Task list each cell opens (audit PER-4).
       const own = activeTasks.filter((t) => involves(t, user.id));
@@ -194,6 +209,12 @@ export const dashboardGet = defineCall({
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
           openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
         })),
+      inReview: [...reviews]
+        .map(([id, rows]) => {
+          const ordered = [...rows].sort((a, b) => b.days - a.days || a.title.localeCompare(b.title));
+          return { reviewer: cardOf(state, id), count: rows.length, oldestDays: ordered[0].days, tasks: ordered };
+        })
+        .sort((a, b) => b.oldestDays - a.oldestDays || b.count - a.count || a.reviewer.name.localeCompare(b.reviewer.name)),
       waitingForUs: active
         .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })
         .sort((a, b) => b.count - a.count || a.project.name.localeCompare(b.project.name)),
