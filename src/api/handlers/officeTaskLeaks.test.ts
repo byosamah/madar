@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
-import { makeUser, NOW, testApi } from '../../test/factories';
+import { makeTask, makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -172,6 +172,31 @@ describe('items A and B of the recheck: a story with a hidden change undoes only
     const undone = await as(w, LEAD, () => w.t.api.call('events.undoStory', { correlationId: 'cor_mixed' }));
     expect(undone.undone.map((view) => view.event.verb)).toEqual(['undo']);
     expect(Object.values(w.t.store.state.comments).filter((c) => c.body === 'Done on site')).toHaveLength(1);
+  });
+});
+
+describe('final check 1: an Undo drops a notice by the changes its owner sees', () => {
+  /** Sara's agent (usr_005) finishes Sara's project task (Faisal gets a review notice) and, when asked, makes an office task too. */
+  async function agentStory(withOffice: boolean) {
+    const t = testApi(calls);
+    t.store.state.users.usr_006 = makeUser('usr_006', { name: 'Nour Member' });
+    t.store.state.counters.usr = 6;
+    t.store.state.tasks.tsk_001 = makeTask({ ownerId: LEAD, needsReview: true });
+    t.store.state.counters.tsk = 1;
+    t.as('usr_005');
+    await t.api.call('tasks.complete', { id: 'tsk_001' }, { correlationId: 'cor_agent' });
+    if (withOffice) await t.api.call('tasks.create', { title: 'Order paper', ownerId: 'usr_006' }, { correlationId: 'cor_agent' });
+    t.as(OUTSIDER);
+    expect((await t.api.call('notifications.count', {})).badge).toBe(1);
+    await t.api.call('events.undoStory', { correlationId: 'cor_agent' });
+    return { count: await t.api.call('notifications.count', {}), notices: Object.values(t.store.state.notifications).filter((n) => n.userId === OUTSIDER).length };
+  }
+
+  it('takes back the notice of the project leader as for the same story with no office task', async () => {
+    const plain = await agentStory(false);
+    const mixed = await agentStory(true);
+    expect(plain).toEqual({ count: { unread: 0, badge: 0 }, notices: 0 });
+    expect(mixed).toEqual(plain);
   });
 });
 

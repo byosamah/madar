@@ -58,6 +58,8 @@ export type Diff = {
   privateChange: boolean;
   /** The people of the office tasks that the change touched, and every active Admin. */
   privatePeople: Set<string>;
+  /** The kinds of the project part of the change (all kinds when it touched no office task): the office signal tells only these. */
+  publicKinds: Set<Kind>;
   /**
    * True when the change touched office tasks and nothing of a project or of the office: it sends no office signal, only a person
    * signal to each of privatePeople (review 2026-10-06).
@@ -130,6 +132,8 @@ function historyError(text: string): Error {
 export function diffState(before: State, after: State): Diff {
   const tables: TableChange[] = [];
   const kinds = new Set<Kind>();
+  /** The kinds of the project part (and the office) alone: the kinds that the office signal may tell (review 2026-10-06). */
+  const publicKinds = new Set<Kind>();
   const projects = new Set<string>();
   const people = new Set<string>();
   const unresolvedComments: Diff['unresolvedComments'] = [];
@@ -147,13 +151,21 @@ export function diffState(before: State, after: State): Diff {
     else office = true;
   };
   const taskOf = (id: unknown): Rec | undefined => (typeof id === 'string' ? (after.tasks[id] ?? before.tasks[id]) as Rec | undefined : undefined);
+  const isOfficeTask = (id: unknown): boolean => taskOf(id)?.projectId === null;
+  /** A kind of the project part (or the office) of the change, which the office signal may tell. */
+  const pub = (kind: Kind) => {
+    kinds.add(kind);
+    publicKinds.add(kind);
+  };
+  /** A kind of the office task part, which only the people of the task hear (review 2026-10-06). */
+  const priv = (kind: Kind) => kinds.add(kind);
 
   /** Kinds, projects, people and the office flag of one changed record (old: before the call; rec: after it). */
   function touched(spec: TableSpec, old: Rec | undefined, rec: Rec | undefined, row: Row | undefined): void {
     const sides = [old, rec].filter((side): side is Rec => side !== undefined);
     switch (spec.collection) {
       case 'projects':
-        kinds.add(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects');
+        pub(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects');
         addProject((rec ?? old)!.id);
         return;
       case 'users': {
@@ -162,32 +174,37 @@ export function diffState(before: State, after: State): Diff {
         if (old && rec && same(without(old, 'preferences'), without(rec, 'preferences'))) {
           preferencesOnly.add(id);
         } else {
-          kinds.add('users');
+          pub('users');
           office = true;
         }
         if (old && rec && preferencesChanged) {
-          kinds.add('preferences');
+          pub('preferences');
           people.add(id);
         }
         return;
       }
       case 'notifications':
       case 'chatReads':
-        kinds.add(spec.collection);
-        for (const side of sides) people.add(side.userId as string);
+        for (const side of sides) {
+          // A notice of an office task, or a read mark of its thread, is of the office task part.
+          const officeSide = spec.collection === 'notifications' ? side.targetType === 'task' && isOfficeTask(side.targetId) : isOfficeTask(side.conversationId);
+          (officeSide ? priv : pub)(spec.collection);
+          people.add(side.userId as string);
+        }
         return;
       case 'comments': {
-        kinds.add('comments');
         const side = (rec ?? old)!;
         // A comment of an office task belongs to that task: no project, and no office signal.
         const target = side.targetType === 'task' ? taskOf(side.targetId) : undefined;
         if (target && target.projectId === null) {
+          priv('comments');
           officeTasks.add(side.targetId as string);
           return;
         }
         const fromState = (one: Rec) => spec.serverColumns!.project_id(one, after) ?? spec.serverColumns!.project_id(one, before);
         const found = fromState(side);
         if (typeof found === 'string') {
+          pub('comments');
           if (row && row.columns.project_id === null) row.columns.project_id = found;
           projects.add(found);
           return;
@@ -198,7 +215,7 @@ export function diffState(before: State, after: State): Diff {
         return;
       }
       case 'messages':
-        kinds.add('messages');
+        pub('messages');
         for (const side of sides) {
           const conversationId = side.conversationId as string;
           addProject((after.conversations[conversationId] ?? before.conversations[conversationId])?.projectId);
@@ -207,23 +224,35 @@ export function diffState(before: State, after: State): Diff {
       case 'events':
         // An event of a person's own preferences belongs to that personal change.
         if (rec && rec.targetType === 'user' && preferencesOnly.has(rec.targetId as string)) {
-          kinds.add('preferences');
+          pub('preferences');
           return;
         }
-        kinds.add('events');
         // A change of an office task, its comments or its files names the task: it touches no project and not the office.
-        if (typeof rec!.officeTaskId === 'string') officeTasks.add(rec!.officeTaskId);
-        else addProject(rec!.projectId);
+        if (typeof rec!.officeTaskId === 'string') {
+          priv('events');
+          officeTasks.add(rec!.officeTaskId);
+        } else {
+          pub('events');
+          addProject(rec!.projectId);
+        }
         return;
       default:
-        kinds.add(spec.collection);
-        if (OFFICE_SCOPE.has(spec.collection)) office = true;
-        else {
+        if (OFFICE_SCOPE.has(spec.collection)) {
+          pub(spec.collection);
+          office = true;
+        } else {
           for (const side of sides) {
             // An office task, and a file of one, belong to the task (owner, 2026-10-06).
-            if (spec.collection === 'tasks' && side.projectId === null) officeTasks.add(side.id as string);
-            else if (spec.collection === 'files' && side.projectId === null && typeof side.taskId === 'string') officeTasks.add(side.taskId);
-            else addProject(side.projectId);
+            if (spec.collection === 'tasks' && side.projectId === null) {
+              priv(spec.collection);
+              officeTasks.add(side.id as string);
+            } else if (spec.collection === 'files' && side.projectId === null && typeof side.taskId === 'string') {
+              priv(spec.collection);
+              officeTasks.add(side.taskId);
+            } else {
+              pub(spec.collection);
+              addProject(side.projectId);
+            }
           }
         }
     }
@@ -275,9 +304,14 @@ export function diffState(before: State, after: State): Diff {
   }
   for (const comment of pendingComments) {
     const officeTask = officeOfComment.get(comment.id);
-    if (officeTask) officeTasks.add(officeTask);
-    else if (comment.row) unresolvedComments.push({ id: comment.id, targetType: comment.targetType, targetId: comment.targetId });
-    else if (comment.deleted) office = true;
+    if (officeTask) {
+      priv('comments');
+      officeTasks.add(officeTask);
+    } else {
+      pub('comments');
+      if (comment.row) unresolvedComments.push({ id: comment.id, targetType: comment.targetType, targetId: comment.targetId });
+      else if (comment.deleted) office = true;
+    }
   }
 
   // The people of each office task the change touched, before and after it (a person taken off still gets the signal that
@@ -305,6 +339,7 @@ export function diffState(before: State, after: State): Diff {
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0,
     privatePeople,
+    publicKinds,
     // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal.
     privateOnly: officeTasks.size > 0 && !office && projects.size === 0 && unresolvedComments.length === 0,
   };
@@ -353,8 +388,9 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     }
   }
 
-  // A change of office tasks alone tells only their people and the Admins, on their person channels (review 2026-10-06).
-  const officeSignal = signalsOn && diff.kinds.size > 0 && !diff.personal && !diff.privateOnly;
+  // The office signal tells only the project part of a change: a change of office tasks alone sends none, and their people and
+  // the Admins hear it on their person channels (review 2026-10-06). With no office task, publicKinds holds every kind.
+  const officeSignal = signalsOn && [...diff.publicKinds].some((kind) => !PERSONAL_KINDS.has(kind));
   let version: number | undefined;
   let officeSeq = 0;
   if (diff.officeRows || officeSignal) {
@@ -382,7 +418,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     await q(COUNTERS_UPSERT_SQL, [param]);
   }
 
-  const people = [...new Set([...diff.people, ...(diff.privateOnly ? diff.privatePeople : [])])].sort();
+  const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : [])])].sort();
   let personSeq = new Map<string, number>();
   if (signalsOn && diff.kinds.size > 0 && people.length > 0) {
     const rows = await q<{ user_id: string; seq: string | number }>(PERSON_SEQ_SQL, [people]);
@@ -394,14 +430,15 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
 
   const signals: ChangeSignal[] = [];
   if (signalsOn && diff.kinds.size > 0) {
-    // A signal of an office task change goes to every person, so it names nobody: no actor and no story (review 2026-10-06).
-    // The screens match their own changes by the signal id, which stays.
-    const base = {
-      v: 1 as const, id: crypto.randomUUID(), projects: [...projects].sort(), office, kinds: [...diff.kinds].sort(),
-      ...(diff.privateChange ? {} : { storyId: story.storyId, actorId: story.actorId }),
-    };
-    if (officeSignal) signals.push({ ...base, channel: 'office', seq: officeSeq, people: [] });
-    for (const userId of people) signals.push({ ...base, channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });
+    // The project part: the office signal and the person signals of other people, with the actor and the story, and only the
+    // kinds of that part. The office task part: one signal with its own id for each person of the task and each Admin, with every
+    // kind and no names (review 2026-10-06). The screens match their own changes by the signal id.
+    const shared = { v: 1 as const, projects: [...projects].sort(), office };
+    const publicBase = { ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), storyId: story.storyId, actorId: story.actorId };
+    const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.kinds].sort() } : null;
+    const baseOf = (userId: string) => (privateBase && (diff.privateOnly || diff.privatePeople.has(userId)) ? privateBase : publicBase);
+    if (officeSignal) signals.push({ ...publicBase, channel: 'office', seq: officeSeq, people: [] });
+    for (const userId of people) signals.push({ ...baseOf(userId), channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });
   }
   return result({ office, bytesWritten, signals, ...(version === undefined ? {} : { officeVersion: version }) });
 }

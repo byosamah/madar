@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
@@ -18,15 +18,18 @@ const fieldsOf = (value: unknown): Fields => (value !== null && typeof value ===
  * reads the live task only, so the changes of a deleted office task show to the Admin alone. An Undo also reads the last copy of
  * a deleted task, so its maker may take the delete back.
  */
-function officeOf(ctx: Ctx, event: Event, undo: boolean): Resource {
+function officeOf(ctx: Ctx, event: Event, undo: boolean, viewer: User = ctx.authority): Resource {
   const id = event.officeTaskId!;
   const task = ctx.state.tasks[id] ?? (undo ? lastTaskCopy(ctx.state, id) : undefined);
-  return task ? taskResource(ctx.state, task, ctx.authority.id) : officeResource(ctx.state, null, ctx.authority.id);
+  return task ? taskResource(ctx.state, task, viewer.id) : officeResource(ctx.state, null, viewer.id);
 }
 
-/** True when the person sees the change: every change but one of an office task that the person does not see. */
-export function seesEvent(ctx: Ctx, event: Event, undo = false): boolean {
-  return !event.officeTaskId || can(ctx.authority, 'task.view', officeOf(ctx, event, undo));
+/**
+ * True when the person sees the change: every change but one of an office task that the person does not see. viewer: another
+ * person than the one of the call, for example the owner of a notice.
+ */
+export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
+  return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 
 export const eventsList = defineCall({
@@ -319,9 +322,15 @@ function assertFinishedHaveLead(ctx: Ctx, events: Event[]): void {
 
 /** A story that is wholly taken back takes its notices with it, so no badge points at a change that did not happen (audit 2026-10-03, API-13). */
 function dropNotices(ctx: Ctx, correlationId: string): void {
-  const kept = Object.values(ctx.state.events).some((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
-  if (kept) return;
-  for (const [id, notice] of Object.entries(ctx.state.notifications)) if (notice.correlationId === correlationId) delete ctx.state.notifications[id];
+  const standing = Object.values(ctx.state.events).filter((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
+  // A notice stays only for a change of the story that its owner sees. A change of an office task that the owner does not see
+  // never keeps it, so a kept notice tells nothing of that task (review 2026-10-06).
+  for (const [id, notice] of Object.entries(ctx.state.notifications)) {
+    if (notice.correlationId !== correlationId) continue;
+    const owner = ctx.state.users[notice.userId];
+    const kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+    if (!kept) delete ctx.state.notifications[id];
+  }
 }
 
 export const eventsUndo = defineCall({

@@ -348,14 +348,32 @@ describe('the signals of an office task (review 2026-10-06)', () => {
     expect(result.signals.map((signal) => signal.channel).sort()).toEqual(personChannels(admins()));
   });
 
-  it('keeps the office signal, with no names, when the same save also changes a project', async () => {
-    const after = officeChange();
-    Object.values(after.tasks).find((t) => t.projectId !== null)!.title = 'Renamed';
+  it('in a save with a project part and an office part, the office signal tells only the project part, with its names', async () => {
+    const before = officeChange();
+    const after = structuredClone(before);
+    const project = Object.values(after.tasks).find((t) => t.projectId !== null)!;
+    project.title = 'Renamed';
+    event(after, { id: 'evt_953', correlationId: 'sty_mixed', actorId: 'usr_005', verb: 'task.updated', targetId: project.id, projectId: project.projectId });
+    // The office part: a comment of the office task, and its notice to Nour.
+    after.comments.cmt_953 = {
+      id: 'cmt_953', targetType: 'task', targetId: 'tsk_900', authorId: 'usr_005', body: 'Paid', reactions: { '👍': [], '✅': [], '👀': [] }, fileIds: [],
+      createdAt: '2026-10-04T10:00:00.000+03:00', editedAt: null,
+    };
+    event(after, { id: 'evt_954', correlationId: 'sty_mixed', actorId: 'usr_005', verb: 'comment.created', targetType: 'comment', targetId: 'cmt_953', officeTaskId: 'tsk_900' });
+    after.notifications.ntf_953 = {
+      id: 'ntf_953', userId: 'usr_006', trigger: 'mention', actorId: 'usr_005', targetType: 'task', targetId: 'tsk_900', read: false,
+      createdAt: '2026-10-04T10:00:00.000+03:00', dedupeKey: null,
+    };
     const { q } = recorder();
-    const result = await writeDiff(q, diffState(seed, after));
-    const office = result.signals.find((signal) => signal.channel === 'office');
-    expect(office).toBeDefined();
-    expect(office).not.toHaveProperty('actorId');
+    const result = await writeDiff(q, diffState(before, after));
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).toMatchObject({ actorId: 'usr_005', storyId: 'sty_mixed', projects: [project.projectId], kinds: ['events', 'tasks'], office: false });
+    // The people of the office task hear the office part on their own channel, under another id and with no names.
+    const nour = result.signals.find((signal) => signal.channel === 'person:usr_006')!;
+    expect(nour.id).not.toBe(office.id);
+    expect(nour).not.toHaveProperty('actorId');
+    expect(nour.kinds).toEqual(expect.arrayContaining(['comments', 'notifications']));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['office', ...personChannels(['usr_004', 'usr_005', 'usr_006', ...admins()])].sort());
   });
 
   it('keeps the actor and the story on the signal of a project change', async () => {

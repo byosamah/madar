@@ -73,11 +73,12 @@ Owner decisions of 2026-10-06. A person adds a task on the Tasks page that belon
   (`events.undoStory`).
 - An undo event takes the `officeTaskId` of the event it undoes. A comment or a file of a deleted office task reads its
   last task copy (`lastTaskCopy`, `events.ts`), so no change of it becomes public.
-- A Realtime signal of an office task change names no actor and no story. A save that changes only office tasks sends no
-  office signal: a person signal goes to each person of the task and each active Admin. A save that also changes a project
-  keeps its office signal (with no names). The screens match their own changes by the signal id.
+- The office task part of a save goes only as a person signal (no actor, no story, its own id) to each person of the task
+  and each active Admin. The office signal tells only the project part, with its actor and story, and a save of office
+  tasks alone sends none. The screens match their own changes by the signal id.
 - `events.undoStory` leaves out the changes that the person does not see, so the answer is the answer of the part they see;
-  a story with no change they see reads as a missing story.
+  a story with no change they see reads as a missing story. An Undo keeps a notice only for a change of the story that the
+  owner of the notice sees.
 - Known limit, accepted by the owner: the ids count up for the whole office (`tsk_`, `cmt_`, `fil_`) and so does the event
   `seq`. A gap in the ids or the seqs that a person sees shows that hidden records exist, but never what they are.
 

@@ -562,6 +562,22 @@ describe('office tasks (owner, 2026-10-06)', () => {
     expect(JSON.stringify(seen.outcome.output)).not.toContain(task.id);
   });
 
+  it('the Undo of a story with a project part and an office part drops the notice of the project leader on both loads', async () => {
+    const state = office();
+    const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.status === 'todo' && t.ownerId !== null && t.needsReview
+      && state.projects[t.projectId].leaderId !== null && state.projects[t.projectId].leaderId !== t.ownerId)!;
+    const leader = state.projects[task.projectId!].leaderId!;
+    // An agent of the lead finishes the task (the leader gets a review notice) and makes an office task in the same story.
+    state.users.usr_095 = { ...state.users.usr_009, id: 'usr_095', email: 'agent.lead@madar.test', ownerId: task.ownerId };
+    apply(state, 'tasks.complete', { id: task.id }, 'usr_095', { story: 'cor_mix' });
+    const other = Object.values(state.users).find((u) => u.kind === 'human' && u.active && u.id !== leader && u.id !== task.ownerId && u.systemRole === 'member')!;
+    apply(state, 'tasks.create', { title: 'Order paper', ownerId: other.id }, 'usr_095', { story: 'cor_mix' });
+    const notice = Object.values(state.notifications).find((n) => n.correlationId === 'cor_mix' && n.userId === leader)!;
+    const run = await same(state, 'events.undoStory', { correlationId: 'cor_mix' }, leader);
+    expect(run.outcome.error).toBeUndefined();
+    expect(deleted(run, 'notifications')).toContain(notice.id);
+  });
+
   it('the jobs load brings the open office tasks, so their people get the due reminders', async () => {
     const traps = trapOffice(seed);
     const whole = structuredClone(traps);
