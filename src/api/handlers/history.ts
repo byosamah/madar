@@ -343,9 +343,11 @@ export const eventsUndoStory = defineCall({
   input: z.object({ correlationId: z.string().min(1).max(80) }),
   output: z.object({ undone: z.array(EventView) }),
   run(input, ctx) {
-    const all = Object.values(ctx.state.events).filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb));
-    // A story with a change that the person does not see reads as a missing story, before any other rule (review 2026-10-06).
-    if (all.length === 0 || all.some((e) => !seesEvent(ctx, e, true))) throw notFound('Story', input.correlationId);
+    // A change that the person does not see is left out first, so the person takes back only what they see, and the answer is the
+    // answer of that part alone. A story with no change the person sees reads as a missing story (review 2026-10-06).
+    const all = Object.values(ctx.state.events)
+      .filter((e) => e.correlationId === input.correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && seesEvent(ctx, e, true));
+    if (all.length === 0) throw notFound('Story', input.correlationId);
     // A change of the story that was undone on its own stays undone. The rest of the story comes back (review 2026-10-03).
     const story = all.filter((e) => !e.undoneBy).sort((a, b) => b.seq - a.seq);
     if (story.length === 0) throw new ApiError('conflict', 'This change is already undone.');

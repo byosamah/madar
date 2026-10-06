@@ -134,6 +134,47 @@ describe('finding 5: files.link of a hidden office file reads as missing', () =>
   });
 });
 
+describe('items A and B of the recheck: a story with a hidden change undoes only what the person sees', () => {
+  /** Sara comments on a project task of Faisal, and in the same story changes her office task. Returns both stories. */
+  async function stories(w: World) {
+    const projectTask = (await as(w, OUTSIDER, () => w.t.api.call('tasks.create', { projectId: 'prj_001', title: 'Plan', ownerId: LEAD }))).task.id;
+    await as(w, LEAD, async () => {
+      await w.t.api.call('comments.create', { targetType: 'task', targetId: projectTask, body: 'Done on site' }, { correlationId: 'cor_mixed' });
+      await w.t.api.call('tasks.update', { id: w.taskId, patch: { title: 'Renew the licence' } }, { correlationId: 'cor_mixed' });
+      await w.t.api.call('comments.create', { targetType: 'task', targetId: projectTask, body: 'Done on site' }, { correlationId: 'cor_project' });
+    });
+    return projectTask;
+  }
+
+  it('A: the project leader gets the answer of the project part alone, never "Story does not exist"', async () => {
+    const w = await world();
+    await stories(w);
+    const mixed = await as(w, OUTSIDER, () => error(() => w.t.api.call('events.undoStory', { correlationId: 'cor_mixed' })));
+    const project = await as(w, OUTSIDER, () => error(() => w.t.api.call('events.undoStory', { correlationId: 'cor_project' })));
+    expect(mixed).toEqual(project);
+    expect(mixed?.message).not.toContain('does not exist');
+  });
+
+  it('A: the person who sees the whole story takes it all back', async () => {
+    const w = await world();
+    await stories(w);
+    const undone = await as(w, LEAD, () => w.t.api.call('events.undoStory', { correlationId: 'cor_mixed' }));
+    expect(undone.undone).toHaveLength(2);
+  });
+
+  it('B: a change undone alone, then hidden, does not stop the Undo of the rest of the story', async () => {
+    const w = await world();
+    await stories(w);
+    const edit = Object.values(w.t.store.state.events).find((e) => e.correlationId === 'cor_mixed' && e.verb === 'task.updated')!;
+    await as(w, LEAD, () => w.t.api.call('events.undo', { eventId: edit.id }));
+    // The maker takes Sara off the office task: she no longer sees the change she undid.
+    await as(w, MAKER, () => w.t.api.call('tasks.update', { id: w.taskId, patch: { ownerId: 'usr_006' } }));
+    const undone = await as(w, LEAD, () => w.t.api.call('events.undoStory', { correlationId: 'cor_mixed' }));
+    expect(undone.undone.map((view) => view.event.verb)).toEqual(['undo']);
+    expect(Object.values(w.t.store.state.comments).filter((c) => c.body === 'Done on site')).toHaveLength(1);
+  });
+});
+
 describe('finding 6: events.undoStory of an office story reads as a missing story', () => {
   it('answers not_found Story before any other rule, also for a story that is wholly undone', async () => {
     const w = await world();

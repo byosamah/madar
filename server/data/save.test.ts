@@ -290,38 +290,72 @@ function recorder(o: { version?: number; officeSeq?: number; personSeq?: Record<
 }
 
 describe('the signals of an office task (review 2026-10-06)', () => {
-  /** An office task that usr_004 made, with the event of its change. */
-  function officeChange(): State {
-    const after = copy();
-    const first = Object.values(after.tasks)[0];
-    after.tasks.tsk_900 = { ...first, id: 'tsk_900', projectId: null, stageId: null, title: 'Renew the trade licence', createdBy: 'usr_004', ownerId: 'usr_005' };
-    event(after, { id: 'evt_950', correlationId: 'sty_office', actorId: 'usr_004', verb: 'task.created', targetId: 'tsk_900', officeTaskId: 'tsk_900' });
-    return after;
+  /** An office task that usr_004 made, that usr_005 leads and usr_006 helps on, with the event of its change. */
+  function officeChange(state: State = copy()): State {
+    const first = Object.values(state.tasks)[0];
+    state.tasks.tsk_900 = {
+      ...first, id: 'tsk_900', projectId: null, stageId: null, title: 'Renew the trade licence', createdBy: 'usr_004', ownerId: 'usr_005', helperIds: ['usr_006'],
+    };
+    event(state, { id: 'evt_950', correlationId: 'sty_office', actorId: 'usr_004', verb: 'task.created', targetId: 'tsk_900', officeTaskId: 'tsk_900' });
+    return state;
   }
+  const admins = () => Object.values(seed.users).filter((u) => u.kind === 'human' && u.active && u.systemRole === 'admin').map((u) => u.id);
+  const personChannels = (ids: string[]) => [...new Set(ids)].sort().map((id) => `person:${id}`);
 
-  it('names no actor and no story on any signal of a save that changes an office task, so nobody learns who works on it', async () => {
+  it('sends a change of an office task only to its people and the Admins, with no office signal and no names', async () => {
     const after = officeChange();
     after.notifications.ntf_950 = {
       id: 'ntf_950', userId: 'usr_005', trigger: 'task_assigned', actorId: 'usr_004', targetType: 'task', targetId: 'tsk_900', read: false,
       createdAt: '2026-10-04T10:00:00.000+03:00', dedupeKey: null,
     };
-    const { q } = recorder();
+    const { q, sql } = recorder();
     const result = await writeDiff(q, diffState(seed, after));
-    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['office', 'person:usr_005']);
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(personChannels(['usr_004', 'usr_005', 'usr_006', ...admins()]));
     for (const signal of result.signals) {
       expect(signal).not.toHaveProperty('actorId');
       expect(signal).not.toHaveProperty('storyId');
-      expect(signal).toMatchObject({ office: true, projects: [] });
+      expect(signal).toMatchObject({ office: false, projects: [], people: [signal.channel.slice('person:'.length)] });
     }
+    // No office seq: the office channel hears nothing of it.
+    expect(sql.find((s) => s.text.includes('update office_meta'))?.values?.[1] ?? 0).toBe(0);
   });
 
-  it('names no actor for a change of a comment or a file of an office task, which only its event tells', async () => {
-    const after = copy();
-    event(after, { id: 'evt_951', correlationId: 'sty_office', actorId: 'usr_005', verb: 'comment.edited', targetType: 'comment', targetId: 'cmt_001', officeTaskId: 'tsk_900' });
+  it('sends a comment of an office task only to the people of the task, with no lookup of its project', async () => {
+    const before = officeChange();
+    const after = structuredClone(before);
+    after.comments.cmt_950 = {
+      id: 'cmt_950', targetType: 'task', targetId: 'tsk_900', authorId: 'usr_005', body: 'Paid', reactions: { '👍': [], '✅': [], '👀': [] }, fileIds: [],
+      createdAt: '2026-10-04T10:00:00.000+03:00', editedAt: null,
+    };
+    event(after, { id: 'evt_951', correlationId: 'sty_office', actorId: 'usr_005', verb: 'comment.created', targetType: 'comment', targetId: 'cmt_950', officeTaskId: 'tsk_900' });
+    const { q, sql } = recorder();
+    const result = await writeDiff(q, diffState(before, after));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(personChannels(['usr_004', 'usr_005', 'usr_006', ...admins()]));
+    expect(sql.some((s) => s.text.includes('from tasks where id = any'))).toBe(false);
+  });
+
+  it('sends the Undo of a comment of a deleted office task to the Admins only, with no office signal', async () => {
+    const before = copy();
+    before.comments.cmt_952 = {
+      id: 'cmt_952', targetType: 'task', targetId: 'tsk_901', authorId: 'usr_005', body: 'Paid', reactions: { '👍': [], '✅': [], '👀': [] }, fileIds: [],
+      createdAt: '2026-10-04T10:00:00.000+03:00', editedAt: null,
+    };
+    const after = structuredClone(before);
+    delete after.comments.cmt_952;
+    event(after, { id: 'evt_952', correlationId: 'sty_office', actorId: 'usr_005', verb: 'undo', targetType: 'comment', targetId: 'cmt_952', officeTaskId: 'tsk_901' });
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(before, after));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(personChannels(admins()));
+  });
+
+  it('keeps the office signal, with no names, when the same save also changes a project', async () => {
+    const after = officeChange();
+    Object.values(after.tasks).find((t) => t.projectId !== null)!.title = 'Renamed';
     const { q } = recorder();
     const result = await writeDiff(q, diffState(seed, after));
-    expect(result.signals.length).toBeGreaterThan(0);
-    for (const signal of result.signals) expect(signal).not.toHaveProperty('actorId');
+    const office = result.signals.find((signal) => signal.channel === 'office');
+    expect(office).toBeDefined();
+    expect(office).not.toHaveProperty('actorId');
   });
 
   it('keeps the actor and the story on the signal of a project change', async () => {

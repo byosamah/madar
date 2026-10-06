@@ -297,6 +297,21 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('reloads my lists for an office task change on my person channel, and no list of a project (review 2026-10-06)', async () => {
+    const app = setup();
+    const mine = app.show('tasks.list', { filter: 'mine' });
+    const project = app.show('tasks.list', { projectId: 'prj_001' });
+    const dashboard = app.show('dashboard.get');
+    await settle();
+    const change = sig({ kinds: ['events', 'tasks'], channel: `person:${ME}`, people: [ME], office: false, projects: [] });
+    delete change.actorId;
+    delete change.storyId;
+    app.send([change]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([mine(), project(), dashboard()]).toEqual([2, 1, 2]);
+    app.stop();
+  });
+
   it('reloads at once when an own write comes back on Realtime before its answer', async () => {
     const app = setup();
     const tasks = app.show('tasks.list', { projectId: 'prj_001' });
