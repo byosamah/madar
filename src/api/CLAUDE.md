@@ -69,8 +69,27 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Review: only when the maker is not the lead; `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins when the maker left.
 - Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get`, only
   with no people filter. They never count in a project number.
-- Two functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
-  (`handlers/history.ts`). Change both together.
+- Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
+  (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together.
+
+## Requests and bugs notices (owner, 2026-10-07)
+- `feedback_sent`: a new report tells each active Admin (`activeAdmins`, `notify.ts`). `feedback_done`: a report that goes
+  from open to done tells `principalOf(createdBy)`. The skips of `notify` apply: the actor and the person of an agent actor,
+  agents, people who left, and a switch that is off.
+- `Preferences.notifications` is a `partialRecord`: a missing trigger means on. Read a switch only with `inAppOn`
+  (`notify.ts`). So a person stored before a new trigger still loads, with no backfill.
+- `IN_APP_ONLY_TRIGGERS` (both) send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch
+  with reason `in_app_only`, and Settings shows no email switch for them. `EMAIL_TRIGGERS` holds the other triggers.
+- `ADMIN_ONLY_TRIGGERS` (`feedback_sent`): `visibleTriggers` shows its switch only with `admin.manage`. The value stays.
+- A report notice carries `feedback: { kind, excerpt }` (`NoticeFeedback`), so its line needs no report row. `excerptOf`
+  (`lib/text.ts`) makes the excerpt: one space for each run of white space, 80 code points or fewer, cut at a space, then "…".
+- Only the move from open to done sends a notice. Done on a done report and "Open again" send nothing, and the done notice
+  stays. Done after "Open again" sends a second one. `feedback.list` takes `status` (`new` or `done`).
+- An Undo keeps a report notice only while a change of the same report stands in its story (`dropNotices`,
+  `handlers/history.ts`). So the Undo of one done change takes back only the notice of that report.
+- A former Admin sees an old `feedback_sent` notice as gone: no words, no sender (`actorId` null), no link and no place on
+  the bell. An Undo never deletes it, and a new promotion shows it again. A `feedback_done` notice always shows to its owner.
+- Both triggers count on the bell (`ACTION_TRIGGERS`). A done notice has the link `''`: its row only marks it read.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
@@ -90,6 +109,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Prototype data
 - `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 9 (`store.ts`).
+- The two feedback triggers needed no new `STATE_VERSION`: the switch record is partial, and `inAppOn` reads a missing key as on.
 - `src/api` never imports `src/data/`. `session.resetSampleData` takes the sample office from the runtime (`createApi` option
   `sampleOffice`, `src/data/sampleOffice.ts`), so the server bundles hold none. `settleFuture` runs only on sample data: the
   prototype, the test office seed (madar-test only) and the local seed.
