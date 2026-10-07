@@ -99,6 +99,8 @@ any screen work.
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
 - claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
+- Chrome slows the timers of a hidden tab, so a list can show a change late. Bring the tab to the front
+  before you judge it.
 - Prototype language and theme: the person menu (stored in IndexedDB, not localStorage). A switch takes a few seconds,
   and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.

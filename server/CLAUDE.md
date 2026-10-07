@@ -34,6 +34,8 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
   runCall answers `not_found` for them.
 - `core/everyCall.ts` gives one input for every call. A test runs each call once on the sample office.
+- `EXPECTED_REFUSALS` there lists the calls that must refuse in that run. A change to `can()` can make one
+  pass: update the list.
 
 ## Entries and bundles
 - Each Supabase function imports only its own mount. Deno needs the bundle (no extensionless imports), so

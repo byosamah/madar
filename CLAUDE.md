@@ -81,7 +81,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 3,400 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 4,100 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
@@ -100,7 +100,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server about 3,400 passed; test:db 826; test:it 237; prototype smoke 87 of 87.
+- Last counts: unit+server 4,106 passed; test:db 1,063; test:it 241; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -152,6 +152,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
+- A review of a branch reads its worktree or `git diff main...<branch>`, never the main folder: another session's
+  unsaved edits there look like part of the change.
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5
   database backups run nightly, file backups wait for the owner's Backblaze B2 (the workflow is paused); Z6 seed done; Z7 security review; Z8
   first Admin done, then a 2-week pilot.

@@ -24,6 +24,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `git worktree add .claude/worktrees/deploy-test main`, and link `node_modules`, `secrets` and `.env.local` into it.
   `.gitignore` has `secrets/`, which does not match a link, so `.git/info/exclude` holds `secrets` (2026-10-07). Without it
   the tree is not clean, and `all.sh test` records no commit.
+- When `deploy-test` exists, it holds main, so `git fetch . <branch>:main` refuses. Use
+  `git -C .claude/worktrees/deploy-test merge --ff-only <branch>`.
+- After production: commit the record on main, then `git push origin main` (GitHub holds each release).
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive.
 - The seed uploads the sample files to Storage under real object keys, the pictures as PNG (`scripts/seed-pictures.ts`;
@@ -49,6 +52,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.
+- A short "ok" to a report did not pass that check (2026-10-07). Ask for words that name production: "yes, deploy to
+  production".
 - Change only madar-test unless the owner asked for production.
 
 ## Secrets
@@ -80,6 +85,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   section "Deploy".
 
 ## Quick check of production
+- `madar.vado.sa/api/health` answers with the app page (200), so it proves nothing. Without `forceFunctionRegion` the
+  health answers from another region.
+- Just after a deploy, madar.vado.sa can serve the old bundle for a short time. Compare the `index-*.js` name there with
+  the deploy address (`<id>.madar-46r.pages.dev`, the last line of `all.sh`).
 - `curl -s -o /dev/null -w '%{http_code}' https://madar.vado.sa/` gives 200.
 - `POST https://madar.vado.sa/mcp` with no token gives 401 (the right answer).
 - `https://oprkvdjudjxxhvodkzgs.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1` gives 200.
