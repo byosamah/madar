@@ -71,8 +71,10 @@ function isGone(state: State, n: Notification, viewer: User): boolean {
     const conversation = state.conversations[n.targetId];
     return !conversation || !canSeeConversation(state, conversation, viewer);
   }
-  // A report notice keeps its own words, so it reads as gone only when it is hidden from the viewer (owner, 2026-10-07).
-  if (n.targetType === 'feedback') return feedbackNoticeHidden(n, viewer);
+  // A report notice reads as gone when it is hidden from the viewer (owner, 2026-10-07), or when its report is gone, as for a task.
+  // An Undo of the send deletes the report but keeps a hidden notice, which must not show again when its person is an Admin again
+  // (review 2026-10-07).
+  if (n.targetType === 'feedback') return feedbackNoticeHidden(n, viewer) || !state.feedback?.[n.targetId];
   return false;
 }
 
@@ -124,9 +126,14 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     if (project) link = `/projects/${project.id}`;
   } else if (n.targetType === 'feedback') {
     if (gone) {
-      // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07).
-      const { feedback: _words, ...rest } = n;
-      return { notification: { ...rest, actorId: null }, actor: null, target: '', projectCode: null, project: null, link: '', needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null };
+      // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07). The same for a report
+      // that is gone, because the Undo of its send says that it never came (review 2026-10-07). The notice also loses the report id
+      // and the story of the send: no screen reads them for a gone report notice, and targetId may not be empty (review 2026-10-07).
+      const { feedback: _words, correlationId: _story, ...rest } = n;
+      return {
+        notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link: '',
+        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null,
+      };
     }
     // The notice keeps the start of the message, so it needs no report row. A done notice opens nothing: it only tells the sender.
     target = n.feedback?.excerpt ?? '';

@@ -13,11 +13,15 @@ async function unreadOf(L: Load, userId: string): Promise<void> {
   await L.select({ c: 'notifications', where: [{ col: 'user_id', in: [userId] }, { col: 'read', eq: false }] });
 }
 
-/** The target of each notice that is not an office row: a task or a post. Projects and chats are in the office. */
+/**
+ * The target of each notice that is not an office row: a task, a post or a report. Projects and chats are in the office. A report
+ * notice reads as gone when its report is gone, so it needs the row, but the view takes no words from it (review 2026-10-07).
+ */
 async function targets(L: Load): Promise<void> {
   const notices = L.list<Notification>('notifications');
   await L.byKey('tasks', notices.filter((n) => n.targetType === 'task').map((n) => n.targetId));
   await L.byKey('updates', notices.filter((n) => n.targetType === 'update').map((n) => n.targetId));
+  await L.byKey('feedback', notices.filter((n) => n.targetType === 'feedback').map((n) => n.targetId));
 }
 
 /** notifications.count, markAllRead, and the count that markRead and markUnread return. */

@@ -1,0 +1,21 @@
+diff --git a/src/features/notifications/NotificationsScreen.test.tsx b/src/features/notifications/NotificationsScreen.test.tsx
+index c95b26f..01b8115 100644
+--- a/src/features/notifications/NotificationsScreen.test.tsx
++++ b/src/features/notifications/NotificationsScreen.test.tsx
+@@ -14,6 +14,16 @@ const withNotices = (userId: string, list: Notice[]) => (state: State) => {
+   state.session.currentUserId = userId;
+   for (const [id, n] of Object.entries(state.notifications)) if (n.userId === userId) delete state.notifications[id];
+   for (const n of list) state.notifications[n.id] = { ...n, userId };
++  // A report notice reads as gone when its report is gone, so each one gets its report row (review 2026-10-07).
++  for (const n of list.filter((one) => one.targetType === 'feedback')) {
++    state.feedback = {
++      ...state.feedback,
++      [n.targetId]: {
++        id: n.targetId, kind: n.feedback?.kind ?? 'bug', message: n.feedback?.excerpt ?? 'A report', page: '/projects', screenshots: [],
++        status: n.trigger === 'feedback_done' ? 'done' : 'new', createdBy: 'usr_003', createdAt: n.createdAt, doneBy: null, doneAt: null,
++      },
++    };
++  }
+ };
+ 
+ const TODAY_8 = '2026-09-30T08:00:00.000+03:00';
