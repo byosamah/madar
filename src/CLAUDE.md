@@ -87,7 +87,10 @@ any screen work.
 - A person card (`UserCard`) carries no picture data. `Avatar` takes the picture from `users.list` through
   `app/pictures.tsx` (the app frame and the meeting view mount it).
 - A report screenshot uses `useScreenshotLink` (`app/files.ts`). A press opens it in a sheet, and a press on the big
-  picture opens it at full size in a new tab.
+  picture opens it at full size in a new tab. The thumbnail has `loading="lazy"`; the sheet picture does not.
+- A picture hook (`useFileLink`, `useScreenshotLink`) asks for one new link after an error. It gives up only when the new
+  link breaks: an error of the old link while the new link loads is no strike. A screen checks `broken` before `url`.
+- A report excerpt in a notice sentence sits between FSI and PDI (`⁨`, `⁩`), so it keeps its own direction.
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

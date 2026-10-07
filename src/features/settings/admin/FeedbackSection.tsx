@@ -35,7 +35,8 @@ function Screenshot({ id, index }: { id: string; index: number }) {
   } else if (url) {
     thumb = (
       <button type="button" aria-haspopup="dialog" onClick={() => setOpen(true)} className="pressable rounded-xl">
-        <img src={url} alt={name} onError={onError} className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
+        {/* A thumbnail loads only near the view: the list keeps done reports too, and each one is a full-size picture. */}
+        <img src={url} alt={name} onError={onError} loading="lazy" decoding="async" className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
       </button>
     );
   }
@@ -43,11 +44,12 @@ function Screenshot({ id, index }: { id: string; index: number }) {
     <>
       {thumb}
       <Sheet open={open} onOpenChange={setOpen} title={name} wide>
-        {url ? (
+        {/* Broken comes first, as in the thumbnail: a failed new sign keeps the old dead link in the query (review, 2026-10-07). */}
+        {broken ? <p className="text-subheadline text-label-2">{t('feedback.screenshotFailed', { n })}</p> : url && (
           <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('feedback.openFull', { n })} className="pressable block cursor-zoom-in">
             <img src={url} alt="" onError={onError} className="mx-auto block max-h-[calc(100dvh-12rem)] w-auto max-w-full rounded-2xl object-contain ring-1 ring-inset ring-ink/10" />
           </a>
-        ) : broken && <p className="text-subheadline text-label-2">{t('feedback.screenshotFailed', { n })}</p>}
+        )}
       </Sheet>
     </>
   );

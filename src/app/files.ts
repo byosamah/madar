@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import type { MadarApi } from '../api/calls';
 import { MAX_FILE_BYTES } from '../api/contract/entities';
@@ -55,15 +55,23 @@ function usePictureSource(o: { queryKey: readonly unknown[]; load: () => Promise
   }, [blob]);
 
   // One new link for each picture. A picture that breaks again gives no URL, so the screen shows its fallback.
-  const asked = useRef<string | null>(null);
+  // A strike counts against a link, not against an error event: one bad link can break in two pictures (the thumbnail and the
+  // sheet). So an error that comes while the new link loads, or before it came (dataUpdatedAt unchanged), is the old link
+  // again. The hook gives up only when the new link breaks (review, 2026-10-07).
+  const client = useQueryClient();
+  const asked = useRef<{ picture: string; dataUpdatedAt: number } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const onError = () => {
     if (!o.remote || !o.enabled) return;
-    if (asked.current === o.picture) {
+    // The live state of the query, not the state of the last render: an error can come before the next render.
+    const live = client.getQueryState(o.queryKey);
+    const dataUpdatedAt = live?.dataUpdatedAt ?? 0;
+    if (asked.current?.picture === o.picture) {
+      if (live?.fetchStatus === 'fetching' || dataUpdatedAt === asked.current.dataUpdatedAt) return;
       setFailed(o.picture);
       return;
     }
-    asked.current = o.picture;
+    asked.current = { picture: o.picture, dataUpdatedAt };
     void query.refetch();
   };
   const url = data && 'url' in data ? data.url : blobUrl;

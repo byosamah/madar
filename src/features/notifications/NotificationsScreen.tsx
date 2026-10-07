@@ -64,7 +64,8 @@ function InboxItem({ view }: { view: NoticeView }) {
   const sentence = t(report ? reportKey(n) : direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
-    target,
+    // The excerpt of a report keeps its own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
+    target: report ? `⁨${target}⁩` : target,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
     day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
   });

@@ -159,13 +159,15 @@ describe('the notifications screen', () => {
 
   describe('the notices of requests and bugs (owner, 2026-10-07)', () => {
     const EXCERPT = 'The board does not scroll on my phone.';
+    // The sentence isolates the excerpt with FSI and PDI (review, 2026-10-07, S1).
+    const QUOTED = `\u2068${EXCERPT}\u2069`;
     const report = (id: string, trigger: 'feedback_sent' | 'feedback_done', kind: 'bug' | 'feature', actorId: string): Notice => ({
       ...notice(id, trigger, 'feedback', 'fbk_001', TODAY_8, actorId), feedback: { kind, excerpt: EXCERPT },
     });
 
     it('shows the Admin a new bug report as a link to the reports, and a press marks it read', async () => {
       const { store } = await renderApp('/notifications', withNotices('usr_001', [report('ntf_901', 'feedback_sent', 'bug', 'usr_003')]));
-      const sentence = `Reem Al-Ghamdi reported a bug: “${EXCERPT}”`;
+      const sentence = `Reem Al-Ghamdi reported a bug: “${QUOTED}”`;
       expect(await screen.findByText(sentence)).toBeInTheDocument();
       const item = itemWith(/reported a bug/);
       const link = within(item).getByRole('link', { name: /reported a bug/ });
@@ -178,7 +180,7 @@ describe('the notifications screen', () => {
 
     it('shows the sender a done request with no link and no Approve; its button only marks it read', async () => {
       const { store } = await renderApp('/notifications', withNotices('usr_003', [report('ntf_902', 'feedback_done', 'feature', 'usr_001')]));
-      expect(await screen.findByText(`Your request is done: “${EXCERPT}”`)).toBeInTheDocument();
+      expect(await screen.findByText(`Your request is done: “${QUOTED}”`)).toBeInTheDocument();
       const item = itemWith(/Your request is done/);
       expect(within(item).queryByRole('link')).toBeNull();
       expect(within(item).queryByRole('button', { name: /Approve/ })).toBeNull();
@@ -193,7 +195,7 @@ describe('the notifications screen', () => {
 
     it('says that a bug is fixed', async () => {
       await renderApp('/notifications', withNotices('usr_003', [report('ntf_902', 'feedback_done', 'bug', 'usr_001')]));
-      expect(await screen.findByText(`Your bug report is fixed: “${EXCERPT}”`)).toBeInTheDocument();
+      expect(await screen.findByText(`Your bug report is fixed: “${QUOTED}”`)).toBeInTheDocument();
     });
 
     it('uses the female Arabic verb for a woman who sends a request', async () => {
@@ -201,7 +203,16 @@ describe('the notifications screen', () => {
         state.users.usr_001.preferences.language = 'ar';
         withNotices('usr_001', [report('ntf_903', 'feedback_sent', 'feature', 'usr_003')])(state);
       });
-      expect(await screen.findByText(`ريم الغامدي أرسلت طلب ميزة: «${EXCERPT}»`)).toBeInTheDocument();
+      expect(await screen.findByText(`ريم الغامدي أرسلت طلب ميزة: «${QUOTED}»`)).toBeInTheDocument();
+    });
+
+    it('isolates an English excerpt in the Arabic sentence, so its "…" stays at its own end (review, 2026-10-07, S1)', async () => {
+      const long = 'The board does not scroll on my phone when I open the tasks tab, and the…';
+      await renderApp('/notifications', (state) => {
+        state.users.usr_003.preferences.language = 'ar';
+        withNotices('usr_003', [{ ...report('ntf_905', 'feedback_done', 'bug', 'usr_001'), feedback: { kind: 'bug', excerpt: long } }])(state);
+      });
+      expect(await screen.findByText(`تم إصلاح الخلل في بلاغك: «⁨${long}⁩»`)).toBeInTheDocument();
     });
 
     it('shows a former Admin the new report as gone, with no link and no words of the report', async () => {
