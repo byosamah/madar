@@ -290,6 +290,6 @@ Folder `tutorials/` with `pdf/` and `videos/` (git-ignored). Build files in `.tu
 
 Branch sec/agent-undo (worktree `.claude/worktrees/deploy-test`): the commits of feedback-notices after 8ca1b7d on main.
 
-- [ ] Merge gate: typecheck, npm test, the three builds, test:db, test:it
+- [x] Merge gate: typecheck; npm test 4,107 passed; the three builds; test:db 1,065 passed; test:it 241 passed
 - [ ] Main, then the test copy
 - [ ] Production (owner words in chat)
