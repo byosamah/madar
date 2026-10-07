@@ -269,4 +269,4 @@ the leader, and the review stays with the leader; Home shows the next 3 tasks wi
 - [x] Gates: typecheck; npm test 4,106 passed; test:db 1,063 passed; test:it 241 passed (the 16 agent sign-in tests needed
   `npx supabase db reset` first, as `server/mcp/CLAUDE.md` says); the prototype, server and remote builds; screenshots
   (EN/AR, light/dark, 390 px). Not run: the prototype smoke and the deploy suite
-- [ ] Test copy, then production (owner OK)
+- [x] Test copy and production at 1f06244 (owner OK, 2026-10-07); record in proof.md

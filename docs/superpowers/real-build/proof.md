@@ -720,3 +720,16 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   failure) and the prototype smoke, skipped the deploy suite, and tried the change himself.
 - **Production at a0ce0be (owner OK in chat):** `all.sh production`, health 112 calls; page 200, `POST /mcp` with no token
   401, `api/health` 200.
+
+### Two team requests: task makers and "Coming up" (2026-10-07, 1f06244)
+- **Change:** the person who adds a project task changes and deletes it like the leader while on the team, and names only team
+  mates. The review stays with the leader and the Admin. Home shows "Coming up" (the next 3 open tasks with a due date) when
+  nothing is due today. MCP: INSTRUCTIONS and the docs of tasks.create, tasks.update and tasks.get.
+- **Local:** typecheck; `npm test` 4,106 passed, 6 skipped; test:db 1,063 passed; test:it 241 passed (the 16 agent sign-in
+  tests needed `npx supabase db reset` first); the prototype, server and remote builds. Screenshots (EN/AR, light/dark,
+  390 px). Not run: the prototype smoke and the deploy suite.
+- **Test copy at 1f06244:** `all.sh test` from the clean worktree `.claude/worktrees/deploy-test`; the page title is "Madar",
+  the bundle holds "Coming up", `api/health` 200.
+- **Production at 1f06244 (owner OK in chat):** `all.sh production`; madar.vado.sa, www and madar-46r.pages.dev serve the new
+  bundle; the Supabase `api/health` 200 with 112 calls; `POST /mcp` with no token 401. The first page check read an old cached
+  copy for a short time. Note: `madar.vado.sa/api/health` answers with the app page, so read the health on the Supabase address.
