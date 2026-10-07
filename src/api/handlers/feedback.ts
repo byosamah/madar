@@ -5,8 +5,11 @@ import { UserCard } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { MAX_SHOT_BYTES } from '../contract/server';
+import { activeAdmins, notifyIn } from '../notify';
+import { principalOf } from '../permissions';
 import { feedbackOf, nextId } from '../store';
 import { cardOf } from '../views';
+import { excerptOf } from '../../lib/text';
 import { assertCan } from './shared';
 
 /** A screen inside Madar: a path from the root, never another site or a script link (security review, 2026-10-01). */
@@ -63,18 +66,23 @@ const feedbackSend = defineCall({
     };
     feedbackOf(ctx.state)[id] = item;
     recordCreate(ctx, { projectId: null, verb: 'feedback.sent', targetType: 'feedback', targetId: id, entity: item });
+    // Each active Admin hears of the report in the app, never by email. notify skips the sender and the person of an agent (owner, 2026-10-07).
+    notifyIn(ctx, {
+      userIds: activeAdmins(ctx.state), trigger: 'feedback_sent', targetType: 'feedback', targetId: id, feedback: { kind: item.kind, excerpt: excerptOf(item.message) },
+    });
     return item;
   },
 });
 
-/** The Admin reads every report, newest first, open ones before done ones. */
+/** The Admin reads every report, newest first, open ones before done ones. A status gives only the reports with that status (owner, 2026-10-07). */
 const feedbackList = defineCall({
-  input: z.object({}),
+  input: z.object({ status: z.enum(['new', 'done']).optional() }),
   output: z.array(FeedbackRow),
   readOnly: true,
-  run(_input, ctx) {
+  run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     return Object.values(feedbackOf(ctx.state))
+      .filter((item) => input.status === undefined || item.status === input.status)
       .sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === 'new' ? -1 : 1))
       .map((item) => ({ item, sender: cardOf(ctx.state, item.createdBy), screenshots: item.screenshots.length }));
   },
@@ -102,17 +110,28 @@ const feedbackScreenshot = defineCall({
   },
 });
 
-/** The Admin marks a report done, or opens it again. */
+/**
+ * The Admin marks a report done, or opens it again. Only the move from open to done tells the sender, in the app. Open again
+ * sends nothing, and the done notice that the sender has stays (owner, 2026-10-07).
+ */
 const feedbackSetStatus = defineCall({
   input: z.object({ id: z.string(), status: z.enum(['new', 'done']) }),
   output: Feedback,
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const item = requireFeedback(ctx, input.id);
+    const wasDone = item.status === 'done';
     const done = input.status === 'done';
     applyPatch(ctx, item, { status: input.status, doneBy: done ? ctx.actor.id : null, doneAt: done ? ctx.stamp : null }, {
       projectId: null, verb: 'feedback.status_changed', targetType: 'feedback', targetId: item.id,
     });
+    if (!wasDone && done) {
+      // A report that an agent sent goes back to the person of the agent.
+      notifyIn(ctx, {
+        userIds: [principalOf(ctx.state, item.createdBy)], trigger: 'feedback_done', targetType: 'feedback', targetId: item.id,
+        feedback: { kind: item.kind, excerpt: excerptOf(item.message) },
+      });
+    }
     return item;
   },
 });

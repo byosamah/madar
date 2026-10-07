@@ -5,6 +5,7 @@ import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
+import { feedbackNoticeHidden } from '../notify';
 import { can, holdsAdminRights, mayViewTask, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
@@ -338,7 +339,13 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
-    const kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+    // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
+    if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
+    // A report notice stays only while a change of its own report stands, so the Undo of one done change in a story of three
+    // takes back only the notice of that report (owner, 2026-10-07).
+    const kept = notice.targetType === 'feedback'
+      ? standing.some((e) => e.targetType === 'feedback' && e.targetId === notice.targetId)
+      : standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
     if (!kept) delete ctx.state.notifications[id];
   }
 }

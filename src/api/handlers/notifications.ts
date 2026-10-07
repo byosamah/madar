@@ -1,19 +1,23 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, Notification, NotificationId, Trigger, User, type Event, type Task } from '../contract/entities';
+import { Day, isEmailTrigger, Notification, NotificationId, Trigger, User, type Event, type Task } from '../contract/entities';
 import { UserCard } from '../contract/views';
-import { forbidden, notFound } from '../errors';
+import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
 import { applyPatch } from '../events';
+import { feedbackNoticeHidden } from '../notify';
 import type { State } from '../store';
 import { can, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 import { taskLink } from '../../lib/params';
 
-/** The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. */
+/**
+ * The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. The
+ * Admin acts on a new report, and the sender tests a done one (owner, 2026-10-07).
+ */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
-  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due',
+  'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due', 'feedback_sent', 'feedback_done',
 ]);
 
 export const NotificationView = z.object({
@@ -67,6 +71,8 @@ function isGone(state: State, n: Notification, viewer: User): boolean {
     const conversation = state.conversations[n.targetId];
     return !conversation || !canSeeConversation(state, conversation, viewer);
   }
+  // A report notice keeps its own words, so it reads as gone only when it is hidden from the viewer (owner, 2026-10-07).
+  if (n.targetType === 'feedback') return feedbackNoticeHidden(n, viewer);
   return false;
 }
 
@@ -116,6 +122,15 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     projectCode = copy ? text(copy.code) || null : null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     if (project) link = `/projects/${project.id}`;
+  } else if (n.targetType === 'feedback') {
+    if (gone) {
+      // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07).
+      const { feedback: _words, ...rest } = n;
+      return { notification: { ...rest, actorId: null }, actor: null, target: '', projectCode: null, project: null, link: '', needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null };
+    }
+    // The notice keeps the start of the message, so it needs no report row. A done notice opens nothing: it only tells the sender.
+    target = n.feedback?.excerpt ?? '';
+    link = n.trigger === 'feedback_sent' ? '/admin/feedback' : '';
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
@@ -221,6 +236,10 @@ export const notificationsUpdateSettings = defineCall({
     const email = input.channel === 'email' || input.morningSummary !== undefined;
     // An email leaves the office, so only the person sets where their email goes. Their agent may not.
     if (email && ctx.actor.kind === 'agent') throw forbidden('Only the person changes their email settings.', { action: 'notifications.email' });
+    // The notices of requests and bugs have no email switch (owner, 2026-10-07).
+    if (input.channel === 'email' && input.trigger !== undefined && !isEmailTrigger(input.trigger)) {
+      throw invalid('trigger', 'This notice stays in the app. It sends no email.', 'in_app_only');
+    }
     const next = input.morningSummary !== undefined
       ? { ...prefs, morningSummary: input.morningSummary }
       : input.channel === 'email'

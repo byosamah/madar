@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "triggers": {
+      "feedback_sent": "Someone sends a feature request or a bug report",
+      "feedback_done": "My request or bug report is done"
+    }
+  },
+  "inbox": {
+    "feedback": {
+      "sentFeature": "{{actor}} sent a feature request: “{{target}}”",
+      "sentBug": "{{actor}} reported a bug: “{{target}}”",
+      "doneFeature": "Your request is done: “{{target}}”",
+      "doneBug": "Your bug report is fixed: “{{target}}”",
+      "hidden": "A feature request or a bug report for the Admin"
+    }
+  },
+  "errors": {
+    "reasons": {
+      "in_app_only": "This notice stays in the app. It sends no email."
+    }
+  }
+}

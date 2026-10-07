@@ -1,0 +1,24 @@
+{
+  "settings": {
+    "triggers": {
+      "feedback_sent": "وصول طلب ميزة أو بلاغ عن خلل",
+      "feedback_done": "إنجاز طلبي أو بلاغي"
+    }
+  },
+  "inbox": {
+    "feedback": {
+      "sentFeature": "{{actor}} أرسل طلب ميزة: «{{target}}»",
+      "sentFeature_female": "{{actor}} أرسلت طلب ميزة: «{{target}}»",
+      "sentBug": "{{actor}} أبلغ عن خلل: «{{target}}»",
+      "sentBug_female": "{{actor}} أبلغت عن خلل: «{{target}}»",
+      "doneFeature": "تم تنفيذ طلبك: «{{target}}»",
+      "doneBug": "تم إصلاح الخلل في بلاغك: «{{target}}»",
+      "hidden": "طلب ميزة أو بلاغ عن خلل لمدير النظام"
+    }
+  },
+  "errors": {
+    "reasons": {
+      "in_app_only": "يبقى هذا الإشعار داخل التطبيق، ولا يصل بالبريد الإلكتروني."
+    }
+  }
+}
