@@ -6,8 +6,9 @@ import type { ServerCall, ServerCallCtx } from '../core/types';
 import { readUsage } from '../usage/meters';
 
 /**
- * Only the Admin, in person. Plan 5.6 puts usage.get and every Admin call on the MCP deny list, so an agent gets forbidden here
- * too, also the agent of an Admin: the call is the second guard behind the tool list of track G.
+ * Only the Admin, in person. Plan 5.6 puts usage.get on the MCP deny list (only the 3 feedback calls of MCP_ADMIN reach an agent
+ * of an Admin), so an agent gets forbidden here too, also the agent of an Admin: the call is the second guard behind the tool
+ * list of track G.
  */
 function assertAdmin(ctx: ServerCallCtx): void {
   const actor = resolveActor(ctx.office, ctx.principal);
