@@ -87,6 +87,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   stays. Done after "Open again" sends a second one. `feedback.list` takes `status` (`new` or `done`).
 - An Undo keeps a report notice only while a change of the same report stands in its story (`dropNotices`,
   `handlers/history.ts`). So the Undo of one done change takes back only the notice of that report.
+- A done notice stays only once for each standing change of its story that moved the report from `new` to `done`; the newest
+  extra ones go. So done, open, done and then the Undo of the last done leaves one done notice.
 - A former Admin sees an old `feedback_sent` notice as gone: no words, no sender (`actorId` null), no link and no place on
   the bell. An Undo never deletes it, and a new promotion shows it again. A `feedback_done` notice always shows to its owner.
 - Both triggers count on the bell (`ACTION_TRIGGERS`). A done notice has the link `''`: its row only marks it read.

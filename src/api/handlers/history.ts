@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Task, type TrackerEntry, type User } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
@@ -328,24 +328,45 @@ function noticeTaskHidden(ctx: Ctx, targetType: string, targetId: string, person
   return task !== undefined && task.projectId === null && !mayViewTask(ctx.state, person, task);
 }
 
+/** The number of standing changes that moved this report from open to done. Each one sent the one done notice (owner, 2026-10-07). */
+function movesToDone(standing: Event[], reportId: string): number {
+  return standing.filter((e) => e.targetType === 'feedback' && e.targetId === reportId
+    && fieldsOf(e.before).status === 'new' && fieldsOf(e.after).status === 'done').length;
+}
+
+/** Oldest first: by time, then by the number in the id, so ntf_1000 comes after ntf_999. */
+const oldestFirst = (a: Notification, b: Notification) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id, 'en', { numeric: true });
+
 /** A story that is wholly taken back takes its notices with it, so no badge points at a change that did not happen (audit 2026-10-03, API-13). */
 function dropNotices(ctx: Ctx, correlationId: string): void {
   const standing = Object.values(ctx.state.events).filter((e) => e.correlationId === correlationId && e.verb !== 'undo' && !DERIVED.has(e.verb) && !e.undoneBy);
+  // The done notices that each report may still keep. The oldest ones stay, so the notices of the moves that an Undo took back go.
+  const doneRoom = new Map<string, number>();
+  const notices = Object.values(ctx.state.notifications).filter((n) => n.correlationId === correlationId).sort(oldestFirst);
   // A notice stays only for a change of the story that its owner sees. A change of an office task that the owner does not see
   // never keeps it, so a kept notice tells nothing of that task (review 2026-10-06).
-  for (const [id, notice] of Object.entries(ctx.state.notifications)) {
-    if (notice.correlationId !== correlationId) continue;
+  for (const notice of notices) {
+    const id = notice.id;
     const owner = ctx.state.users[notice.userId];
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
-    // A report notice stays only while a change of its own report stands, so the Undo of one done change in a story of three
-    // takes back only the notice of that report (owner, 2026-10-07).
-    const kept = notice.targetType === 'feedback'
-      ? standing.some((e) => e.targetType === 'feedback' && e.targetId === notice.targetId)
-      : standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+    let kept: boolean;
+    if (notice.targetType === 'feedback' && notice.trigger === 'feedback_done') {
+      // A done notice stays only once for each move of its report from open to done that still stands in the story. So done, open,
+      // done and then the Undo of the last done keeps one notice, as the report has one standing move to done (review 2026-10-07).
+      const room = doneRoom.get(notice.targetId) ?? movesToDone(standing, notice.targetId);
+      kept = room > 0;
+      doneRoom.set(notice.targetId, kept ? room - 1 : 0);
+    } else if (notice.targetType === 'feedback') {
+      // A report notice stays only while a change of its own report stands, so the Undo of one done change in a story of three
+      // takes back only the notice of that report (owner, 2026-10-07).
+      kept = standing.some((e) => e.targetType === 'feedback' && e.targetId === notice.targetId);
+    } else {
+      kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+    }
     if (!kept) delete ctx.state.notifications[id];
   }
 }

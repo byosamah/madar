@@ -265,6 +265,25 @@ describe('the notices of requests and bugs', () => {
       expect(t.store.state.feedback?.[second.id]?.status).toBe('done');
     });
 
+    it('keeps one done notice for each move to done that stands in the story: done, open, done, then an Undo of the last done', async () => {
+      const t = world();
+      const report = await send(t, 'usr_003');
+      await mark(t, 'usr_009', report.id, 'done', 'cor_s');
+      const [first] = notices(t, 'feedback_done');
+      await mark(t, 'usr_009', report.id, 'new', 'cor_s');
+      await mark(t, 'usr_009', report.id, 'done', 'cor_s');
+      expect(notices(t, 'feedback_done')).toHaveLength(2);
+      const last = Object.values(t.store.state.events).filter((e) => e.correlationId === 'cor_s').sort((a, b) => b.seq - a.seq)[0];
+      expect(last.after).toMatchObject({ status: 'done' });
+      await t.api.call('events.undo', { eventId: last.id });
+      expect(t.store.state.feedback?.[report.id]?.status).toBe('new');
+      // The first move to done still stands, so its notice stays. The notice of the move that the Undo took back goes.
+      expect(notices(t, 'feedback_done').map((n) => n.id)).toEqual([first.id]);
+      await t.api.call('events.undoStory', { correlationId: 'cor_s' });
+      expect(t.store.state.feedback?.[report.id]?.status).toBe('new');
+      expect(notices(t, 'feedback_done')).toEqual([]);
+    });
+
     it('takes back the notice of the other Admin with the Undo of the send of an Admin', async () => {
       const t = world();
       await send(t, 'usr_001', {}, 'cor_send');
