@@ -1,42 +1,55 @@
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { useUndoable } from '../../../app/actions';
+import { useScreenshotLink } from '../../../app/files';
 import { usePersonName } from '../../../app/personName';
-import { useAction, useCall, useRuntime } from '../../../app/runtime';
+import { useAction, useCall } from '../../../app/runtime';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { FileTextIcon } from '../../../components/icons/animated/file-text';
+import { Sheet } from '../../../components/Sheet';
 import { isAppPath } from '../../../api/handlers/feedback';
 import { StatusSign } from '../../../components/StatusSign';
 
-/** One screenshot. A press shows it large, a second press makes it small again. */
+/**
+ * One screenshot (spec 4.3): a grey box while the link loads, a file sign when the picture cannot show, else the picture.
+ * A press opens it bigger in a sheet, and a press on the big picture opens it at full size in a new tab. The sheet uses the
+ * link of the thumbnail, so the server signs nothing new.
+ */
 function Screenshot({ id, index }: { id: string; index: number }) {
   const { t } = useTranslation();
-  const { api } = useRuntime();
-  const query = useQuery({
-    queryKey: ['feedback-shot', id, index],
-    queryFn: () => api.call('feedback.screenshot', { id, index }),
-    staleTime: Infinity,
-    retry: false,
-  });
-  const blob = query.data?.blob;
-  const [url, setUrl] = useState<string | null>(null);
-  const [large, setLarge] = useState(false);
-  useEffect(() => {
-    if (!blob) {
-      setUrl(null);
-      return undefined;
-    }
-    const next = URL.createObjectURL(blob);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [blob]);
-  if (!url) return <span aria-hidden className="block size-20 rounded-xl bg-fill" />;
+  const { url, onError, broken } = useScreenshotLink(id, index);
+  const [open, setOpen] = useState(false);
+  const n = index + 1;
+  const name = t('feedback.screenshotN', { n });
+  let thumb = <span aria-hidden className="block size-20 rounded-xl bg-fill" />;
+  if (broken) {
+    thumb = (
+      <span role="img" aria-label={t('feedback.screenshotFailed', { n })} className="grid size-20 place-items-center rounded-xl bg-fill text-label-2">
+        <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />
+      </span>
+    );
+  } else if (url) {
+    thumb = (
+      <button type="button" aria-haspopup="dialog" onClick={() => setOpen(true)} className="pressable rounded-xl">
+        <img src={url} alt={name} onError={onError} className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
+      </button>
+    );
+  }
   return (
-    <button type="button" aria-pressed={large} onClick={() => setLarge((value) => !value)} className="pressable rounded-xl">
-      <img src={url} alt={t('feedback.screenshotN', { n: index + 1 })} className={`rounded-xl ring-1 ring-inset ring-ink/10 ${large ? 'max-h-[28rem] w-auto max-w-full' : 'size-20 object-cover'}`} />
-    </button>
+    <>
+      {thumb}
+      <Sheet open={open} onOpenChange={setOpen} title={name} wide>
+        {url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('feedback.openFull', { n })} className="pressable block cursor-zoom-in">
+            <img src={url} alt="" onError={onError} className="mx-auto block max-h-[calc(100dvh-12rem)] w-auto max-w-full rounded-2xl object-contain ring-1 ring-inset ring-ink/10" />
+          </a>
+        ) : broken && <p className="text-subheadline text-label-2">{t('feedback.screenshotFailed', { n })}</p>}
+      </Sheet>
+    </>
   );
 }
 
@@ -45,7 +58,10 @@ export function FeedbackSection() {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const list = useCall('feedback.list', {});
-  const setStatus = useAction('feedback.setStatus');
+  // Mark done sends the sender a notice, so it offers Undo (rule B20). Open again stays a plain action.
+  const markDone = useUndoable('feedback.setStatus', { message: () => t('feedback.markedDone') });
+  const reopen = useAction('feedback.setStatus');
+  const busy = markDone.isPending || reopen.isPending;
   const rows = list.data ?? [];
   const open = rows.filter((row) => row.item.status === 'new').length;
   return (
@@ -75,7 +91,7 @@ export function FeedbackSection() {
                     ? <Link to={item.page} className="text-footnote font-semibold text-link"><bdi dir="ltr">{item.page}</bdi></Link>
                     : <bdi dir="ltr" className="block text-footnote text-ink-2">{item.page}</bdi>)}
                 </div>
-                <Button disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: item.id, status: done ? 'new' : 'done' })}>
+                <Button disabled={busy} onClick={() => (done ? reopen.mutate({ id: item.id, status: 'new' }) : markDone.mutate({ id: item.id, status: 'done' }))}>
                   {done ? t('feedback.reopen') : t('feedback.markDone')}
                 </Button>
               </div>
