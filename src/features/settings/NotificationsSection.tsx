@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { TRIGGERS } from '../../api/contract/entities';
-import { emailOn, inAppOn, morningSummaryOn } from '../../api/notify';
+import { isEmailTrigger } from '../../api/contract/entities';
+import { emailOn, inAppOn, morningSummaryOn, visibleTriggers } from '../../api/notify';
 import { REMOTE } from '../../app/mode';
 import { useAction, useCall } from '../../app/runtime';
 import { Switch } from '../../components/Switch';
@@ -37,6 +37,8 @@ function ChannelSwitch({
  *   row. An email switch the person never set takes its default (on for a task assigned, a review request and a mention), and a
  *   missing Morning summary reads as on. With the in-app switch of a trigger off there is no notice, so there is no email either:
  *   the email switch of that row shows off, cannot change, and a short note says why.
+ * - The notices of requests and bugs (owner, 2026-10-07): their rows come last and have no email switch. Only a person with the
+ *   Admin right sees the switch of a new report. A switch the person never set reads as on.
  */
 export function NotificationsSection() {
   const { t } = useTranslation();
@@ -44,11 +46,12 @@ export function NotificationsSection() {
   const save = useAction('notifications.updateSettings');
   if (!session.data) return null;
   const preferences = session.data.authority.preferences;
+  const triggers = visibleTriggers(session.data.authority);
 
   if (!REMOTE) {
     return (
       <SettingsSection title={t('settings.notifications')}>
-        {TRIGGERS.map((name) => (
+        {triggers.map((name) => (
           <Switch
             key={name}
             id={`trigger-${name}`}
@@ -68,15 +71,16 @@ export function NotificationsSection() {
         <span aria-hidden />
         <span aria-hidden className="justify-self-center text-footnote text-label-2">{t('notices.inApp')}</span>
         <span aria-hidden className="justify-self-center text-footnote text-label-2">{t('notices.email')}</span>
-        {TRIGGERS.map((name) => {
+        {triggers.map((name) => {
           const label = t(`settings.triggers.${name}`);
           const inApp = inAppOn(preferences, name);
+          const email = isEmailTrigger(name);
           const noteId = `notice-${name}-note`;
           return (
             <div key={name} data-testid={`notice-row-${name}`} className="col-span-3 grid min-h-11 grid-cols-subgrid items-center py-1">
               <div className="min-w-0">
                 <span className="block text-body">{label}</span>
-                {!inApp && <p id={noteId} className="text-footnote text-label-2">{t('notices.emailNeedsApp')}</p>}
+                {email && !inApp && <p id={noteId} className="text-footnote text-label-2">{t('notices.emailNeedsApp')}</p>}
               </div>
               <ChannelSwitch
                 id={`trigger-${name}`}
@@ -84,14 +88,16 @@ export function NotificationsSection() {
                 checked={inApp}
                 onChange={(on) => save.mutate({ trigger: name, on })}
               />
-              <ChannelSwitch
-                id={`email-${name}`}
-                label={t('notices.switchEmail', { trigger: label })}
-                checked={inApp && emailOn(preferences, name)}
-                disabled={!inApp}
-                describedBy={inApp ? undefined : noteId}
-                onChange={(on) => save.mutate({ channel: 'email', trigger: name, on })}
-              />
+              {email ? (
+                <ChannelSwitch
+                  id={`email-${name}`}
+                  label={t('notices.switchEmail', { trigger: label })}
+                  checked={inApp && emailOn(preferences, name)}
+                  disabled={!inApp}
+                  describedBy={inApp ? undefined : noteId}
+                  onChange={(on) => save.mutate({ channel: 'email', trigger: name, on })}
+                />
+              ) : <span aria-hidden />}
             </div>
           );
         })}

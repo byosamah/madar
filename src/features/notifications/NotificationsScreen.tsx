@@ -24,6 +24,14 @@ import { ProjectTile } from '../../components/ProjectTile';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
 
+/** The sentence of a report notice (owner, 2026-10-07). A hidden one has no words of its report, so it names nothing. */
+function reportKey(n: NoticeView['notification']): string {
+  if (!n.feedback) return 'inbox.feedback.hidden';
+  const bug = n.feedback.kind === 'bug';
+  if (n.trigger === 'feedback_sent') return bug ? 'inbox.feedback.sentBug' : 'inbox.feedback.sentFeature';
+  return bug ? 'inbox.feedback.doneBug' : 'inbox.feedback.doneFeature';
+}
+
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -50,7 +58,10 @@ function InboxItem({ view }: { view: NoticeView }) {
   const swiped = useRef(false);
   // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
   const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project;
-  const sentence = t(direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
+  const report = n.targetType === 'feedback';
+  // A done report names no person, so its row shows the bell and not the Admin who marked it.
+  const face = report && n.trigger === 'feedback_done' ? null : actor;
+  const sentence = t(report ? reportKey(n) : direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
     target,
@@ -60,8 +71,8 @@ function InboxItem({ view }: { view: NoticeView }) {
   const body = (
     <>
       <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />
-      {actor
-        ? <Avatar user={actor} size={36} />
+      {face
+        ? <Avatar user={face} size={36} />
         : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={BellIcon} size={16} aria-hidden /></span>}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={`text-subheadline ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>
@@ -95,7 +106,8 @@ function InboxItem({ view }: { view: NoticeView }) {
       className="flex items-center gap-2 bg-panel pe-3 transition-colors hover:bg-fill/50"
     >
       {/* The whole row opens the item and marks it read (redesign spec 3.7). Approve stays its own button beside it. */}
-      {gone ? <div className="flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4">{body}</div> : (
+      {/* A row with no link (a done report) is a button that only marks it read (owner, 2026-10-07). */}
+      {gone ? <div className="flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4">{body}</div> : link !== '' ? (
         <Link
           to={link}
           onClick={(event) => {
@@ -109,6 +121,16 @@ function InboxItem({ view }: { view: NoticeView }) {
         >
           {body}
         </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            if (!swiped.current) read();
+          }}
+          className="pressable flex w-full min-w-0 flex-1 items-start gap-3 py-3.5 ps-4 text-start"
+        >
+          {body}
+        </button>
       )}
       {canApprove && (
         <Button

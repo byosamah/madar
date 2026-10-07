@@ -157,6 +157,66 @@ describe('the notifications screen', () => {
     expect(store.state.notifications.ntf_902.read).toBe(false);
   });
 
+  describe('the notices of requests and bugs (owner, 2026-10-07)', () => {
+    const EXCERPT = 'The board does not scroll on my phone.';
+    const report = (id: string, trigger: 'feedback_sent' | 'feedback_done', kind: 'bug' | 'feature', actorId: string): Notice => ({
+      ...notice(id, trigger, 'feedback', 'fbk_001', TODAY_8, actorId), feedback: { kind, excerpt: EXCERPT },
+    });
+
+    it('shows the Admin a new bug report as a link to the reports, and a press marks it read', async () => {
+      const { store } = await renderApp('/notifications', withNotices('usr_001', [report('ntf_901', 'feedback_sent', 'bug', 'usr_003')]));
+      const sentence = `Reem Al-Ghamdi reported a bug: “${EXCERPT}”`;
+      expect(await screen.findByText(sentence)).toBeInTheDocument();
+      const item = itemWith(/reported a bug/);
+      const link = within(item).getByRole('link', { name: /reported a bug/ });
+      expect(link).toHaveAttribute('href', '#/admin/feedback');
+      expect(within(item).getByRole('img', { name: 'Reem Al-Ghamdi' })).toBeInTheDocument();
+      await userEvent.click(link);
+      await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
+      expect(window.location.hash).toBe('#/admin/feedback');
+    });
+
+    it('shows the sender a done request with no link and no Approve; its button only marks it read', async () => {
+      const { store } = await renderApp('/notifications', withNotices('usr_003', [report('ntf_902', 'feedback_done', 'feature', 'usr_001')]));
+      expect(await screen.findByText(`Your request is done: “${EXCERPT}”`)).toBeInTheDocument();
+      const item = itemWith(/Your request is done/);
+      expect(within(item).queryByRole('link')).toBeNull();
+      expect(within(item).queryByRole('button', { name: /Approve/ })).toBeNull();
+      // The sentence names no person, so the row shows the bell, not the Admin.
+      expect(within(item).queryByRole('img', { name: 'Hala Nasser' })).toBeNull();
+      const button = within(item).getByRole('button', { name: /Your request is done/ });
+      expect(button).toHaveAttribute('type', 'button');
+      await userEvent.click(button);
+      await waitFor(() => expect(store.state.notifications.ntf_902.read).toBe(true));
+      expect(window.location.hash).toBe('#/notifications');
+    });
+
+    it('says that a bug is fixed', async () => {
+      await renderApp('/notifications', withNotices('usr_003', [report('ntf_902', 'feedback_done', 'bug', 'usr_001')]));
+      expect(await screen.findByText(`Your bug report is fixed: “${EXCERPT}”`)).toBeInTheDocument();
+    });
+
+    it('uses the female Arabic verb for a woman who sends a request', async () => {
+      await renderApp('/notifications', (state) => {
+        state.users.usr_001.preferences.language = 'ar';
+        withNotices('usr_001', [report('ntf_903', 'feedback_sent', 'feature', 'usr_003')])(state);
+      });
+      expect(await screen.findByText(`ريم الغامدي أرسلت طلب ميزة: «${EXCERPT}»`)).toBeInTheDocument();
+    });
+
+    it('shows a former Admin the new report as gone, with no link and no words of the report', async () => {
+      const { store } = await renderApp('/notifications', withNotices('usr_002', [report('ntf_904', 'feedback_sent', 'bug', 'usr_003')]));
+      expect(await screen.findByText('A feature request or a bug report for the Admin')).toBeInTheDocument();
+      const item = itemWith(/for the Admin/);
+      expect(within(item).getByText('This item does not exist anymore.')).toBeInTheDocument();
+      expect(within(item).queryByRole('link')).toBeNull();
+      expect(within(item).queryByRole('button')).toBeNull();
+      expect(document.body.textContent).not.toContain(EXCERPT);
+      expect(document.body.textContent).not.toContain('Reem');
+      await waitFor(() => expect(store.state.notifications.ntf_904.read).toBe(true));
+    });
+  });
+
   it('shows Retry when the Inbox cannot load', async () => {
     const { api } = await renderApp('/notifications', withNotices('usr_005', [notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8)]), { failFirst: 'notifications.list' });
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
