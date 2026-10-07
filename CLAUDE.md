@@ -133,13 +133,16 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Every visible word has an English and an Arabic key.
 - Every feature change updates the MCP side in the same commit: the allow, Admin or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
   (`server/mcp/docs.ts`), and `INSTRUCTIONS` when a rule changes (owner, 2026-10-05).
-- A feature that hides a record from some people gets an independent leak review before the test copy: probes as an
-  outsider on every read path, error texts and Realtime signals included (office tasks, 2026-10-06).
+- A feature that hides a record from some people gets leak tests from its own builder: probes as an outsider on
+  every read path, error texts and Realtime signals included (office tasks, 2026-10-06). No separate leak review
+  (owner, 2026-10-07).
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,
-  2 reviewers, repair, merge lead (in plan order, with the merge lead patches), then a whole-product check on the
+  merge lead (in plan order, with the merge lead patches), then a whole-product check on the
   local stack (`db reset`, remote build, functions, seed, the walk in 4 variants, the deploy suite).
+- No separate checker (owner, 2026-10-07): no reviewer, verifier or critic agent after a build. Run each suite once.
+  Run it again only after a fix for a failure.
 - Merge gate: rebase on main, typecheck, `npm test`, `npm run build`, `build:server`, `build:remote -- test`,
   `test:db`, `test:it`, and the prototype smoke at screen merges. No merge with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
