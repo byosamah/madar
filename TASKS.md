@@ -237,3 +237,15 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 - [x] The Data API: off in both projects by db_schema = '' (PGRST002); the api.enabled line of the config diff is a CLI report only (supabase/CLAUDE.md)
 - [x] Clean up: the 13 unused stageTemplates words left en.json and ar.json
 - [x] MCP rule: every feature change updates the MCP side (root CLAUDE.md, item 10)
+
+## Requests and bugs: notices, MCP, screenshots (owner, 2026-10-07)
+
+Branch feedback-notices. Owner decisions: in-app notices only (no email); the done notice shows words only, no buttons and no link; no note from the Admin.
+
+- [ ] Map and spec (workflow: notices pipeline, feedback privacy and MCP, screenshot display)
+- [ ] A new request or bug report: every active Admin gets an in-app notice; a tap opens the Requests and bugs list
+- [ ] Mark done: the sender gets an in-app notice ("Your request is done" or "Your bug report is fixed", with the start of the message), no link, no buttons
+- [ ] MCP: only an Admin's agent sees the three tools (list, screenshot, mark done or open again); TOOL_DOCS and INSTRUCTIONS
+- [ ] Screenshots show on the Admin page in the real build (the screen read a picture, the real build sends a signed link); a press opens a bigger view
+- [ ] Leak review as a non-Admin and as a former Admin (every read path, error texts, Realtime signals)
+- [ ] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy and deploy suite
