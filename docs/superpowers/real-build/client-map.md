@@ -58,7 +58,7 @@ These calls bypass `useCall` and `useAction`. They still go through `RemoteApi`,
 | `src/features/dashboard/meeting/MeetingSummary.tsx:177` | `chats.send` in a loop, one at a time | No change. One request for each project. |
 | `src/features/dashboard/meeting/MeetingSummary.tsx:90,128` | Groups a reason with its change by `event.correlationId` | Works only if both writes share one server story. The server must keep that. |
 | `src/features/comments/markRead.ts:15` | `chats.markRead` on each thread view | Its signal must name only this person (section 3.2), or every screen in the office reloads. |
-| `src/features/settings/admin/FeedbackSection.tsx:15-21` | `feedback.screenshot` returns a `Blob` | Feedback adapter (section 5.4). |
+| `src/features/settings/admin/FeedbackSection.tsx` `Screenshot` | `feedback.screenshot` returns a `Blob` | `useScreenshotLink` in `src/app/files.ts` uses the signed link (section 5.4, built 2026-10-07). |
 
 ### 1.3 File data
 
@@ -293,7 +293,7 @@ queryClient.invalidateQueries({
 - **Hidden tab.** The pass only marks queries as old. On `visibilitychange` to visible, the client reloads the active queries that are marked.
 - **Missed signals.** Reload every active `['api']` query once when: the channel comes back after `CHANNEL_ERROR`, `TIMED_OUT` or `CLOSED`; a signal's `seq` skips a number; or the tab was hidden for more than 60 s. These are events, not a timer, so spec 5.4 holds.
 - **Fake mode.** The store subscription sends one "match all" signal, so the prototype and the tests keep today's behavior.
-- **Keys outside `['api']`** (`file-blob`, `feedback-shot`, and the new link key) never reload on a signal.
+- **Keys outside `['api']`** (`file-blob`, `file-link`, `feedback-shot` and `feedback-shot-link`) never reload on a signal.
 
 ### 3.4 What it costs
 
@@ -379,7 +379,12 @@ Today a 40 px row picture loads the full image (`FilesTab.tsx:33`). A drawing on
 ### 5.4 Feedback screenshots
 
 - `feedback.send` gets the same three steps, with up to three links (`feedback.uploadStart`).
-- `feedback.screenshot` answers `{ url, expiresAt }`. The adapter fetches it and returns `{ blob }`, so `FeedbackSection.tsx:15-33` stays unchanged. A screenshot is at most 10 MB and only the Admin opens it.
+- `feedback.screenshot` answers `{ url, expiresAt }`. A screenshot is at most 10 MB and only the Admin opens it.
+- The plan had an adapter that fetched the link and returned `{ blob }`. Nobody built it, so the real build showed grey boxes. The build
+  uses the signed link in `useScreenshotLink` (`src/app/files.ts`, spec `2026-10-07-feedback-notices-design.md` 4.3) instead:
+  - an adapter needs CORS on `GET` for R2, and it loses the one new link after a picture error;
+  - the hook shares its body with `useFileLink`: key `['feedback-shot-link', id, index]`, `staleTime` 8 min, one new link after a
+    picture error, then `broken` and the fallback. The prototype keeps the key `['feedback-shot', id, index]` and a `blob:` URL.
 
 ### 5.5 Share
 
