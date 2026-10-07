@@ -14,6 +14,8 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
   `20261005000100_project_templates.sql`.
 - A new function gets no default EXECUTE. Grant each one by name, only to the role that calls it.
 - After any migration change: `npx supabase db reset`, from your own worktree, under the Docker lock.
+- The Supabase CLI native runtime (no Docker, alpha since 2026-10-02) is not in use: the MinIO suites need Docker
+  (`server/it/minio.ts`). The trial is a TASKS.md item.
 
 ## Settings (`config.toml`)
 - `config.toml` holds the values of the local stack. A push sends them to a hosted project unless its `[remotes.test]` or

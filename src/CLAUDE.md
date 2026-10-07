@@ -70,6 +70,7 @@ any screen work.
   and headline styles) only for headings, Medium (`font-medium` or `font-semibold`, which renders Medium) for emphasis in
   rows, labels and buttons, Regular for body text.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
+- Write a direction mark as an escape (`\u2068`), never as the raw character: GitHub flags hidden bidi characters.
 - Text with its own direction (`dir="auto"`, `dir="ltr"`, `<bdi>`) takes its side from the page (`tokens.css`), so an
   English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
@@ -101,6 +102,8 @@ any screen work.
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).
+- A read with `wire.output` (`feedback.screenshot`, `files.link`) gives the screen the wire form in the real build. Test such a
+  screen with `runtime.mode: 'remote'`: the prototype test alone passed while the real build showed grey boxes.
 - A whole project page can take more than the 1 s `findBy` default. Use `{ timeout: 10_000 }`.
 - A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.

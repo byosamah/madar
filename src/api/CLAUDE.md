@@ -78,6 +78,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   agents, people who left, and a switch that is off.
 - `Preferences.notifications` is a `partialRecord`: a missing trigger means on. Read a switch only with `inAppOn`
   (`notify.ts`). So a person stored before a new trigger still loads, with no backfill.
+- zod 4 `z.record(enumKey, …)` needs every key, so a new enum value refuses every stored doc. A stored map uses `z.partialRecord`.
 - `IN_APP_ONLY_TRIGGERS` (both) send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch
   with reason `in_app_only`, and Settings shows no email switch for them. `EMAIL_TRIGGERS` holds the other triggers.
 - `ADMIN_ONLY_TRIGGERS` (`feedback_sent`): `visibleTriggers` shows its switch only with `admin.manage`. The value stays.

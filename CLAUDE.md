@@ -143,7 +143,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Merge gate: rebase on main, typecheck, `npm test`, `npm run build`, `build:server`, `build:remote -- test`,
   `test:db`, `test:it`, and the prototype smoke at screen merges. No merge with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
-- Agent tool worktrees live in `.claude/worktrees/agent-*` and may start on an old commit: brief each agent to run
+- Agent tool worktrees live in `.claude/worktrees/agent-*` (Workflow agents: `wf_<run>-<n>`, branch `worktree-wf_<run>-<n>`)
+  and may start on an old commit: brief each agent to run
   `git merge --ff-only <batch branch>` first. Removal: `git worktree remove --force`, `git worktree prune`, then `git branch -d`
   its branch and its `worktree-agent-*` branch (sandbox off).
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit

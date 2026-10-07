@@ -20,6 +20,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - No switch skips the check. A hotfix also goes through `all.sh test` first (a few minutes).
 - Load the keys first: `set -a; . ./.env.local; set +a`, then `scripts/deploy/all.sh test`.
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
+- Another session may leave changes in the main folder. Then deploy from a clean worktree of main: `git fetch . <branch>:main`,
+  `git worktree add .claude/worktrees/deploy-test main`, and link `node_modules`, `secrets` and `.env.local` into it.
+  `.gitignore` has `secrets/`, which does not match a link, so `.git/info/exclude` holds `secrets` (2026-10-07). Without it
+  the tree is not clean, and `all.sh test` records no commit.
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive.
 - The seed uploads the sample files to Storage under real object keys, the pictures as PNG (`scripts/seed-pictures.ts`;
