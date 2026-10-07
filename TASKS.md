@@ -308,3 +308,16 @@ a drag only inside a date group, never a date change; Home follows the order; a 
 - [x] Gates: typecheck; npm test 4,131 passed; the three builds; test:db 1,073 passed; test:it 241 passed
 - [x] Before `all.sh test`: `deploy-test` gets its own `node_modules` (its link points to the main folder, which lacks `@dnd-kit/sortable`)
 - [x] Test copy and production at 66586d0 (owner OK, 2026-10-07; the owner ran production with `!`); record in proof.md
+
+## Performance audit and fixes (owner, 2026-10-07)
+
+Branch perf/audit (worktree `.claude/worktrees/perf`). Owner rule: the fixes change only speed and size, never behavior,
+visuals, words, data, the contract or the security rules.
+
+- [ ] Baseline: the remote build sends one 1,786 KB script (519 KB gzip) for every screen; 3 Thmanyah fonts at 241 KB each
+- [ ] Audit workflow: 7 auditors (first load, screen work, data flow, server path, database, background paths, live numbers
+  on the test copy), each with a skeptic
+- [ ] Fix tracks from the confirmed findings, one builder each, tests first
+- [ ] Gates: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots (EN/AR, light/dark, 390 px)
+- [ ] Test copy, then the live numbers again (before and after)
+- [ ] Production only after the owner's words
