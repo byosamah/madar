@@ -23,9 +23,10 @@ type Sign = { id: string; index: number };
 
 /**
  * A remote API stub. feedback.screenshot answers as the real build does (wire.output, a signed link), with a new URL for each
- * sign of the same picture. failSign makes every sign fail with not_found.
+ * sign of the same picture. failSign makes every sign fail with not_found; failFrom makes sign number failFrom of a picture
+ * and each later one fail.
  */
-function remoteApi(o: { failSign?: boolean } = {}) {
+function remoteApi(o: { failSign?: boolean; failFrom?: number } = {}) {
   const signs: Sign[] = [];
   const api = {
     call: async (name: string, input: unknown) => {
@@ -33,8 +34,8 @@ function remoteApi(o: { failSign?: boolean } = {}) {
       if (name === 'feedback.screenshot') {
         const { id, index } = input as Sign;
         signs.push({ id, index });
-        if (o.failSign) throw new ApiError('not_found', `Report ${id} was not found.`);
         const n = signs.filter((sign) => sign.index === index).length;
+        if (o.failSign || (o.failFrom !== undefined && n >= o.failFrom)) throw new ApiError('not_found', `Report ${id} was not found.`);
         return { url: `https://store.test/shot-${index + 1}${n > 1 ? `?sign=${n}` : ''}`, expiresAt: '2026-09-30T06:10:00.000Z' };
       }
       throw new Error(`unexpected ${name}`);
@@ -133,6 +134,19 @@ describe('Requests and bugs in the real build: the screenshots (spec 4.3)', () =
     expect(await within(sheet).findByText('Screenshot 1 did not load.')).toBeInTheDocument();
     expect(within(sheet).queryByRole('link')).toBeNull();
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(shotsOf(signs, 0)).toHaveLength(2);
+  });
+
+  it('shows the fallback in the sheet, not the dead link, when the new sign fails (review, 2026-10-07, S2)', async () => {
+    const { api, signs } = remoteApi({ failFrom: 2 });
+    renderRemote(api);
+    await userEvent.click(await screen.findByRole('button', { name: 'Screenshot 1' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Screenshot 1' });
+    const full = within(sheet).getByRole('link', { name: 'Open screenshot 1 at full size' });
+    fireEvent.error(full.querySelector('img') as HTMLImageElement);
+    expect(await within(sheet).findByText('Screenshot 1 did not load.')).toBeInTheDocument();
+    expect(within(sheet).queryByRole('link')).toBeNull();
+    expect(sheet.querySelector('img')).toBeNull();
     expect(shotsOf(signs, 0)).toHaveLength(2);
   });
 
