@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { TRIGGERS, type Gender, type Language } from '../../../src/api/contract/entities';
+import { EMAIL_TRIGGERS, type Gender, type Language } from '../../../src/api/contract/entities';
 import { MAIL_LOGO_PATH } from './layout';
 import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTemplate } from './index';
 
@@ -89,11 +89,12 @@ describe('renderMail', () => {
     });
   });
 
+  // Only the triggers that send email: the notices of requests and bugs stay in the app (owner, 2026-10-07). The snapshot keeps its name.
   it('renders each notice trigger with its own subject in both languages', () => {
     for (const lang of ['en', 'ar'] as Language[]) {
-      const subjects = TRIGGERS.map((trigger) => renderMail('notice', lang, { trigger, link: LINK }).subject);
-      expect(new Set(subjects).size).toBe(TRIGGERS.length);
-      expect(Object.fromEntries(TRIGGERS.map((trigger, i) => [trigger, subjects[i]]))).toMatchSnapshot(`notice subjects ${lang}`);
+      const subjects = EMAIL_TRIGGERS.map((trigger) => renderMail('notice', lang, { trigger, link: LINK }).subject);
+      expect(new Set(subjects).size).toBe(EMAIL_TRIGGERS.length);
+      expect(Object.fromEntries(EMAIL_TRIGGERS.map((trigger, i) => [trigger, subjects[i]]))).toMatchSnapshot(`notice subjects ${lang}`);
     }
   });
 
@@ -124,7 +125,7 @@ describe('renderMail', () => {
     const secret = { title: 'Villa Al Rashid facade', projectName: 'Rashid Tower', commentText: 'The client wants marble', actorName: 'Huda Saleh' };
     for (const lang of ['en', 'ar'] as Language[]) {
       for (const g of [{}, FEMALE] as { actor?: Gender; reader?: Gender }[]) {
-        for (const trigger of TRIGGERS) {
+        for (const trigger of EMAIL_TRIGGERS) {
           const out = allOutput(renderMail('notice', lang, { ...secret, trigger, link: LINK } as MailData['notice'], g));
           for (const value of Object.values(secret)) expect(out).not.toContain(value);
         }

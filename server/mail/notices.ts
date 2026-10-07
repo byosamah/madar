@@ -1,5 +1,5 @@
-import type { Gender, Preferences, Trigger } from '../../src/api/contract/entities';
-import { emailOn } from '../../src/api/notify';
+import { isEmailTrigger, type Gender, type Preferences, type Trigger } from '../../src/api/contract/entities';
+import { emailOn, inAppOn } from '../../src/api/notify';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Deps, Mail, Query } from '../core/ports';
@@ -11,7 +11,8 @@ import { renderMail, type RenderedMail } from './templates';
  *
  * - The producer: after the save of a write call, noticeRows() finds the notices that this transaction inserted and writes one
  *   mail.notice outbox row for each one whose person is an active human with the email switch of the trigger on (a switch the
- *   person never set takes its default, src/api/notify.ts). The rows commit with the call, so a rollback sends nothing.
+ *   person never set takes its default, src/api/notify.ts). The notices of requests and bugs stay in the app and never get a row
+ *   (IN_APP_ONLY_TRIGGERS; owner, 2026-10-07). The rows commit with the call, so a rollback sends nothing.
  *   A new notice is a row whose xmin is the transaction's own id (runCall uses no savepoint around the save step, as the office
  *   cache relies on too) and that is unread. Only the read-mark calls change old notices, and markUnread makes one unread again,
  *   so those calls have no producer (NOTICE_FREE_CALLS). The 15-minute job (track N3) calls noticeRows() after its own save.
@@ -75,7 +76,7 @@ export async function noticeRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'pe
   if (!saved.kinds.has('notifications') || saved.people.size === 0) return [];
   const found = await q<NewNotice>(NEW_NOTICES_SQL, [[...saved.people].sort()]);
   return found
-    .filter((n) => mailable(n) && n.preferences.notifications[n.trigger] && emailOn(n.preferences, n.trigger))
+    .filter((n) => mailable(n) && inAppOn(n.preferences, n.trigger) && emailOn(n.preferences, n.trigger))
     .map((n) => ({ kind: NOTICE_EFFECT, payload: { notificationId: n.id } }));
 }
 
@@ -109,7 +110,8 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   const [notice] = await deps.db.statement<NoticeRow>('write', NOTICE_MAIL_SQL, [id]);
   if (!notice || !mailable(notice)) return;
   const { preferences, trigger } = notice;
-  if (!preferences.notifications[trigger] || !emailOn(preferences, trigger)) return;
+  // A notice that stays in the app has no mail (owner, 2026-10-07). emailOn says the same; the check also gives the mail its type.
+  if (!isEmailTrigger(trigger) || !inAppOn(preferences, trigger) || !emailOn(preferences, trigger)) return;
   const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }

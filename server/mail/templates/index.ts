@@ -1,4 +1,4 @@
-import type { Gender, Language, Trigger } from '../../../src/api/contract/entities';
+import type { EmailTrigger, Gender, Language } from '../../../src/api/contract/entities';
 import { actorContext } from '../../../src/lib/grammar';
 import { logoAddress, renderPage, type RenderedMail } from './layout';
 import { mailWords } from './words';
@@ -23,7 +23,8 @@ export type MailData = {
   /** name: the new person; inviterName: the Admin who invited them. */
   invite: { name: string; inviterName: string; link: string };
   reset: { name: string; link: string };
-  notice: { trigger: Trigger; link: string };
+  /** Only a trigger that sends email: the notices of requests and bugs have no mail words (owner, 2026-10-07). */
+  notice: { trigger: EmailTrigger; link: string };
   summary: { dueToday: number; reviewsWaiting: number; link: string };
   limitWarning: { meter: UsageMeter; percent: number; link: string };
   /** limit: the daily notice limit that stopped the mail (90). */

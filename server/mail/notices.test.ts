@@ -212,6 +212,52 @@ describe('sendNoticeMail: the mail of one notice', () => {
   });
 });
 
+// The notices of requests and bugs stay in the app, and a person stored before them still gets mail (owner, 2026-10-07).
+describe('the notices that stay in the app', () => {
+  const OLD = [
+    'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
+  ];
+  const oldPrefs = (): Preferences => ({ ...defaultPreferences(), notifications: Object.fromEntries(OLD.map((trigger) => [trigger, true])) });
+  const rowsFor = (rows: unknown[]) => (async () => rows) as never;
+
+  it('writes no mail row for a new report or a done report, even with the email switch on', async () => {
+    const prefs = withPrefs((p) => { p.email = { feedback_sent: true, feedback_done: true }; });
+    const q = rowsFor([
+      { id: 'ntf_1', user_id: 'usr_001', trigger: 'feedback_sent', kind: 'human', active: true, preferences: prefs },
+      { id: 'ntf_2', user_id: 'usr_003', trigger: 'feedback_done', kind: 'human', active: true, preferences: prefs },
+    ]);
+    expect(await noticeRows(q, { kinds: new Set(['notifications', 'feedback']), people: new Set(['usr_001', 'usr_003']) })).toEqual([]);
+  });
+
+  it('still writes a mail row for a mention to a person with the 10 old switches only, and reads a missing switch as on', async () => {
+    const missing = withPrefs((p) => { delete p.notifications.mention; });
+    const q = rowsFor([
+      { id: 'ntf_3', user_id: 'usr_002', trigger: 'mention', kind: 'human', active: true, preferences: oldPrefs() },
+      { id: 'ntf_6', user_id: 'usr_004', trigger: 'mention', kind: 'human', active: true, preferences: missing },
+    ]);
+    expect(await noticeRows(q, { kinds: new Set(['notifications']), people: new Set(['usr_002', 'usr_004']) })).toEqual([
+      { kind: NOTICE_EFFECT, payload: { notificationId: 'ntf_3' } },
+      { kind: NOTICE_EFFECT, payload: { notificationId: 'ntf_6' } },
+    ]);
+  });
+
+  it('sends no mail for a done report, and a mail for a mention to a person with the old switches or a missing switch', async () => {
+    const prefs = withPrefs((p) => { p.email = { feedback_done: true }; });
+    const missing = withPrefs((p) => { delete p.notifications.mention; });
+    const notices = [
+      { id: 'ntf_4', userId: 'usr_003', trigger: 'feedback_done' }, { id: 'ntf_5', userId: 'usr_002', trigger: 'mention' }, { id: 'ntf_6', userId: 'usr_004', trigger: 'mention' },
+    ];
+    const people = [person('usr_003', { preferences: prefs }), person('usr_002', { preferences: oldPrefs() }), person('usr_004', { preferences: missing })];
+    const { mem, deps } = setup({ people, notices });
+    await sendNoticeMail({ notificationId: 'ntf_4' }, deps);
+    expect(deps.mail.sent).toEqual([]);
+    expect(mem.log).toEqual([]);
+    await sendNoticeMail({ notificationId: 'ntf_5' }, deps);
+    await sendNoticeMail({ notificationId: 'ntf_6' }, deps);
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_5', 'notice-ntf_6']);
+  });
+});
+
 describe('appLink', () => {
   it('joins the screens URL and a path with one slash', () => {
     expect(appLink('https://madar.test/', '/notifications')).toBe('https://madar.test/notifications');

@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { calls } from '../../src/api/calls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { testApi } from '../../src/test/factories';
 import type { Query } from '../core/ports';
 import { diffState, save, writeDiff, type Diff } from './save';
 
@@ -383,6 +385,49 @@ describe('the signals of an office task (review 2026-10-06)', () => {
     const { q } = recorder();
     const result = await writeDiff(q, diffState(seed, after));
     for (const signal of result.signals) expect(signal).toMatchObject({ actorId: 'usr_002', storyId: 'sty_project' });
+  });
+});
+
+/**
+ * The signals of requests and bugs (spec 2026-10-07, section 6, rows 10 and 11): the handlers run on the sample office, Hala
+ * (usr_001) and Faisal (usr_002) are Admins, and Reem (usr_003) sends a bug report.
+ */
+describe('the signals of requests and bugs', () => {
+  const MESSAGE = 'The board does not scroll on my phone.';
+  async function sent() {
+    const state = copy();
+    state.users.usr_002.systemRole = 'admin';
+    const before = structuredClone(state);
+    const t = testApi(calls, state);
+    t.as('usr_003');
+    const report = await t.api.call('feedback.send', { kind: 'bug', message: MESSAGE, page: '/projects', screenshots: [] });
+    return { t, before, report };
+  }
+
+  it('sends a new report to the office with no ids and no words, and to each Admin on their own channel only', async () => {
+    const { t, before, report } = await sent();
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(before, t.store.state));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['office', 'person:usr_001', 'person:usr_002']);
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).toMatchObject({ kinds: ['events', 'feedback', 'notifications'], actorId: 'usr_003', people: [] });
+    expect(office.storyId).toEqual(expect.any(String));
+    const json = JSON.stringify(result.signals);
+    expect(json).not.toContain(report.id);
+    expect(json).not.toContain(MESSAGE.slice(0, 20));
+  });
+
+  it('sends a done report to the sender on her own channel', async () => {
+    const { t, report } = await sent();
+    const before = structuredClone(t.store.state);
+    t.as('usr_001');
+    await t.api.call('feedback.setStatus', { id: report.id, status: 'done' });
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(before, t.store.state));
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['office', 'person:usr_003']);
+    const json = JSON.stringify(result.signals);
+    expect(json).not.toContain(report.id);
+    expect(json).not.toContain(MESSAGE.slice(0, 20));
   });
 });
 
