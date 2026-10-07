@@ -35,7 +35,7 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
-  return result.ok ? { ...result, output: withoutPictureData(tool.name, result.output) } : result;
+  return result.ok ? { ...result, output: withoutStorageKeys(tool.name, withoutPictureData(tool.name, result.output)) } : result;
 }
 
 /**
@@ -45,6 +45,25 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
 function withoutPictureData(name: string, output: unknown): unknown {
   if (name !== 'users.list' || !Array.isArray(output)) return output;
   return output.map((user: { avatarUrl?: unknown }) => (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('data:') ? { ...user, avatarUrl: null } : user));
+}
+
+type Report = { screenshots?: unknown };
+
+/** A report as an agent gets it: each screenshot keeps its type and loses its storage key. */
+function shotTypesOnly<T extends Report>(report: T): T {
+  if (!Array.isArray(report.screenshots)) return report;
+  return { ...report, screenshots: report.screenshots.map((shot: { type?: unknown }) => ({ type: shot.type })) };
+}
+
+/**
+ * An agent never gets a storage key from the Admin tools of requests and bugs (owner, 2026-10-07). A report row of feedback.list and
+ * the report of feedback.setStatus keep the type of each screenshot, and the count stays. feedback.screenshot gives a signed link
+ * ({ url, expiresAt }) as it is.
+ */
+function withoutStorageKeys(name: string, output: unknown): unknown {
+  if (name === 'feedback.list' && Array.isArray(output)) return output.map((row: { item?: Report }) => (row.item ? { ...row, item: shotTypesOnly(row.item) } : row));
+  if (name === 'feedback.setStatus' && output !== null && typeof output === 'object') return shotTypesOnly(output as Report);
+  return output;
 }
 
 export function errorResult(error: RunError, text?: string): CallToolResult {
