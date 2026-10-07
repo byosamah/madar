@@ -86,7 +86,7 @@ The evidence:
 
 ### 2.6 Choices that differ from a map
 
-- **The notice stores the excerpt.** The feedback-mcp map wanted to read the report row instead. A stored excerpt needs no change to the inbox loader (`server/data/loaders/inbox.ts:17-21`) or to `src/app/readMap.ts:76-77`. A report message never changes after it is sent. An Undo of `feedback.sent` drops its notices anyway (`history.ts:331`).
+- **The notice stores the excerpt.** The feedback-mcp map wanted to read the report row instead. A stored excerpt needs no change to the inbox loader (`server/data/loaders/inbox.ts:17-21`) or to `src/app/readMap.ts:76-77`. (Changed after review C-F2: the inbox loader now loads the report row of each report notice, only to learn that it still exists, so the notice of a deleted report reads as gone. It takes no words from the row.) A report message never changes after it is sent. An Undo of `feedback.sent` drops its notices anyway (`history.ts:331`).
 - **The two triggers go into `TRIGGERS`** with `partialRecord`, not into a separate enum. The owner decision limits the switch only for email, so the in-app switches stay.
 - **Both triggers count on the bell.**
 - **The notices map said a `feedback_done` notice must show only to `report.createdBy`.** That needs no rule: a notice always belongs to its owner (`notifications.ts:126`).

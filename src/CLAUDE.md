@@ -90,7 +90,7 @@ any screen work.
   picture opens it at full size in a new tab. The thumbnail has `loading="lazy"`; the sheet picture does not.
 - A picture hook (`useFileLink`, `useScreenshotLink`) asks for one new link after an error. It gives up only when the new
   link breaks: an error of the old link while the new link loads is no strike. A screen checks `broken` before `url`.
-- A report excerpt in a notice sentence sits between FSI and PDI (`⁨`, `⁩`), so it keeps its own direction.
+- A report excerpt in a notice sentence sits between FSI and PDI (`\u2068`, `\u2069`), so it keeps its own direction.
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

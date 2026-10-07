@@ -14,6 +14,16 @@ const withNotices = (userId: string, list: Notice[]) => (state: State) => {
   state.session.currentUserId = userId;
   for (const [id, n] of Object.entries(state.notifications)) if (n.userId === userId) delete state.notifications[id];
   for (const n of list) state.notifications[n.id] = { ...n, userId };
+  // A report notice reads as gone when its report is gone, so each one gets its report row (review 2026-10-07).
+  for (const n of list.filter((one) => one.targetType === 'feedback')) {
+    state.feedback = {
+      ...state.feedback,
+      [n.targetId]: {
+        id: n.targetId, kind: n.feedback?.kind ?? 'bug', message: n.feedback?.excerpt ?? 'A report', page: '/projects', screenshots: [],
+        status: n.trigger === 'feedback_done' ? 'done' : 'new', createdBy: 'usr_003', createdAt: n.createdAt, doneBy: null, doneAt: null,
+      },
+    };
+  }
 };
 
 const TODAY_8 = '2026-09-30T08:00:00.000+03:00';
@@ -212,7 +222,7 @@ describe('the notifications screen', () => {
         state.users.usr_003.preferences.language = 'ar';
         withNotices('usr_003', [{ ...report('ntf_905', 'feedback_done', 'bug', 'usr_001'), feedback: { kind: 'bug', excerpt: long } }])(state);
       });
-      expect(await screen.findByText(`تم إصلاح الخلل في بلاغك: «⁨${long}⁩»`)).toBeInTheDocument();
+      expect(await screen.findByText(`تم إصلاح الخلل في بلاغك: «\u2068${long}\u2069»`)).toBeInTheDocument();
     });
 
     it('shows a former Admin the new report as gone, with no link and no words of the report', async () => {
