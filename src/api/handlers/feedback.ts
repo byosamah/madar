@@ -12,8 +12,12 @@ import { cardOf } from '../views';
 import { excerptOf } from '../../lib/text';
 import { assertCan } from './shared';
 
-/** A screen inside Madar: a path from the root, never another site or a script link (security review, 2026-10-01). */
-export const isAppPath = (page: string): boolean => page.startsWith('/') && !page.startsWith('//') && !page.includes('\\');
+/**
+ * A screen inside Madar: a path from the root, never another site or a script link (security review, 2026-10-01). A browser
+ * drops a tab, a CR and an LF from a link, so "/\t/evil.com" opens evil.com: the path holds no control character, no DEL and
+ * no backslash (review, 2026-10-07).
+ */
+export const isAppPath = (page: string): boolean => page.startsWith('/') && !page.startsWith('//') && !/[\\\u0000-\u001F\u007F]/.test(page);
 
 /** One report as the Admin reads it: the sender and how many screenshots it carries. */
 export const FeedbackRow = z.object({ item: Feedback, sender: UserCard, screenshots: z.number().int().min(0) });

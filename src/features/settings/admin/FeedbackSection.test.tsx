@@ -159,6 +159,20 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     await waitFor(() => expect(doneNotices()).toEqual([]));
   });
 
+  it('links a Madar screen, and shows a stored page with a tab as plain text (review, 2026-10-07, L-F1)', async () => {
+    await renderApp('/admin/feedback', (state) => {
+      state.feedback = {
+        fbk_001: { ...REPORT, screenshots: [] },
+        fbk_002: { ...REPORT, id: 'fbk_002', message: 'Old report with a bad page.', page: '/\t/evil.com', screenshots: [] },
+      };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    await within(section).findByText('Old report with a bad page.');
+    // The browser drops the tab from a link, so "/\t/evil.com" would open evil.com.
+    expect(within(section).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['#/projects']);
+    expect(section.textContent).toContain('/\t/evil.com');
+  });
+
   it('opens a done report again with no toast and no Undo', async () => {
     await renderApp('/admin/feedback', (state) => {
       state.feedback = { fbk_001: { ...REPORT, screenshots: [], status: 'done', doneBy: 'usr_001', doneAt: '2026-09-29T10:00:00.000+03:00' } };
