@@ -86,6 +86,8 @@ any screen work.
   `useByPersonName()`. A name that the server writes into a detail has an `Ar` twin: read it with `localName`.
 - A person card (`UserCard`) carries no picture data. `Avatar` takes the picture from `users.list` through
   `app/pictures.tsx` (the app frame and the meeting view mount it).
+- A report screenshot uses `useScreenshotLink` (`app/files.ts`). A press opens it in a sheet, and a press on the big
+  picture opens it at full size in a new tab.
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.

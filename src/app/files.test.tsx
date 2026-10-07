@@ -6,7 +6,8 @@ import type { MadarApi } from '../api/calls';
 import { ApiError } from '../api/errors';
 import { initI18n } from '../i18n';
 import { renderWithRuntime } from '../test/render';
-import { downloadFile, isInlinePicture, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl } from './files';
+import { LINK_STALE_MS, downloadFile, isInlinePicture, limitText, remoteFileAdapters, uploadErrorMessage, useFileLimit, useFileLink, useFileUrl, useScreenshotLink } from './files';
+import type { QueryClient } from '@tanstack/react-query';
 import { RuntimeProvider, createQueryClient, useRuntime, type Runtime } from './runtime';
 import { ToastProvider } from './toasts';
 
@@ -31,11 +32,11 @@ function remoteApi(o: { limit?: number } = {}) {
   return { api, calls };
 }
 
-function renderRemote(ui: React.ReactElement, api: MadarApi) {
+function renderRemote(ui: React.ReactElement, api: MadarApi, queryClient: QueryClient = createQueryClient()) {
   initI18n('en');
   const runtime: Runtime = { api, mode: 'remote' };
   return render(
-    <RuntimeProvider runtime={runtime} queryClient={createQueryClient()}>
+    <RuntimeProvider runtime={runtime} queryClient={queryClient}>
       <ToastProvider>{ui}</ToastProvider>
     </RuntimeProvider>,
   );
@@ -114,6 +115,74 @@ describe('file URLs in the prototype', () => {
     const revoke = vi.spyOn(URL, 'revokeObjectURL');
     const view = await renderWithRuntime(<Stored />, (state) => { state.session.currentUserId = 'usr_002'; });
     expect(await screen.findByRole('img', { name: 'Stored' })).toHaveAttribute('src', 'blob:madar-test');
+    view.unmount();
+    expect(revoke).toHaveBeenCalledWith('blob:madar-test');
+  });
+});
+
+describe('report screenshot links (spec 4.3)', () => {
+  function Shot({ id }: { id: string }) {
+    const { url, onError, broken } = useScreenshotLink(id, 0);
+    if (broken) return <span>Broken</span>;
+    return url ? <img src={url} alt="Shot" onError={onError} /> : <span>Loading</span>;
+  }
+
+  /** A remote stub: feedback.screenshot answers as the real build does, with a signed link (wire.output). */
+  function shotApi() {
+    const calls: { name: string; input: unknown }[] = [];
+    const api = {
+      call: async (name: string, input: unknown) => {
+        calls.push({ name, input });
+        if (name === 'feedback.screenshot') return { url: `https://store.test/shot-${calls.length}`, expiresAt: 'x' };
+        throw new Error(`unexpected ${name}`);
+      },
+      run: async () => { throw new Error('not used'); },
+    } as unknown as MadarApi;
+    return { api, calls };
+  }
+
+  it('asks feedback.screenshot for a signed link in the real build, and keeps it for LINK_STALE_MS', async () => {
+    const { api, calls } = shotApi();
+    const queryClient = createQueryClient({ remote: true });
+    renderRemote(<Shot id="fbk_001" />, api, queryClient);
+    expect(await screen.findByRole('img', { name: 'Shot' })).toHaveAttribute('src', 'https://store.test/shot-1');
+    expect(calls).toEqual([{ name: 'feedback.screenshot', input: { id: 'fbk_001', index: 0 } }]);
+    const query = queryClient.getQueryCache().find({ queryKey: ['feedback-shot-link', 'fbk_001', 0] });
+    expect(query?.observers[0]?.options.staleTime).toBe(LINK_STALE_MS);
+  });
+
+  it('asks for one new link when the picture breaks, then gives up', async () => {
+    const { api, calls } = shotApi();
+    renderRemote(<Shot id="fbk_001" />, api);
+    fireEvent.error(await screen.findByRole('img', { name: 'Shot' }));
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Shot' })).toHaveAttribute('src', 'https://store.test/shot-2'));
+    fireEvent.error(screen.getByRole('img', { name: 'Shot' }));
+    expect(await screen.findByText('Broken')).toBeInTheDocument();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('is broken when the sign fails', async () => {
+    const api = {
+      call: async () => { throw new ApiError('forbidden', 'You cannot do this.'); },
+      run: async () => { throw new Error('not used'); },
+    } as unknown as MadarApi;
+    renderRemote(<Shot id="fbk_001" />, api);
+    expect(await screen.findByText('Broken')).toBeInTheDocument();
+  });
+
+  it('reads the stored picture in the prototype and releases the URL when the picture goes', async () => {
+    function Sent() {
+      const { api } = useRuntime();
+      const [id, setId] = useState<string | null>(null);
+      useEffect(() => {
+        void api.call('feedback.send', { kind: 'bug', message: 'The board does not scroll.', page: '/projects', screenshots: [new Blob(['x'], { type: 'image/png' })] })
+          .then((report) => setId(report.id));
+      }, [api]);
+      return id ? <Shot id={id} /> : <span>Sending</span>;
+    }
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const view = await renderWithRuntime(<Sent />);
+    expect(await screen.findByRole('img', { name: 'Shot' })).toHaveAttribute('src', 'blob:madar-test');
     view.unmount();
     expect(revoke).toHaveBeenCalledWith('blob:madar-test');
   });
