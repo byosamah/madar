@@ -68,6 +68,14 @@ describe('Requests and bugs in the real build: the screenshots (spec 4.3)', () =
     expect([...signs].sort((a, b) => a.index - b.index)).toEqual([{ id: 'fbk_001', index: 0 }, { id: 'fbk_001', index: 1 }]);
   });
 
+  it('loads a thumbnail only near the view, and decodes it off the main work (review, 2026-10-07, S4)', async () => {
+    const { api } = remoteApi();
+    renderRemote(api);
+    const thumb = await screen.findByRole('img', { name: 'Screenshot 1' });
+    expect(thumb).toHaveAttribute('loading', 'lazy');
+    expect(thumb).toHaveAttribute('decoding', 'async');
+  });
+
   it('asks for one new link when a picture breaks', async () => {
     const { api, signs } = remoteApi();
     renderRemote(api);

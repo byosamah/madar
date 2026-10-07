@@ -35,7 +35,8 @@ function Screenshot({ id, index }: { id: string; index: number }) {
   } else if (url) {
     thumb = (
       <button type="button" aria-haspopup="dialog" onClick={() => setOpen(true)} className="pressable rounded-xl">
-        <img src={url} alt={name} onError={onError} className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
+        {/* A thumbnail loads only near the view: the list keeps done reports too, and each one is a full-size picture. */}
+        <img src={url} alt={name} onError={onError} loading="lazy" decoding="async" className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
       </button>
     );
   }
