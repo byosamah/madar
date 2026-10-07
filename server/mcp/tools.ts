@@ -5,10 +5,11 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 37 tools: the reads and writes an
- * agent can use for an office project. Every other call stays on the deny list: screen work (uploads, read marks, counts), the
- * prototype controls, and every Admin call. VS Code allows at most 128 tools in one request across all servers, and each tool
- * definition uses model context, so the list stays short. tools.test.ts fails when a call is in neither list.
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 37 tools for every agent: the
+ * reads and writes an agent can use for an office project. The Admin list adds 3 tools for an agent whose person is an Admin
+ * (requests and bugs, owner 2026-10-07), so that agent gets 40. Every other call stays on the deny list: screen work (uploads, read
+ * marks, counts), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
+ * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  */
 
 /** The one tool with no call behind it: it gives the written instructions (docs.ts). */
@@ -23,7 +24,15 @@ export const MCP_ALLOW = [
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
-export type McpToolName = (typeof MCP_ALLOW)[number];
+
+/**
+ * The tools that only an agent of an Admin gets (owner, 2026-10-07): it reads the feature requests and bug reports, and marks one
+ * done when its person says that the fix is live. app.ts picks the list for each request from the role of the agent's person.
+ */
+export const MCP_ADMIN = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'] as const satisfies readonly SharedCallName[];
+export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
+
+export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number];
 type CallToolName = Exclude<McpToolName, typeof READ_FIRST>;
 
 export const MCP_DENY = [
@@ -51,8 +60,8 @@ export const MCP_DENY = [
   'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',
   'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
-  // Feedback, agents and usage.
-  'feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.uploadStart',
+  // Feedback: a report comes in from the screens only. Agents and usage.
+  'feedback.send', 'feedback.uploadStart',
   'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
@@ -80,7 +89,7 @@ export type ToolDef = {
 };
 
 const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?: { input?: z.ZodType } }> = Object.fromEntries(
-  MCP_ALLOW.filter((name) => name !== READ_FIRST).map((name) => {
+  [...MCP_ALLOW, ...MCP_ADMIN].filter((name) => name !== READ_FIRST).map((name) => {
     const def = (sharedCalls as Record<string, unknown>)[name] ?? (serverContracts as Record<string, unknown>)[name];
     return [name, def];
   }),
@@ -134,10 +143,14 @@ function build(name: McpToolName): ToolDef {
   };
 }
 
+/** All 40 tools in their fixed order, built once. */
 let cache: ToolDef[] | null = null;
 
-/** The 37 tools in their fixed order. It reads sharedCalls and the server contracts, never the server code of a call. */
-export function mcpTools(): ToolDef[] {
-  cache ??= [...MCP_ALLOW].sort(order).map(build);
-  return [...cache];
+/**
+ * The tools in their fixed order: the 37 of the allowlist, or with admin the 40 of an agent of an Admin. It reads sharedCalls and
+ * the server contracts, never the server code of a call.
+ */
+export function mcpTools({ admin = false }: { admin?: boolean } = {}): ToolDef[] {
+  cache ??= [...MCP_ALLOW, ...MCP_ADMIN].sort(order).map(build);
+  return admin ? [...cache] : cache.filter((tool) => !ADMIN_TOOLS.has(tool.name));
 }
