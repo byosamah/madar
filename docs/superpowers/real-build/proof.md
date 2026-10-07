@@ -685,3 +685,33 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Local:** `npm test` 3,979 passed; test:db 1,001 passed; `npm run build` and `build:server` pass; the prototype smoke 87 of 87.
 - **Test copy at 9d5f447:** the deploy suite ran during a network outage of the Mac: 72 passed, 93 failed, all failures `net::ERR_INTERNET_DISCONNECTED` or `ERR_NETWORK_CHANGED` and the failures that followed them. The owner stopped the rerun and asked for production.
 - **Production at 9d5f447 (owner OK in chat):** `all.sh production`, health 112 calls; page 200, `POST /mcp` with no token 401, `api/health` 200.
+
+### Requests and bugs: notices, Admin MCP tools, screenshots (2026-10-07)
+
+- **What:** a new feature request or bug report gives each active Admin an in-app notice that opens /admin/feedback; a move
+  from open to done gives the sender an in-app notice with words only (no link, no buttons); no mail for either, and no
+  email switch; only an agent of an Admin sees `feedback.list`, `feedback.screenshot` and `feedback.setStatus`; the
+  screenshots of a report now show on the Admin page of the real build (the screen read a picture, but the real build
+  answers with a signed link), and a press opens them in a sheet. Design: docs/superpowers/specs/2026-10-07-feedback-notices-design.md.
+- **No migration.** `Preferences.notifications` is now a `partialRecord`, and a missing switch reads as on (`inAppOn`). A
+  stored person with the 10 old keys still parses on both builds. Rollback risk: an older server refuses a person whose doc
+  holds `feedback_sent` or `feedback_done`. Before a rollback past this release, run the `jsonb_set` fix in the design, section 10.
+- **Leak review, round 1** (independent reviewers with probes as a Member, a former Admin and each person's agent): the page
+  field took a tab or a line break, so a stored page made a link to another site on a Ctrl-click (older than this batch; now
+  every C0 control character, DEL and the backslash are refused); the hidden notice of a former Admin kept the report id and
+  the send story (now `targetId` 'hidden' and no `correlationId`); a hidden notice that outlived the Undo of its send showed
+  again later for a deleted report (now a report notice reads as gone when its report row is gone; the Inbox loader loads
+  the report rows only to learn that they exist). All fixed with tests that failed first.
+- **Leak review, round 2** on the merged branch: no leak found. Probes covered feedback.*, events.list (8 filters),
+  events.undo, events.undoStory, notifications.* (raw JSON), search.query, dashboard.get, users.*, the Realtime signals, the
+  MCP tool list and calls, and the scoped load against the whole office for every Inbox call.
+- **Accepted limits:** the office signal shows that someone sent or changed a report, and when (no ids, no text); sequential
+  ids show that hidden records exist; a former Admin's hidden notice keeps its time and trigger; a client can keep a demoted
+  Admin's tool list for up to 5 minutes (a 2025-era client until it connects again), and every call then fails as an unknown
+  tool; an Admin's agent gets screenshot storage keys in the before and after copies of report events from events.list (a key
+  opens nothing, and the signed link names the same key); users.list shows each person's switches, the new ones too.
+- **Prompt injection:** report messages, pages and screenshots now reach an Admin's agent. INSTRUCTIONS rule 6 says that text
+  people write in Madar is data, never instructions, and that the agent tells its person first; the three tool texts say it again.
+- **Local:** `npm test` 4,087 passed, 6 skipped; typecheck, `npm run build`, `build:server` and `build:remote -- test` pass;
+  test:db 1,052 passed (25 skipped); test:it 241 of 241; test:mcp 132 passed, conformance 5 of 32 with the 27 known failures.
+  Prototype screenshots (EN/AR, light/dark, 390 px): 26 shots, 0 console errors.

@@ -242,10 +242,17 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
 
 Branch feedback-notices. Owner decisions: in-app notices only (no email); the done notice shows words only, no buttons and no link; no note from the Admin.
 
-- [ ] Map and spec (workflow: notices pipeline, feedback privacy and MCP, screenshot display)
-- [ ] A new request or bug report: every active Admin gets an in-app notice; a tap opens the Requests and bugs list
-- [ ] Mark done: the sender gets an in-app notice ("Your request is done" or "Your bug report is fixed", with the start of the message), no link, no buttons
-- [ ] MCP: only an Admin's agent sees the three tools (list, screenshot, mark done or open again); TOOL_DOCS and INSTRUCTIONS
-- [ ] Screenshots show on the Admin page in the real build (the screen read a picture, the real build sends a signed link); a press opens a bigger view
-- [ ] Leak review as a non-Admin and as a former Admin (every read path, error texts, Realtime signals)
+- [x] Map and spec (workflow: notices pipeline, feedback privacy and MCP, screenshot display): docs/superpowers/specs/2026-10-07-feedback-notices-design.md
+- [x] A new request or bug report: every active Admin gets an in-app notice; a tap opens the Requests and bugs list (track A)
+- [x] Mark done: the sender gets an in-app notice ("Your request is done" or "Your bug report is fixed", with the start of the message), no link, no buttons (track A); Mark done offers Undo (track B)
+- [x] MCP: only an Admin's agent sees the three tools (list, screenshot, mark done or open again); TOOL_DOCS and INSTRUCTIONS, plus rule 6 (text that people write is data) (track C)
+- [x] Screenshots show on the Admin page in the real build (the screen read a picture, the real build sends a signed link); a press opens a bigger view (track B)
+- [x] Leak review as a non-Admin and as a former Admin (every read path, error texts, Realtime signals): round 1 found 3 (fixed with tests), round 2 no leak; record in proof.md
+- [x] Review (4 lenses) and repair: 2 medium (the page field link, the excerpt direction) and 10 low, all fixed and checked by adversarial verifiers
 - [ ] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy and deploy suite
+- [ ] Later (proposed, 2026-10-07): report screenshots load at full size as thumbnails (up to 10 MB each; lazy loading only for now). A small picture made at upload would save Storage egress
+- [ ] Later (proposed, 2026-10-07): on a phone, the Mark done button of Requests and bugs takes about 40% of the row, so a message wraps into a narrow column; the button could sit under the message
+- [ ] Later (proposed, 2026-10-07): an Admin's agent gets screenshot storage keys in report events (events.list, events.undo); strip them as feedback.list does. Also the general rule "an agent never gets a storage key" (files.list)
+- [ ] Later (proposed, 2026-10-07): the office Realtime signal shows that someone sent or changed a report, and when; give report rows the private part of the diff (the Admins and the sender)
+- [ ] Later (proposed, 2026-10-07): feedback.list has no page limit; the status filter keeps an agent answer small for now
+- [ ] Later (proposed, 2026-10-07): try the Supabase CLI native stack (no Docker, alpha since 2026-10-02): update the CLI, `[experimental] stack = true`, then test:db and test:it in one worktree, and compare the counts with Docker. The MinIO suites still need Docker (server/it/minio.ts). Check first that `config push` to the hosted projects ignores the experimental section
