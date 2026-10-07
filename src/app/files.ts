@@ -24,25 +24,21 @@ export function isRemote(runtime: Pick<Runtime, 'mode'>): boolean {
 
 type Source = { url: string } | { blob: Blob };
 
+/** A picture URL for an img tag, with the one new link after an error, and "broken" when the picture cannot show. */
+type PictureLink = { url: string | null; onError: () => void; broken: boolean };
+
 /**
- * A URL for a stored file version, for img and iframe tags. The query key sits outside the "api" keys, so a change elsewhere in
- * the office does not load the file again. The real build asks files.link for a signed inline link ("thumb" gives the small
- * picture when the version has one); a broken picture asks for a new link once. The prototype reads the data with files.get and
- * releases its blob URL when it is not needed.
+ * The shared body of the picture hooks. The query key sits outside the "api" keys, so a change elsewhere in the office does not
+ * load the picture again. The real build keeps a signed link for LINK_STALE_MS; a broken picture asks for a new link once, and
+ * a second break gives no URL. The prototype makes a blob URL from the data and releases it when it is not needed. "picture"
+ * names one picture, so a new picture gets its own new link.
  */
-export function useFileLink(fileId: string | null, letter?: string, variant: 'full' | 'thumb' = 'full'): { url: string | null; onError: () => void } {
-  const runtime = useRuntime();
-  const remote = isRemote(runtime);
-  const { api } = runtime;
+function usePictureSource(o: { queryKey: readonly unknown[]; load: () => Promise<Source>; enabled: boolean; remote: boolean; picture: string }): PictureLink {
   const query = useQuery<Source>({
-    queryKey: remote ? ['file-link', fileId, letter ?? 'latest', variant] : ['file-blob', fileId, letter ?? 'latest'],
-    queryFn: async () => {
-      const id = fileId as string;
-      if (remote) return { url: (await api.call('files.link', { id, letter, variant, disposition: 'inline' })).url };
-      return { blob: (await api.call('files.get', { id, letter })).blob };
-    },
-    enabled: fileId !== null,
-    staleTime: remote ? LINK_STALE_MS : Infinity,
+    queryKey: o.queryKey,
+    queryFn: o.load,
+    enabled: o.enabled,
+    staleTime: o.remote ? LINK_STALE_MS : Infinity,
     retry: false,
   });
   const data = query.data;
@@ -58,21 +54,67 @@ export function useFileLink(fileId: string | null, letter?: string, variant: 'fu
     return () => URL.revokeObjectURL(next);
   }, [blob]);
 
-  // One new link for each file and variant. A picture that breaks again gives no URL, so the screen shows its fallback.
+  // One new link for each picture. A picture that breaks again gives no URL, so the screen shows its fallback.
   const asked = useRef<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const key = `${fileId}|${letter ?? ''}|${variant}`;
   const onError = () => {
-    if (!remote || fileId === null) return;
-    if (asked.current === key) {
-      setFailed(key);
+    if (!o.remote || !o.enabled) return;
+    if (asked.current === o.picture) {
+      setFailed(o.picture);
       return;
     }
-    asked.current = key;
+    asked.current = o.picture;
     void query.refetch();
   };
   const url = data && 'url' in data ? data.url : blobUrl;
-  return { url: fileId === null || failed === key ? null : url, onError };
+  const gaveUp = failed === o.picture;
+  return { url: !o.enabled || gaveUp ? null : url, onError, broken: o.enabled && (gaveUp || query.isError) };
+}
+
+/**
+ * A URL for a stored file version, for img and iframe tags. The real build asks files.link for a signed inline link ("thumb"
+ * gives the small picture when the version has one). The prototype reads the data with files.get (usePictureSource).
+ */
+export function useFileLink(fileId: string | null, letter?: string, variant: 'full' | 'thumb' = 'full'): { url: string | null; onError: () => void } {
+  const runtime = useRuntime();
+  const remote = isRemote(runtime);
+  const { api } = runtime;
+  const { url, onError } = usePictureSource({
+    queryKey: remote ? ['file-link', fileId, letter ?? 'latest', variant] : ['file-blob', fileId, letter ?? 'latest'],
+    load: async () => {
+      const id = fileId as string;
+      if (remote) return { url: (await api.call('files.link', { id, letter, variant, disposition: 'inline' })).url };
+      return { blob: (await api.call('files.get', { id, letter })).blob };
+    },
+    enabled: fileId !== null,
+    remote,
+    picture: `${fileId}|${letter ?? ''}|${variant}`,
+  });
+  return { url, onError };
+}
+
+/** The answer of feedback.screenshot in the real build: its wire.output, a signed inline link. */
+type ScreenshotLink = { url: string; expiresAt: string };
+
+/**
+ * A URL for one screenshot of a report, for the Admin (spec 4.3). The real build signs a link; the prototype reads the stored
+ * picture. "broken" is true when the sign fails or the new link breaks too, so the screen shows its fallback.
+ */
+export function useScreenshotLink(id: string, index: number): PictureLink {
+  const runtime = useRuntime();
+  const remote = isRemote(runtime);
+  const { api } = runtime;
+  return usePictureSource({
+    queryKey: remote ? ['feedback-shot-link', id, index] : ['feedback-shot', id, index],
+    load: async () => {
+      // The contract output is the picture. The real build answers with wire.output, a signed link, so the cast reads that form.
+      if (remote) return { url: ((await api.call('feedback.screenshot', { id, index })) as unknown as ScreenshotLink).url };
+      return { blob: (await api.call('feedback.screenshot', { id, index })).blob };
+    },
+    enabled: true,
+    remote,
+    picture: `${id}|${index}`,
+  });
 }
 
 /** The pictures that the server shows inline (isPictureType in server/files/links.ts). It keeps every other type as a download. */
