@@ -4,6 +4,7 @@ import {
 } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
+import { can } from '../../src/api/permissions';
 import { RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import type { Deps } from '../core/ports';
 import { runCall as realRunCall, type RunCall } from '../core/runCall';
@@ -17,7 +18,7 @@ import { forwardOnce, HOP_HEADER, hopKeyFrom, hopTagOk } from './forward';
 import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
 import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
-import { mcpTools, type ToolDef } from './tools';
+import { ADMIN_TOOLS, mcpTools, type ToolDef } from './tools';
 
 /**
  * The MCP 2026-07-28 server (plan 5.6; task G3), on @modelcontextprotocol/server 2.3.0. The entries mount it at /mcp: the mcp
@@ -33,8 +34,9 @@ import { mcpTools, type ToolDef } from './tools';
  *      each request, and 2025-06-18 and 2026-07-28 have no batches. A tools/call counts against 60 tool calls a minute for each
  *      person, over all the person's agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the
  *      agent link was last used.
- *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (36 tools, fixed order,
- *      5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era client gets the stateless legacy answer.
+ *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (37 tools, or 40 for an
+ *      agent of an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era client gets the stateless
+ *      legacy answer.
  *   9. The usage meter counts the request, and the extra invocation of a hop whose header carries the server's tag (forward.ts).
  */
 
@@ -161,10 +163,24 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
   return toolResult(tool, result);
 }
 
+/**
+ * The tools of one request (owner, 2026-10-07). The Admin tools (tools.ts, MCP_ADMIN) go only to an agent whose person has
+ * admin.manage in the office of this request. The check reads the person, never the agent user: an agent has the role member
+ * (agentUser.ts). With no agent, the request gets the 37 tools. A role change shows on the next request; a client can keep its
+ * tools/list for 5 minutes, and a tools/call of a tool that is not registered fails before runCall.
+ */
+function toolsFor(all: ToolDef[], extra: RequestExtra | undefined): ToolDef[] {
+  const person = extra ? extra.office.lists.users[extra.ownerId] : undefined;
+  const admin = person !== undefined && can(person, 'admin.manage');
+  return admin ? all : all.filter((tool) => !ADMIN_TOOLS.has(tool.name));
+}
+
 function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {
-  const tools = mcpTools();
+  const all = mcpTools({ admin: true });
   const info = serverInfoFor(deps.config.mcpUrl);
-  return createMcpHandler(async () => {
+  // The SDK calls the factory once for each request, in both eras, with the authInfo of that request.
+  return createMcpHandler(async ({ authInfo }) => {
+    const tools = toolsFor(all, authInfo?.extra as RequestExtra | undefined);
     const stateCodec = await codec;
     const server = new McpServer({ ...info }, {
       instructions: INSTRUCTIONS,
