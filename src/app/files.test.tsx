@@ -161,6 +161,22 @@ describe('report screenshot links (spec 4.3)', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('counts a strike against a link: two pictures of one bad link ask once and show the new link (review, 2026-10-07, S3)', async () => {
+    // One hook feeds two pictures, as the thumbnail and the sheet of a screenshot.
+    function TwoPictures() {
+      const { url, onError, broken } = useScreenshotLink('fbk_001', 0);
+      if (broken) return <span>Broken</span>;
+      return url ? <><img src={url} alt="Shot" onError={onError} /><img src={url} alt="Shot" onError={onError} /></> : <span>Loading</span>;
+    }
+    const { api, calls } = shotApi();
+    renderRemote(<TwoPictures />, api);
+    await waitFor(() => expect(screen.getAllByRole('img', { name: 'Shot' })).toHaveLength(2));
+    for (const img of screen.getAllByRole('img', { name: 'Shot' })) fireEvent.error(img);
+    await waitFor(() => expect(screen.getAllByRole('img', { name: 'Shot' }).map((img) => img.getAttribute('src'))).toEqual(['https://store.test/shot-2', 'https://store.test/shot-2']));
+    expect(screen.queryByText('Broken')).toBeNull();
+    expect(calls).toHaveLength(2);
+  });
+
   it('is broken when the sign fails', async () => {
     const api = {
       call: async () => { throw new ApiError('forbidden', 'You cannot do this.'); },

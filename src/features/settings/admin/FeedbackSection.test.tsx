@@ -113,6 +113,29 @@ describe('Requests and bugs in the real build: the screenshots (spec 4.3)', () =
     expect(signs).toHaveLength(2);
   });
 
+  it('counts a strike against a link, not each error: one bad link that breaks in the thumbnail and in the sheet asks once (review, 2026-10-07, S3)', async () => {
+    const { api, signs } = remoteApi();
+    renderRemote(api);
+    const thumbImg = await screen.findByRole('img', { name: 'Screenshot 1' });
+    await userEvent.click(screen.getByRole('button', { name: 'Screenshot 1' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Screenshot 1' });
+    const fullLink = () => within(sheet).getByRole('link', { name: 'Open screenshot 1 at full size' });
+    const bigImg = fullLink().querySelector('img') as HTMLImageElement;
+    // The old link breaks in both pictures before the new link comes.
+    fireEvent.error(thumbImg);
+    fireEvent.error(bigImg);
+    await waitFor(() => expect(fullLink()).toHaveAttribute('href', 'https://store.test/shot-1?sign=2'));
+    expect(screen.queryByText('Screenshot 1 did not load.')).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Screenshot 1 did not load.', hidden: true })).toBeNull();
+    expect(shotsOf(signs, 0)).toHaveLength(2);
+    // The new link breaks too: now the screen gives up, after exactly 2 signs.
+    fireEvent.error(fullLink().querySelector('img') as HTMLImageElement);
+    expect(await within(sheet).findByText('Screenshot 1 did not load.')).toBeInTheDocument();
+    expect(within(sheet).queryByRole('link')).toBeNull();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(shotsOf(signs, 0)).toHaveLength(2);
+  });
+
   it('opens the sheet with Enter, closes it with Escape, and gives the focus back to the thumbnail', async () => {
     const { api } = remoteApi();
     renderRemote(api);
