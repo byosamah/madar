@@ -196,10 +196,12 @@ describe('tasks.createFromTemplate', () => {
     expect(made.task).toMatchObject({ schedule: 'dynamic', durationDays: 5, startDate: TODAY, dueDate: dueFromDuration(TODAY, 5) });
   });
 
-  it('follows the rules of tasks.create: a team member cannot assign it to someone else, an outsider cannot make one', async () => {
+  it('follows the rules of tasks.create: a team member names a team mate, an outsider cannot make one', async () => {
     const t = await withTemplate();
     t.as('usr_003');
-    await expect(t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002', ownerId: 'usr_002' })).rejects.toMatchObject({ code: 'forbidden' });
+    const mate = await t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002', ownerId: 'usr_002' });
+    expect(mate.task.ownerId).toBe('usr_002');
+    await expect(t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002', ownerId: 'usr_004' })).rejects.toMatchObject({ code: 'invalid_input' });
     t.as('usr_004');
     await expect(t.api.call('tasks.createFromTemplate', { templateId: 'ttp_001', stageId: 'stg_002' })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_002');

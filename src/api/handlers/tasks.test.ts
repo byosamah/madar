@@ -25,10 +25,12 @@ describe('tasks.create', () => {
     expect(notices(t.store, 'task_assigned', 'usr_003')).toHaveLength(0);
   });
 
-  it('stops a team member from assigning others or turning review off', async () => {
+  it('lets a team member name a team mate as lead, and stops them from turning review off', async () => {
     const t = testApi(taskCalls);
     t.as('usr_003');
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_002' })).rejects.toMatchObject({ code: 'forbidden' });
+    const detail = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_002' });
+    expect(detail.task).toMatchObject({ ownerId: 'usr_002', needsReview: true });
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_004' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', needsReview: false })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
@@ -159,7 +161,7 @@ describe('agents', () => {
     t.as('usr_005');
     const created = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Area check', ownerId: 'usr_003' });
     expect(created.task).toMatchObject({ ownerId: 'usr_003', createdBy: 'usr_005' });
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_002' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', needsReview: false })).rejects.toMatchObject({ code: 'forbidden' });
     expect((await t.api.call('tasks.complete', { id: 'tsk_001' })).result).toBe('in_review');
     const event = Object.values(t.store.state.events).find((e) => e.targetId === 'tsk_001');
     expect(event).toMatchObject({ actorId: 'usr_005', actingForId: 'usr_003' });

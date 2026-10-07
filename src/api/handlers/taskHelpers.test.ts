@@ -50,11 +50,12 @@ describe('helpers on a task', () => {
     expect(made.helpers).toEqual([]);
   });
 
-  it('lets only the leader and the Admin add or remove helpers', async () => {
+  it('lets only the maker, the leader and the Admin add or remove helpers', async () => {
     const t = world();
     t.as('usr_003');
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { helperIds: [] } })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', helperIds: ['usr_006'] })).rejects.toMatchObject({ code: 'forbidden' });
+    // A team member who adds a task is its maker, so they name its helpers (owner, 2026-10-07).
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', helperIds: ['usr_006'] })).resolves.toMatchObject({ task: { helperIds: ['usr_006'] } });
     t.as('usr_006');
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { helperIds: [] } })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_001');
@@ -294,7 +295,9 @@ describe('joining the team automatically', () => {
     t.as('usr_003');
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_004' } })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { helperIds: ['usr_004'] } })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_004' })).rejects.toMatchObject({ code: 'forbidden' });
+    // The maker of a new task names only team mates (owner, 2026-10-07).
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'X', ownerId: 'usr_004' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'not_on_team' } });
     expect(t.store.state.members['prj_001:usr_004']).toBeUndefined();
   });
 

@@ -293,11 +293,13 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       editAll: can(viewer, 'task.updateAny', r),
       complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
+      setNeedsReview: can(viewer, 'task.review', r),
       delete: can(viewer, 'task.delete', r),
       contribute: can(viewer, 'task.contribute', r),
       newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
-      // A template belongs to a stage, so an office task never becomes one.
-      saveTemplate: task.stageId !== null && can(viewer, 'task.updateAny', r),
+      // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
+      // Admin save it, never the maker alone (the rule of taskTemplates.save).
+      saveTemplate: task.stageId !== null && can(viewer, 'task.updateAny', { projectRole: r.projectRole }),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
     },
     history,

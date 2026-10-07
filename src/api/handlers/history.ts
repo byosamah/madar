@@ -118,11 +118,18 @@ function isTickOnly(event: Event): boolean {
     && onlyTicks(before as ChecklistItem[], after as ChecklistItem[]);
 }
 
+/** The rights on a project task for an Undo of its change: the live task, or the last copy of a deleted one. */
+function projectTaskOf(ctx: Ctx, event: Event, projectRole: Resource['projectRole']): Resource {
+  const task = ctx.state.tasks[event.targetId] ?? lastTaskCopy(ctx.state, event.targetId);
+  return task ? taskResource(ctx.state, task, ctx.authority.id) : { projectRole };
+}
+
 /** An undo is a new change: the person must have the right to make it now, under the same rules as the original call. */
 function assertMayUndo(ctx: Ctx, event: Event): void {
   const projectRole = event.projectId ? roleIn(ctx, event.projectId) : 'other';
-  // A change of an office task follows the rights of the people of that task (owner, 2026-10-06).
-  const base: Resource = event.officeTaskId ? officeOf(ctx, event, true) : { projectRole };
+  // A change of an office task follows the rights of the people of that task (owner, 2026-10-06). A change of a project task
+  // follows the rights on that task, so its maker takes back their own changes (owner, 2026-10-07).
+  const base: Resource = event.officeTaskId ? officeOf(ctx, event, true) : event.targetType === 'task' ? projectTaskOf(ctx, event, projectRole) : { projectRole };
   const need = (action: Action, resource: Resource = {}) => assertCan(ctx, action, { ...base, ...resource });
   const record = { ...fieldsOf(event.before), ...fieldsOf(event.after) };
   switch (event.targetType) {
@@ -152,6 +159,7 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'task.approved') return need('task.review');
       // The person who took a task with no lead may give it back (owner, 2026-10-05). Any other change of lead keeps the rule below.
       if (isOwnTake(ctx, event)) return need('task.take');
+      if ('needsReview' in fieldsOf(event.after)) need('task.review');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
       const current = ctx.state.tasks[event.targetId];
       // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.

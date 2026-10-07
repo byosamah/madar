@@ -72,6 +72,20 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
   (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together.
 
+## Task makers (owner, 2026-10-07)
+- The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
+  leader's rights on it while on the team: `task.updateAny` (lead, helpers, prerequisites), `task.updateOwn` (title, dates,
+  stage, status, checklist) and `task.delete`. `taskResource` names `makerId` for a project task too.
+- The review stays with the leader and the Admin: `task.review` (approve, send back) and the review need (`needsReview` in
+  `tasks.update`, and `needsReview: false` in `tasks.create`). `TaskDetail.viewerCan.setNeedsReview` shows the switch.
+- `task.createForAnyone` equals `task.createForSelf` on a project: a team member names any team mate as lead and helpers.
+  Only the leader and the Admin name a person outside the team (`ensureOnTeam` asks with the project role alone), so the
+  task panel offers a maker only the team.
+- An Undo of a change of a project task reads the rights on that task, or on the last copy of a deleted one
+  (`projectTaskOf`, `handlers/history.ts`). An Undo of a review-need change asks `task.review`.
+- The rights that pass the project role alone stay with the leader: the files and comments of others, Tracker deletes,
+  `taskTemplates.save` (and `saveTemplate`), `event.undoAgent`.
+
 ## Requests and bugs notices (owner, 2026-10-07)
 - `feedback_sent`: a new report tells each active Admin (`activeAdmins`, `notify.ts`). `feedback_done`: a report that goes
   from open to done tells `principalOf(createdBy)`. The skips of `notify` apply: the actor and the person of an agent actor,

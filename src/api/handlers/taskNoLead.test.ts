@@ -57,17 +57,19 @@ describe('making a task', () => {
     expect(notices(t.store)).toHaveLength(0);
   });
 
-  it('lets a team member make a task with no lead, and only the leader name another person', async () => {
+  it('lets a team member make a task for themselves or a team mate, and stops an outsider', async () => {
     const t = world();
     t.as('usr_006');
     await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'Mine', ownerId: 'usr_006' })).resolves.toMatchObject({ owner: { id: 'usr_006' } });
-    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'Not mine', ownerId: 'usr_003' })).rejects.toMatchObject({ code: 'forbidden' });
+    // The maker of a task holds the leader's rights on it, so a team member names a team mate (owner, 2026-10-07).
+    await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'Not mine', ownerId: 'usr_003' })).resolves.toMatchObject({ owner: { id: 'usr_003' } });
     t.as('usr_004');
     await expect(t.api.call('tasks.create', { projectId: 'prj_001', title: 'Outside' })).rejects.toMatchObject({ code: 'forbidden' });
     t.as('usr_002');
     const led = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'For Sara', ownerId: 'usr_003' });
     expect(led.task.ownerId).toBe('usr_003');
-    expect(notices(t.store, 'usr_003').filter((n) => n.trigger === 'task_assigned')).toHaveLength(1);
+    // One notice for the task of Nour and one for the task of Faisal: each names Sara as lead.
+    expect(notices(t.store, 'usr_003').filter((n) => n.trigger === 'task_assigned')).toHaveLength(2);
   });
 
   it('keeps helpers on a task with no lead, and tells them', async () => {

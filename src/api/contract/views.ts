@@ -144,11 +144,13 @@ export const TaskDetail = TaskRow.extend({
   unlocks: z.array(TaskLink),
   viewerCan: z.object({
     edit: z.boolean(), editAll: z.boolean(), complete: z.boolean(), review: z.boolean(), delete: z.boolean(),
+    /** Turns the review need on or off: the leader and the Admin, or the maker of an office task (owner, 2026-10-07). */
+    setNeedsReview: z.boolean(),
     /** Ticks checklist items: the lead, a helper, the leader and the Admin. */
     contribute: z.boolean(),
     /** Opens a new version: the lead, the leader and the Admin, on a done task. */
     newVersion: z.boolean(),
-    /** Saves the task as a template: the leader and the Admin. */
+    /** Saves the task as a template: the leader and the Admin, never the maker alone. */
     saveTemplate: z.boolean(),
     /** Takes the lead of an open task with no lead: a person on the project team (owner, 2026-10-05). */
     take: z.boolean(),

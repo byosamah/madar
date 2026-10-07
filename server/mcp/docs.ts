@@ -27,7 +27,7 @@ export const INSTRUCTIONS = [
   '',
   'Files: you can list files and refer to them by ID. To upload a file, the person uses the Madar screens.',
   '',
-  'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead.',
+  'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. A maker names only people on the team. Only the leader or the Admin reviews a task, changes its review need, or names a person outside the team.',
   '',
   'Office tasks: a task with no project (projectId null) is an office task. tasks.create without projectId makes one, and your person is its maker. It may name any active person as lead (ownerId) and helpers. It has no stage and no prerequisites, and it changes no project. Only its maker, its lead, its helpers and the Admin see it, its comments, its files and its changes; for anyone else every call answers not_found. Its maker reviews it when another person leads it; the lead and the maker change it; the maker or the Admin changes its lead or helpers and deletes it. files.list with taskId alone lists its files.',
   '',
@@ -151,11 +151,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.create': {
     title: 'Add a task',
-    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A new open task in an earlier stage moves the project back, and then the call needs "reason". Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it.',
+    description: 'Adds a task to a project: a title, and optionally the stage, owner (the lead), helpers, prerequisites, start and due dates, description, flag and review need. Without ownerId the task has no lead. A team member names only team mates as owner or helpers. needsReview false needs the leader. A new open task in an earlier stage moves the project back, and then the call needs "reason". Without projectId it adds an office task: no project, no stage, no prerequisites; only its maker, lead, helpers and the Admin see it.',
   },
   'tasks.get': {
     title: 'Get a task',
-    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead. project and stage are null for an office task.',
+    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead; viewerCan.editAll when your person may change the lead and helpers; viewerCan.setNeedsReview when your person may change the review need. project and stage are null for an office task.',
   },
   'tasks.list': {
     title: 'List tasks',
@@ -175,7 +175,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.update': {
     title: 'Change a task',
-    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. A change of a date that was already set needs "dateReason". A stage move back needs "reason".',
+    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". A stage move back needs "reason".',
   },
   'tracker.close': {
     title: 'Close a tracker wait',

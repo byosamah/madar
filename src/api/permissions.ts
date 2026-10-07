@@ -13,8 +13,8 @@ export type ProjectRole = 'leader' | 'team' | 'other';
 
 /**
  * ownerId is the lead of a task. Null: the task has no lead, so nobody holds the rights of its lead.
- * office: the resource is an office task (or its comment or file), which belongs to no project. makerId is the person who made it:
- * for a task an agent made, the person the agent acts for (owner, 2026-10-06).
+ * office: the resource is an office task (or its comment or file), which belongs to no project. makerId is the person who made the
+ * task: for a task an agent made, the person the agent acts for (owner, 2026-10-06). A project task names its maker too (2026-10-07).
  */
 export type Resource = {
   projectRole?: ProjectRole; ownerId?: string | null; helperIds?: string[]; authorId?: string; targetUserId?: string;
@@ -54,8 +54,9 @@ type TaskPeople = Pick<Task, 'projectId' | 'createdBy' | 'ownerId' | 'helperIds'
  */
 export function taskResource(state: State, task: TaskPeople, viewerId: string): Resource {
   const people = { ownerId: task.ownerId, helperIds: task.helperIds ?? [] };
-  if (task.projectId === null) return { office: true, makerId: principalOf(state, task.createdBy), ...people };
-  return { projectRole: projectRoleOf(state, task.projectId, viewerId), ...people };
+  const makerId = principalOf(state, task.createdBy);
+  if (task.projectId === null) return { office: true, makerId, ...people };
+  return { projectRole: projectRoleOf(state, task.projectId, viewerId), makerId, ...people };
 }
 
 /** The one view rule of a task: everyone sees a project task; an office task shows to its maker, lead, helpers and the Admin. */
@@ -106,6 +107,9 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
   const role = resource.projectRole ?? 'other';
   const leads = admin || role === 'leader';
   const onProject = leads || role === 'team';
+  // The person who added a task holds the leader's rights on it while on the team: the lead, the helpers, the prerequisites, the
+  // changes and the delete. The review stays with the leader (owner, 2026-10-07).
+  const makes = leads || (onProject && resource.makerId !== undefined && resource.makerId === actor.id);
   switch (action) {
     case 'project.view':
     case 'project.create':
@@ -118,12 +122,12 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     case 'project.changeLeader':
     case 'project.archive':
     case 'project.healthOverride':
-    case 'task.createForAnyone':
-    case 'task.updateAny':
     case 'task.review':
-    case 'task.delete':
     case 'event.undoAgent':
       return leads;
+    case 'task.updateAny':
+    case 'task.delete':
+      return makes;
     case 'project.delete':
     // The code is fixed after create. Only the Admin corrects it (owner, 2026-10-05).
     case 'project.editCode':
@@ -135,6 +139,8 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     // Payments are for the people who handle money. Every other person, a project leader too, never reads them.
     case 'payment.manage':
       return admin || actor.systemRole === 'management' || actor.systemRole === 'accounting';
+    // A team member adds a task for any team mate (owner, 2026-10-07). Only the leader and the Admin name a person outside the team.
+    case 'task.createForAnyone':
     case 'task.createForSelf':
     case 'content.post':
     case 'chat.project':
@@ -142,10 +148,10 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     case 'task.take':
       return onProject;
     case 'task.updateOwn':
-      return leads || (onProject && resource.ownerId === actor.id);
-    // A helper ticks checklist items beside the lead. The lead, the leader and the Admin may do it too.
+      return makes || (onProject && resource.ownerId === actor.id);
+    // A helper ticks checklist items beside the lead. The lead, the maker, the leader and the Admin may do it too.
     case 'task.contribute':
-      return leads || (onProject && (resource.ownerId === actor.id || (resource.helperIds ?? []).includes(actor.id)));
+      return makes || (onProject && (resource.ownerId === actor.id || (resource.helperIds ?? []).includes(actor.id)));
     case 'content.editOwn':
       return onProject && resource.authorId === actor.id;
     default:

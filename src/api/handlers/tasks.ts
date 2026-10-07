@@ -298,15 +298,16 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   if (input.projectId === undefined) return createOfficeTask(ctx, input);
   const project = requireProject(ctx, input.projectId);
   const role = roleIn(ctx, project.id);
-  // A new task has no lead unless the call names one (owner, 2026-10-05). Anyone on the team may add a task with no lead or for
-  // themselves; only the leader and the Admin name another person. An agent names the person it acts for as itself.
+  // A new task has no lead unless the call names one (owner, 2026-10-05). Anyone on the team may add a task and name any team mate
+  // as its lead and helpers, because its maker holds the leader's rights on it (owner, 2026-10-07). Only the leader and the Admin
+  // name a person outside the team (ensureOnTeam). An agent names the person it acts for as itself.
   const ownerId = input.ownerId ?? null;
   assertCan(ctx, ownerId === null || ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
-  // Only "no review" needs the leader's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
-  if ((input.needsReview === false && !input.fromTemplate) || (input.helperIds ?? []).length > 0 || (input.prerequisiteIds ?? []).length > 0) assertCan(ctx, 'task.updateAny', { projectRole: role });
+  // Only "no review" needs the reviewer's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
+  if (input.needsReview === false && !input.fromTemplate) assertCan(ctx, 'task.review', { projectRole: role });
   // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
   // member cannot skip review through a leader's template (security review, 2026-10-01).
-  const needsReview = input.fromTemplate && !can(ctx.authority, 'task.updateAny', { projectRole: role }) ? true : input.needsReview ?? true;
+  const needsReview = input.fromTemplate && !can(ctx.authority, 'task.review', { projectRole: role }) ? true : input.needsReview ?? true;
   const stageId = input.stageId ?? stageTag(ctx.state, project.id)?.id ?? project.currentStageId;
   requireStage(ctx, project.id, stageId);
   const watch = watchStage(ctx, project.id);
@@ -428,8 +429,10 @@ export const tasksUpdate = defineCall({
     const task = requireTask(ctx, input.id);
     const { patch } = input;
     const resource = taskRole(ctx, task);
-    const needsAny = patch.ownerId !== undefined || patch.needsReview !== undefined || patch.helperIds !== undefined || patch.prerequisiteIds !== undefined;
+    const needsAny = patch.ownerId !== undefined || patch.helperIds !== undefined || patch.prerequisiteIds !== undefined;
     const given = Object.keys(patch).filter((key) => patch[key as keyof typeof patch] !== undefined);
+    // The review need belongs to the reviewer: the leader and the Admin, or the maker of an office task (owner, 2026-10-07).
+    if (patch.needsReview !== undefined) assertCan(ctx, 'task.review', resource);
     if (needsAny) assertCan(ctx, 'task.updateAny', resource);
     else if (given.length > 0 && given.every((key) => key === 'checklist')) {
       // A helper may tick items. Only the lead, the leader and the Admin may change the list itself.

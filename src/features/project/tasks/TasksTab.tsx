@@ -29,7 +29,8 @@ export function TasksTab({ detail }: TabProps) {
   const tasks = useCall('tasks.list', { projectId: detail.project.id, filter, activeProjectsOnly: false });
   const rows = tasks.data ?? [];
   // The project leader sees one gentle line with the open tasks that have no lead, and one press shows them (owner, 2026-10-05).
-  const leads = detail.viewerCan.createTaskForAnyone;
+  // Every team member names a lead now (owner, 2026-10-07), so the line keys on the leader's review right.
+  const leads = detail.viewerCan.review;
   const unled = useCall('tasks.list', { projectId: detail.project.id, filter: 'no_lead', includeDone: false, activeProjectsOnly: false }, { enabled: leads });
   const unledCount = leads ? unled.data?.length ?? 0 : 0;
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).

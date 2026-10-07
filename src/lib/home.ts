@@ -34,6 +34,14 @@ export function dueByToday(mine: TaskRow[], today: string): TaskRow[] {
   return mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate <= today).sort(byDue);
 }
 
+/** How many later tasks Home shows when today asks for nothing (owner, 2026-10-07). A short list keeps one next step clear. */
+export const COMING_UP = 3;
+
+/** My next open tasks with a due date after today, soonest first. Home shows them when today asks for nothing (owner, 2026-10-07). */
+export function comingUp(mine: TaskRow[], today: string, limit = COMING_UP): TaskRow[] {
+  return mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate > today).sort(byDue).slice(0, limit);
+}
+
 /**
  * The day ring (redesign spec 5.2): what today asks of me, and how much of it I finished.
  * A task I sent to review is finished from my side, so it fills the ring too; otherwise a member who ticks a task sees the ring shrink.

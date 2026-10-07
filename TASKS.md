@@ -257,3 +257,13 @@ Branch feedback-notices. Owner decisions: in-app notices only (no email); the do
 - [ ] Later (proposed, 2026-10-07): the office Realtime signal shows that someone sent or changed a report, and when; give report rows the private part of the diff (the Admins and the sender)
 - [ ] Later (proposed, 2026-10-07): feedback.list has no page limit; the status filter keeps an agent answer small for now
 - [ ] Later (proposed, 2026-10-07): try the Supabase CLI native stack (no Docker, alpha since 2026-10-02): update the CLI, `[experimental] stack = true`, then test:db and test:it in one worktree, and compare the counts with Docker. The MinIO suites still need Docker (server/it/minio.ts). Check first that `config push` to the hosted projects ignores the experimental section
+
+## Two team requests (owner, 2026-10-07)
+
+Branch fb/2026-10-07 (worktree `.claude/worktrees/fb-2026-10-07`). Owner choices: the person who adds a task changes it like
+the leader, and the review stays with the leader; Home shows the next 3 tasks with a date when nothing is due today.
+
+- [x] The maker of a project task: the lead (team mates only), helpers, prerequisites, dates, title and delete, and the Undo
+  of those changes. Approve, send back and the review need stay with the leader. MCP docs and rules updated
+- [x] Home: "Coming up" lists the next 3 open tasks with a due date when nothing is due today
+- [ ] Full tests, builds, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy, production (owner OK)

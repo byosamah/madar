@@ -185,7 +185,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(decisions.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['First one.', 'Second one.']);
   });
 
-  it('shows only the decision input to a viewer who may post but not make tasks for others', async () => {
+  it('gives a team member both the decision and the action input (owner, 2026-10-07)', async () => {
     await renderApp(MEETING, (state) => {
       shoreWalkFirst(state);
       const project = shoreWalk(state);
@@ -194,7 +194,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     });
     const decisions = await panel();
     expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toBeInTheDocument();
-    expect(decisions.queryByRole('radio', { name: 'Action' })).toBeNull();
+    expect(decisions.getByRole('radio', { name: 'Action' })).toBeInTheDocument();
   });
 
   it('does not render for a viewer who may do neither, when the list is empty', async () => {

@@ -10,7 +10,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
-import { dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
+import { comingUp, dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
@@ -70,6 +70,8 @@ export function HomeScreen() {
   const next = nextForYou({ review: review.data, mine: mine.data, today });
   const ring = dayRing(mine.data, today);
   const todayRows = dueByToday(mine.data, today);
+  // A day with nothing due shows the next tasks with a date in place of the empty line (owner, 2026-10-07).
+  const laterRows = todayRows.length === 0 ? comingUp(mine.data, today) : [];
   const firstName = nameOf(user).split(' ')[0];
   const taskId = params.get('task');
   const projectId = params.get('project');
@@ -88,7 +90,7 @@ export function HomeScreen() {
           </span>
         </ScreenTitle>
         <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project?.id ?? null, row.task.id, thread)} />
+        <TodayPanel rows={todayRows} later={laterRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project?.id ?? null, row.task.id, thread)} />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">

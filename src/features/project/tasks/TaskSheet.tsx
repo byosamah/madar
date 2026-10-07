@@ -326,6 +326,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
   // An office task has no team, so nobody joins one.
   const teamIds = detail ? new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(pickable.map((person) => person.id));
+  // The maker of a task who is not the leader picks only from the team: only the leader and the Admin add a person to it
+  // (owner, 2026-10-07).
+  const choices = detail && !detail.viewerCan.edit ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
   const me = session.data?.authority.id;
   const canUndoAgent = (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me;
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
@@ -412,7 +415,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                 >
                   {/* "No lead" comes first (owner, 2026-10-05). A task in review or done keeps its lead, so it offers no "No lead". */}
                   {(task.ownerId === null || task.status === 'todo' || task.status === 'in_progress') && <option value="">{t('lead.noLead')}</option>}
-                  {(data.owner && !pickable.some((person) => person.id === task.ownerId) ? [...pickable, data.owner] : pickable)
+                  {(data.owner && !choices.some((person) => person.id === task.ownerId) ? [...choices, data.owner] : choices)
                     .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
@@ -426,7 +429,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             <TaskHelpers
               helpers={data.helpers}
               leadId={task.ownerId}
-              people={pickable}
+              people={choices}
               teamIds={teamIds}
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
@@ -453,8 +456,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             {edit
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
-            {/* The maker reviews an office task, so a task that its maker leads has no review to turn on (owner, 2026-10-06). */}
-            {viewerCan.editAll && (detail || task.ownerId !== makerId) && (
+            {/* The maker reviews an office task, so a task that its maker leads has no review to turn on (owner, 2026-10-06). On a
+                project task the review need belongs to the leader, never to the maker (owner, 2026-10-07). */}
+            {viewerCan.setNeedsReview && (detail || task.ownerId !== makerId) && (
               <Switch
                 id="task-review" label={t('taskSheet.needsReview')} description={t(detail ? 'taskSheet.needsReviewHint' : 'office.needsReviewHint')}
                 checked={task.needsReview} onChange={(on) => patch({ needsReview: on })}

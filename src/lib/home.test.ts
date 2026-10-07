@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskRow } from '../api/contract/views';
 import { makeTask, STAMP } from '../test/factories';
-import { dayRing, greetingKey, nextForYou } from './home';
+import { comingUp, dayRing, greetingKey, nextForYou } from './home';
 
 const TODAY = '2026-09-30';
 const row = (id: string, patch: Partial<TaskRow['task']>, overdue = false): TaskRow => ({
@@ -69,6 +69,28 @@ describe('day ring', () => {
     expect(dayRing([doneToday, dueToday, late, waiting], TODAY)).toEqual({ done: 2, total: 4 });
     expect(dayRing([later], TODAY)).toEqual({ done: 0, total: 0 });
     expect(STAMP.startsWith(TODAY)).toBe(true);
+  });
+});
+
+describe('coming up (owner, 2026-10-07)', () => {
+  it('gives my next 3 open tasks with a date after today, soonest first', () => {
+    const later3 = row('tsk_001', { dueDate: '2026-10-09', status: 'todo' });
+    const later1 = row('tsk_002', { dueDate: '2026-10-01', status: 'in_progress' });
+    const later4 = row('tsk_003', { dueDate: '2026-10-20', status: 'todo' });
+    const later2 = row('tsk_004', { dueDate: '2026-10-05', status: 'todo' });
+    const ids = (rows: TaskRow[]) => rows.map((item) => item.task.id);
+    expect(ids(comingUp([later3, later1, later4, later2], TODAY))).toEqual(['tsk_002', 'tsk_004', 'tsk_001']);
+  });
+
+  it('leaves out today, past due, no date, review, done and the tasks I only help with', () => {
+    const today = row('tsk_001', { dueDate: TODAY, status: 'todo' });
+    const late = row('tsk_002', { dueDate: '2026-09-28', status: 'todo' }, true);
+    const noDate = row('tsk_003', { dueDate: null, status: 'todo' });
+    const review = row('tsk_004', { dueDate: '2026-10-05', status: 'in_review' });
+    const done = row('tsk_005', { dueDate: '2026-10-05', status: 'done' });
+    const helper = { ...row('tsk_006', { dueDate: '2026-10-05', status: 'todo' }), canMove: false };
+    const later = row('tsk_007', { dueDate: '2026-10-06', status: 'todo' });
+    expect(comingUp([today, late, noDate, review, done, helper, later], TODAY).map((item) => item.task.id)).toEqual(['tsk_007']);
   });
 });
 

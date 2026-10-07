@@ -15,7 +15,7 @@ export function TemplateMenu({ stage }: { stage: Stage }) {
   const { t } = useTranslation();
   const templates = useCall('taskTemplates.list', { stageName: stage.name });
   const toast = useToast();
-  // No Undo here, as in the quick add: undoing a new task is the leader's right (the task.delete rule).
+  // No Undo here, as in the quick add: the new task shows in its list, and its maker deletes it from its panel (owner, 2026-10-07).
   const back = useStageBack();
   const create = useAction('tasks.createFromTemplate', {
     onSuccess: (output) => toast.show({ message: t('tasks.addedFromTemplate', { title: output.task.title }) }),

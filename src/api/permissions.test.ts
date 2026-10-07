@@ -27,7 +27,8 @@ const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<
   ['project.delete', [true, false, false, false], none],
   ['project.editCode', [true, false, false, false], none],
   ['project.healthOverride', [true, true, false, false], none],
-  ['task.createForAnyone', [true, true, false, false], none],
+  // A team member names any team mate as lead (owner, 2026-10-07).
+  ['task.createForAnyone', [true, true, true, false], none],
   ['task.createForSelf', [true, true, true, false], none],
   ['task.updateOwn', [true, true, true, false], own],
   ['task.contribute', [true, true, true, false], own],

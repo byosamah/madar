@@ -5,6 +5,7 @@ import type { State } from '../../api/store';
 import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
 import { TODAY } from '../../test/factories';
+import { addDays } from '../../lib/dates';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -101,6 +102,25 @@ describe('Home', () => {
     expect(within(card).queryByRole('button')).toBeNull();
     expect(within(screen.getByRole('region', { name: 'Today' })).getByText('Nothing is due today.')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar', { name: /done today/ })).toBeNull();
+  });
+
+  it('shows my next 3 tasks with a date when nothing is due today (owner, 2026-10-07)', async () => {
+    let order: string[] = [];
+    await renderApp('/', (state) => {
+      as('usr_005')(state);
+      for (const task of Object.values(state.tasks)) task.status = 'done';
+      const picks = Object.values(state.tasks).filter((task) => task.projectId === 'prj_001').slice(0, 5);
+      const days = [3, 1, 9, 2, null];
+      picks.forEach((task, i) => {
+        Object.assign(task, { status: 'todo', ownerId: 'usr_005', startDate: null, prerequisiteIds: [], dueDate: days[i] === null ? null : addDays(TODAY, days[i] as number) });
+      });
+      order = [picks[1], picks[3], picks[0]].map((task) => task.title);
+    });
+    const panel = await screen.findByRole('region', { name: 'Coming up' });
+    expect(within(panel).getAllByRole('listitem').map((item) => order.find((title) => item.textContent?.includes(title)))).toEqual(order);
+    expect(within(panel).getByText('Tomorrow')).toBeInTheDocument();
+    expect(within(panel).queryByText('Nothing is due today.')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Today' })).toBeNull();
   });
 
   it('shows the Admin every active project, and the review waiting for them', async () => {

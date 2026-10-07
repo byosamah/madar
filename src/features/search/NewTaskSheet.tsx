@@ -15,7 +15,7 @@ const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: n
 
 /**
  * The "New task" command: a task on one of my projects, in its current stage unless I pick another. Like every new task, it has
- * no lead until a person takes it or the leader names one (owner, 2026-10-05).
+ * no lead until a person takes it, or its maker or the leader names one (owner, 2026-10-05 and 2026-10-07).
  */
 export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();

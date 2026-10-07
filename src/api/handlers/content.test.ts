@@ -135,9 +135,10 @@ describe('rights on posts and comments', () => {
     await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Agent task' });
     const agentItem = async () => (await t.api.call('updates.list', { projectId: 'prj_001', filter: 'tasks' }))
       .find((item) => item.kind === 'event' && item.author.id === 'usr_005');
-    // The agent acted for Sara Team. Undoing a new task needs the right to delete tasks, which only the leader has here.
+    // The agent acted for Sara Team. Undoing a new task needs the right to delete it: Sara made it, so she holds that right on it,
+    // and the leader holds it on every task (owner, 2026-10-07). An outsider does not.
     t.as('usr_003');
-    expect(await agentItem()).toMatchObject({ canUndo: false });
+    expect(await agentItem()).toMatchObject({ canUndo: true });
     t.as('usr_002');
     expect(await agentItem()).toMatchObject({ canUndo: true });
     t.as('usr_004');
