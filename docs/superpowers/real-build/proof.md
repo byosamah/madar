@@ -715,3 +715,8 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Local:** `npm test` 4,087 passed, 6 skipped; typecheck, `npm run build`, `build:server` and `build:remote -- test` pass;
   test:db 1,052 passed (25 skipped); test:it 241 of 241; test:mcp 132 passed, conformance 5 of 32 with the 27 known failures.
   Prototype screenshots (EN/AR, light/dark, 390 px): 26 shots, 0 console errors.
+- **Test copy at a0ce0be:** `all.sh test` from a clean worktree of main (another session had changes in the main folder); page
+  200, `POST /mcp` with no token 401, `api/health` 200. The owner stopped the local walk (56 of 168 suite tests passed, no
+  failure) and the prototype smoke, skipped the deploy suite, and tried the change himself.
+- **Production at a0ce0be (owner OK in chat):** `all.sh production`, health 112 calls; page 200, `POST /mcp` with no token
+  401, `api/health` 200.

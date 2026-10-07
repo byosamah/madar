@@ -249,7 +249,8 @@ Branch feedback-notices. Owner decisions: in-app notices only (no email); the do
 - [x] Screenshots show on the Admin page in the real build (the screen read a picture, the real build sends a signed link); a press opens a bigger view (track B)
 - [x] Leak review as a non-Admin and as a former Admin (every read path, error texts, Realtime signals): round 1 found 3 (fixed with tests), round 2 no leak; record in proof.md
 - [x] Review (4 lenses) and repair: 2 medium (the page field link, the excerpt direction) and 10 low, all fixed and checked by adversarial verifiers
-- [ ] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy and deploy suite
+- [x] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy (a0ce0be) and production (owner OK, 2026-10-07). Skipped on the owner's word: the local walk (stopped at 56 of 168), the prototype smoke and the deploy suite on the test copy
+- [ ] The new walk step for requests and bugs (tests/e2e-deploy/walk.spec.ts, uncommitted in the main folder): review it and run the walk in its 4 variants
 - [ ] Later (proposed, 2026-10-07): report screenshots load at full size as thumbnails (up to 10 MB each; lazy loading only for now). A small picture made at upload would save Storage egress
 - [ ] Later (proposed, 2026-10-07): on a phone, the Mark done button of Requests and bugs takes about 40% of the row, so a message wraps into a narrow column; the button could sit under the message
 - [ ] Later (proposed, 2026-10-07): an Admin's agent gets screenshot storage keys in report events (events.list, events.undo); strip them as feedback.list does. Also the general rule "an agent never gets a storage key" (files.list)
