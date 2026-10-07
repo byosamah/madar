@@ -734,6 +734,16 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   bundle; the Supabase `api/health` 200 with 112 calls; `POST /mcp` with no token 401. The first page check read an old cached
   copy for a short time. Note: `madar.vado.sa/api/health` answers with the app page, so read the health on the Supabase address.
 
+### Security fix F1: an agent may not undo a change to a person (2026-10-07, c5c7622)
+- **Change:** `assertMayUndo` (`handlers/history.ts`) refuses an agent every undo of a change to a person (an email, a role,
+  off or on), also inside `events.undoStory`. An undo of an email change gave the sign-in email back to the old mailbox
+  (security scan 2026-10-07, F1). MCP docs of `events.undo` and `events.undoStory`.
+- **Local:** typecheck; `npm test` 4,107 passed; the three builds; test:db 1,065 passed; test:it 241 passed.
+- **Test copy at c5c7622:** page 200, `POST /mcp` with no token 401, the Supabase `api/health` 200 with 112 calls.
+- **Production at c5c7622:** the auto-mode safety check refused `all.sh production` from Claude twice, also after the owner's
+  plain words, so the owner ran it with `!`. The config push set `api.enabled` false again on production (it was on; the guides
+  keep the Data API off). Page 200, `POST /mcp` with no token 401, `api/health` 200 with 112 calls.
+
 ### Drag and drop order on the Tasks screen (2026-10-07)
 - **Change:** `Task.rank` and `tasks.arrange` (the rights of `task.updateOwn`); one shared order inside each date group of the
   Tasks screen, and Home follows it. A drag never changes a date. The tasks a person only helps with sit at the end of a group.

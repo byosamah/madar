@@ -292,7 +292,7 @@ Branch sec/agent-undo (worktree `.claude/worktrees/deploy-test`): the commits of
 
 - [x] Merge gate: typecheck; npm test 4,107 passed; the three builds; test:db 1,065 passed; test:it 241 passed
 - [x] Main, then the test copy (c5c7622, page 200, `/mcp` with no token 401, health 200)
-- [ ] Production (owner words in chat)
+- [x] Production at c5c7622 (the owner ran `all.sh production` himself: the safety check refused it from Claude)
 
 ## Drag and drop order on the Tasks screen (owner, 2026-10-07)
 
