@@ -266,4 +266,7 @@ the leader, and the review stays with the leader; Home shows the next 3 tasks wi
 - [x] The maker of a project task: the lead (team mates only), helpers, prerequisites, dates, title and delete, and the Undo
   of those changes. Approve, send back and the review need stay with the leader. MCP docs and rules updated
 - [x] Home: "Coming up" lists the next 3 open tasks with a due date when nothing is due today
-- [ ] Full tests, builds, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy, production (owner OK)
+- [x] Gates: typecheck; npm test 4,106 passed; test:db 1,063 passed; test:it 241 passed (the 16 agent sign-in tests needed
+  `npx supabase db reset` first, as `server/mcp/CLAUDE.md` says); the prototype, server and remote builds; screenshots
+  (EN/AR, light/dark, 390 px). Not run: the prototype smoke and the deploy suite
+- [ ] Test copy, then production (owner OK)
