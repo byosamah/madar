@@ -270,3 +270,26 @@ the leader, and the review stays with the leader; Home shows the next 3 tasks wi
   `npx supabase db reset` first, as `server/mcp/CLAUDE.md` says); the prototype, server and remote builds; screenshots
   (EN/AR, light/dark, 390 px). Not run: the prototype smoke and the deploy suite
 - [x] Test copy and production at 1f06244 (owner OK, 2026-10-07); record in proof.md
+
+## Team tutorials in Arabic (owner, 2026-10-07)
+
+Owner choices: footage from the test copy (sample office), Arabic captions with no voice, the lessons for everyone, desktop size.
+Folder `tutorials/` with `pdf/` and `videos/` (git-ignored). Build files in `.tutorials-build/` (git-ignored): the lesson plan
+`lessons.json`, the recorder, `video/build.mjs` (HyperFrames) and `pdf/build.mjs` (headless Chromium).
+
+- [x] Lesson plan: 12 short lessons, each 5 to 7 steps
+- [x] Video and PDF templates, checked with dummy footage
+- [x] Recording on the test copy (helper agent), with a re-seed before and after (5 seeds in all, the last one after the
+  last recording; all on madar-test)
+- [x] Final captions from the real on-screen words (`.tutorials-build/captions.json`). The test email in lesson 1 is blurred.
+- [ ] 12 videos and 12 lesson PDFs plus the full guide; a frame and page check of each
+- [ ] Found in the recording (app bug, not fixed): in the Arabic task panel, the stage list shows «ınstruction Documents».
+  The narrow field cuts the first letters of the English stage name. Lessons 02, 06 and 07 show it.
+
+## Release of the security fix F1 (owner, 2026-10-07)
+
+Branch sec/agent-undo (worktree `.claude/worktrees/deploy-test`): the commits of feedback-notices after 8ca1b7d on main.
+
+- [ ] Merge gate: typecheck, npm test, the three builds, test:db, test:it
+- [ ] Main, then the test copy
+- [ ] Production (owner words in chat)
