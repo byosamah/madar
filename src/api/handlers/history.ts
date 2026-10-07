@@ -225,6 +225,9 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         }
         return;
       }
+      // An agent may not change, turn on or re-role a person (MCP deny list, users.update), so it may not undo such a change
+      // either: an undo of an email change gives the sign-in email back to the old mailbox (security scan 2026-10-07, F1).
+      if (ctx.actor.kind === 'agent') throw forbidden('Only a person undoes a change to people, in the Madar screens.');
       // Management may undo its own changes to people, but never a change that makes or touches an Admin.
       need('people.manage');
       if (ctx.authority.systemRole !== 'admin' && (record.systemRole === 'admin' || holdsAdminRights(ctx.state, ctx.state.users[event.targetId]))) {

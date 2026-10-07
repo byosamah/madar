@@ -312,6 +312,30 @@ describe('Management and people', () => {
     await expect(t.api.call('events.undoStory', { correlationId: 'story_two' })).rejects.toMatchObject({ code: 'forbidden' });
     expect(t.store.state.users.usr_004.systemRole).toBe('admin');
   });
+
+  // An agent may not change, turn on or re-role a person directly, so it may not do it through Undo either (security scan
+  // 2026-10-07, F1: an undo of an email change gives the sign-in email back to the old mailbox).
+  it('refuses an agent every undo of a change to a person, and lets the Admin undo it', async () => {
+    const t = roleWorld();
+    t.as('usr_001');
+    await t.api.call('users.update', { id: 'usr_003', patch: { email: 'new-address@madar.test' } }, { correlationId: 'story_email' });
+    await t.api.call('users.update', { id: 'usr_004', patch: { systemRole: 'accounting' } }, { correlationId: 'story_role' });
+    await t.api.call('users.deactivate', { id: 'usr_007' }, { correlationId: 'story_off' });
+    const changes = Object.values(t.store.state.events).filter((e) => e.targetType === 'user');
+    t.as('usr_008');
+    for (const change of changes) {
+      await expect(t.api.call('events.undo', { eventId: change.id })).rejects.toMatchObject({ code: 'forbidden' });
+    }
+    for (const correlationId of ['story_email', 'story_role', 'story_off']) {
+      await expect(t.api.call('events.undoStory', { correlationId })).rejects.toMatchObject({ code: 'forbidden' });
+    }
+    expect(t.store.state.users.usr_003.email).toBe('new-address@madar.test');
+    expect(t.store.state.users.usr_004.systemRole).toBe('accounting');
+    expect(t.store.state.users.usr_007.active).toBe(false);
+    t.as('usr_001');
+    await t.api.call('events.undoStory', { correlationId: 'story_email' });
+    expect(t.store.state.users.usr_003.email).not.toBe('new-address@madar.test');
+  });
 });
 
 describe('the language of a new person (plan 4.13, A8; spec 2, section 10)', () => {
