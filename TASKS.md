@@ -312,12 +312,21 @@ a drag only inside a date group, never a date change; Home follows the order; a 
 ## Performance audit and fixes (owner, 2026-10-07)
 
 Branch perf/audit (worktree `.claude/worktrees/perf`). Owner rule: the fixes change only speed and size, never behavior,
-visuals, words, data, the contract or the security rules.
+visuals, words, data, the contract or the security rules. Audit text: the workflow run wf_1adeac2c-b68 (70 findings).
 
-- [ ] Baseline: the remote build sends one 1,786 KB script (519 KB gzip) for every screen; 3 Thmanyah fonts at 241 KB each
-- [ ] Audit workflow: 7 auditors (first load, screen work, data flow, server path, database, background paths, live numbers
-  on the test copy), each with a skeptic
-- [ ] Fix tracks from the confirmed findings, one builder each, tests first
-- [ ] Gates: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots (EN/AR, light/dark, 390 px)
+- [x] Baseline: the remote build sends one 1,786 KB script (519 KB gzip) for every screen; 3 Thmanyah fonts at 241 KB each
+- [x] Audit workflow: 7 auditors (first load, screen work, data flow, server path, database, background paths, live numbers
+  on the test copy), each with a skeptic: 60 findings kept, 10 dropped
+- [x] The prefetch helper `src/app/prefetch.ts` (8753a11), shared by two tracks
+- [ ] Wave 1, six builders (tracks A first load, B1 lists, B2 panels and project page, C client data and pictures, D server
+  path, E database): the fixes that change nothing on screen
+- [ ] Owner questions: saves one round trip sooner (FET-3), the /api/batch forwarder (CORS), the small picture of Safari
+  uploads (BGR-M1), the font preload (BND-3)
+- [ ] Wave 2: the answered questions
+- [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
+  (EN/AR, light/dark, 390 px)
 - [ ] Test copy, then the live numbers again (before and after)
 - [ ] Production only after the owner's words
+- Not planned (each needs a visible change or more proof): long lists in steps (RND-6), the frame during the token renewal
+  (BND-M1), the change number check on a join or a return (BGR-1 step 2, BGR-6), a warm-up call (LIV-7 step 3), 3 overview
+  reads in one request (FET-7), shared read transactions (SRV-2), static icons at rest (RND-7), Home without done tasks (FET-M1)
