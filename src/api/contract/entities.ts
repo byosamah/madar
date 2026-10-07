@@ -41,12 +41,23 @@ export const Glass = z.enum(['clear', 'frosted', 'solid']);
 export type Glass = z.infer<typeof Glass>;
 
 // "resume_due": a paused project reached its planned restart day (audit 2026-10-03, API-18).
+// "feedback_sent" and "feedback_done": a person sent a feature request or a bug report, and it is done (owner, 2026-10-07).
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
+  'feedback_sent', 'feedback_done',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
+/** The notices that stay in the app: no email and no email switch (owner, 2026-10-07). */
+export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done'] as const satisfies readonly Trigger[];
+export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
+export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
+  return !(IN_APP_ONLY_TRIGGERS as readonly Trigger[]).includes(trigger);
+}
+export const EMAIL_TRIGGERS: readonly EmailTrigger[] = TRIGGERS.filter(isEmailTrigger);
+/** The switches that only a person with admin.manage sees (owner, 2026-10-07). */
+export const ADMIN_ONLY_TRIGGERS: ReadonlySet<Trigger> = new Set<Trigger>(['feedback_sent']);
 
 export const REACTIONS = ['👍', '✅', '👀'] as const;
 export const Reaction = z.enum(REACTIONS);
@@ -57,14 +68,15 @@ export const EventTarget = z.enum([
   'projectTemplate',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
-export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat']);
+export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
 export const Preferences = z.object({
   language: Language,
   theme: Theme,
   glass: Glass,
-  notifications: z.record(Trigger, z.boolean()),
+  /** A trigger that is not there means on, so a person stored before a new trigger still loads (owner, 2026-10-07). Read it with inAppOn. */
+  notifications: z.partialRecord(Trigger, z.boolean()),
   /** The real build: email switches by trigger. A missing trigger takes its default (spec 2, section 10). */
   email: z.partialRecord(Trigger, z.boolean()).optional(),
   /** The real build: the morning summary email. A missing value means on. */
@@ -598,6 +610,10 @@ export const FileRec = z.object({
 });
 export type FileRec = z.infer<typeof FileRec>;
 
+/** The kind and the start of the message of a report, so the notice line needs no report row (owner, 2026-10-07). */
+export const NoticeFeedback = z.object({ kind: FeedbackKind, excerpt: z.string().min(1).max(200) });
+export type NoticeFeedback = z.infer<typeof NoticeFeedback>;
+
 export const Notification = z.object({
   id: NotificationId,
   userId: UserId,
@@ -612,6 +628,8 @@ export const Notification = z.object({
   correlationId: z.string().min(1).max(80).optional(),
   /** The due day a reminder names, so its words say the day, never "tomorrow" (audit 2026-10-03, API-11). Optional, so older notices load. */
   dueDate: Day.optional(),
+  /** The words of a report notice. Optional, so older notices load. */
+  feedback: NoticeFeedback.optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMention, editedBody, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
+import { activeMention, editedBody, excerptOf, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
 
 describe('text helpers', () => {
   it('reads mentions once each', () => {
@@ -74,3 +74,47 @@ describe('the body of an edited post or comment', () => {
   });
 });
 
+// The start of a report message in its notice (owner, 2026-10-07, rule B14).
+describe('excerptOf', () => {
+  const points = (text: string) => Array.from(text).length;
+  const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it('makes each run of white space one space, new lines too, and trims', () => {
+    expect(excerptOf('  Fix\n\nthe   board  ')).toBe('Fix the board');
+  });
+
+  it('keeps a text of exactly 80 code points', () => {
+    const text = `${'word '.repeat(15)}abcde`;
+    expect(points(text)).toBe(80);
+    expect(excerptOf(text)).toBe(text);
+  });
+
+  it('cuts a long text of words at a space and adds the ellipsis', () => {
+    const flat = 'The board does not scroll on my phone when I open a project with many tasks in the review column today.';
+    const at = flat.indexOf(' ', 20);
+    const out = excerptOf(`${flat.slice(0, at)}\n\n  ${flat.slice(at + 1)}`);
+    expect(out.endsWith('\u2026')).toBe(true);
+    expect(points(out)).toBeLessThanOrEqual(80);
+    const head = out.slice(0, -1);
+    expect(flat.startsWith(head)).toBe(true);
+    expect(flat[head.length]).toBe(' ');
+    expect(head.endsWith(' ')).toBe(false);
+  });
+
+  it('cuts one long word at 79 code points', () => {
+    expect(excerptOf('x'.repeat(120))).toBe(`${'x'.repeat(79)}\u2026`);
+  });
+
+  it('cuts at 79 code points when the last space comes before code point 40', () => {
+    expect(excerptOf(`ab ${'x'.repeat(100)}`)).toBe(`ab ${'x'.repeat(76)}\u2026`);
+  });
+
+  it('never splits an emoji, also in Arabic text', () => {
+    const arabic = excerptOf('اللوحة لا تتحرك على هاتفي 📱😀 '.repeat(6));
+    expect(points(arabic)).toBeLessThanOrEqual(80);
+    expect(loneSurrogate.test(arabic)).toBe(false);
+    const emoji = excerptOf('😀'.repeat(100));
+    expect(emoji).toBe(`${'😀'.repeat(79)}\u2026`);
+    expect(loneSurrogate.test(emoji)).toBe(false);
+  });
+});

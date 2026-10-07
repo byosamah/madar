@@ -25,8 +25,9 @@ afterEach(() => {
 
 type Words = typeof en;
 const notices = (words: Words) => (words as unknown as { notices: Record<string, string> }).notices;
-const appName = (words: Words, trigger: Trigger) => notices(words).switchInApp.replace('{{trigger}}', words.settings.triggers[trigger]);
-const emailName = (words: Words, trigger: Trigger) => notices(words).switchEmail.replace('{{trigger}}', words.settings.triggers[trigger]);
+const triggerWords = (words: Words) => words.settings.triggers as Record<string, string>;
+const appName = (words: Words, trigger: Trigger) => notices(words).switchInApp.replace('{{trigger}}', triggerWords(words)[trigger]);
+const emailName = (words: Words, trigger: Trigger) => notices(words).switchEmail.replace('{{trigger}}', triggerWords(words)[trigger]);
 
 /**
  * The calm checks of plan 6.1, rule 8, for a section of many switches. The fill of a switch shows its state (on or off), so the
@@ -51,7 +52,7 @@ describe('the Notifications section (moved out of Settings, plan T0.4)', () => {
     const switches = within(section).getAllByRole('switch');
     expect(switches).toHaveLength(TRIGGERS.length);
     for (const trigger of TRIGGERS) {
-      const toggle = within(section).getByRole('switch', { name: en.settings.triggers[trigger] });
+      const toggle = within(section).getByRole('switch', { name: triggerWords(en)[trigger] });
       expect(toggle).toHaveAttribute('aria-checked', trigger === 'overdue' ? 'false' : 'true');
     }
   });

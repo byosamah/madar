@@ -30,6 +30,21 @@ export function normalizeForSearch(text: string): string {
     .trim();
 }
 
+/**
+ * The start of a message for one line, for example a report in its notice (owner, 2026-10-07). It makes each run of white space
+ * one space and trims. A longer text keeps its first max - 1 code points, cut at the last space when that space is in the second
+ * half, then "…". It counts code points, so it never splits an emoji. The result has max code points or fewer.
+ */
+export function excerptOf(message: string, max = 80): string {
+  const flat = message.replace(/\s+/g, ' ').trim();
+  const points = Array.from(flat);
+  if (points.length <= max) return flat;
+  const head = points.slice(0, max - 1);
+  const space = head.lastIndexOf(' ');
+  const kept = space >= Math.floor(max / 2) ? head.slice(0, space) : head;
+  return `${kept.join('').trimEnd()}\u2026`;
+}
+
 export type Segment =
   | { kind: 'text'; text: string }
   | { kind: 'mention'; name: string; userId: string }

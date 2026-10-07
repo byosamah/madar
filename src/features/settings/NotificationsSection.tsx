@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { TRIGGERS } from '../../api/contract/entities';
-import { emailOn, morningSummaryOn } from '../../api/notify';
+import { emailOn, inAppOn, morningSummaryOn } from '../../api/notify';
 import { REMOTE } from '../../app/mode';
 import { useAction, useCall } from '../../app/runtime';
 import { Switch } from '../../components/Switch';
@@ -44,7 +44,6 @@ export function NotificationsSection() {
   const save = useAction('notifications.updateSettings');
   if (!session.data) return null;
   const preferences = session.data.authority.preferences;
-  const notifications = preferences.notifications;
 
   if (!REMOTE) {
     return (
@@ -54,7 +53,7 @@ export function NotificationsSection() {
             key={name}
             id={`trigger-${name}`}
             label={t(`settings.triggers.${name}`)}
-            checked={notifications[name]}
+            checked={inAppOn(preferences, name)}
             onChange={(on) => save.mutate({ trigger: name, on })}
           />
         ))}
@@ -71,7 +70,7 @@ export function NotificationsSection() {
         <span aria-hidden className="justify-self-center text-footnote text-label-2">{t('notices.email')}</span>
         {TRIGGERS.map((name) => {
           const label = t(`settings.triggers.${name}`);
-          const inApp = notifications[name];
+          const inApp = inAppOn(preferences, name);
           const noteId = `notice-${name}-note`;
           return (
             <div key={name} data-testid={`notice-row-${name}`} className="col-span-3 grid min-h-11 grid-cols-subgrid items-center py-1">

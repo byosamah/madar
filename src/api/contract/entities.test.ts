@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Comment, Event, FileVersion, MAX_FILE_BYTES, Preferences, Project, Stamp, TRIGGERS, User, defaultPreferences, emptyReactions } from './entities';
+import {
+  Comment, EMAIL_TRIGGERS, Event, FileVersion, IN_APP_ONLY_TRIGGERS, MAX_FILE_BYTES, Notification, Preferences, Project, Stamp, TRIGGERS, User,
+  defaultPreferences, emptyReactions, isEmailTrigger,
+} from './entities';
 
 const user = {
   id: 'usr_001', name: 'Hala Nasser', email: 'hala@madar.test', avatarUrl: null, kind: 'human',
@@ -80,5 +83,45 @@ describe('entity schemas', () => {
       expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES }).success).toBe(true);
       expect(FileVersion.safeParse({ ...version, size: MAX_FILE_BYTES + 1 }).success).toBe(false);
     });
+  });
+});
+
+// Two new triggers (owner, 2026-10-07). A person stored before them has 10 switches, and must still load on both builds.
+describe('the notices of requests and bugs', () => {
+  const OLD = [
+    'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
+  ] as const;
+  const oldPrefs = () => ({ ...defaultPreferences(), notifications: Object.fromEntries(OLD.map((trigger) => [trigger, true])) });
+  const notice = {
+    id: 'ntf_001', userId: 'usr_001', trigger: 'feedback_sent', actorId: 'usr_003', targetType: 'feedback', targetId: 'fbk_001', read: false,
+    createdAt: '2026-10-07T09:00:00.000+03:00', dedupeKey: null,
+  };
+
+  it('accepts stored preferences with the 10 old switches only, so every stored person still loads', () => {
+    expect(Preferences.safeParse(oldPrefs()).success).toBe(true);
+    expect(User.parse({ ...user, preferences: oldPrefs() }).preferences).toEqual(oldPrefs());
+  });
+
+  it('still refuses a switch that is not a trigger', () => {
+    expect(Preferences.safeParse({ ...defaultPreferences(), notifications: { mention: true, week_under_target: true } }).success).toBe(false);
+  });
+
+  it('sends email for every trigger but the two that stay in the app', () => {
+    expect([...IN_APP_ONLY_TRIGGERS]).toEqual(['feedback_sent', 'feedback_done']);
+    expect(EMAIL_TRIGGERS).toEqual(TRIGGERS.filter((trigger) => trigger !== 'feedback_sent' && trigger !== 'feedback_done'));
+    expect(EMAIL_TRIGGERS).toEqual(OLD);
+    expect(isEmailTrigger('feedback_done')).toBe(false);
+    expect(isEmailTrigger('feedback_sent')).toBe(false);
+    expect(isEmailTrigger('mention')).toBe(true);
+  });
+
+  it('parses a notice with and without the words of its report, and with the feedback target', () => {
+    expect(Notification.parse(notice)).toEqual(notice);
+    expect(Notification.parse({ ...notice, targetType: 'task', targetId: 'tsk_001', trigger: 'mention' })).toMatchObject({ targetType: 'task' });
+    const words = { ...notice, feedback: { kind: 'bug', excerpt: 'The board does not scroll on my phone.' } };
+    expect(Notification.parse(words)).toEqual(words);
+    expect(Notification.safeParse({ ...notice, feedback: { kind: 'bug', excerpt: '' } }).success).toBe(false);
+    expect(Notification.safeParse({ ...notice, feedback: { kind: 'idea', excerpt: 'x' } }).success).toBe(false);
+    expect(Notification.safeParse({ ...notice, targetType: 'report' }).success).toBe(false);
   });
 });

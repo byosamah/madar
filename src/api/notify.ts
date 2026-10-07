@@ -1,5 +1,8 @@
-import type { Notification, NotificationTarget, Preferences, Task, Trigger, User } from './contract/entities';
-import { mayViewTask, principalOf } from './permissions';
+import {
+  ADMIN_ONLY_TRIGGERS, TRIGGERS, isEmailTrigger, type NoticeFeedback, type Notification, type NotificationTarget, type Preferences, type Task, type Trigger,
+  type User,
+} from './contract/entities';
+import { can, mayViewTask, principalOf } from './permissions';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -16,14 +19,43 @@ export type NotifyInput = {
   correlationId?: string;
   /** The due day a reminder names (audit 2026-10-03, API-11). */
   dueDate?: string;
+  /** The kind and the excerpt of a report (owner, 2026-10-07). */
+  feedback?: NoticeFeedback;
 };
+
+/** True when the person gets the in-app notice of this trigger. A switch the person never set means on (owner, 2026-10-07). */
+export function inAppOn(prefs: Preferences, trigger: Trigger): boolean {
+  return prefs.notifications[trigger] ?? true;
+}
 
 /** The triggers that send an email when the person never set the switch (spec 2, section 10). */
 export const EMAIL_DEFAULT_ON: ReadonlySet<Trigger> = new Set<Trigger>(['task_assigned', 'review_requested', 'mention']);
 
-/** True when the person gets an email for this trigger. A switch the person never set takes its default. */
+/**
+ * True when the person gets an email for this trigger. A switch the person never set takes its default. A notice that stays in
+ * the app never sends one, whatever a stored switch says (owner, 2026-10-07).
+ */
 export function emailOn(prefs: Preferences, trigger: Trigger): boolean {
+  if (!isEmailTrigger(trigger)) return false;
   return prefs.email?.[trigger] ?? EMAIL_DEFAULT_ON.has(trigger);
+}
+
+/** Every active human with the Admin right: the people who get the notice of a new report (owner, 2026-10-07). */
+export function activeAdmins(state: Pick<State, 'users'>): string[] {
+  return Object.values(state.users).filter((u) => u.kind === 'human' && u.active && can(u, 'admin.manage')).map((u) => u.id);
+}
+
+/** The switches that the person sees in Settings: the switch of a new report only with the Admin right (owner, 2026-10-07). */
+export function visibleTriggers(user: User): Trigger[] {
+  return can(user, 'admin.manage') ? [...TRIGGERS] : TRIGGERS.filter((trigger) => !ADMIN_ONLY_TRIGGERS.has(trigger));
+}
+
+/**
+ * True for the notice of a new report when the viewer no longer has the Admin right. It reads as gone and names nothing
+ * (owner, 2026-10-07). A done notice always shows to its owner: its words are the owner's own message.
+ */
+export function feedbackNoticeHidden(n: Pick<Notification, 'targetType' | 'trigger'>, viewer: User): boolean {
+  return n.targetType === 'feedback' && n.trigger === 'feedback_sent' && !can(viewer, 'admin.manage');
 }
 
 /** True when the person gets the morning summary email. A missing value means on. */
@@ -50,7 +82,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     if (!user || !user.active || user.kind === 'agent') continue;
     if (task && task.projectId === null && !mayViewTask(state, user, task)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
-    if (!user.preferences.notifications[input.trigger]) continue;
+    if (!inAppOn(user.preferences, input.trigger)) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;
     if (dedupeKey && used(dedupeKey)) continue;
     const id = nextId(state, 'ntf');
@@ -59,6 +91,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       targetId: input.targetId, read: false, createdAt: stamp, dedupeKey,
       ...(input.correlationId ? { correlationId: input.correlationId } : {}),
       ...(input.dueDate ? { dueDate: input.dueDate } : {}),
+      ...(input.feedback ? { feedback: { ...input.feedback } } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
