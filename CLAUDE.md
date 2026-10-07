@@ -126,12 +126,12 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `src/api` never imports `server/` or `src/app/`.
 - Never write to the database outside `runCall`. Handlers stay synchronous and pure. Outside work goes through the outbox.
 - Every shared call works in the prototype fake and on the server. Follow the new-call checklist in `src/api/CLAUDE.md`
-  (loader entry, MCP allow or deny list, words).
+  (loader entry, MCP allow, Admin or deny list, words).
 - A new zod collection needs a table in a migration and an entry in `server/data/tables.ts`.
 - A contract change is additive or keeps both forms. The test count only grows, except when the code a test checks
   is deleted.
 - Every visible word has an English and an Arabic key.
-- Every feature change updates the MCP side in the same commit: the allow or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
+- Every feature change updates the MCP side in the same commit: the allow, Admin or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
   (`server/mcp/docs.ts`), and `INSTRUCTIONS` when a rule changes (owner, 2026-10-05).
 - A feature that hides a record from some people gets an independent leak review before the test copy: probes as an
   outsider on every read path, error texts and Realtime signals included (office tasks, 2026-10-06).

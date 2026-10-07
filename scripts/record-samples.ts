@@ -6,14 +6,15 @@ import { memoryPersister } from '../src/api/persist';
 import { Store, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { addDays, setNow } from '../src/lib/dates';
-import { MCP_ALLOW, READ_FIRST } from '../server/mcp/tools';
+import { MCP_ADMIN, MCP_ALLOW, READ_FIRST } from '../server/mcp/tools';
 
 /**
  * Records one sample input for each MCP tool (plan 5.6, task G2) into server/mcp/samples.json.
  * Each sample is a real run: the script builds the sample office on a fixed day, acts as its agent (Madar Assistant, who acts
- * for the Admin), and calls every allowed tool through the fake API with an input made from the office's own IDs. A sample is
- * kept only when its call succeeds. tools.test.ts then checks each tool's JSON Schema against these inputs, and that this file
- * matches a new recording.
+ * for the Admin), and calls every tool of the allowlist and the Admin list through the fake API with an input made from the
+ * office's own IDs. A sample is kept only when its call succeeds. First a member sends one bug report, so the Admin tools have a
+ * report to read. tools.test.ts then checks each tool's JSON Schema against these inputs, and that this file matches a new
+ * recording.
  *
  *   npx tsx scripts/record-samples.ts          write server/mcp/samples.json
  *
@@ -45,9 +46,15 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const state = await buildSeed(TODAY, async () => undefined);
     const store = new Store(state, memoryPersister());
     const api = createApi(calls, { store, latencyMs: 0 });
+    const callApi = api.call as (name: string, input: unknown, meta: { correlationId: string }) => Promise<unknown>;
     const s = () => store.state;
 
     const agent = first(Object.values(s().users).filter((u) => u.kind === 'agent' && u.active), 'agent');
+    // A member sends a bug report with one screenshot. MCP denies feedback.send, so this is a direct call and records no sample.
+    s().session.currentUserId = 'usr_003';
+    const report = (await callApi('feedback.send', {
+      kind: 'bug', message: 'The board does not scroll on my phone.', page: '/projects', screenshots: [new Blob(['x'], { type: 'image/png' })],
+    }, { correlationId: 'cor_sample_fbk' })) as { id: string };
     s().session.currentUserId = agent.id;
 
     const samples: Record<string, Sample> = {};
@@ -58,7 +65,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
       const correlationId = storyId ?? `cor_sample_${String(n).padStart(3, '0')}`;
       const callInput = { ...input };
       delete callInput.storyId;
-      const output = await (api.call as (name: string, input: unknown, meta: { correlationId: string }) => Promise<unknown>)(name, callInput, { correlationId });
+      const output = await callApi(name, callInput, { correlationId });
       samples[name] = input;
       return output;
     };
@@ -84,6 +91,9 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('dashboard.get', { status: 'active' });
     await run('search.query', { text: project.name.split(' ')[0] });
     await run('events.list', { projectId: project.id, limit: 10 });
+    // The reads of an agent of an Admin. feedback.list goes with no filter, so the sample does not need the status input.
+    await run('feedback.list', {});
+    await run('feedback.screenshot', { id: report.id, index: 0 });
 
     // The writes, all in one story, so the last sample takes the whole story back.
     const { storyId } = (await run('story.start', {})) as { storyId: string };
@@ -125,6 +135,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const deadline = added(before, s(), 'deadlines');
     await write('deadlines.update', { id: deadline, patch: { date: addDays(TODAY, 28) } });
     await write('projects.update', { id: project.id, patch: { description: 'A four-storey office building with a basement car park.' } });
+    await write('feedback.setStatus', { id: report.id, status: 'done' });
 
     // A status change on its own, then its Undo by event ID.
     const other = first(projects.filter((p) => p.id !== project.id), 'second active project');
@@ -134,7 +145,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
 
     await run('events.undoStory', { correlationId: storyId });
 
-    const missing = MCP_ALLOW.filter((name) => !(name in samples));
+    const missing = [...MCP_ALLOW, ...MCP_ADMIN].filter((name) => !(name in samples));
     if (missing.length > 0) throw new Error(`No sample for: ${missing.join(', ')}`);
     return Object.fromEntries(Object.keys(samples).sort().map((name) => [name, samples[name]]));
   } finally {

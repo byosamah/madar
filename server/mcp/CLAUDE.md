@@ -20,8 +20,13 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 37 tools (15 reads, 22 writes) in `MCP_ALLOW` (`tools.ts`). Every other call is in `MCP_DENY`. A test fails for a call
-  in neither list, so every new shared call goes into one of them.
+- 37 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 40, with 17 reads and 23 writes. The factory in `app.ts` picks the list for each
+  request from the role of the owner, never the agent user. A client can keep tools/list for 5 minutes, so a role change shows
+  late there, and tools/call always checks.
+- Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
+  into exactly one of them.
+- An agent never gets a storage key from the three Admin tools (`run.ts`).
 - Each tool needs a title and a description in `TOOL_DOCS` (`docs.ts`). Write them short, exact, in plain English.
 - `madar.readFirst` gives the agent the instructions and the person it acts for, by the English name.
 - The serverInfo names the Madar logo (`public/icons/madar-192.png` and `-512.png` on the site of MCP_URL) and the site

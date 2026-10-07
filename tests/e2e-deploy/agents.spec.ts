@@ -124,6 +124,10 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   });
   expect(listed.status).toBe(200);
+  // The agent of a member never gets the Admin tools of requests and bugs (owner, 2026-10-07).
+  const tools = await listed.text();
+  expect(tools).toContain('projects.list');
+  expect(tools).not.toContain('feedback.list');
   await page.unroute(`${new URL(REDIRECT_URI).origin}/**`);
   await goto(page, '/settings');
   await expect(page.getByRole('button', { name: PERSON_OF.member, exact: true })).toBeVisible();

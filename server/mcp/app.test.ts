@@ -26,7 +26,10 @@ const MCP_URL = 'http://127.0.0.1:54321/functions/v1/mcp';
 const ISSUER = 'http://127.0.0.1:54321/auth/v1';
 const VERSION = '2026-07-28';
 const AUTH = { a: '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f', b: '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e60' };
-const CLIENT = { one: '907ef9d7-7bfc-4e2b-ac19-e027f13226fa', two: '907ef9d7-7bfc-4e2b-ac19-e027f13226fb', gone: '907ef9d7-7bfc-4e2b-ac19-e027f13226fc' };
+const CLIENT = {
+  one: '907ef9d7-7bfc-4e2b-ac19-e027f13226fa', two: '907ef9d7-7bfc-4e2b-ac19-e027f13226fb', gone: '907ef9d7-7bfc-4e2b-ac19-e027f13226fc',
+  member: '907ef9d7-7bfc-4e2b-ac19-e027f13226fd',
+};
 const SESSION = '1b2c3d4e-5f60-4718-9a0b-1c2d3e4f5a6b';
 const samples = JSON.parse(readFileSync(new URL('./samples.json', import.meta.url), 'utf8')) as Record<string, Record<string, unknown>>;
 
@@ -39,7 +42,9 @@ beforeAll(async () => {
   seed = await buildSeed('2026-10-04', async () => undefined);
   // A second agent of the Admin (usr_001), for the limit over all of one person's agents.
   seed.users.usr_012 = { ...seed.users.usr_009, id: 'usr_012', name: 'Second Agent', email: 'usr_012@agents.madar.invalid' };
-  seed.counters.usr = 12;
+  // An agent of a member (usr_003), for the tools that only an agent of an Admin gets (owner, 2026-10-07).
+  seed.users.usr_013 = { ...seed.users.usr_009, id: 'usr_013', name: 'Member Agent', email: 'usr_013@agents.madar.invalid', ownerId: 'usr_003' };
+  seed.counters.usr = 13;
 });
 
 async function tokenOf(claims: JWTPayload = {}): Promise<string> {
@@ -47,9 +52,13 @@ async function tokenOf(claims: JWTPayload = {}): Promise<string> {
     .setProtectedHeader({ alg: 'ES256', kid: 'k1' }).setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(key.privateKey);
 }
 
-/** The agent links of the fake: client one is usr_009, client two is usr_012, both of usr_001; client gone was removed. */
+/**
+ * The agent links of the fake: client one is usr_009, client two is usr_012, both of the Admin usr_001; client member is usr_013 of
+ * the member usr_003; client gone was removed.
+ */
 async function fakeAgentOf(_deps: unknown, token: AgentToken): Promise<AgentPrincipal> {
   if (token.clientId === CLIENT.gone) throw new ApiError('unauthenticated', 'This agent was removed in Madar. Connect it again in your AI app.');
+  if (token.clientId === CLIENT.member) return { principal: { userId: 'usr_013', agent: { clientId: token.clientId } }, ownerId: 'usr_003', linked: false };
   const userId = token.clientId === CLIENT.two ? 'usr_012' : 'usr_009';
   return { principal: { userId, agent: { clientId: token.clientId } }, ownerId: 'usr_001', linked: false };
 }
@@ -67,24 +76,30 @@ function memoryLimit(): McpLimit & { hits: Map<string, number> } {
   return limit;
 }
 
-type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData; limit: ReturnType<typeof memoryLimit> };
+/** ran: the name of each call that reached runCall, in order. */
+type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData; limit: ReturnType<typeof memoryLimit>; ran: string[] };
 
 function world(o: Partial<McpAppOptions> & { region?: string } = {}): World {
   const mem = memoryData(seed);
   const deps = fakeDeps({ db: mem.db, config: { mcpUrl: MCP_URL, ...(o.region ? { region: o.region } : {}) } });
   deps.clock.set(new Date('2026-10-04T06:00:00Z'));
   const limit = memoryLimit();
+  const ran: string[] = [];
+  const runCall = createRunCall({ data: () => mem.data() });
   const app = mcpApp(deps, {
     checkToken: agentTokenChecker({ issuer: ISSUER, audience: MCP_URL, jwks: createLocalJWKSet({ keys: [key.jwk] }) }),
     agentOf: fakeAgentOf,
-    runCall: createRunCall({ data: () => mem.data() }),
+    runCall: (d, req) => {
+      ran.push(req.name);
+      return runCall(d, req);
+    },
     readOffice: async (): Promise<OfficeSnapshot> => mem.data().office(),
     limit,
     stateKey: 'k'.repeat(40),
     issuer: ISSUER,
     ...o,
   });
-  return { app, deps, mem, limit };
+  return { app, deps, mem, limit, ran };
 }
 
 const meta = (caps: Record<string, unknown> = {}) => ({
@@ -160,22 +175,69 @@ describe('suite 12: the MCP server in process', () => {
     });
   });
 
-  it('lists the 37 tools in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+  it('lists the 40 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
     const { body } = await rpc(w, 'tools/list');
     const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
-    expect(tools.map((t) => t.name)).toEqual(mcpTools().map((t) => t.name));
-    expect(tools).toHaveLength(37);
+    const admin = mcpTools({ admin: true });
+    expect(tools.map((t) => t.name)).toEqual(admin.map((t) => t.name));
+    expect(tools).toHaveLength(40);
     expect(body.result.ttlMs).toBe(300_000);
     expect(body.result.cacheScope).toBe('private');
     const ajv = new Ajv2020({ strict: true, allErrors: true });
     ajv.addFormat('date', /^\d{4}-\d{2}-\d{2}$/);
     ajv.addFormat('date-time', { validate: (value: string) => !Number.isNaN(Date.parse(value)) });
     for (const [i, tool] of tools.entries()) {
-      expect(tool.inputSchema, tool.name).toEqual(mcpTools()[i].inputSchema);
-      expect(tool.annotations, tool.name).toEqual(mcpTools()[i].annotations);
+      expect(tool.inputSchema, tool.name).toEqual(admin[i].inputSchema);
+      expect(tool.annotations, tool.name).toEqual(admin[i].annotations);
       const validate = ajv.compile(tool.inputSchema);
       expect(validate(samples[tool.name]), `${tool.name}: ${JSON.stringify(validate.errors)}`).toBe(true);
     }
+  });
+
+  describe('the Admin tools of requests and bugs (owner, 2026-10-07)', () => {
+    const member = async () => tokenOf({ client_id: CLIENT.member });
+    const legacyList = async (target: World, token: string) =>
+      (await post(target, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
+
+    it('lists 37 tools and no feedback tool to an agent of a member, in both eras', async () => {
+      const modern = await rpc(w, 'tools/list', {}, { token: await member() });
+      const legacy = await legacyList(w, await member());
+      for (const [era, result] of [['2026-07-28', modern.body.result], ['2025-11-25', legacy.result]] as const) {
+        const names = (result.tools as { name: string }[]).map((t) => t.name);
+        expect(names, era).toEqual(mcpTools().map((t) => t.name));
+        expect(names, era).toHaveLength(37);
+        expect(names.filter((name) => name.startsWith('feedback.')), era).toEqual([]);
+      }
+    });
+
+    it('refuses a feedback tool of an agent of a member as an unknown tool, before runCall', async () => {
+      for (const [name, args] of [['feedback.list', {}], ['feedback.screenshot', { id: 'fbk_001', index: 0 }], ['feedback.setStatus', { id: 'fbk_001', status: 'done' }]] as const) {
+        const { body } = await call(w, name, args, { token: await member() });
+        expect(body.error?.code, name).toBe(-32602);
+        expect(JSON.stringify(body), name).not.toContain('structuredContent');
+      }
+      expect(w.ran).toEqual([]);
+      // The same agent still runs its own tools through runCall.
+      const read = await call(w, 'projects.get', { id: 'prj_001' }, { token: await member() });
+      expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
+      expect(w.ran).toEqual(['projects.get']);
+    });
+
+    it('lists 37 tools on the next request after the Admin becomes a member, and 40 again after the promotion', async () => {
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(40);
+      const admin = w.mem.tables.state.users.usr_001;
+      w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
+      w.mem.tables.version += 1;
+      const demoted = (await rpc(w, 'tools/list')).body.result.tools as { name: string }[];
+      expect(demoted).toHaveLength(37);
+      expect(demoted.map((t) => t.name).filter((name) => name.startsWith('feedback.'))).toEqual([]);
+      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(37);
+      const refused = await call(w, 'feedback.list');
+      expect(refused.body.error?.code).toBe(-32602);
+      w.mem.tables.state.users.usr_001 = admin;
+      w.mem.tables.version += 1;
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(40);
+    });
   });
 
   it('runs a read as the agent: structuredContent and the same JSON as text', async () => {
@@ -349,7 +411,7 @@ describe('suite 12: the MCP server in process', () => {
     it('gives the legacy answer to a request with no version header', async () => {
       const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
       expect(status).toBe(200);
-      expect(body.result.tools).toHaveLength(37);
+      expect(body.result.tools).toHaveLength(40);
       expect(body.result.resultType).toBeUndefined();
     });
 
@@ -359,7 +421,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(init.body.result.protocolVersion).toBe('2025-11-25');
       expect(init.headers.get('Mcp-Session-Id')).toBeNull();
       const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
-      expect(list.body.result.tools).toHaveLength(37);
+      expect(list.body.result.tools).toHaveLength(40);
       const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
       expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
       // A legacy client cannot answer a question, so a reason comes back as the retry instruction.
