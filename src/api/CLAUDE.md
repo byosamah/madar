@@ -86,6 +86,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The rights that pass the project role alone stay with the leader: the files and comments of others, Tracker deletes,
   `taskTemplates.save` (and `saveTemplate`), `event.undoAgent`.
 
+## The shared order of tasks (owner, 2026-10-07)
+- `Task.rank` (a number, null or missing) is the place of a task inside a date group of the Tasks screen (`groupMyTasks`) and
+  Home (`lib/home.ts`). A lower number sits higher. A task with no number sits under the placed ones, in the old order. The
+  number belongs to the task, so everyone who sees two tasks in one group sees them in the same order.
+- `tasks.arrange { ids, moved? }` takes the new order of one group, top first. Each task needs `task.updateOwn` (its lead, its
+  maker, the leader, the Admin). `arrangeRanks` (`lib/arrange.ts`) keeps the numbers that already go up and gives new ones only
+  to the others, so one drag writes one `task.arranged` event. The first order of a group writes one event for each task.
+- An order never changes a date, a status or a lead. The meeting summary and the project feed leave `task.arranged` out.
+- On the Tasks screen the tasks the person may move come first, then the tasks they only help with (no grip, and no drop
+  between them). Home shows only the tasks the person may finish, in the same order.
+
 ## Requests and bugs notices (owner, 2026-10-07)
 - `feedback_sent`: a new report tells each active Admin (`activeAdmins`, `notify.ts`). `feedback_done`: a report that goes
   from open to done tells `principalOf(createdBy)`. The skips of `notify` apply: the actor and the person of an agent actor,

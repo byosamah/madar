@@ -44,6 +44,9 @@ any screen work.
   `taskLink(null, id)` sends an office task to `/work?task=<id>`. An office task has no project: the word Office
   (`office.word`) shows where a project shows, and its panel (`TaskSheet` with `detail` null) has no stage and no
   prerequisites (owner, 2026-10-06).
+- A date group of the Tasks screen takes a new order by drag (owner, 2026-10-07): a grip at the end of each row the person may
+  move (`SortableGroup`, `features/work/WorkTasks.tsx`, `@dnd-kit/sortable`), and Space plus the arrow keys on the grip. The row
+  content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of the row never set one transform.
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
@@ -52,7 +55,8 @@ any screen work.
   Everyone sees all projects. Payments only for Admin, Management, Accounting. Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
 - Home (`features/home/`): the Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
-  tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today.
+  tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
+  follows the shared order of the Tasks screen (`api/CLAUDE.md`).
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.

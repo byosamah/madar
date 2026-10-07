@@ -62,6 +62,8 @@ function sentenceOf({ event, actor, label, detail }: EventLineView, t: TFunction
   if (event.targetType === 'payment' || event.verb.startsWith('payment.')) return null;
   // A message is not a change. The reason for a moved date joins the line of its move.
   if (event.verb.startsWith('comment.')) return null;
+  // A new place in the order of the Tasks screen is no news for the team chat (owner, 2026-10-07).
+  if (event.verb === 'task.arranged') return null;
   const context = actorContext(actor);
   if (event.verb === 'update.posted') {
     const after = event.after as { decision?: boolean; body?: string } | null;

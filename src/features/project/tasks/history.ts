@@ -10,6 +10,7 @@ export function historyText(event: Event, t: TFunction, lang: Lang, gender?: 'fe
     case 'task.created': return t('taskHistory.created', { context });
     case 'task.deleted': return t('taskHistory.deleted', { context });
     case 'task.reassigned': return t('taskHistory.reassigned', { context });
+    case 'task.arranged': return t('taskHistory.arranged', { context });
     case 'task.version_opened': return t('taskHistory.version_opened', { n: (event.after as { version?: number } | null)?.version ?? 2, context });
     case 'task.approved': return t('taskHistory.approved', { context });
     case 'task.sent_back': return t('taskHistory.sent_back', { context });

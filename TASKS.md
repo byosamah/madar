@@ -291,5 +291,20 @@ Folder `tutorials/` with `pdf/` and `videos/` (git-ignored). Build files in `.tu
 Branch sec/agent-undo (worktree `.claude/worktrees/deploy-test`): the commits of feedback-notices after 8ca1b7d on main.
 
 - [x] Merge gate: typecheck; npm test 4,107 passed; the three builds; test:db 1,065 passed; test:it 241 passed
-- [ ] Main, then the test copy
+- [x] Main, then the test copy (c5c7622, page 200, `/mcp` with no token 401, health 200)
 - [ ] Production (owner words in chat)
+
+## Drag and drop order on the Tasks screen (owner, 2026-10-07)
+
+Branch fb/work-order (worktree `.claude/worktrees/fb-work-order`). Owner choices: one shared order that belongs to the tasks;
+a drag only inside a date group, never a date change; Home follows the order; a grip on each row.
+
+- [x] `Task.rank` and `tasks.arrange` (rights of `task.updateOwn`, one event for each moved task, Undo); the Tasks screen drag
+  (pointer, touch and keyboard, screen reader words); Home in the same order; the History line; the MCP tool and its docs
+- [x] My own tasks first in each group, then the tasks I only help with (no grip, no drop between them): without that rule a
+  helper task jumped to the end after the first drag
+- [x] Screenshots (EN/AR, light/dark, 390 px) and a real mouse drag at 390 px (moved, saved, Undo), no console error. A grip
+  takes about 45 px, so a long title in a group with grips cuts sooner on a phone
+- [x] Gates: typecheck; npm test 4,131 passed; the three builds; test:db 1,073 passed; test:it 241 passed
+- [ ] Before a build or deploy from `deploy-test`: `npm install` in the main folder (it lacks `@dnd-kit/sortable`)
+- [ ] Test copy, then production (owner OK)

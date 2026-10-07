@@ -175,12 +175,12 @@ describe('suite 12: the MCP server in process', () => {
     });
   });
 
-  it('lists the 40 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+  it('lists the 41 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
     const { body } = await rpc(w, 'tools/list');
     const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
     const admin = mcpTools({ admin: true });
     expect(tools.map((t) => t.name)).toEqual(admin.map((t) => t.name));
-    expect(tools).toHaveLength(40);
+    expect(tools).toHaveLength(41);
     expect(body.result.ttlMs).toBe(300_000);
     expect(body.result.cacheScope).toBe('private');
     const ajv = new Ajv2020({ strict: true, allErrors: true });
@@ -199,13 +199,13 @@ describe('suite 12: the MCP server in process', () => {
     const legacyList = async (target: World, token: string) =>
       (await post(target, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
 
-    it('lists 37 tools and no feedback tool to an agent of a member, in both eras', async () => {
+    it('lists 38 tools and no feedback tool to an agent of a member, in both eras', async () => {
       const modern = await rpc(w, 'tools/list', {}, { token: await member() });
       const legacy = await legacyList(w, await member());
       for (const [era, result] of [['2026-07-28', modern.body.result], ['2025-11-25', legacy.result]] as const) {
         const names = (result.tools as { name: string }[]).map((t) => t.name);
         expect(names, era).toEqual(mcpTools().map((t) => t.name));
-        expect(names, era).toHaveLength(37);
+        expect(names, era).toHaveLength(38);
         expect(names.filter((name) => name.startsWith('feedback.')), era).toEqual([]);
       }
     });
@@ -223,20 +223,20 @@ describe('suite 12: the MCP server in process', () => {
       expect(w.ran).toEqual(['projects.get']);
     });
 
-    it('lists 37 tools on the next request after the Admin becomes a member, and 40 again after the promotion', async () => {
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(40);
+    it('lists 38 tools on the next request after the Admin becomes a member, and 41 again after the promotion', async () => {
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(41);
       const admin = w.mem.tables.state.users.usr_001;
       w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
       w.mem.tables.version += 1;
       const demoted = (await rpc(w, 'tools/list')).body.result.tools as { name: string }[];
-      expect(demoted).toHaveLength(37);
+      expect(demoted).toHaveLength(38);
       expect(demoted.map((t) => t.name).filter((name) => name.startsWith('feedback.'))).toEqual([]);
-      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(37);
+      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(38);
       const refused = await call(w, 'feedback.list');
       expect(refused.body.error?.code).toBe(-32602);
       w.mem.tables.state.users.usr_001 = admin;
       w.mem.tables.version += 1;
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(40);
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(41);
     });
   });
 
@@ -411,7 +411,7 @@ describe('suite 12: the MCP server in process', () => {
     it('gives the legacy answer to a request with no version header', async () => {
       const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
       expect(status).toBe(200);
-      expect(body.result.tools).toHaveLength(40);
+      expect(body.result.tools).toHaveLength(41);
       expect(body.result.resultType).toBeUndefined();
     });
 
@@ -421,7 +421,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(init.body.result.protocolVersion).toBe('2025-11-25');
       expect(init.headers.get('Mcp-Session-Id')).toBeNull();
       const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
-      expect(list.body.result.tools).toHaveLength(40);
+      expect(list.body.result.tools).toHaveLength(41);
       const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
       expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
       // A legacy client cannot answer a question, so a reason comes back as the retry instruction.

@@ -1,0 +1,15 @@
+{
+  "taskHistory": {
+    "arranged": "moved it in the order"
+  },
+  "work": {
+    "arrange": {
+      "grip": "Move {{title}} up or down",
+      "saved": "Order saved.",
+      "instructions": "Press Space to pick up a task. Use the up and down arrow keys to move it. Press Space again to drop it, or Escape to cancel.",
+      "pickedUp": "Picked up {{title}}. It is at place {{n}} of {{count}}.",
+      "over": "{{title}} is at place {{n}} of {{count}}.",
+      "dropped": "{{title}} is now at place {{n}} of {{count}}."
+    }
+  }
+}

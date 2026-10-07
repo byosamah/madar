@@ -17,4 +17,13 @@ describe('Arabic task history', () => {
     expect(historyText(created, i18n.t.bind(i18n), 'ar')).toBe('أنشأ المهمة');
     initI18n('en');
   });
+
+  it('names a new place in the shared order (owner, 2026-10-07)', () => {
+    const arranged = { ...created, verb: 'task.arranged', before: { rank: null }, after: { rank: 1000 } } as Event;
+    expect(historyText(arranged, i18n.t.bind(i18n), 'en')).toBe('moved it in the order');
+    initI18n('ar');
+    expect(historyText(arranged, i18n.t.bind(i18n), 'ar', 'female')).toBe('غيّرت ترتيبها');
+    expect(historyText(arranged, i18n.t.bind(i18n), 'ar')).toBe('غيّر ترتيبها');
+    initI18n('en');
+  });
 });

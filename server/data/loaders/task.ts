@@ -22,6 +22,12 @@ export async function tasksTake(L: Load, input: Input): Promise<void> {
   await taskScope(L, str(input.taskId) ?? '');
 }
 
+/** tasks.arrange: the tasks it names. Only their place numbers change, and their rights read the office (owner, 2026-10-07). */
+export async function tasksArrange(L: Load, input: Input): Promise<void> {
+  const ids = Array.isArray(input.ids) ? input.ids.map(str).filter((id): id is string => id !== undefined) : [];
+  await L.byKey('tasks', ids);
+}
+
 /** tasks.create: every task of P. The new task has no tail yet. */
 export async function tasksCreate(L: Load, input: Input): Promise<void> {
   await tasksOf(L, [str(input.projectId) ?? '']);

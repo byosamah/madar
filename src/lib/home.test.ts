@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskRow } from '../api/contract/views';
 import { makeTask, STAMP } from '../test/factories';
-import { comingUp, dayRing, greetingKey, nextForYou } from './home';
+import { comingUp, dayRing, dueByToday, greetingKey, nextForYou } from './home';
 
 const TODAY = '2026-09-30';
 const row = (id: string, patch: Partial<TaskRow['task']>, overdue = false): TaskRow => ({
@@ -91,6 +91,36 @@ describe('coming up (owner, 2026-10-07)', () => {
     const helper = { ...row('tsk_006', { dueDate: '2026-10-05', status: 'todo' }), canMove: false };
     const later = row('tsk_007', { dueDate: '2026-10-06', status: 'todo' });
     expect(comingUp([today, late, noDate, review, done, helper, later], TODAY).map((item) => item.task.id)).toEqual(['tsk_007']);
+  });
+});
+
+describe('the shared order on Home (owner, 2026-10-07)', () => {
+  const placed = (id: string, patch: Partial<TaskRow['task']>, rank: number, overdue = false) => row(id, { ...patch, rank }, overdue);
+  const ids = (rows: TaskRow[]) => rows.map((item) => item.task.id);
+
+  it('lists the Today panel as the Tasks screen does: past due first, then today, each in the order', () => {
+    const lateOld = row('tsk_001', { dueDate: '2026-09-20', status: 'todo' }, true);
+    const latePlaced = placed('tsk_002', { dueDate: '2026-09-28', status: 'todo' }, 1000, true);
+    const today = row('tsk_003', { dueDate: TODAY, status: 'todo' });
+    const todayPlaced = placed('tsk_004', { dueDate: TODAY, status: 'todo' }, 5000);
+    expect(ids(dueByToday([today, lateOld, todayPlaced, latePlaced], TODAY))).toEqual(['tsk_002', 'tsk_001', 'tsk_004', 'tsk_003']);
+  });
+
+  it('offers the top task of the order next', () => {
+    const lateOld = row('tsk_001', { dueDate: '2026-09-20', status: 'todo' }, true);
+    const latePlaced = placed('tsk_002', { dueDate: '2026-09-28', status: 'todo' }, 1000, true);
+    expect(nextForYou({ review: [], mine: [lateOld, latePlaced], today: TODAY })).toMatchObject({ kind: 'pastDue', row: latePlaced });
+    const first = row('tsk_003', { dueDate: TODAY, status: 'todo' });
+    const second = placed('tsk_004', { dueDate: TODAY, status: 'todo' }, 1000);
+    expect(nextForYou({ review: [], mine: [first, second], today: TODAY })).toMatchObject({ kind: 'dueToday', row: second });
+  });
+
+  it('lists Coming up with This week before Later, each in the order', () => {
+    const fri = row('tsk_001', { dueDate: '2026-10-02', status: 'todo' });
+    const thu = placed('tsk_002', { dueDate: '2026-10-01', status: 'todo' }, 2000);
+    const sat = placed('tsk_003', { dueDate: '2026-10-03', status: 'todo' }, 1000);
+    const later = placed('tsk_004', { dueDate: '2026-10-20', status: 'todo' }, 1);
+    expect(ids(comingUp([fri, thu, sat, later], TODAY))).toEqual(['tsk_003', 'tsk_002', 'tsk_001']);
   });
 });
 

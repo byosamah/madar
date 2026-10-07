@@ -1,5 +1,7 @@
 import type { TaskRow } from '../api/contract/views';
+import { arranged } from './arrange';
 import { nowStamp, stampDay } from './dates';
+import { workGroupOf } from './myWork';
 import { isWaiting } from './waiting';
 
 export type NextItem =
@@ -14,15 +16,25 @@ const open = (row: TaskRow) => row.task.status === 'todo' || row.task.status ===
  */
 const mayFinish = (row: TaskRow) => row.canMove;
 const byDue = (a: TaskRow, b: TaskRow) => (a.task.dueDate ?? '9999-12-31').localeCompare(b.task.dueDate ?? '9999-12-31');
+/**
+ * Home follows the shared order of the Tasks screen (owner, 2026-10-07): the groups in their order, and inside each group the
+ * placed tasks first. The tasks with no place keep the date order.
+ */
+function inWorkOrder(rows: TaskRow[], today: string): TaskRow[] {
+  const sorted = [...rows].sort(byDue);
+  const groups = [...new Set(sorted.map((row) => workGroupOf(row, today)))];
+  return groups.flatMap((group) => arranged(sorted.filter((row) => workGroupOf(row, today) === group)));
+}
 
 /** The one thing for Home's card (redesign spec 3.2). The first match wins. */
 export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: string }): NextItem {
   const { review, today } = input;
   if (review.length > 0) return { kind: 'review', row: review[0] };
   const mine = input.mine.filter((row) => mayFinish(row) && !isWaiting(row));
-  const pastDue = mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate < today).sort(byDue);
+  // The top task of the person's order comes first; with no order, the oldest past-due task (owner, 2026-10-07).
+  const pastDue = arranged(mine.filter((row) => open(row) && row.task.dueDate !== null && row.task.dueDate < today).sort(byDue));
   if (pastDue.length > 0) return { kind: 'pastDue', row: pastDue[0] };
-  const dueToday = mine.find((row) => open(row) && row.task.dueDate === today);
+  const dueToday = arranged(mine.filter((row) => open(row) && row.task.dueDate === today))[0];
   if (dueToday) return { kind: 'dueToday', row: dueToday };
   const doing = mine.filter((row) => row.task.status === 'in_progress').sort(byDue);
   if (doing.length > 0) return { kind: 'continue', row: doing[0] };
@@ -31,15 +43,18 @@ export function nextForYou(input: { review: TaskRow[]; mine: TaskRow[]; today: s
 
 /** My open tasks that today asks for: due today or past due. */
 export function dueByToday(mine: TaskRow[], today: string): TaskRow[] {
-  return mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate <= today).sort(byDue);
+  return inWorkOrder(mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate <= today), today);
 }
 
 /** How many later tasks Home shows when today asks for nothing (owner, 2026-10-07). A short list keeps one next step clear. */
 export const COMING_UP = 3;
 
-/** My next open tasks with a due date after today, soonest first. Home shows them when today asks for nothing (owner, 2026-10-07). */
+/**
+ * My next open tasks with a due date after today: This week before Later, each in the shared order, else soonest first. Home
+ * shows them when today asks for nothing (owner, 2026-10-07).
+ */
 export function comingUp(mine: TaskRow[], today: string, limit = COMING_UP): TaskRow[] {
-  return mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate > today).sort(byDue).slice(0, limit);
+  return inWorkOrder(mine.filter((row) => mayFinish(row) && open(row) && row.task.dueDate !== null && row.task.dueDate > today), today).slice(0, limit);
 }
 
 /**

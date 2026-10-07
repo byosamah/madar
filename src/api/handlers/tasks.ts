@@ -14,6 +14,7 @@ import { sentToReviewOn } from '../review';
 import { can, mayViewTask, principalOf } from '../permissions';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
+import { arrangeRanks } from '../../lib/arrange';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
@@ -521,6 +522,34 @@ export const tasksTake = defineCall({
   },
 });
 
+/** The most tasks in one new order: more than any date group of one person holds. */
+export const MAX_ARRANGE = 200;
+
+/**
+ * The shared order of the tasks inside a date group of the Tasks screen and Home (owner, 2026-10-07). `ids` is the new order,
+ * top first; `moved` names the task that the person dragged. Each task needs the right to change it (`task.updateOwn`): its
+ * lead, its maker, the leader or the Admin. Only the place numbers change (`lib/arrange.ts`), never a date, a status or a lead.
+ */
+export const tasksArrange = defineCall({
+  input: z.object({
+    ids: z.array(TaskId).min(1).max(MAX_ARRANGE).refine((ids) => new Set(ids).size === ids.length, 'Name each task once.'),
+    moved: TaskId.optional(),
+  }),
+  output: z.array(z.object({ id: TaskId, rank: z.number() })),
+  run(input, ctx) {
+    const tasks = input.ids.map((id) => requireTask(ctx, id));
+    for (const task of tasks) assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
+    if (input.moved !== undefined && !input.ids.includes(input.moved)) throw invalid('moved', 'The moved task is not in the list.', 'not_in_list');
+    const ranks = arrangeRanks(tasks.map((task) => task.rank), input.moved === undefined ? undefined : input.ids.indexOf(input.moved));
+    tasks.forEach((task, i) => {
+      // A task with no place yet records null as its old place, so an Undo gives it back no place.
+      if (task.rank === undefined) task.rank = null;
+      applyPatch(ctx, task, { rank: ranks[i] }, { projectId: task.projectId, verb: 'task.arranged', targetType: 'task', targetId: task.id });
+    });
+    return tasks.map((task, i) => ({ id: task.id, rank: ranks[i] }));
+  },
+});
+
 /**
  * A finished task opens again as the next version (colleague comment 8). It keeps its id, its comments and its files.
  * Status goes back to To do, every checklist item is unticked, and the new dates follow the usual timing rules.
@@ -672,6 +701,7 @@ export const taskCalls = {
   'tasks.createFromTemplate': tasksCreateFromTemplate,
   'tasks.update': tasksUpdate,
   'tasks.take': tasksTake,
+  'tasks.arrange': tasksArrange,
   'tasks.newVersion': tasksNewVersion,
   'tasks.complete': tasksComplete,
   'tasks.move': tasksMove,

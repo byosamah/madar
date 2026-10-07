@@ -109,6 +109,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const unled = first(Object.values(s().tasks).filter((t) => t.projectId === project.id && t.status === 'todo' && t.id !== newTask), 'open task');
     s().tasks[unled.id].ownerId = null;
     await write('tasks.take', { taskId: unled.id });
+    await write('tasks.arrange', { ids: [unled.id, newTask], moved: unled.id });
     await write('tasks.move', { id: newTask, status: 'in_progress' });
     await write('tasks.complete', { id: newTask });
     await write('comments.create', { targetType: 'task', targetId: newTask, body: 'The levels match the survey.' });

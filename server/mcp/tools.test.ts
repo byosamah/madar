@@ -27,19 +27,19 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   const adminTools = mcpTools({ admin: true });
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN];
 
-  it('has the 37 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(37);
-    expect(new Set(MCP_ALLOW).size).toBe(37);
+  it('has the 38 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(38);
+    expect(new Set(MCP_ALLOW).size).toBe(38);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 40 tools (owner, 2026-10-07)', () => {
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 41 tools (owner, 2026-10-07)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
-    expect(tools).toHaveLength(37);
+    expect(tools).toHaveLength(38);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(40);
+    expect(adminTools).toHaveLength(41);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The default list is the Admin list without the 3 tools, in the same order.
     expect(tools.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
@@ -115,8 +115,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
       expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(15);
-    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(16);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(16);
+    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(17);
     expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);
     // A done change sends the sender a notice, so the client may ask its person first.
     expect(adminTools.find((tool) => tool.name === 'feedback.setStatus')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });

@@ -12,7 +12,7 @@ import {
 import { projectsDelete } from './projectDelete';
 import { storyCall } from './story';
 import {
-  chatsSend, commentCall, commentsCreate, commentsList, filesShare, taskCall, tasksCreate, tasksCreateFromTemplate, tasksTake, taskTemplatesSave,
+  chatsSend, commentCall, commentsCreate, commentsList, filesShare, taskCall, tasksArrange, tasksCreate, tasksCreateFromTemplate, tasksTake, taskTemplatesSave,
   updateCall, updatesCreate,
 } from './task';
 
@@ -101,6 +101,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'tasks.create': project(tasksCreate),
   'tasks.createFromTemplate': project(tasksCreateFromTemplate),
   'tasks.update': task(taskCall),
+  'tasks.arrange': task(tasksArrange),
   'tasks.take': task(tasksTake),
   'tasks.newVersion': task(taskCall),
   'tasks.complete': task(taskCall),

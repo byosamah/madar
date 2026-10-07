@@ -344,6 +344,11 @@ export const Task = z.object({
   completedAt: Stamp.nullable(),
   /** The Tracker entry this task answers (a reply task). Null after that entry is deleted. */
   trackerEntryId: TrackerId.nullable().optional(),
+  /**
+   * The place of the task in the shared order of a date group on the Tasks screen and Home: a lower number sits higher. Null or
+   * missing: no place yet, so the task sits under the placed ones (owner, 2026-10-07, `lib/arrange.ts`).
+   */
+  rank: z.number().nullable().optional(),
 });
 export type Task = z.infer<typeof Task>;
 

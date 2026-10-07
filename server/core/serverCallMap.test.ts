@@ -12,8 +12,8 @@ const withPrepare = defineCall({ input: z.object({}), output: z.object({}), prep
 const reader = defineCall({ input: z.object({}), output: z.object({}), readOnly: true, run });
 
 describe('serverCallMap (plan 4.5, step 1)', () => {
-  it('holds the 112 shared calls and the 10 server calls, and no call that the server leaves out', () => {
-    expect(serverCallMap.size).toBe(122);
+  it('holds the 113 shared calls and the 10 server calls, and no call that the server leaves out', () => {
+    expect(serverCallMap.size).toBe(123);
     expect([...serverCallMap.keys()].sort()).toEqual([...Object.keys(sharedCalls), ...SERVER_CALL_NAMES].sort());
     for (const name of SERVER_EXCLUDED) expect(serverCallMap.has(name), name).toBe(false);
   });

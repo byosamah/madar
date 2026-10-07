@@ -40,4 +40,22 @@ describe('My Work groups', () => {
     const groups = groupMyTasks([row('tsk_006', null), row('tsk_001', '2026-09-25', true)], TODAY);
     expect(groups.map((group) => group.group)).toEqual(['overdue', 'none']);
   });
+
+  it('follows the shared order inside a group, and never moves a task to another group (owner, 2026-10-07)', () => {
+    const placed = (id: string, dueDate: string, rank: number) => ({ ...row(id, dueDate), task: makeTask({ id, dueDate, rank }) });
+    const groups = groupMyTasks([
+      row('tsk_001', TODAY), placed('tsk_002', TODAY, 2000), placed('tsk_003', TODAY, 1000),
+      row('tsk_004', '2026-10-01'), placed('tsk_005', '2026-10-02', 500),
+    ], TODAY);
+    expect(groups.map((group) => [group.group, group.rows.map((item) => item.task.id)])).toEqual([
+      ['today', ['tsk_003', 'tsk_002', 'tsk_001']],
+      ['week', ['tsk_005', 'tsk_004']],
+    ]);
+  });
+
+  it('puts the tasks I only help with after the tasks I may move', () => {
+    const helping = (id: string, rank?: number) => ({ ...row(id, TODAY), task: makeTask({ id, dueDate: TODAY, rank }), canMove: false });
+    const [today] = groupMyTasks([helping('tsk_001', 1), row('tsk_002', TODAY), helping('tsk_003'), row('tsk_004', TODAY)], TODAY);
+    expect(today.rows.map((item) => item.task.id)).toEqual(['tsk_002', 'tsk_004', 'tsk_001', 'tsk_003']);
+  });
 });

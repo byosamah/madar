@@ -36,6 +36,22 @@ async function approveThenSummary(prepare: (state: State) => void = waitsForRevi
 }
 
 describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
+  it('leaves out a new place in the order of the Tasks screen (owner, 2026-10-07)', async () => {
+    await approveThenSummary((state) => {
+      waitsForReview(state);
+      state.counters.evt += 1;
+      const id = `evt_${String(state.counters.evt).padStart(3, '0')}`;
+      state.events[id] = {
+        id, seq: state.counters.evt, projectId: 'prj_011', actorId: 'usr_001', actorKind: 'human', actingForId: 'usr_001', correlationId: 'cor_order',
+        verb: 'task.arranged', targetType: 'task', targetId: 'tsk_131', before: { rank: null }, after: { rank: 1000 }, createdAt: '2026-09-30T09:00:00.000+03:00', undoneBy: null,
+      };
+    });
+    const summary = await screen.findByRole('region', { name: 'Meeting summary' });
+    const project = await within(summary).findByRole('group', { name: 'Shore Walk Retail Kiosks' });
+    expect(within(project).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(project).getByText(/approved “Handover checklist”/)).toBeInTheDocument();
+  });
+
   it('lists the approval under its project, with the person and the time', async () => {
     const { store } = await approveThenSummary();
     const summary = await screen.findByRole('region', { name: 'Meeting summary' });

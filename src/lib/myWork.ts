@@ -1,4 +1,5 @@
 import type { TaskRow } from '../api/contract/views';
+import { arranged } from './arrange';
 import { addDays, dayOfWeek, weekStartOf } from './dates';
 
 export type WorkGroup = 'overdue' | 'today' | 'week' | 'later' | 'none';
@@ -17,8 +18,14 @@ export function workGroupOf(row: TaskRow, today: string): WorkGroup {
   return due <= addDays(start, 6) ? 'week' : 'later';
 }
 
+/**
+ * The groups in their fixed order. Inside a group the tasks follow the shared order (owner, 2026-10-07, `lib/arrange.ts`): first
+ * the tasks the person may move, then the tasks they only help with. So a task with no place, which only its lead can place,
+ * never sits between two tasks that the person put in order.
+ */
 export function groupMyTasks(rows: TaskRow[], today: string): { group: WorkGroup; rows: TaskRow[] }[] {
+  const inOrder = (group: TaskRow[]) => [...arranged(group.filter((row) => row.canMove)), ...arranged(group.filter((row) => !row.canMove))];
   return WORK_GROUPS
-    .map((group) => ({ group, rows: rows.filter((row) => workGroupOf(row, today) === group) }))
+    .map((group) => ({ group, rows: inOrder(rows.filter((row) => workGroupOf(row, today) === group)) }))
     .filter((group) => group.rows.length > 0);
 }
