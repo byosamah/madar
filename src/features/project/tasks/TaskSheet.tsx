@@ -433,7 +433,8 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
               teamIds={teamIds}
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
-              hint={detail ? undefined : t('office.helpersHint')}
+              // Only the leader and the Admin add a person to the team from this list, so only they read that a person joins it.
+              hint={detail?.viewerCan.edit ? undefined : t('office.helpersHint')}
             />
             {/* An office task waits for no task. */}
             {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
