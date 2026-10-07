@@ -741,8 +741,9 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Local:** typecheck; `npm test` 4,107 passed; the three builds; test:db 1,065 passed; test:it 241 passed.
 - **Test copy at c5c7622:** page 200, `POST /mcp` with no token 401, the Supabase `api/health` 200 with 112 calls.
 - **Production at c5c7622:** the auto-mode safety check refused `all.sh production` from Claude twice, also after the owner's
-  plain words, so the owner ran it with `!`. The config push set `api.enabled` false again on production (it was on; the guides
-  keep the Data API off). Page 200, `POST /mcp` with no token 401, `api/health` 200 with 112 calls.
+  plain words, so the owner ran it with `!`. Page 200, `POST /mcp` with no token 401, `api/health` 200 with 112 calls. The
+  config push said `api.enabled` true on the remote and pushed false: the known false difference (`supabase/CLAUDE.md`). A
+  table read with the publishable key still answers PGRST002, so the Data API stays off.
 
 ### Drag and drop order on the Tasks screen (2026-10-07)
 - **Change:** `Task.rank` and `tasks.arrange` (the rights of `task.updateOwn`); one shared order inside each date group of the
@@ -751,3 +752,9 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Local:** typecheck; `npm test` 4,131 passed, 6 skipped; the three builds; test:db 1,073 passed (25 skipped); test:it 241 of
   241. Prototype at 390 px (EN/AR, light/dark): a real mouse drag moved the row, "Order saved." showed, Undo gave the old order
   back, no console error. Not run: the prototype smoke and the deploy suite.
+- **Test copy at 66586d0:** `deploy-test` got its own `node_modules` first (its link pointed to the main folder, which lacks
+  `@dnd-kit/sortable`). `all.sh test`: health 113 calls, page 200, `POST /mcp` with no token 401, the bundle holds "Order saved."
+  and its Arabic form.
+- **Production at 66586d0 (owner OK, the owner ran `all.sh production` with `!`):** madar.vado.sa serves the new bundle (the
+  same name as the deploy address), "Order saved." in it; `api/health` 200 with 113 calls; `POST /mcp` with no token 401;
+  the Data API still answers PGRST002.
