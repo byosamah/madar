@@ -1,9 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Browser, Page, Request } from '@playwright/test';
+import type { Browser, Locator, Page, Request } from '@playwright/test';
 import { DEPLOY_ACCOUNTS } from './accounts';
 import { expect, passwordOf, PERSON_AR_OF, PERSON_OF, test } from './fixtures';
-import { goto, urlPattern } from './goto';
+import { goto, settle, urlPattern } from './goto';
 import { withClient } from './mail';
 import { closeTo, shownColors, WALK_PICTURE } from './picture';
 import { batchAs, NO_SESSION, openMenu, runId, type Lang } from './steps';
@@ -412,7 +412,123 @@ for (const { lang, width } of VARIANTS) {
       return `files rows 2; new storage objects ${objects[0].n}; preview pixels match the 4 quarters; ${how}`;
     });
 
-    // 11. Settings, Notifications: each person turns one in-app switch off and on again; the choice survives a reload.
+    // 11. Requests and bugs (owner, 2026-10-07): the Member reports a bug with a screenshot. Each active Admin gets a notice that
+    // opens Settings > Admin > Requests and bugs. The screenshot shows its own pixels there and in a bigger sheet. Mark done offers
+    // Undo and gives the Member a notice with words only. Management gets no notice, and no mail goes out for either notice.
+    const report = `Walk bug ${run} ${suffix}`;
+    const shotName = w('feedback.screenshotN', { n: '1' });
+    // A notice row keeps the excerpt in its own direction with FSI and PDI marks. The check reads the words without them.
+    const plain = (text: string) => text.replace(/[\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
+    const rowSays = (row: Locator, sentence: string) => expect.poll(async () => plain(await row.innerText()), { timeout: 10_000 }).toContain(plain(sentence));
+    /** The picture must show its own pixels: a blank or broken picture shows the panel behind it. */
+    async function expectPicture(picture: Locator, where: string): Promise<void> {
+      await expect.poll(() => picture.evaluate((img: HTMLImageElement, width) => img.complete && img.naturalWidth === width, WALK_PICTURE.width), { timeout: 15_000 }).toBe(true);
+      const shown = await shownColors(browser, picture, WALK_PICTURE.quarters);
+      const wrong = WALK_PICTURE.quarters.filter((quarter, i) => !closeTo(quarter.rgb, shown[i]));
+      if (wrong.length > 0) throw new Error(`the ${where} shows ${shown.map((c) => `rgb(${c.join(',')})`).join(' ')}, not the picture (${wrong.map((x) => x.name).join(', ')})`);
+    }
+    await step('report', 'member', async () => {
+      const page = pages.member;
+      await goto(page, '/');
+      await page.getByRole('button', { name: nameOf('member'), exact: true }).click();
+      await page.getByRole('dialog', { name: nameOf('member') }).getByRole('button', { name: w('feedback.menu') }).click();
+      const sheet = page.getByRole('dialog', { name: w('feedback.title') });
+      await sheet.getByRole('radio', { name: w('feedback.kinds.bug'), exact: true }).click();
+      await sheet.locator('#feedback-message').fill(report);
+      await sheet.locator('input[type="file"]').setInputFiles({ name: `${fileBase}-bug.png`, mimeType: 'image/png', buffer: WALK_PICTURE.png() });
+      await expect(sheet.getByRole('img', { name: shotName, exact: true })).toBeVisible();
+      await shot('report', 'member');
+      await sheet.getByRole('button', { name: w('feedback.send'), exact: true }).click();
+      await expect(page.getByText(w('feedback.sent')).first()).toBeVisible({ timeout: 30_000 });
+      const row = await waitRow<{ id: string; kind: string; shots: number; by: string; status: string }>('report', "select id, doc->>'kind' as kind, jsonb_array_length(doc->'screenshots') as shots, doc->>'createdBy' as by, doc->>'status' as status from feedback where doc->>'message' = $1", [report]);
+      ctx.reportId = row.id;
+      if (row.kind !== 'bug' || row.shots !== 1 || row.by !== member || row.status !== 'new') throw new Error(`DB: feedback kind=${row.kind} screenshots=${row.shots} createdBy=${row.by} status=${row.status}`);
+      // Each active Admin gets one notice, and nobody else (rule B1, B2).
+      const admins = (await q<{ id: string }>("select id from users where kind = 'human' and active and doc->>'systemRole' = 'admin' and id <> $1 order by id", [member])).map((r) => r.id);
+      const notices = await waitRow<{ ids: string[]; users: string[] }>('report notices', "select array_agg(id order by user_id) as ids, array_agg(user_id order by user_id) as users from notifications where target_id = $1 and doc->>'trigger' = 'feedback_sent' having count(*) >= $2", [row.id, admins.length]);
+      if (notices.users.join(',') !== admins.join(',')) throw new Error(`DB: the report notices went to ${notices.users.join(', ')}, not to the active Admins ${admins.join(', ')}`);
+      ctx.reportNotices = notices.ids.join(',');
+      return `feedback.id=${row.id} kind=bug screenshots=1; feedback_sent notices to ${notices.users.join(', ')}`;
+    });
+    await step('report', 'admin', async () => {
+      const page = pages.admin;
+      await goto(page, '/notifications');
+      const notice = page.locator('li').filter({ hasText: report });
+      await expect(notice).toHaveCount(1, { timeout: 20_000 });
+      await rowSays(notice, w('inbox.feedback.sentBug', { actor: nameOf('member'), target: report }));
+      const link = notice.getByRole('link');
+      await expect(link).toHaveAttribute('href', '/admin/feedback');
+      await shot('report-notice', 'admin');
+      await link.click();
+      await expect(page).toHaveURL(urlPattern('/admin/feedback', { end: true }));
+      // The new report is open and the newest, so it is the top row of the list.
+      const item = page.locator('li').filter({ hasText: report });
+      const thumb = item.getByRole('img', { name: shotName, exact: true });
+      await expect(thumb).toBeVisible({ timeout: 20_000 });
+      // A thumbnail loads only near the view (loading="lazy").
+      await thumb.scrollIntoViewIfNeeded();
+      await expectPicture(thumb, 'thumbnail');
+      await shot('report-list', 'admin');
+      await item.getByRole('button', { name: shotName, exact: true }).click();
+      const sheet = page.getByRole('dialog', { name: shotName });
+      await expect(sheet).toBeVisible();
+      const full = sheet.getByRole('link', { name: w('feedback.openFull', { n: '1' }) });
+      await expect(full).toHaveAttribute('target', '_blank');
+      const big = full.locator('img');
+      await settle(page);
+      await expectPicture(big, 'bigger view');
+      const href = (await full.getAttribute('href')) ?? '';
+      if (!href || href !== (await big.getAttribute('src'))) throw new Error('the full-size link is not the link of the shown picture');
+      await shot('report-sheet', 'admin');
+      await page.keyboard.press('Escape');
+      await expect(sheet).toHaveCount(0);
+      // Mark done offers Undo for a few seconds (rule B20). The walk does not press it.
+      await item.getByRole('button', { name: w('feedback.markDone'), exact: true }).click();
+      await expect(page.getByText(w('feedback.markedDone')).first()).toBeVisible();
+      await expect(page.locator('[data-toasts]').getByRole('button', { name: w('common.undo'), exact: true })).toBeVisible();
+      await shot('report-done', 'admin');
+      await waitRow('report done', "select 1 from feedback where id = $1 and doc->>'status' = 'done' and doc->>'doneBy' = $2", [ctx.reportId, DEPLOY_ACCOUNTS.admin.userId]);
+      const done = await waitRow<{ id: string }>('done notice', "select id from notifications where user_id = $1 and target_id = $2 and doc->>'trigger' = 'feedback_done'", [member, ctx.reportId]);
+      ctx.doneNotice = done.id;
+      await waitRow('report notice read', 'select 1 from notifications where id = any($1) and user_id = $2 and read', [ctx.reportNotices.split(','), DEPLOY_ACCOUNTS.admin.userId]);
+      return `notice link /admin/feedback, marked read; thumbnail and sheet pixels match the 4 quarters; full-size link on ${new URL(href).host}; status=done; done notice ${done.id}`;
+    });
+    await step('report-done', 'member', async () => {
+      const page = pages.member;
+      await goto(page, '/notifications');
+      const notice = page.locator('li').filter({ hasText: report });
+      await expect(notice).toHaveCount(1, { timeout: 20_000 });
+      await rowSays(notice, w('inbox.feedback.doneBug', { target: report }));
+      // Words only: no link and no Approve. The row itself is a button that only marks the notice read.
+      await expect(notice.locator('a')).toHaveCount(0);
+      await expect(notice.getByRole('button')).toHaveCount(1);
+      await shot('report-done', 'member');
+      await notice.getByRole('button').click();
+      await waitRow('done notice read', 'select 1 from notifications where id = $1 and read', [ctx.doneNotice]);
+      await expect(page).toHaveURL(urlPattern('/notifications', { end: true }));
+      // No mail for either notice (rule B18): no mail.notice effect in the outbox, and no mail in mail_outbox.
+      const ids = [...ctx.reportNotices.split(','), ctx.doneNotice];
+      const [{ n: queued }] = await q<{ n: string }>("select count(*)::text as n from outbox where payload->>'notificationId' = any($1)", [ids]);
+      const [{ n: mailed }] = await q<{ n: string }>('select count(*)::text as n from mail_outbox where idempotency_key = any($1)', [ids.map((id) => `notice-${id}`)]);
+      if (queued !== '0' || mailed !== '0') throw new Error(`DB: ${queued} outbox rows and ${mailed} mails for the report notices`);
+      return `the done row has the words, no link, no Approve; a press marked it read and opened nothing; outbox 0, mail_outbox 0`;
+    });
+    await step('report', 'management', async () => {
+      const page = pages.management;
+      const rows = await q('select id from notifications where user_id = $1 and target_id = $2', [DEPLOY_ACCOUNTS.management.userId, ctx.reportId]);
+      if (rows.length > 0) throw new Error(`DB: Management has ${rows.length} notices of the report`);
+      await goto(page, '/notifications');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await settle(page);
+      await expect(page.getByText(report)).toHaveCount(0);
+      // Only an Admin sees the switch of the new-report notice. Everyone sees the switch of the done notice.
+      await goto(page, '/settings');
+      await expect(page.getByRole('switch', { name: w('notices.switchInApp', { trigger: w('settings.triggers.feedback_done') }), exact: true })).toBeVisible();
+      await expect(page.getByRole('switch', { name: w('notices.switchInApp', { trigger: w('settings.triggers.feedback_sent') }), exact: true })).toHaveCount(0);
+      return 'no notice of the report in the database or on the screen; no new-report switch';
+    });
+
+    // 12. Settings, Notifications: each person turns one in-app switch off and on again; the choice survives a reload.
     for (const role of ROLES) {
       await step('notices', role, async () => {
         const page = pages[role];
@@ -434,7 +550,7 @@ for (const { lang, width } of VARIANTS) {
       });
     }
 
-    // 12. The Admin invites a person; the mail lands in the outbox.
+    // 13. The Admin invites a person; the mail lands in the outbox.
     const invited = { name: `Lina Walk ${suffix} ${run}`, nameAr: `لينا ${suffix} ${run}`, email: `walk-${suffix}-${run}@madar.test` };
     // Arabic screens show the Arabic name of a person (owner item 12).
     const invitedShown = lang === 'ar' ? invited.nameAr : invited.name;
@@ -459,7 +575,7 @@ for (const { lang, width } of VARIANTS) {
       return `users.id=${user.id} auth=${user.auth_user_id ? 'linked' : 'none'}; mail_outbox ${mail.id} tag=${mail.tag}`;
     });
 
-    // 13. The Admin changes that person's email; Management sees it read-only, and the API refuses Management.
+    // 14. The Admin changes that person's email; Management sees it read-only, and the API refuses Management.
     const newEmail = `walk-new-${suffix}-${run}@madar.test`;
     await step('email', 'admin', async () => {
       const page = pages.admin;
@@ -493,7 +609,7 @@ for (const { lang, width } of VARIANTS) {
       return `the field is read-only with the hint; the API answered ${answer.error?.code}; users.email unchanged`;
     });
 
-    // 14. Admin, Usage: only the Admin sees it.
+    // 15. Admin, Usage: only the Admin sees it.
     for (const role of ROLES) {
       await step('usage', role, async () => {
         const page = pages[role];
@@ -514,7 +630,7 @@ for (const { lang, width } of VARIANTS) {
       });
     }
 
-    // 15. Settings, Agents: no agent of the sample office (the seed leaves it out), and no link in the database.
+    // 16. Settings, Agents: no agent of the sample office (the seed leaves it out), and no link in the database.
     for (const role of ROLES) {
       await step('agents', role, async () => {
         const page = pages[role];
@@ -532,7 +648,7 @@ for (const { lang, width } of VARIANTS) {
       });
     }
 
-    // 16. Sign out: no session key stays in the browser.
+    // 17. Sign out: no session key stays in the browser.
     for (const role of ROLES) {
       await step('signout', role, async () => {
         const page = pages[role];
