@@ -116,6 +116,18 @@ describe('the maker of a project task (owner, 2026-10-07)', () => {
     expect(t.store.state.tasks[id]).toBeUndefined();
   });
 
+  it('never takes back the approval of the leader', async () => {
+    const { t, id } = await memberTask();
+    await t.api.call('tasks.update', { id, patch: { ownerId: 'usr_003' } });
+    await t.api.call('tasks.complete', { id });
+    t.as('usr_002');
+    await t.api.call('tasks.approve', { id });
+    const approved = Object.values(t.store.state.events).find((event) => event.verb === 'task.approved' && event.targetId === id);
+    t.as('usr_003');
+    await expect(t.api.call('events.undo', { eventId: approved!.id })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.tasks[id].status).toBe('done');
+  });
+
   it('never takes back a change of the review need', async () => {
     const { t, id } = await memberTask();
     t.as('usr_002');
