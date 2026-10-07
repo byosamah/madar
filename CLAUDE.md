@@ -155,8 +155,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
-- `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link. The main folder then
-  lacks the new package: run `npm install` there before a build or a deploy from `deploy-test` (2026-10-07).
+- `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link, so the folder behind
+  the link lacks the new package. The main folder follows its own branch: after a new package, give `deploy-test` its own
+  folder (`rm node_modules` removes only the link, then `npm install` there) before `all.sh` (2026-10-07).
 - A review of a branch reads its worktree or `git diff main...<branch>`, never the main folder: another session's
   unsaved edits there look like part of the change.
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5

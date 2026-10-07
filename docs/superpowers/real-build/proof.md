@@ -733,3 +733,11 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Production at 1f06244 (owner OK in chat):** `all.sh production`; madar.vado.sa, www and madar-46r.pages.dev serve the new
   bundle; the Supabase `api/health` 200 with 112 calls; `POST /mcp` with no token 401. The first page check read an old cached
   copy for a short time. Note: `madar.vado.sa/api/health` answers with the app page, so read the health on the Supabase address.
+
+### Drag and drop order on the Tasks screen (2026-10-07)
+- **Change:** `Task.rank` and `tasks.arrange` (the rights of `task.updateOwn`); one shared order inside each date group of the
+  Tasks screen, and Home follows it. A drag never changes a date. The tasks a person only helps with sit at the end of a group.
+  MCP: the tool `tasks.arrange` (38 tools, 41 for an agent of an Admin), its docs and an INSTRUCTIONS line.
+- **Local:** typecheck; `npm test` 4,131 passed, 6 skipped; the three builds; test:db 1,073 passed (25 skipped); test:it 241 of
+  241. Prototype at 390 px (EN/AR, light/dark): a real mouse drag moved the row, "Order saved." showed, Undo gave the old order
+  back, no console error. Not run: the prototype smoke and the deploy suite.

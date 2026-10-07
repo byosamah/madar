@@ -306,5 +306,5 @@ a drag only inside a date group, never a date change; Home follows the order; a 
 - [x] Screenshots (EN/AR, light/dark, 390 px) and a real mouse drag at 390 px (moved, saved, Undo), no console error. A grip
   takes about 45 px, so a long title in a group with grips cuts sooner on a phone
 - [x] Gates: typecheck; npm test 4,131 passed; the three builds; test:db 1,073 passed; test:it 241 passed
-- [ ] Before a build or deploy from `deploy-test`: `npm install` in the main folder (it lacks `@dnd-kit/sortable`)
+- [ ] Before `all.sh test`: `deploy-test` gets its own `node_modules` (its link points to the main folder, which lacks `@dnd-kit/sortable`)
 - [ ] Test copy, then production (owner OK)
