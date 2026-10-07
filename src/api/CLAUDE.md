@@ -91,6 +91,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   extra ones go. So done, open, done and then the Undo of the last done leaves one done notice.
 - A former Admin sees an old `feedback_sent` notice as gone: no words, no sender (`actorId` null), no link and no place on
   the bell. An Undo never deletes it, and a new promotion shows it again. A `feedback_done` notice always shows to its owner.
+- A report notice also reads as gone, in the same form, when its report row is gone: the Undo of a send keeps the hidden
+  notice of a former or inactive Admin, and it must not show again later. So the Inbox loader loads the report row of each
+  notice (`server/data/loaders/inbox.ts`). `readMap.ts` needs no `feedback` kind: that answer never changes on a report change.
 - Both triggers count on the bell (`ACTION_TRIGGERS`). A done notice has the link `''`: its row only marks it read.
 
 ## A new call: the checklist

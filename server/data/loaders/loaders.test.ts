@@ -617,3 +617,43 @@ describe('tasks with no lead (owner, 2026-10-05)', () => {
     await same(state, 'dashboard.get', {}, ADMIN);
   });
 });
+
+describe('the notices of requests and bugs (review 2026-10-07)', () => {
+  type View = { notification: Notification; gone: boolean; target: string };
+  const reportViews = (run: Run) => (run.outcome.output as View[]).filter((view) => view.notification.targetType === 'feedback');
+
+  it('the Inbox reads the report of a notice: live while it stands, gone after the Undo of its send, as on the whole office', async () => {
+    const state = office((s) => {
+      s.users.usr_002.systemRole = 'admin';
+    });
+    const before = (await same(state, 'notifications.count', {}, 'usr_002')).outcome.output as { unread: number; badge: number };
+    // Reem sends a report, so Hala and Faisal hold its notice, and the report stands.
+    const live = apply(state, 'feedback.send', { kind: 'bug', message: 'The board does not scroll.' }, 'usr_003', { story: 'cor_fb_live', prepared: { shots: [] } }) as { id: string };
+    // Hala sends a report and takes it back while Faisal is not an Admin. His hidden notice stays, and then he is an Admin again.
+    const gone = apply(state, 'feedback.send', { kind: 'feature', message: 'Taken back' }, ADMIN, { story: 'cor_fb_gone', prepared: { shots: [] } }) as { id: string };
+    state.users.usr_002.systemRole = 'member';
+    apply(state, 'events.undoStory', { correlationId: 'cor_fb_gone' }, ADMIN);
+    state.users.usr_002.systemRole = 'admin';
+    expect(state.feedback?.[gone.id]).toBeUndefined();
+    const views = reportViews(await same(state, 'notifications.list', {}, 'usr_002'));
+    expect(views).toHaveLength(2);
+    expect(views.find((view) => view.notification.targetId === live.id)).toMatchObject({ gone: false, target: 'The board does not scroll.' });
+    expect(views.find((view) => view.notification.targetId !== live.id)).toMatchObject({ gone: true, target: '' });
+    // Only the live report counts on the bell.
+    const count = await same(state, 'notifications.count', {}, 'usr_002');
+    expect(count.outcome.output).toEqual({ unread: before.unread + 2, badge: before.badge + 1 });
+    expect(reportViews(await same(state, 'notifications.list', {}, ADMIN)).map((view) => view.gone)).toEqual([false]);
+  });
+
+  it('the Undo of the last done of done, open, done takes back only its own done notice on both loads', async () => {
+    const state = office();
+    const report = apply(state, 'feedback.send', { kind: 'bug', message: 'Broken' }, 'usr_003', { story: 'cor_fb_send', prepared: { shots: [] } }) as { id: string };
+    for (const status of ['done', 'new', 'done']) apply(state, 'feedback.setStatus', { id: report.id, status }, ADMIN, { story: 'cor_fb_s' });
+    const done = Object.values(state.notifications).filter((n) => n.trigger === 'feedback_done').map((n) => n.id);
+    expect(done).toHaveLength(2);
+    const last = Object.values(state.events).filter((e) => e.correlationId === 'cor_fb_s').sort((a, b) => b.seq - a.seq)[0];
+    const run = await same(state, 'events.undo', { eventId: last.id }, ADMIN);
+    expect(run.outcome.error).toBeUndefined();
+    expect(deleted(run, 'notifications')).toEqual([done[1]]);
+  });
+});

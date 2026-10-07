@@ -182,3 +182,52 @@ describe('row 16: an Undo of a send never changes the list or the count of a for
     expect(await t.api.call('notifications.count', {})).toEqual(count);
   });
 });
+
+describe('a new-report notice that outlives the Undo of its send reads as gone when its person is an Admin again (review 2026-10-07)', () => {
+  /**
+   * Hala sends a report, and Faisal and Omar, both Admins, get its notice. leave() takes the holder out of the Admin right, Hala
+   * takes the send back, and only the hidden notice of the holder stays (row 16). back() gives the right again.
+   */
+  async function undoneSend(holder: string, leave: (t: ReturnType<typeof testApi>) => void, back: (t: ReturnType<typeof testApi>) => void) {
+    const t = testApi(calls);
+    t.store.state.users.usr_002.systemRole = 'admin';
+    t.store.state.users.usr_004.systemRole = 'admin';
+    t.as(ADMIN);
+    const report = await t.api.call('feedback.send', { kind: 'bug', message: MESSAGE, page: '/projects', screenshots: [] }, { correlationId: 'cor_admin' });
+    leave(t);
+    await t.api.call('events.undoStory', { correlationId: 'cor_admin' });
+    expect(t.store.state.feedback?.[report.id]).toBeUndefined();
+    expect(Object.values(t.store.state.notifications).filter((n) => n.trigger === 'feedback_sent').map((n) => n.userId)).toEqual([holder]);
+    back(t);
+    t.as(holder);
+    return t;
+  }
+
+  async function expectGone(t: ReturnType<typeof testApi>) {
+    const list = await t.api.call('notifications.list', {});
+    const rows = list.filter((view) => view.notification.targetType === 'feedback');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ gone: true, target: '', actor: null, link: '', project: null, canApprove: false });
+    expect('feedback' in rows[0].notification).toBe(false);
+    expect(JSON.stringify(list)).not.toContain(MESSAGE.slice(0, 20));
+    expect(await t.api.call('notifications.count', {})).toEqual({ unread: 1, badge: 0 });
+  }
+
+  it('after a new promotion of the former Admin', async () => {
+    const t = await undoneSend(FORMER, (w) => {
+      w.store.state.users.usr_002.systemRole = 'member';
+    }, (w) => {
+      w.store.state.users.usr_002.systemRole = 'admin';
+    });
+    await expectGone(t);
+  });
+
+  it('after the return of an Admin who was inactive at the Undo', async () => {
+    const t = await undoneSend(SENDER, (w) => {
+      w.store.state.users.usr_004.active = false;
+    }, (w) => {
+      w.store.state.users.usr_004.active = true;
+    });
+    await expectGone(t);
+  });
+});
