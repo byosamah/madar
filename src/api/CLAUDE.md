@@ -129,7 +129,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
    `server/calls/`.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
-   (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`.
+   (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to
+   `scripts/record-samples.ts`, then run `node --import tsx scripts/record-samples.ts`.
 5. An input in `server/core/everyCall.ts` if the loader sweep does not name it.
 6. Its read kinds in `src/app/readMap.ts` if it is a read.
 7. Words in English and Arabic for every new message.
