@@ -50,8 +50,8 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - Both projects today: current password required for a change, legacy API keys off, HS256 key revoked, SSL enforced,
   Realtime private only, the Data API off.
 - The Data API is off by `db_schema` = '' (`GET /v1/projects/{ref}/postgrest`). The root `/rest/v1/` now asks for a
-  secret key, so read one table with the publishable key (`/rest/v1/users?select=id&limit=1`): PGRST002 (503) means off. The
-  `config push` diff still says `api.enabled` true after every push (2026-10-05): ignore it. That GET also returns
+  secret key, so read one table with the publishable key (`/rest/v1/users?select=id&limit=1`): PGRST002 (503) means off.
+  The `config push` diff still says `api.enabled` true after every push (2026-10-05): ignore it. That GET also returns
   `jwt_secret` (the revoked HS256 key): read only `db_schema`, for example with `jq .db_schema`.
 - A new database password works on the pooler only after a few seconds.
 - A read-only SQL check without the pooler: `POST /v1/projects/{ref}/database/query` with `{"query": "..."}` and the token.
