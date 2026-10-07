@@ -24,8 +24,8 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   // list has no screenshot.
   'files.upload': 'not_found',
   'feedback.screenshot': 'not_found',
-  // Rules of the office after the earlier entries of the list (the sweep inputs of task C2).
-  'tasks.update': 'forbidden',
+  // Rules of the office after the earlier entries of the list (the sweep inputs of task C2). tasks.update is ok: projects.setLeader
+  // gives prj_001 a new leader first, but the old leader made the task and stays on the team, so he still changes it (owner, 2026-10-07).
   'tasks.sendBack': 'invalid_input',
   // Every task of the sample office has a lead, so taking one is refused (has_lead). loaders.test.ts takes a task with no lead.
   'tasks.take': 'invalid_input',
