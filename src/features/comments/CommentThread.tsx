@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { REACTIONS } from '../../api/contract/entities';
+import { REACTIONS } from '../../api/contract/limits';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { newStoryId } from '../../app/actions';

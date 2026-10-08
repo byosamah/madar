@@ -1,5 +1,5 @@
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
-import { PASSWORD_SET_MARK } from '../../api/contract/server';
+import { PASSWORD_SET_MARK } from '../../api/contract/limits';
 import { AuthFailure, type AuthFailureReason } from '../../features/auth/authFailure';
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from '../../features/auth/sessionEnd';
 import type { AuthPort, AuthStatus } from '../auth';

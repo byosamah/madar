@@ -139,7 +139,7 @@ describe('the font stacks', () => {
   it('takes only the middle dot from Inter, first in every stack', () => {
     const dot = faces.filter((face) => face.includes('font-family: "Madar Dot";'));
     expect(dot).toHaveLength(1);
-    expect(dot[0]).toContain('src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");');
+    expect(dot[0]).toContain('src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");');
     expect(dot[0]).toContain('unicode-range: U+00B7;');
   });
 
@@ -187,7 +187,7 @@ describe('the font stacks', () => {
   it('give the number spots the digits of Inter only, and keep Thmanyah Sans for their other letters', () => {
     const digits = faces.filter((face) => face.includes('font-family: "Madar Digits";'));
     expect(digits).toHaveLength(1);
-    expect(digits[0]).toContain('src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");');
+    expect(digits[0]).toContain('src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");');
     expect(digits[0]).toContain('unicode-range: U+0030-0039;');
     expect(css).toMatch(/\.tabular \{\n\s+font-family: "Madar Digits", var\(--font-sans\);\n\s+font-variant-numeric: tabular-nums;/);
   });

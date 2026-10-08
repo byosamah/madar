@@ -2,7 +2,13 @@ import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { addWords } from '../i18n';
+import { ar, en } from '../i18n/trees';
 import { setNow } from '../lib/dates';
+
+// The screens load the words of one language at a time (src/i18n/index.ts). The tests have both at once, as before.
+addWords('en', en);
+addWords('ar', ar);
 
 // jsdom has no matchMedia. The app reads device settings through it.
 if (!window.matchMedia) {

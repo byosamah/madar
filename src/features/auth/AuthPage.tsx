@@ -5,7 +5,7 @@ import { LanguagesIcon } from '../../components/icons/animated/languages';
 import { MadarMark } from '../../components/MadarMark';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import type { Language } from '../../api/contract/entities';
-import { applyLanguage, initI18n } from '../../i18n';
+import { applyLanguage, initI18n, withWords } from '../../i18n';
 
 /** The language that a person chose before they signed in. The remote main.tsx reads it first (client map 7.4). */
 export const LANGUAGE_KEY = 'madar.lang';
@@ -17,11 +17,12 @@ export const LANGUAGE_KEY = 'madar.lang';
 function LanguageSwitch() {
   const { t, i18n } = useTranslation();
   const next: Language = i18n.language === 'ar' ? 'en' : 'ar';
-  const choose = () => {
+  // The words and the direction change together, once the words of that language are there (performance audit BND-7).
+  const choose = () => withWords(next, () => {
     initI18n(next);
     applyLanguage(document.documentElement, next);
     try { window.localStorage.setItem(LANGUAGE_KEY, next); } catch { /* blocked storage */ }
-  };
+  });
   return (
     <button type="button" lang={next} onClick={choose} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-subheadline text-ink-2 hover:bg-fill">
       <AnimatedIcon icon={LanguagesIcon} size={18} aria-hidden />

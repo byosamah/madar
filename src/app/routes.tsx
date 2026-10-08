@@ -1,70 +1,84 @@
-import { createBrowserRouter, createHashRouter, type RouteObject } from 'react-router';
+import type { ReactNode } from 'react';
+import { createBrowserRouter, createHashRouter, matchRoutes, type RouteObject } from 'react-router';
 import { AppShell } from './AppShell';
 import { REMOTE } from './mode';
+import { loadForNavigation, screenFor, type ScreenName } from './screens';
 import { HomeOrRedirect } from '../features/home/HomeOrRedirect';
-import { DashboardScreen } from '../features/dashboard/DashboardScreen';
-import { MeetingView } from '../features/dashboard/MeetingView';
-import { InboxScreen } from '../features/inbox/InboxScreen';
-import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
-import { ProjectsScreen } from '../features/projects/ProjectsScreen';
-import { ProjectByCode } from '../features/project/ProjectByCode';
-import { ProjectScreen } from '../features/project/ProjectScreen';
-import { SearchScreen } from '../features/search/SearchScreen';
-import { TaskListScreen } from '../features/tasklist/TaskListScreen';
-import { SettingsScreen } from '../features/settings/SettingsScreen';
-import { AdminScreen } from '../features/settings/admin/AdminScreen';
-import { WorkScreen } from '../features/work/WorkScreen';
 import { AuthGate } from '../features/auth/AuthGate';
-import { ForgotScreen } from '../features/auth/ForgotScreen';
-import { ResetScreen } from '../features/auth/ResetScreen';
-import { SignInScreen } from '../features/auth/SignInScreen';
-import { WelcomeScreen } from '../features/auth/WelcomeScreen';
-import { ConsentScreen } from '../features/oauth/ConsentScreen';
 import { NotFound, RouteError } from './RouteError';
+
+/**
+ * One line of the route table: a screen by its name (src/app/screens.ts), or an element of the first script. The frame, the
+ * sign-in gate, Home and the error pages stay in the first script (performance audit BND-1).
+ */
+type Entry = { path?: string; index?: true; screen?: ScreenName; element?: ReactNode; errorElement?: ReactNode; gate?: true; children?: Entry[] };
 
 /**
  * The screens of both builds. The remote build adds the public sign-in screens and puts the meeting view and the shell inside
  * the sign-in gate (plan U2). The prototype has no sign-in, so its routes stay as they were.
  */
-export function appRoutes(remote: boolean): RouteObject[] {
-  const screens: RouteObject[] = [
+function routeTable(remote: boolean): Entry[] {
+  const screens: Entry[] = [
     // The meeting view fills the whole screen, so it sits outside the shell with its tabs.
-    { path: '/dashboard/meeting', element: <MeetingView />, errorElement: <RouteError framed /> },
+    { path: '/dashboard/meeting', screen: 'meeting', errorElement: <RouteError framed /> },
     {
       path: '/',
       element: <AppShell />,
       errorElement: <RouteError framed />,
       // A wrong link or a broken screen shows a calm page inside the shell, so the tabs stay (audit 2026-10-03, SHL-6).
-      children: [
+      children: ([
         { index: true, element: <HomeOrRedirect /> },
-        { path: 'projects', element: <ProjectsScreen /> },
-        { path: 'projects/code/:code', element: <ProjectByCode /> },
-        { path: 'projects/:projectId', element: <ProjectScreen /> },
-        { path: 'work', element: <WorkScreen /> },
-        { path: 'dashboard', element: <DashboardScreen /> },
-        { path: 'inbox/:conversationId?', element: <InboxScreen /> },
-        { path: 'notifications', element: <NotificationsScreen /> },
-        { path: 'search', element: <SearchScreen /> },
-        { path: 'tasks', element: <TaskListScreen /> },
-        { path: 'settings', element: <SettingsScreen /> },
+        { path: 'projects', screen: 'projects' },
+        { path: 'projects/code/:code', screen: 'projectByCode' },
+        { path: 'projects/:projectId', screen: 'project' },
+        { path: 'work', screen: 'work' },
+        { path: 'dashboard', screen: 'dashboard' },
+        { path: 'inbox/:conversationId?', screen: 'inbox' },
+        { path: 'notifications', screen: 'notifications' },
+        { path: 'search', screen: 'search' },
+        { path: 'tasks', screen: 'tasks' },
+        { path: 'settings', screen: 'settings' },
         // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
-        { path: 'admin/:section?', element: <AdminScreen /> },
+        { path: 'admin/:section?', screen: 'admin' },
         { path: '*', element: <NotFound /> },
-      ].map((route) => ({ ...route, errorElement: <RouteError /> })),
+      ] satisfies Entry[]).map((route) => ({ ...route, errorElement: <RouteError /> })),
     },
   ];
   if (!remote) return screens;
   return [
     // The sign-in screens sit outside the shell, as the meeting view does (client map 7.1).
-    ...[
-      { path: '/sign-in', element: <SignInScreen /> },
-      { path: '/welcome', element: <WelcomeScreen /> },
-      { path: '/forgot', element: <ForgotScreen /> },
-      { path: '/reset', element: <ResetScreen /> },
-      { path: '/oauth/consent', element: <ConsentScreen /> },
-    ].map((route) => ({ ...route, errorElement: <RouteError framed /> })),
-    { element: <AuthGate />, children: screens },
+    ...([
+      { path: '/sign-in', screen: 'signIn' },
+      { path: '/welcome', screen: 'welcome' },
+      { path: '/forgot', screen: 'forgot' },
+      { path: '/reset', screen: 'reset' },
+      { path: '/oauth/consent', screen: 'consent' },
+    ] satisfies Entry[]).map((route) => ({ ...route, errorElement: <RouteError framed /> })),
+    { element: <AuthGate />, gate: true, children: screens },
   ];
+}
+
+/** A loaded screen is the Component of its route. Else the route imports it at the first visit, and the old screen stays meanwhile. */
+function toRoute({ screen, gate: _gate, children, ...rest }: Entry): RouteObject {
+  const Component = screen ? screenFor(screen) : undefined;
+  return {
+    ...rest,
+    ...(screen ? (Component ? { Component } : { lazy: async () => ({ Component: await loadForNavigation(screen) }) }) : {}),
+    ...(children ? { children: children.map(toRoute) } : {}),
+  } as RouteObject;
+}
+
+export function appRoutes(remote: boolean): RouteObject[] {
+  return routeTable(remote).map(toRoute);
+}
+
+/**
+ * The screens that an address shows, and whether it sits behind the sign-in gate. main.tsx loads them before it makes the
+ * router, so the router starts with no lazy route at that address: no empty first frame, and no HydrateFallback warning.
+ */
+export function screensAt(pathname: string, remote: boolean = REMOTE): { screens: ScreenName[]; gated: boolean } {
+  const entries = (matchRoutes(routeTable(remote) as RouteObject[], pathname) ?? []).map((match) => match.route as Entry);
+  return { screens: entries.flatMap((entry) => (entry.screen ? [entry.screen] : [])), gated: entries.some((entry) => entry.gate) };
 }
 
 /**

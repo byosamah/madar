@@ -1,5 +1,5 @@
-import { MAX_FILE_BYTES } from '../contract/entities';
-import { MAX_SHOT_BYTES, type SignedPut } from '../contract/server';
+import { MAX_FILE_BYTES, MAX_SHOT_BYTES } from '../contract/limits';
+import type { SignedPut } from '../contract/server';
 import { ApiError } from '../errors';
 import type { Adapter, AdapterCtx } from './wire';
 

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
-import type { Language } from '../../api/contract/entities';
 import { createRemoteApi } from '../../api/remote/remoteApi';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
@@ -37,30 +36,8 @@ export function remoteConfig(env: Record<string, string | boolean | undefined>):
   };
 }
 
-/** The language of the first screen (client map 7.4): the one saved on this device, else the first of the browser that Madar has. */
-export function firstLanguage(saved: string | null, browser: readonly string[]): Language {
-  if (saved === 'ar' || saved === 'en') return saved;
-  for (const tag of browser) {
-    const base = tag.toLowerCase().split('-')[0];
-    if (base === 'ar' || base === 'en') return base;
-  }
-  return 'en';
-}
-
-/** The saved language key of the sign-in screens (src/features/auth/AuthPage.tsx, LANGUAGE_KEY). */
-const LANGUAGE_KEY = 'madar.lang';
-
-/** firstLanguage with the values of this browser. Blocked storage counts as nothing saved. */
-export function browserLanguage(): Language {
-  let saved: string | null = null;
-  try {
-    saved = window.localStorage.getItem(LANGUAGE_KEY);
-  } catch {
-    // Blocked storage.
-  }
-  const list = navigator.languages?.length ? navigator.languages : [navigator.language];
-  return firstLanguage(saved, list.filter(Boolean));
-}
+/** The language of the first screen (client map 7.4). It lives with the words, so main.tsx reads it before the bootstrap (BND-7). */
+export { browserLanguage, firstLanguage } from '../../i18n/firstLanguage';
 
 /** A change source that also takes the signals of own answers (RemoteApi onSignals). */
 export type PersonChangeSource = ChangeSource & { own(signals: ChangeSignal[]): void };

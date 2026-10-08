@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import type { MadarApi } from '../api/calls';
-import { MAX_FILE_BYTES } from '../api/contract/entities';
+import { MAX_FILE_BYTES } from '../api/contract/limits';
 import { ApiError } from '../api/errors';
 import { feedbackAdapter } from '../api/remote/feedback';
 import { uploadAdapter } from '../api/remote/upload';

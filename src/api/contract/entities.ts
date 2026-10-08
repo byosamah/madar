@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, PROJECT_CODE_PATTERN } from '../../lib/projectCode';
+import { MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+
+// The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
+export { MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -59,7 +63,6 @@ export const EMAIL_TRIGGERS: readonly EmailTrigger[] = TRIGGERS.filter(isEmailTr
 /** The switches that only a person with admin.manage sees (owner, 2026-10-07). */
 export const ADMIN_ONLY_TRIGGERS: ReadonlySet<Trigger> = new Set<Trigger>(['feedback_sent']);
 
-export const REACTIONS = ['👍', '✅', '👀'] as const;
 export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
 
@@ -101,9 +104,8 @@ export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
  * The profile picture (owner item 10, 2026-10-05). The browser cuts it to a 128 px square and saves it as a data address,
- * so no file store holds it. A data address of a WebP, JPEG or PNG picture, up to 24,000 characters.
+ * so no file store holds it. A data address of a WebP, JPEG or PNG picture (PICTURE_DATA, limits.ts), up to 24,000 characters.
  */
-export const PICTURE_DATA = /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
 export const PICTURE_DATA_MAX = 24_000;
 export const PICTURE_LINK_MAX = 2_000;
 /** A new picture value: picture data, an https address, or null for no picture. Every other value fails (no other scheme). */
@@ -246,9 +248,6 @@ export const ProjectMember = z.object({
 });
 export type ProjectMember = z.infer<typeof ProjectMember>;
 
-/** The most prerequisites one task or one stage has. */
-export const MAX_PREREQUISITES = 20;
-
 export const Stage = z.object({
   id: StageId,
   projectId: ProjectId,
@@ -291,9 +290,6 @@ export const TaskVersion = z.object({
   finishedAt: Stamp.nullable(),
 });
 export type TaskVersion = z.infer<typeof TaskVersion>;
-
-/** The most helpers one task has. */
-export const MAX_HELPERS = 10;
 
 /**
  * One automatic move of a task's dates, kept in the task (owner, 2026-10-02). "byTaskId" and "lateDays" let a screen write the
@@ -452,9 +448,6 @@ export function emptyReactions(): Record<Reaction, string[]> {
   return { '👍': [], '✅': [], '👀': [] };
 }
 
-/** The most files one comment or one chat message carries. */
-export const MAX_ATTACHMENTS = 10;
-
 /**
  * The dates a task had before and after a move, on the Conversation message about it (owner, 2026-10-02).
  * A person's move carries their reason in the message body. Madar's own move names the task it waited for and how late that was.
@@ -588,9 +581,6 @@ export const Feedback = z.object({
   doneAt: Stamp.nullable(),
 });
 export type Feedback = z.infer<typeof Feedback>;
-
-/** The absolute ceiling for one file (spec 2, section 8). The active file store of the real build can set a lower limit (plan 2b, point 1). */
-export const MAX_FILE_BYTES = 250 * 1024 * 1024;
 
 export const FileVersion = z.object({
   letter: z.string().regex(/^[A-Z]+$/),

@@ -1,4 +1,5 @@
-import { MAX_SHOT_BYTES, type SignedPut } from '../contract/server';
+import { MAX_SHOT_BYTES } from '../contract/limits';
+import type { SignedPut } from '../contract/server';
 import { arrivedUploads, finalCall, keepUploads, putFailure, tooLarge, uploadFailed, xhrPut, type PutSender } from './upload';
 import type { Adapter } from './wire';
 

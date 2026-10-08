@@ -15,6 +15,7 @@ import type { Language } from '../../api/contract/entities';
 import { ApiError } from '../../api/errors';
 import { AppearanceSync } from '../../app/AppearanceSync';
 import { appRoutes } from '../../app/routes';
+import { preloadScreens } from '../../app/screens';
 import { fakeAuth, type FakeAuth } from './fakeAuth';
 import { ForgotScreen } from './ForgotScreen';
 import { ResetScreen } from './ResetScreen';
@@ -23,6 +24,9 @@ import { WelcomeScreen } from './WelcomeScreen';
 
 // These tests sign in and out and load whole screens again. A busy test machine needs more than the default 1 s for a find.
 configure({ asyncUtilTimeout: 5000 });
+
+// The screens load on demand (src/app/screens.ts). The tests load all of them once, so each router starts with every screen.
+await preloadScreens();
 
 /** Shows where the router went, for the tests of a screen that moves on. */
 function Where() {
