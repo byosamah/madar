@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { XIcon } from '../../../components/icons/animated/x';
-import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -13,7 +13,7 @@ import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
-import { Age } from '../../../components/Age';
+import { Age, AgeRefresh } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -130,8 +130,15 @@ function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: bo
   );
 }
 
-/** The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24). */
-function TaskFiles({ views }: { views: FileView[] }) {
+/** One empty list for a task with no files yet, so the memo of TaskFiles holds while the list loads. */
+const EMPTY_FILES: FileView[] = Object.freeze([]) as unknown as FileView[];
+
+/**
+ * The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24).
+ * Memoized, as History, so a key in the title, the description or the note renders it again only when its files change
+ * (performance audit 2026-10-07, RND-4).
+ */
+const TaskFiles = memo(function TaskFiles({ views }: { views: FileView[] }) {
   const { t } = useTranslation();
   const { api } = useRuntime();
   const toast = useToast();
@@ -163,9 +170,10 @@ function TaskFiles({ views }: { views: FileView[] }) {
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
     </section>
   );
-}
+});
 
-function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
+/** Memoized (RND-4): it renders again when the task data or the Undo rule changes. Its ages refresh through AgeRefresh. */
+const History = memo(function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -194,7 +202,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
       )}
     </section>
   );
-}
+});
 
 /** detail is null for an office task, which has no project (owner, 2026-10-06): no stage, no prerequisites, no team. */
 function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
@@ -330,7 +338,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   // (owner, 2026-10-07).
   const choices = detail && !detail.viewerCan.edit ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
   const me = session.data?.authority.id;
-  const canUndoAgent = (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me;
+  const canUndoAgent = useCallback(
+    (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me,
+    [detail, viewerCan.editAll, me],
+  );
+  // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
+  const refresh = {};
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
   const [params] = useSearchParams();
   const panel = usePanelLink(TASK_PANEL);
@@ -480,8 +493,10 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
             <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
-            <TaskFiles views={files.data ?? []} />
-            <History data={data} canUndoAgent={canUndoAgent} />
+            <TaskFiles views={files.data ?? EMPTY_FILES} />
+            <AgeRefresh.Provider value={refresh}>
+              <History data={data} canUndoAgent={canUndoAgent} />
+            </AgeRefresh.Provider>
             {(viewerCan.saveTemplate || viewerCan.delete) && (
               <div className="flex flex-wrap gap-3">
                 {viewerCan.saveTemplate && (

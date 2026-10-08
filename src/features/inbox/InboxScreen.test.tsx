@@ -1,8 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+
+// Render counters for the performance tests (audit 2026-10-07, RND-5). The wrappers call the real parts, so every other test of
+// this file sees the same screen. A project chat row renders one ProjectTile, a bubble one RichText, and an Age calls ageOf once.
+const renders = vi.hoisted(() => ({ tiles: [] as string[], bodies: [] as string[], ages: [] as string[] }));
+vi.mock('../../components/ProjectTile', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../components/ProjectTile')>();
+  return { ...real, ProjectTile: (props: Parameters<typeof real.ProjectTile>[0]) => { renders.tiles.push(props.id); return <real.ProjectTile {...props} />; } };
+});
+vi.mock('../../components/RichText', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../components/RichText')>();
+  return { ...real, RichText: (props: Parameters<typeof real.RichText>[0]) => { renders.bodies.push(props.body); return <real.RichText {...props} />; } };
+});
+vi.mock('../../lib/age', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../lib/age')>();
+  return { ...real, ageOf: (stamp: string, at: Date) => { renders.ages.push(stamp); return real.ageOf(stamp, at); } };
+});
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
 
 const list = async () => within(await screen.findByRole('list', { name: 'Chats' }));
 const rowLink = async (name: RegExp) => (await list()).getByRole('link', { name });
@@ -274,4 +291,46 @@ describe('the bell and the Inbox badge', () => {
     await api.call('chats.markRead', { conversationId: Object.values(store.state.conversations).find((c) => c.projectId === 'prj_001')?.id ?? '' });
     expect(await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 3')).toBeInTheDocument();
   });
+});
+
+describe('the Inbox renders (performance audit 2026-10-07, RND-5)', () => {
+  it('renders again only the two rows whose selection changes on a chat switch, and every row age still reads the clock', async () => {
+    const { api } = await renderApp('/inbox');
+    const rows = await api.call('chats.list', {});
+    const [a, b] = rows.filter((row) => row.kind === 'project' && row.project && row.unread === 0);
+    if (!a?.project || !b?.project) throw new Error('The sample needs two read project chats.');
+    // The project tiles of the other project chats. A task thread names its project too, so leave out the projects of A and B.
+    const others = new Set(rows.flatMap((row) => (row.kind === 'project' && row.project && row.project.id !== a.project?.id && row.project.id !== b.project?.id ? [row.project.id] : [])));
+    await userEvent.click(await rowLink(new RegExp(a.title)));
+    await screen.findByRole('log', { name: 'Messages' });
+    await settle();
+    const tilesOfOthers = () => renders.tiles.filter((id) => others.has(id)).length;
+    const before = tilesOfOthers();
+    const agesFrom = renders.ages.length;
+    await userEvent.click(await rowLink(new RegExp(b.title)));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: b.title })).toBeInTheDocument());
+    await settle();
+    expect(others.size).toBeGreaterThan(0);
+    expect(tilesOfOthers()).toBe(before);
+    const refreshed = new Set(renders.ages.slice(agesFrom));
+    for (const row of rows) expect(refreshed.has(row.lastAt)).toBe(true);
+  }, 30_000);
+
+  it('renders only the new bubble when a message goes out', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    const log = await screen.findByRole('log', { name: 'Messages' });
+    expect(within(log).getByText(/The sprinkler riser clashes with beam B14/)).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Chats' })).queryByText('Unread: 2')).toBeNull());
+    await settle();
+    const shown = new Set(renders.bodies);
+    const old = () => renders.bodies.filter((body) => shown.has(body)).length;
+    const before = old();
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Fresh words for the log.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await within(log).findByText('Fresh words for the log.')).toBeInTheDocument();
+    await settle();
+    expect(old()).toBe(before);
+    expect(renders.bodies).toContain('Fresh words for the log.');
+  }, 30_000);
 });

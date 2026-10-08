@@ -1,10 +1,10 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
-import { Age } from '../../components/Age';
+import { Age, AgeRefresh } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
@@ -25,7 +25,12 @@ function useTitleOf(): (row: Row) => string {
   return (row) => (row.kind === 'direct' && row.person ? nameOf(row.person) : row.title);
 }
 
-function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
+/**
+ * Memoized, so a chat switch, a send or a key in the search renders again only the rows whose data or selection changed
+ * (performance audit 2026-10-07, RND-5). A row keeps its object across reloads (structural sharing), and its age refreshes
+ * through AgeRefresh.
+ */
+const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const titleOf = useTitleOf();
@@ -65,7 +70,7 @@ function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
       </Link>
     </li>
   );
-}
+});
 
 /** The chats on the start side: a search field and one link for each project chat, direct chat and task thread. */
 export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string | undefined }) {
@@ -74,6 +79,8 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
   const needle = normalizeForSearch(query);
   // A direct chat matches both names of the person (owner item 12).
   const shown = needle === '' ? rows : rows.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
+  // A new object on each render: the row ages read the clock on each switch and each search key, as before the memo (RND-5).
+  const refresh = {};
   return (
     <>
       <div className="relative p-3">
@@ -90,9 +97,11 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
         />
       </div>
       {shown.length === 0 && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
-      <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-        {shown.map((row) => <ChatRowItem key={row.id} row={row} selected={row.id === selectedId} />)}
-      </ul>
+      <AgeRefresh.Provider value={refresh}>
+        <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
+          {shown.map((row) => <ChatRowItem key={row.id} row={row} selected={row.id === selectedId} />)}
+        </ul>
+      </AgeRefresh.Provider>
     </>
   );
 }

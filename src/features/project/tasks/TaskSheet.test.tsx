@@ -1,8 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+
+// Render counters for the performance test (audit 2026-10-07, RND-4). The wrappers call the real helpers, so every other test of
+// this file sees the same panel. historyText runs once for each history line that renders; ageOf once in each render of an Age.
+const renders = vi.hoisted(() => ({ lines: [] as string[], ages: [] as string[] }));
+vi.mock('./history', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./history')>();
+  return { ...real, historyText: (...args: Parameters<typeof real.historyText>) => { renders.lines.push(args[0].id); return real.historyText(...args); } };
+});
+vi.mock('../../../lib/age', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../../lib/age')>();
+  return { ...real, ageOf: (stamp: string, at: Date) => { renders.ages.push(stamp); return real.ageOf(stamp, at); } };
+});
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -98,4 +110,31 @@ describe('the task sheet', () => {
     await waitFor(() => expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-05'));
     expect(Object.values(store.state.events).filter((e) => e.targetId === 'tsk_007' && e.verb === 'task.updated')).toHaveLength(1);
   });
+
+  it('types in the description with no new render of the history, and each history age still reads the clock on each key (performance audit RND-4)', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `evt_${9100 + i}`);
+    const { store } = await renderApp(TASK('tsk_007'), (state) => {
+      ids.forEach((id, i) => {
+        state.events[id] = {
+          id, seq: 90_000 + i, projectId: 'prj_001', actorId: 'usr_002', actorKind: 'human', actingForId: 'usr_002', correlationId: `cor_h${i}`,
+          verb: 'task.status_changed', targetType: 'task', targetId: 'tsk_007', before: { status: 'todo' }, after: { status: 'in_progress' },
+          createdAt: `2026-09-2${i % 9}T09:0${i}:00.000+03:00`, undoneBy: null,
+        };
+      });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
+    await waitFor(() => expect(renders.lines.filter((id) => ids.includes(id)).length).toBeGreaterThanOrEqual(ids.length), { timeout: 5000 });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    const lines = () => renders.lines.filter((id) => ids.includes(id)).length;
+    const stamps = ids.map((id) => store.state.events[id].createdAt);
+    const ages = () => renders.ages.filter((stamp) => stamps.includes(stamp)).length;
+    const before = { lines: lines(), ages: ages() };
+    const description = within(sheet).getByLabelText('Description');
+    await userEvent.type(description, 'abcde');
+    expect(lines()).toBe(before.lines);
+    expect(ages()).toBeGreaterThanOrEqual(before.ages + 5 * ids.length);
+    await userEvent.tab();
+    await waitFor(() => expect(store.state.tasks.tsk_007.description).toContain('abcde'));
+    expect(await within(await screen.findByRole('dialog')).findByText('changed the description')).toBeInTheDocument();
+  }, 30_000);
 });

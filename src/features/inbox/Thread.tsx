@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, UserCard } from '../../api/contract/views';
@@ -36,7 +36,11 @@ export function clockTime(stamp: string, lang: Lang): string {
   return clockFormat(lang).format(new Date(stamp));
 }
 
-function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
+/**
+ * Memoized, so a send, a reload or a chat switch renders again only the bubbles that changed (performance audit 2026-10-07,
+ * RND-5). The panes keep one Bubble object for each message (bubblesOf), so an unchanged message keeps its props.
+ */
+const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -71,7 +75,7 @@ function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
       </div>
     </motion.li>
   );
-}
+});
 
 /** The control for the earlier messages of a chat: absent when the chat has none left to show. */
 export type EarlierControl = {
