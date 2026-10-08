@@ -29,6 +29,9 @@ export function requestScopedDb(): { db: Db; run<T>(db: RequestDb, work: () => T
     async statement<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]> {
       return current().statement<R>(mode, text, values);
     },
+    async warm(mode: 'read' | 'write'): Promise<void> {
+      await current().warm?.(mode);
+    },
   };
   return { db, run: (requestDb, work) => scope.run(requestDb, work) };
 }

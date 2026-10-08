@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
 import { can } from '../../src/api/permissions';
 import { RATE_SQL, type LimitResult } from '../auth/rateLimit';
+import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
 import { runCall as realRunCall, type RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal } from '../core/types';
@@ -37,7 +38,8 @@ import { ADMIN_TOOLS, mcpTools, type ToolDef } from './tools';
  *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (37 tools, or 40 for an
  *      agent of an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era client gets the stateless
  *      legacy answer.
- *   9. The usage meter counts the request, and the extra invocation of a hop whose header carries the server's tag (forward.ts).
+ *   9. The usage meter counts the request, and the extra invocation of a hop whose header carries the server's tag (forward.ts),
+ *      after the answer on a host with after.
  */
 
 export const SERVER_INFO = { name: 'madar', title: 'Madar', version: '1.0.0' } as const;
@@ -312,13 +314,19 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
       },
     });
 
-    // The usage meter: this request, and the invocation of the first region when it hopped (plan 5.6, Region hop).
-    try {
-      await deps.meter.countRequest(deps.db);
-      if (await hopTagOk(request.headers.get(HOP_HEADER), await hopKey)) await deps.meter.countRequest(deps.db);
-    } catch (error) {
-      deps.log.warn('The usage meter did not count the MCP request.', { error: error instanceof Error ? error.message : String(error) });
-    }
+    // The usage meter: this request, and the invocation of the first region when it hopped (plan 5.6, Region hop). On a host
+    // with after (core/after.ts), both counts run after the answer, in this order (performance audit SRV-4).
+    const counted = (async () => {
+      try {
+        await deps.meter.countRequest(deps.db);
+        if (await hopTagOk(request.headers.get(HOP_HEADER), await hopKey)) await deps.meter.countRequest(deps.db);
+      } catch (error) {
+        deps.log.warn('The usage meter did not count the MCP request.', { error: error instanceof Error ? error.message : String(error) });
+      }
+    })();
+    const { after } = requestHost();
+    if (after) after(counted);
+    else await counted;
     return response;
   });
 

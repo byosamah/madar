@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import { MAX_BODY_BYTES, type WireCall, type WireResponse } from '../../src/api/remote/wire';
+import { runInHost } from '../core/after';
+import type { Db } from '../core/ports';
 import type { OfficeSnapshot, RunRequest, RunResult } from '../core/types';
 import { fakeDeps } from '../test/fakes/deps';
 import { apiApp, type AppOptions } from './app';
@@ -206,6 +208,149 @@ describe('POST /batch', () => {
     expect(counts).toEqual([0]);
     expect(deps.logs.some((l) => l.level === 'warn' && l.message.includes('meter'))).toBe(true);
     void h;
+  });
+});
+
+describe('POST /batch: the work after the answer (performance audit SRV-4, SRV-M2, SRV-6)', () => {
+  const plain = (calls: unknown[]) =>
+    new Request('http://127.0.0.1/batch', { method: 'POST', headers: { Authorization: 'Bearer good' }, body: JSON.stringify({ v: 1, calls }) });
+
+  it('hands the meter to after when the host has one: the answer does not wait for it, and the count still runs once', async () => {
+    const h = harness();
+    let release: () => void = () => undefined;
+    let counted = 0;
+    h.deps.meter.countRequest = () => {
+      counted += 1;
+      return new Promise<void>((resolve) => (release = resolve));
+    };
+    const later: Promise<unknown>[] = [];
+    const response = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.app.fetch(plain([call(0, 'tasks.get')])));
+    expect(response.status).toBe(200);
+    expect((await response.json() as WireResponse).results).toHaveLength(1);
+    expect([counted, later.length]).toEqual([1, 1]);
+    release();
+    await Promise.all(later);
+    expect(counted).toBe(1);
+  });
+
+  it('keeps the warning of a meter that fails after the answer, and never fails the batch', async () => {
+    const h = harness();
+    h.deps.meter.countRequest = async () => {
+      throw new Error('meter down');
+    };
+    const later: Promise<unknown>[] = [];
+    const response = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.app.fetch(plain([call(0, 'tasks.get')])));
+    expect(response.status).toBe(200);
+    await Promise.all(later);
+    expect(h.deps.logs).toContainEqual({ level: 'warn', message: 'The usage meter did not count the request.', fields: { error: 'meter down' } });
+  });
+
+  it('counts before the answer when the host has no after, as before', async () => {
+    const h = harness();
+    let done = false;
+    h.deps.meter.countRequest = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      done = true;
+    };
+    await h.app.fetch(plain([call(0, 'tasks.get')]));
+    expect(done).toBe(true);
+  });
+
+  /** A Db whose warm is recorded beside the steps of the sign-in. */
+  function warmHarness(o: { write?: boolean; token?: string } = {}) {
+    const steps: string[] = [];
+    let officeDone: () => void = () => undefined;
+    const db = { warm: async (mode: string) => void steps.push(`warm:${mode}`) } as unknown as Db;
+    const deps = fakeDeps({ db });
+    const app = apiApp(deps, {
+      runCall: async (_d, req) => ({ ok: true, output: req.name, changed: false }),
+      verifyToken: async (header) => {
+        steps.push('token');
+        if (header !== 'Bearer good') throw new ApiError('unauthenticated', 'Sign in again.');
+        return { authUserId: 'auth-1' };
+      },
+      principalOf: () => ({ userId: 'usr_001' }),
+      readOffice: () => {
+        steps.push('office:start');
+        return new Promise<OfficeSnapshot>((resolve) => {
+          officeDone = () => {
+            steps.push('office:end');
+            resolve(office);
+          };
+          setTimeout(officeDone, 5);
+        });
+      },
+      hasWrite: (name) => name === 'tasks.update',
+    });
+    const fetch = (calls: unknown[], token = o.token ?? 'Bearer good') =>
+      app.fetch(new Request('http://127.0.0.1/batch', { method: 'POST', headers: { Authorization: token }, body: JSON.stringify({ v: 1, calls }) }));
+    return { steps, fetch };
+  }
+
+  it('opens the write connection after the token check and beside the sign-in read, for a batch with a write', async () => {
+    const h = warmHarness();
+    expect((await h.fetch([call(0, 'tasks.get'), call(1, 'tasks.update', { id: 'tsk_001', patch: {} })])).status).toBe(200);
+    expect(h.steps).toEqual(['token', 'warm:write', 'office:start', 'office:end']);
+  });
+
+  it('opens no write connection for a read batch or a refused token', async () => {
+    const reads = warmHarness();
+    expect((await reads.fetch([call(0, 'tasks.get'), call(1, 'projects.get')])).status).toBe(200);
+    expect(reads.steps).toEqual(['token', 'office:start', 'office:end']);
+    const refused = warmHarness({ token: 'Bearer bad' });
+    expect((await refused.fetch([call(0, 'tasks.update', { id: 'tsk_001', patch: {} })])).status).toBe(401);
+    expect(refused.steps).toEqual(['token']);
+  });
+
+  it('runs a run of adjacent files.link entries side by side, keeps the order of the answers, and keeps each error to its entry', async () => {
+    const order: string[] = [];
+    let running = 0;
+    let most = 0;
+    const deps = fakeDeps();
+    const app = apiApp(deps, {
+      runCall: async (_d, req) => {
+        const id = (req.input as { id: string }).id;
+        order.push(`start:${id}`);
+        running += 1;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        running -= 1;
+        order.push(`end:${id}`);
+        if (id === 'fil_bad') throw new Error('storage key k-123 is gone');
+        if (id === 'fil_404') return { ok: false, error: { code: 'not_found', message: 'File not found.' } };
+        return { ok: true, output: { id }, changed: false };
+      },
+      verifyToken: async () => ({ authUserId: 'a' }),
+      principalOf: () => ({ userId: 'usr_001' }),
+      readOffice: async () => office,
+    });
+    const links = ['fil_1', 'fil_bad', 'fil_2', 'fil_404', 'fil_3', 'fil_4'];
+    const started = performance.now();
+    const response = await app.fetch(plain(links.map((id, i) => call(i, 'files.link', { id }))));
+    const took = performance.now() - started;
+    const body = (await response.json()) as WireResponse;
+    expect(body.results.map((r) => r.i)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(body.results.map((r) => r.ok)).toEqual([true, false, true, false, true, true]);
+    expect(body.results[1]).toMatchObject({ ok: false, error: { code: 'failed' } });
+    expect(JSON.stringify(body)).not.toContain('k-123');
+    expect(body.results[3]).toEqual({ i: 3, ok: false, error: { code: 'not_found', message: 'File not found.' } });
+    expect(body.results[5]).toEqual({ i: 5, ok: true, output: { id: 'fil_4' }, changed: false });
+    expect(most).toBe(6);
+    // Six links of 20 ms each take about one delay, not six.
+    expect(took).toBeLessThan(100);
+    expect(deps.logs.some((l) => l.level === 'error' && l.fields?.name === 'files.link')).toBe(true);
+  });
+
+  it('keeps every other call in order, one at a time, around a run of links', async () => {
+    const h = harness();
+    await batch(h, [
+      call(0, 'projects.get', { id: 'prj_001' }), call(1, 'files.link', { id: 'a' }), call(2, 'files.link', { id: 'b' }), call(3, 'tasks.get', { id: 't' }),
+      call(4, 'files.link', { id: 'c' }),
+    ]);
+    expect(h.order).toEqual([
+      'start:projects.get', 'end:projects.get', 'start:files.link', 'start:files.link', 'end:files.link', 'end:files.link',
+      'start:tasks.get', 'end:tasks.get', 'start:files.link', 'end:files.link', 'count',
+    ]);
   });
 });
 
