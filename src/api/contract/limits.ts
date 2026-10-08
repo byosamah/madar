@@ -35,3 +35,6 @@ export const MAX_SHOT_BYTES = 10 * 1024 * 1024;
  * account only, and it changes only the Invited label of that person; no right depends on it.
  */
 export const PASSWORD_SET_MARK = 'madar_password_set';
+
+/** A paused project turns stale after this many days, when the office settings name no number (colleague comment 16). */
+export const DEFAULT_STALE_DAYS = 30;

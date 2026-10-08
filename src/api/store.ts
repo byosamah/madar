@@ -2,7 +2,7 @@ import type {
   ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, Settings, Stage,
   StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from './contract/entities';
-import { DEFAULT_STALE_DAYS } from './contract/entities';
+import { DEFAULT_STALE_DAYS } from './contract/limits';
 import type { Persister } from './persist';
 
 /**
@@ -134,13 +134,7 @@ export function teamsOf(state: State): Record<string, Team> {
   return state.teams;
 }
 
-export function memberKey(projectId: string, userId: string): string {
-  return `${projectId}:${userId}`;
-}
-
-export function chatReadKey(conversationId: string, userId: string): string {
-  return `${conversationId}:${userId}`;
-}
+export { chatReadKey, memberKey } from './rowKeys';
 
 /** The key of the comment count of a task or a post in State.counts. */
 export function commentCountKey(targetId: string): string {

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, PROJECT_CODE_PATTERN } from '../../lib/projectCode';
-import { MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+import { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
-export { MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
+export { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -667,8 +667,6 @@ export const Team = z.object({
   memberIds: z.array(UserId).max(100),
 });
 export type Team = z.infer<typeof Team>;
-
-export const DEFAULT_STALE_DAYS = 30;
 
 export const Settings = z.object({
   defaultStages: z.array(z.string().trim().min(1).max(60)).min(1).max(20),

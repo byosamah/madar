@@ -1,5 +1,6 @@
 import type { Task, User } from './contract/entities';
-import { memberKey, type State } from './store';
+import { memberKey } from './rowKeys';
+import type { State } from './store';
 
 export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
