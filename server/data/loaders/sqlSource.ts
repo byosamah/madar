@@ -2,7 +2,7 @@ import { jsonPathOf } from '../../../src/api/references';
 import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, fieldName, matchesNothing, type Cond, type CountSelect, type Row, type Select } from './query';
+import { columnOf, columnOfField, fieldName, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -13,9 +13,33 @@ import type { Source } from './source';
 
 const C = 'collate "C"';
 const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(rows)).length;
+const HOUR = 3_600_000;
 
-/** The table and the where clause of a Select or a count: $1 and up are its values. */
-function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: string) => string; where: string } {
+/**
+ * A text lower bound for a stamp at or after this time, so the index on created_at (collate "C") serves the read (performance
+ * audit DB-1): the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time minus 36 hours. Every stored stamp is ISO text with an offset
+ * between -12:00 and +14:00, so its text is at or after the UTC text of (its time minus 12 hours), and the bound never leaves out
+ * a row that the time test keeps. Null for a time that does not parse: the time test alone decides.
+ */
+function textBoundOf(time: string): string | null {
+  const back = new Date(Date.parse(time) - 36 * HOUR);
+  return Number.isNaN(back.getTime()) ? null : back.toISOString().slice(0, 19);
+}
+
+/** The rows of a "bounds" condition, one for each key, as jsonb_to_recordset reads them. */
+function boundRows(by: Readonly<Record<string, Bound>>): string {
+  return JSON.stringify(Object.entries(by).map(([k, bound]) => ({ k, gt: bound.gt, ge: bound.ge ?? null, aat: bound.after?.at ?? null, aid: bound.after?.id ?? null })));
+}
+
+/** The terms of one bound "b" on a row "t": created_at after gt, at or after ge, and (created_at, id) after the pair of "after". */
+const BOUND_TERMS = `t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
+  + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C}))`;
+
+/**
+ * The table and the where clause of a Select or a count: $1 and up are its values. "conds" holds each condition alone. "joined"
+ * is a bounds condition whose rows "b" the statement joins (countSql), so its terms name b directly.
+ */
+function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { col: (name: string) => string; conds: string[]; where: string } {
   const param = (value: unknown, type: string) => {
     values.push(value);
     return `$${values.length}::${type}`;
@@ -37,13 +61,11 @@ function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: str
       return `(t.created_at ${C} < ${at} or (t.created_at = ${at} and t.id ${C} < ${param(one.before.id, 'text')}))`;
     }
     if ('bounds' in one) {
-      const rows = Object.entries(one.bounds.by).map(([k, bound]) => ({
-        k, gt: bound.gt, ge: bound.ge ?? null, aat: bound.after?.at ?? null, aid: bound.after?.id ?? null,
-      }));
-      return `exists (select 1 from jsonb_to_recordset(${param(JSON.stringify(rows), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
-        + `where b.k = ${col(one.bounds.col)} and t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
-        + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C})))`;
+      if (one === joined) return `(${BOUND_TERMS})`;
+      return `exists (select 1 from jsonb_to_recordset(${param(boundRows(one.bounds.by), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
+        + `where b.k = ${col(one.bounds.col)} and ${BOUND_TERMS})`;
     }
+    if ('key' in one) return `t.doc->'${fieldName(one.field)}'->>'${fieldName(one.key)}' = any(${param(one.in, 'text[]')})`;
     if ('field' in one) {
       const field = fieldName(one.field);
       if ('null' in one) return `(t.doc->'${field}' is null or t.doc->'${field}' = 'null'::jsonb)`;
@@ -56,10 +78,38 @@ function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: str
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
     if ('contains' in one) return `strpos(${column}, ${param(one.contains, 'text')}) > 0`;
-    return `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
+    const time = `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
+    const bound = textBoundOf(one.atOrAfter);
+    return bound === null ? time : `(${time} and ${column} ${C} >= ${param(bound, 'text')})`;
   }
 
-  return { col, where: s.where.length > 0 ? ` where ${s.where.map(cond).join(' and ')}` : '' };
+  const conds = s.where.map(cond);
+  return { col, conds, where: conds.length > 0 ? ` where ${conds.join(' and ')}` : '' };
+}
+
+/** jsonb_build_object takes at most 100 arguments, so a pick of more fields reads them with jsonb_each. */
+const PICK_BUILD_MAX = 50;
+
+/**
+ * The doc of a read that takes only some fields (performance audit DB-4): jsonb_build_object of the picked keys, minus the keys
+ * that the doc does not hold, so an absent field stays absent and a JSON null stays null. jsonb keeps its keys in its own order,
+ * so the doc is the one that jsonb_each and jsonb_object_agg give, at a fraction of the cost. The names stay in one array
+ * parameter and never go into the SQL text.
+ */
+function pickSql(pick: readonly string[], param: (value: unknown, type: string) => string): string {
+  if (pick.length === 0) return `'{}'::jsonb`;
+  const keys = param(pick, 'text[]');
+  if (pick.length > PICK_BUILD_MAX) return `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${keys}))`;
+  const key = (i: number) => `(${keys})[${i + 1}]`;
+  const pairs = pick.map((_, i) => `${key(i)}, t.doc->(${key(i)})`).join(', ');
+  const absent = pick.map((_, i) => `case when t.doc ? ${key(i)} then null else ${key(i)} end`).join(', ');
+  return `(jsonb_build_object(${pairs}) - array_remove(array[${absent}], null))`;
+}
+
+/** The in-list condition of a Select on its "per" column, at the top level: the keys whose newest rows it reads. */
+function perListOf(s: Select): { col: string; in: readonly string[] } | undefined {
+  if (s.limit === undefined || !s.per) return undefined;
+  return s.where.find((one): one is { col: string; in: readonly string[] } => 'col' in one && one.col === s.per && 'in' in one);
 }
 
 /** The SQL of one Select: $1 and up are its values. */
@@ -69,11 +119,14 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
     values.push(value);
     return `$${values.length}::${type}`;
   };
-  const { col, where } = whereSql(s, values);
   const table = tableOf(s.c).table;
-  const doc = s.pick
-    ? `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${param(s.pick, 'text[]')}))`
-    : 't.doc';
+  // The newest rows of each key of an in-list (performance audit DB-2): one read on the index of each key, never a window over
+  // every row of the keys. rank() <= N keeps the same rows as FETCH FIRST N ROWS WITH TIES in the same order, and row_number()
+  // <= N the same rows as LIMIT N, because that order ends with t.ord and is total. DISTINCT reads a repeated key once.
+  const perList = perListOf(s);
+  const keys = perList ? param(perList.in, columnOf(s.c, perList.col).type === 'int' ? 'int[]' : 'text[]') : '';
+  const { col, conds, where } = whereSql(perList ? { ...s, where: s.where.filter((one) => one !== perList) } : s, values);
+  const doc = s.pick ? pickSql(s.pick, param) : 't.doc';
   if (s.limit === undefined) return { text: `select t.ord, ${doc} as doc from ${table} t${where} order by t.ord`, values };
 
   const order = s.order;
@@ -81,18 +134,42 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
   const ordering = order
     ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} desc`, ...(order.id ? [`t.id ${C} desc`] : []), ...(s.ties ? [] : ['t.ord desc'])].join(', ')
     : 't.ord';
+  const limit = param(s.limit, 'int');
+  if (perList) {
+    const inner = [`${col(perList.col)} = p.k`, ...conds].join(' and ');
+    const cut = s.ties ? `fetch first (${limit}) rows with ties` : `limit ${limit}`;
+    return {
+      text: `select x.ord, x.doc from (select distinct k from unnest(${keys}) as k) p cross join lateral `
+        + `(select t.ord, ${doc} as doc from ${table} t where ${inner} order by ${ordering} ${cut}) x order by x.ord`,
+      values,
+    };
+  }
   const partition = s.per ? `partition by ${col(s.per)} ` : '';
   const rank = `${s.ties ? 'rank' : 'row_number'}() over (${partition}order by ${ordering})`;
-  const limit = param(s.limit, 'int');
   return {
     text: `select ord, doc from (select t.ord, ${doc} as doc, ${rank} as r from ${table} t${where}) x where r <= ${limit} order by ord`,
     values,
   };
 }
 
-/** The SQL of one count: one grouped count over the rows that the conditions match. */
+/**
+ * The SQL of one count: one grouped count over the rows that the conditions match. With a bounds condition on the column "per"
+ * (the unread counts), the bounds join the table on that column, so each key reads its own rows on the index of the column
+ * (performance audit DB-6). Its keys come from an object, so each one is unique, and the count of each key stays the same.
+ */
 export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   const values: unknown[] = [];
+  const joined = s.where.find((one): one is Extract<Cond, { bounds: unknown }> => 'bounds' in one && one.bounds.col === s.per);
+  if (joined) {
+    columnOf(s.c, s.per);
+    values.push(boundRows(joined.bounds.by));
+    const { conds } = whereSql(s, values, joined);
+    return {
+      text: `select b.k as v, count(*)::integer as n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) `
+        + `join ${tableOf(s.c).table} t on t.${s.per} = b.k where ${conds.join(' and ')} group by b.k`,
+      values,
+    };
+  }
   const { col, where } = whereSql(s, values);
   const per = col(s.per);
   return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
@@ -136,26 +213,35 @@ export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): So
     },
 
     async referencing(c, path, id, except) {
-      const rows = await read<{ ord: string | number; doc: Record<string, unknown> }>(
-        `select t.ord, t.doc from ${tableOf(c).table} t where jsonb_path_exists(t.doc, $1::jsonpath, jsonb_build_object('id', $2::text)) `
-          + 'and t.id is distinct from $3::text order by t.ord limit 1',
-        [`${jsonPathOf(path)} ? (@ == $id)`, id, except],
-      );
+      // A plain field with a text column of its own (doc->>'field'): one equality on that column, often on its index, never a
+      // jsonpath scan of every row (performance audit DB-M3). A zod id field holds one string or null, so both give the same row.
+      const column = /^[a-zA-Z]+$/.test(path) ? columnOfField(c, path) : undefined;
+      const rows = column
+        ? await read<{ ord: string | number; doc: Record<string, unknown> }>(
+          `select t.ord, t.doc from ${tableOf(c).table} t where t.${column} = $1::text and t.id is distinct from $2::text order by t.ord limit 1`,
+          [id, except],
+        )
+        : await read<{ ord: string | number; doc: Record<string, unknown> }>(
+          `select t.ord, t.doc from ${tableOf(c).table} t where jsonb_path_exists(t.doc, $1::jsonpath, jsonb_build_object('id', $2::text)) `
+            + 'and t.id is distinct from $3::text order by t.ord limit 1',
+          [`${jsonPathOf(path)} ? (@ == $id)`, id, except],
+        );
       return rows.map((row) => ({ ord: Number(row.ord), doc: row.doc }));
     },
 
     async threads(o) {
       return read<{ id: string; last: string; mine: string | null }>(
         `with mine as (select distinct target_id from comments where target_type = 'task' and doc->>'authorId' = any($3::text[])),
-         threads as (
-           select c.target_id as id, max(c.created_at ${C}) as last,
-                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
-           from comments c join tasks k on k.id = c.target_id
-           where c.target_type = 'task'
-             and (k.owner_id = $1::text or k.project_id = any($2::text[]) or c.target_id in (select target_id from mine)
+         cand as (select k.id from tasks k
+           where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
                or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
              and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
                or k.doc->>'createdBy' = any($3::text[]))
+         ),
+         threads as (
+           select c.target_id as id, max(c.created_at ${C}) as last,
+                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
+           from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
            group by c.target_id
          ),
          ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)

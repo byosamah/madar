@@ -12,11 +12,15 @@ import { tableOf, type TableCollection, type TableSpec } from '../tables';
 
 type Rec = Record<string, unknown>;
 
-/** A column that a condition or an order may name. text: doc->>'field'; bool and int: the typed generated column. */
-type Column = { type: 'text' | 'bool' | 'int'; value(rec: Rec, state: State, spec: TableSpec): string | boolean | number | null };
+/**
+ * A column that a condition or an order may name. text: doc->>'field'; bool and int: the typed generated column. "field" is the
+ * doc field of a text column that the migration builds as doc->>'field', so a lookup by that field may use the column.
+ */
+type Column = { type: 'text' | 'bool' | 'int'; field?: string; value(rec: Rec, state: State, spec: TableSpec): string | boolean | number | null };
 
 const text = (field: string): Column => ({
   type: 'text',
+  field,
   value: (rec) => (rec[field] === undefined || rec[field] === null ? null : String(rec[field])),
 });
 const server = (column: string): Column => ({
@@ -58,6 +62,11 @@ export function columnOf(c: TableCollection, name: string): Column {
 }
 const ID: Column = { type: 'text', value: (rec, _state, spec) => spec.key(rec) };
 
+/** The text column that the migration builds as doc->>'field' for this plain doc field, or undefined when the table has none. */
+export function columnOfField(c: TableCollection, field: string): string | undefined {
+  return Object.entries(COLUMNS[c] ?? {}).find(([, column]) => column.field === field)?.[0];
+}
+
 /** A JSON field of "doc" that has no column: a scan inside the database, never an index. Only names of plain fields. */
 const FIELD = /^[a-zA-Z]+$/;
 export function fieldName(name: string): string {
@@ -73,6 +82,7 @@ export function fieldName(name: string): string {
  *   contains      the column holds the text (strpos), for search_text
  *   atOrAfter     the stamp of the column is at or after this time (compared as times, as events.list does)
  *   field / in    a doc field without a column has one of the values (doc->>'field')
+ *   field / key / in  a key of an object field of doc has one of the values (doc->'field'->>'key'), for example after.status
  *   field / null  a doc field holds JSON null (or is absent)
  *   field / notIn a doc field without a column is null or absent, or has none of the values
  *   has           a doc list field holds the value (doc->'field' ? value)
@@ -89,6 +99,7 @@ export type Cond =
   | { col: string; contains: string }
   | { col: string; atOrAfter: string }
   | { field: string; in: readonly string[] }
+  | { field: string; key: string; in: readonly string[] }
   | { field: string; null: true }
   | { field: string; notIn: readonly string[] }
   | { has: string; value: string }

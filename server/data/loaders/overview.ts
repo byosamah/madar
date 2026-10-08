@@ -62,9 +62,10 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
     // The office tasks that the person sees count in the numbers of people (owner, 2026-10-06).
     ...(officeIn(input) ? await officeTasks(L, [], { pick: DASHBOARD_TASK_FIELDS }) : []),
   ];
-  // The changes of the tasks in review, for the day each one went to review (owner, 2026-10-06).
+  // The changes of the tasks in review, for the day each one went to review (owner, 2026-10-06). sentToReviewOn (review.ts) reads
+  // only the changes that set the status to in_review, so the other changes stay in the database (performance audit DB-5).
   const review = tasks.filter((t) => t.status === 'in_review').map((t) => t.id);
-  await L.select({ c: 'events', where: [{ col: 'target_type', in: ['task'] }, { col: 'target_id', in: review }] });
+  await L.select({ c: 'events', where: [{ col: 'target_type', in: ['task'] }, { col: 'target_id', in: review }, { field: 'after', key: 'status', in: ['in_review'] }] });
   await L.select({
     c: 'tracker',
     where: [{ col: 'project_id', in: ids }, { or: [{ col: 'open', eq: true }, { field: 'direction', in: ['out'] }] }],
