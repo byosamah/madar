@@ -18,7 +18,14 @@ import { createSupabase } from './supabase';
  */
 
 /** The public values of the build (config/remote.<env>.env). None of them is a secret. */
-export type RemoteConfig = { supabaseUrl: string; publishableKey: string; apiUrl: string; build: string };
+export type RemoteConfig = {
+  supabaseUrl: string;
+  publishableKey: string;
+  apiUrl: string;
+  build: string;
+  /** The same-host forwarder of the batch (VITE_BATCH_URL, /api/batch), when the build names one (performance audit FET-10). */
+  batchUrl?: string;
+};
 
 export function remoteConfig(env: Record<string, string | boolean | undefined>): RemoteConfig {
   const text = (name: string) => {
@@ -34,6 +41,7 @@ export function remoteConfig(env: Record<string, string | boolean | undefined>):
     apiUrl: (text('VITE_API_URL') ?? `${supabaseUrl}/functions/v1/api`).replace(/\/+$/, ''),
     // The server answers 409 client_outdated to a build older than MIN_CLIENT_BUILD. '0' passes while that is 0.
     build: text('VITE_MADAR_BUILD') ?? '0',
+    batchUrl: text('VITE_BATCH_URL'),
   };
 }
 
@@ -147,6 +155,7 @@ export async function bootstrapRemote(o: {
     VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
     VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     VITE_API_URL: import.meta.env.VITE_API_URL,
+    VITE_BATCH_URL: import.meta.env.VITE_BATCH_URL,
     VITE_MADAR_BUILD: import.meta.env.VITE_MADAR_BUILD,
   });
   const supabase = o.supabase ?? createSupabase({ url: config.supabaseUrl, publishableKey: config.publishableKey });
@@ -155,6 +164,7 @@ export async function bootstrapRemote(o: {
   let changes: PersonChangeSource | undefined;
   const api = createRemoteApi<Calls>({
     url: config.apiUrl,
+    batchUrl: config.batchUrl,
     build: config.build,
     token: () => auth.accessToken(),
     refresh: async () => {

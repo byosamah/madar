@@ -47,6 +47,12 @@ describe('the request', () => {
     expect(sent[0].body).toEqual({ v: 1, calls: [{ i: 0, name: 'projects.get', input: PROJECT }] });
   });
 
+  it('posts to the batch address of the options when it is set, with the region parameter (performance audit FET-10)', async () => {
+    const { sent, fetch } = stubFetch();
+    await remote(fetch, { batchUrl: '/api/batch' }).call('projects.get', PROJECT);
+    expect(sent[0].url).toBe('/api/batch?forceFunctionRegion=eu-central-1');
+  });
+
   it('puts the region parameter on every URL, also one with a query already', () => {
     expect(regionUrl('https://x.supabase.co/functions/v1/api/auth/forgot')).toBe('https://x.supabase.co/functions/v1/api/auth/forgot?forceFunctionRegion=eu-central-1');
     expect(regionUrl('https://x.supabase.co/functions/v1/api/batch?a=1')).toBe('https://x.supabase.co/functions/v1/api/batch?a=1&forceFunctionRegion=eu-central-1');

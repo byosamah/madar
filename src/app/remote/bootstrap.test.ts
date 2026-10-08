@@ -75,6 +75,13 @@ describe('the settings of the real screens', () => {
     expect(() => remoteConfig({})).toThrow(/VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY/);
   });
 
+  it('takes the batch address of the same-host forwarder only when VITE_BATCH_URL is set (performance audit FET-10)', () => {
+    const base = { VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'k' };
+    expect(remoteConfig(base).batchUrl).toBeUndefined();
+    expect(remoteConfig({ ...base, VITE_BATCH_URL: ' ' }).batchUrl).toBeUndefined();
+    expect(remoteConfig({ ...base, VITE_BATCH_URL: '/api/batch' }).batchUrl).toBe('/api/batch');
+  });
+
   it('opens in the saved language, else in the language of the browser (client map 7.4)', () => {
     expect(firstLanguage('ar', ['en-US'])).toBe('ar');
     expect(firstLanguage('en', ['ar-SA'])).toBe('en');
@@ -225,6 +232,19 @@ describe('the remote runtime (plan R2)', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].url).toBe('https://ref.supabase.co/functions/v1/api/batch?forceFunctionRegion=eu-central-1');
     expect(requests[0].headers).toMatchObject({ Authorization: 'Bearer token-1', 'X-Madar-Build': '2026.10.4', apikey: 'sb_publishable_x' });
+  });
+
+  it('sends the batch to the same-host forwarder when the config names it', async () => {
+    const urls: string[] = [];
+    const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      urls.push(String(url));
+      const body = JSON.parse(String(init?.body)) as { calls: { i: number }[] };
+      const results = body.calls.map((call) => ({ i: call.i, ok: true, output: [], storyId: 'cor_srv_1', changed: false }));
+      return new Response(JSON.stringify({ v: 1, serverTime: '2026-10-04T09:00:00.000+03:00', results }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const runtime = await bootstrapRemote({ config: { ...config, batchUrl: '/api/batch' }, supabase, auth: stubAuth().auth, fetch });
+    await runtime.api.call('clients.list', {});
+    expect(urls).toEqual(['/api/batch?forceFunctionRegion=eu-central-1']);
   });
 
   it('makes the Supabase sign-in port, whose reset request also runs in Frankfurt', async () => {
