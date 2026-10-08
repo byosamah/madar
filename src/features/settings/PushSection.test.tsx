@@ -168,3 +168,16 @@ describe('the Notifications on this device section (owner, 2026-10-08)', () => {
     await act(async () => undefined);
   });
 });
+
+describe('the notes of the push section that show no switch', () => {
+  // The blocked note and the iPhone note show no switch, so they must name it by its label and say where to find it.
+  it('name the switch by its label, in English and Arabic, and never say "this switch"', () => {
+    for (const lang of ['en', 'ar'] as const) {
+      for (const key of ['blocked', 'needsInstall'] as const) {
+        expect(pushWords[lang][key]).toContain(pushWords[lang].switch);
+      }
+    }
+    expect(pushWords.en.blocked).not.toMatch(/this switch/);
+    expect(pushWords.en.needsInstall).not.toMatch(/this switch/);
+  });
+});
