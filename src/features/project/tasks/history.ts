@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
 import { actorContext } from '../../../lib/grammar';
 import type { Event } from '../../../api/contract/entities';
-import { localeFor, type Lang } from '../../../lib/dates';
+import { listFormat, type Lang } from '../../../lib/dates';
 
 /** One line for a task history entry (spec 5.4), without the actor's name. The actor's gender picks the Arabic verb (lib/grammar). */
 export function historyText(event: Event, t: TFunction, lang: Lang, gender?: 'female' | 'male'): string {
@@ -23,7 +23,7 @@ export function historyText(event: Event, t: TFunction, lang: Lang, gender?: 'fe
     }
     case 'task.updated': {
       const fields = [...new Set(Object.keys((event.after ?? {}) as object).map((field) => t(`taskHistory.fields.${field}`)))];
-      return t('taskHistory.updated', { fields: new Intl.ListFormat(localeFor(lang), { type: 'conjunction' }).format(fields), context });
+      return t('taskHistory.updated', { fields: listFormat(lang).format(fields), context });
     }
     default: return t('feed.other', { context });
   }

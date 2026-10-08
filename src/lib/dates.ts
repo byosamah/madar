@@ -80,37 +80,64 @@ export function localeFor(lang: Lang): string {
   return LOCALES[lang];
 }
 
-export function formatDay(day: string, lang: Lang, style: 'short' | 'shortYear' | 'long' | 'weekday' | 'withWeekday' | 'weekdayDay' = 'short'): string {
-  const options: Intl.DateTimeFormatOptions =
-    style === 'short'
-      ? { day: 'numeric', month: 'short', timeZone: 'UTC' }
-      : style === 'shortYear'
-      ? { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
-      : style === 'weekdayDay'
-      ? { weekday: 'short', day: 'numeric', timeZone: 'UTC' }
-      : style === 'withWeekday'
-        ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }
-        : style === 'weekday'
-        ? { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }
-        : { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' };
-  return new Intl.DateTimeFormat(LOCALES[lang], options).format(new Date(toMs(day)));
+export type DayStyle = 'short' | 'shortYear' | 'long' | 'weekday' | 'withWeekday' | 'weekdayDay';
+
+const DAY_OPTIONS: Record<DayStyle, Intl.DateTimeFormatOptions> = {
+  short: { day: 'numeric', month: 'short', timeZone: 'UTC' },
+  shortYear: { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' },
+  weekdayDay: { weekday: 'short', day: 'numeric', timeZone: 'UTC' },
+  withWeekday: { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' },
+  weekday: { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' },
+  long: { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' },
+};
+
+/**
+ * One formatter for each language and style, built on its first use (performance audit 2026-10-07, RND-1). A new Intl object
+ * costs about 50 microseconds and a reused one about 0.5, and a formatter keeps no state between calls, so every text stays the
+ * same. The cache holds at most a few dozen small objects.
+ */
+const formats = new Map<string, Intl.DateTimeFormat | Intl.NumberFormat | Intl.ListFormat>();
+
+function once<T extends Intl.DateTimeFormat | Intl.NumberFormat | Intl.ListFormat>(key: string, make: () => T): T {
+  let format = formats.get(key) as T | undefined;
+  if (!format) {
+    format = make();
+    formats.set(key, format);
+  }
+  return format;
+}
+
+const dayFormat = (lang: Lang, style: DayStyle) => once(`day|${lang}|${style}`, () => new Intl.DateTimeFormat(LOCALES[lang], DAY_OPTIONS[style]));
+const monthFormat = (lang: Lang) => once(`month|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }));
+const monthYearFormat = (lang: Lang) => once(`monthYear|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { month: 'long', year: 'numeric', timeZone: 'UTC' }));
+const weekdayFormat = (lang: Lang) => once(`weekday|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'short', timeZone: 'UTC' }));
+const numberFormat = (lang: Lang, fractionDigits: number) => once(`number|${lang}|${fractionDigits}`, () => new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: fractionDigits }));
+
+/** The list of names in the interface language: "A, B and C". */
+export const listFormat = (lang: Lang) => once(`list|${lang}`, () => new Intl.ListFormat(LOCALES[lang], { type: 'conjunction' }));
+
+/** The office clock time of a moment, for the chat times. */
+export const clockFormat = (lang: Lang) => once(`clock|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { hour: 'numeric', minute: '2-digit', timeZone: OFFICE_TZ }));
+
+export function formatDay(day: string, lang: Lang, style: DayStyle = 'short'): string {
+  return dayFormat(lang, style).format(new Date(toMs(day)));
 }
 
 /** The short month name, for the month scale of a schedule. */
 export function formatMonth(day: string, lang: Lang): string {
-  return new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
+  return monthFormat(lang).format(new Date(toMs(day)));
 }
 
 /** The month and the year, "October 2026", for the name of a month on a schedule. */
 export function formatMonthYear(day: string, lang: Lang): string {
-  return new Intl.DateTimeFormat(LOCALES[lang], { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(toMs(day)));
+  return monthYearFormat(lang).format(new Date(toMs(day)));
 }
 
 /** The short weekday name, for the timesheet columns. */
 export function formatWeekday(day: string, lang: Lang): string {
-  return new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'short', timeZone: 'UTC' }).format(new Date(toMs(day)));
+  return weekdayFormat(lang).format(new Date(toMs(day)));
 }
 
 export function formatNumber(value: number, lang: Lang, fractionDigits = 0): string {
-  return new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: fractionDigits }).format(value);
+  return numberFormat(lang, fractionDigits).format(value);
 }

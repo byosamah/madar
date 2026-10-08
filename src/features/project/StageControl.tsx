@@ -10,7 +10,7 @@ import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
 import { Popover } from '../../components/Popover';
-import { formatDay, localeFor, type Lang } from '../../lib/dates';
+import { formatDay, listFormat, type Lang } from '../../lib/dates';
 import { openStagesNeededBy, overlappingWith, stageOverlaps } from '../../lib/stageFlow';
 
 /** The dates of a stage in words. A stage with one date says that date, not "No dates" (audit 2026-10-03, PRJ-23). */
@@ -32,7 +32,7 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
   const setNeeds = useUndoable('stages.setPrerequisites', { message: () => t('project.stageOrderSaved') });
   const inStage = (tasks.data ?? []).filter((row) => row.task.stageId === stage.id);
   const done = inStage.filter((row) => row.task.status === 'done').length;
-  const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
+  const list = listFormat(lang);
   const nameOf = (id: string) => detail.stages.find((other) => other.id === id)?.name ?? '';
   const needs = stage.prerequisiteIds ?? [];
   const waiting = tasks.data ? openStagesNeededBy(stage.id, detail.stages, tasks.data.map((row) => row.task)) : [];

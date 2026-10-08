@@ -36,8 +36,16 @@ const percentOf = (meter: { used: number; limit: number }) => Math.floor((meter.
 /** True from four fifths of the limit on, as the 80% warning of the server. */
 const overLimit = (meter: { used: number; limit: number }) => meter.used * 5 >= meter.limit * 4;
 
+/** One formatter for each language, built on its first use (performance audit 2026-10-07, RND-1). */
+const jobTimeFormats = new Map<Lang, Intl.DateTimeFormat>();
+
 function jobTime(stamp: string, lang: Lang): string {
-  return new Intl.DateTimeFormat(localeFor(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: OFFICE_TZ }).format(new Date(stamp));
+  let format = jobTimeFormats.get(lang);
+  if (!format) {
+    format = new Intl.DateTimeFormat(localeFor(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: OFFICE_TZ });
+    jobTimeFormats.set(lang, format);
+  }
+  return format.format(new Date(stamp));
 }
 
 /**

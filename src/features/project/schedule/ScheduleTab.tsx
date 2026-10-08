@@ -14,7 +14,7 @@ import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { Sheet } from '../../../components/Sheet';
-import { diffDays, formatDay, formatMonth, localeFor, todayISO } from '../../../lib/dates';
+import { diffDays, formatDay, formatMonth, listFormat, todayISO } from '../../../lib/dates';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
 import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
 import { HatchSwitch, useHatchOverlap } from '../../dashboard/hatch';
@@ -214,7 +214,7 @@ function StageDates({ detail }: TabProps) {
   const [failures, setFailures] = useState(0);
   const rollback = { onError: () => setFailures((count) => count + 1) };
   const edit = detail.viewerCan.edit;
-  const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
+  const list = listFormat(lang);
   const overlaps = stageOverlaps(detail.stages);
   const name = (stage: Stage) => (
     <>

@@ -14,7 +14,7 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { RichText } from '../../components/RichText';
 import { spring } from '../../design/motion';
-import { addDays, formatDay, localeFor, OFFICE_TZ, stampDay, todayISO, type Lang } from '../../lib/dates';
+import { addDays, clockFormat, formatDay, stampDay, todayISO, type Lang } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
 import { AttachButton, FileChips, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
@@ -33,7 +33,7 @@ export type Bubble = {
 };
 
 export function clockTime(stamp: string, lang: Lang): string {
-  return new Intl.DateTimeFormat(localeFor(lang), { hour: 'numeric', minute: '2-digit', timeZone: OFFICE_TZ }).format(new Date(stamp));
+  return clockFormat(lang).format(new Date(stamp));
 }
 
 function BubbleItem({ bubble, fresh }: { bubble: Bubble; fresh: boolean }) {
