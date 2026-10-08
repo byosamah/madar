@@ -12,10 +12,15 @@ import { sampleOffice } from '../data/sampleOffice';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
 import { RuntimeProvider, createQueryClient } from '../app/runtime';
+import { preloadScreens } from '../app/screens';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
 import { NOW, TODAY } from './factories';
+
+// The screens load on demand (src/app/screens.ts). The tests load all of them once, so each router starts with every screen,
+// as the prototype does.
+await preloadScreens();
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */
