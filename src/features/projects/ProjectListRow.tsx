@@ -10,6 +10,7 @@ import { ProjectSign } from '../../components/ProjectSign';
 import { signOfProject, StatusSign } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { setSharedSource } from '../../app/sharedLayout';
+import { usePrefetchCall } from '../../app/prefetch';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
 import { clientName } from '../../lib/clientName';
@@ -40,6 +41,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
   const lang = useLang();
   const { project } = summary;
   const menu = useContextMenu();
+  const prefetch = usePrefetchCall();
   const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
     <motion.li
@@ -53,6 +55,9 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
       <Link
         to={`/projects/${project.id}`}
         onClick={() => setSharedSource(source)}
+        // A press starts the read of the project page before the click lands. Not on hover: one project at a time, and only
+        // the one the person opens (performance audit 2026-10-07, FET-12). The prototype asks nothing here.
+        onPointerDown={() => prefetch('projects.get', { id: project.id })}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,18rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_7rem_minmax(0,14rem)] @4xl:gap-x-8"
       >
         <ProjectTile id={project.id} mark={project.mark} shared />
