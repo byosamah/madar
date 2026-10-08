@@ -90,6 +90,9 @@ export function TasksTab({ detail }: TabProps) {
   const setFilter = useStableHandler((value: Filter) => setFilterParam(setParams, 'show', value === 'all' ? null : value));
   const setShowDone = useStableHandler((on: boolean) => setFilterParam(setParams, 'done', on ? '1' : null));
   const tasks = useCall('tasks.list', { projectId: detail.project.id, filter, activeProjectsOnly: false });
+  // The template menus of the list need every template. The tab asks for them here, so they join the first request with the task
+  // list, under the gates of the menu: the list view and the right to add a task (performance audit 2026-10-07, LIV-5).
+  useCall('taskTemplates.list', {}, { enabled: view === 'list' && detail.viewerCan.createTaskForSelf });
   const retry = useStableHandler(() => void tasks.refetch());
   // The project leader sees one gentle line with the open tasks that have no lead, and one press shows them (owner, 2026-10-05).
   // Every team member names a lead now (owner, 2026-10-07), so the line keys on the leader's review right.
