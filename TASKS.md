@@ -361,3 +361,10 @@ no grips, because its tasks fall on different days.
 - [ ] Not run: test:db and test:it (need Docker), prototype smoke. build:remote ran inside all.sh production, and its bundle checks passed
 - [x] Production at ef24a11 (owner, 2026-10-08, `all.sh production` run by the owner): health 113 calls, page 200, `POST /mcp` with no token 401. Record: proof.md
 - [ ] Deploy suite on the test copy (about 45 minutes): not run before production
+
+## Phone tab bar and the Admin's Waiting and Done tabs (owner, 2026-10-08)
+
+- [x] Phone tab bar: icons only, the words stay for screen readers and show from 640 px (`83c6161`)
+- [x] Admin's Requests and bugs: Waiting and Done tabs (`ab2bbaf`)
+- [x] Production at ab2bbaf (owner, 2026-10-08, `all.sh production` run by the owner): health 113 calls, page 200, `POST /mcp` with no token 401. Record: proof.md
+- [ ] Deploy suite on the test copy (about 45 minutes): not run before production

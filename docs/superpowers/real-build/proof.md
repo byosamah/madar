@@ -788,6 +788,21 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   "Madar", `POST /mcp` with no token 401, `/favicon.ico` 200. `madar.vado.sa/api/health` answers with the app page, as noted
   above, so the health check is the Supabase address.
 
+### Phone tab bar and the Admin's Waiting and Done tabs (2026-10-08)
+- **Change:** on a phone the bottom tabs show icons only, and each tab keeps its word for screen readers (`83c6161`). The
+  Admin's Requests and bugs list has two tabs, Waiting (the open reports, first) and Done (`ab2bbaf`). No migration, no new
+  call, no contract change. MCP: no change (`feedback.list` and `feedback.setStatus` keep their shape).
+- **Local:** typecheck; npm test 4,382 passed (437 files); the prototype build with the RTL and bundle checks. Browser checks on
+  the prototype: the tab bar at 390 px in English and Arabic, light and dark, and at 1280 px; the Admin tabs in English and
+  Arabic, with a report marked done and moved to Done.
+- **Test copy at ab2bbaf:** `all.sh test`, run by the owner. Its config step asked whether to push the api config, and the
+  owner answered yes. Health 113 calls, page 200, `POST /mcp` with no token 401, favicon 200.
+- **Production at ab2bbaf (the owner ran `all.sh production` himself and typed the word):** the config step asked whether to
+  push the api config, and the owner answered yes. The functions api, mcp and jobs deployed. `api` answers in eu-central-1 with
+  113 calls. Pages deployment 855f49c0. madar.vado.sa: page 200 with the title "Madar", `POST /mcp` with no token 401, `/favicon.ico`
+  200, and the live script is `index-ByrTDqz7.js`, the build of this release.
+- Not run: the deploy suite on the test copy (about 45 minutes), the prototype smoke test.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
