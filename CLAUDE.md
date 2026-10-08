@@ -81,11 +81,12 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 4,100 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 4,380 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
-  --strictPort` and check that the page title is "Madar".
+  --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
+  lack a new package, and the page then breaks.
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
   `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
 - A one-off script in the sandbox: `node --import tsx <file>` needs no tsx pipe. Add `NODE_USE_ENV_PROXY=1` when the
@@ -103,7 +104,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server 4,106 passed; test:db 1,063; test:it 241; prototype smoke 87 of 87.
+- Last counts: unit+server 4,382 passed (437 files); test:db 1,063; test:it 241; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -156,6 +157,15 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
   on main.
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
+- Claude's `git push origin main` is refused by the auto-mode check. Commit on main in `deploy-test`, then hand the owner
+  `! git -C /Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test push origin main` (2026-10-08).
+- A Playwright agent writes `.playwright-mcp/` into its working directory. In the repo it is a new untracked folder, and
+  production refuses a folder with a new file. Brief each agent to `cd` into the scratchpad first. After each run, check
+  `git status` in the main folder and in `deploy-test`, and move the folder out.
+- Start a browser-check agent without `name`: named agents became teammates that handed the work to a sub-agent, and several
+  reports ended with "no report". Ask for the report in the final message and in a scratchpad file.
+- `git branch -d` tests against the HEAD of the folder where it runs. The main folder is detached, so it refused merged
+  branches. Run it from `deploy-test` (HEAD = main), or check `git merge-base --is-ancestor <branch> main` and use `-D`.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run

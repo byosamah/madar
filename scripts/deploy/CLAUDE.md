@@ -49,6 +49,14 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 ## Production rules
 - `all.sh production` asks once for the typed word, after the commit check of the release flow. Without a terminal:
   `echo production | scripts/deploy/all.sh production`.
+- A `!` command has no keyboard. Without `echo production |` it stops with "the typed word was not production" and changes
+  nothing (2026-10-08). The owner may also run the script in his Terminal window and type the word.
+- `all.sh test` asks "Do you want to push api config to remote? [Y/n]" (`api.enabled`: config.toml false, the hosted projects
+  true). A run with no keyboard takes yes by itself, so the owner runs `all.sh test` in his Terminal and answers (2026-10-08).
+- After production, check the live site: page 200 with the title Madar, `POST /mcp` with no token 401, `/favicon.ico` 200. The
+  health is the Supabase address, because `madar.vado.sa/api/health` answers with the app page. Then write the release
+  record: a section before "Performance audit" in `docs/superpowers/real-build/proof.md`, a line in `TASKS.md`, one commit
+  on main. The owner pushes it. That commit changes HEAD, so the next production needs `all.sh test` again.
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.

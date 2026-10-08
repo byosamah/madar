@@ -102,16 +102,20 @@ any screen work.
   template takes the place of the stage list and makes the start date required. The ticks "Can stretch" stay folded, and show
   only when the end date gives another length. The dates come from `lib/projectPlan.ts`, as on the server.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
-  on desktop, bottom on a phone), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
+  on desktop, bottom on a phone; on a phone the tabs show icons only, and the word of each tab stays `sr-only` below
+  640 px, owner 2026-10-08), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.
 - Tasks (`/work`): one main button, New office task (`features/work/NewOfficeTaskSheet.tsx`: title, lead, due date). A list
   screen opens a task panel with `?task=<id>` and, for a project task, `&project=<id>` (`openTask`, `lib/params.ts`).
   `taskLink(null, id)` sends an office task to `/work?task=<id>`. An office task has no project: the word Office
   (`office.word`) shows where a project shows, and its panel (`TaskSheet` with `detail` null) has no stage and no
   prerequisites (owner, 2026-10-06).
-- A date group of the Tasks screen takes a new order by drag (owner, 2026-10-07): a grip at the end of each row the person may
-  move (`SortableGroup`, `features/work/WorkTasks.tsx`, `@dnd-kit/sortable`), and Space plus the arrow keys on the grip. The row
-  content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of the row never set one transform.
+- A date group of the Tasks screen, Home Today and each stage of the project task list take a new order by drag (owner,
+  2026-10-07 and 2026-10-08): one component, `SortableTaskRows` (`features/project/tasks/`, `@dnd-kit/sortable`), with a grip at
+  the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
+  tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
+  the row never set one transform.
+- Admin Requests and bugs (`FeedbackSection.tsx`) has two tabs, Waiting (the default) and Done. A report moves between them.
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
@@ -203,4 +207,4 @@ any screen work.
   focus with no press (the keyboard, or the form that moves to an error) shows the full field until the blur.
 - A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect` mocked for each row
   (`features/work/WorkOrder.test.tsx`). The place message (`onDragOver`) replaces the pick-up message at once, so assert
-  the place message.
+  the place message. Await the place message after Space and after the arrow key before the next key, or the drop never happens.
