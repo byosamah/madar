@@ -771,6 +771,23 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   migration pushed, health 113 calls, madar.vado.sa serves `index-BGsCDciP.js` (the name of the deploy address), page 200,
   `POST /mcp` with no token 401.
 
+### Drag and drop order on Home and in the project task list (2026-10-08)
+- **Change:** the shared order of tasks now works on Home (Today), the Tasks page and each stage of a project. One component
+  (`SortableTaskRows.tsx`) serves all three. A drag stays inside one list and never changes a date. Coming up on Home has no
+  grips, because its tasks fall on different days. No migration, no new call, no contract change. MCP: no change, because
+  `tasks.arrange` already exists and its docs already cover the order.
+- **Local:** typecheck; npm test 4,380 passed (436 files); the prototype build with the RTL and bundle checks. Browser checks
+  on the prototype at 390 px in English and Arabic, light and dark: the project list, Home Today, and a keyboard drag on
+  Home and in a stage. The drag saved the order and the live text read as expected. Console errors: 0.
+- **Test copy at ef24a11:** `all.sh test` ran in the background. Its config step asked whether to push the api config, and
+  no one answered, so the tool took its default (yes). That set `api.enabled` on the test project to false (local false,
+  remote true). Pages deployed to preview.madar-46r.pages.dev. Not run: the deploy suite (about 45 minutes).
+- **Production at ef24a11 (the owner ran `all.sh production` himself and typed the word):** the config step asked whether to
+  push the api config, and the owner answered yes (`api.enabled` local false, remote true). The functions api, mcp and jobs
+  deployed. `api` answers in eu-central-1 with 113 calls. Pages deployment dd4477ed. madar.vado.sa: page 200 with the title
+  "Madar", `POST /mcp` with no token 401, `/favicon.ico` 200. `madar.vado.sa/api/health` answers with the app page, as noted
+  above, so the health check is the Supabase address.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

@@ -358,4 +358,6 @@ no grips, because its tasks fall on different days.
 - [x] Tests first: `TodayOrder.test.tsx` and `TaskListOrder.test.tsx`; the Tasks page tests (`WorkOrder.test.tsx`) still pass
 - [x] Gates: npm test 4,380 passed; the prototype build with the RTL and bundle checks
 - [x] Screenshots (prototype, 390 px): Home Today in EN and AR, light and dark; the project list in four views; a keyboard drag on Home and in a stage
-- [ ] Not run: build:remote, test:db and test:it (need Docker), prototype smoke. The server did not change, so build:server is not needed
+- [ ] Not run: test:db and test:it (need Docker), prototype smoke. build:remote ran inside all.sh production, and its bundle checks passed
+- [x] Production at ef24a11 (owner, 2026-10-08, `all.sh production` run by the owner): health 113 calls, page 200, `POST /mcp` with no token 401. Record: proof.md
+- [ ] Deploy suite on the test copy (about 45 minutes): not run before production
