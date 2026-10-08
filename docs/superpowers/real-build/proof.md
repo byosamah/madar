@@ -758,3 +758,33 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Production at 66586d0 (owner OK, the owner ran `all.sh production` with `!`):** madar.vado.sa serves the new bundle (the
   same name as the deploy address), "Order saved." in it; `api/health` 200 with 113 calls; `POST /mcp` with no token 401;
   the Data API still answers PGRST002.
+
+## Performance audit (2026-10-07 to 2026-10-08)
+Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
+
+### Track B1: Home, Tasks and the lists
+Branch perf/track-b1, 7 commits on 8753a11. Screen tests in jsdom over the sample office. No production contact, no contract change.
+- RND-2 and RND-M1: a task panel that opens or closes renders no row again. Before, one open rendered every row again: Tasks +8, the Task list +4, the project Tasks tab +7, Home +2 task rows and +6 project rows, and New Project on Projects +9. After, all are 0, and the same holds on close. The render-count tests are in the WorkRenders, TaskListRenders, TasksTabRenders, HomeRenders and ProjectsRenders test files.
+- RND-8: one Avatar makes 0 useTranslation calls (1 before). A language change still reaches pictures and dates at once.
+- LIV-5: the project Tasks tab sends one taskTemplates.list {} in its first request. Before, it sent one call per stage (7 on prj_001), after tasks.list answered. The stage menus list the same templates in the same order.
+- FET-8 (and LIV-4): with a stored role hint, an Admin's cold Home sends one projects.list {filter:'all'} in the first request. Before, it sent two, the second one round trip later.
+- FET-9: over the sample office (11 people, 114 Home rows, 57 of them done), Home's mine list without the done rows equals tasks.list {filter:'mine', includeDone:false} for every person, in the same order. In the real build, Tasks shows these rows while its own answer loads.
+- FET-12 b: a press on a project row starts projects.get, and the project page sends no second one.
+Checks: npm run typecheck passes. 58 touched test files (357 tests) pass with --no-file-parallelism --testTimeout=60000, under a load average of 15 to 220 from other builders.
+
+### Track D: the server request path
+Probe: `scripts/proof/pooler.ts` (steps `start` and `idle`). The probe connects as postgres through the transaction pooler (aws-1-eu-central-1.pooler.supabase.com:6543) with the Supabase root CA and the host name, as the server does. It ran from the Mac with the sandbox off. Production was not touched.
+
+1. Joined start (SRV-9). One simple query `begin isolation level repeatable read, read only; set local statement_timeout = '10s'` gives statement_timeout 10s, repeatable read and read_only on inside the transaction. After commit, the values are the outside values again: statement_timeout 2min (the role default of postgres), read committed, read_only off. The write form `begin; set local lock_timeout = '5s'; set local statement_timeout = '10s'` gives lock 5s and statement 10s inside. After rollback and after commit, the values are lock 0 and statement 2min. A joined start with a bad value (lock_timeout 'not a time') fails with 'invalid value for parameter "lock_timeout"'. The rollback after it succeeds, and the settings stay the outside values. Time from the Mac, median of 20: joined 98.7 ms against 324.3 ms for the three separate queries. Result: the pooler accepts the joined start, and the settings keep their scope.
+
+2. Idle connections (SRV-3). A plain pg.Client with keepAlive gave 'select 1' in 98 ms. After 60 s idle it gave it in 169 ms, and after 120 s more idle (180 s in all) in 96 ms, with no client error. A pg.Pool with the new server settings (max 1, idleTimeoutMillis 120000, keepAlive true) did its first query in 954 ms (a new TLS connection from the Mac). After 60 s idle, the query took 116 ms on the same connection (1 connect). After 125 s idle, the pool had removed the connection (1 remove), and the next query opened a new one in 764 ms (2 connects in all). Result: the pooler keeps an idle connection at least 180 s, so the 120 s pool idle time is safe. A new connection costs about 650 to 850 ms more than a query on an open one from the Mac. In the region the cost is smaller, but it is still many round trips.
+
+Not proved here: the joined start through Hyperdrive (Workers) and pg keepAlive on Deno. The it suites cover them (see the merge notes of track D).
+
+### Track F: pictures and uploads
+Branch perf/track-f, commits b5c6577, d9ebb3a and 5a4ad63. The track holds findings BGR-4 (steps 1 and 2), BGR-M1 and BGR-M2. The tests run on fakes and stubs only. No network, no Supabase project and no real browser was used.
+
+- BGR-4: the signed link of a picture stays in the query cache for LINK_STALE_MS after the screen closes, in the real build only. Test: unmount, 6 minutes on fake timers, mount again. The result is the same URL and no new files.link call. Before the change, the same test gave link-2 and a second call. After LINK_STALE_MS plus 1 s, the next mount asks for a new link. The prototype keeps a gcTime of 300,000 ms. The Files row and meeting drawing pictures carry loading="lazy" and decoding="async".
+- BGR-M1: with a canvas stub that gives image/png for 'image/webp' and image/jpeg for 'image/jpeg' (the Safari case), a 4032 x 3024 JPEG source gives an image/jpeg thumb of 960 x 720. The canvas writes WebP first, then JPEG, both at quality 0.8. PNG, GIF, WebP and AVIF sources give null. A JPEG that is not smaller than the source gives null. With WebP support, the result stays WebP after one encode. The upload adapter with the real makeThumb sends files.uploadStart with thumb.mimeType image/jpeg and sends the thumb PUT. On the server, files.uploadStart signs the thumb PUT with Content-Type image/jpeg, and the files.upload preflight keeps a JPEG staging thumb as thumbKey.
+- BGR-M2: with a PUT stub that holds each upload, the thumb PUT starts before the file PUT ends. files.upload goes only after both end, in either order. A file PUT answered with the Storage 413 body still throws invalid_input, reason file_too_large, with the limit of session.get. A file PUT with status 0 still throws failed, reason upload_failed. In both cases files.upload never goes, also while the thumb PUT is still open.
+- Not verified: a real iPhone upload of a portrait photo (EXIF orientation 6) from Safari. The code path is the same as for Chrome uploads today (see the merge notes).
