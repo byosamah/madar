@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MAX_ATTACHMENTS } from '../../api/contract/entities';
+import { MAX_ATTACHMENTS } from '../../api/contract/limits';
 import type { Attachment } from '../../api/contract/views';
 import { downloadFile, isRemote, tooLargeText, useFileLimit } from '../../app/files';
 import { useLang } from '../../app/lang';

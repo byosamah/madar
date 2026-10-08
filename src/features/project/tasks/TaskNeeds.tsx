@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MAX_PREREQUISITES } from '../../../api/contract/entities';
+import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import type { TaskDetail } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';

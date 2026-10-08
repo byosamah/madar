@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { FileId, ProjectId, StageId, TaskId, UserId } from './entities';
+import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
+
+// The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
+export { MAX_SHOT_BYTES, PASSWORD_SET_MARK };
 
 /**
  * The 10 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12). They carry the work that State cannot hold: story IDs, file links,
@@ -18,9 +22,6 @@ export type ServerReason = (typeof SERVER_REASONS)[number];
 
 /** A signed upload link lives 10 minutes (plan 5.2). */
 export const UPLOAD_LIFE_MS = 10 * 60 * 1000;
-/** One feedback screenshot is at most 10 MB. */
-export const MAX_SHOT_BYTES = 10 * 1024 * 1024;
-
 /** The free plan limits of the usage meters (plan 5.8). Files use 1 GB while the files stay on Supabase Storage (plan 2b, point 1). */
 export const FREE_PLAN_LIMITS = {
   calls: 500_000,
@@ -91,14 +92,6 @@ const feedbackUploadStart = {
   output: z.object({ uploads: z.array(z.object({ uploadId: UploadId, put: SignedPut })) }),
   readOnly: false,
 };
-
-/**
- * The mark of a sign-in account whose person saved a password (owner, 2026-10-04): a key of the Auth user_metadata. Auth confirms
- * the email as soon as an invitation link opens, so users.invites says active only when this mark is true too. The screens set
- * it with each password save and after a sign-in with a password (src/app/remote/auth.ts). A person can set it on their own
- * account only, and it changes only the Invited label of that person; no right depends on it.
- */
-export const PASSWORD_SET_MARK = 'madar_password_set';
 
 const usersInvites = {
   input: Empty,

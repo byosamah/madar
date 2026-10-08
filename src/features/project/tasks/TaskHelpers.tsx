@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { MAX_HELPERS, type User } from '../../../api/contract/entities';
+import type { User } from '../../../api/contract/entities';
+import { MAX_HELPERS } from '../../../api/contract/limits';
 import type { UserCard } from '../../../api/contract/views';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { XIcon } from '../../../components/icons/animated/x';

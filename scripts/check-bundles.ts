@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
  * Checks a finished build (plan, section 3, rule 5).
  * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
- * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code and stay
- * under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah files and a connection to each
+ * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code and no zod
+ * schemas, and stay under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah files and a connection to each
  * Supabase origin. The vendor and supabase chunks import no app chunk, so their names stay the same over a release that
  * changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
@@ -44,8 +44,9 @@ export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office 
 /** The size limit of the scripts of the first load of the remote build (BND-1: about 1,294,000 B after the split). */
 export const FIRST_LOAD_MAX_BYTES = 1_350_000;
 
-/** Text that only the chart package (recharts) holds. */
+/** Text that only the chart package (recharts) and the zod schemas hold. */
 export const CHART_MARKER = 'recharts-wrapper';
+export const ZOD_MARKER = '$ZodObject';
 
 /** The Thmanyah weights that index.html preloads, as named in src/design/fonts. */
 export const FONT_WEIGHTS = ['Regular', 'Medium', 'Bold'] as const;
@@ -142,7 +143,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
   }
   return { ok, lines };
 
-  /** BND-1: the scripts that index.html starts, and what they hold. */
+  /** BND-1, BND-6: the scripts that index.html starts, and what they hold. */
   function checkFirstLoad(): void {
     const entries = tags.filter((tag) => tag.name === 'script' && tag.attrs.type === 'module').map((tag) => assetOf(tag.attrs.src));
     const preloads = rels('modulepreload').map((tag) => assetOf(tag.attrs.href));
@@ -157,6 +158,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       rule(`no ${label} in the first-load scripts`, hits.length > 0 ? [`found in ${hits.join(', ')}`] : [], `searched ${closure.length} files, no match`);
     };
     none(`chart code ('${CHART_MARKER}')`, [CHART_MARKER]);
+    none(`zod schemas ('${ZOD_MARKER}')`, [ZOD_MARKER]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],

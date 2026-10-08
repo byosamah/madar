@@ -1,4 +1,4 @@
-import { PICTURE_DATA } from '../api/contract/entities';
+import { PICTURE_DATA } from '../api/contract/limits';
 
 /**
  * The profile picture (owner item 10, 2026-10-05): the browser cuts the centre square, makes it 128 px, and saves it as WebP

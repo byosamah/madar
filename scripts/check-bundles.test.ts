@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -125,7 +125,7 @@ function goodRemote(): Record<string, string> {
     'assets/supabase-s1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const s=1;',
     'assets/bootstrap-b1.js': 'import{s as e}from"./supabase-s1.js";import{t as n}from"./index-abc.js";export const b=1;',
     // The screens load on demand, so their text is not in the first load.
-    'assets/DashboardScreen-d1.js': `const c="${CHART_MARKER}";`,
+    'assets/DashboardScreen-d1.js': `const c="${CHART_MARKER}",z="${ZOD_MARKER}";`,
     'assets/index-c1.css': 'body{}',
     'assets/thmanyahsans-Regular-x1.otf': 'regular',
     'assets/thmanyahsans-Medium-x1.otf': 'medium',
@@ -151,7 +151,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('pass a build that keeps them, and name each rule and its finding', () => {
     const result = checkRemote();
     expect(result.ok, result.text).toBe(true);
-    for (const part of [CHART_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
+    for (const part of [CHART_MARKER, ZOD_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
       expect(result.text).toContain(part);
     }
     // index, the runtime, vendor, bootstrap and supabase: the dynamic imports stay out.
@@ -189,6 +189,12 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
     const result = checkRemote((files) => { delete files['assets/rolldown-runtime-r1.js']; });
     expect(result.ok).toBe(false);
     expect(result.text).toContain('rolldown-runtime-r1.js is missing');
+  });
+
+  it('fail when the first load holds the zod schemas (BND-6)', () => {
+    const result = checkRemote((files) => { files['assets/index-abc.js'] += `const z="${ZOD_MARKER}";`; });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(/FAIL: no zod schemas .*: found in index-abc\.js\./);
   });
 
   it('fail when index.html does not start the bootstrap chunk, or one of its imports (BND-2)', () => {
