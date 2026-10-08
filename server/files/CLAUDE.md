@@ -10,7 +10,11 @@ server checks the final object, then saves the record.
 
 ## Upload flow
 1. `files.uploadStart` (or `feedback.uploadStart`) writes one upload intent and gives a signed upload link (`intents.ts`).
-2. The browser uploads to a staging key (`up/<intent>/file`, `up/<intent>/thumb`). Upload links never upsert.
+2. The browser uploads to a staging key (`up/<intent>/file`, `up/<intent>/thumb`). Upload links never upsert. It sends
+   the PUT of the small picture together with the PUT of the file, and `files.upload` goes only after both end.
+   The small picture (`makeThumb`, `src/app/thumbs.ts`) is a WebP of at most 960 px. A browser that cannot write WebP
+   (Safari, every browser on an iPhone or iPad) gives a JPEG for a JPEG photo, only when it is smaller than the photo.
+   Other pictures get none. The server takes any inline-safe picture as the small picture.
 3. The preflight of `files.upload` (or `feedback.send`) copies the object to its final key, before the lock. Then it checks
    the size and the type of the FINAL object (`confirm.ts`). A confirmed version never changes.
 4. The prepare marks the intent used inside the lock. A retry with the same idempotency key gets the stored answer.

@@ -25,6 +25,27 @@ any screen work.
 - Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
   (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.
 
+## Speed (performance audit 2026-10-07)
+- A list screen splits into a parent and a `React.memo` body. The parent keeps `useSearchParams`, the reads, the clock
+  values (`todayISO`, `officeHour`) and the panel. The body gets plain props and stable handlers (`app/useStableHandler.ts`),
+  so a panel that opens or closes renders no row again. Never put a router hook in a row body: a row part that needs one
+  is its own small component, as `RowMenu` in `features/projects/ProjectListRow.tsx`.
+- `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its
+  `languageChanged` event. It does not call `useTranslation`.
+- `usePrefetchCall` (`app/prefetch.ts`) starts a read early under the exact key of `useCall`, in the remote build only.
+  Call it in an effect or an event, never in render. A project row prefetches `projects.get` on pointerdown, never on hover.
+- Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
+  `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
+  session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
+- In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
+  list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
+  `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
+- The project Tasks tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
+  `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
+- In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
+  `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
+  thumbnails) have `loading="lazy" decoding="async"`. A sheet or preview picture does not.
+
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
   files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/inbox`, `/notifications`, `/search`,
@@ -117,6 +138,12 @@ any screen work.
 - A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
 - Run `npm test` alone. Next to a build or Playwright, screen tests time out.
+- `renderRemoteApp` (`test/renderRemote.tsx`) renders the app with runtime mode remote and the query client of the real
+  build. `sent` lists each call in order, and `hold` keeps the calls it picks until `release()`: use it to test the order of
+  requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops
+  changing before it compares.
+- A picture row of the real build: render with `runtime.mode: 'remote'` and an api stub that answers `files.link`
+  (`features/project/files/FilesTab.remote.test.tsx`).
 - `DateDraftField` (`components/DateDraftField.tsx`): a change event with no focus counts as a pick from the date picker and
   saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.
 - `DateField` gives every change to the form at once, so `fireEvent.change` on the input by its label works as before. A

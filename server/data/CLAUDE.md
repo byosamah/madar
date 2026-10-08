@@ -38,6 +38,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   loads each kind with its own limit (search), or filters in SQL first (`events.list`: `officeTaskId` of the tasks the
   person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks for the sweep.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
+- A Source gives rows that the caller owns (`sqlSource` gets new objects from pg, `memorySource` gives copies), so
+  `Load.state()` keeps them with no second copy. The office lists of the State stay copies of the snapshot.
+- Save: `runWrite` takes `before` from `beforeOf` (`loaders/build.ts`). Its office lists are the frozen snapshot lists, and
+  every other collection is a deep copy. Only the save step reads `before`; a write into its office part throws. `diffState`
+  makes the JSON of a deep-frozen record once (a WeakMap in `save.ts`).
 
 ## Roles and access
 - madar_server owns nothing. RLS is on for every table, with one policy for madar_server only.
@@ -48,5 +53,12 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 
 ## SQL rules
 - Only `set local` on the pooler: `sql.ts` refuses a plain SET.
+- A transaction starts with one simple query: BEGIN and the `set local` lines go joined (`sql.ts` START), with no values,
+  so pg uses the simple protocol. The pooler keeps the settings inside the transaction only (proof.md, pooler probes,
+  2026-10-08). The D1 harness path keeps `savepoint madar_tx` and the `set local` lines as separate queries.
+- The pooler pools (`writeUrl`, `readUrl`) keep an idle connection 120 s (`IDLE_TIMEOUT_MS`, under the 150 s worker life),
+  with `keepAlive: true`. The Workers `connectionString` form keeps the pg defaults: that Db lives for one request.
+- `Db.warm(mode)` (optional on the port) opens the connection of one pool and sends no statement. It does nothing with the
+  harness `callerClient`, or when the pool already holds a client.
 - Never write `public.` in a table name.
 - Database TLS fails closed (see `server/CLAUDE.md`).

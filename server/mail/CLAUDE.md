@@ -21,6 +21,10 @@ after the commit of the call that asked for it.
 - `GET https://api.resend.com/api-keys` gives the name, `created_at` and `last_used_at` of each key, never the token.
   To find the row of a token: make one call with it, then see which `last_used_at` moves.
 
+- On the hosted functions, the notice mail of a save leaves right after the answer, not before it (`runCall`,
+  `AFTER_ANSWER_KINDS`). The same idempotency key and quota apply. If the worker stops first, the 15-minute job sends the
+  claimed row later. The deploy suite's `waitForMail` polls `mail_outbox`, so it is not affected.
+
 ## Quota
 - The Resend free plan sends 100 mails a UTC day. `QUOTA_LIMITS` (`quota.ts`): notice 90, summary 90, signin 98, warning 98.
 - Every invitation and reset counts as signin.

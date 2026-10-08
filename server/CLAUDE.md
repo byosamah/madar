@@ -21,10 +21,18 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - `principalOf` (`auth/principal.ts`) finds the person by `auth_user_id`. The role comes from the users row, never from the
   token. A turned-off person gets 403 `account_off`.
 - `runCall` (`core/runCall.ts`) for each entry: a read runs in a repeatable-read, read-only transaction with no lock. A write
-  runs preflight outside the lock, then `set local lock_timeout 5s` and `statement_timeout 10s`, the office lock, the
-  idempotency check, the story, the loader, `executeParsed`, the diff save, the outbox rows, the signals, the commit.
+  runs preflight outside the lock, then `set local lock_timeout 5s` and `statement_timeout 10s` (joined with BEGIN in one
+  query, see `data/CLAUDE.md`), the office lock, the idempotency check, the story, the loader, `executeParsed`, the diff
+  save, the outbox rows, the signals, the commit.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts.
+- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`) run after
+  the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
+  entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
+  new mail kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
+- With `after`, the usage meter of `POST /api/batch` also runs after the answer, with the same warning text. A batch with a
+  write calls `db.warm('write')` after the token check. Adjacent `files.link` entries run side by side, each with its own
+  error, and the answers keep their order. Every other entry runs alone, in order.
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
@@ -47,6 +55,12 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - The bundles run on the real office, so they hold no sample office and no `settleFuture` (it moves every later stamp to
   before now). `workerGraph.test.ts` checks that no entry loads `src/data/`, and `build:server` ends with
   `check-bundles.ts server`. The prototype runtime gives the sample office to `session.resetSampleData`.
+- `vite.server.config.ts` minifies the four bundles with `output.keepNames: true`. The names matter: the jose and SDK
+  error classes name themselves from their constructor, and check-bundles finds a leaked `settleFuture` by its name.
+  `entries/bundles.test.ts` checks this on fixtures.
+- On Supabase only, `deno-api.ts` calls `lazyStart(...).warm()` at module start: it builds the app, starts the jose key set
+  load (`warmKeySet`, `auth/verify.ts`) and `db.warm('read')`, and waits for neither. It reads no office before the token
+  check. A build that fails there stays silent; the first request logs it and answers 503.
 
 ## Ports
 - `core/ports.ts`: Db, Clock, FilesPort, MailPort, SignalPort, AuthAdminPort, MeterPort. Fakes in `test/fakes`.

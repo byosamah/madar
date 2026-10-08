@@ -12,6 +12,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 3. The mcp function (`entries/mcp.ts`, `app.ts`). A request that comes straight to Supabase gets one region hop first
    (`forward.ts`, `MCP_FORWARD_REGION`, default eu-central-1).
 4. The token check (`auth.ts`). Then the tool runs through `runCall` with the person's rights (`run.ts`).
+5. With a host `after`, the usage meter counts (the request, and the hop count when `hopTagOk`) run after the answer, as one
+   work, in order. With no `after`, they run before the answer.
 
 ## The address
 - MCP_URL in `secrets/<env>.env` is the short address. It is the token audience, the resource metadata and the
