@@ -374,7 +374,7 @@ no grips, because its tasks fall on different days.
 Owner choices: free Web Push (no email, WhatsApp, SMS or vendor account). One fixed line with no data: "You have something new in Madar."
 (Arabic: "لديك جديد في مدار."), title Madar / مدار. It goes for every new bell notice (all triggers) and every new chat message, to the
 people who read them, never to the sender, only to active people. One switch for each device in Settings. This replaces "No phone push"
-of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main (2026-10-08); not deployed.
+of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test copy and on production at bf3fa9f (2026-10-08).
 
 - [x] The record `PushDevice`, the calls `push.register`, `push.remove`, `push.mine` (prototype fake and server), the migration `20261008000100_push_devices.sql`, the loader, the MCP deny list, no event and no signal for a device
 - [x] The sender (`server/push/vapid.ts`, `send.ts`): an ES256 token with WebCrypto only, an empty POST, 201 and 202 sent, 404 and 410 delete the device, 429 and 5xx retry
@@ -390,7 +390,7 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main (2026-10-08); n
 - [ ] Not run: the prototype smoke
 - [ ] Not run: screenshots (EN and AR, light and dark, 390 px) of the Settings section: a separate agent does the browser checks
 - [ ] Owner: `all.sh test` in his Terminal (it pushes the migration and sends the three secrets); then try it on a device: Settings, Notify me on this device, allow; a second person assigns a task or sends a chat message; an iPhone needs Madar on the Home Screen first
-- [ ] Owner: the same for production after the test copy works. The production pair exists but no deploy ran
+- [x] Production at bf3fa9f (owner, 2026-10-08, `all.sh production` run by the owner): health 116 calls, page 200, `POST /mcp` with no token 401, `sw.js` 200 with no-cache. Record: proof.md
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
 - [x] The hand-set `Content-Length: 0` header is removed from `server/push/send.ts`: a fetch POST with no body sends it by itself (2026-10-08)
 - [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?

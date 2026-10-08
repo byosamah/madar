@@ -803,6 +803,27 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   200, and the live script is `index-ByrTDqz7.js`, the build of this release.
 - Not run: the deploy suite on the test copy (about 45 minutes), the prototype smoke test.
 
+### Browser push notifications (2026-10-08)
+- **Change:** free Web Push to the browser or the installed app, with one fixed line and no data in it ("You have something new
+  in Madar."), for every new bell notice and every new chat message, to the people who read them, never to the sender. One switch
+  for each device in Settings. The new table `push_devices` (migration `20261008000100_push_devices.sql`), the calls
+  `push.register`, `push.remove` and `push.mine` (all on the MCP deny list), the sender with VAPID keys (`server/push/`), the
+  service worker `public/sw.js`, and `worker-src 'self'` in the policy. This replaces the 2026-10-03 decision "No phone push".
+- **Local:** typecheck; npm test 4,550 passed (448 files); test:db 1,117 passed (25 skipped); test:it 261 passed (33 files, with
+  `server/it/push.it.test.ts`); test:mcp 135 passed and the conformance runner exits 0; the prototype, server and remote builds.
+  The prototype build holds no service worker. The builder also ran the real `runCall` on an in-memory Postgres 18 (pglite).
+  One fix at the merge: the sender no longer sets `Content-Length` by hand.
+- **Test copy at bf3fa9f:** `all.sh test`, run by the owner. The migration applied, the owner answered yes at the api config
+  question, and the three VAPID secrets went out. Health 116 calls, page 200, `POST /mcp` with no token 401, `sw.js` 200 with
+  `no-cache`, `worker-src 'self'` in the policy.
+- **Production at bf3fa9f (the owner ran `all.sh production` himself and typed the word):** the migration applied, the owner
+  answered yes at the api config question, and the production VAPID secrets went out (a pair of its own). The functions api, mcp
+  and jobs deployed. `api` answers in eu-central-1 with 116 calls. Pages deployment 0cb3334c. madar.vado.sa: page 200 with the
+  title "Madar", the live script `index-DocEIB-m.js`, `POST /mcp` with no token 401, `/favicon.ico` 200, `sw.js` 200 with
+  `no-cache`, `worker-src 'self'` in the policy.
+- **Not proven:** a real push on a real browser or phone. The first one shows only on a device. Not run: the deploy suite and the
+  prototype smoke.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
