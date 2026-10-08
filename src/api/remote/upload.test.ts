@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MAX_FILE_BYTES } from '../contract/entities';
 import { ApiError } from '../errors';
 import { putFailure, uploadAdapter, type PutResult, type PutSender } from './upload';
@@ -179,6 +179,79 @@ describe('the upload adapter (plan 5.2)', () => {
     // The stored upload belongs to the first file: another file with the same key uploads again.
     await expect(adapter({ ...raw, blob: picture() }, ctx)).rejects.toMatchObject({ code: 'failed' });
     expect(steps.filter((step) => step === 'files.uploadStart')).toHaveLength(3);
+  });
+});
+
+describe('the two uploads of a picture at the same time (performance audit BGR-M2)', () => {
+  /** A PUT stub that holds each upload until the test ends it, and records each start in the step list of the wire. */
+  function heldSender(steps: string[], reject?: string) {
+    const held = new Map<string, { end: (result: PutResult) => void; fail: (error: Error) => void }>();
+    const put: PutSender = (signed) => new Promise((resolve, fail) => {
+      steps.push(`PUT ${signed.url}`);
+      held.set(signed.url, { end: resolve, fail });
+    });
+    const end = (url: string, result: PutResult = { status: 200, body: '' }) => {
+      const upload = held.get(url);
+      if (!upload) throw new Error(`no upload to ${url}`);
+      if (url === reject) upload.fail(new Error('the network broke'));
+      else upload.end(result);
+    };
+    return { put, held, end };
+  }
+  const webp = () => new Blob(['webp'], { type: 'image/webp' });
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+  it('starts the upload of the small picture before the file upload ends, and sends files.upload only after both end', async () => {
+    const { ctx, steps } = wire();
+    const { put, held, end } = heldSender(steps);
+    const done = uploadAdapter({ makeThumb: async () => webp(), put })({ ...SCREEN_INPUT, blob: picture() }, ctx);
+    await vi.waitFor(() => expect([...held.keys()]).toEqual([PUT.url, THUMB_PUT.url]));
+    end(PUT.url);
+    await settle();
+    expect(steps).not.toContain('files.upload');
+    end(THUMB_PUT.url);
+    expect(await done).toEqual({ file: { id: 'fil_9' } });
+    expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, `PUT ${THUMB_PUT.url}`, 'files.upload']);
+  });
+
+  it('waits for the file upload also when the small picture ends first', async () => {
+    const { ctx, steps } = wire();
+    const { put, held, end } = heldSender(steps);
+    const done = uploadAdapter({ makeThumb: async () => webp(), put })({ ...SCREEN_INPUT, blob: picture() }, ctx);
+    await vi.waitFor(() => expect(held.size).toBe(2));
+    end(THUMB_PUT.url);
+    await settle();
+    expect(steps).not.toContain('files.upload');
+    end(PUT.url);
+    expect(await done).toEqual({ file: { id: 'fil_9' } });
+  });
+
+  it('a file upload that the store refuses as too large throws the same too_large, also while the small picture still loads', async () => {
+    const refusal = { status: 400, body: JSON.stringify({ statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }) };
+    const { ctx, steps } = wire({ limit: 50 * MB });
+    const { put, held, end } = heldSender(steps);
+    const done = uploadAdapter({ makeThumb: async () => webp(), put })({ ...SCREEN_INPUT, blob: picture() }, ctx).then(() => null, (e: unknown) => e);
+    await vi.waitFor(() => expect(held.has(PUT.url)).toBe(true));
+    end(PUT.url, refusal);
+    const error = await done;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: 'invalid_input', message: 'This file is larger than the limit.', details: { fields: ['blob'], reason: 'file_too_large', limit: 50 * MB } });
+    expect(steps).not.toContain('files.upload');
+    if (held.has(THUMB_PUT.url)) end(THUMB_PUT.url);
+    await settle();
+    expect(steps).not.toContain('files.upload');
+  });
+
+  it('a failed file upload throws failed, and a small picture upload that breaks after it leaves no stray error', async () => {
+    const { ctx, steps } = wire();
+    const { put, held, end } = heldSender(steps, THUMB_PUT.url);
+    const done = uploadAdapter({ makeThumb: async () => webp(), put })({ ...SCREEN_INPUT, blob: picture() }, ctx).then(() => null, (e: unknown) => e);
+    await vi.waitFor(() => expect(held.has(PUT.url)).toBe(true));
+    end(PUT.url, { status: 0, body: '' });
+    expect(await done).toMatchObject({ code: 'failed', message: 'The file did not upload. Try again.', details: { reason: 'upload_failed', status: 0 } });
+    if (held.has(THUMB_PUT.url)) end(THUMB_PUT.url);
+    await settle();
+    expect(steps).not.toContain('files.upload');
   });
 });
 
