@@ -197,6 +197,23 @@ export class Store {
     }
   }
 
+  /**
+   * Runs a change that may change nothing, for example the minute timer of the triggers. It saves and tells the listeners only
+   * when fn returns true, so a quiet minute reloads no list and writes no office (performance audit FET-11). On an error, the
+   * state goes back to its value before the call, as in run().
+   */
+  runIf(fn: (state: State) => boolean): boolean {
+    const snapshot = structuredClone(this.#state);
+    try {
+      const changed = fn(this.#state);
+      if (changed) this.#changed();
+      return changed;
+    } catch (error) {
+      this.#state = snapshot;
+      throw error;
+    }
+  }
+
   /** Runs a read. A read does not save and does not tell the listeners. */
   read<T>(fn: (state: State) => T): T {
     return fn(this.#state);

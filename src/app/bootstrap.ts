@@ -53,11 +53,20 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
   return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype' };
 }
 
-/** Runs the time-based triggers every minute. */
+/**
+ * Runs the time-based triggers every minute. A tick tells the screens and saves the office only when it made a notice, or when
+ * the office day changed, so the day counts ("due today", "past due") still refresh after midnight (performance audit FET-11).
+ * notify changes the state only when it makes a notice, so a quiet tick changes nothing.
+ */
 export function startScheduler(store: Store): () => void {
+  let day = todayISO();
   const id = window.setInterval(() => {
-    store.run((s) => {
-      runScheduledTriggers(s, now());
+    store.runIf((s) => {
+      const made = runScheduledTriggers(s, now());
+      const today = todayISO();
+      const newDay = today !== day;
+      day = today;
+      return made > 0 || newDay;
     });
   }, 60_000);
   return () => window.clearInterval(id);

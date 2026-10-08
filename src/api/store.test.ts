@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Store, emptyState, memberKey, nextId } from './store';
 import { memoryPersister } from './persist';
 
@@ -64,5 +64,41 @@ describe('Store', () => {
     });
     await store.flush();
     expect(store.persistent).toBe(false);
+  });
+
+  it('runIf saves and tells the listeners only when the change says it changed something (performance audit FET-11)', async () => {
+    vi.useFakeTimers();
+    try {
+      const persister = memoryPersister();
+      const save = vi.spyOn(persister, 'save');
+      const store = new Store(emptyState('2026-09-30'), persister);
+      let calls = 0;
+      store.subscribe(() => {
+        calls += 1;
+      });
+      expect(store.runIf(() => false)).toBe(false);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect([calls, save.mock.calls.length]).toEqual([0, 0]);
+      expect(store.runIf((state) => {
+        state.settings.workloadLimit = 13;
+        return true;
+      })).toBe(true);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect([calls, save.mock.calls.length]).toEqual([1, 1]);
+      expect((await persister.load())?.settings.workloadLimit).toBe(13);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('runIf rolls back a failed change, like run', () => {
+    const store = new Store(emptyState('2026-09-30'), memoryPersister());
+    expect(() =>
+      store.runIf((state) => {
+        nextId(state, 'prj');
+        throw new Error('boom');
+      }),
+    ).toThrow('boom');
+    expect(store.state.counters.prj).toBeUndefined();
   });
 });
