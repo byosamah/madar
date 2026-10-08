@@ -321,13 +321,19 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
 - [x] Owner answers (2026-10-08): saves one round trip sooner, no optimistic update (FET-3); the /api/batch forwarder:
   build it, measure on the test copy, keep it only if faster (FET-10); a JPEG small copy for Safari and iPhone uploads
   (BGR-M1); the font preload, with the variant check on the test copy (BND-3)
-- [ ] Wave 1, seven builders (tracks A first load and fonts, B1 lists, B2 panels and project page, C client data and saves,
+- [x] Wave 1, seven builders (tracks A first load and fonts, B1 lists, B2 panels and project page, C client data and saves,
   D server path, E database, F pictures). A first try stopped on the weekly usage limit (2026-10-07) and left nothing.
   The second try (2026-10-08): B1, D and F ended; A, B2, C and E stopped on a network error after most of their commits,
   and four finishers end them
   - [x] Merged into perf/audit: B1 (7 commits), D (6), F (3); type check passes; their guide facts and proof written
-  - [ ] Merge A, B2, C, E after the finishers
+  - [x] Merged A (7 commits), B2 (6), C (6), E (4) after the finishers; one conflict (an import line of bootstrap.ts);
+    guide facts and proof written
+  - [x] Fix: the on-demand screens made the prototype file 31 KB gzip larger; the prototype now takes plain imports through
+    an alias (574,611 B gzip; base 566,359 B; the rest is the new speed code of both builds)
 - [ ] Wave 2 after the merge: the /api/batch forwarder, then its measurement on the test copy
+  - [x] The forwarder (`functions/api/batch.ts`, `server/http/pagesApiProxy.ts`, 5 tests) and the client setting
+    `VITE_BATCH_URL` (off by default, 3 tests)
+  - [ ] Measure on the test copy (direct with its preflight against the forwarder); keep it only if faster
 - [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
   (EN/AR, light/dark, 390 px)
 - [ ] Test copy, then the live numbers again (before and after)
