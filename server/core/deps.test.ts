@@ -196,7 +196,7 @@ describe('the entry modules of deps.ts (P1, N2 follow-ups)', () => {
 
   it('loads the effect modules of every entry itself: auth, files and mail, and the mail driver loads none', () => {
     const deps = source('./deps.ts');
-    for (const module of ['../auth/effects', '../files/effects', '../mail/effects']) expect(deps).toContain(`import '${module}';`);
+    for (const module of ['../auth/effects', '../files/effects', '../mail/effects', '../push/effects']) expect(deps).toContain(`import '${module}';`);
     expect(source('../mail/outboxDriver.ts')).not.toMatch(/^import '\.\/effects';/m);
   });
 
@@ -206,6 +206,37 @@ describe('the entry modules of deps.ts (P1, N2 follow-ups)', () => {
 
   it('names FILES_PUBLIC_URL in the list of values of its header comment', () => {
     expect(source('./deps.ts')).toMatch(/^ \*   FILES_PUBLIC_URL {2,}\S/m);
+  });
+});
+
+describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
+  const VAPID = { VAPID_PUBLIC_KEY: 'public-made-up', VAPID_PRIVATE_KEY: 'private-made-up', VAPID_SUBJECT: 'mailto:madar@vado.sa' };
+
+  it('leaves push off when none of the three is set: the server starts, config.push is missing', () => {
+    expect(configFromEnv(reader(FULL)).push).toBeUndefined();
+  });
+
+  it('reads the three values into config.push when all are set', () => {
+    expect(configFromEnv(reader({ ...FULL, ...VAPID })).push).toEqual({ publicKey: 'public-made-up', privateKey: 'private-made-up', subject: 'mailto:madar@vado.sa' });
+  });
+
+  it('stops the start and names each missing variable when only some are set, and never a value', () => {
+    expect(missingOf({ ...FULL, VAPID_PUBLIC_KEY: 'public-made-up' })).toEqual(['VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']);
+    expect(missingOf({ ...FULL, VAPID_PRIVATE_KEY: 'private-made-up' })).toEqual(['VAPID_PUBLIC_KEY', 'VAPID_SUBJECT']);
+    try {
+      configFromEnv(reader({ ...FULL, VAPID_PRIVATE_KEY: 'private-made-up' }));
+    } catch (error) {
+      expect((error as Error).message).not.toContain('private-made-up');
+    }
+  });
+
+  it('refuses a subject that is not a mailto or https address, with an error that names the variable', () => {
+    expect(() => configFromEnv(reader({ ...FULL, ...VAPID, VAPID_SUBJECT: 'madar@vado.sa' }))).toThrow(/VAPID_SUBJECT/);
+  });
+
+  it('names the three values in the list of its header comment', () => {
+    const header = readFileSync(new URL('./deps.ts', import.meta.url), 'utf8');
+    for (const name of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']) expect(header).toMatch(new RegExp(`^ \\*   ${name} {2,}\\S`, 'm'));
   });
 });
 

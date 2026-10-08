@@ -536,6 +536,19 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
       expect(h.ended).toEqual([['1'], ['3'], ['2'], ['4']]);
     });
 
+    it('hands a push.notify row to after like a mail, and runs it before the answer when the host has no after (owner, 2026-10-08)', async () => {
+      undo.push(registerOutbox('clients.create', async () => [{ kind: 'push.notify', payload: { userId: 'usr_002' } }]));
+      const ran: string[][] = [];
+      const { call } = setup({ afterCommit: async (_deps, ids) => void ran.push(ids) });
+      const later: Promise<unknown>[] = [];
+      expect((await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => call(ADMIN, 'clients.create', { name: 'With push' }))).ok).toBe(true);
+      expect(later).toHaveLength(1);
+      await Promise.all(later);
+      expect(ran).toEqual([['1']]);
+      expect((await call(ADMIN, 'clients.create', { name: 'No host' })).ok).toBe(true);
+      expect(ran).toEqual([['1'], ['2']]);
+    });
+
     it('logs the same warning when the mail work fails after the answer, and the answer stays', async () => {
       undo.push(registerOutbox('clients.create', async () => [{ kind: 'mail.notice', payload: {} }]));
       const { call, deps } = setup({ afterCommit: async () => {

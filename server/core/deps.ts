@@ -7,11 +7,14 @@ import '../files/effects';
 import '../mcp/revokeAll';
 // Registers the mail effects (mail.notice, mail.quotaWarning) and the notice producers in every entry (task N2.2).
 import '../mail/effects';
+// Registers the push effect (push.notify) and the push producers in every entry (owner, 2026-10-08).
+import '../push/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { outboxMailPort } from '../mail/outboxDriver';
+import { VAPID_NAMES, vapidConfigOf } from '../push/vapid';
 import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
 import { meterPort } from '../usage/meter';
@@ -32,6 +35,9 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   SUPABASE_SECRET_KEYS   the secret keys as JSON (Supabase injects it), or MADAR_SECRET_KEY on a host that does not
  *   APP_URL                the screens (required); API_URL and MCP_URL default to the function URLs of SUPABASE_URL
  *   MAIL_FROM              the sender (required); MAIL_DRIVER resend (default, needs RESEND_API_KEY) or outbox
+ *   VAPID_PUBLIC_KEY       browser push: the public key of the VAPID pair, base64url (all three VAPID values or none)
+ *   VAPID_PRIVATE_KEY      browser push: the raw 32 byte private value, base64url
+ *   VAPID_SUBJECT          browser push: a mailto: or https: address of the sender, for example mailto:madar@vado.sa
  *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values)
  *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
  *                          sees another address for Storage than the browser does (a local function sees http://kong:8000)
@@ -124,6 +130,10 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   const ca = o.database ? o.database.ca : read('DATABASE_CA');
   if (!o.database && ca === undefined && writeUrl !== '' && !(localDatabase(writeUrl) && localDatabase(readUrl))) missing.push('DATABASE_CA');
 
+  // Browser push needs all three VAPID values or none. With none, push is off and the push effect skips (server/push/notify.ts).
+  const vapidSet = VAPID_NAMES.filter((name) => read(name) !== undefined);
+  if (vapidSet.length > 0 && vapidSet.length < VAPID_NAMES.length) missing.push(...VAPID_NAMES.filter((name) => read(name) === undefined));
+
   const fileStore = fileStoreKind(read('MADAR_FILE_STORE'));
   const r2 = fileStore === 'r2'
     ? { accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET') }
@@ -140,6 +150,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   if (!Number.isSafeInteger(lockKey)) throw new Error('MADAR_LOCK_KEY must be a whole number.');
   if (lockKey === HEALTH_LOCK_KEY) throw new Error('MADAR_LOCK_KEY must not be the health check key.');
 
+  const push = vapidConfigOf(read);
   const functions = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1`;
   const origins = read('ALLOWED_ORIGINS');
   const config: Config = {
@@ -155,6 +166,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     forwardRegion: read('MCP_FORWARD_REGION') ?? FUNCTION_REGION,
     fileStore,
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
+    ...(push ? { push } : {}),
   };
 
   const jobsSecret = read('JOBS_SECRET');

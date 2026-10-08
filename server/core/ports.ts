@@ -122,6 +122,8 @@ export type Config = {
   forwardRegion: string;
   fileStore: FileStoreKind;
   limits: Limits;
+  /** The VAPID keys of browser push (server/push/vapid.ts). Left out when push is off: the push effect then skips and logs it. */
+  push?: { publicKey: string; privateKey: string; subject: string };
 };
 
 export type Deps = {
