@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Calls } from '../calls';
 import { ApiError } from '../errors';
-import { REQUEST_TIMEOUT_MS, createRemoteApi, regionUrl, type RemoteApiOptions } from './remoteApi';
+import { REQUEST_TIMEOUT_MS, canFollow, createRemoteApi, regionUrl, type FollowApi, type RemoteApiOptions } from './remoteApi';
+import { isRead } from './keys';
 import type { Adapter, ChangeSignal, WireCall, WireEntry, WireRequest } from './wire';
 
 type Sent = { url: string; headers: Record<string, string>; body: WireRequest };
@@ -368,5 +369,135 @@ describe('adapters (the slots that track F fills)', () => {
     const spy: Adapter = async (_input, ctx) => { seen.push(ctx.meta); return null; };
     await remote(fetch, { adapters: { 'feedback.send': spy } }).call('feedback.send', {} as never, { correlationId: 'cor_ui_fb' });
     expect(seen).toEqual([{ correlationId: 'cor_ui_fb' }]);
+  });
+});
+
+describe('reads after an own write (performance audit FET-3)', () => {
+  const signal: ChangeSignal = { v: 1, id: 'sig_1', channel: 'office', seq: 4, projects: ['prj_001'], office: false, kinds: ['tasks'], people: [], storyId: 'sty_1', actorId: 'usr_002' };
+  const changedWrites = (body: WireRequest) => ({
+    body: okAll(body, (call) => (isRead(call.name) ? {} : { storyId: 'sty_1', changed: true, signals: [signal] })),
+  });
+  /** The api of the real build with its follow step, as the runtime finds it (canFollow). */
+  const followable = (fetch: typeof globalThis.fetch, more: Partial<RemoteApiOptions<Calls>> = {}) => {
+    const api = remote(fetch, more);
+    if (!canFollow(api)) throw new Error('The remote api has no follow step.');
+    return api as typeof api & FollowApi;
+  };
+  const TASK = { id: 'tsk_013' };
+  const LIST = { projectId: 'prj_001' };
+
+  it('sends the reads of the follow step right after the write, in its request, and names them to the change listener', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch(changedWrites);
+    const api = followable(fetch, { onSignals });
+    const tag = {};
+    const reads: Promise<unknown>[] = [];
+    // A read of the same moment that the screen sends before the write stays before it.
+    const before = api.call('projects.get', PROJECT);
+    const output = await api.follow(() => api.call('tasks.complete', TASK), () => {
+      reads.push(api.call('tasks.get', TASK), api.call('tasks.list', LIST));
+    }, tag);
+    await Promise.all([before, ...reads]);
+    expect(output).toEqual({ name: 'tasks.complete' });
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.get', 'tasks.complete', 'tasks.get', 'tasks.list']]);
+    expect(onSignals).toHaveBeenCalledTimes(1);
+    expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }] });
+  });
+
+  it('works the same for run(), which the undoable actions use', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch(changedWrites);
+    const api = followable(fetch, { onSignals });
+    const tag = {};
+    const result = await api.follow(() => api.run('tasks.complete', TASK), () => {
+      void api.call('tasks.get', TASK);
+    }, tag);
+    expect(result).toEqual({ output: { name: 'tasks.complete' }, storyId: 'sty_1', changed: true });
+    expect(sent[0].body.calls.map((c) => c.name)).toEqual(['tasks.complete', 'tasks.get']);
+    expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }] });
+  });
+
+  it('names no read that the server refused, and no read that the screen sent outside the follow step', async () => {
+    const onSignals = vi.fn();
+    const { fetch } = stubFetch((body) => ({
+      body: { v: 1, serverTime: '', results: body.calls.map((call) => (call.name === 'tasks.list'
+        ? { i: call.i, ok: false, error: { code: 'failed', message: 'The call failed. Try again.' } }
+        : { i: call.i, ok: true, output: { name: call.name }, ...(call.name === 'tasks.complete' ? { changed: true, signals: [signal] } : {}) })) },
+    }));
+    const api = followable(fetch, { onSignals });
+    const tag = {};
+    const done = api.follow(() => api.call('tasks.complete', TASK), () => {
+      void api.call('tasks.get', TASK);
+      void api.call('tasks.list', LIST).catch(() => undefined);
+    }, tag);
+    const outside = api.call('projects.get', PROJECT);
+    await Promise.all([done, outside]);
+    expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }] });
+  });
+
+  it('still answers the reads of a refused write, with no signals and no names', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch((body) => ({
+      body: { v: 1, serverTime: '', results: body.calls.map((call) => (call.name === 'tasks.complete'
+        ? { i: call.i, ok: false, error: { code: 'invalid_input', message: 'Some fields are not valid.', details: { reason: 'needs_lead' } } }
+        : { i: call.i, ok: true, output: { name: call.name } })) },
+    }));
+    const api = followable(fetch, { onSignals });
+    let read: Promise<unknown> = Promise.resolve();
+    const write = api.follow(() => api.call('tasks.complete', TASK), () => {
+      read = api.call('tasks.get', TASK);
+    }, {});
+    await expect(write).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(await read).toEqual({ name: 'tasks.get' });
+    expect(sent).toHaveLength(1);
+    expect(onSignals).not.toHaveBeenCalled();
+  });
+
+  it('runs no follow step when the call put no single write on the wire at once (an adapter writes later)', async () => {
+    const { sent, fetch } = stubFetch();
+    const late: Adapter = async (input, ctx) => {
+      await Promise.resolve();
+      return ctx.call('files.upload', input);
+    };
+    const api = followable(fetch, { adapters: { 'files.upload': late } });
+    const step = vi.fn();
+    await api.follow(() => api.call('files.upload', {} as never), step, {});
+    await api.follow(() => Promise.resolve('nothing'), step, {});
+    expect(step).not.toHaveBeenCalled();
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['files.upload']]);
+  });
+
+  it('names no read that did not fit in the request of the write (a second overview call)', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch(changedWrites);
+    const api = followable(fetch, { onSignals });
+    const tag = {};
+    const reads: Promise<unknown>[] = [];
+    const first = api.call('projects.list', {});
+    await api.follow(() => api.call('tasks.complete', TASK), () => {
+      reads.push(api.call('dashboard.get', {}), api.call('tasks.get', TASK));
+    }, tag);
+    await Promise.all([first, ...reads]);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.list', 'tasks.complete', 'tasks.get'], ['dashboard.get']]);
+    expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }] });
+  });
+
+  it('names nothing when the request lost its answer: the read goes again alone, after the write failed', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch((body, n) => (n === 0 ? 'network' : changedWrites(body)));
+    const api = followable(fetch, { onSignals });
+    let read: Promise<unknown> = Promise.resolve();
+    const write = api.follow(() => api.call('tasks.complete', TASK), () => {
+      read = api.call('tasks.get', TASK);
+    }, {});
+    await expect(write).rejects.toMatchObject({ code: 'failed' });
+    expect(await read).toEqual({ name: 'tasks.get' });
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['tasks.complete', 'tasks.get'], ['tasks.get']]);
+    expect(onSignals).not.toHaveBeenCalled();
+  });
+
+  it('marks the api of the real build as one that can follow a write', () => {
+    expect(canFollow(remote(stubFetch().fetch))).toBe(true);
+    expect(canFollow({ call: () => undefined, run: () => undefined })).toBe(false);
   });
 });

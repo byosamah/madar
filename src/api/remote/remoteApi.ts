@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import type { Api, CallMap, CallMeta, CallResult } from '../client';
 import { ApiError } from '../errors';
 import { Batcher } from './batcher';
+import type { FreshReads } from './follow';
 import { fromEntry, fromStatus, noAnswer } from './errors';
 import { isRead, newKey } from './keys';
 import { StoryMap } from './stories';
@@ -28,8 +29,11 @@ export type RemoteApiOptions<M extends CallMap> = {
   /** Calls whose input JSON cannot carry (files): the adapter runs in place of the call (track F fills these slots). */
   adapters?: Partial<Record<keyof M & string, Adapter>>;
   timeoutMs?: number;
-  /** The change signals of the person's own calls, so the screen reloads without waiting for Realtime (track R2). */
-  onSignals?: (signals: ChangeSignal[]) => void;
+  /**
+   * The change signals of the person's own calls, so the screen reloads without waiting for Realtime (track R2). fresh: the
+   * reads of the follow step that ran after this write in its request and answered (performance audit FET-3).
+   */
+  onSignals?: (signals: ChangeSignal[], fresh?: FreshReads) => void;
   /** A refused sign-in: a token that stayed invalid after one refresh, or an account that is turned off (track U). */
   onAuthError?: (error: ApiError) => void;
   /** Extra headers on each request. */
@@ -38,6 +42,8 @@ export type RemoteApiOptions<M extends CallMap> = {
 };
 
 type Answer = { output: unknown; storyId?: string; changed: boolean };
+
+export { canFollow, type FollowApi, type FreshReads } from './follow';
 
 type Pending = {
   name: string;
@@ -50,6 +56,10 @@ type Pending = {
   retried: boolean;
   /** True once the story claim of the item has ended, so a second settle never ends a later claim. */
   storySettled?: boolean;
+  /** A read of a follow step: the write that it must run after, in the same request (FET-3). */
+  after?: Pending;
+  /** A write with a follow step: the tag of that step. */
+  tag?: object;
   resolve: (answer: Answer) => void;
   reject: (error: unknown) => void;
 };
@@ -76,12 +86,19 @@ function placeholder(): string {
   return `cor_ui_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * The api of the screens. Its type is the Api of the fake api (httpClient.test.ts pins that), and it also carries follow():
+ * the runtime finds it with canFollow().
+ */
 export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<M> {
   const now = o.now ?? Date.now;
   const timeoutMs = o.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const batchUrl = regionUrl(`${o.url.replace(/\/+$/, '')}/batch`);
   const doFetch = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const stories = new StoryMap({ now });
+  // The follow step (FET-3): the writes that write() puts on the wire, then the write that the reads of reads() follow.
+  let capture: Pending[] | null = null;
+  let following: Pending | null = null;
 
   const batcher = new Batcher<Pending>({
     // A bug in send() must not leave a call waiting forever: every item still settles. A second resolve or reject does nothing.
@@ -187,6 +204,8 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         // A read goes again once. A write never does: its answer may be lost after it ran, and only Retry may send it again.
         if (item.read && !item.retried) {
           item.retried = true;
+          // It goes alone now, so it no longer counts as a read after its write.
+          delete item.after;
           batcher.add(item);
         } else {
           item.reject(noAnswer(reply.cause));
@@ -208,7 +227,8 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
     const results = (reply.body as { results?: unknown })?.results;
     const byIndex = new Map<number, WireEntry>();
     if (Array.isArray(results)) for (const entry of results as WireEntry[]) if (entry && typeof entry.i === 'number') byIndex.set(entry.i, entry);
-    const signals: ChangeSignal[][] = [];
+    const signals: { item: Pending; signals: ChangeSignal[] }[] = [];
+    const answered = new Set<Pending>();
     items.forEach((item, i) => {
       const entry = byIndex.get(i);
       if (!entry) {
@@ -222,18 +242,30 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         return;
       }
       settleStory(item, entry.storyId);
+      answered.add(item);
       item.resolve({ output: entry.output, storyId: entry.storyId, changed: entry.changed ?? false });
-      if (entry.signals && entry.signals.length > 0) signals.push(entry.signals);
+      if (entry.signals && entry.signals.length > 0) signals.push({ item, signals: entry.signals });
     });
     // Answer every call first, then hand over the signals of each entry, so a listener error cannot leave a call waiting.
-    for (const entrySignals of signals) tell(o.onSignals, entrySignals);
+    for (const { item, signals: entrySignals } of signals) {
+      const at = items.indexOf(item);
+      const fresh = item.tag === undefined ? [] : items
+        .filter((read, j) => j > at && read.after === item && answered.has(read))
+        .map((read) => ({ name: read.name, input: read.input }));
+      if (item.tag !== undefined && fresh.length > 0) {
+        const tag = item.tag;
+        tell((value: ChangeSignal[]) => o.onSignals?.(value, { tag, reads: fresh }), entrySignals);
+      } else {
+        tell(o.onSignals, entrySignals);
+      }
+    }
   }
 
   /** One call on the wire, through the batcher. A write gets a key (the meta key of a Retry, or a new one) and its story. */
   function wire(name: string, input: unknown, meta: CallMeta): Promise<Answer> {
     const read = isRead(name);
     return new Promise<Answer>((resolve, reject) => {
-      batcher.add({
+      const item: Pending = {
         name,
         input,
         overview: isOverviewCall(name, input),
@@ -243,8 +275,36 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
         retried: false,
         resolve,
         reject,
-      });
+      };
+      if (!read) capture?.push(item);
+      else if (following) item.after = following;
+      batcher.add(item);
     });
+  }
+
+  function follow<T>(write: () => Promise<T>, reads: () => void, tag: object): Promise<T> {
+    const queued: Pending[] = [];
+    const outer = capture;
+    capture = queued;
+    let result: Promise<T>;
+    try {
+      result = write();
+    } finally {
+      capture = outer;
+    }
+    if (queued.length !== 1) return result;
+    const [only] = queued;
+    only.tag = tag;
+    const before = following;
+    following = only;
+    try {
+      reads();
+    } catch {
+      // A bug in the follow step must not stop the write, which is on the wire already. Its reads load on the signals.
+    } finally {
+      following = before;
+    }
+    return result;
   }
 
   async function invoke(name: string, input: unknown, meta: CallMeta): Promise<CallResult<unknown>> {
@@ -275,7 +335,8 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
     return { output, storyId: storyId ?? stories.serverId(correlationId) ?? '', changed };
   }
 
-  return {
+  const api = {
+    follow,
     call<N extends keyof M & string>(name: N, input: z.input<M[N]['input']>, meta: CallMeta = {}): Promise<z.output<M[N]['output']>> {
       return invoke(name, input, meta).then((result) => result.output) as Promise<z.output<M[N]['output']>>;
     },
@@ -283,4 +344,5 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
       return invoke(name, input, meta) as Promise<CallResult<z.output<M[N]['output']>>>;
     },
   };
+  return api;
 }

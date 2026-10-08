@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { MAX_BATCH } from './wire';
 import { Batcher } from './batcher';
 
-type Item = { name: string; overview: boolean };
+type Item = { name: string; overview: boolean; after?: Item };
 const item = (name: string, overview = false): Item => ({ name, overview });
+/** A read that must run after a write, in the request of that write (performance audit FET-3). */
+const follower = (name: string, after: Item, overview = false): Item => ({ name, overview, after });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function setup(place?: (item: Item, request: object) => Promise<void> | null) {
@@ -79,5 +81,64 @@ describe('the batcher (client map 4.1)', () => {
     expect(requests[0]).toBe(requests[1]);
     expect(requests[1]).toBe(requests[2]);
     expect(requests[3]).not.toBe(requests[2]);
+  });
+
+  it('puts a read that follows a write into the request of that write, after it (performance audit FET-3)', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.complete');
+    batcher.add(item('session.get'));
+    batcher.add(write);
+    batcher.add(follower('tasks.get', write));
+    batcher.add(follower('tasks.list', write));
+    await tick();
+    expect(sent).toEqual([['session.get', 'tasks.complete', 'tasks.get', 'tasks.list']]);
+  });
+
+  it('keeps a follower in the request of its write when a later call started a new request', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.complete');
+    batcher.add(item('projects.list', true));
+    batcher.add(write);
+    batcher.add(item('dashboard.get', true));
+    batcher.add(follower('tasks.get', write));
+    await tick();
+    expect(sent).toEqual([['projects.list', 'tasks.complete', 'tasks.get'], ['dashboard.get']]);
+  });
+
+  it('places a follower that does not fit with its write as any other call: a full request or a second overview', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.complete');
+    batcher.add(item('projects.list', true));
+    batcher.add(write);
+    batcher.add(follower('tasks.list', write, true));
+    await tick();
+    expect(sent).toEqual([['projects.list', 'tasks.complete'], ['tasks.list']]);
+    const full = setup();
+    const second = item('tasks.move');
+    for (let n = 0; n < MAX_BATCH - 2; n += 1) full.batcher.add(item(`c${n}`));
+    full.batcher.add(second);
+    full.batcher.add(follower('tasks.get', second));
+    // The queue reached MAX_BATCH, so it went at once; the follower comes in the next one.
+    full.batcher.add(follower('tasks.list', second));
+    await tick();
+    expect(full.sent.map((request) => request.length)).toEqual([MAX_BATCH, 1]);
+    expect(full.sent[1]).toEqual(['tasks.list']);
+  });
+
+  it('places a follower as any other call when its write waits for its story', async () => {
+    let release: () => void = () => undefined;
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    let held = true;
+    const write = item('tasks.complete');
+    const { sent, batcher } = setup((i) => (i === write && held ? wait : null));
+    batcher.add(write);
+    batcher.add(follower('tasks.get', write));
+    await tick();
+    expect(sent).toEqual([['tasks.get']]);
+    held = false;
+    release();
+    await tick();
+    await tick();
+    expect(sent).toEqual([['tasks.get'], ['tasks.complete']]);
   });
 });

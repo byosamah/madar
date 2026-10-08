@@ -145,6 +145,24 @@ describe('the Realtime change source (plan 5.3, client map 7.3)', () => {
     expect(seen).toEqual([[], [], []]);
   });
 
+  it('tells each join with the origin join, so the screen merges the joins of one drop into one pass (performance audit FET-4)', async () => {
+    const stub = stubSupabase();
+    const source = supabaseChangeSource(stub.client, 'usr_001');
+    const seen: unknown[] = [];
+    source.subscribe((signals, origin) => seen.push({ signals, origin }));
+    await vi.advanceTimersByTimeAsync(0);
+    stub.live('office')?.status?.('SUBSCRIBED');
+    stub.live('person:usr_001')?.status?.('SUBSCRIBED');
+    stub.live('office')?.status?.('CHANNEL_ERROR');
+    stub.live('office')?.status?.('SUBSCRIBED');
+    stub.live('office')?.broadcast?.({ payload: signal() });
+    expect(seen).toEqual([
+      { signals: [], origin: 'join' },
+      { signals: [], origin: 'join' },
+      { signals: [signal()], origin: 'channel' },
+    ]);
+  });
+
   it('reloads the lists for a change saved after they loaded and before the channels joined (Realtime keeps no message for a later join)', async () => {
     const stub = stubSupabase();
     const source = supabaseChangeSource(stub.client, 'usr_001');

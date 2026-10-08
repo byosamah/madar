@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { bootstrap } from './bootstrap';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bootstrap, startScheduler } from './bootstrap';
 import { memoryPersister } from '../api/persist';
-import { emptyState, STATE_VERSION } from '../api/store';
+import { emptyState, STATE_VERSION, Store } from '../api/store';
 import { addDays, setNow } from '../lib/dates';
 import { NOW, TODAY } from '../test/factories';
 
@@ -105,3 +105,70 @@ describe('bootstrap', () => {
   });
 });
 
+describe('the minute timer of the prototype (performance audit FET-11)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('tells the screens and saves nothing when a tick finds nothing due and the day stays', async () => {
+    vi.useFakeTimers();
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    const save = vi.spyOn(runtime.store.persister, 'save');
+    let heard = 0;
+    runtime.store.subscribe(() => {
+      heard += 1;
+    });
+    const before = JSON.stringify(runtime.store.state);
+    const stop = startScheduler(runtime.store);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
+    stop();
+    expect([heard, save.mock.calls.length]).toEqual([0, 0]);
+    // The notices of the start are there already, so the triggers change nothing.
+    expect(JSON.stringify(runtime.store.state)).toBe(before);
+  });
+
+  it('tells the screens and saves once for a tick that makes a notice', async () => {
+    vi.useFakeTimers();
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    const save = vi.spyOn(runtime.store.persister, 'save');
+    let heard = 0;
+    runtime.store.subscribe(() => {
+      heard += 1;
+    });
+    const stop = startScheduler(runtime.store);
+    // A task that became past due with a new due day: its reminder has a new dedupe key.
+    const task = Object.values(runtime.store.state.tasks).find((t) => t.status === 'todo' && t.ownerId !== null && t.projectId !== null
+      && runtime.store.state.projects[t.projectId]?.status === 'active')!;
+    task.dueDate = addDays(TODAY, -5);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(heard).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    stop();
+    expect(heard).toBe(1);
+    expect(save.mock.calls.length).toBe(1);
+  });
+
+  it('still tells the screens once at a new office day, so the day counts refresh after midnight', async () => {
+    vi.useFakeTimers();
+    setNow(new Date('2026-10-08T20:59:30Z'));
+    const store = new Store(emptyState('2026-10-08'), memoryPersister());
+    let heard = 0;
+    store.subscribe(() => {
+      heard += 1;
+    });
+    const stop = startScheduler(store);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(heard).toBe(0);
+    // 00:00 in Riyadh.
+    setNow(new Date('2026-10-08T21:00:30Z'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(heard).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    stop();
+    expect(heard).toBe(1);
+  });
+});

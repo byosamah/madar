@@ -5,6 +5,11 @@ import { MAX_BATCH } from './wire';
  * same task and its microtasks (one React commit, its effects, a Promise.all) goes together. A request holds at most MAX_BATCH
  * calls and at most one overview call, because the CPU limit of the server covers the whole request (plan 4.10). The calls
  * keep their order: a call joins the last request, or starts a new one.
+ *
+ * A call with "after" (a read that a screen sends right after its own write, performance audit FET-3) joins the request of that
+ * write instead, after it, when it fits there. The server runs the calls of a request in order, so the read sees the write.
+ * When it does not fit (a full request, a second overview call, a write that waits or went before), it goes as any other call,
+ * and RemoteApi does not count it as a read after the write.
  */
 export type BatcherOptions<T> = {
   /** Sends one request. */
@@ -18,7 +23,7 @@ export type BatcherOptions<T> = {
   schedule?: (run: () => void) => void;
 };
 
-export class Batcher<T extends { overview: boolean }> {
+export class Batcher<T extends { overview: boolean; after?: object }> {
   #queue: T[] = [];
   #timer = false;
   #o: BatcherOptions<T>;
@@ -46,9 +51,13 @@ export class Batcher<T extends { overview: boolean }> {
     const items = this.#queue.splice(0);
     if (items.length === 0) return;
     const requests: { token: object; items: T[]; overview: boolean }[] = [];
+    type Request = (typeof requests)[number];
+    const fits = (request: Request | undefined, item: T): request is Request =>
+      request !== undefined && request.items.length < MAX_BATCH && !(item.overview && request.overview);
     for (const item of items) {
-      let current = requests.at(-1);
-      if (!current || current.items.length >= MAX_BATCH || (item.overview && current.overview)) {
+      const host = item.after === undefined ? undefined : requests.find((request) => request.items.includes(item.after as T));
+      let current = fits(host, item) ? host : requests.at(-1);
+      if (!fits(current, item)) {
         current = { token: {}, items: [], overview: false };
         requests.push(current);
       }

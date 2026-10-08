@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ApiError } from '../../api/errors';
+import { canFollow, type FollowApi } from '../../api/remote/remoteApi';
 import type { ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
@@ -263,5 +264,25 @@ describe('the remote runtime (plan R2)', () => {
     runtime.changes.subscribe((signals, origin) => seen.push([signals.map((s) => s.id), origin]));
     await runtime.api.call('clients.create', { name: 'Gulf' } as never);
     expect(seen).toContainEqual([['sig-1'], 'own']);
+  });
+
+  it('hands the change listeners the reads that ran after an own write in its request (performance audit FET-3)', async () => {
+    const fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { calls: { i: number; name: string }[] };
+      const results = body.calls.map((call) => (call.name === 'clients.create'
+        ? { i: call.i, ok: true, output: {}, storyId: 'cor_srv_1', changed: true, signals: [signal()] }
+        : { i: call.i, ok: true, output: call.name === 'session.get' ? { user: { id: 'usr_001' } } : [] }));
+      return new Response(JSON.stringify({ v: 1, serverTime: '', results }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch });
+    const seen: unknown[] = [];
+    runtime.changes.subscribe((signals, origin, fresh) => seen.push([signals.map((s) => s.id), origin, fresh]));
+    const api = runtime.api as unknown as FollowApi;
+    expect(canFollow(api)).toBe(true);
+    const tag = {};
+    await api.follow(() => runtime.api.call('clients.create', { name: 'Gulf' } as never), () => {
+      void runtime.api.call('clients.list', {});
+    }, tag);
+    expect(seen).toContainEqual([['sig-1'], 'own', { tag, reads: [{ name: 'clients.list', input: {} }] }]);
   });
 });
