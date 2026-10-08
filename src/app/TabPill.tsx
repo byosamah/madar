@@ -27,7 +27,7 @@ export function TabPill() {
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
-        // On a phone the tabs share the width, but a tab never gets narrower than its longest word and some room for the round
+        // From 640 px up, the tabs share the width, but a tab never gets narrower than its longest word and some room for the round
         // ends of its highlight. A label of two words such as "لوحة المعلومات" wraps onto two short lines, so it stays whole and
         // the five tabs still fit inside the bar at 320 to 412 px. On a phone the highlight is a rounded box, not a pill, so a
         // second line clears its corners (audit 2026-10-03, F-2 and its re-check). The phone tabs share one height and start
@@ -43,7 +43,8 @@ export function TabPill() {
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full max-sm:rounded-[18px]" />}
             <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
-            <span className="text-center leading-[1.15] sm:whitespace-nowrap">{t(item.key)}</span>
+            {/* On a phone the icon alone shows the tab (owner, 2026-10-08); the word stays for screen readers. */}
+            <span className="sr-only text-center leading-[1.15] sm:not-sr-only sm:whitespace-nowrap">{t(item.key)}</span>
             {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
           </Link>
         );
