@@ -434,9 +434,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                     .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
-              {/* An office task has no stage. */}
+              {/* An office task has no stage. A stage name is long, so the field takes a full row from 640 px up (its first letters were cut in Arabic). */}
               {detail && (edit ? (
-                <SelectField id="task-stage" label={t('taskSheet.stage')} value={task.stageId ?? ''} onChange={(event) => patch({ stageId: event.target.value })}>
+                <SelectField id="task-stage" className="sm:col-span-2" label={t('taskSheet.stage')} value={task.stageId ?? ''} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.stage')}><bdi>{data.stage?.name ?? ''}</bdi></Fact>)}

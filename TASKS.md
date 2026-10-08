@@ -271,9 +271,9 @@ the leader, and the review stays with the leader; Home shows the next 3 tasks wi
   (EN/AR, light/dark, 390 px). Not run: the prototype smoke and the deploy suite
 - [x] Test copy and production at 1f06244 (owner OK, 2026-10-07); record in proof.md
 
-## Open bug: Arabic stage name is cut (found 2026-10-07)
+## Fixed: Arabic stage name was cut (found 2026-10-07, fixed 2026-10-08)
 
-- [ ] In the Arabic task panel, the stage list shows «ınstruction Documents». The narrow field cuts the first letters of the English stage name.
+- [x] The task panel showed «ınstruction Documents» in Arabic: the stage field sat in a narrow column and cut the first letters. The stage field now takes a full row from 640 px up (`TaskSheet.tsx`, test `TaskStageRow.test.tsx`). Checked in Arabic and English, light and dark, at 390 px, and in Arabic at 1280 px.
 
 ## Release of the security fix F1 (owner, 2026-10-07)
 
