@@ -1,6 +1,7 @@
 import { ApiError } from '../../src/api/errors';
 import type { WireEntry, WireResponse } from '../../src/api/remote/wire';
 import { nowStamp } from '../../src/lib/dates';
+import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
 import type { BatchScope, OfficeSnapshot, Principal, RunRequest, RunResult } from '../core/types';
 import { errorResponse, runErrorOf } from './errors';
@@ -11,6 +12,13 @@ import { checkBuild, parseBatch, readBody } from './limits';
  * the whole batch, then one runCall for each entry in the order sent. Each write is its own transaction inside runCall, so a
  * read after a write in the same batch sees the write. One refused entry never refuses the others. After the last entry,
  * one meter statement of its own, outside every call.
+ *
+ * Speed (performance audit 2026-10-07):
+ * - SRV-M2: a batch with a write opens the write connection after the token check, beside the sign-in read. A refused token
+ *   opens nothing.
+ * - SRV-6: a run of adjacent files.link entries (the covers of a screen) runs side by side. Each is a read with no lock, and each
+ *   keeps its own error. Every other entry runs alone, in the order sent.
+ * - SRV-4: on a host with after (core/after.ts), the meter statement runs after the answer. With no after, it runs before it.
  */
 
 export type BatchOptions = {
@@ -18,7 +26,12 @@ export type BatchOptions = {
   verifyToken: (header: string | null) => Promise<{ authUserId: string }>;
   principalOf: (authUserId: string, office: OfficeSnapshot) => Principal;
   readOffice: (deps: Deps) => Promise<OfficeSnapshot>;
+  /** True for a call that writes. Without it, the batch opens no connection early. */
+  hasWrite?: (name: string) => boolean;
 };
+
+/** The server call that signs a download link. Its entries of one run go side by side. */
+const LINK_CALL = 'files.link';
 
 function entryOf(i: number, result: RunResult): WireEntry {
   if (!result.ok) return { i, ok: false, error: result.error };
@@ -43,6 +56,8 @@ export async function handleBatch(request: Request, deps: Deps, o: BatchOptions)
     const parsed = parseBatch(await readBody(request));
     calls = parsed.request.calls;
     const { authUserId } = await o.verifyToken(request.headers.get('Authorization'));
+    // Only after a good token: a connect reads nothing, and the write transaction then finds the connection open.
+    if (o.hasWrite && calls.some((call) => o.hasWrite!(call.name))) void deps.db.warm?.('write').catch(() => undefined);
     const office = await o.readOffice(deps);
     principal = o.principalOf(authUserId, office);
     batch = { storyRefs: new Map(), office, overviewCalls: parsed.overviewCalls };
@@ -51,8 +66,7 @@ export async function handleBatch(request: Request, deps: Deps, o: BatchOptions)
     return errorResponse(runErrorOf(error));
   }
 
-  const results: WireEntry[] = [];
-  for (const call of calls) {
+  const entry = async (call: (typeof calls)[number]): Promise<WireEntry> => {
     let result: RunResult;
     try {
       result = await o.runCall(deps, { principal, name: call.name, input: call.input, story: call.story, key: call.key, batch });
@@ -60,14 +74,27 @@ export async function handleBatch(request: Request, deps: Deps, o: BatchOptions)
       logUnexpected(deps, 'A call threw outside runCall.', error, { name: call.name });
       result = { ok: false, error: runErrorOf(error) };
     }
-    results.push(entryOf(call.i, result));
+    return entryOf(call.i, result);
+  };
+
+  const results: WireEntry[] = [];
+  for (let at = 0; at < calls.length; ) {
+    let end = at + 1;
+    if (calls[at].name === LINK_CALL) while (end < calls.length && calls[end].name === LINK_CALL) end += 1;
+    results.push(...(end - at === 1 ? [await entry(calls[at])] : await Promise.all(calls.slice(at, end).map(entry))));
+    at = end;
   }
 
-  try {
-    await deps.meter.countRequest(deps.db);
-  } catch (error) {
-    deps.log.warn('The usage meter did not count the request.', { error: error instanceof Error ? error.message : String(error) });
-  }
+  const counted = (async () => {
+    try {
+      await deps.meter.countRequest(deps.db);
+    } catch (error) {
+      deps.log.warn('The usage meter did not count the request.', { error: error instanceof Error ? error.message : String(error) });
+    }
+  })();
+  const { after } = requestHost();
+  if (after) after(counted);
+  else await counted;
 
   const body: WireResponse = { v: 1, serverTime: nowStamp(deps.clock.now()), results };
   return Response.json(body);

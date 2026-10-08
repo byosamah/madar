@@ -16,6 +16,11 @@ export interface Db {
   statement<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]>;
   /** Ends the connections of this Db. The Workers entry calls it after each request (server/entries/requestDb.ts). */
   close?(): Promise<void>;
+  /**
+   * Opens the connection of one pool and sends no statement, so a later transaction finds it open (performance audit SRV-M2).
+   * It reads nothing. A Db without pools leaves it out.
+   */
+  warm?(mode: 'read' | 'write'): Promise<void>;
 }
 
 export interface Clock {

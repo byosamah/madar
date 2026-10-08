@@ -10,6 +10,8 @@ import type { Source } from './source';
  * The work of one loader (plan 4.6; task C2): the office from the cache, plus the scoped rows it reads, as one State.
  *
  * - The office lists come from the snapshot as a deep copy, so the call never holds a cached object (plan 4.7).
+ * - The rows of the other collections are the objects that the Source gave: a Source gives rows that the caller owns (sqlSource
+ *   gets new objects from pg, memorySource gives copies), so they get no second copy (performance audit SRV-M1).
  * - Rows of the other collections keep their insertion order ("ord"), whatever read brought them, so Object.values() gives the
  *   order of the prototype (TM R8). A row that two reads bring is kept once.
  * - Every loaded event gets its undoneBy from the undo event that names it (plan 4.3).
@@ -138,7 +140,7 @@ export class Load {
     for (const c of OFFICE_COLLECTIONS) lists[c] = structuredClone(this.office[c]);
     for (const [c, map] of this.#rows) {
       const spec = tableOf(c);
-      lists[c] = Object.fromEntries([...map.values()].sort((a, b) => a.ord - b.ord).map((row) => [spec.key(row.doc), structuredClone(row.doc)]));
+      lists[c] = Object.fromEntries([...map.values()].sort((a, b) => a.ord - b.ord).map((row) => [spec.key(row.doc), row.doc]));
     }
     const events = Object.values(state.events);
     if (events.length > 0) {
@@ -152,4 +154,15 @@ export class Load {
     if (Object.keys(this.#counts).length > 0) state.counts = { ...this.#counts };
     return state;
   }
+}
+
+/**
+ * The State before the handler of a write runs, for the diff save (performance audit SRV-8, DB-7). Load.state() made the office
+ * lists of "state" as copies of the snapshot lists, and a loader never reads an office table as rows, so the office part of
+ * "before" is the frozen snapshot itself, with no copy. Every other collection is a deep copy. Only the save step reads
+ * "before", and a write into the frozen part throws.
+ */
+export function beforeOf(state: State, office: OfficeSnapshot): State {
+  const lists = office.lists as unknown as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(state).map(([key, value]) => [key, OFFICE.has(key) ? lists[key] : structuredClone(value)])) as unknown as State;
 }

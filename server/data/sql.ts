@@ -16,6 +16,11 @@ import type { Db, Query } from '../core/ports';
  *
  * Timeouts (proof.md, Z0a item 4): Supavisor drops session settings and startup options, and a plain SET stays on the pooled
  * backend for the next client. So every timeout is a "set local" inside the transaction, and every query refuses a plain SET.
+ * BEGIN and the set local lines go as one simple query, so the start of a transaction is one round trip (performance audit
+ * SRV-9; proof.md: the settings hold inside the transaction and end with it, also through the transaction pooler).
+ *
+ * Idle connections (performance audit SRV-3; proof.md): a pool keeps its idle connection 120 s, under the 150 s life of a
+ * worker, with TCP keepalive, so a click after a pause does not open a new TLS connection. The pg default is 10 s.
  */
 
 /**
@@ -33,9 +38,12 @@ export type PgDb = Db & { close(): Promise<void> };
 export type PgDbOptions = { callerClient?: PoolClient };
 
 const CONNECT_TIMEOUT_MS = 5000;
+const IDLE_TIMEOUT_MS = 120_000;
 const LOCK_TIMEOUT = "set local lock_timeout = '5s'";
 const STATEMENT_TIMEOUT = "set local statement_timeout = '10s'";
 const BEGIN = { read: 'begin isolation level repeatable read, read only', write: 'begin' } as const;
+/** The start of a transaction in one round trip. No values, so pg sends it with the simple protocol, which takes more than one statement. */
+const START = { read: `${BEGIN.read}; ${STATEMENT_TIMEOUT}`, write: `${BEGIN.write}; ${LOCK_TIMEOUT}; ${STATEMENT_TIMEOUT}` } as const;
 
 /** The hosts that may go without TLS: the Mac and the names inside the local Docker network (the same list as server/core/deps.ts). */
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1', 'pooler', 'db', 'host.docker.internal']);
@@ -117,16 +125,20 @@ function hostOf(url: string): string {
   }
 }
 
-/** The pg settings of one pool. */
+/**
+ * The pg settings of one pool. The finished connection string of the Workers entry keeps the pg defaults: that Db lives for one
+ * request only.
+ */
 function poolConfig(database: DatabaseConfig, which: 'writeUrl' | 'readUrl'): pg.PoolConfig {
   const base = { max: 1, connectionTimeoutMillis: CONNECT_TIMEOUT_MS };
   if ('connectionString' in database) return { ...base, connectionString: database.connectionString };
+  const kept = { ...base, idleTimeoutMillis: IDLE_TIMEOUT_MS, keepAlive: true };
   const url = database[which];
   const host = hostOf(url);
-  if (database.ca === undefined) return { ...base, connectionString: url };
+  if (database.ca === undefined) return { ...kept, connectionString: url };
   // pg sets the server name from the host only when the host is not an IP address; it is set here in every case for a name.
   const ssl = { ca: database.ca, rejectUnauthorized: true, ...(/^[\d.]+$|:/.test(host) ? {} : { servername: host }) };
-  return { ...base, connectionString: url, ssl };
+  return { ...kept, connectionString: url, ssl };
 }
 
 function checkConfig(database: DatabaseConfig): void {
@@ -183,10 +195,14 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
     const open: Open = { client, q, savepoints: 0 };
     let broken = false;
     try {
-      // The D1 harness keeps one transaction for each test, so each transaction of the code is a savepoint inside it.
-      await client.query(caller ? 'savepoint madar_tx' : BEGIN[mode]);
-      if (mode === 'write') await client.query(LOCK_TIMEOUT);
-      await client.query(STATEMENT_TIMEOUT);
+      if (caller) {
+        // The D1 harness keeps one transaction for each test, so each transaction of the code is a savepoint inside it.
+        await client.query('savepoint madar_tx');
+        if (mode === 'write') await client.query(LOCK_TIMEOUT);
+        await client.query(STATEMENT_TIMEOUT);
+      } else {
+        await client.query(START[mode]);
+      }
       const out = await current.run(open, () => work(q));
       state.ended = true;
       await client.query(caller ? 'release savepoint madar_tx' : 'commit');
@@ -212,6 +228,14 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
 
   return {
     tx: run,
+
+    async warm(mode: 'read' | 'write'): Promise<void> {
+      // A connect with no statement. A pool that has a client (idle, busy or still connecting) needs nothing.
+      if (o.callerClient) return;
+      const pool = poolOf(mode);
+      if (pool.totalCount > 0) return;
+      (await pool.connect()).release();
+    },
 
     async savepoint<T>(q: Query, work: (q: Query) => Promise<T>): Promise<T> {
       const open = current.getStore();

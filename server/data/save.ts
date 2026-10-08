@@ -97,8 +97,29 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 
+/**
+ * The JSON of each deep-frozen record, made once (performance audit DB-7). The "before" of a write holds the office lists of the
+ * snapshot (officeCache.ts, deep-frozen), and a deep-frozen record never changes, so its JSON stays true while it lives. A record
+ * that is not frozen at every level gets its JSON of now each time.
+ */
+const frozenJson = new WeakMap<object, string>();
+
+function deepFrozen(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return true;
+  return Object.isFrozen(value) && Object.values(value).every(deepFrozen);
+}
+
+function jsonOf(value: unknown): string | undefined {
+  if (value === null || typeof value !== 'object' || !Object.isFrozen(value)) return JSON.stringify(value);
+  const known = frozenJson.get(value);
+  if (known !== undefined) return known;
+  const json = JSON.stringify(value);
+  if (deepFrozen(value)) frozenJson.set(value, json);
+  return json;
+}
+
 function same(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b) || canonical(a) === canonical(b);
+  return jsonOf(a) === jsonOf(b) || canonical(a) === canonical(b);
 }
 
 /** The same record without one field. */

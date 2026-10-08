@@ -21,8 +21,9 @@ export type OfficeSnapshot = { version: number; lists: Readonly<Required<Pick<St
 /**
  * What one batch shares between its entries (plan 4.10): the story placeholders it mapped, the office it read once,
  * and how many overview calls it holds. runCall drops "office" after an entry that raised the office version.
+ * mail: the mail effects of the batch that run after the answer, as one chain, so they run in the order of the entries.
  */
-export type BatchScope = { storyRefs: Map<string, string>; office?: OfficeSnapshot; overviewCalls: number };
+export type BatchScope = { storyRefs: Map<string, string>; office?: OfficeSnapshot; overviewCalls: number; mail?: Promise<void> };
 
 export type RunRequest = { principal: Principal; name: string; input: unknown; story?: StoryRef; key?: string; batch: BatchScope };
 

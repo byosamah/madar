@@ -4,6 +4,7 @@ import { principalOf } from '../auth/principal';
 import { verifyBrowserToken } from '../auth/verify';
 import type { Deps } from '../core/ports';
 import { runCall } from '../core/runCall';
+import { serverCallMap } from '../core/serverCallMap';
 import { readOffice } from '../data/officeCache';
 import { handleBatch, type BatchOptions } from './batch';
 import { cors } from './cors';
@@ -25,6 +26,7 @@ export function apiApp(deps: Deps, o: AppOptions = {}): Hono {
     verifyToken: o.verifyToken ?? verifyBrowserToken,
     principalOf: o.principalOf ?? principalOf,
     readOffice: o.readOffice ?? ((d) => readOffice(d)),
+    hasWrite: o.hasWrite ?? ((name) => serverCallMap.get(name)?.readOnly === false),
   };
   const app = new Hono();
   app.use('*', cors(() => deps.config.allowedOrigins));

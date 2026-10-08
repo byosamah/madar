@@ -7,6 +7,8 @@ import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
+import { runInHost } from './after';
+import { diffState } from '../data/save';
 import { registerOutbox } from './effects';
 import { EXPECTED_REFUSALS, everyCall } from './everyCall';
 import { memoryData, type MemoryData } from './memoryData';
@@ -474,6 +476,115 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
     } });
     expect((await call(ADMIN, 'clients.create', { name: 'Still saved' })).ok).toBe(true);
     expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.name === 'clients.create')).toBe(true);
+  });
+
+  describe('the mail effects after the answer (performance audit SRV-1, BGR-2)', () => {
+    /** clients.create writes an auth.invite row and then a mail.notice row; afterCommit records each call, and mail work waits for open(). */
+    function mailSetup() {
+      undo.push(registerOutbox('clients.create', async (output) => [
+        { kind: 'auth.invite', payload: { id: (output as { id: string }).id } },
+        { kind: 'mail.notice', payload: { notificationId: 'ntf_900' } },
+      ]));
+      const ran: string[][] = [];
+      const ended: string[][] = [];
+      let open: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      const holder: { mem?: MemoryData } = {};
+      const kindOf = (id: string) => holder.mem!.tables.outbox.find((row) => row.id === id)?.kind;
+      const built = setup({ afterCommit: async (_deps, ids) => {
+        ran.push(ids);
+        if (ids.some((id) => kindOf(id) === 'mail.notice')) await gate;
+        ended.push(ids);
+      } });
+      holder.mem = built.mem;
+      return { ...built, ran, ended, open: () => open() };
+    }
+
+    it('hands the mail rows to after and answers before they end; every other row still runs before the answer', async () => {
+      const h = mailSetup();
+      const later: Promise<unknown>[] = [];
+      const result = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.call(ADMIN, 'clients.create', { name: 'With mail' }));
+      expect(result.ok).toBe(true);
+      expect(h.mem.tables.outbox.map((row) => [row.id, row.kind])).toEqual([['1', 'auth.invite'], ['2', 'mail.notice']]);
+      expect(h.ended).toEqual([['1']]);
+      expect(h.ran).toEqual([['1'], ['2']]);
+      expect(later).toHaveLength(1);
+      h.open();
+      await Promise.all(later);
+      expect(h.ended).toEqual([['1'], ['2']]);
+    });
+
+    it('runs every row before the answer, in one call and in row order, when the host has no after (as before)', async () => {
+      const h = mailSetup();
+      h.open();
+      expect((await h.call(ADMIN, 'clients.create', { name: 'No host' })).ok).toBe(true);
+      expect(h.ended).toEqual([['1', '2']]);
+    });
+
+    it('keeps the mails of one batch in the order of its entries: the mail work of an entry waits for the one before', async () => {
+      const h = mailSetup();
+      const later: Promise<unknown>[] = [];
+      const batch = newBatch();
+      await runInHost({ host: 'workers', after: (work) => void later.push(work) }, async () => {
+        for (const name of ['First', 'Second']) expect((await h.call(ADMIN, 'clients.create', { name }, { batch })).ok).toBe(true);
+      });
+      // The second mail has not started: it waits on the chain behind the first, which waits on the gate.
+      expect(h.ran).toEqual([['1'], ['2'], ['3']]);
+      h.open();
+      await Promise.all(later);
+      expect(h.ran).toEqual([['1'], ['2'], ['3'], ['4']]);
+      expect(h.ended).toEqual([['1'], ['3'], ['2'], ['4']]);
+    });
+
+    it('logs the same warning when the mail work fails after the answer, and the answer stays', async () => {
+      undo.push(registerOutbox('clients.create', async () => [{ kind: 'mail.notice', payload: {} }]));
+      const { call, deps } = setup({ afterCommit: async () => {
+        throw new Error('Resend is down');
+      } });
+      const later: Promise<unknown>[] = [];
+      expect((await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => call(ADMIN, 'clients.create', { name: 'Kept' }))).ok).toBe(true);
+      await Promise.all(later);
+      expect(deps.logs).toContainEqual({
+        level: 'warn', message: 'The effects after the commit did not run. The job tries them again.', fields: { name: 'clients.create', error: 'Resend is down' },
+      });
+    });
+  });
+
+  it('gives the save a before whose office lists are the frozen snapshot, and a copy of the rest (performance audit SRV-8, DB-7)', async () => {
+    const seen: { before: State; after: State; frozenDiff: string; copiedDiff: string }[] = [];
+    const { call, mem } = setup({ wrap: (data) => ({
+      ...data,
+      tx: (mode, work) => data.tx(mode, (t) => work({
+        ...t,
+        save: async (before, after, o) => {
+          // The same Diff as with a deep copy of the State (the form before the audit).
+          const text = (d: ReturnType<typeof diffState>) => JSON.stringify({ ...d, tables: d.tables.map((c) => ({ ...c, spec: c.spec.table })) }, (_k, v) => (v instanceof Set ? [...v].sort() : v));
+          seen.push({ before, after, frozenDiff: text(diffState(before, after)), copiedDiff: text(diffState(structuredClone(before), after)) });
+          return t.save(before, after, o);
+        },
+      })),
+    }) });
+    const task = Object.values(seed.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
+    okOutput(await call(ADMIN, 'tasks.update', { id: task.id, patch: { title: 'Roof plan' } }));
+    okOutput(await call(ADMIN, 'members.update', { projectId: 'prj_001', userId: 'usr_005', discipline: 'Interiors' }));
+    const stages = Object.values(mem.tables.state.stages).filter((stage) => stage.projectId === 'prj_001');
+    okOutput(await call(ADMIN, 'stages.replace', { projectId: 'prj_001', stages: stages.map((stage, i) => ({
+      id: stage.id, name: i === 0 ? 'Concept again' : stage.name, startDate: stage.startDate ?? null, endDate: stage.endDate ?? null,
+    })) }));
+    expect(seen).toHaveLength(3);
+    for (const { before, after, frozenDiff, copiedDiff } of seen) {
+      expect(frozenDiff).toBe(copiedDiff);
+      expect(Object.isFrozen(before.members)).toBe(true);
+      expect(Object.isFrozen(after.members)).toBe(false);
+      expect(before.tasks).not.toBe(after.tasks);
+      expect(() => {
+        (before.users.usr_001 as { name: string }).name = 'No';
+      }).toThrow(TypeError);
+    }
+    expect(seen[0].before.tasks[task.id].title).toBe(task.title);
+    expect(seen[0].after.tasks[task.id].title).toBe('Roof plan');
+    expect(JSON.parse(seen[1].frozenDiff).tables.map((c: { spec: string }) => c.spec)).toContain('members');
+    expect(JSON.parse(seen[2].frozenDiff).tables.map((c: { spec: string }) => c.spec)).toContain('stages');
   });
 
   it('logs how long each write held the office lock', async () => {

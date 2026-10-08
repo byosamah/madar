@@ -4,6 +4,7 @@ import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { testApi } from '../../src/test/factories';
 import type { Query } from '../core/ports';
+import { deepFreeze } from './officeCache';
 import { diffState, save, writeDiff, type Diff } from './save';
 
 /**
@@ -105,6 +106,35 @@ describe('diffState', () => {
     after.counters.tsk = (after.counters.tsk ?? 0) + 1;
     after.counters.zzz = 1;
     expect(diffState(seed, after).counters).toEqual({ tsk: after.counters.tsk, zzz: 1 });
+  });
+});
+
+describe('diffState on a frozen before (performance audit SRV-8, DB-7)', () => {
+  const text = (d: Diff) => JSON.stringify({ ...d, tables: d.tables.map((c) => ({ ...c, spec: c.spec.table })) }, (_k, v) => (v instanceof Set ? [...v].sort() : v));
+
+  it('gives the same Diff with a deep-frozen before as with a copy, also the second time, and never writes into before', () => {
+    const before = deepFreeze(copy());
+    const after = copy();
+    const [first, second] = Object.values(after.tasks);
+    second.title = 'Renamed';
+    delete after.tasks[first.id];
+    after.members[Object.keys(after.members)[0]].discipline = 'Interiors';
+    after.users.usr_005.name = 'A new name';
+    after.clients.cli_900 = { ...Object.values(after.clients)[0], id: 'cli_900', name: 'New client' };
+    const want = text(diffState(copy(), after));
+    expect(text(diffState(before, after))).toBe(want);
+    expect(text(diffState(before, after))).toBe(want);
+    expect(text(diffState(before, copy()))).toBe(text(diffState(copy(), copy())));
+  });
+
+  it('compares a record that is frozen only on top by its JSON of now, so a later change inside it still counts', () => {
+    const before = copy();
+    const user = { ...before.users.usr_005, preferences: { ...before.users.usr_005.preferences } };
+    before.users.usr_005 = Object.freeze(user) as never;
+    const after = copy();
+    expect(table(diffState(before, after), 'users')).toBeUndefined();
+    (user.preferences as { language: string }).language = user.preferences.language === 'ar' ? 'en' : 'ar';
+    expect(table(diffState(before, after), 'users')?.updated).toEqual(['usr_005']);
   });
 });
 

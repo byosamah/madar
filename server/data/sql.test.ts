@@ -5,8 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * tests check the connection settings and the transaction rules. server/it/save.it.test.ts runs the same pgDb on the local stack.
  */
 
-type FakeClient = { sql: string[]; released: unknown[]; query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>; release(error?: unknown): void };
-type FakePool = { config: Record<string, unknown>; clients: FakeClient[]; ended: boolean; handlers: Record<string, unknown> };
+type FakeClient = {
+  sql: string[];
+  values: (unknown[] | undefined)[];
+  released: unknown[];
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+  release(error?: unknown): void;
+};
+/** clients: every client the pool made, in order; gone: how many it threw away. */
+type FakePool = { config: Record<string, unknown>; clients: FakeClient[]; idle: FakeClient[]; gone: number; ended: boolean; handlers: Record<string, unknown> };
 
 const pools: FakePool[] = [];
 /** A statement that fails, by its text, so a test can make one step fail. */
@@ -16,8 +23,15 @@ vi.mock('pg', () => {
   class Pool {
     state: FakePool;
     constructor(config: Record<string, unknown>) {
-      this.state = { config, clients: [], ended: false, handlers: {} };
+      this.state = { config, clients: [], idle: [], gone: 0, ended: false, handlers: {} };
       pools.push(this.state);
+    }
+    /** As pg-pool: every client of the pool, idle or in use. */
+    get totalCount() {
+      return this.state.clients.length - this.state.gone;
+    }
+    get idleCount() {
+      return this.state.idle.length;
     }
     on(event: string, handler: unknown) {
       this.state.handlers[event] = handler;
@@ -25,16 +39,24 @@ vi.mock('pg', () => {
     }
     async connect(): Promise<FakeClient> {
       if (this.state.ended) throw new Error('Cannot use a pool after calling end on the pool');
+      // As pg-pool: an idle client goes out again; a released client with an error is thrown away.
+      const reused = this.state.idle.pop();
+      if (reused) return reused;
+      const state = this.state;
       const client: FakeClient = {
         sql: [],
+        values: [],
         released: [],
-        async query(text: string) {
+        async query(text: string, values?: unknown[]) {
           client.sql.push(text);
+          client.values.push(values);
           if (failOn?.test(text)) throw new Error(`failed: ${text}`);
           return { rows: [{ text }] };
         },
         release(error?: unknown) {
           client.released.push(error ?? null);
+          if (error) state.gone += 1;
+          else state.idle.push(client);
         },
       };
       this.state.clients.push(client);
@@ -74,6 +96,8 @@ describe('pgDb connections', () => {
     expect(pools).toHaveLength(2);
     for (const pool of pools) expect(pool.config).toMatchObject({ max: 1, connectionTimeoutMillis: 5000 });
     expect(pools.map((pool) => pool.config.connectionString)).toEqual([LOCAL.readUrl, LOCAL.writeUrl]);
+    // An idle connection stays 120 s, under the 150 s life of a worker, with TCP keepalive (performance audit SRV-3, proof.md).
+    for (const pool of pools) expect(pool.config).toMatchObject({ idleTimeoutMillis: 120_000, keepAlive: true });
     // An idle client that breaks must not stop the process: the pool keeps an error listener.
     for (const pool of pools) expect(typeof pool.handlers.error).toBe('function');
   });
@@ -114,6 +138,13 @@ describe('pgDb connections', () => {
     await db.statement('read', 'select 1');
     await db.tx('write', async (q) => q('select 1'));
     expect(pools.map((pool) => [pool.config.connectionString, pool.config.ssl])).toEqual([[finished, undefined], [finished, undefined]]);
+    // One Db for each request, closed after the answer: the pg defaults of idle time and keepalive stay (performance audit SRV-3).
+    for (const pool of pools) expect(pool.config).toEqual({ max: 1, connectionTimeoutMillis: 5000, connectionString: finished });
+  });
+
+  it('keeps the idle time and keepalive also with the root CA', async () => {
+    await pgDb(CLOUD).statement('read', 'select 1');
+    expect(pools[0].config).toMatchObject({ max: 1, connectionTimeoutMillis: 5000, idleTimeoutMillis: 120_000, keepAlive: true });
   });
 
   it('ends both pools on close, and opens new ones on a later query', async () => {
@@ -134,10 +165,9 @@ describe('pgDb transactions', () => {
     const out = await db.tx('write', async (q) => q<{ text: string }>('select pg_advisory_xact_lock($1)', [7]));
     expect(out).toEqual([{ text: 'select pg_advisory_xact_lock($1)' }]);
     const [client] = pools[0].clients;
+    // The start is one round trip (performance audit SRV-9, proof.md): BEGIN and both timeouts in one simple query.
     expect(client.sql).toEqual([
-      'begin',
-      "set local lock_timeout = '5s'",
-      "set local statement_timeout = '10s'",
+      "begin; set local lock_timeout = '5s'; set local statement_timeout = '10s'",
       'select pg_advisory_xact_lock($1)',
       'commit',
     ]);
@@ -146,7 +176,26 @@ describe('pgDb transactions', () => {
 
   it('runs a read in a repeatable read, read only transaction, with no lock timeout', async () => {
     await pgDb(LOCAL).tx('read', async (q) => q('select 1'));
-    expect(pools[0].clients[0].sql).toEqual(['begin isolation level repeatable read, read only', "set local statement_timeout = '10s'", 'select 1', 'commit']);
+    expect(pools[0].clients[0].sql).toEqual(["begin isolation level repeatable read, read only; set local statement_timeout = '10s'", 'select 1', 'commit']);
+  });
+
+  it('sends the start as one query with no values, so pg uses the simple protocol, which takes more than one statement', async () => {
+    const db = pgDb(LOCAL);
+    await db.tx('read', async (q) => q('select $1::int', [1]));
+    await db.tx('write', async (q) => q('select 2'));
+    for (const pool of pools) {
+      const [client] = pool.clients;
+      expect(client.values[0]).toBeUndefined();
+      expect(client.sql[0].split('; ').slice(1)).toEqual(pool === pools[0] ? ["set local statement_timeout = '10s'"] : ["set local lock_timeout = '5s'", "set local statement_timeout = '10s'"]);
+    }
+    expect(pools[0].clients[0].values[1]).toEqual([1]);
+  });
+
+  it('rolls back when the joined start fails, and releases the client', async () => {
+    failOn = /^begin; /;
+    await expect(pgDb(LOCAL).tx('write', async () => 'never')).rejects.toThrow(/failed: begin; /);
+    expect(pools[0].clients[0].sql.at(-1)).toBe('rollback');
+    expect(pools[0].clients[0].released).toEqual([null]);
   });
 
   it('rolls back when the work throws, gives back the error, and releases the client', async () => {
@@ -199,7 +248,7 @@ describe('pgDb transactions', () => {
         throw new Error('inner failed');
       })).rejects.toThrow('inner failed');
     });
-    expect(pools[0].clients[0].sql.slice(3, -1)).toEqual([
+    expect(pools[0].clients[0].sql.slice(1, -1)).toEqual([
       'savepoint madar_sp_1', 'select 1', 'release savepoint madar_sp_1',
       'savepoint madar_sp_2', 'rollback to savepoint madar_sp_2', 'release savepoint madar_sp_2',
     ]);
@@ -214,8 +263,41 @@ describe('pgDb transactions', () => {
     const rows = await pgDb(LOCAL).statement('read', 'select count(*) from tasks');
     expect(rows).toEqual([{ text: 'select count(*) from tasks' }]);
     expect(pools[0].clients[0].sql).toEqual([
-      'begin isolation level repeatable read, read only', "set local statement_timeout = '10s'", 'select count(*) from tasks', 'commit',
+      "begin isolation level repeatable read, read only; set local statement_timeout = '10s'", 'select count(*) from tasks', 'commit',
     ]);
+  });
+});
+
+describe('pgDb warm (performance audit SRV-M2)', () => {
+  it('connects one client of the pool and sends no query, and the next transaction uses that client', async () => {
+    const db = pgDb(LOCAL);
+    await db.warm!('write');
+    expect(pools).toHaveLength(1);
+    expect(pools[0].clients).toHaveLength(1);
+    expect(pools[0].clients[0].sql).toEqual([]);
+    expect(pools[0].clients[0].released).toEqual([null]);
+    await db.tx('write', async (q) => q('select 1'));
+    expect(pools[0].clients).toHaveLength(1);
+    expect(pools[0].clients[0].sql).toEqual(["begin; set local lock_timeout = '5s'; set local statement_timeout = '10s'", 'select 1', 'commit']);
+  });
+
+  it('opens nothing more when the pool already has a client, and warms only the pool it names', async () => {
+    const db = pgDb(LOCAL);
+    await db.statement('write', 'select 1');
+    await db.warm!('write');
+    expect(pools[0].clients).toHaveLength(1);
+    expect(pools[0].clients[0].released).toEqual([null]);
+    await db.warm!('read');
+    expect(pools).toHaveLength(2);
+    expect(pools[1].clients.map((client) => client.sql)).toEqual([[]]);
+  });
+
+  it('does nothing with the caller client of the D1 harness', async () => {
+    const sql: string[] = [];
+    const callerClient = { query: async (text: string) => (sql.push(text), { rows: [] }), release: () => undefined };
+    await pgDb(LOCAL, { callerClient: callerClient as never }).warm!('write');
+    expect(pools).toHaveLength(0);
+    expect(sql).toEqual([]);
   });
 });
 
