@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import type { TaskRow } from '../../../api/contract/views';
+import type { TaskRow, TrackerRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
@@ -103,13 +103,13 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
   );
 }
 
-function Attention({ projectId, rows, onOpen, seesPayments }: { projectId: string; rows: TaskRow[]; onOpen: (id: string) => void; seesPayments: boolean }) {
+function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { projectId: string; rows: TaskRow[]; tracker: TrackerRow[] | undefined; onOpen: (id: string) => void; seesPayments: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const [, setParams] = useSearchParams();
   const groups = needsAttention(rows, todayISO());
   // What the office waits for from the client (a land survey, a soil report), from the Tracker (colleague comment 6).
-  const waiting = (useCall('tracker.list', { projectId, openOnly: true }).data ?? []).filter((row) => row.entry.waiting === 'client');
+  const waiting = (tracker ?? []).filter((row) => row.entry.waiting === 'client');
   // Payments that are overdue or fall due within a week. Only the people who handle payments ask for them (colleague comment 6).
   const payments = useCall('payments.list', { projectId }, { enabled: seesPayments });
   const awaiting = (payments.data ?? []).filter((row) => row.status !== 'received' && row.dueInDays <= 7);
@@ -273,6 +273,8 @@ function LatestUpdate({ detail }: TabProps) {
 export function OverviewTab({ detail }: TabProps) {
   const [params] = useSearchParams();
   const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
+  // The open Tracker rows of Attention load with the tasks, not after them (performance audit 2026-10-07, LIV-1).
+  const tracker = useCall('tracker.list', { projectId: detail.project.id, openOnly: true });
   // Open adds one history step and Close goes back over it; Close also forgets the Conversation choice (audit 2026-10-03,
   // PRJ-9, PRJ-10, V-36).
   const panel = usePanelLink(TASK_PANEL);
@@ -287,7 +289,7 @@ export function OverviewTab({ detail }: TabProps) {
         {tasks.data ? (
           <>
             <Standing detail={detail} rows={rows} />
-            <Attention projectId={detail.project.id} rows={rows} onOpen={open} seesPayments={detail.viewerCan.payments} />
+            <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
           </>
         ) : <div aria-busy="true" className="panel min-h-64" />}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}

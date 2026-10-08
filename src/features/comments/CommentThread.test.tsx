@@ -1,8 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+
+// Render counters for the performance test (audit 2026-10-07, RND-3). The wrappers call the real parts, so every other test of
+// this file sees the same screen. ageOf runs once in each render of an Age; RichText runs once in each render of a comment.
+const renders = vi.hoisted(() => ({ ages: [] as string[], bodies: [] as string[] }));
+vi.mock('../../lib/age', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../lib/age')>();
+  return { ...real, ageOf: (stamp: string, at: Date) => { renders.ages.push(stamp); return real.ageOf(stamp, at); } };
+});
+vi.mock('../../components/RichText', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../components/RichText')>();
+  return { ...real, RichText: (props: Parameters<typeof real.RichText>[0]) => { renders.bodies.push(props.body); return <real.RichText {...props} />; } };
+});
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -136,4 +148,29 @@ describe('comments', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.updates.upd_002).toBeDefined());
   });
+
+  it('types in the comment box with no new render of the comments, and every age still reads the clock on each key (performance audit RND-3)', async () => {
+    const stamps = Array.from({ length: 20 }, (_, i) => `2026-09-29T${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}:07.000+03:00`);
+    const { store } = await renderApp(TASK('tsk_007'), (state) => {
+      state.session.currentUserId = 'usr_006';
+      stamps.forEach((createdAt, i) => {
+        state.comments[`cmt_8${String(i).padStart(2, '0')}`] = {
+          id: `cmt_8${String(i).padStart(2, '0')}`, targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: `Comment ${i}.`,
+          reactions: { '👍': [], '✅': [], '👀': [] }, createdAt, editedAt: null,
+        };
+      });
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
+    expect(await within(sheet).findByText('Comment 19.')).toBeInTheDocument();
+    await waitFor(() => expect(Object.values(store.state.chatReads).some((r) => r.conversationId === 'tsk_007' && r.userId === 'usr_006')).toBe(true));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    const comments = () => renders.bodies.filter((body) => body.startsWith('Comment ')).length;
+    const ages = () => renders.ages.filter((stamp) => stamps.includes(stamp)).length;
+    const before = { comments: comments(), ages: ages() };
+    const box = within(sheet).getByRole('textbox', { name: 'Add a comment' });
+    await userEvent.type(box, 'abcde');
+    expect(box).toHaveValue('abcde');
+    expect(comments()).toBe(before.comments);
+    expect(ages()).toBeGreaterThanOrEqual(before.ages + 5 * stamps.length);
+  }, 30_000);
 });

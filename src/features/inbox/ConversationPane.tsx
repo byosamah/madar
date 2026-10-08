@@ -1,9 +1,10 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { MessageView } from '../../api/contract/views';
+import type { ChatRow, CommentView, MessageView } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -34,11 +35,29 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
   );
 }
 
-function bubblesOf(messages: MessageView[]): Bubble[] {
-  return messages.map((view) => ({
+/**
+ * One Bubble for each message view, kept while the view object stays the same, so a bubble that did not change keeps its props
+ * and its memo holds (performance audit 2026-10-07, RND-5). An edited message gets a new view, so a new bubble.
+ */
+function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble, resetKey?: string): Bubble[] {
+  const kept = useRef<{ key: string | undefined; map: WeakMap<V, Bubble> }>({ key: resetKey, map: new WeakMap() });
+  if (kept.current.key !== resetKey) kept.current = { key: resetKey, map: new WeakMap() };
+  const { map } = kept.current;
+  return views.map((view) => {
+    let bubble = map.get(view);
+    if (!bubble) {
+      bubble = toBubble(view);
+      map.set(view, bubble);
+    }
+    return bubble;
+  });
+}
+
+function bubbleOfMessage(view: MessageView): Bubble {
+  return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
     createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
-  }));
+  };
 }
 
 /** A project chat or a direct chat. Opening it marks it read. */
@@ -50,6 +69,7 @@ export function ChatPane({ id }: { id: string }) {
   const send = useAction('chats.send');
   const data = thread.data;
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
+  const bubbles = useBubbles(messages, bubbleOfMessage);
   const unread = data?.chat.unread ?? 0;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: id });
@@ -68,7 +88,7 @@ export function ChatPane({ id }: { id: string }) {
   return (
     <>
       <Header lead={lead} title={<bdi>{chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title}</bdi>} subtitle={subtitle} />
-      <MessageLog key={id} bubbles={bubblesOf(messages)} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
         <Composer
           id={id}
@@ -82,27 +102,34 @@ export function ChatPane({ id }: { id: string }) {
   );
 }
 
+const NO_COMMENTS: CommentView[] = [];
+
 /** The comments of one task as a chat. A message posts a task comment. */
 export function TaskPane({ id }: { id: string }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
   const office = task.data !== undefined && task.data.project === null;
-  const projectId = task.data?.project?.id;
+  // The Inbox row of the thread already names its project, so projects.get starts with tasks.get, and the message box shows
+  // with the messages (performance audit 2026-10-07, FET-M2). getQueryData adds no observer. A direct link works as before.
+  const queryClient = useQueryClient();
+  const row = queryClient.getQueryData<ChatRow[]>(['api', 'chats.list', {}])?.find((chat) => chat.id === id);
+  const projectId = task.data ? task.data.project?.id : row?.project?.id;
   const project = useCall('projects.get', { id: projectId ?? 'prj_000' }, { enabled: projectId !== undefined });
   const users = useCall('users.list', {}, { enabled: office });
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
   useMarkTaskRead(id, comments.data, session.data?.authority.id);
+  const me = session.data?.authority.id;
+  // "mine" depends on the person, so the kept bubbles start again when the person changes.
+  const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
+    id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
+    mine: view.author.id === me, edited: view.comment.editedAt !== null,
+  }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
-  const me = session.data?.authority.id;
-  const bubbles: Bubble[] = comments.data.map((view) => ({
-    id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null,
-  }));
   const where = task.data.project;
   const canPost = where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute;
   const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/limits';
 import type { CommentView, UserCard } from '../../api/contract/views';
@@ -8,7 +8,7 @@ import { useDraftOwner, useDraftText } from '../../app/drafts';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
-import { Age } from '../../components/Age';
+import { Age, AgeRefresh } from '../../components/Age';
 import { AgentLabel } from '../../components/AgentLabel';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -25,7 +25,11 @@ import { CalendarDaysIcon } from '../../components/icons/animated/calendar-days'
 import { counted } from '../../lib/grammar';
 import { useMarkTaskRead } from './markRead';
 
-function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
+/**
+ * Memoized, so a key in the comment box renders no comment again (performance audit 2026-10-07, RND-3). A comment still renders
+ * when its own view changes (an edit, a reaction, a delete), and its age refreshes through AgeRefresh.
+ */
+const CommentItem = memo(function CommentItem({ view, people, canPost }: { view: CommentView; people: UserCard[]; canPost: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const session = useCall('session.get', {});
@@ -121,7 +125,7 @@ function CommentItem({ view, people, canPost }: { view: CommentView; people: Use
       </div>
     </li>
   );
-}
+});
 
 /** projectId is null for an office task (owner, 2026-10-06): its files go to the task alone. */
 type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string | null; stageId?: string | null; people: UserCard[]; canPost: boolean };
@@ -171,15 +175,19 @@ function CommentThreadFor({
     }
   };
   const list = comments.data ?? [];
+  // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
+  const refresh = {};
   return (
     <section aria-label={t('comments.title')} className="flex flex-col gap-3">
       <h3 className="text-headline">{t('comments.title')}</h3>
       {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
       {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
       {list.length > 0 && (
-        <ol className="flex flex-col gap-3">
-          {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
-        </ol>
+        <AgeRefresh.Provider value={refresh}>
+          <ol className="flex flex-col gap-3">
+            {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
+          </ol>
+        </AgeRefresh.Provider>
       )}
       {canPost ? (
         <form

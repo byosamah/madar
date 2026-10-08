@@ -9,7 +9,7 @@ import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useIsPhone } from '../../app/useIsPhone';
 import { MeetingProvider } from '../../app/meeting';
-import { useCall } from '../../app/runtime';
+import { useCall, useRuntime } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ProjectTile } from '../../components/ProjectTile';
@@ -21,13 +21,14 @@ import { clipSpan, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct,
 import { stageOverlaps } from '../../lib/stageFlow';
 import { oneOf, teamParam } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
-import { MeetingProject, meetingWork } from './MeetingProjects';
+import { MeetingProject, meetingWork, PrefetchNextProject } from './MeetingProjects';
 import { AgendaBar, AgendaButton } from './meeting/AgendaBar';
 import { AgendaSheet } from './meeting/AgendaSheet';
 import { MeetingSummary } from './meeting/MeetingSummary';
 import { useMeetingSession } from './meeting/session';
 import { useWakeLock } from './meeting/useWakeLock';
 import type { DashboardData } from './Tiles';
+import type { TaskRow } from '../../api/contract/views';
 import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { useHatchOn } from './hatch';
@@ -184,14 +185,23 @@ function StageLines({ row, span, todayAt, todayIn }: { row: Row; span: { start: 
   );
 }
 
-/** The task panel over the meeting. It opens with the project of the task, so the team and the stages in it are the ones of that project. */
-function MeetingTaskSheet({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+/**
+ * The task panel over the meeting. It opens with the project of the task, so the team and the stages in it are the ones of that
+ * project. Any error of the task closes it. The meeting list of open tasks already names the project of most tasks, so the panel
+ * starts with it and does not wait for tasks.get first (performance audit 2026-10-07, FET-1). A task that is not in the list
+ * waits for tasks.get, as before.
+ */
+function MeetingTaskSheet({ taskId, rows, onClose }: { taskId: string; rows: TaskRow[] | undefined; onClose: () => void }) {
   const task = useCall('tasks.get', { id: taskId });
   useEffect(() => {
     if (task.error) onClose();
   }, [task.error, onClose]);
-  if (!task.data) return null;
-  return <ProjectTaskSheet projectId={task.data.project?.id ?? null} taskId={taskId} onClose={onClose} />;
+  // Nothing shows while the close is on its way, so no error line flashes before it.
+  if (task.error) return null;
+  const row = task.data ? undefined : rows?.find((item) => item.task.id === taskId);
+  const projectId = task.data ? task.data.project?.id ?? null : row ? row.task.projectId : undefined;
+  if (projectId === undefined) return null;
+  return <ProjectTaskSheet projectId={projectId} taskId={taskId} onClose={onClose} />;
 }
 
 /**
@@ -408,6 +418,9 @@ function MeetingScreen() {
   ].filter((text): text is string => text !== null);
 
   const shown = session.currentId ? rowOf.get(session.currentId) ?? null : null;
+  // The project that Done shows next, else the next one of the agenda: its reads start once this screen has its answers (FET-12).
+  const remote = useRuntime().mode === 'remote';
+  const upNext = session.nextId ?? session.order[session.current + 1] ?? null;
   return (
     <MeetingProvider value={meeting}>
     <main
@@ -482,6 +495,7 @@ function MeetingScreen() {
           onOpenTask={openTask}
         />
       )}
+      {remote && !summaryOpen && mode === 'projects' && shown && upNext && upNext !== shown.project.id && <PrefetchNextProject projectId={upNext} />}
       {!summaryOpen && mode === 'timeline' && view && view.schedule.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-card panel">
           <div className={`sticky top-0 z-20 border-b border-separator bg-[var(--c-panel)] px-5 ${COLUMNS}`}>
@@ -553,7 +567,7 @@ function MeetingScreen() {
           </ul>
         </div>
       )}
-      {mode === 'projects' && taskId && <MeetingTaskSheet key={taskId} taskId={taskId} onClose={closeTask} />}
+      {mode === 'projects' && taskId && <MeetingTaskSheet key={taskId} taskId={taskId} rows={tasks.data} onClose={closeTask} />}
       {agendaOpen && (
         <AgendaSheet
           rows={rowOf}

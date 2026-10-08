@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { LayoutGroup } from 'motion/react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ApiError } from '../../api/errors';
 import { errorMessage } from '../../app/errors';
+import { usePrefetchCall } from '../../app/prefetch';
 import { useCall } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -13,7 +15,8 @@ import type { ProjectSummary } from '../../api/contract/views';
 import { sharedSource } from '../../app/sharedLayout';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
-import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, type ProjectTab } from './tabs';
+import { prefetchReads, sessionSeesPayments } from './reads';
+import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
@@ -24,6 +27,16 @@ export function ProjectScreen() {
   const tab: ProjectTab = PROJECT_TABS.includes(raw as ProjectTab) ? (raw as ProjectTab) : 'overview';
   const detail = useCall('projects.get', { id: projectId });
   const queryClient = useQueryClient();
+  // The reads of the open tab start with projects.get, in an effect, so the tab and its panel show after one round trip
+  // (performance audit 2026-10-07, FET-2 and LIV-1). Every gate below stays: only the start time of the reads changes.
+  const prefetch = usePrefetchCall();
+  const reads = tabReads(tab, projectId, params, { payments: sessionSeesPayments(queryClient) });
+  const readsKey = JSON.stringify(reads);
+  useEffect(() => {
+    prefetchReads(prefetch, reads);
+    // readsKey holds the content of reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefetch, readsKey]);
 
   // A failed refresh keeps the project on screen: the error page shows only when there is no data (audit 2026-10-03, PRJ-1).
   if (detail.error && !detail.data) {

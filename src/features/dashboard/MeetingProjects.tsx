@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useMeeting } from '../../app/meeting';
+import { usePrefetchCall } from '../../app/prefetch';
 import { useCall } from '../../app/runtime';
 import { Age } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
@@ -23,6 +26,7 @@ import { DrawingsStrip } from './meeting/DrawingsStrip';
 import { MeetingPayments } from './meeting/MeetingPayments';
 import { PeopleStrip } from './meeting/PeopleStrip';
 import type { DashboardData } from './Tiles';
+import { prefetchReads, sessionSeesPayments, type Read } from '../project/reads';
 
 type Row = DashboardData['schedule'][number];
 
@@ -192,4 +196,34 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
       </div>
     </article>
   );
+}
+
+/**
+ * The reads that one project screen of the meeting mounts, with the exact keys of their useCall: MeetingProject, DecisionsPanel,
+ * ClientItemsPanel, DrawingsStrip and MeetingPayments (performance audit 2026-10-07, FET-12). payments: the person may manage
+ * payments, the rule of MeetingPayments. MeetingPrefetch.test.tsx checks that the next screen asks none of them again.
+ */
+export function meetingProjectReads(projectId: string, o: { payments: boolean }): Read[] {
+  return [
+    { name: 'projects.get', input: { id: projectId } },
+    { name: 'updates.list', input: { projectId, filter: 'posts' } },
+    { name: 'tasks.list', input: { projectId, activeProjectsOnly: false } },
+    { name: 'tracker.list', input: { projectId, openOnly: true } },
+    { name: 'files.list', input: { projectId } },
+    ...(o.payments ? [{ name: 'payments.list', input: { projectId } } as const] : []),
+  ];
+}
+
+/**
+ * Starts the reads of the next project of the agenda once every read on the screen has its answer, so the step to it does not
+ * wait a round trip (FET-12). It shows nothing. It is a part of its own, so the count of running reads renders only this part.
+ */
+export function PrefetchNextProject({ projectId }: { projectId: string }) {
+  const settled = useIsFetching({ queryKey: ['api'] }) === 0;
+  const prefetch = usePrefetchCall();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (settled) prefetchReads(prefetch, meetingProjectReads(projectId, { payments: sessionSeesPayments(queryClient) }));
+  }, [settled, projectId, prefetch, queryClient]);
+  return null;
 }

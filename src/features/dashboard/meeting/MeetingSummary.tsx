@@ -6,7 +6,7 @@ import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
-import { formatDay, localeFor, todayISO, type Lang } from '../../../lib/dates';
+import { formatDay, listFormat, todayISO, type Lang } from '../../../lib/dates';
 import { actorContext, counted } from '../../../lib/grammar';
 import { localName, personName } from '../../../lib/personName';
 import { plainText } from '../../../lib/text';
@@ -42,7 +42,7 @@ function dateMoves(event: EventLineView['event'], t: TFunction, lang: Lang): str
 
 /** The sentence of a task change: the dates that moved, or else the names of the fields that changed. */
 function taskChange(event: EventLineView['event'], label: string, context: string | undefined, t: TFunction, lang: Lang): string {
-  const list = new Intl.ListFormat(localeFor(lang), { type: 'conjunction' });
+  const list = listFormat(lang);
   const moves = dateMoves(event, t, lang);
   if (moves.length > 0) return t('dashboard.meeting.summary.datesMoved', { label, moves: list.format(moves), context });
   const fields = [...new Set(Object.keys(fieldsOf(event.after)).map((field) => t(`taskHistory.fields.${field}`, { defaultValue: '' })).filter(Boolean))];
@@ -194,7 +194,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
     if (count > 0) onShared(sent);
     // The toast names the projects that got nothing, so nobody thinks the minutes reached every project (audit 2026-10-03, DSH-17).
     const parts = [count === 0 ? t('dashboard.meeting.summary.sharedNone') : counted(t, 'dashboard.meeting.summary.shared', count)];
-    if (skipped.length > 0) parts.push(t('dashboard.meeting.summary.notShared', { list: new Intl.ListFormat(localeFor(lang), { type: 'conjunction' }).format(skipped) }));
+    if (skipped.length > 0) parts.push(t('dashboard.meeting.summary.notShared', { list: listFormat(lang).format(skipped) }));
     toast.show({ message: parts.join(' ') });
   };
 

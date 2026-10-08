@@ -1,5 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { clockTime } from '../features/inbox/Thread';
 import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
+import recorded from './dates.recorded.json';
+import { waitingNames } from './waiting';
 
 describe('office dates', () => {
   afterEach(() => setNow(null));
@@ -73,5 +76,71 @@ describe('formatWeekday', () => {
   it('gives the short weekday name in both languages', () => {
     expect(formatWeekday('2026-09-27', 'en')).toBe('Sun');
     expect(formatWeekday('2026-09-27', 'ar')).toBe('الأحد');
+  });
+});
+
+// Performance audit 2026-10-07, RND-1: each formatter is built once for each language and style, and every text stays the same
+// character for character. dates.recorded.json holds the texts of the code before the cache.
+describe('cached formatters', () => {
+  const days = ['2026-01-31', '2026-02-28', '2026-12-31', '2028-02-29', '2027-01-01'];
+  const styles = ['short', 'shortYear', 'long', 'weekday', 'withWeekday', 'weekdayDay'] as const;
+  const stamps = ['2026-10-08T00:05:00.000+03:00', '2026-10-08T12:00:00.000+03:00', '2026-10-08T23:59:00.000+03:00', '2026-12-31T21:30:00.000Z'];
+  const waitingRow = (tasks: string[], stages: string[]) =>
+    ({ waitingFor: { tasks: tasks.map((title) => ({ title })), stages: stages.map((name) => ({ name })) } }) as unknown as Parameters<typeof waitingNames>[0];
+
+  it.each(['en', 'ar'] as const)('keeps every text of the code before the cache (%s)', (lang) => {
+    const texts: Record<string, string> = {};
+    for (const day of days) {
+      for (const style of styles) texts[`day ${day} ${style}`] = formatDay(day, lang, style);
+      texts[`month ${day}`] = formatMonth(day, lang);
+      texts[`monthYear ${day}`] = formatMonthYear(day, lang);
+      texts[`weekday ${day}`] = formatWeekday(day, lang);
+    }
+    for (const [value, digits] of [[0, 0], [48300.5, 1], [1234567.891, 2], [-12.5, 0], [99.95, 1]] as const) texts[`number ${value} ${digits}`] = formatNumber(value, lang, digits);
+    for (const stamp of stamps) texts[`clock ${stamp}`] = clockTime(stamp, lang);
+    texts['waiting one'] = waitingNames(waitingRow(['Stair details'], []), lang);
+    texts['waiting two'] = waitingNames(waitingRow(['Stair details'], ['Permits']), lang);
+    texts['waiting three'] = waitingNames(waitingRow(['Stair details', 'Roof'], ['Permits']), lang);
+    // Twice: a cached formatter gives the same text on the second call.
+    expect(texts).toEqual(recorded[lang]);
+    expect(formatDay('2026-01-31', lang, 'weekday')).toBe(recorded[lang]['day 2026-01-31 weekday']);
+  });
+
+  /** Counts the objects that a constructor of Intl builds while the test runs, on a fresh copy of the modules. */
+  async function countMade<K extends 'DateTimeFormat' | 'NumberFormat' | 'ListFormat'>(kind: K, run: (modules: { dates: typeof import('./dates'); waiting: typeof import('./waiting'); thread: typeof import('../features/inbox/Thread') }) => void): Promise<number> {
+    vi.resetModules();
+    const modules = { dates: await import('./dates'), waiting: await import('./waiting'), thread: await import('../features/inbox/Thread') };
+    const real = Intl[kind];
+    let made = 0;
+    const counting = new Proxy(real, { construct(target, args) { made += 1; return Reflect.construct(target, args) as object; } });
+    Object.defineProperty(Intl, kind, { value: counting, configurable: true, writable: true });
+    try {
+      run(modules);
+    } finally {
+      Object.defineProperty(Intl, kind, { value: real, configurable: true, writable: true });
+    }
+    return made;
+  }
+
+  it('builds one day formatter for 500 calls of one language and style', async () => {
+    expect(await countMade('DateTimeFormat', ({ dates }) => { for (let i = 0; i < 500; i += 1) dates.formatDay(dates.addDays('2026-10-01', i), 'ar', 'withWeekday'); })).toBe(1);
+  });
+
+  it('builds one clock formatter for 500 chat times', async () => {
+    expect(await countMade('DateTimeFormat', ({ thread }) => { for (let i = 0; i < 500; i += 1) thread.clockTime(`2026-10-08T${String(i % 24).padStart(2, '0')}:05:00.000+03:00`, 'en'); })).toBe(1);
+  });
+
+  it('builds one number formatter for 500 numbers with the same digits', async () => {
+    expect(await countMade('NumberFormat', ({ dates }) => { for (let i = 0; i < 500; i += 1) dates.formatNumber(i * 1.5, 'en', 1); })).toBe(1);
+  });
+
+  it('builds one list formatter for 500 waiting lines', async () => {
+    expect(await countMade('ListFormat', ({ waiting }) => { for (let i = 0; i < 500; i += 1) waiting.waitingNames(waitingRow([`Task ${i}`], ['Permits']), 'ar'); })).toBe(1);
+  });
+
+  it('keeps one formatter for each language and style', async () => {
+    expect(await countMade('DateTimeFormat', ({ dates }) => {
+      for (const lang of ['en', 'ar'] as const) for (const style of styles) for (let i = 0; i < 20; i += 1) dates.formatDay('2026-10-08', lang, style);
+    })).toBe(12);
   });
 });

@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { XIcon } from '../../../components/icons/animated/x';
-import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -11,9 +11,10 @@ import { useUndoable } from '../../../app/actions';
 import { downloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
+import { usePrefetchCall } from '../../../app/prefetch';
 import { useAction, useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
-import { Age } from '../../../components/Age';
+import { Age, AgeRefresh } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -42,6 +43,7 @@ import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
+import { prefetchReads, type Read } from '../reads';
 import { useQueryClient } from '@tanstack/react-query';
 
 type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>> & { stageId?: string };
@@ -130,8 +132,15 @@ function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: bo
   );
 }
 
-/** The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24). */
-function TaskFiles({ views }: { views: FileView[] }) {
+/** One empty list for a task with no files yet, so the memo of TaskFiles holds while the list loads. */
+const EMPTY_FILES: FileView[] = Object.freeze([]) as unknown as FileView[];
+
+/**
+ * The files of the task, one press each: a picture or a PDF opens the preview, any other file saves (audit 2026-10-03, PRJ-24).
+ * Memoized, as History, so a key in the title, the description or the note renders it again only when its files change
+ * (performance audit 2026-10-07, RND-4).
+ */
+const TaskFiles = memo(function TaskFiles({ views }: { views: FileView[] }) {
   const { t } = useTranslation();
   const { api } = useRuntime();
   const toast = useToast();
@@ -163,9 +172,10 @@ function TaskFiles({ views }: { views: FileView[] }) {
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
     </section>
   );
-}
+});
 
-function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
+/** Memoized (RND-4): it renders again when the task data or the Undo rule changes. Its ages refresh through AgeRefresh. */
+const History = memo(function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -194,7 +204,7 @@ function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (acti
       )}
     </section>
   );
-}
+});
 
 /** detail is null for an office task, which has no project (owner, 2026-10-06): no stage, no prerequisites, no team. */
 function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
@@ -330,7 +340,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   // (owner, 2026-10-07).
   const choices = detail && !detail.viewerCan.edit ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
   const me = session.data?.authority.id;
-  const canUndoAgent = (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me;
+  const canUndoAgent = useCallback(
+    (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me,
+    [detail, viewerCan.editAll, me],
+  );
+  // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
+  const refresh = {};
   // The task's own conversation sits one press away, beside its details (owner's request, 2026-10-01). The choice lives in the link.
   const [params] = useSearchParams();
   const panel = usePanelLink(TASK_PANEL);
@@ -480,8 +495,10 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
             <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
-            <TaskFiles views={files.data ?? []} />
-            <History data={data} canUndoAgent={canUndoAgent} />
+            <TaskFiles views={files.data ?? EMPTY_FILES} />
+            <AgeRefresh.Provider value={refresh}>
+              <History data={data} canUndoAgent={canUndoAgent} />
+            </AgeRefresh.Provider>
             {(viewerCan.saveTemplate || viewerCan.delete) && (
               <div className="flex flex-wrap gap-3">
                 {viewerCan.saveTemplate && (
@@ -501,10 +518,35 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   );
 }
 
+/**
+ * The reads of a task panel, with the exact keys of their useCall: the task (TaskSheet), its files (TaskBody), and its comments
+ * when the link opens the Conversation (CommentThread). projectId is null for an office task. A screen that opens the panel
+ * starts them together, so the full panel comes after one round trip, not three (performance audit 2026-10-07, FET-1).
+ */
+export function taskPanelReads(taskId: string, projectId: string | null, thread: boolean): Read[] {
+  return [
+    { name: 'tasks.get', input: { id: taskId } },
+    { name: 'files.list', input: projectId ? { projectId, taskId } : { taskId } },
+    ...(thread ? [{ name: 'comments.list', input: { targetType: 'task', targetId: taskId } } as const] : []),
+  ];
+}
+
+/** Starts the reads of the panel in an effect (FET-1). Only the start time changes: every part still waits for its own answer. */
+function usePanelPrefetch(taskId: string, projectId: string | null) {
+  const prefetch = usePrefetchCall();
+  const [params] = useSearchParams();
+  const thread = params.get('thread') === '1';
+  useEffect(() => {
+    prefetchReads(prefetch, taskPanelReads(taskId, projectId, thread));
+  }, [prefetch, taskId, projectId, thread]);
+}
+
 /** The task panel: a side panel with no dim layer on desktop, a sheet on a phone (spec 5.4). detail is null for an office task. */
 export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { taskId: string; detail: ProjectDetail | null; onClose: () => void; noteFirst?: boolean }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id: taskId });
+  // The files and the comments start with the task, not after it (FET-1).
+  usePanelPrefetch(taskId, detail?.project.id ?? null);
   const focus = useFocusLink();
   // Only a task that is gone closes the panel. A failed refresh keeps it open with the text a person typed (audit 2026-10-03, PRJ-1).
   const gone = task.error instanceof ApiError && task.error.code === 'not_found';
@@ -535,6 +577,8 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
 /** The task panel outside its project screen, for example over My Work. An office task has no project (projectId null). */
 export function ProjectTaskSheet({ projectId, taskId, onClose }: { projectId: string | null; taskId: string; onClose: () => void }) {
   const detail = useCall('projects.get', { id: projectId ?? '' }, { enabled: projectId !== null });
+  // The task, its files and its comments start with the project, so the panel does not wait three round trips (FET-1).
+  usePanelPrefetch(taskId, projectId);
   if (projectId === null) return <TaskSheet taskId={taskId} detail={null} onClose={onClose} />;
   if (!detail.data) return null;
   return <TaskSheet taskId={taskId} detail={detail.data} onClose={onClose} />;
