@@ -77,7 +77,7 @@ Madar window, or opens `/`.
 
 ## Tests
 - `vapid.test.ts` (the token, checked with the public key), `send.test.ts` (a stub fetch), `notify.test.ts` (the producer, the SQL
-  rules, the effect, the wiring). The SQL itself runs on the local database in `server/it/push.it.test.ts`.
+  rules, the effect, the registration). The SQL itself runs on the local database in `server/it/push.it.test.ts`.
 - The Docker lock and `test:it` run the integration suite. On 2026-10-08 the SQL and the migration were also run once on an
   in-memory Postgres 18 (pglite, outside the repo), because Docker was off. The local stack runs Postgres 17, so `test:it` stays the proof.
 - Not proven on a real push service yet: only the owner's test on the test copy shows a notification on a device.

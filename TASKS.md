@@ -368,3 +368,30 @@ no grips, because its tasks fall on different days.
 - [x] Admin's Requests and bugs: Waiting and Done tabs (`ab2bbaf`)
 - [x] Production at ab2bbaf (owner, 2026-10-08, `all.sh production` run by the owner): health 113 calls, page 200, `POST /mcp` with no token 401. Record: proof.md
 - [ ] Deploy suite on the test copy (about 45 minutes): not run before production
+
+## Browser push notifications (owner, 2026-10-08)
+
+Owner choices: free Web Push (no email, WhatsApp, SMS or vendor account). One fixed line with no data: "You have something new in Madar."
+(Arabic: "لديك جديد في مدار."), title Madar / مدار. It goes for every new bell notice (all triggers) and every new chat message, to the
+people who read them, never to the sender, only to active people. One switch for each device in Settings. This replaces "No phone push"
+of 2026-10-03. Record: `server/push/CLAUDE.md`. Branch `rb/push`, not merged, not deployed.
+
+- [x] The record `PushDevice`, the calls `push.register`, `push.remove`, `push.mine` (prototype fake and server), the migration `20261008000100_push_devices.sql`, the loader, the MCP deny list, no event and no signal for a device
+- [x] The sender (`server/push/vapid.ts`, `send.ts`): an ES256 token with WebCrypto only, an empty POST, 201 and 202 sent, 404 and 410 delete the device, 429 and 5xx retry
+- [x] The producer and the effect (`notify.ts`): one `push.notify` row for each person in the transaction of the call; after the answer on the hosted functions; the 15-minute job writes the same rows
+- [x] Keys: `scripts/push/make-vapid.ts` ran for test and for production (a pair of its own for each; the three lines are in `secrets/<env>.env`, `VITE_VAPID_PUBLIC_KEY` is in `config/remote.<env>.env`); `secrets.ts` and `deps.ts` take the three names, all or none
+- [x] Headers: `/sw.js` has `Cache-Control: no-cache`, the CSP has `worker-src 'self'`, the push services need no `connect-src`
+- [x] The service worker `public/sw.js`, the Settings switch (real build only), the check at the start of the app, the sign-out step
+- [x] The prototype never holds the worker: `workerOnlyInRemote` (Vite) and a rule in `check-bundles.ts`
+- [x] Leak probes: `pushLeaks.test.ts`, the loader probe in `server/data/loaders/push.test.ts`, the save test, the MCP deny test
+- [x] Tests first for each part. Gates: typecheck, `npm test` 4,550 passed and 6 skipped, `npm run build` (RTL and bundle checks), `build:server`, `build:remote -- test`
+- [x] The SQL and the migration ran once on an in-memory Postgres 18 (pglite, outside the repo): the producer, the loaders, the save, the effect, the unique endpoint
+- [ ] Not run: `test:db` and `test:it` (Docker was off). `server/it/push.it.test.ts` is written and typechecks, and it has not run
+- [ ] Not run: screenshots (EN and AR, light and dark, 390 px) of the Settings section: a separate agent does the browser checks
+- [ ] Owner: `scripts/deploy/secrets.ts test` (sends the three secrets), then `all.sh test`; then try it on a device (steps in the report of the builder)
+- [ ] Owner: the same for production after the test copy works. The production pair exists but no deploy ran
+- [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
+- [ ] Not proven: the header `Content-Length: 0` on Deno and Workers (it works with Node fetch). If a host refuses it, remove that header from `send.ts`
+- [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?
+- [ ] Question: a sign-out also unsubscribes the browser (the next person on a shared browser gets no push and must turn it on). Keep?
+- [ ] Question: the endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there. Keep?
