@@ -23,7 +23,7 @@ function projects(env: { MADAR_DB?: string; MADAR_IT?: string } = {}): Project[]
   return resolved.test.projects;
 }
 /** The build options that vite.config.ts gives for a mode. */
-function buildOf(mode: string): { rolldownOptions?: { output?: { codeSplitting?: boolean } } } {
+function buildOf(mode: string): { rolldownOptions?: { output?: { codeSplitting?: boolean | { groups?: { name: string; test: RegExp }[] } } } } {
   return (config as unknown as (e: { mode: string; command: string }) => { build: object })({ mode, command: 'build' }).build;
 }
 const named = (list: Project[], name: string) => list.find((p) => p.test.name === name);
@@ -76,8 +76,24 @@ describe('the build output', () => {
   });
 
   it('keeps code splitting in the remote modes', () => {
-    expect(buildOf('remote-test').rolldownOptions).toBeUndefined();
-    expect(buildOf('remote-production').rolldownOptions).toBeUndefined();
+    expect(buildOf('remote-test').rolldownOptions?.output?.codeSplitting).not.toBe(false);
+    expect(buildOf('remote-production').rolldownOptions?.output?.codeSplitting).not.toBe(false);
+  });
+
+  it('puts the packages of the first screen and the Supabase packages into their own chunks in the remote modes, with zod outside (performance audit BND-5)', () => {
+    for (const mode of ['remote-test', 'remote-production']) {
+      const split = buildOf(mode).rolldownOptions?.output?.codeSplitting;
+      if (typeof split !== 'object') throw new Error(`${mode} has no chunk groups`);
+      const group = (path: string) => split.groups?.find((g) => g.test.test(path))?.name;
+      expect(split.groups?.map((g) => g.name)).toEqual(['vendor', 'supabase']);
+      for (const name of ['react', 'react-dom', 'scheduler', 'react-router', '@tanstack/react-query', 'i18next', 'react-i18next', 'motion', 'motion-dom', 'vaul', '@radix-ui/react-dialog']) {
+        expect(group(`/repo/node_modules/${name}/dist/index.js`), name).toBe('vendor');
+      }
+      for (const name of ['@supabase/auth-js', '@supabase/realtime-js', '@supabase/supabase-js', 'iceberg-js']) expect(group(`/repo/node_modules/${name}/dist/index.js`), name).toBe('supabase');
+      // zod stays with the screens that parse, so the first load holds no zod schemas (BND-6). The chart and drag packages stay with their screens.
+      for (const name of ['zod', 'recharts', '@dnd-kit/core', 'cmdk', 'react-redux']) expect(group(`/repo/node_modules/${name}/index.js`), name).toBeUndefined();
+      expect(group('/repo/src/app/runtime.tsx')).toBeUndefined();
+    }
   });
 });
 

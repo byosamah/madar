@@ -56,9 +56,25 @@ export function earlyLinks(env: Record<string, string | undefined> = process.env
   };
 }
 
+/**
+ * The chunk groups of the remote build (performance audit BND-5). The packages of the first screen go into one vendor chunk,
+ * and the Supabase packages into one supabase chunk. Neither imports app code, so a release that changes only app code keeps
+ * their names, and the browser keeps them in its cache. zod is not in the list: it stays with the screens that parse, so the
+ * first load holds no zod schemas (BND-6). A package that is in no group goes into an automatic chunk (a change of size only).
+ */
+const REMOTE_CHUNKS = {
+  groups: [
+    {
+      name: 'vendor',
+      test: /node_modules[\\/](react|react-dom|scheduler|react-router|@tanstack|i18next|react-i18next|html-parse-stringify|void-elements|motion|motion-dom|motion-utils|framer-motion|vaul|@radix-ui|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|aria-hidden|tslib|use-sync-external-store|detect-node-es|get-nonce)[\\/]/,
+    },
+    { name: 'supabase', test: /node_modules[\\/](@supabase|iceberg-js)[\\/]/ },
+  ],
+};
+
 export default defineConfig(({ mode }) => ({
   // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.
-  build: mode.startsWith('remote') ? {} : { rolldownOptions: { output: { codeSplitting: false } } },
+  build: mode.startsWith('remote') ? { rolldownOptions: { output: { codeSplitting: REMOTE_CHUNKS } } } : { rolldownOptions: { output: { codeSplitting: false } } },
   base: mode.startsWith('remote') ? '/' : './',
   define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify(MADAR_API) },
   plugins: [react(), tailwindcss(), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],

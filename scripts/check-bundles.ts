@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code and stay
  * under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah files and a connection to each
- * Supabase origin.
+ * Supabase origin. The vendor and supabase chunks import no app chunk, so their names stay the same over a release that
+ * changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
  * artifact stays a static page with the fake API.
  * server: no sample office and no settleFuture in the function bundles, which run on the real office (cleanup 2026-10-06).
@@ -128,6 +129,7 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       if (options.firstLoad) {
         checkFirstLoad();
         checkEarlyLinks(options.firstLoad);
+        checkStableChunks();
       } else lines.push('skip: no first-load options given, so the first-load rules did not run.');
     }
   } else {
@@ -203,6 +205,19 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
         ...connects.filter((tag) => !origins.includes(String(tag.attrs.href))).map((tag) => `a preconnect to ${String(tag.attrs.href)}`),
       ];
       rule('index.html connects early to each Supabase origin', problems, origins.join(', '));
+    }
+  }
+
+  /** BND-5: the package chunks import no app chunk, so an app change keeps their names. */
+  function checkStableChunks(): void {
+    for (const [group, allowed] of [['vendor', ['rolldown-runtime-']], ['supabase', ['rolldown-runtime-', 'vendor-']]] as const) {
+      const chunks = [...scripts.keys()].filter((name) => name.startsWith(`${group}-`));
+      if (chunks.length !== 1) {
+        rule(`one ${group} chunk`, [`assets/ holds ${chunks.length}`], '');
+        continue;
+      }
+      const others = staticImports(scripts.get(chunks[0]) ?? '').filter((name) => !allowed.some((prefix) => name.startsWith(prefix)));
+      rule(`the ${group} chunk imports only ${allowed.map((prefix) => `${prefix}*`).join(' and ')}`, others.map((name) => `it imports ${name}`), chunks[0]);
     }
   }
 }

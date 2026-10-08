@@ -151,7 +151,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('pass a build that keeps them, and name each rule and its finding', () => {
     const result = checkRemote();
     expect(result.ok, result.text).toBe(true);
-    for (const part of [CHART_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN]) {
+    for (const part of [CHART_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
       expect(result.text).toContain(part);
     }
     // index, the runtime, vendor, bootstrap and supabase: the dynamic imports stay out.
@@ -235,6 +235,18 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('skip the preconnect rule with a line when no origin is known', () => {
     const result = checkRemote(() => undefined, []);
     expect(result.text).toContain('skip: no Supabase origin given');
+  });
+
+  it('fail when the vendor or supabase chunk imports an app chunk, or is missing (BND-5)', () => {
+    const vendor = checkRemote((files) => { files['assets/vendor-v1.js'] = `import"./index-abc.js";${files['assets/vendor-v1.js']}`; });
+    expect(vendor.ok).toBe(false);
+    expect(vendor.text).toContain('FAIL: the vendor chunk imports only rolldown-runtime-*: it imports index-abc.js.');
+    const supabase = checkRemote((files) => { files['assets/supabase-s1.js'] = `import"./entities-e1.js";${files['assets/supabase-s1.js']}`; files['assets/entities-e1.js'] = ''; });
+    expect(supabase.ok).toBe(false);
+    expect(supabase.text).toContain('it imports entities-e1.js');
+    const gone = checkRemote((files) => { delete files['assets/vendor-v1.js']; });
+    expect(gone.ok).toBe(false);
+    expect(gone.text).toContain('FAIL: one vendor chunk: assets/ holds 0.');
   });
 });
 
