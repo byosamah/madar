@@ -45,6 +45,8 @@ export type Diff = {
   office: boolean;
   /** The people whose own lists changed: the owners of changed notices and read marks, and own preferences. */
   people: Set<string>;
+  /** The messages that this change inserted, in the order of the State (the push producer reads them, server/push/notify.ts). */
+  messageIds: string[];
   /** True when a row of an office table changed: the office cache must load again (plan 4.7). */
   officeRows: boolean;
   /** True when every kind is personal (chatReads, notifications, preferences): no office signal. */
@@ -74,6 +76,8 @@ export type SaveResult = {
   projects: Set<string>;
   office: boolean;
   people: Set<string>;
+  /** The messages that the save inserted. The push producer reads them. Left out when there are none. */
+  messageIds?: string[];
   bytesWritten: number;
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
@@ -236,6 +240,10 @@ export function diffState(before: State, after: State): Diff {
         pendingComments.push({ id: side.id as string, row, deleted: !rec, targetType: side.targetType as string, targetId: side.targetId as string });
         return;
       }
+      case 'pushDevices':
+        // A push device is private (owner, 2026-10-08): it adds no kind, so the save sends no signal that names it, and no
+        // office signal. The row is still written.
+        return;
       case 'messages':
         pub('messages');
         for (const side of sides) {
@@ -356,8 +364,9 @@ export function diffState(before: State, after: State): Diff {
   }
 
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
+  const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   return {
-    tables, counters, kinds, projects, office: personal ? false : office, people, officeRows, personal, unresolvedComments,
+    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0,
     privatePeople,
@@ -391,7 +400,8 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
   let office = diff.office;
   const changed = diff.tables.length > 0 || Object.keys(diff.counters).length > 0;
   const result = (fields: Partial<SaveResult> = {}): SaveResult => ({
-    changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [], ...fields,
+    changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [],
+    ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}), ...fields,
   });
   if (!changed) return result();
 

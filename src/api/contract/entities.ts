@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, PROJECT_CODE_PATTERN } from '../../lib/projectCode';
 import { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
@@ -27,6 +28,7 @@ export const ProjectTemplateId = id('ptp');
 export const TrackerId = id('trk');
 export const PaymentId = id('pay');
 export const TeamId = id('tm');
+export const PushDeviceId = id('pdv');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -430,6 +432,21 @@ export const ProjectTemplate = z.object({
   updatedAt: Stamp,
 });
 export type ProjectTemplate = z.infer<typeof ProjectTemplate>;
+
+/**
+ * One browser or phone of one person that gets push notices (owner, 2026-10-08). It is private: only its person reads it. The
+ * endpoint is the address of the push service of the browser (limits.ts, isPushEndpoint). One row for each endpoint.
+ */
+export const PushEndpoint = z.string().max(PUSH_ENDPOINT_MAX).refine(isPushEndpoint, 'Expected the https address of a browser push service.');
+export const PushDevice = z.object({
+  id: PushDeviceId,
+  userId: UserId,
+  endpoint: PushEndpoint,
+  label: z.string().trim().min(1).max(PUSH_LABEL_MAX),
+  createdAt: Stamp,
+  lastPushAt: Stamp.nullable(),
+});
+export type PushDevice = z.infer<typeof PushDevice>;
 
 export const Update = z.object({
   id: UpdateId,

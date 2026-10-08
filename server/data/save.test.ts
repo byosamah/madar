@@ -461,6 +461,64 @@ describe('the signals of requests and bugs', () => {
   });
 });
 
+describe('push devices (owner, 2026-10-08)', () => {
+  const device = { id: 'pdv_001', userId: 'usr_003', endpoint: 'https://fcm.googleapis.com/fcm/send/x', label: 'Chrome on Mac', createdAt: '2026-10-04T10:00:00.000+03:00', lastPushAt: null };
+
+  it('writes the row of a device but names no kind, no project, no person and no office change', () => {
+    const after = copy();
+    after.pushDevices = { pdv_001: device };
+    const diff = diffState(seed, after);
+    expect(table(diff, 'push_devices')?.inserted).toEqual(['pdv_001']);
+    expect(diff.kinds.size).toBe(0);
+    expect(diff.publicKinds.size).toBe(0);
+    expect(diff.projects.size).toBe(0);
+    expect(diff.people.size).toBe(0);
+    expect(diff.office).toBe(false);
+    expect(diff.privateChange).toBe(false);
+  });
+
+  it('sends no signal for a device: not on the office channel and not on a person channel, and it raises no office seq', async () => {
+    const before = copy();
+    before.pushDevices = { pdv_001: device };
+    const after = structuredClone(before);
+    after.pushDevices!.pdv_002 = { ...device, id: 'pdv_002', endpoint: 'https://fcm.googleapis.com/fcm/send/y' };
+    after.pushDevices!.pdv_001.label = 'Chrome on Windows';
+    const { q, sql } = recorder();
+    const result = await save(q, before, after, { story: { storyId: 'sty_x', actorId: 'usr_003' } });
+    expect(result.changed).toBe(true);
+    expect(result.signals).toEqual([]);
+    expect(result.kinds.size).toBe(0);
+    expect(sql.some((s) => s.text.includes('update office_meta') || s.text.includes('person_seq'))).toBe(false);
+    expect(sql.find((s) => s.text.startsWith('insert into push_devices'))!.text).toContain('on conflict (id) do update');
+  });
+
+  it('deletes a device by key, with no signal', async () => {
+    const before = copy();
+    before.pushDevices = { pdv_001: device };
+    const after = structuredClone(before);
+    delete after.pushDevices!.pdv_001;
+    const { q, sql } = recorder();
+    const result = await save(q, before, after);
+    expect(sql.find((s) => s.text.startsWith('delete from push_devices'))!.values).toEqual([['pdv_001']]);
+    expect(result.signals).toEqual([]);
+  });
+});
+
+describe('the new messages of a save (the push producer reads them)', () => {
+  it('lists the ids of the messages that the save inserted, and leaves the list out when there are none', async () => {
+    const after = copy();
+    const message = Object.values(after.messages)[0];
+    after.messages.msg_901 = { ...message, id: 'msg_901' };
+    after.messages.msg_902 = { ...message, id: 'msg_902' };
+    const { q } = recorder();
+    expect((await save(q, seed, after)).messageIds).toEqual(['msg_901', 'msg_902']);
+    const edited = copy();
+    Object.values(edited.messages)[0].body = 'Edited';
+    expect((await save(recorder().q, seed, edited)).messageIds).toBeUndefined();
+    expect(diffState(seed, edited).messageIds).toEqual([]);
+  });
+});
+
 describe('writeDiff', () => {
   it('writes nothing and sends no signal for no change', async () => {
     const { q, sql } = recorder();

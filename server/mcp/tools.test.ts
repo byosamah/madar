@@ -47,6 +47,16 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['feedback.send', 'feedback.uploadStart']) expect(MCP_DENY).toContain(name);
   });
 
+  it('never offers a push device call to an agent: the three push calls are on the deny list (owner, 2026-10-08)', () => {
+    for (const name of ['push.register', 'push.remove', 'push.mine']) {
+      expect(MCP_DENY, name).toContain(name);
+      expect(allowAndAdmin as readonly string[], name).not.toContain(name);
+      expect(adminTools.map((tool) => tool.name), name).not.toContain(name);
+      expect(Object.keys(TOOL_DOCS), name).not.toContain(name);
+      expect(Object.keys(samples), name).not.toContain(name);
+    }
+  });
+
   it('puts every call in exactly one of the allowlist, the Admin list and the deny list', () => {
     const allow = new Set<string>(MCP_ALLOW);
     const admin = new Set<string>(MCP_ADMIN);

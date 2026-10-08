@@ -10,6 +10,7 @@ import {
   trackerList, trackerLog, updatesList,
 } from './project';
 import { projectsDelete } from './projectDelete';
+import { pushMine, pushRegister, pushRemove } from './push';
 import { storyCall } from './story';
 import {
   chatsSend, commentCall, commentsCreate, commentsList, filesShare, taskCall, tasksArrange, tasksCreate, tasksCreateFromTemplate, tasksTake, taskTemplatesSave,
@@ -31,11 +32,12 @@ import {
  *   chat           the chats and task threads of one person
  *   overview       the calls across projects: projects.list, dashboard.get, tasks.list, search.query, events.list
  *   projectDelete  every row of P and what points at it
+ *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
 
-export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete';
+export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete' | 'push';
 type InputOf<N extends SharedCallName> = z.output<SharedCalls[N]['input']>;
 export type LoaderSpec<I> = { loader: LoaderName; load(L: Load, input: I): Promise<unknown> };
 
@@ -47,6 +49,7 @@ const task = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> =
 const content = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'content', load });
 const inbox = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'inbox', load });
 const chat = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'chat', load });
+const push = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'push', load });
 const overview = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'overview', load });
 
 /** The project of a stage or a deadline, from the office. */
@@ -164,6 +167,10 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'projectTemplates.list': office,
   'projectTemplates.save': office,
   'projectTemplates.delete': office,
+
+  'push.mine': push(pushMine),
+  'push.register': push(pushRegister),
+  'push.remove': push(pushRemove),
 
   'tracker.list': project(trackerList),
   'tracker.log': project(trackerLog),

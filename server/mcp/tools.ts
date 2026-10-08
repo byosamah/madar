@@ -63,6 +63,8 @@ export const MCP_DENY = [
   // Feedback: a report comes in from the screens only. Agents and usage.
   'feedback.send', 'feedback.uploadStart',
   'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
+  // Browser push devices (owner, 2026-10-08): a device is the browser of a person. An agent has none and reads none.
+  'push.register', 'push.remove', 'push.mine',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

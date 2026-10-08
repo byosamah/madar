@@ -81,6 +81,8 @@ export const READS: Record<string, ReadRule> = {
   'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
   'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'projects', 'users']),
   'usage.get': rule('none', []),
+  // The own push devices: no change signal names a device, so no signal reloads this read. The Settings row reads it again itself.
+  'push.mine': rule('none', []),
   'files.link': rule('none', []),
   'files.get': rule('none', []),
   'feedback.screenshot': rule('none', []),

@@ -1,7 +1,7 @@
 import type { ZodObject } from 'zod';
 import {
   ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember,
-  ProjectTemplate, Settings, Stage, StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
+  ProjectTemplate, PushDevice, Settings, Stage, StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from '../../src/api/contract/entities';
 import { chatReadKey, memberKey, type State } from '../../src/api/store';
 import { normalizeForSearch } from '../../src/lib/text';
@@ -46,6 +46,8 @@ const TABLE_OF: { [C in TableCollection]: Omit<TableSpec, 'collection' | 'office
   taskTemplates: { table: 'task_templates', key: byId, schema: TaskTemplate },
   projectTemplates: { table: 'project_templates', key: byId, schema: ProjectTemplate },
   feedback: { table: 'feedback', key: byId, schema: Feedback },
+  // Private to each person, and never an office list: the loaders read the rows of the person of the call only (push.mine).
+  pushDevices: { table: 'push_devices', key: byId, schema: PushDevice },
   settings: { table: 'settings', key: () => 'office', schema: Settings },
   projects: {
     table: 'projects', key: byId, schema: Project,

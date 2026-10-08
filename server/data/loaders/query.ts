@@ -43,6 +43,7 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
     open: { type: 'bool', value: (rec) => rec.waiting !== null && rec.waiting !== undefined && (rec.closedAt === null || rec.closedAt === undefined) },
   },
   payments: { project_id: text('projectId') },
+  pushDevices: { user_id: text('userId'), endpoint: text('endpoint') },
   notifications: {
     user_id: text('userId'), read: { type: 'bool', value: (rec) => rec.read === true }, created_at: text('createdAt'), correlation_id: text('correlationId'),
     target_type: text('targetType'), target_id: text('targetId'), dedupe_key: text('dedupeKey'),

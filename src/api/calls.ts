@@ -12,6 +12,7 @@ import { projectCalls } from './handlers/projects';
 import { taskCalls } from './handlers/tasks';
 import { feedbackCalls } from './handlers/feedback';
 import { projectTemplateCalls } from './handlers/projectTemplates';
+import { pushCalls } from './handlers/push';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
 import { shareCalls } from './handlers/sharing';
@@ -20,7 +21,7 @@ import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
 import { serverFakes } from './handlers/serverFakes';
 
-/** The 116 calls of the call map. The server runs 112 of them (sharedCalls.ts). */
+/** The 120 calls of the call map. The server runs 116 of them (sharedCalls.ts). */
 export const mapCalls = {
   ...peopleCalls,
   ...systemCalls,
@@ -40,6 +41,7 @@ export const mapCalls = {
   ...paymentCalls,
   ...teamCalls,
   ...projectTemplateCalls,
+  ...pushCalls,
 };
 
 /**

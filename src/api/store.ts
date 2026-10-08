@@ -1,6 +1,6 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, Settings, Stage,
-  StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, PushDevice,
+  Settings, Stage, StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from './contract/entities';
 import { DEFAULT_STALE_DAYS } from './contract/limits';
 import type { Persister } from './persist';
@@ -52,6 +52,11 @@ export type State = {
   feedback?: Record<string, Feedback>;
   /** The office teams. Offices saved before this feature have none, so reads go through teamsOf. */
   teams?: Record<string, Team>;
+  /**
+   * The browsers and phones that get push notices (owner, 2026-10-08). Private to each person. Offices saved before this feature
+   * have none, so reads go through pushDevicesOf. No version step: the collection starts empty and needs no backfill.
+   */
+  pushDevices?: Record<string, PushDevice>;
   settings: Settings;
   counters: Record<string, number>;
   /**
@@ -88,6 +93,7 @@ export function emptyState(today: string): State {
     tracker: {},
     payments: {},
     teams: {},
+    pushDevices: {},
     settings: { defaultStages: [...DEFAULT_STAGES], codePrefix: 'KH', workloadLimit: 10, staleAfterDays: DEFAULT_STALE_DAYS },
     counters: {},
   };
@@ -109,6 +115,12 @@ export function taskTemplatesOf(state: State): Record<string, TaskTemplate> {
 export function projectTemplatesOf(state: State): Record<string, ProjectTemplate> {
   state.projectTemplates ??= {};
   return state.projectTemplates;
+}
+
+/** The push devices. An old office has none, so this makes the collection when it is missing. */
+export function pushDevicesOf(state: State): Record<string, PushDevice> {
+  state.pushDevices ??= {};
+  return state.pushDevices;
 }
 
 /** The tracker entries. An old office has none, so this makes the collection when it is missing. */

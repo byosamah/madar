@@ -39,6 +39,8 @@ export function readSweep(office: State): SweepCall[] {
       ['search.query', { text: '#KH' }, actor],
       ['feedback.list', {}, actor],
       ['session.get', {}, actor],
+      // The own push devices (owner, 2026-10-08).
+      ['push.mine', {}, actor],
     );
   }
   // The Leader and Client filters of the lists that the Dashboard opens (owner, 2026-10-06).
