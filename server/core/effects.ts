@@ -25,6 +25,13 @@ import type { Deps, Query } from './ports';
  */
 
 export type OutboxRow = { kind: string; payload: Record<string, unknown> };
+
+/**
+ * The effect kinds that runCall runs after the answer on a host with after (performance audit SRV-1, BGR-2): the mails, so a
+ * save never waits for Resend. Every other kind (auth.*, agents.revokeAll, r2.delete) runs before the answer. With no after
+ * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
+ */
+export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set(['mail.notice', 'mail.quotaWarning', 'usage.limitWarning']);
 export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query) => Promise<OutboxRow[]>;
 export type EffectHandler = (payload: Record<string, unknown>, deps: Deps) => Promise<void>;
 /** Only shared calls: runCall asks their producers. A server call writes its own rows (see above). */

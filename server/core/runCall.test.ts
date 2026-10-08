@@ -7,6 +7,7 @@ import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
+import { runInHost } from './after';
 import { registerOutbox } from './effects';
 import { EXPECTED_REFUSALS, everyCall } from './everyCall';
 import { memoryData, type MemoryData } from './memoryData';
@@ -474,6 +475,78 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
     } });
     expect((await call(ADMIN, 'clients.create', { name: 'Still saved' })).ok).toBe(true);
     expect(deps.logs.some((line) => line.level === 'warn' && line.fields?.name === 'clients.create')).toBe(true);
+  });
+
+  describe('the mail effects after the answer (performance audit SRV-1, BGR-2)', () => {
+    /** clients.create writes an auth.invite row and then a mail.notice row; afterCommit records each call, and mail work waits for open(). */
+    function mailSetup() {
+      undo.push(registerOutbox('clients.create', async (output) => [
+        { kind: 'auth.invite', payload: { id: (output as { id: string }).id } },
+        { kind: 'mail.notice', payload: { notificationId: 'ntf_900' } },
+      ]));
+      const ran: string[][] = [];
+      const ended: string[][] = [];
+      let open: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      const holder: { mem?: MemoryData } = {};
+      const kindOf = (id: string) => holder.mem!.tables.outbox.find((row) => row.id === id)?.kind;
+      const built = setup({ afterCommit: async (_deps, ids) => {
+        ran.push(ids);
+        if (ids.some((id) => kindOf(id) === 'mail.notice')) await gate;
+        ended.push(ids);
+      } });
+      holder.mem = built.mem;
+      return { ...built, ran, ended, open: () => open() };
+    }
+
+    it('hands the mail rows to after and answers before they end; every other row still runs before the answer', async () => {
+      const h = mailSetup();
+      const later: Promise<unknown>[] = [];
+      const result = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.call(ADMIN, 'clients.create', { name: 'With mail' }));
+      expect(result.ok).toBe(true);
+      expect(h.mem.tables.outbox.map((row) => [row.id, row.kind])).toEqual([['1', 'auth.invite'], ['2', 'mail.notice']]);
+      expect(h.ended).toEqual([['1']]);
+      expect(h.ran).toEqual([['1'], ['2']]);
+      expect(later).toHaveLength(1);
+      h.open();
+      await Promise.all(later);
+      expect(h.ended).toEqual([['1'], ['2']]);
+    });
+
+    it('runs every row before the answer, in one call and in row order, when the host has no after (as before)', async () => {
+      const h = mailSetup();
+      h.open();
+      expect((await h.call(ADMIN, 'clients.create', { name: 'No host' })).ok).toBe(true);
+      expect(h.ended).toEqual([['1', '2']]);
+    });
+
+    it('keeps the mails of one batch in the order of its entries: the mail work of an entry waits for the one before', async () => {
+      const h = mailSetup();
+      const later: Promise<unknown>[] = [];
+      const batch = newBatch();
+      await runInHost({ host: 'workers', after: (work) => void later.push(work) }, async () => {
+        for (const name of ['First', 'Second']) expect((await h.call(ADMIN, 'clients.create', { name }, { batch })).ok).toBe(true);
+      });
+      // The second mail has not started: it waits on the chain behind the first, which waits on the gate.
+      expect(h.ran).toEqual([['1'], ['2'], ['3']]);
+      h.open();
+      await Promise.all(later);
+      expect(h.ran).toEqual([['1'], ['2'], ['3'], ['4']]);
+      expect(h.ended).toEqual([['1'], ['3'], ['2'], ['4']]);
+    });
+
+    it('logs the same warning when the mail work fails after the answer, and the answer stays', async () => {
+      undo.push(registerOutbox('clients.create', async () => [{ kind: 'mail.notice', payload: {} }]));
+      const { call, deps } = setup({ afterCommit: async () => {
+        throw new Error('Resend is down');
+      } });
+      const later: Promise<unknown>[] = [];
+      expect((await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => call(ADMIN, 'clients.create', { name: 'Kept' }))).ok).toBe(true);
+      await Promise.all(later);
+      expect(deps.logs).toContainEqual({
+        level: 'warn', message: 'The effects after the commit did not run. The job tries them again.', fields: { name: 'clients.create', error: 'Resend is down' },
+      });
+    });
   });
 
   it('logs how long each write held the office lock', async () => {

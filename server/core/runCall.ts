@@ -7,7 +7,8 @@ import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
 import { resolveActor } from './actor';
-import { outboxRowsOf, processOutbox, writeOutbox, type OutboxRow } from './effects';
+import { requestHost } from './after';
+import { AFTER_ANSWER_KINDS, outboxRowsOf, processOutbox, writeOutbox, type OutboxRow } from './effects';
 import { digestOf, replay, sqlKeys, type KeyStore, type StoredResult } from './idempotency';
 import { busyOf, logLockHold, takeOfficeLock } from './lock';
 import type { Deps, Query } from './ports';
@@ -28,7 +29,9 @@ import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './type
  *      the idempotency key, the story, the prepare hook, the loader, a copy of the State, the shared execute step (authority,
  *      run, output check), the save step, the outbox rows, the key's answer and the change signals, and the commit. Any error
  *      rolls back, so a failed call writes nothing and sends nothing.
- *   6. After the commit: the effects of this call, once, best effort; the 15-minute job retries the rest.
+ *   6. After the commit: the effects of this call, once, best effort; the 15-minute job retries the rest. On a host with after
+ *      (core/after.ts), the mail kinds (AFTER_ANSWER_KINDS) run after the answer, on one chain for each batch, so the mails of
+ *      a batch keep their order. Every other kind runs before the answer. With no after, every kind runs before it.
  *   7. An ApiError becomes { ok: false, error }. Any other error becomes failed, and the log gets the call name.
  *
  * The office: each call reads office_meta through the office cache (plan 4.7), a read inside its snapshot and a write after the
@@ -165,7 +168,8 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
 
     let lockedAt = 0;
-    type Done = { result: StoredResult; replayed: boolean; signals: ChangeSignal[]; ids: string[]; ref?: string; officeChanged: boolean };
+    type Effect = { id: string; kind: string };
+    type Done = { result: StoredResult; replayed: boolean; signals: ChangeSignal[]; effects: Effect[]; ref?: string; officeChanged: boolean };
     const work = async (t: CallTx): Promise<Done> => {
       await t.lock(deps.config.lockKey);
       lockedAt = performance.now();
@@ -177,7 +181,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
         const stored = replay(await t.keys.get(actorId, req.key), digest);
         // A replayed placeholder maps to the stored story, so the next entry of the batch joins it and mints no second story.
         const ref = req.story && 'ref' in req.story && !req.batch.storyRefs.has(req.story.ref) ? { ref: req.story.ref } : {};
-        if (stored) return { result: stored, replayed: true, signals: [], ids: [], officeChanged: false, ...ref };
+        if (stored) return { result: stored, replayed: true, signals: [], effects: [], officeChanged: false, ...ref };
       }
       const story = await resolveStory(t.stories, req.story, req.batch.storyRefs, actorId, now);
       const prepared = hooks?.prepare ? await hooks.prepare(parsed, { actorId, now, deps, q: t.q }, preflight) : preflight;
@@ -186,11 +190,13 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const { authority } = resolveAuthority(state, actorId, entry.def);
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, story.storyId, now), prepared);
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });
-      const ids = await t.outbox(await outboxRowsOf(entry.name, output, saved, t.q));
+      const rows = await outboxRowsOf(entry.name, output, saved, t.q);
+      // The ids come back in the order of the rows (writeOutbox), so each id keeps the kind of its row.
+      const effects = (await t.outbox(rows)).map((id, i) => ({ id, kind: rows[i].kind }));
       const result: StoredResult = { output, storyId: story.storyId, changed: wroteEvents(before, state, story.storyId) };
       if (req.key !== undefined && digest !== undefined) await t.keys.put({ actorId, key: req.key, name: entry.name, digest, result, at: now });
       if (saved.signals.length > 0) await deps.signal.send(t.q, saved.signals);
-      return { result, replayed: false, signals: saved.signals, ids, ...(story.ref ? { ref: story.ref } : {}), officeChanged: saved.officeVersion !== undefined };
+      return { result, replayed: false, signals: saved.signals, effects, ...(story.ref ? { ref: story.ref } : {}), officeChanged: saved.officeVersion !== undefined };
     };
     let done: Done;
     try {
@@ -202,11 +208,23 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
 
     if (done.ref !== undefined && done.result.storyId !== undefined) req.batch.storyRefs.set(done.ref, done.result.storyId);
     if (done.officeChanged) req.batch.office = undefined;
-    if (done.ids.length > 0) {
-      try {
-        await afterCommit(deps, done.ids);
-      } catch (error) {
+    if (done.effects.length > 0) {
+      const warn = (error: unknown) =>
         deps.log.warn('The effects after the commit did not run. The job tries them again.', { name: entry.name, error: error instanceof Error ? error.message : String(error) });
+      const { after } = requestHost();
+      const later = after ? done.effects.filter((e) => AFTER_ANSWER_KINDS.has(e.kind)).map((e) => e.id) : [];
+      const now = done.effects.filter((e) => !later.includes(e.id)).map((e) => e.id);
+      if (now.length > 0) {
+        try {
+          await afterCommit(deps, now);
+        } catch (error) {
+          warn(error);
+        }
+      }
+      if (after && later.length > 0) {
+        const chain = (req.batch.mail ?? Promise.resolve()).then(() => afterCommit(deps, later)).then(() => undefined, warn);
+        req.batch.mail = chain;
+        after(chain);
       }
     }
     const own = ownSignals(done.signals, actorId);
