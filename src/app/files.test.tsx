@@ -79,6 +79,30 @@ describe('file links in the real build (plan 5.2)', () => {
     expect(calls.filter((c) => c.name === 'files.link')).toHaveLength(2);
   });
 
+  it('keeps a signed link for LINK_STALE_MS after the picture goes, so a screen that opens again shows it and asks nothing (performance audit BGR-4)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { api, calls } = remoteApi();
+      const queryClient = createQueryClient({ remote: true });
+      const first = renderRemote(<Picture variant="thumb" />, api, queryClient);
+      expect(await screen.findByRole('img', { name: 'Plan' })).toHaveAttribute('src', 'https://store.test/link-1');
+      first.unmount();
+      // Six minutes away: past the 5-minute default of the query cache, within the 8 minutes of the link.
+      await act(() => vi.advanceTimersByTimeAsync(6 * 60 * 1000));
+      const second = renderRemote(<Picture variant="thumb" />, api, queryClient);
+      expect(screen.getByRole('img', { name: 'Plan' })).toHaveAttribute('src', 'https://store.test/link-1');
+      expect(calls.filter((c) => c.name === 'files.link')).toHaveLength(1);
+      second.unmount();
+      // Past LINK_STALE_MS the cache lets the link go, so the next screen asks for a new one.
+      await act(() => vi.advanceTimersByTimeAsync(LINK_STALE_MS + 1000));
+      renderRemote(<Picture variant="thumb" />, api, queryClient);
+      expect(await screen.findByRole('img', { name: 'Plan' })).toHaveAttribute('src', 'https://store.test/link-2');
+      expect(calls.filter((c) => c.name === 'files.link')).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('isInlinePicture takes only the pictures that the server shows inline (isPictureType in server/files/links.ts)', () => {
     for (const type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'IMAGE/PNG', ' image/png; charset=x ']) expect(isInlinePicture(type), type).toBe(true);
     for (const type of ['image/svg+xml', 'image/x-icon', 'image/heic', 'image/bmp', 'image/png, image/svg+xml', 'application/pdf', '']) expect(isInlinePicture(type), type).toBe(false);
@@ -118,6 +142,25 @@ describe('file URLs in the prototype', () => {
     view.unmount();
     expect(revoke).toHaveBeenCalledWith('blob:madar-test');
   });
+
+  it('keeps the 5-minute default of the query cache for the stored data (only signed links stay for LINK_STALE_MS)', async () => {
+    const api = {
+      call: async (name: string) => {
+        if (name === 'files.get') return { blob: new Blob(['x'], { type: 'image/png' }) };
+        throw new Error(`unexpected ${name}`);
+      },
+      run: async () => { throw new Error('not used'); },
+    } as unknown as MadarApi;
+    const queryClient = createQueryClient();
+    initI18n('en');
+    render(
+      <RuntimeProvider runtime={{ api, mode: 'prototype' }} queryClient={queryClient}>
+        <Picture variant="thumb" />
+      </RuntimeProvider>,
+    );
+    expect(await screen.findByRole('img', { name: 'Plan' })).toHaveAttribute('src', 'blob:madar-test');
+    expect(queryClient.getQueryCache().find({ queryKey: ['file-blob', 'fil_001', 'B'] })?.gcTime).toBe(5 * 60 * 1000);
+  });
 });
 
 describe('report screenshot links (spec 4.3)', () => {
@@ -149,6 +192,15 @@ describe('report screenshot links (spec 4.3)', () => {
     expect(calls).toEqual([{ name: 'feedback.screenshot', input: { id: 'fbk_001', index: 0 } }]);
     const query = queryClient.getQueryCache().find({ queryKey: ['feedback-shot-link', 'fbk_001', 0] });
     expect(query?.observers[0]?.options.staleTime).toBe(LINK_STALE_MS);
+  });
+
+  it('keeps a screenshot link in the cache for LINK_STALE_MS after the picture goes, as a file link (performance audit BGR-4)', async () => {
+    const { api } = shotApi();
+    const queryClient = createQueryClient({ remote: true });
+    const view = renderRemote(<Shot id="fbk_001" />, api, queryClient);
+    expect(await screen.findByRole('img', { name: 'Shot' })).toHaveAttribute('src', 'https://store.test/shot-1');
+    view.unmount();
+    expect(queryClient.getQueryCache().find({ queryKey: ['feedback-shot-link', 'fbk_001', 0] })?.gcTime).toBe(LINK_STALE_MS);
   });
 
   it('asks for one new link when the picture breaks, then gives up', async () => {

@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { MadarApi } from '../../../api/calls';
+import type { FileView } from '../../../api/contract/views';
 import type { State } from '../../../api/store';
+import { RuntimeProvider, createQueryClient } from '../../../app/runtime';
+import { ToastProvider } from '../../../app/toasts';
+import { initI18n } from '../../../i18n';
 import { renderApp } from '../../../test/render';
+import { DrawingsStrip } from './DrawingsStrip';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -78,5 +84,31 @@ describe('drawings in the meeting (owner, 2026-10-02)', () => {
     await renderApp(MEETING, noDrawings);
     await screen.findByRole('article');
     expect(screen.queryByRole('region', { name: 'Drawings' })).toBeNull();
+  });
+});
+
+describe('drawings in the meeting in the real build (plan 5.2)', () => {
+  it('show the small pictures, and let the browser load and decode them only near the view (performance audit BGR-4)', async () => {
+    const drawing = {
+      file: { id: 'fil_901', projectId: 'prj_011', stageId: null, taskId: null, name: 'Plan 1.png', versions: [] },
+      latest: { letter: 'A', blobKey: 'k', mimeType: 'image/png', size: 10, uploadedBy: 'usr_001', uploadedAt: '2026-09-29T10:00:00.000+03:00' },
+    } as unknown as FileView;
+    const api = {
+      call: async (name: string) => {
+        if (name === 'files.list') return [drawing];
+        if (name === 'files.link') return { url: 'https://store.test/link-1', expiresAt: 'x', name: 'Plan 1.png', mimeType: 'image/png', size: 1 };
+        throw new Error(`unexpected ${name}`);
+      },
+      run: async () => { throw new Error('not used'); },
+    } as unknown as MadarApi;
+    initI18n('en');
+    const { container } = render(
+      <RuntimeProvider runtime={{ api, mode: 'remote' }} queryClient={createQueryClient({ remote: true })}>
+        <ToastProvider><DrawingsStrip projectId="prj_011" /></ToastProvider>
+      </RuntimeProvider>,
+    );
+    await waitFor(() => expect(container.querySelector('img')).toHaveAttribute('src', 'https://store.test/link-1'));
+    expect(container.querySelector('img')).toHaveAttribute('loading', 'lazy');
+    expect(container.querySelector('img')).toHaveAttribute('decoding', 'async');
   });
 });

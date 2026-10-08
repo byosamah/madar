@@ -29,9 +29,10 @@ type PictureLink = { url: string | null; onError: () => void; broken: boolean };
 
 /**
  * The shared body of the picture hooks. The query key sits outside the "api" keys, so a change elsewhere in the office does not
- * load the picture again. The real build keeps a signed link for LINK_STALE_MS; a broken picture asks for a new link once, and
- * a second break gives no URL. The prototype makes a blob URL from the data and releases it when it is not needed. "picture"
- * names one picture, so a new picture gets its own new link.
+ * load the picture again. The real build keeps a signed link for LINK_STALE_MS, also in the cache after the screen closes: a
+ * screen that opens again then has the same URL, and the browser shows the picture from its image cache (performance audit
+ * BGR-4). A broken picture asks for a new link once, and a second break gives no URL. The prototype makes a blob URL from the
+ * data and releases it when it is not needed. "picture" names one picture, so a new picture gets its own new link.
  */
 function usePictureSource(o: { queryKey: readonly unknown[]; load: () => Promise<Source>; enabled: boolean; remote: boolean; picture: string }): PictureLink {
   const query = useQuery<Source>({
@@ -39,6 +40,7 @@ function usePictureSource(o: { queryKey: readonly unknown[]; load: () => Promise
     queryFn: o.load,
     enabled: o.enabled,
     staleTime: o.remote ? LINK_STALE_MS : Infinity,
+    ...(o.remote ? { gcTime: LINK_STALE_MS } : {}),
     retry: false,
   });
   const data = query.data;

@@ -59,7 +59,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
           From sm up it is one line again (audit 2026-10-03, V-33). */}
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
+          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-2">

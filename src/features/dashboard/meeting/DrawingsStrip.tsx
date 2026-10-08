@@ -17,7 +17,7 @@ function Drawing({ view, onOpen }: { view: FileView; onOpen: () => void }) {
     <li className="w-44 shrink-0">
       <button type="button" onClick={onOpen} className="pressable flex w-full flex-col gap-2 rounded-2xl text-start">
         <span className="grid h-28 w-full place-items-center overflow-hidden rounded-2xl bg-fill text-ink-2">
-          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />}
+          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />}
         </span>
         <bdi className="block truncate text-[15px] text-ink">{view.file.name}</bdi>
       </button>
