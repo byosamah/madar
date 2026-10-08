@@ -34,7 +34,8 @@ describe('sendPush', () => {
     expect(PUSH_TTL_SECONDS).toBe(3600);
     expect(headers.get('urgency')).toBe('normal');
     expect(headers.get('topic')).toBe('madar');
-    expect(headers.get('content-length')).toBe('0');
+    // A fetch POST with no body sets Content-Length 0 by itself on Node, Deno and Workers. A header set by hand can only fail there.
+    expect(headers.has('content-length')).toBe(false);
     expect(init.redirect).toBe('manual');
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });

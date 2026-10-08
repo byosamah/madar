@@ -42,8 +42,8 @@ Madar window, or opens `/`.
      one line only.
    - Any other answer (400, 401, 403, 413, a redirect): `refused`. The effect logs a warning with the host and does not retry.
      The device stays.
-5. The headers are `Authorization: vapid t=<jwt>, k=<public key>`, `TTL: 3600`, `Urgency: normal`, `Topic: madar` and
-   `Content-Length: 0`. The token has `aud` = the origin of the endpoint, `exp` under 12 hours (11 hours) and `sub` = VAPID_SUBJECT.
+5. The headers are `Authorization: vapid t=<jwt>, k=<public key>`, `TTL: 3600`, `Urgency: normal` and `Topic: madar`.
+   The sender sets no `Content-Length`: a fetch POST with no body sends `Content-Length: 0` by itself. The token has `aud` = the origin of the endpoint, `exp` under 12 hours (11 hours) and `sub` = VAPID_SUBJECT.
    The fetch never follows a redirect.
 
 ## Rules

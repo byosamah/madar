@@ -391,7 +391,7 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Branch `rb/push`, not merged, no
 - [ ] Owner: `scripts/deploy/secrets.ts test` (sends the three secrets), then `all.sh test`; then try it on a device (steps in the report of the builder)
 - [ ] Owner: the same for production after the test copy works. The production pair exists but no deploy ran
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
-- [ ] Not proven: the header `Content-Length: 0` on Deno and Workers (it works with Node fetch). If a host refuses it, remove that header from `send.ts`
+- [x] The hand-set `Content-Length: 0` header is removed from `sender` (`server/push/send.ts`): a fetch POST with no body sends it by itself (2026-10-08)
 - [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?
 - [ ] Question: a sign-out also unsubscribes the browser (the next person on a shared browser gets no push and must turn it on). Keep?
 - [ ] Question: the endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there. Keep?

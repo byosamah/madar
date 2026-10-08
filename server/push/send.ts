@@ -54,7 +54,7 @@ export async function sendPush(config: VapidConfig | undefined, endpoint: string
   try {
     response = await (o.fetch ?? globalThis.fetch)(endpoint, {
       method: 'POST',
-      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: 'normal', Topic: 'madar', 'Content-Length': '0' },
+      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: 'normal', Topic: 'madar' },
       // A push service never needs a redirect. A redirect answer is a refusal, so the server never follows it to another host.
       redirect: 'manual',
       signal: AbortSignal.timeout(o.timeoutMs ?? DEFAULT_TIMEOUT_MS),
