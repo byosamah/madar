@@ -353,7 +353,7 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
   they ended; the prototype smoke not run
 - [x] Production at 62855bc after the owner's words ("deploy to test copy and production", 2026-10-08): the read indexes
   pushed, health 113 calls, madar.vado.sa serves the new first load
-- [ ] Remove the 7 track worktrees (wf_83aaede9-652-1 to 7) and their branches: needs the owner's OK
+- [x] Removed the 7 track worktrees (wf_83aaede9-652-1 to 7) and their 13 branches, after the owner's OK (2026-10-08)
 - Not planned (each needs a visible change or more proof): long lists in steps (RND-6), the frame during the token renewal
   (BND-M1), the change number check on a join or a return (BGR-1 step 2, BGR-6), a warm-up call (LIV-7 step 3), 3 overview
   reads in one request (FET-7), shared read transactions (SRV-2), static icons at rest (RND-7), Home without done tasks (FET-M1)
