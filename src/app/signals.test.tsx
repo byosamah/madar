@@ -4,7 +4,7 @@ import { render } from '@testing-library/react';
 import type { MadarApi } from '../api/calls';
 import type { ChangeSignal, Kind } from '../api/remote/wire';
 import { RuntimeProvider, createQueryClient, useCall } from './runtime';
-import { affects, connectChanges, emptyMerge, mergeSignals, type ChangeListener, type ChangeSource } from './signals';
+import { affects, connectChanges, emptyMerge, mergeSignals, type ChangeListener, type ChangeOrigin, type ChangeSource } from './signals';
 
 const ME = 'usr_001';
 const OTHER = 'usr_002';
@@ -49,7 +49,7 @@ function setup(o: { me?: string } = {}) {
   return {
     client,
     show,
-    send: (signals: ChangeSignal[], origin?: 'own' | 'channel') => listener?.(signals, origin),
+    send: (signals: ChangeSignal[], origin?: ChangeOrigin) => listener?.(signals, origin),
     close: () => {
       open = 'closed';
     },
@@ -381,6 +381,70 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.send([sig({ kinds: ['clients'], office: true, seq: 40 })]);
     await vi.advanceTimersByTimeAsync(1000);
     expect(tasks()).toBe(2);
+    app.stop();
+  });
+
+  it('merges the join passes of both channels into one pass, 100 ms after the last join (performance audit FET-4)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    const session = app.show('session.get');
+    await settle();
+    // One dropped socket: each channel joins again, a few milliseconds apart.
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(50);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(99);
+    expect([tasks(), session()]).toEqual([1, 1]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect([tasks(), session()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([tasks(), session()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('puts a signal that comes in the join window into the join pass, and does not move the pass later', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    const clients = app.show('clients.list');
+    await settle();
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(30);
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(70);
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('starts the seq again at once at a join, so a signal in the join window is no gap of its own', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_002' });
+    await settle();
+    app.send([sig({ kinds: ['clients'], office: true, seq: 5 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(tasks()).toBe(1);
+    app.send([], 'join');
+    app.send([sig({ kinds: ['clients'], office: true, seq: 40 })]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(tasks()).toBe(2);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 41 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(tasks()).toBe(2);
+    app.stop();
+  });
+
+  it('gives two joins far apart one pass each, so each channel that joins reloads after its own join', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(tasks()).toBe(2);
+    await vi.advanceTimersByTimeAsync(900);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(tasks()).toBe(3);
     app.stop();
   });
 

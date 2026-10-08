@@ -17,12 +17,14 @@ import { PERSONAL_KINDS, READS } from './readMap';
  * - Gaps: the seq of each Realtime channel counts up by one. A gap on the office channel reloads every list; a gap on the person
  *   channel reloads the person lists. The seq of an own answer never counts, because answers and Realtime do not share an order.
  * - A hidden tab only marks the lists. They reload when the tab shows again, and every list reloads after 60 seconds hidden.
- * - An empty list of signals means "something changed, reload all", at once: a change of the prototype store, or a Realtime
- *   channel that joins again after it was closed (signals may be lost). It also starts the seq of each channel again.
+ * - An empty list of signals means "something changed, reload all": a change of the prototype store (at once), or a Realtime
+ *   channel that joined (origin 'join', signals may be lost). It also starts the seq of each channel again, at once. The joins of
+ *   one dropped socket come a few milliseconds apart, one for each channel, so a join waits 100 ms for the other and for any
+ *   signal, and they reload in one pass after the last join (performance audit FET-4).
  */
 
-/** own: the signals of an answer to this screen's own write. channel: Realtime (the default). */
-export type ChangeOrigin = 'own' | 'channel';
+/** own: the signals of an answer to this screen's own write. channel: Realtime (the default). join: a Realtime channel joined. */
+export type ChangeOrigin = 'own' | 'channel' | 'join';
 export type ChangeListener = (signals: ChangeSignal[], origin?: ChangeOrigin) => void;
 
 /** Where change signals come from: Realtime in the real build, the store in the prototype. */
@@ -78,7 +80,7 @@ export function affects(queryKey: readonly unknown[], data: unknown, merged: Mer
   return project === undefined || merged.office || merged.projects.has(project);
 }
 
-export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; now?: () => number };
+export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; joinMs?: number; now?: () => number };
 
 /** How many signal ids the screen remembers, so a signal that comes again applies once. */
 const KEEP_IDS = 500;
@@ -91,12 +93,15 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   const mergeMs = o.mergeMs ?? 1000;
   const maxMergeMs = o.maxMergeMs ?? 2000;
   const hiddenReloadMs = o.hiddenReloadMs ?? 60_000;
+  const joinMs = o.joinMs ?? 100;
   const now = o.now ?? (() => Date.now());
   const seen = new Map<string, Set<string>>();
   const lastSeq = new Map<string, number>();
   let pending: MergedSignal | null = null;
   let firstAt = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // The latest moment of the pass after a join: the last join plus joinMs. A signal in the window never moves the pass later.
+  let joinBy: number | null = null;
   // True while a pass for own answers waits for its microtask.
   let ownQueued = false;
   let hiddenAt: number | null = isHidden() ? now() : null;
@@ -119,6 +124,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   function flush(): void {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+    joinBy = null;
     const merged = pending;
     pending = null;
     if (merged) run(merged);
@@ -134,8 +140,9 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
 
   function schedule(): void {
     if (timer !== undefined) clearTimeout(timer);
-    const wait = Math.max(0, Math.min(mergeMs, firstAt + maxMergeMs - now()));
-    timer = setTimeout(flush, wait);
+    let wait = Math.min(mergeMs, firstAt + maxMergeMs - now());
+    if (joinBy !== null) wait = Math.min(wait, joinBy - now());
+    timer = setTimeout(flush, Math.max(0, wait));
   }
 
   /** Remembers a signal and adds to the merge only what is new: the whole signal, or the people a known id did not name yet. */
@@ -173,6 +180,11 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     if (signals.length === 0) {
       lastSeq.clear();
       queue().all = true;
+      if (origin === 'join') {
+        joinBy = now() + joinMs;
+        schedule();
+        return;
+      }
       flush();
       return;
     }
@@ -213,6 +225,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     stopped = true;
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
+    joinBy = null;
     pending = null;
     unsubscribe();
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);

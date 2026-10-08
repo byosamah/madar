@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { ChangeSignal } from '../../api/remote/wire';
-import type { ChangeListener, ChangeSource } from '../signals';
+import type { ChangeListener, ChangeOrigin, ChangeSource } from '../signals';
 
 /**
  * The change signals of the real build over Supabase Realtime (plan 5.3, client map 7.3). The server sends each signal with
@@ -12,7 +12,8 @@ import type { ChangeListener, ChangeSource } from '../signals';
  * - status() is open only while both channels are joined (the "No connection" banner reads it).
  * - Realtime keeps no message for a later join. So the listeners get an empty list, which reloads every list, when both channels
  *   have joined for the first time (a change saved while the screen loaded its lists and joined), and each time a channel joins
- *   again after an error, a time-out or a close.
+ *   again after an error, a time-out or a close. The empty list comes with the origin 'join', so the screen merges the joins of
+ *   both channels after one drop into one pass (src/app/signals.ts, performance audit FET-4).
  * - realtime-js gives back the channel of a topic until its leave is answered, and a leaving channel never joins. So a start
  *   waits for the leave of every channel of its topics that this client still removes (a quick stop and start, or a sign-in as
  *   another person on the same client).
@@ -45,8 +46,8 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
   // True once both channels of this start have joined.
   let opened = false;
 
-  const tell = (signals: ChangeSignal[]) => {
-    for (const listener of [...listeners]) listener(signals, 'channel');
+  const tell = (signals: ChangeSignal[], origin: ChangeOrigin = 'channel') => {
+    for (const listener of [...listeners]) listener(signals, origin);
   };
 
   /** Leaves a channel, and keeps the wait for its answer, so the next join of the topic on this client waits for it. */
@@ -84,7 +85,7 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
           entry.tries = 0;
           const first = !opened && allJoined();
           if (first) opened = true;
-          if (again || first) tell([]);
+          if (again || first) tell([], 'join');
           return;
         }
         entry.subscribed = false;
