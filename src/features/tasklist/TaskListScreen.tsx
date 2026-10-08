@@ -1,11 +1,13 @@
 import { AnimatePresence } from 'motion/react';
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
+import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -89,6 +91,34 @@ function DeadlineList({ from, to }: { from?: string; to?: string }) {
   );
 }
 
+/**
+ * The title, the subtitle, the error, the empty state and the rows. It takes only plain props and stable handlers, so a link
+ * change that only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2).
+ * "today" is not read here: it makes the rows render again on a new day, so their due words stay true.
+ */
+const TaskResultsBody = memo(function TaskResultsBody(props: {
+  title: string; subtitle: string; rows: TaskRow[] | undefined; error: unknown; me: User | undefined; today: string;
+  onOpen: (row: TaskRow, thread?: boolean) => void; onRetry: () => void;
+}) {
+  const { title, subtitle, rows, error, me, onOpen, onRetry } = props;
+  const { t } = useTranslation();
+  return (
+    <>
+      <ScreenTitle title={title} />
+      <Subtitle text={subtitle} />
+      {error ? <LoadFailed error={error} onRetry={onRetry} /> : null}
+      {rows && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.empty')} action={<BackToDashboard />} />}
+      {rows && rows.length > 0 && (
+        <ul className="surface overflow-hidden rounded-card py-1">
+          <AnimatePresence initial={false}>
+            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
+          </AnimatePresence>
+        </ul>
+      )}
+    </>
+  );
+});
+
 function TaskResults() {
   const { t } = useTranslation();
   const lang = useLang();
@@ -113,7 +143,8 @@ function TaskResults() {
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
-  const open = (row: TaskRow, thread = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread));
+  const open = useStableHandler((row: TaskRow, thread: boolean = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread)));
+  const retry = useStableHandler(() => void tasks.refetch());
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -133,22 +164,11 @@ function TaskResults() {
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
   const subtitle = [scopeText, range('taskList.dueRange', from, to), reviews, range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');
-  const rows = tasks.data ?? [];
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (
     <>
-      <ScreenTitle title={title} />
-      <Subtitle text={subtitle} />
-      {tasks.error && <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />}
-      {tasks.data && rows.length === 0 && <EmptyState title={t('taskList.emptyTitle')} body={t('taskList.empty')} action={<BackToDashboard />} />}
-      {rows.length > 0 && (
-        <ul className="surface overflow-hidden rounded-card py-1">
-          <AnimatePresence initial={false}>
-            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => open(row, thread)} showProject />)}
-          </AnimatePresence>
-        </ul>
-      )}
+      <TaskResultsBody title={title} subtitle={subtitle} rows={tasks.data} error={tasks.error} me={me} today={today} onOpen={open} onRetry={retry} />
       {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </>
   );

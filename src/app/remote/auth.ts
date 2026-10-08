@@ -62,6 +62,7 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
 
   return {
     status: () => status,
+    userId: () => (status === 'signed_in' ? userId : null),
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

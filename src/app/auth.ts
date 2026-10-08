@@ -14,6 +14,8 @@ export interface AuthPort {
   signOut(o?: { scope?: 'local' | 'others' }): Promise<void>;
   /** The access token for the API, refreshed when needed; null when signed out. */
   accessToken(): Promise<string | null>;
+  /** The auth user id of the session at once, with no network; null when signed out. The prototype has none. */
+  userId?(): string | null;
   /** The link of an invitation or a reset email (the Welcome and Reset screens). */
   verifyLink(tokenHash: string, type: LinkType): Promise<void>;
   /** Sets a password from the session of an invitation or reset link (the Welcome and Reset screens). */

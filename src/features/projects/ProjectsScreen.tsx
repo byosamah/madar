@@ -1,7 +1,7 @@
 import { AnimatePresence, LayoutGroup } from 'motion/react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
@@ -9,7 +9,9 @@ import { rememberProjectsList } from '../../app/lastList';
 import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
+import type { ProjectSummary } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
@@ -27,6 +29,32 @@ const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
 const SELECT = 'field mt-1.5 font-normal';
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
+
+/**
+ * The list, its empty state or its error. It takes only plain props and stable handlers, so New project, which opens a form
+ * over the list, does not render the rows again (performance audit 2026-10-07, RND-2).
+ */
+const ProjectsBody = memo(function ProjectsBody({ rows, error, onRetry, onShowAll }: {
+  rows: ProjectSummary[] | undefined; error: unknown; onRetry: () => void; onShowAll: () => void;
+}) {
+  const { t } = useTranslation();
+  if (error) {
+    return <EmptyState title={t('projects.loadFailed')} body={errorMessage(error, t)} action={<Button onClick={onRetry}>{t('common.retry')}</Button>} />;
+  }
+  if (rows && rows.length === 0) {
+    return <EmptyState title={t('projects.emptyTitle')} body={t('projects.empty')} action={<Button onClick={onShowAll}>{t('projects.showAll')}</Button>} />;
+  }
+  if (!rows) return null;
+  return (
+    <LayoutGroup id="projects">
+      <ul aria-label={t('screens.projects')} className="@container panel hairline overflow-hidden">
+        <AnimatePresence initial={false}>
+          {rows.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="projects" />)}
+        </AnimatePresence>
+      </ul>
+    </LayoutGroup>
+  );
+});
 
 /** Every project as one calm list, with one filter button (redesign spec 3.3). */
 export function ProjectsScreen() {
@@ -84,24 +112,8 @@ export function ProjectsScreen() {
   });
   const active = [filterParam !== 'all' || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId].filter(Boolean).length;
   const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
-  const showAll = () => setParams({ status: 'all' }, { replace: true });
-
-  let body = null;
-  if (list.error) {
-    body = <EmptyState title={t('projects.loadFailed')} body={errorMessage(list.error, t)} action={<Button onClick={() => void list.refetch()}>{t('common.retry')}</Button>} />;
-  } else if (list.data && list.data.length === 0) {
-    body = <EmptyState title={t('projects.emptyTitle')} body={t('projects.empty')} action={<Button onClick={showAll}>{t('projects.showAll')}</Button>} />;
-  } else if (list.data) {
-    body = (
-      <LayoutGroup id="projects">
-        <ul aria-label={t('screens.projects')} className="@container panel hairline overflow-hidden">
-          <AnimatePresence initial={false}>
-            {list.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="projects" />)}
-          </AnimatePresence>
-        </ul>
-      </LayoutGroup>
-    );
-  }
+  const showAll = useStableHandler(() => setParams({ status: 'all' }, { replace: true }));
+  const retry = useStableHandler(() => void list.refetch());
   return (
     <>
       <ScreenTitle
@@ -178,7 +190,7 @@ export function ProjectsScreen() {
           </p>
         )}
       </div>
-      {body}
+      <ProjectsBody rows={list.data} error={list.error} onRetry={retry} onShowAll={showAll} />
       <NewProjectSheet open={creating} onOpenChange={setCreating} />
     </>
   );

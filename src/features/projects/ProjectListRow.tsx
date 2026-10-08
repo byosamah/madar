@@ -10,6 +10,7 @@ import { ProjectSign } from '../../components/ProjectSign';
 import { signOfProject, StatusSign } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { setSharedSource } from '../../app/sharedLayout';
+import { usePrefetchCall } from '../../app/prefetch';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
 import { clientName } from '../../lib/clientName';
@@ -24,13 +25,23 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
   return null;
 }
 
+/**
+ * The context menu of one row. Its items read the router (useCardMenu calls useHref), so this part renders again on each link
+ * change. The row around it does not, also when a task panel opens over the list (performance audit 2026-10-07, RND-M1).
+ */
+function RowMenu({ summary, point, onClose }: { summary: ProjectSummary; point: { x: number; y: number } | null; onClose: () => void }) {
+  const { t } = useTranslation();
+  const items = useCardMenu(summary);
+  return <ContextMenu label={t('projects.menu', { name: summary.project.name })} items={items} point={point} onClose={onClose} />;
+}
+
 /** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
 export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = summary;
   const menu = useContextMenu();
-  const items = useCardMenu(summary);
+  const prefetch = usePrefetchCall();
   const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
     <motion.li
@@ -44,6 +55,9 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
       <Link
         to={`/projects/${project.id}`}
         onClick={() => setSharedSource(source)}
+        // A press starts the read of the project page before the click lands. Not on hover: one project at a time, and only
+        // the one the person opens (performance audit 2026-10-07, FET-12). The prototype asks nothing here.
+        onPointerDown={() => prefetch('projects.get', { id: project.id })}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,18rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_7rem_minmax(0,14rem)] @4xl:gap-x-8"
       >
         <ProjectTile id={project.id} mark={project.mark} shared />
@@ -80,7 +94,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
           </span>
         </span>
       </Link>
-      <ContextMenu label={t('projects.menu', { name: project.name })} items={items} point={menu.point} onClose={menu.close} />
+      <RowMenu summary={summary} point={menu.point} onClose={menu.close} />
     </motion.li>
   );
 }

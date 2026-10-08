@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { DurationDays, Gender, StageName, TaskId, TaskSchedule, TaskTemplate, TaskTemplateId } from '../contract/entities';
+import { sameText } from '../../lib/sameText';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, taskTemplatesOf } from '../store';
@@ -26,8 +27,6 @@ function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
 const rowOf = (ctx: Ctx, template: TaskTemplate) => ({
   ...template, ...namesUnder('createdByName', ctx.state.users[template.createdBy]), createdByGender: ctx.state.users[template.createdBy]?.gender, canEdit: mayEdit(ctx, template),
 });
-
-const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 function assertNameFree(ctx: Ctx, name: string, stageName: string, exceptId: string | null): void {
   const taken = Object.values(taskTemplatesOf(ctx.state)).some((t) => t.id !== exceptId && sameText(t.name, name) && sameText(t.stageName, stageName));

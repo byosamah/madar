@@ -1,11 +1,14 @@
 import { AnimatePresence, LayoutGroup } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
-import { useCall } from '../../app/runtime';
+import type { CallOutput } from '../../api/calls';
+import type { ProjectSummary, TaskRow } from '../../api/contract/views';
+import { useCall, useRuntime } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay, todayISO } from '../../lib/dates';
@@ -18,12 +21,70 @@ import { DayRing } from './DayRing';
 import { NextCard } from './NextCard';
 import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
+import { readRoleHint, writeRoleHint } from './roleHint';
 
-/** Home (redesign spec 3.2): your day on the start side, your projects on the end side; one column on a phone. */
-export function HomeScreen() {
+/**
+ * Both columns of Home: the greeting, Next for you, Today and Your projects. It takes only plain props and stable handlers, so a
+ * link change that only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2).
+ * "today" and "hour" come from the parent, so a new day or hour still gives a new date, greeting and due words.
+ */
+const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedError, showLeft, today, hour, onOpen, onFocus, onRetry }: {
+  session: CallOutput<'session.get'>; mine: TaskRow[]; review: TaskRow[]; listed: ProjectSummary[] | undefined; listedError: unknown; showLeft: boolean;
+  today: string; hour: number; onOpen: (projectId: string | null, taskId: string, thread?: boolean) => void; onFocus: (taskId: string) => void;
+  onRetry: () => void;
+}) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
+  const projects = useMemo(() => listed?.filter((summary) => isLive(summary.project.status)), [listed]);
+  const { user } = session;
+  const next = nextForYou({ review, mine, today });
+  const ring = dayRing(mine, today);
+  const todayRows = dueByToday(mine, today);
+  // A day with nothing due shows the next tasks with a date in place of the empty line (owner, 2026-10-07).
+  const laterRows = todayRows.length === 0 ? comingUp(mine, today) : [];
+  const firstName = nameOf(user).split(' ')[0];
+  return (
+    <>
+      <div className="flex min-w-0 flex-col gap-4">
+        <ScreenTitle title={t(`home.greeting.${greetingKey(hour)}`, { name: firstName })}>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span>
+              {formatDay(today, lang, 'weekday')}
+              {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
+                  waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
+              {ring.total === 0 && review.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.length)}</>}
+            </span>
+            <DayRing done={ring.done} total={ring.total} />
+          </span>
+        </ScreenTitle>
+        <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
+        <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
+      </div>
+      <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
+        <div className="flex items-baseline justify-between gap-3 px-1">
+          <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
+          {projects && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.length)}</span>}
+        </div>
+        {listedError ? <LoadFailed error={listedError} onRetry={onRetry} /> : null}
+        {projects && projects.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
+        {projects && projects.length > 0 && (
+          <LayoutGroup id="home">
+            <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
+              <AnimatePresence initial={false}>
+                {projects.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="home" />)}
+              </AnimatePresence>
+            </ul>
+          </LayoutGroup>
+        )}
+        <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
+      </section>
+    </>
+  );
+});
+
+/** Home (redesign spec 3.2): your day on the start side, your projects on the end side; one column on a phone. */
+export function HomeScreen() {
   const [params, setParams] = useSearchParams();
   const focus = useFocusLink();
   const today = todayISO();
@@ -32,11 +93,21 @@ export function HomeScreen() {
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
-  const admin = session.data?.user.systemRole === 'admin';
+  // Before session.get answers, the real build takes the role that this device saw last for this auth user, so the Admin's list
+  // goes out in the first request. The session answer then decides (performance audit 2026-10-07, FET-8).
+  const { mode, auth } = useRuntime();
+  const authUserId = mode === 'remote' ? auth?.userId?.() ?? null : null;
+  const [hint] = useState(() => readRoleHint(authUserId));
+  const role = session.data?.user.systemRole;
+  useEffect(() => {
+    if (authUserId && role) writeRoleHint(authUserId, role);
+  }, [authUserId, role]);
+  const admin = (role ?? hint) === 'admin';
   const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
-  const projects = { ...listed, data: listed.data?.filter((summary) => isLive(summary.project.status)) };
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
-  const open = useCallback((projectId: string | null, taskId: string, thread = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }), [setParams]);
+  const open = useStableHandler((projectId: string | null, taskId: string, thread: boolean = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }));
+  const startFocus = useStableHandler(focus.open);
+  const retryProjects = useStableHandler(() => void listed.refetch());
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -64,52 +135,24 @@ export function HomeScreen() {
   }, [queryClient]);
   const failed = [session, mine, review].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
-  const user = session.data?.user;
-  if (!user || !mine.data || !review.data) return null;
-
-  const next = nextForYou({ review: review.data, mine: mine.data, today });
-  const ring = dayRing(mine.data, today);
-  const todayRows = dueByToday(mine.data, today);
-  // A day with nothing due shows the next tasks with a date in place of the empty line (owner, 2026-10-07).
-  const laterRows = todayRows.length === 0 ? comingUp(mine.data, today) : [];
-  const firstName = nameOf(user).split(' ')[0];
+  if (!session.data?.user || !mine.data || !review.data) return null;
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
-      <div className="flex min-w-0 flex-col gap-4">
-        <ScreenTitle title={t(`home.greeting.${greetingKey(officeHour())}`, { name: firstName })}>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span>
-              {formatDay(today, lang, 'weekday')}
-              {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
-                  waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
-              {ring.total === 0 && review.data.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.data.length)}</>}
-            </span>
-            <DayRing done={ring.done} total={ring.total} />
-          </span>
-        </ScreenTitle>
-        <NextCard item={next} onOpen={open} onFocus={focus.open} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} later={laterRows} me={session.data?.authority} onOpen={(row, thread) => open(row.project?.id ?? null, row.task.id, thread)} />
-      </div>
-      <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
-        <div className="flex items-baseline justify-between gap-3 px-1">
-          <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
-          {projects.data && <span className="tabular text-subheadline text-ink-2">{counted(t, 'home.projectCount', projects.data.length)}</span>}
-        </div>
-        {projects.error && <LoadFailed error={projects.error} onRetry={() => void projects.refetch()} />}
-        {projects.data && projects.data.length === 0 && <p className="panel px-5 py-4 text-subheadline text-ink-2">{t('home.noProjects')}</p>}
-        {projects.data && projects.data.length > 0 && (
-          <LayoutGroup id="home">
-            <ul aria-label={t('home.projects')} className="@container panel hairline overflow-hidden">
-              <AnimatePresence initial={false}>
-                {projects.data.map((summary) => <ProjectListRow key={summary.project.id} summary={summary} source="home" />)}
-              </AnimatePresence>
-            </ul>
-          </LayoutGroup>
-        )}
-        <Link to="/projects" className="flex min-h-11 items-center self-start px-1 text-subheadline font-semibold text-link">{t('home.allProjects')}</Link>
-      </section>
+      <HomeBody
+        session={session.data}
+        mine={mine.data}
+        review={review.data}
+        listed={listed.data}
+        listedError={listed.error}
+        showLeft={showLeft}
+        today={today}
+        hour={officeHour()}
+        onOpen={open}
+        onFocus={startFocus}
+        onRetry={retryProjects}
+      />
       {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );
