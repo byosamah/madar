@@ -346,3 +346,16 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
 - Not planned (each needs a visible change or more proof): long lists in steps (RND-6), the frame during the token renewal
   (BND-M1), the change number check on a join or a return (BGR-1 step 2, BGR-6), a warm-up call (LIV-7 step 3), 3 overview
   reads in one request (FET-7), shared read transactions (SRV-2), static icons at rest (RND-7), Home without done tasks (FET-M1)
+
+## Drag and drop order on Home and in the project task list (owner, 2026-10-08)
+
+Owner choices: the drag works on Home, the Tasks page and the project page; one shared order for everyone. A drag stays inside
+one list: a date group (Home Today, the Tasks page) or one stage (the project page). It never changes a date. Coming up on Home has
+no grips, because its tasks fall on different days.
+
+- [x] One shared list component (`features/project/tasks/SortableTaskRows.tsx`) for the Tasks page, Home Today and the project list
+- [x] The project task list takes the shared order (`arranged`), so a new place shows at once
+- [x] Tests first: `TodayOrder.test.tsx` and `TaskListOrder.test.tsx`; the Tasks page tests (`WorkOrder.test.tsx`) still pass
+- [x] Gates: npm test 4,380 passed; the prototype build with the RTL and bundle checks
+- [x] Screenshots (prototype, 390 px): Home Today in EN and AR, light and dark; the project list in four views; a keyboard drag on Home and in a stage
+- [ ] Not run: build:remote, test:db and test:it (need Docker), prototype smoke. The server did not change, so build:server is not needed

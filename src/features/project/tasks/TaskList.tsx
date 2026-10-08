@@ -1,6 +1,5 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
-import { AnimatePresence } from 'motion/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
@@ -8,7 +7,8 @@ import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
 import { useAction, useCall } from '../../../app/runtime';
 import { EmptyState } from '../../../components/EmptyState';
 import { useStageBack } from './StageBack';
-import { TaskRowItem } from './TaskRowItem';
+import { arranged } from '../../../lib/arrange';
+import { SortableTaskRows } from './SortableTaskRows';
 import { TemplateMenu } from './TemplateMenu';
 
 /** "Add a task" at the top of a group. Enter creates it with no lead (owner, 2026-10-05), in the group's stage (spec 5.3). */
@@ -68,11 +68,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
             <span className="tabular text-footnote text-label-2">{t('tasks.count', { n: stageRows.length })}</span>
           </header>
           {detail.viewerCan.createTaskForSelf && <QuickAdd projectId={detail.project.id} stage={stage} />}
-          <ul>
-            <AnimatePresence initial={false}>
-              {stageRows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={onOpen} />)}
-            </AnimatePresence>
-          </ul>
+          <SortableTaskRows rows={arranged(stageRows)} me={me} onOpen={(row, thread) => onOpen(row.task.id, thread)} />
           {stageRows.length === 0 && (
             <p className="px-4 pb-2 text-footnote text-label-2">{(doneCounts[stage.id] ?? 0) > 0 ? t('tasks.allDone') : t('tasks.empty')}</p>
           )}
