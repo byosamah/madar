@@ -336,6 +336,14 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
   - [ ] Measure on the test copy (direct with its preflight against the forwarder); keep it only if faster
 - [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
   (EN/AR, light/dark, 390 px)
+  - [x] typecheck; npm test 4,379 and 4,375 passed in two runs, and each failure (load timeouts, load average 30 to 40 from
+    other sessions) passed alone with the long-timeout flags; the three builds and their bundle checks; db reset with the
+    read indexes; test:db 1,097 passed (25 skipped); test:it 253 of 253; test:mcp 134 passed (conformance exit 0)
+  - [x] Fix: the task panel prefetch put the zod schemas into the first load again (can() took memberKey from store.ts);
+    rowKeys.ts and limits.ts, with a test
+  - [x] Fix: the restore check took "public" of CREATE STATISTICS ... FROM "public"."events" for a role; a quoted name
+    with a dot after it is now skipped, with a test
+  - [ ] The prototype smoke and the screenshots (with the live numbers on the test copy)
 - [ ] Test copy, then the live numbers again (before and after)
 - [ ] Production only after the owner's words
 - Not planned (each needs a visible change or more proof): long lists in steps (RND-6), the frame during the token renewal
