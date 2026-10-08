@@ -38,3 +38,5 @@ branch, and a push that changes only `docs/` runs nothing.
 - To check one: the owner gives the key for the check, `age -d -i <owner key>` opens it, then delete the opened copy
   and the key file.
 - The monthly restore check runs on the Mac: `scripts/restore-check.ts` (it needs the owner's offline key).
+- The check makes each role that the dumps name but do not make (`rolesToMake`, `scripts/backup/check.ts`). The CLI dump
+  quotes every name, so a quoted name with a dot after it (`FROM "public"."events"` of CREATE STATISTICS) is a table, never a role.

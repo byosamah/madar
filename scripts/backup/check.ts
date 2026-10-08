@@ -75,7 +75,8 @@ export function rolesToMake(roles: string, schema: string): string[] {
   const made = new Set([...roles.matchAll(/CREATE ROLE "([^"]+)"/g)].map((match) => match[1]));
   const named = new Set<string>();
   for (const text of [roles, schema]) {
-    for (const match of text.matchAll(/\b(?:TO|FROM|ROLE|AUTHORIZATION)\s+"([^"]+)"/g)) {
+    // A quoted name with a dot after it is a schema-qualified object ('FROM "public"."events"' of CREATE STATISTICS), never a role.
+    for (const match of text.matchAll(/\b(?:TO|FROM|ROLE|AUTHORIZATION)\s+"([^"]+)"(?!\.)/g)) {
       if (ROLE_NAME.test(match[1]) && !made.has(match[1])) named.add(match[1]);
     }
   }

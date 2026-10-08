@@ -100,6 +100,14 @@ describe('rolesToMake', () => {
     expect(rolesToMake(roles, schema)).toEqual(['anon', 'authenticated', 'postgres', 'service_role', 'supabase_realtime_admin']);
   });
 
+  it('never takes a schema-qualified name for a role, as in the statistics object of the read indexes (2026-10-07)', () => {
+    const schema = [
+      'CREATE STATISTICS "public"."events_office_task" ON (("doc" -> \'officeTaskId\'::"text")) FROM "public"."events";',
+      'REVOKE ALL ON TABLE "public"."events" FROM "anon";',
+    ].join('\n');
+    expect(rolesToMake('', schema)).toEqual(['anon']);
+  });
+
   it('writes SQL that makes each role only when it is missing, without login', () => {
     const sql = rolesSql(['supabase_realtime_admin']);
     expect(sql).toContain("rolname = 'supabase_realtime_admin'");
