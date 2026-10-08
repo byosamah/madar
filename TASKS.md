@@ -322,7 +322,11 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
   build it, measure on the test copy, keep it only if faster (FET-10); a JPEG small copy for Safari and iPhone uploads
   (BGR-M1); the font preload, with the variant check on the test copy (BND-3)
 - [ ] Wave 1, seven builders (tracks A first load and fonts, B1 lists, B2 panels and project page, C client data and saves,
-  D server path, E database, F pictures). A first try stopped on the weekly usage limit (2026-10-07) and left nothing
+  D server path, E database, F pictures). A first try stopped on the weekly usage limit (2026-10-07) and left nothing.
+  The second try (2026-10-08): B1, D and F ended; A, B2, C and E stopped on a network error after most of their commits,
+  and four finishers end them
+  - [x] Merged into perf/audit: B1 (7 commits), D (6), F (3); type check passes; their guide facts and proof written
+  - [ ] Merge A, B2, C, E after the finishers
 - [ ] Wave 2 after the merge: the /api/batch forwarder, then its measurement on the test copy
 - [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
   (EN/AR, light/dark, 390 px)
