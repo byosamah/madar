@@ -1,6 +1,6 @@
 import type { ComponentType, ReactElement } from 'react';
-import type { RouteObject } from 'react-router';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { createMemoryRouter, type RouteObject } from 'react-router';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { appRoutes, createAppRouter, screensAt } from './routes';
 import { preloadScreens } from './screens';
 
@@ -83,6 +83,14 @@ describe('the routes before the screens load (performance audit BND-1)', () => {
     expect(screensAt('/oauth/consent', true)).toEqual({ screens: ['consent'], gated: false });
     expect(screensAt('/inbox/cnv_001', false)).toEqual({ screens: ['inbox'], gated: false });
   });
+
+  // React Router starts a router with a lazy route at its first address as not initialized: it renders nothing there and
+  // warns that no HydrateFallback is given. This test runs last here, because the router imports the screen.
+  it('make a router that is not ready at the first address while its screen is not loaded', () => {
+    const router = createMemoryRouter(appRoutes(true), { initialEntries: ['/projects'] });
+    expect(router.state.initialized).toBe(false);
+    router.dispose();
+  });
 });
 
 describe('the routes of both builds (plan U2)', () => {
@@ -95,6 +103,19 @@ describe('the routes of both builds (plan U2)', () => {
       expect(routes.filter((route) => route.Component)).toHaveLength(remote ? 17 : 12);
     }
   });
+
+  it('make a router that is ready at its first address once only the screens of that address are loaded, as main.tsx does', async () => {
+    for (const path of ['/projects/prj_001', '/dashboard/meeting', '/sign-in']) {
+      // A new module cache, so no other screen is loaded.
+      vi.resetModules();
+      const fresh = { routes: await import('./routes'), screens: await import('./screens') };
+      await fresh.screens.preloadScreens(fresh.routes.screensAt(path, true).screens);
+      const router = createMemoryRouter(fresh.routes.appRoutes(true), { initialEntries: [path] });
+      expect(router.state.initialized, path).toBe(true);
+      expect(every(fresh.routes.appRoutes(true)).filter((route) => route.lazy).length, path).toBeGreaterThan(10);
+      router.dispose();
+    }
+  }, 60_000);
 
   it('keeps hash links and no sign-in in the prototype build', async () => {
     const router = createAppRouter();
