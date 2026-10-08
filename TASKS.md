@@ -318,11 +318,12 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
 - [x] Audit workflow: 7 auditors (first load, screen work, data flow, server path, database, background paths, live numbers
   on the test copy), each with a skeptic: 60 findings kept, 10 dropped
 - [x] The prefetch helper `src/app/prefetch.ts` (8753a11), shared by two tracks
-- [ ] Wave 1, six builders (tracks A first load, B1 lists, B2 panels and project page, C client data and pictures, D server
-  path, E database): the fixes that change nothing on screen
-- [ ] Owner questions: saves one round trip sooner (FET-3), the /api/batch forwarder (CORS), the small picture of Safari
-  uploads (BGR-M1), the font preload (BND-3)
-- [ ] Wave 2: the answered questions
+- [x] Owner answers (2026-10-08): saves one round trip sooner, no optimistic update (FET-3); the /api/batch forwarder:
+  build it, measure on the test copy, keep it only if faster (FET-10); a JPEG small copy for Safari and iPhone uploads
+  (BGR-M1); the font preload, with the variant check on the test copy (BND-3)
+- [ ] Wave 1, seven builders (tracks A first load and fonts, B1 lists, B2 panels and project page, C client data and saves,
+  D server path, E database, F pictures). A first try stopped on the weekly usage limit (2026-10-07) and left nothing
+- [ ] Wave 2 after the merge: the /api/batch forwarder, then its measurement on the test copy
 - [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
   (EN/AR, light/dark, 390 px)
 - [ ] Test copy, then the live numbers again (before and after)
