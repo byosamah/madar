@@ -199,3 +199,6 @@ any screen work.
   saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.
 - `DateField` gives every change to the form at once, so `fireEvent.change` on the input by its label works as before. A
   focus with no press (the keyboard, or the form that moves to an error) shows the full field until the blur.
+- A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect` mocked for each row
+  (`features/work/WorkOrder.test.tsx`). The place message (`onDragOver`) replaces the pick-up message at once, so assert
+  the place message.

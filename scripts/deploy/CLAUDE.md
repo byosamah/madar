@@ -52,8 +52,11 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.
-- A short "ok" to a report did not pass that check (2026-10-07). Ask for words that name production: "yes, deploy to
-  production".
+- A short "ok" did not pass that check, and later the owner's plain words did not pass either (2026-10-07). After one
+  refusal, give the owner the one-line command with `!` as the very first character of the input box. Without that, it
+  arrives as chat text and runs nothing.
+- A test deploy of a newer commit replaces the record. While an older commit waits for production, hold `all.sh test`
+  of the newer one until production is done.
 - Change only madar-test unless the owner asked for production.
 
 ## Secrets
@@ -85,6 +88,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   section "Deploy".
 
 ## Quick check of production
+- `npx wrangler pages deployment list --project-name madar` shows the commit of each production and preview deploy.
+- The `config push` step always says `api.enabled` true and pushes false: a false difference (`supabase/CLAUDE.md`).
 - `madar.vado.sa/api/health` answers with the app page (200), so it proves nothing. Without `forceFunctionRegion` the
   health answers from another region.
 - Just after a deploy, madar.vado.sa can serve the old bundle for a short time. Compare the `index-*.js` name there with
