@@ -83,7 +83,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run typecheck` - both tsconfigs (screens and server).
 - `npm test` - the `unit` and `server` projects (about 4,100 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
-  run: run the failed files alone before you call a test broken.
+  run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
   --strictPort` and check that the page title is "Madar".
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
