@@ -16,6 +16,8 @@ const FILTERS = ['all', 'posts', 'decisions', 'tasks', 'files'] as const;
 // The API sends the newest items, 50 by default and 200 at most. "Show older" asks for 50 more (audit 2026-10-03, PRJ-5).
 const PAGE = 50;
 const MOST = 200;
+/** The feed choices and the first page, for the reads that the project page starts with projects.get (tabs.tsx, FET-2). */
+export { FILTERS as FEED_FILTERS, PAGE as FEED_PAGE };
 
 /** The project's log: posts and system events with a filter, and the composer on top (spec 5.2). The Overview shows the state of the project instead (owner, 2026-10-01). */
 export function ActivityTab({ detail }: TabProps) {
