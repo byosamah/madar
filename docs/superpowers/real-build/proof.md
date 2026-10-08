@@ -812,3 +812,19 @@ Proven:
 - The jsonb_build_object pick gives the same doc as jsonb_each and jsonb_object_agg. The tasks of 120 projects went from 22.4 ms to 8.9 ms.
 - Whole loaders: projects.list of the Admin went from 72.4 ms to 11.5 ms. dashboard.get of the Admin went from 32.1 ms and 1.65 MB to 18.7 ms and 0.95 MB. chats.unreadCount of the Admin went from 63.4 ms and 231 KB to 28.4 ms and 92 KB. notifications.count of the Admin went from 138 KB to 67 KB (0.65 ms became 1.08 ms). events.undo of one task.created went from 33.4 ms to 16.2 ms.
 - server/it/readIndexes.it.test.ts pins these plans on the local stack.
+
+### The merge and the measurements (2026-10-08)
+- Merge: the seven tracks into perf/audit, then main (two guide commits). One conflict (an import line of bootstrap.ts).
+- Gates: typecheck; npm test 4,379 and 4,375 passed in two runs, each failure a load timeout that passed alone; the three
+  builds and their bundle checks; db reset; test:db 1,097 passed (25 skipped); test:it 253 of 253; test:mcp 134 passed.
+- Two fixes at the merge: the task panel prefetch put the zod schemas into the first load again (rowKeys.ts, limits.ts);
+  the restore check took "public" of CREATE STATISTICS ... FROM "public"."events" for a role.
+- First load of the remote build: the scripts 572,306 B gzip before, 318,488 B after (22 files); with the English words
+  337,638 B, with the Arabic words 343,361 B. The prototype file: 566,359 B before, 574,611 B after.
+- Live before (test copy at 66586d0, member and admin, 5 rounds, 1-minute load 3.3 to 5.9): page TTFB 69 ms; FCP 636 to
+  680 ms; LCP 1,732 to 1,888 ms; first batch answer 1,588 to 1,720 ms; 3 CORS preflights; script 557 KB, fonts 353 KB.
+  Lighthouse on the sign-in page: mobile 0.74 (FCP 4,070 ms), desktop 0.99. No console warning or error.
+- The batch forwarder (FET-10), measured from the office city on the test copy: a POST through it 305 to 339 ms, a direct
+  POST 285 to 287 ms, a direct preflight plus POST 537 to 558 ms. Not faster over a session: removed.
+- Not measured: the live numbers after the deploy and the font priority test (the owner stopped them), the prototype smoke.
+

@@ -333,7 +333,9 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
 - [ ] Wave 2 after the merge: the /api/batch forwarder, then its measurement on the test copy
   - [x] The forwarder (`functions/api/batch.ts`, `server/http/pagesApiProxy.ts`, 5 tests) and the client setting
     `VITE_BATCH_URL` (off by default, 3 tests)
-  - [ ] Measure on the test copy (direct with its preflight against the forwarder); keep it only if faster
+  - [x] Measured on the test copy (2 samples, 15 and 20 rounds): forwarder POST 305 to 339 ms, direct POST 285 to 287 ms,
+    direct preflight plus POST 537 to 558 ms. It saves one preflight each 2 hours (Chrome) but adds 20 to 50 ms to every
+    call, so it is not faster: removed (954093a)
 - [ ] Merge, then the gates once: typecheck, npm test, the three builds, test:db, test:it, the prototype smoke; screenshots
   (EN/AR, light/dark, 390 px)
   - [x] typecheck; npm test 4,379 and 4,375 passed in two runs, and each failure (load timeouts, load average 30 to 40 from
@@ -344,8 +346,13 @@ visuals, words, data, the contract or the security rules. Audit text: the workfl
   - [x] Fix: the restore check took "public" of CREATE STATISTICS ... FROM "public"."events" for a role; a quoted name
     with a dot after it is now skipped, with a test
   - [ ] The prototype smoke and the screenshots (with the live numbers on the test copy)
-- [ ] Test copy, then the live numbers again (before and after)
-- [ ] Production only after the owner's words
+- [x] Test copy at e488d65 (2026-10-08): the read indexes pushed, health 113 calls, the new first load served
+- [x] Live numbers before (test copy at 66586d0, 5 rounds per role, load 3 to 6): first data on a cold load 1.6 to 1.7 s,
+  3 CORS preflights, 557 KB of script; Lighthouse sign-in page mobile 0.74, desktop 0.99; 24 screenshots at 390 px
+- [ ] Live numbers after, the screenshot compare and the font priority test: stopped by the owner (2026-10-08) before
+  they ended; the prototype smoke not run
+- [ ] Production after the owner's words ("deploy to test copy and production", 2026-10-08)
+- [ ] Remove the 7 track worktrees (wf_83aaede9-652-1 to 7) and their branches: needs the owner's OK
 - Not planned (each needs a visible change or more proof): long lists in steps (RND-6), the frame during the token renewal
   (BND-M1), the change number check on a join or a return (BGR-1 step 2, BGR-6), a warm-up call (LIV-7 step 3), 3 overview
   reads in one request (FET-7), shared read transactions (SRV-2), static icons at rest (RND-7), Home without done tasks (FET-M1)
