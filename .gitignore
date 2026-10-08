@@ -18,7 +18,3 @@ supabase/functions/_build/
 secrets/
 .wrangler/
 *.tsbuildinfo
-
-# Team tutorials: the deliverables and their build files (large videos, never in git)
-/tutorials/
-/.tutorials-build/
