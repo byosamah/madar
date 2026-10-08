@@ -30,6 +30,10 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
   the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
   entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
   new mail kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
+- The screens depend on two facts of this path (performance audit FET-3). `http/batch.ts` runs the calls of a request one
+  after the other, and a write clears `batch.office` (`core/runCall.ts`), so a read after a write in the same request sees
+  the write. A change that runs the reads of a request in parallel, or keeps the office copy across a write, lets a screen
+  show an old list after its own save. Adjacent `files.link` entries are the one exception: reads only, side by side.
 - With `after`, the usage meter of `POST /api/batch` also runs after the answer, with the same warning text. A batch with a
   write calls `db.warm('write')` after the token check. Adjacent `files.link` entries run side by side, each with its own
   error, and the answers keep their order. Every other entry runs alone, in order.
@@ -93,4 +97,6 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.
 - The shadow run (`test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
+- `core/writeKinds.test.ts` pins a screen file, `src/app/writeKinds.ts`: it runs every write of `everyCall` on the sample
+  office and the write sweep on the trap office (`data/loaders/sweep.ts`), in memory with `createRunCall`.
 - Integration: `MADAR_IT=1 npx vitest run --project it <files>`, one file at a time, on the full local stack.

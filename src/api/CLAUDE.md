@@ -8,9 +8,12 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `handlers/*.ts`: one file for each area. `handlers/serverFakes.ts`: the prototype fakes of the server-only calls.
 - `calls.ts`: joins the handlers and the fakes. `sharedCalls.ts`: the calls the server runs, without `SERVER_EXCLUDED`.
 - `contract/entities.ts` (records, ids like `prj_`, `tsk_`), `contract/views.ts` (read shapes), `contract/server.ts`
-  (the server-only calls, `PASSWORD_SET_MARK`, file limits).
+  (the server-only calls, `UPLOAD_LIFE_MS`, `FREE_PLAN_LIMITS`), `contract/limits.ts` (the plain limits and marks with no zod:
+  `MAX_FILE_BYTES`, `MAX_SHOT_BYTES`, `MAX_ATTACHMENTS`, `MAX_HELPERS`, `MAX_PREREQUISITES`, `REACTIONS`, `PICTURE_DATA`,
+  `PASSWORD_SET_MARK`). entities.ts and server.ts export these again under the same names.
 - `permissions.ts`: `can(actor, action, resource)`. `execute.ts`: runs a call. `errors.ts`: `ApiError` and its codes.
-- `store.ts`, `persist.ts`: the prototype store in IndexedDB. `remote/`: the client of the real build (batcher, wire, keys). With
+- `store.ts`, `persist.ts`: the prototype store in IndexedDB. `remote/`: the client of the real build (batcher, wire, keys,
+  `follow.ts`: the reads that go after an own write, in a file of its own so the prototype bundle never takes RemoteApi). With
   no session token it sends nothing: the call fails with `unauthenticated`, reason `no_session` (AuthGate ignores that reason).
 
 ## Rules
@@ -23,6 +26,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - A contract change is additive, or it keeps both forms.
 - Handlers stay synchronous and pure. A handler never does network work. Outside work is an effect.
 - The test count only grows, except when the code a test checks is deleted.
+- A screen file of the first load (the shell, Home, the sign-in gate and what they import) takes a plain limit from
+  `contract/limits.ts`, never from entities.ts or server.ts: those load the zod schemas. The bundle check fails a first load
+  that holds `$ZodObject`.
+- A write handler whose signals can name a new kind needs that kind in its `WRITE_KINDS` line (`src/app/writeKinds.ts`).
+  `server/core/writeKinds.test.ts` runs every write of `everyCall` and of the write sweep in memory, and fails on a kind
+  that the line does not hold. A missing kind leaves no old list: the signals still reload that read, one round trip later.
+- The Batcher (`remote/batcher.ts`) places a read with `after` (a read of a follow step) in the request of that write, right
+  after it, while the request has fewer than 12 calls and no second overview call. Else the read goes as any other call, and
+  RemoteApi does not name it as fresh. A read that goes again after a lost answer goes alone and drops `after`.
+- `Store.runIf(fn)` saves and tells the listeners only when fn returns true; on an error it puts the state back, as `run()`
+  does. The prototype minute timer (`startScheduler`, `src/app/bootstrap.ts`) uses it.
 
 ## The project code (owner, 2026-10-05)
 - `lib/projectCode.ts` reads and builds `YYMMSSINI-CLS-Type` (key `YYMMSSINI`, contract `YYMMSS`). Old codes (`KH-26-014`)
@@ -132,8 +146,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
    (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`.
 5. An input in `server/core/everyCall.ts` if the loader sweep does not name it.
 6. Its read kinds in `src/app/readMap.ts` if it is a read.
-7. Words in English and Arabic for every new message.
-8. Raise the pinned call counts: `src/api/calls.test.ts`, `server/core/serverCallMap.test.ts`, `server/http/health.test.ts`,
+7. Its line in `WRITE_KINDS` (`src/app/writeKinds.ts`) if it is a write: the change kinds that its signals can name for the
+   screen of its actor. `server/core/writeKinds.test.ts` fails without the line.
+8. Words in English and Arabic for every new message.
+9. Raise the pinned call counts: `src/api/calls.test.ts`, `server/core/serverCallMap.test.ts`, `server/http/health.test.ts`,
    `server/it/worker.it.test.ts`, and the MCP tool count tests.
 
 ## A new record type

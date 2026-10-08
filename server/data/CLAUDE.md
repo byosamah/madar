@@ -36,8 +36,31 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Every call needs a loader entry in `loaders/`, or a test fails.
 - Office tasks (no project, owner 2026-10-06): `officeTaskConds` (`steps.ts`) is the view rule in SQL. A read with a limit
   loads each kind with its own limit (search), or filters in SQL first (`events.list`: `officeTaskId` of the tasks the
-  person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks for the sweep.
+  person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks and ties at the
+  cut of the newest rows (`newestTies`, in prj_004) for the sweep. `badgeTraps` holds the badge and bell cases: a tie with the
+  own last comment, a helper, a task that an agent made, a hidden notice, a gone task and a report.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
+- Read indexes (performance audit 2026-10-07): `20261007000100_read_indexes.sql` adds the statistics `events_office_task` on
+  `doc->'officeTaskId'` and the indexes `events_created_c`, `events_project_created`, `messages_conversation_newest`,
+  `comments_target_id` and `events_target_id`, then runs analyze. `server/it/readIndexes.it.test.ts` checks that the loader
+  statements use them on growth data. Keep that test green when you change the SQL of a loader read.
+- A Select with `per`, a limit and a top-level in-list on the `per` column reads each key with a LATERAL subquery on the index
+  of that key (`fetch first n rows with ties` for ties, else `limit n`). Every other Select with a limit keeps the `rank()` or
+  `row_number()` window form. Both forms give the same rows in the same order (`sqlSource.ts`, `selectSql`).
+- A field pick (`Select.pick`) builds the doc with `jsonb_build_object` of the picked keys minus the keys that the doc does not
+  hold, so an absent field stays absent. The key names go in one array parameter, never in the SQL text. A pick of more than
+  50 keys keeps `jsonb_each` (Postgres takes at most 100 arguments in a function call).
+- `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
+  hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
+  column joins the bound rows to the table on that column.
+- `referencing` (the Undo check of a create) sends one equality on the text column when the reference path is one plain field
+  with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
+- Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and
+  `THREAD_COMMENT_FIELDS` (`chat.ts`). `notifications.count` reads its targets with `INBOX_TASK_FIELDS` (`inbox.ts`), and posts
+  and reports with the id only. Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
+  `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
+  whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a
+  later `byKey` keeps the picked copy.
 - A Source gives rows that the caller owns (`sqlSource` gets new objects from pg, `memorySource` gives copies), so
   `Load.state()` keeps them with no second copy. The office lists of the State stay copies of the snapshot.
 - Save: `runWrite` takes `before` from `beforeOf` (`loaders/build.ts`). Its office lists are the frozen snapshot lists, and

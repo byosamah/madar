@@ -569,4 +569,4 @@ stands alone without a label or an accessible name.
   enough.
 - **Don't** stack avatars or show more than one picture style in one list.
 - **Don't** put the Madar mark inside a project list, or a project picture in the app frame.
-- **Don't** add a font file or a new font family. The stack stays Thmanyah Sans, then Inter and IBM Plex Sans Arabic.
+- **Don't** add a font file or a new font family. The stack stays Thmanyah Sans, then Inter and IBM Plex Sans Arabic. The digits and the middle dot come from a small subset of the same Inter file (`src/design/inter/`).

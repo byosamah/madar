@@ -92,6 +92,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   script uses `fetch`. A script outside the repo needs the `.mts` ending.
 - A direct Postgres connection (the pooler, port 5432) fails in the sandbox with `ENOTFOUND`: run it with the sandbox off.
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
+- `test:db` tests also time out under a load average far above the core count: check `uptime`, and run the failed files
+  again at a low load before you call a test broken.
 - `test:db` and `test:it` need Docker Desktop running. The sandbox blocks `open -a Docker`: ask the owner to start it.
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
@@ -126,7 +128,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `src/api` never imports `server/` or `src/app/`.
 - Never write to the database outside `runCall`. Handlers stay synchronous and pure. Outside work goes through the outbox.
 - Every shared call works in the prototype fake and on the server. Follow the new-call checklist in `src/api/CLAUDE.md`
-  (loader entry, MCP allow, Admin or deny list, words).
+  (loader entry, MCP allow, Admin or deny list, the `WRITE_KINDS` line of a write, words).
 - A new zod collection needs a table in a migration and an entry in `server/data/tables.ts`.
 - A contract change is additive or keeps both forms. The test count only grows, except when the code a test checks
   is deleted.

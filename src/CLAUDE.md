@@ -11,16 +11,44 @@ any screen work.
 
 ## Two builds from one source
 - `VITE_MADAR_API` (`fake` default, `remote`) is fixed at build time. Use `PROTOTYPE`/`REMOTE` from `app/mode.ts`.
-- `main.tsx` loads only one bootstrap. Its first import is `app/zodConfig.ts` (zod runs jitless, so the CSP holds).
+- `main.tsx` loads only one bootstrap. Its first import is `app/zodConfig.ts` (zod runs jitless, so the CSP holds), and its
+  second is `i18n/firstWords.ts`. `zodConfig.ts` imports only `config` from `zod/v4/core`. Never import `z` from `zod` there:
+  that puts the zod schemas into the first load.
+- The remote build splits each screen into its own chunk (performance audit BND-1). `app/screenLoaders.ts` holds one loader
+  for each screen, and `app/screens.ts` the module cache. A route in `app/routes.tsx` names its screen and never imports a
+  screen file. The frame, the sign-in gate, Home and the error pages stay in the first script. `main.tsx` loads the screens of
+  the first address (plus Sign in when no session is stored) before it makes the router, then the others one at a time at
+  idle. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
+  loader in both `screenLoaders.ts` and `screenLoaders.static.ts` (the prototype takes the plain imports through an alias in
+  `vite.config.ts`, so its one file stays small; `screenLoaders.test.ts` keeps the lists the same).
+- `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk and `@supabase` into a `supabase` chunk
+  (`REMOTE_CHUNKS`), so a release that changes only app code keeps their names in the browser cache. zod stays out of
+  `vendor`. The plugin `earlyLinks` adds the modulepreload, font preload and preconnect links. The prototype gets none.
 - The prototype uses `createHashRouter` (links `#/...`, base `./`, one script file). The remote build uses
   `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
 - The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
-- `scripts/check-bundles.ts`: the remote build holds no sample names. The prototype build holds no "supabase".
+- `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
+  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
+  and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
+  a connection to each Supabase origin. The vendor and supabase chunks import no app chunk. The prototype build holds no
+  "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
+  or `VITE_API_URL` set (`build:remote` sets them). A red "no zod schemas" line: a first-load file imports from
+  `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
 
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.
 - `app/readMap.ts` says which change kinds each read reads. The remote build keeps answers until a change signal names
-  them (`app/signals.ts`, `app/remote/channel.ts`).
+  them (`app/signals.ts`, `app/remote/channel.ts`). An answer that no screen shows stays for an hour (`keepAnswers`,
+  `app/runtime.tsx`). A read of rule scope 'none', `search.query`, and an answer that a change marked go 5 minutes after
+  their last screen closed. Every unseen answer goes when the office day changes.
+- In the real build, `useAction` and `useUndoable` load the active reads that the write will change (`readsAfterWrite`,
+  `app/signals.ts`, from `WRITE_KINDS` in `app/writeKinds.ts`) in the request of the write, right after it (`writeWithReads`,
+  `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads and one overview read go. The
+  own pass of `connectChanges` does not reload a read that answered there. The success steps of the action run after those
+  reads, plus one task. The prototype sends the write alone (performance audit FET-3).
+- A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
+  (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
+  still reloads at once.
 - A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
 - Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
   (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.
@@ -34,6 +62,20 @@ any screen work.
   `languageChanged` event. It does not call `useTranslation`.
 - `usePrefetchCall` (`app/prefetch.ts`) starts a read early under the exact key of `useCall`, in the remote build only.
   Call it in an effect or an event, never in render. A project row prefetches `projects.get` on pointerdown, never on hover.
+- The read lists sit next to the parts that mount them: `taskPanelReads` (`features/project/tasks/TaskSheet.tsx`), `tabReads`
+  (`features/project/tabs.tsx`, next to `TAB_BODY`) and `meetingProjectReads` (`features/dashboard/MeetingProjects.tsx`).
+  `features/project/reads.ts` holds `prefetchReads` and `sessionSeesPayments`: only a cached session with
+  `can(user, 'payment.manage')` prefetches `payments.list`. A change to a `useCall` key in one of these parts changes its list
+  in the same commit; `tabs.test.tsx`, `TaskSheetPrefetch.test.tsx` and `MeetingPrefetch.test.tsx` pin the lists.
+- The Overview tab owns the open Tracker read (`tracker.list {projectId, openOnly: true}`) and gives it to Attention. In the
+  meeting (remote build), `PrefetchNextProject` starts the reads of the next project once no `['api']` read is in flight. The
+  meeting task panel takes its project from the meeting `tasks.list` row, and any `tasks.get` error still closes it.
+- Never write `new Intl.DateTimeFormat`, `Intl.NumberFormat` or `Intl.ListFormat` in a screen. `lib/dates.ts` keeps one
+  formatter for each language and style (`formatDay`, `formatMonth`, `formatMonthYear`, `formatWeekday`, `formatNumber`,
+  `listFormat`, `clockFormat`). `dates.recorded.json` pins every text in English and Arabic.
+- A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles) wraps them in
+  `AgeRefresh.Provider` (`components/Age.tsx`) with a new object on each render, so each `Age` still reads the clock in the
+  same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`).
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
@@ -138,6 +180,15 @@ any screen work.
 - A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
 - Run `npm test` alone. Next to a build or Playwright, screen tests time out.
+- A test helper that makes a router awaits `preloadScreens()` at the top of its module (`test/render.tsx`,
+  `test/heldRemoteApp.tsx`, `features/auth/renderAuth.tsx`). Without it, the first frame is empty and React Router warns
+  about a missing HydrateFallback. `test/setup.ts` gives the words of both languages to the screens (`addWords`).
+- A test with a real-build runtime must not use `vi.runAllTimers`: the midnight timer of `keepAnswers` sets itself again.
+  Use `vi.advanceTimersByTime`. A real-build test that checks the toast or onSuccess of a write waits for it (findBy or
+  waitFor): the success steps come after the reads of the request.
+- `renderHeldRemoteApp` (`test/heldRemoteApp.tsx`) renders the whole app over the sample office as the real build runs it,
+  with no change signals. Its API records each call (`asked`, `callsOf`). `hold`, `release` and `releaseHeld` hold the
+  answers, and `fail` makes chosen calls fail: use it to test which reads start before the first answer.
 - `renderRemoteApp` (`test/renderRemote.tsx`) renders the app with runtime mode remote and the query client of the real
   build. `sent` lists each call in order, and `hold` keeps the calls it picks until `release()`: use it to test the order of
   requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops
