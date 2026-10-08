@@ -388,7 +388,8 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test co
 - [x] The SQL and the migration ran once on an in-memory Postgres 18 (pglite, outside the repo): the producer, the loaders, the save, the effect, the unique endpoint
 - [x] Gates of the merge lead (2026-10-08, Docker on): typecheck; `npm test` 4,550 passed (448 files); `test:db` 1,117 passed (25 skipped); `test:it` 261 passed (33 files, `server/it/push.it.test.ts` included); `test:mcp` 135 passed and the conformance runner exits 0; the prototype, server and remote (test) builds
 - [ ] Not run: the prototype smoke
-- [ ] Not run: screenshots (EN and AR, light and dark, 390 px) of the Settings section: a separate agent does the browser checks
+- [x] Screenshots of the Settings section on the test copy (member sample account, headless Chromium, EN and AR, light and dark, 390 px): the section shows its note (headless Chromium blocks notifications, so no switch), nothing cut off, the page stays 390 px wide, 0 console errors. The switch state itself shows only in a real browser (owner)
+- [x] The blocked note and the iPhone note named "this switch" while no switch showed: now they name "Notify me on this device" and say where to find it (`b716865`; on main, not deployed yet)
 - [ ] Owner: `all.sh test` in his Terminal (it pushes the migration and sends the three secrets); then try it on a device: Settings, Notify me on this device, allow; a second person assigns a task or sends a chat message; an iPhone needs Madar on the Home Screen first
 - [x] Production at bf3fa9f (owner, 2026-10-08, `all.sh production` run by the owner): health 116 calls, page 200, `POST /mcp` with no token 401, `sw.js` 200 with no-cache. Record: proof.md
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
