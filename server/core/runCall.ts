@@ -3,6 +3,7 @@ import { ApiError } from '../../src/api/errors';
 import { executeParsed, resolveAuthority } from '../../src/api/execute';
 import type { State } from '../../src/api/store';
 import { readOffice } from '../data/officeCache';
+import { beforeOf } from '../data/loaders/build';
 import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
@@ -26,7 +27,7 @@ import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './type
  *   4. A read: one repeatable-read, read-only transaction on the read pool, with no lock. The loader reads one snapshot, so a
  *      read never sees half a story.
  *   5. A write: the preflight hook first, outside the lock. Then on the write pool: the office lock, the office, the actor,
- *      the idempotency key, the story, the prepare hook, the loader, a copy of the State, the shared execute step (authority,
+ *      the idempotency key, the story, the prepare hook, the loader, the State before (beforeOf), the shared execute step (authority,
  *      run, output check), the save step, the outbox rows, the key's answer and the change signals, and the commit. Any error
  *      rolls back, so a failed call writes nothing and sends nothing.
  *   6. After the commit: the effects of this call, once, best effort; the 15-minute job retries the rest. On a host with after
@@ -186,7 +187,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const story = await resolveStory(t.stories, req.story, req.batch.storyRefs, actorId, now);
       const prepared = hooks?.prepare ? await hooks.prepare(parsed, { actorId, now, deps, q: t.q }, preflight) : preflight;
       const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: true });
-      const before = structuredClone(state);
+      const before = beforeOf(state, office);
       const { authority } = resolveAuthority(state, actorId, entry.def);
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, story.storyId, now), prepared);
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });

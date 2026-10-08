@@ -8,6 +8,7 @@ import { buildSeed } from '../../src/data/seed';
 import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { runInHost } from './after';
+import { diffState } from '../data/save';
 import { registerOutbox } from './effects';
 import { EXPECTED_REFUSALS, everyCall } from './everyCall';
 import { memoryData, type MemoryData } from './memoryData';
@@ -547,6 +548,43 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
         level: 'warn', message: 'The effects after the commit did not run. The job tries them again.', fields: { name: 'clients.create', error: 'Resend is down' },
       });
     });
+  });
+
+  it('gives the save a before whose office lists are the frozen snapshot, and a copy of the rest (performance audit SRV-8, DB-7)', async () => {
+    const seen: { before: State; after: State; frozenDiff: string; copiedDiff: string }[] = [];
+    const { call, mem } = setup({ wrap: (data) => ({
+      ...data,
+      tx: (mode, work) => data.tx(mode, (t) => work({
+        ...t,
+        save: async (before, after, o) => {
+          // The same Diff as with a deep copy of the State (the form before the audit).
+          const text = (d: ReturnType<typeof diffState>) => JSON.stringify({ ...d, tables: d.tables.map((c) => ({ ...c, spec: c.spec.table })) }, (_k, v) => (v instanceof Set ? [...v].sort() : v));
+          seen.push({ before, after, frozenDiff: text(diffState(before, after)), copiedDiff: text(diffState(structuredClone(before), after)) });
+          return t.save(before, after, o);
+        },
+      })),
+    }) });
+    const task = Object.values(seed.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
+    okOutput(await call(ADMIN, 'tasks.update', { id: task.id, patch: { title: 'Roof plan' } }));
+    okOutput(await call(ADMIN, 'members.update', { projectId: 'prj_001', userId: 'usr_005', discipline: 'Interiors' }));
+    const stages = Object.values(mem.tables.state.stages).filter((stage) => stage.projectId === 'prj_001');
+    okOutput(await call(ADMIN, 'stages.replace', { projectId: 'prj_001', stages: stages.map((stage, i) => ({
+      id: stage.id, name: i === 0 ? 'Concept again' : stage.name, startDate: stage.startDate ?? null, endDate: stage.endDate ?? null,
+    })) }));
+    expect(seen).toHaveLength(3);
+    for (const { before, after, frozenDiff, copiedDiff } of seen) {
+      expect(frozenDiff).toBe(copiedDiff);
+      expect(Object.isFrozen(before.members)).toBe(true);
+      expect(Object.isFrozen(after.members)).toBe(false);
+      expect(before.tasks).not.toBe(after.tasks);
+      expect(() => {
+        (before.users.usr_001 as { name: string }).name = 'No';
+      }).toThrow(TypeError);
+    }
+    expect(seen[0].before.tasks[task.id].title).toBe(task.title);
+    expect(seen[0].after.tasks[task.id].title).toBe('Roof plan');
+    expect(JSON.parse(seen[1].frozenDiff).tables.map((c: { spec: string }) => c.spec)).toContain('members');
+    expect(JSON.parse(seen[2].frozenDiff).tables.map((c: { spec: string }) => c.spec)).toContain('stages');
   });
 
   it('logs how long each write held the office lock', async () => {
