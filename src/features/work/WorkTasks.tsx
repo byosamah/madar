@@ -1,13 +1,14 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type Announcements, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AnimatePresence } from 'motion/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { useCall } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../components/icons/animated/grip-vertical';
@@ -143,16 +144,39 @@ function SortableGroup({ id, title, rows, me, onOpen }: { id: string; title: str
   );
 }
 
+/**
+ * The review group, the date groups and the empty state. It takes only plain props and stable handlers, so a link change that
+ * only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2). "today" comes
+ * from the parent, so a new day still gives new date groups and due words.
+ */
+const WorkBody = memo(function WorkBody({ mine, review, me, today, onOpen }: {
+  mine: TaskRow[]; review: TaskRow[]; me: User | undefined; today: string; onOpen: Open;
+}) {
+  const { t } = useTranslation();
+  // One place for each thing (audit PER-10): a task in my review queue does not show again under its date.
+  const groups = useMemo(() => {
+    const inReview = new Set(review.map((row) => row.task.id));
+    return groupMyTasks(mine.filter((row) => !inReview.has(row.task.id)), today);
+  }, [mine, review, today]);
+  return (
+    <>
+      {review.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review} me={me} onOpen={onOpen} />}
+      {groups.length === 0 && review.length === 0
+        ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
+        : groups.map((group) => <SortableGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={onOpen} />)}
+    </>
+  );
+});
+
 /** My open tasks from all projects and the office, by date, with the leader's review queue first (spec 6.1). */
 export function WorkTasks() {
-  const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const mine = useCall('tasks.list', { filter: 'mine', includeDone: false });
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // One session.get for every group. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
-  const open = (row: TaskRow, thread = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread));
+  const open = useStableHandler((row: TaskRow, thread: boolean = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread)));
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -164,17 +188,11 @@ export function WorkTasks() {
     return <LoadFailed error={mine.error ?? review.error} onRetry={() => { void mine.refetch(); void review.refetch(); }} />;
   }
   if (!mine.data || !review.data) return null;
-  // One place for each thing (audit PER-10): a task in my review queue does not show again under its date.
-  const inReview = new Set(review.data.map((row) => row.task.id));
-  const groups = groupMyTasks(mine.data.filter((row) => !inReview.has(row.task.id)), todayISO());
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (
     <div className="flex flex-col gap-5">
-      {review.data.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review.data} me={me} onOpen={open} />}
-      {groups.length === 0 && review.data.length === 0
-        ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
-        : groups.map((group) => <SortableGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={open} />)}
+      <WorkBody mine={mine.data} review={review.data} me={me} today={todayISO()} onOpen={open} />
       {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );
