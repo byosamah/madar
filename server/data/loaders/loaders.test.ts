@@ -618,6 +618,36 @@ describe('tasks with no lead (owner, 2026-10-05)', () => {
   });
 });
 
+describe('the changes that the Dashboard reads (performance audit DB-5)', () => {
+  it('reads only the changes to in_review of a task in review, with the same answer and review day as the whole office', async () => {
+    const state = office();
+    const leader = state.projects.prj_001.leaderId!;
+    const stageId = state.projects.prj_001.currentStageId;
+    const member = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== leader)!.userId;
+    const day = (d: string) => ({ now: new Date(`${d}T06:00:00Z`) });
+    const task = (apply(state, 'tasks.create', { projectId: 'prj_001', stageId, title: 'Review me', ownerId: member }, leader, day('2026-09-20')) as { task: Task }).task;
+    apply(state, 'tasks.update', { id: task.id, patch: { needsReview: true, title: 'Review me now' } }, leader, day('2026-09-21'));
+    apply(state, 'tasks.move', { id: task.id, status: 'in_progress' }, member, day('2026-09-22'));
+    apply(state, 'tasks.move', { id: task.id, status: 'todo' }, member, day('2026-09-23'));
+    apply(state, 'tasks.complete', { id: task.id }, member, { ...day('2026-09-24'), story: 'cor_sent_first' });
+    // The first send to review is undone, so the review day is the day of the second send.
+    const first = Object.values(state.events).find((e) => e.correlationId === 'cor_sent_first' && e.targetId === task.id)!;
+    apply(state, 'events.undo', { eventId: first.id }, member, day('2026-09-25'));
+    apply(state, 'tasks.update', { id: task.id, patch: { title: 'Review me again' } }, member, day('2026-09-26'));
+    apply(state, 'tasks.complete', { id: task.id }, member, day('2026-09-27'));
+    expect(state.tasks[task.id].status).toBe('in_review');
+
+    for (const actor of [...humans(), 'usr_009']) await same(state, 'dashboard.get', {}, actor);
+    const { loaded } = await runBoth(state, 'dashboard.get', {}, ADMIN, { now: NOW, correlationId: 'cor_test' });
+    const changes = Object.values(state.events).filter((e) => e.targetType === 'task' && e.targetId === task.id);
+    const read = Object.values(loaded.events).filter((e) => e.targetId === task.id);
+    expect(changes.length).toBeGreaterThanOrEqual(7);
+    expect(read.map((e) => e.id).sort()).toEqual(changes.filter((e) => (e.after as { status?: string } | null)?.status === 'in_review').map((e) => e.id).sort());
+    expect(read.length).toBeLessThan(changes.length);
+    expect(read.find((e) => e.id === first.id)?.undoneBy).toBeTruthy();
+  });
+});
+
 describe('the notices of requests and bugs (review 2026-10-07)', () => {
   type View = { notification: Notification; gone: boolean; target: string };
   const reportViews = (run: Run) => (run.outcome.output as View[]).filter((view) => view.notification.targetType === 'feedback');

@@ -60,6 +60,12 @@ export function memorySource(state: State): Source {
       const after = bound.after;
       return at > bound.gt && (bound.ge === undefined || at >= bound.ge) && (after === undefined || at > after.at || (at === after.at && key > after.id));
     }
+    if ('key' in cond) {
+      // doc->'field'->>'key': only an object field has keys, and a JSON null or an absent key gives no text.
+      const outer = doc[cond.field];
+      const value = outer !== null && typeof outer === 'object' && !Array.isArray(outer) ? fieldText((outer as Rec)[cond.key]) : null;
+      return value !== null && cond.in.includes(value);
+    }
     if ('field' in cond) {
       const value = fieldText(doc[cond.field]);
       if ('null' in cond) return value === null;

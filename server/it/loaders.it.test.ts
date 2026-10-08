@@ -177,6 +177,32 @@ describe('the loaders on the local database', () => {
     expect(picked.every((row) => !('notAField' in row.doc))).toBe(true);
   });
 
+  it('matches a key of an object field as the memory form does: absent, null, another value and a match (DB-5)', async () => {
+    const reads: Select[] = [
+      { c: 'events', where: [{ field: 'after', key: 'status', in: ['in_review'] }] },
+      { c: 'events', where: [{ col: 'target_type', in: ['task'] }, { field: 'after', key: 'status', in: ['todo', 'in_progress', 'done'] }] },
+      { c: 'events', where: [{ field: 'before', key: 'status', in: ['todo'] }, { field: 'after', key: 'status', in: ['in_progress'] }] },
+      { c: 'events', where: [{ field: 'after', key: 'noSuchKey', in: ['in_review'] }] },
+    ];
+    // The office holds no change with a null "after" or one of another shape, so the test adds them in a transaction it rolls back.
+    const base = Object.values(office.events).find((e) => e.targetType === 'task')!;
+    const odd = [null, ['in_review'], 'in_review', { status: 3 }, { status: null }].map((after, i) => ({ ...base, id: `evt_99${i}`, seq: 990 + i, after }));
+    const withOdd = { ...office, events: { ...office.events, ...Object.fromEntries(odd.map((e) => [e.id, e])) } } as State;
+    await db.query('begin');
+    try {
+      for (const e of odd) await db.query('insert into events (id, doc) values ($1, $2)', [e.id, JSON.stringify({ ...e, undoneBy: null })]);
+      const sql = sqlSource(q);
+      const memory = memorySource(withOdd);
+      for (const s of [...reads, { c: 'events', where: [{ field: 'after', key: 'status', in: ['3', 'null', 'in_review'] }] } as Select]) {
+        expect(comparable('select', await sql.select(s)), JSON.stringify(s)).toEqual(comparable('select', await memory.select(s)));
+      }
+      expect((await sql.select(reads[0])).length).toBeGreaterThan(0);
+      expect((await sql.select({ c: 'events', where: [{ field: 'after', key: 'status', in: ['3'] }] })).map((row) => row.doc.id)).toEqual(['evt_993']);
+    } finally {
+      await db.query('rollback');
+    }
+  });
+
   it('counts the bytes it reads toward the egress meter', async () => {
     let bytes = 0;
     await sqlSource(q, { bytes: (n) => (bytes += n) }).select({ c: 'tasks', where: [{ col: 'project_id', in: ['prj_001'] }] });

@@ -56,6 +56,7 @@ function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: str
         + `where b.k = ${col(one.bounds.col)} and t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
         + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C})))`;
     }
+    if ('key' in one) return `t.doc->'${fieldName(one.field)}'->>'${fieldName(one.key)}' = any(${param(one.in, 'text[]')})`;
     if ('field' in one) {
       const field = fieldName(one.field);
       if ('null' in one) return `(t.doc->'${field}' is null or t.doc->'${field}' = 'null'::jsonb)`;
