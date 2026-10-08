@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -124,8 +124,10 @@ function goodRemote(): Record<string, string> {
     'assets/vendor-v1.js': 'import"./rolldown-runtime-r1.js";export const a=1;',
     'assets/supabase-s1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const s=1;',
     'assets/bootstrap-b1.js': 'import{s as e}from"./supabase-s1.js";import{t as n}from"./index-abc.js";export const b=1;',
-    // The screens load on demand, so their text is not in the first load.
+    // The screens and the words load on demand, so their text is not in the first load.
     'assets/DashboardScreen-d1.js': `const c="${CHART_MARKER}",z="${ZOD_MARKER}";`,
+    'assets/words.en-w1.js': `export const en={failed:"${WORD_MARKERS.en}"};`,
+    'assets/words.ar-w2.js': `export const ar={failed:"${WORD_MARKERS.ar}"};`,
     'assets/index-c1.css': 'body{}',
     'assets/thmanyahsans-Regular-x1.otf': 'regular',
     'assets/thmanyahsans-Medium-x1.otf': 'medium',
@@ -151,7 +153,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('pass a build that keeps them, and name each rule and its finding', () => {
     const result = checkRemote();
     expect(result.ok, result.text).toBe(true);
-    for (const part of [CHART_MARKER, ZOD_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
+    for (const part of [CHART_MARKER, ZOD_MARKER, 'words of a language', `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
       expect(result.text).toContain(part);
     }
     // index, the runtime, vendor, bootstrap and supabase: the dynamic imports stay out.
@@ -195,6 +197,15 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
     const result = checkRemote((files) => { files['assets/index-abc.js'] += `const z="${ZOD_MARKER}";`; });
     expect(result.ok).toBe(false);
     expect(result.text).toMatch(/FAIL: no zod schemas .*: found in index-abc\.js\./);
+  });
+
+  it('fail when the first load holds the words of either language (BND-7)', () => {
+    const en = checkRemote((files) => { files['assets/index-abc.js'] += `const w="${WORD_MARKERS.en}";`; });
+    expect(en.ok).toBe(false);
+    expect(en.text).toMatch(/FAIL: no words of a language .*: found in index-abc\.js\./);
+    const ar = checkRemote((files) => { files['assets/bootstrap-b1.js'] += `const w="${WORD_MARKERS.ar}";`; });
+    expect(ar.ok).toBe(false);
+    expect(ar.text).toMatch(/FAIL: no words of a language .*: found in bootstrap-b1\.js\./);
   });
 
   it('fail when index.html does not start the bootstrap chunk, or one of its imports (BND-2)', () => {
@@ -253,6 +264,13 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
     const gone = checkRemote((files) => { delete files['assets/vendor-v1.js']; });
     expect(gone.ok).toBe(false);
     expect(gone.text).toContain('FAIL: one vendor chunk: assets/ holds 0.');
+  });
+
+  it('search for words that the word files really hold (routeError.failed)', () => {
+    const en = JSON.parse(readFileSync(new URL('../src/i18n/en.json', import.meta.url), 'utf8')) as { routeError: { failed: string } };
+    const ar = JSON.parse(readFileSync(new URL('../src/i18n/ar.json', import.meta.url), 'utf8')) as { routeError: { failed: string } };
+    expect(en.routeError.failed).toBe(WORD_MARKERS.en);
+    expect(ar.routeError.failed).toBe(WORD_MARKERS.ar);
   });
 });
 

@@ -1,4 +1,5 @@
 import './app/zodConfig';
+import './i18n/firstWords';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
@@ -17,7 +18,8 @@ import { createAppRouter, screensAt } from './app/routes';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
 import { ToastProvider } from './app/toasts';
-import { applyLanguage, initI18n } from './i18n';
+import { applyLanguage, initI18n, loadWords } from './i18n';
+import { browserLanguage } from './i18n/firstLanguage';
 
 /**
  * The runtime of this build (client map 8). The flag is fixed at build time, so each build keeps only its own branch: the
@@ -27,7 +29,7 @@ import { applyLanguage, initI18n } from './i18n';
 async function start(): Promise<{ runtime: Runtime; language: Language }> {
   // The flag itself, not REMOTE from mode.ts: the bundler folds this comparison and drops the other branch with its chunk.
   if (import.meta.env.VITE_MADAR_API === 'remote') {
-    const { bootstrapRemote, browserLanguage } = await import('./app/remote/bootstrap');
+    const { bootstrapRemote } = await import('./app/remote/bootstrap');
     // The first screen opens in the saved language, else the browser's. AppearanceSync applies the person's own after the session.
     return { runtime: await bootstrapRemote(), language: browserLanguage() };
   }
@@ -64,6 +66,9 @@ async function main(): Promise<void> {
   const [{ runtime, language }] = await Promise.all([start(), REMOTE ? warmFirstScreens(pathname) : preloadScreens()]);
   // A stored session that did not renew sends the person to Sign in, so that screen loads before the first frame too.
   if (REMOTE && runtime.auth?.status() === 'signed_out' && screensAt(pathname).gated) await loadScreen('signIn').catch(() => undefined);
+  // The words of one language (performance audit BND-7). The remote build started this load with the first script
+  // (i18n/firstWords.ts), and the prototype holds its words in its one script file.
+  await loadWords(language);
   initI18n(language);
   applyLanguage(document.documentElement, language);
   createRoot(document.getElementById('root')!).render(
@@ -78,6 +83,8 @@ async function main(): Promise<void> {
       </RuntimeProvider>
     </StrictMode>,
   );
+  // The other language loads right after the first render, so a language switch almost never waits for its words.
+  void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
   // The other screens load one at a time at idle, so a later screen change waits for no chunk (remote build only).
   if (REMOTE) prefetchScreens();
 }

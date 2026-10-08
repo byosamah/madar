@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ar, en } from '../../../i18n';
+import { ar, en } from '../../../i18n/trees';
 import { ADMIN_GROUPS, ADMIN_SECTIONS, groupsFor, sectionsFor } from './sections';
 
 const word = (tree: object, key: string) => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], tree);

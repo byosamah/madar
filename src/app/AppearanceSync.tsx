@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useCall } from './runtime';
 import { useAuth } from '../features/auth/useAuth';
 import { applyAppearance, deviceTheme, ENV_QUERIES, readEnvironment, resolveAppearance, saveDeviceTheme } from './appearance';
-import { applyLanguage, initI18n } from '../i18n';
+import { applyLanguage, initI18n, withWords } from '../i18n';
 
 /**
  * Applies the current user's language, theme and glass to the page, and follows device setting changes. With no session (the
@@ -31,8 +31,12 @@ export function AppearanceSync() {
     applyAppearance(root, resolveAppearance(prefs ?? { theme: deviceTheme(), glass: 'frosted' }, env));
     if (!prefs) return;
     saveDeviceTheme(prefs.theme);
-    applyLanguage(root, prefs.language);
-    initI18n(prefs.language);
+    // The direction and the words change together, once the words of that language are there (performance audit BND-7).
+    const language = prefs.language;
+    return withWords(language, () => {
+      applyLanguage(root, language);
+      initI18n(language);
+    });
   }, [prefs, env]);
 
   return null;
