@@ -189,8 +189,8 @@ export function officeWrites(office: State): SweepCall[] {
   ];
 }
 
-function apply(state: State, name: SharedCallName, input: unknown, actorId: string, story: string, prepared?: unknown): unknown {
-  const outcome = runOn(state, name, sharedCalls[name].input.parse(input), actorId, { now: NOW, correlationId: story, prepared });
+function apply(state: State, name: SharedCallName, input: unknown, actorId: string, story: string, prepared?: unknown, now = NOW): unknown {
+  const outcome = runOn(state, name, sharedCalls[name].input.parse(input), actorId, { now, correlationId: story, prepared });
   if (outcome.error) throw new Error(`Setup ${name} failed: ${outcome.error.message}`);
   return outcome.output;
 }
@@ -215,13 +215,36 @@ function officeTraps(state: State): void {
   apply(state, 'tasks.create', { title: 'Order paper for the licence', dueDate: '2026-10-02' }, 'usr_006', 'cor_trap_office_paper');
 }
 
+/** The project of the ties of newestTies. */
+export const TIE_PROJECT = 'prj_004';
+
+/**
+ * Ties for the reads of the newest rows of each key (performance audit DB-2). In TIE_PROJECT: one feed event, then two feed events
+ * of one stamp just before it, so a feed of 2 keeps 3 events; and two messages of one stamp at the top of its chat, so the id
+ * decides which one is the newest.
+ */
+function newestTies(state: State): void {
+  const [first, second, last] = Object.values(state.tasks).filter((t) => t.projectId === TIE_PROJECT && t.status === 'todo');
+  const tied = new Date('2026-10-04T07:00:00Z');
+  apply(state, 'tasks.move', { id: first.id, status: 'in_progress' }, ADMIN, 'cor_trap_tie_1', undefined, tied);
+  apply(state, 'tasks.move', { id: second.id, status: 'in_progress' }, ADMIN, 'cor_trap_tie_2', undefined, tied);
+  apply(state, 'tasks.move', { id: last.id, status: 'in_progress' }, ADMIN, 'cor_trap_tie_3', undefined, new Date('2026-10-04T07:30:00Z'));
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === TIE_PROJECT)!;
+  const leader = state.projects[TIE_PROJECT].leaderId!;
+  for (const id of ['msg_904', 'msg_903']) {
+    state.messages[id] = { id, conversationId: room.id, authorId: leader, actingForId: leader, body: id, mentions: [], fileIds: [], createdAt: '2026-10-04T10:45:00.000+03:00', editedAt: null };
+  }
+}
+
 /**
  * The sample office with records that the reads of the loaders must find: office tasks, an undo pair, a helper and a flag, a
- * decision, a direct message with a project file, two messages with the same stamp, and a task thread with a read mark.
+ * decision, a direct message with a project file, two messages with the same stamp, a task thread with a read mark, and ties at
+ * the cut of the newest rows.
  */
 export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
   officeTraps(state);
+  newestTies(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
   apply(state, 'tasks.update', { id: task.id, patch: { title: 'Undone title' } }, leader, 'cor_trap_edit');

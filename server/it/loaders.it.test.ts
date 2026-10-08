@@ -1,13 +1,15 @@
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
+import { FEED_VERBS } from '../../src/api/views';
 import { buildSeed } from '../../src/data/seed';
 import type { Query } from '../core/ports';
 import { runBoth } from '../data/loaders/compare';
 import { memorySource } from '../data/loaders/memorySource';
+import type { Select } from '../data/loaders/query';
 import type { Source } from '../data/loaders/source';
-import { sqlSource } from '../data/loaders/sqlSource';
-import { readSweep, trapOffice, writeSweep } from '../data/loaders/sweep';
+import { selectSql, sqlSource } from '../data/loaders/sqlSource';
+import { readSweep, TIE_PROJECT, trapOffice, writeSweep } from '../data/loaders/sweep';
 import { writeState } from '../data/whole';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
@@ -118,6 +120,61 @@ describe('the loaders on the local database', () => {
       expect(Object.keys(fromSql as object).length).toBeGreaterThan(0);
     }
     expect((await sql.countWhere(counts[0])).get(thread)).toBe(1);
+  });
+
+  it('reads the newest rows of each key as the memory form does: a tie at the cut, a repeated key, two newest of one stamp (DB-2)', async () => {
+    const room = Object.values(office.conversations).find((c) => c.kind === 'project' && c.projectId === TIE_PROJECT)!.id;
+    const feed = (projects: string[]): Select => ({
+      c: 'events', where: [{ col: 'project_id', in: projects }, { col: 'verb', in: [...FEED_VERBS] }, { notUndone: true }],
+      order: { col: 'created_at', desc: true }, per: 'project_id', limit: 2, ties: true,
+    });
+    const newest = (chats: string[]): Select => ({
+      c: 'messages', where: [{ col: 'conversation_id', in: chats }], order: { col: 'created_at', desc: true, id: true }, per: 'conversation_id', limit: 1,
+    });
+    const reads: Select[] = [
+      feed([TIE_PROJECT]),
+      feed([TIE_PROJECT, 'prj_001', TIE_PROJECT]),
+      { ...feed(Object.keys(office.projects)), limit: 1 },
+      { c: 'updates', where: [{ col: 'project_id', in: Object.keys(office.projects) }], order: { col: 'created_at', desc: true }, per: 'project_id', limit: 1, ties: true },
+      newest([room, 'cnv_001', room]),
+      newest(Object.keys(office.conversations)),
+      { c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: [...new Set(Object.values(office.comments).map((c) => c.targetId))] }], order: { col: 'created_at', desc: true, id: true }, per: 'target_id', limit: 1 },
+      { c: 'tasks', where: [{ col: 'project_id', in: ['prj_001', 'prj_004'] }], order: { col: 'status', desc: true, id: true }, per: 'project_id', limit: 2, pick: ['id', 'dueDate'] },
+    ];
+    const sql = sqlSource(q);
+    const memory = memorySource(office);
+    for (const s of reads) {
+      expect(selectSql(s).text, JSON.stringify(s)).toContain('cross join lateral');
+      expect(comparable('select', await sql.select(s)), JSON.stringify(s)).toEqual(comparable('select', await memory.select(s)));
+    }
+    // The ties are real: the feed of 2 keeps 3 events, and the newest message is the one with the later id.
+    expect(await sql.select(feed([TIE_PROJECT]))).toHaveLength(3);
+    expect((await sql.select(newest([room]))).map((row) => row.doc.id)).toEqual(['msg_904']);
+  });
+
+  it('picks the fields of a read as the memory form does: an absent field stays absent, a JSON null stays null (DB-4)', async () => {
+    const pick = ['id', 'prerequisiteIds', 'completedAt', 'helperIds', 'title', 'notAField'];
+    const all = Object.keys(office.tasks);
+    const reads: Select[] = [
+      { c: 'tasks', where: [{ col: 'id', in: all }], pick },
+      { c: 'tasks', where: [{ col: 'id', in: all }], pick: ['id'] },
+      { c: 'tasks', where: [{ col: 'id', in: all }], pick: [] },
+      { c: 'tasks', where: [{ col: 'project_id', in: ['prj_001'] }], order: { col: 'status', desc: true, id: true }, per: 'project_id', limit: 3, pick },
+    ];
+    const sql = sqlSource(q);
+    const memory = memorySource(office);
+    for (const s of reads) {
+      const fromSql = await sql.select(s);
+      const fromMemory = JSON.parse(JSON.stringify(await memory.select(s))) as typeof fromSql;
+      expect(fromSql, JSON.stringify(s)).toEqual(fromMemory);
+      expect(fromSql.map((row) => Object.keys(row.doc).sort()), JSON.stringify(s)).toEqual(fromMemory.map((row) => Object.keys(row.doc).sort()));
+    }
+    // The office holds each case: a task without prerequisiteIds, one that is not done (completedAt null), and none with notAField.
+    const picked = await sql.select(reads[0]);
+    expect(picked.some((row) => !('prerequisiteIds' in row.doc))).toBe(true);
+    expect(picked.some((row) => 'prerequisiteIds' in row.doc)).toBe(true);
+    expect(picked.some((row) => row.doc.completedAt === null)).toBe(true);
+    expect(picked.every((row) => !('notAField' in row.doc))).toBe(true);
   });
 
   it('counts the bytes it reads toward the egress meter', async () => {

@@ -13,9 +13,21 @@ import type { Source } from './source';
 
 const C = 'collate "C"';
 const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(rows)).length;
+const HOUR = 3_600_000;
 
-/** The table and the where clause of a Select or a count: $1 and up are its values. */
-function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: string) => string; where: string } {
+/**
+ * A text lower bound for a stamp at or after this time, so the index on created_at (collate "C") serves the read (performance
+ * audit DB-1): the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time minus 36 hours. Every stored stamp is ISO text with an offset
+ * between -12:00 and +14:00, so its text is at or after the UTC text of (its time minus 12 hours), and the bound never leaves out
+ * a row that the time test keeps. Null for a time that does not parse: the time test alone decides.
+ */
+function textBoundOf(time: string): string | null {
+  const back = new Date(Date.parse(time) - 36 * HOUR);
+  return Number.isNaN(back.getTime()) ? null : back.toISOString().slice(0, 19);
+}
+
+/** The table and the where clause of a Select or a count: $1 and up are its values. "conds" holds each condition alone. */
+function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: string) => string; conds: string[]; where: string } {
   const param = (value: unknown, type: string) => {
     values.push(value);
     return `$${values.length}::${type}`;
@@ -56,10 +68,38 @@ function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: str
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
     if ('contains' in one) return `strpos(${column}, ${param(one.contains, 'text')}) > 0`;
-    return `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
+    const time = `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
+    const bound = textBoundOf(one.atOrAfter);
+    return bound === null ? time : `(${time} and ${column} ${C} >= ${param(bound, 'text')})`;
   }
 
-  return { col, where: s.where.length > 0 ? ` where ${s.where.map(cond).join(' and ')}` : '' };
+  const conds = s.where.map(cond);
+  return { col, conds, where: conds.length > 0 ? ` where ${conds.join(' and ')}` : '' };
+}
+
+/** jsonb_build_object takes at most 100 arguments, so a pick of more fields reads them with jsonb_each. */
+const PICK_BUILD_MAX = 50;
+
+/**
+ * The doc of a read that takes only some fields (performance audit DB-4): jsonb_build_object of the picked keys, minus the keys
+ * that the doc does not hold, so an absent field stays absent and a JSON null stays null. jsonb keeps its keys in its own order,
+ * so the doc is the one that jsonb_each and jsonb_object_agg give, at a fraction of the cost. The names stay in one array
+ * parameter and never go into the SQL text.
+ */
+function pickSql(pick: readonly string[], param: (value: unknown, type: string) => string): string {
+  if (pick.length === 0) return `'{}'::jsonb`;
+  const keys = param(pick, 'text[]');
+  if (pick.length > PICK_BUILD_MAX) return `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${keys}))`;
+  const key = (i: number) => `(${keys})[${i + 1}]`;
+  const pairs = pick.map((_, i) => `${key(i)}, t.doc->(${key(i)})`).join(', ');
+  const absent = pick.map((_, i) => `case when t.doc ? ${key(i)} then null else ${key(i)} end`).join(', ');
+  return `(jsonb_build_object(${pairs}) - array_remove(array[${absent}], null))`;
+}
+
+/** The in-list condition of a Select on its "per" column, at the top level: the keys whose newest rows it reads. */
+function perListOf(s: Select): { col: string; in: readonly string[] } | undefined {
+  if (s.limit === undefined || !s.per) return undefined;
+  return s.where.find((one): one is { col: string; in: readonly string[] } => 'col' in one && one.col === s.per && 'in' in one);
 }
 
 /** The SQL of one Select: $1 and up are its values. */
@@ -69,11 +109,14 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
     values.push(value);
     return `$${values.length}::${type}`;
   };
-  const { col, where } = whereSql(s, values);
   const table = tableOf(s.c).table;
-  const doc = s.pick
-    ? `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${param(s.pick, 'text[]')}))`
-    : 't.doc';
+  // The newest rows of each key of an in-list (performance audit DB-2): one read on the index of each key, never a window over
+  // every row of the keys. rank() <= N keeps the same rows as FETCH FIRST N ROWS WITH TIES in the same order, and row_number()
+  // <= N the same rows as LIMIT N, because that order ends with t.ord and is total. DISTINCT reads a repeated key once.
+  const perList = perListOf(s);
+  const keys = perList ? param(perList.in, columnOf(s.c, perList.col).type === 'int' ? 'int[]' : 'text[]') : '';
+  const { col, conds, where } = whereSql(perList ? { ...s, where: s.where.filter((one) => one !== perList) } : s, values);
+  const doc = s.pick ? pickSql(s.pick, param) : 't.doc';
   if (s.limit === undefined) return { text: `select t.ord, ${doc} as doc from ${table} t${where} order by t.ord`, values };
 
   const order = s.order;
@@ -81,9 +124,18 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
   const ordering = order
     ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} desc`, ...(order.id ? [`t.id ${C} desc`] : []), ...(s.ties ? [] : ['t.ord desc'])].join(', ')
     : 't.ord';
+  const limit = param(s.limit, 'int');
+  if (perList) {
+    const inner = [`${col(perList.col)} = p.k`, ...conds].join(' and ');
+    const cut = s.ties ? `fetch first (${limit}) rows with ties` : `limit ${limit}`;
+    return {
+      text: `select x.ord, x.doc from (select distinct k from unnest(${keys}) as k) p cross join lateral `
+        + `(select t.ord, ${doc} as doc from ${table} t where ${inner} order by ${ordering} ${cut}) x order by x.ord`,
+      values,
+    };
+  }
   const partition = s.per ? `partition by ${col(s.per)} ` : '';
   const rank = `${s.ties ? 'rank' : 'row_number'}() over (${partition}order by ${ordering})`;
-  const limit = param(s.limit, 'int');
   return {
     text: `select ord, doc from (select t.ord, ${doc} as doc, ${rank} as r from ${table} t${where}) x where r <= ${limit} order by ord`,
     values,
