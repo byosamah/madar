@@ -47,6 +47,8 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
     expect(await within(section).findByText('Let me export the schedule.')).toBeInTheDocument();
     await userEvent.click(within(section).getByRole('button', { name: 'Mark done' }));
+    // A done report moves to the Done tab.
+    await userEvent.click(await within(section).findByRole('radio', { name: /^Done/ }));
     expect(await within(section).findByRole('button', { name: 'Open again' })).toBeInTheDocument();
   });
 

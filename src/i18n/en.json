@@ -1364,7 +1364,10 @@
     "none": "No requests or bug reports yet.",
     "done": "Done",
     "markDone": "Mark done",
-    "reopen": "Open again"
+    "reopen": "Open again",
+    "waiting": "Waiting",
+    "noneWaiting": "Nothing is waiting.",
+    "noneDone": "Nothing is done yet."
   },
   "teams": {
     "title": "Teams",

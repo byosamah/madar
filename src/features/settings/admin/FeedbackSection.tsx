@@ -12,6 +12,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { Sheet } from '../../../components/Sheet';
 import { isAppPath } from '../../../api/handlers/feedback';
+import { SegmentedControl } from '../../../components/SegmentedControl';
 import { StatusSign } from '../../../components/StatusSign';
 
 /**
@@ -55,17 +56,24 @@ function Screenshot({ id, index }: { id: string; index: number }) {
   );
 }
 
-/** The feature requests and bug reports from the person menu, for the Admin (owner, 2026-10-01). Open ones come first. */
+/**
+ * The feature requests and bug reports from the person menu, for the Admin (owner, 2026-10-01). Two tabs (owner, 2026-10-08):
+ * Waiting, the open ones, is the first tab; Done holds the reports marked done.
+ */
 export function FeedbackSection() {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const [tab, setTab] = useState<'waiting' | 'done'>('waiting');
   const list = useCall('feedback.list', {});
   // Mark done sends the sender a notice, so it offers Undo (rule B20). Open again stays a plain action.
   const markDone = useUndoable('feedback.setStatus', { message: () => t('feedback.markedDone') });
   const reopen = useAction('feedback.setStatus');
   const busy = markDone.isPending || reopen.isPending;
   const rows = list.data ?? [];
-  const open = rows.filter((row) => row.item.status === 'new').length;
+  const waitingRows = rows.filter((row) => row.item.status !== 'done');
+  const doneRows = rows.filter((row) => row.item.status === 'done');
+  const shown = tab === 'done' ? doneRows : waitingRows;
+  const open = waitingRows.length;
   return (
     <section aria-labelledby="admin-feedback" className="surface flex flex-col gap-3 rounded-card p-5">
       <h2 id="admin-feedback" className="flex items-center gap-2 text-headline">
@@ -73,8 +81,20 @@ export function FeedbackSection() {
         {open > 0 && <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{open}</span>}
       </h2>
       {list.data && rows.length === 0 && <p className="text-subheadline text-ink-2">{t('feedback.none')}</p>}
+      {rows.length > 0 && (
+        <SegmentedControl
+          label={t('feedback.adminTitle')}
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'waiting', label: `${t('feedback.waiting')} (${waitingRows.length})` },
+            { value: 'done', label: `${t('feedback.done')} (${doneRows.length})` },
+          ]}
+        />
+      )}
+      {rows.length > 0 && shown.length === 0 && <p className="text-subheadline text-ink-2">{t(tab === 'done' ? 'feedback.noneDone' : 'feedback.noneWaiting')}</p>}
       <ul className="hairline flex flex-col">
-        {rows.map(({ item, sender }) => {
+        {shown.map(({ item, sender }) => {
           const done = item.status === 'done';
           return (
             <li key={item.id} className="flex flex-col gap-2 py-3">

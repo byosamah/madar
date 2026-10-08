@@ -194,11 +194,14 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
     await userEvent.click(await within(section).findByRole('button', { name: 'Mark done' }));
     expect(await screen.findByText('Marked done.')).toBeInTheDocument();
+    // A done report moves from the Waiting tab to the Done tab.
+    await userEvent.click(within(section).getByRole('radio', { name: /^Done/ }));
     expect(await within(section).findByRole('button', { name: 'Open again' })).toBeInTheDocument();
     expect(store.state.feedback?.fbk_001.status).toBe('done');
     // The sender gets the done notice (rule B4), and the Undo takes it back (rule B15).
     expect(doneNotices().map((n) => n.userId)).toEqual(['usr_003']);
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await userEvent.click(within(section).getByRole('radio', { name: /^Waiting/ }));
     expect(await within(section).findByRole('button', { name: 'Mark done' })).toBeInTheDocument();
     expect(store.state.feedback?.fbk_001.status).toBe('new');
     await waitFor(() => expect(doneNotices()).toEqual([]));
@@ -223,8 +226,27 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
       state.feedback = { fbk_001: { ...REPORT, screenshots: [], status: 'done', doneBy: 'usr_001', doneAt: '2026-09-29T10:00:00.000+03:00' } };
     });
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    await userEvent.click(await within(section).findByRole('radio', { name: /^Done/ }));
     await userEvent.click(await within(section).findByRole('button', { name: 'Open again' }));
+    // The report is open again, so it moves to the Waiting tab.
+    await userEvent.click(within(section).getByRole('radio', { name: /^Waiting/ }));
     expect(await within(section).findByRole('button', { name: 'Mark done' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('shows the waiting reports on the Waiting tab, and the done reports only on the Done tab', async () => {
+    await renderApp('/admin/feedback', (state) => {
+      state.feedback = {
+        fbk_001: { ...REPORT, screenshots: [] },
+        fbk_002: { ...REPORT, id: 'fbk_002', message: 'Already fixed in the last release.', screenshots: [], status: 'done', doneBy: 'usr_001', doneAt: '2026-09-29T10:00:00.000+03:00' },
+      };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    expect(await within(section).findByRole('radio', { name: 'Waiting (1)' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(section).getByText('The board does not scroll on my phone.')).toBeInTheDocument();
+    expect(within(section).queryByText('Already fixed in the last release.')).toBeNull();
+    await userEvent.click(within(section).getByRole('radio', { name: 'Done (1)' }));
+    expect(within(section).getByText('Already fixed in the last release.')).toBeInTheDocument();
+    expect(within(section).queryByText('The board does not scroll on my phone.')).toBeNull();
   });
 });
