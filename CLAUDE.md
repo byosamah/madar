@@ -101,6 +101,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run test:mcp` - MCP tests plus the conformance runner. `npm run icons` - the app icons.
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
+- Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
 - Last counts: unit+server 4,106 passed; test:db 1,063; test:it 241; prototype smoke 87 of 87.
 
@@ -157,6 +158,12 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
+- A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
+  starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
+  (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).
+- Ask each builder to write its report to a file in its worktree before it returns it, so a dropped last call loses nothing.
+- A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
+- Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
 - `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link, so the folder behind
   the link lacks the new package. The main folder follows its own branch: after a new package, give `deploy-test` its own
   folder (`rm node_modules` removes only the link, then `npm install` there) before `all.sh` (2026-10-07).

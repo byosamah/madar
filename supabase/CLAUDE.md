@@ -38,7 +38,8 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - `npx supabase start -x edge-runtime` for database work. Ports: API 54321, Postgres 54322, Mailpit 54324.
 - `supabase status -o env` has no API_URL: the API is `http://127.0.0.1:54321`.
 - Every Docker or database task takes the lock first: `scripts/dev/docker-lock.sh run <holder> -- <cmd>` (or `acquire`
-  and `release` for long work, `status`). Only one local stack at a time (16 GB Mac).
+  and `release` for long work, `status`). An `acquire` lock is stale after 3 hours: on a longer run, `release <holder>`,
+  then `acquire <holder>` (sandbox off). Only one local stack at a time (16 GB Mac).
 - Never run a shared `supabase functions serve` next to `test:mcp` or `test:it`. They serve their own functions.
 
 ## Hosted projects
