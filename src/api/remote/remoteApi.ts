@@ -19,8 +19,6 @@ export const REQUEST_TIMEOUT_MS = 20_000;
 export type RemoteApiOptions<M extends CallMap> = {
   /** The api function, for example https://<ref>.supabase.co/functions/v1/api (VITE_API_URL). */
   url: string;
-  /** The batch address when it is not `${url}/batch`: /api/batch, the same-host forwarder (VITE_BATCH_URL, performance audit FET-10). */
-  batchUrl?: string;
   /** The build ID of the screens, sent as X-Madar-Build. The server answers 409 client_outdated to an old build. */
   build: string;
   /** The access token of the person, or null when signed out. */
@@ -95,7 +93,7 @@ function placeholder(): string {
 export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<M> {
   const now = o.now ?? Date.now;
   const timeoutMs = o.timeoutMs ?? REQUEST_TIMEOUT_MS;
-  const batchUrl = regionUrl(o.batchUrl ?? `${o.url.replace(/\/+$/, '')}/batch`);
+  const batchUrl = regionUrl(`${o.url.replace(/\/+$/, '')}/batch`);
   const doFetch = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const stories = new StoryMap({ now });
   // The follow step (FET-3): the writes that write() puts on the wire, then the write that the reads of reads() follow.
