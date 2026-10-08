@@ -37,6 +37,18 @@ any screen work.
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.
 
+## Browser push in the screens (owner, 2026-10-08)
+- Real build only. `app/remote/push.ts` (no React, no zod): the state of the switch (`statusOf`), `turnOn`, `turnOff`, the check at the
+  start (`syncThisDevice`, run by `app/remote/PushSync.tsx` in the shell) and `removeThisDevice` (the sign-out step in
+  `features/auth/signOut.ts`, 4 s at most). Settings has `features/settings/PushSection.tsx`: one switch, "Notify me on this device",
+  and a plain note, with no switch, where the browser cannot push (not supported, add Madar to the Home Screen first, blocked, not set up).
+- The permission question starts inside the click, before any wait (Safari refuses it otherwise): `turnOn` calls
+  `Notification.requestPermission()` first. `src/test/pushBrowser.ts` makes a browser for the tests.
+- `public/sw.js` is plain JavaScript with no build step. The prototype build never registers it and `workerOnlyInRemote`
+  (`vite.config.ts`) drops the file from its dist; `check-bundles.ts` fails a prototype with it and a remote build without it.
+- The public VAPID key comes from `VITE_VAPID_PUBLIC_KEY` (`config/remote.<env>.env`). Without it the section says push is not set up.
+- A sign-out unsubscribes the browser, so the next person on it must turn push on again.
+
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.
 - `app/readMap.ts` says which change kinds each read reads. The remote build keeps answers until a change signal names

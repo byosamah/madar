@@ -13,6 +13,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `PASSWORD_SET_MARK`, `DEFAULT_STALE_DAYS`). entities.ts and server.ts export these again under the same names.
 - `rowKeys.ts`: `memberKey` and `chatReadKey` (store.ts exports them again). `permissions.ts` and `store.ts` take no value
   from the schema files: `can()` is in the first load of the real build (`limits.test.ts` checks it).
+- `contract/push.ts`: the plain limits and the endpoint rule of browser push (`isPushEndpoint`, `PUSH_HOSTS`), with no zod.
 - `permissions.ts`: `can(actor, action, resource)`. `execute.ts`: runs a call. `errors.ts`: `ApiError` and its codes.
 - `store.ts`, `persist.ts`: the prototype store in IndexedDB. `remote/`: the client of the real build (batcher, wire, keys,
   `follow.ts`: the reads that go after an own write, in a file of its own so the prototype bundle never takes RemoteApi). With
@@ -138,6 +139,19 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   notice of a former or inactive Admin, and it must not show again later. So the Inbox loader loads the report row of each
   notice (`server/data/loaders/inbox.ts`). `readMap.ts` needs no `feedback` kind: that answer never changes on a report change.
 - Both triggers count on the bell (`ACTION_TRIGGERS`). A done notice has the link `''`: its row only marks it read.
+
+## Browser push devices (owner, 2026-10-08)
+- `PushDevice` (`pdv_`): `userId`, `endpoint`, `label`, `createdAt`, `lastPushAt`. `State.pushDevices` is optional (`pushDevicesOf`), so
+  there is no `STATE_VERSION` step. It is private to its person: nobody else reads it, the Admin included.
+- `push.register {endpoint, label}`, `push.remove {endpoint}`, `push.mine {}` (the own devices: id, label, endpoint, createdAt). Only a
+  person, for the person: an agent gets `forbidden`, and all three are on the MCP deny list. They write NO event and NO History
+  row, and the save sends NO change signal for a device. `WRITE_KINDS` is `[]` for both writes and `push.mine` is `rule('none', [])`,
+  so the Settings switch reads the browser first and asks `push.mine` itself.
+- One row for each endpoint. A register of an endpoint that another person holds MOVES it to the current person (a shared browser;
+  `lastPushAt` starts again). A person keeps 10 devices at most; the oldest goes. `push.remove` of an endpoint that is not the
+  own answers `removed: false`, as for a missing one.
+- The endpoint must be the https address of a known push service (`isPushEndpoint`): the server posts to it, so a free address
+  would let a person aim the server at any host. See `server/push/CLAUDE.md`.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

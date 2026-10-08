@@ -32,6 +32,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 | Deploy | `scripts/deploy/CLAUDE.md` | all.sh, production rules, Cloudflare, DNS, first Admin |
 | Browser tests | `tests/CLAUDE.md` | prototype smoke, deploy suite, its env and guards |
 | CI and backups | `.github/CLAUDE.md` | workflows, their secrets, backups |
+| Browser push | `server/push/CLAUDE.md` | the empty push, VAPID, who gets one, devices, keys, the service worker |
 | Pages Functions | `functions/CLAUDE.md` | the /mcp forwarder on Cloudflare Pages |
 
 **Keep the guides true.** When you learn a fact about one part, write it in that part's guide, not here. When a change
@@ -122,7 +123,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Contract (`src/api/`): every call is a zod-checked `defineCall`. The prototype runs it in the browser. The server runs
   the same handler.
 - Server (`server/`): one Hono app on Supabase Edge Functions (Deno, Frankfurt), with a Workers fallback.
-- Data: Supabase Postgres, Auth, Realtime and Storage (Free plans). Email: Resend. AI agents: MCP at /mcp.
+- Data: Supabase Postgres, Auth, Realtime and Storage (Free plans). Email: Resend. Browser push: Web Push, free (`server/push/`).
+  AI agents: MCP at /mcp.
 - A screen calls `api.call(name, input)`. The remote build sends it to `POST /api/batch`. The server runs it in `runCall`
   under the office lock, saves the difference, and sends a change signal on Realtime.
 
@@ -194,8 +196,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   in the prototype; the Inbox count includes task threads.
 - 2026-10-03 stack: all free plans. Supabase (Frankfurt; the owner confirmed client data may live there), Edge
   Functions, Cloudflare Pages, Supabase Storage first, Resend, Workers paid as the fallback. No Vercel, no Railway.
-  Sign-in with email and password. Start empty. AI agents (MCP) in version 1. No phone push; a mobile app comes later
-  on the same API.
+  Sign-in with email and password. Start empty. AI agents (MCP) in version 1. A mobile app comes later on the same API.
+  ("No phone push" held until 2026-10-08, see the browser push decision below.)
 - 2026-10-04: logo "Turning doors"; the mark at the top start of every screen; "Invited" until the first password.
 - 2026-10-05: production on madar.vado.sa; the short MCP address madar.vado.sa/mcp; one CLAUDE.md for each part; keep
   the old Resend key VADO for now (unused, still live; do not ask again); the font Thmanyah Sans for English and
@@ -205,3 +207,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - 2026-10-06: a 15-minute sign-in token (Z7); the Dashboard shows what is past due, waits for review or for our reply,
   the money to receive (payment roles) and the data gaps (Admin); a past-due task marks its project At risk only from 3 days;
   the accountant keeps the books in Daftra (a link waits for his answers, `TASKS.md`).
+- 2026-10-08: free browser push (Web Push) replaces "No phone push" of 2026-10-03. No email, WhatsApp, SMS or vendor account. One
+  fixed line with no data ("You have something new in Madar." / "لديك جديد في مدار.", title Madar / مدار). It goes for every new
+  notice of the bell (all triggers) and every new chat message, to the people who read them, never to the sender, only to active
+  people. One switch for each device in Settings: "Notify me on this device". Record: `server/push/CLAUDE.md`.

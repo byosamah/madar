@@ -24,6 +24,8 @@ after the commit of the call that asked for it.
 - On the hosted functions, the notice mail of a save leaves right after the answer, not before it (`runCall`,
   `AFTER_ANSWER_KINDS`). The same idempotency key and quota apply. If the worker stops first, the 15-minute job sends the
   claimed row later. The deploy suite's `waitForMail` polls `mail_outbox`, so it is not affected.
+- The browser push of a save (`push.notify`, `server/push/CLAUDE.md`) runs on the same chain, right after the answer. It carries
+  no client data either.
 
 ## Quota
 - The Resend free plan sends 100 mails a UTC day. `QUOTA_LIMITS` (`quota.ts`): notice 90, summary 90, signin 98, warning 98.

@@ -19,6 +19,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `project_templates` is an office list (`OFFICE_COLLECTIONS`), so `projects.create` reads its template from the office.
 - Server-only tables (`20261004000101_server_tables.sql`): office_meta, office_deletes, person_seq, platform_config, stories,
   idempotency, outbox, upload_intents, agent_links, mail_log, mail_outbox, usage_month, usage_warnings, rate_limits, job_runs.
+- `push_devices` (`20261008000100_push_devices.sql`, owner 2026-10-08): the private rows of the browsers that get push. Not an office
+  list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
+  its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
+  `SaveResult.messageIds` lists the messages a save inserted, for the push producer.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 

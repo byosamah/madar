@@ -130,7 +130,7 @@ describe('public/sw.js: the shape of the file', () => {
   });
 
   it('holds no em-dash and no network address', () => {
-    expect(source).not.toContain('—');
+    expect(source).not.toContain('\u2014');
     expect(source).not.toMatch(/https?:\/\//);
   });
 });

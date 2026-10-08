@@ -28,7 +28,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `git -C .claude/worktrees/deploy-test merge --ff-only <branch>`.
 - After production: commit the record on main, then `git push origin main` (GitHub holds each release).
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
-- Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive.
+- Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive. Push
+  devices go too: turn the switch on again after a seed (and after the deploy suite, which seeds at its end).
 - The seed uploads the sample files to Storage under real object keys, the pictures as PNG (`scripts/seed-pictures.ts`;
   the real store serves an SVG only as a download). With `MAIL_DRIVER=outbox` it also empties `mail_log`, so the day count
   of test mail starts again.
@@ -44,6 +45,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   4. `functions.sh`: builds the server bundles and deploys `api`, `mcp`, `jobs`. Then it asks `api/health` in Frankfurt.
   5. `pages.sh`: builds the remote screens, writes `dist/_headers` (CSP) with `headers.ts`, and uploads to the Pages
      project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the /mcp forwarder) goes too.
+     `headers.template` gives `/sw.js` the header `Cache-Control: no-cache` and the CSP `worker-src 'self'`. The push services need no
+     `connect-src`: the browser, not the page, talks to them.
 - All CLIs come from `package.json`, never a global copy.
 
 ## Production rules
@@ -72,6 +75,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - `secrets.ts` needs `SUPABASE_ACCESS_TOKEN` (the Madar account) and the postgres password: `MADAR_TEST_DB_PASSWORD` for
   test, `MADAR_DB_PASSWORD` for production (both in `.env.local`).
 - `MCP_URL` in each file is the short MCP address (see `server/mcp/CLAUDE.md`).
+- Browser push keys (owner, 2026-10-08): `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` in each file, all three or none
+  (`secrets.ts` checks their size). `npx tsx scripts/push/make-vapid.ts <env>` makes them (see `server/push/CLAUDE.md`). The public
+  key also sits in `config/remote.<env>.env` as `VITE_VAPID_PUBLIC_KEY`, and `pages.sh` warns when it is missing.
 
 ## Cloudflare
 - wrangler is signed in as o.khalil@mazj.org. The Pages project `madar` is `madar-46r.pages.dev` (`madar.pages.dev`

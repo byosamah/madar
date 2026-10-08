@@ -28,7 +28,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
-  into exactly one of them.
+  into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,

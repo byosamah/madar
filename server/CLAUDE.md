@@ -2,14 +2,14 @@
 
 One Hono app in TypeScript. The same source runs on Supabase Edge Functions (Deno, pinned to eu-central-1) and on a
 Cloudflare Workers fallback (paid plan, local only today). Each area below has its own guide: `mcp/`, `auth/`, `data/`,
-`mail/`, `files/`.
+`mail/`, `files/`, `push/`.
 
 ## Folders
 - `http/`: the batch route, CORS, the batch limits, the extra routes, health, the Pages forwarder of /mcp.
 - `core/`: `runCall`, the ports, `buildDeps`, the office lock, idempotency, stories, effects, the call map.
 - `calls/`: the server-only calls and the server hooks of 4 shared calls.
 - `entries/`: one mount for each function (`api`, `mcp`, `jobs`, `apps`), the Deno wrappers `deno-*.ts`, Workers `worker.ts`.
-- `jobs/` (the 15-minute job), `signal/` (change signals), `usage/` (meters and the Admin warning).
+- `jobs/` (the 15-minute job), `signal/` (change signals), `usage/` (meters and the Admin warning), `push/` (browser push).
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
 ## Request path
@@ -26,10 +26,10 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
   save, the outbox rows, the signals, the commit.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts.
-- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`) run after
+- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`) run after
   the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
   entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
-  new mail kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
+  new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
 - The screens depend on two facts of this path (performance audit FET-3). `http/batch.ts` runs the calls of a request one
   after the other, and a write clears `batch.office` (`core/runCall.ts`), so a read after a write in the same request sees
   the write. A change that runs the reads of a request in parallel, or keeps the office copy across a write, lets a screen
@@ -73,7 +73,8 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 ## Rules a change must keep
 - Never write to the database outside `runCall` (or a server write call that copies its steps).
 - Handlers stay synchronous and pure. Outside work goes through the outbox, written in the call's transaction.
-- A new effect kind needs `registerEffect`. Effects read the person again when they run.
+- A new effect kind needs `registerEffect`. Effects read the person again when they run. `push.notify` is the one effect that
+  writes a State table (`push_devices`) outside `runCall` (`push/CLAUDE.md`).
 - Lock order: the office lock, then the mail lock. The mail reserve takes only the mail lock, in its own transaction.
 - A preflight hook does network work before the transaction and never holds the lock.
 - Every network call has a 3 s timeout.
