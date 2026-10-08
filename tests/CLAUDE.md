@@ -17,6 +17,9 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
   The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
+- Playwright's Chromium does not start in the sandbox (SIGTRAP): run browser scripts with the sandbox off.
+- Signed-in screens take the language and theme saved on the account (server). The device keys change only the screens
+  before sign-in. A change through the person menu is a write: on a test account, set it back to English and light after.
 - The test copy shows timing races that the local stack hides. Repeat a suspect spec with `--repeat-each=3` there.
 - Many `ERR_INTERNET_DISCONNECTED` failures in one run mean the Mac lost its connection. Check the test copy with
   `curl -sI`, then run the suite again. It is not a code fault.

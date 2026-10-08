@@ -34,6 +34,8 @@ any screen work.
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or `VITE_API_URL` set (`build:remote` sets them). A red "no zod schemas" line: a first-load file imports from
   `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
+- To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
+  `sources` of `assets/index-*.js.map`.
 
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.
