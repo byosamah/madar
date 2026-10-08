@@ -8,11 +8,27 @@ import { MissingConfigError } from '../core/deps';
 
 /** after: work that may go on after the answer (ctx.waitUntil on Workers). A host without it leaves it out. */
 export type After = (work: Promise<unknown>) => void;
-export type Started = { fetch: (request: Request, after?: After) => Response | Promise<Response>; region: string };
+/** warm: work that a new worker starts before its first request, without waiting for it (performance audit LIV-7). */
+export type Started = { fetch: (request: Request, after?: After) => Response | Promise<Response>; region: string; warm?: () => void };
+/**
+ * The fetch of a function, and warm(): it builds the app now, before the first request, and starts the warm-up of the app. A
+ * build that fails stays silent there: the first request builds again, logs why and answers 503, as without warm().
+ */
+export type LazyStart = ((request: Request, after?: After) => Promise<Response>) & { warm(): void };
 
-export function lazyStart(fn: string, build: () => Started): (request: Request, after?: After) => Promise<Response> {
+export function lazyStart(fn: string, build: () => Started): LazyStart {
   let started: Started | undefined;
-  return async (request, after) => {
+  const warm = (): void => {
+    if (started) return;
+    try {
+      started = build();
+    } catch {
+      return;
+    }
+    console.log(JSON.stringify({ level: 'info', message: 'Cold start.', fn, region: started.region }));
+    started.warm?.();
+  };
+  const fetch = async (request: Request, after?: After): Promise<Response> => {
     if (!started) {
       try {
         started = build();
@@ -28,4 +44,5 @@ export function lazyStart(fn: string, build: () => Started): (request: Request, 
     }
     return started.fetch(request, after);
   };
+  return Object.assign(fetch, { warm });
 }

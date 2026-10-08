@@ -22,9 +22,14 @@ export function hostOf(mounts: AppMount[], deps: Deps, values: ServerEnv): Hono 
   return host;
 }
 
-/** The mounted apps with the Deps of the isolate: the two pools live as long as the isolate (Supabase Edge Functions). */
-export function startApps(mounts: AppMount[]): Started {
+/**
+ * The mounted apps with the Deps of the isolate: the two pools live as long as the isolate (Supabase Edge Functions). warm: the
+ * work that a new worker starts before its first request (start.ts).
+ */
+export function startApps(mounts: AppMount[], o: { warm?: (deps: Deps) => void } = {}): Started {
   const values = serverEnvFrom();
-  const host = hostOf(mounts, depsFrom(values), values);
-  return { fetch: (request) => host.fetch(request), region: values.config.region };
+  const deps = depsFrom(values);
+  const host = hostOf(mounts, deps, values);
+  const warm = o.warm;
+  return { fetch: (request) => host.fetch(request), region: values.config.region, ...(warm ? { warm: () => warm(deps) } : {}) };
 }

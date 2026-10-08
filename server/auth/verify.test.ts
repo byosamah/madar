@@ -4,7 +4,7 @@ import { ApiError } from '../../src/api/errors';
 import { setEnvSource } from '../env';
 import { apiApp } from '../http/app';
 import { fakeDeps } from '../test/fakes/deps';
-import { browserTokenChecker, verifyBrowserToken } from './verify';
+import { browserTokenChecker, verifyBrowserToken, warmKeySet } from './verify';
 
 /**
  * The browser token check (plan 5.1; plan section 2, change 6; proof.md Z0a item 2). Real ES256 keys and real tokens,
@@ -186,6 +186,42 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
     setEnvSource({ SUPABASE_URL: 'http://kong:8000', AUTH_ISSUER: 'http://127.0.0.1:54321/auth/v1' });
     await expect(verifyBrowserToken(`Bearer ${await token(claims(), { iss: 'http://127.0.0.1:54321/auth/v1' })}`)).resolves.toEqual({ authUserId: SUB });
     expect(String(fetchJwks.mock.calls[0][0])).toBe('http://kong:8000/auth/v1/.well-known/jwks.json');
+  });
+
+  it('warmKeySet starts the key set load at once and does not wait; the first check uses that load (performance audit LIV-7)', async () => {
+    let answer: () => void = () => undefined;
+    const fetchJwks = vi.fn((_url: string | URL | Request) => new Promise<Response>((resolve) => (answer = () => resolve(Response.json(jwks)))));
+    vi.stubGlobal('fetch', fetchJwks);
+    setEnvSource({ SUPABASE_URL: 'https://warm.supabase.co', AUTH_ISSUER: ISSUER });
+    expect(warmKeySet()).toBeUndefined();
+    expect(fetchJwks).toHaveBeenCalledTimes(1);
+    expect(String(fetchJwks.mock.calls[0][0])).toBe('https://warm.supabase.co/auth/v1/.well-known/jwks.json');
+    const check = verifyBrowserToken(`Bearer ${await token()}`);
+    answer();
+    await expect(check).resolves.toEqual({ authUserId: SUB });
+    expect(fetchJwks).toHaveBeenCalledTimes(1);
+  });
+
+  it('warmKeySet does nothing without SUPABASE_URL, and a load that fails leaves the next check to load the keys again', async () => {
+    setEnvSource({});
+    const proc = process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_URL;
+    try {
+      expect(() => warmKeySet()).not.toThrow();
+    } finally {
+      if (proc !== undefined) process.env.SUPABASE_URL = proc;
+    }
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError('fetch failed');
+      return Response.json(jwks);
+    }));
+    setEnvSource({ SUPABASE_URL: 'https://warm-fails.supabase.co', AUTH_ISSUER: ISSUER });
+    warmKeySet();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await expect(verifyBrowserToken(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB });
+    expect(calls).toBe(2);
   });
 
   it('stops with a plain error that names SUPABASE_URL when it is missing', async () => {

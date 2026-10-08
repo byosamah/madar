@@ -77,16 +77,20 @@ export function issuerOf(supabaseUrl: string): string {
   return `${supabaseUrl.replace(/\/+$/, '')}/auth/v1`;
 }
 
-/** One checker for each pair of addresses. jose keeps the key set in memory and loads it again after a new kid or 10 minutes. */
-const checkers = new Map<string, TokenChecker>();
+/**
+ * One checker for each pair of addresses, with its key set. jose keeps the key set in memory and loads it again after a new kid
+ * or 10 minutes.
+ */
+const checkers = new Map<string, { check: TokenChecker; keys: { reload(): Promise<void> } }>();
 
-function checkerFromEnv(): TokenChecker {
+function checkerFromEnv(): { check: TokenChecker; keys: { reload(): Promise<void> } } {
   const auth = issuerOf(requireEnv('SUPABASE_URL'));
   const issuer = env('AUTH_ISSUER') ?? auth;
   const id = `${auth}|${issuer}`;
   let checker = checkers.get(id);
   if (!checker) {
-    checker = browserTokenChecker({ issuer, jwks: createRemoteJWKSet(new URL(`${auth}/.well-known/jwks.json`)) });
+    const keys = createRemoteJWKSet(new URL(`${auth}/.well-known/jwks.json`));
+    checker = { check: browserTokenChecker({ issuer, jwks: keys }), keys };
     checkers.set(id, checker);
   }
   return checker;
@@ -95,8 +99,24 @@ function checkerFromEnv(): TokenChecker {
 /** The token check of the batch route (E3), from SUPABASE_URL and AUTH_ISSUER. */
 export function verifyBrowserToken(header: string | null): Promise<{ authUserId: string }> {
   try {
-    return checkerFromEnv()(header);
+    return checkerFromEnv().check(header);
   } catch (error) {
     return Promise.reject(error);
   }
+}
+
+/**
+ * Starts the load of the key set of SUPABASE_URL and does not wait for it (performance audit LIV-7). The api function calls it
+ * once when its worker starts, so the first token check finds the keys loaded or on the way: jose shares one load. It checks no
+ * token and reads no database. A load that fails changes nothing: the next check loads the keys again. Without SUPABASE_URL it
+ * does nothing, and the first check names the missing value as before.
+ */
+export function warmKeySet(): void {
+  let keys: { reload(): Promise<void> };
+  try {
+    keys = checkerFromEnv().keys;
+  } catch {
+    return;
+  }
+  void keys.reload().catch(() => undefined);
 }

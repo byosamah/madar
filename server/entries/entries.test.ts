@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MissingConfigError } from '../core/deps';
 import { setEnvSource } from '../env';
+import { warmApi } from './api';
 import denoApi from './deno-api';
 import denoJobs from './deno-jobs';
 import denoMcp from './deno-mcp';
@@ -54,6 +55,73 @@ describe('the Workers entry', () => {
     for (const response of [mcp, jobs]) expect(response.status).not.toBe(404);
     const other = await worker.fetch(new Request('http://127.0.0.1/elsewhere'), LOCAL);
     expect(other.status).toBe(404);
+  });
+});
+
+describe('the warm-up of a new worker (performance audit LIV-7)', () => {
+  it('builds the app once before the first request and starts its warm-up; the first request reuses that build', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    let builds = 0;
+    let warms = 0;
+    const start = lazyStart('api', () => {
+      builds += 1;
+      return { fetch: () => new Response('ok'), region: 'eu-central-1', warm: () => void (warms += 1) };
+    });
+    start.warm();
+    start.warm();
+    expect([builds, warms]).toEqual([1, 1]);
+    expect(await (await start(new Request('http://127.0.0.1/'))).text()).toBe('ok');
+    expect([builds, warms]).toEqual([1, 1]);
+  });
+
+  it('keeps a failed build silent, and the first request logs it and answers 503 as before', async () => {
+    const lines: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((line: string) => void lines.push(line));
+    const start = lazyStart('api', () => {
+      throw new MissingConfigError(['DATABASE_URL']);
+    });
+    start.warm();
+    expect(lines).toEqual([]);
+    expect((await start(new Request('http://127.0.0.1/api/batch', { method: 'POST' }))).status).toBe(503);
+    expect(lines.join('\n')).toContain('DATABASE_URL');
+  });
+
+  it('the api warm-up opens the read connection and loads the key set, and reads nothing', async () => {
+    const steps: string[] = [];
+    const db = {
+      warm: async (mode: string) => void steps.push(`warm:${mode}`),
+      tx: async () => steps.push('tx'),
+      statement: async () => steps.push('statement'),
+      savepoint: async () => steps.push('savepoint'),
+    };
+    const fetchJwks = vi.fn(async () => Response.json({ keys: [] }));
+    vi.stubGlobal('fetch', fetchJwks);
+    setEnvSource({ SUPABASE_URL: 'https://warm-api.supabase.co' });
+    warmApi({ db } as never);
+    expect(steps).toEqual(['warm:read']);
+    expect(String((fetchJwks.mock.calls[0] as unknown[])[0])).toBe('https://warm-api.supabase.co/auth/v1/.well-known/jwks.json');
+    vi.unstubAllGlobals();
+  });
+
+  it('the api function warms at import only on Supabase, never in a test or a script', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const warmed: string[] = [];
+    vi.resetModules();
+    vi.doMock('./api', () => ({ startApi: () => ({ fetch: () => new Response('ok'), region: 'eu-central-1', warm: () => void warmed.push('warm') }) }));
+    try {
+      await import('./deno-api');
+      expect(warmed).toEqual([]);
+      vi.resetModules();
+      vi.stubGlobal('EdgeRuntime', { waitUntil: () => undefined });
+      const entry = (await import('./deno-api')).default;
+      expect(warmed).toEqual(['warm']);
+      expect(await (await entry.fetch(new Request('http://127.0.0.1/api/health'))).text()).toBe('ok');
+      expect(warmed).toEqual(['warm']);
+    } finally {
+      vi.doUnmock('./api');
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
   });
 });
 
