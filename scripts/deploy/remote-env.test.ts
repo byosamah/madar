@@ -27,9 +27,18 @@ describe('config/remote.<env>.env', () => {
     it(`${target}: holds a publishable key and no secret key`, () => {
       expect(env.VITE_SUPABASE_PUBLISHABLE_KEY).toMatch(/^sb_publishable_[A-Za-z0-9_-]+$/);
       expect(text).not.toMatch(/sb_secret_|service_role|eyJ[A-Za-z0-9_-]{10,}/);
-      expect(Object.keys(env).sort()).toEqual(['VITE_API_URL', 'VITE_MADAR_API', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL']);
+      expect(Object.keys(env).sort()).toEqual(['VITE_API_URL', 'VITE_MADAR_API', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL', 'VITE_VAPID_PUBLIC_KEY']);
+    });
+
+    it(`${target}: holds the public VAPID key of browser push (87 base64url characters of a P-256 point), and no private key`, () => {
+      expect(env.VITE_VAPID_PUBLIC_KEY).toMatch(/^B[A-Za-z0-9_-]{86}$/);
+      expect(text).not.toMatch(/VAPID_PRIVATE_KEY|VAPID_SUBJECT/);
     });
   }
+
+  it('uses a VAPID pair of its own for test and for production', () => {
+    expect(parsePublicEnv(read('config/remote.test.env')).VITE_VAPID_PUBLIC_KEY).not.toBe(parsePublicEnv(read('config/remote.production.env')).VITE_VAPID_PUBLIC_KEY);
+  });
 
   it('test: carries the publishable key that accounts.md records for madar-test (track R2)', () => {
     const key = /madar-test publishable key: `(sb_publishable_[^`]+)`/.exec(accounts)?.[1];

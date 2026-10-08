@@ -12,6 +12,11 @@ if ! grep -Eq '^VITE_SUPABASE_PUBLISHABLE_KEY=.+' "config/remote.$TARGET.env"; t
   echo "config/remote.$TARGET.env has no VITE_SUPABASE_PUBLISHABLE_KEY, so the screens could not sign in. Nothing deployed." >&2
   exit 1
 fi
+# Browser push (owner, 2026-10-08): the screens need the public VAPID key to subscribe. Without it the Settings row says that push is
+# not set up. This is a warning, not a stop: the rest of the screens work.
+if ! grep -Eq '^VITE_VAPID_PUBLIC_KEY=.+' "config/remote.$TARGET.env"; then
+  echo "config/remote.$TARGET.env has no VITE_VAPID_PUBLIC_KEY, so browser push shows as not set up. Run: npx tsx scripts/push/make-vapid.ts $TARGET" >&2
+fi
 npm run build:remote -- "$TARGET"
 node scripts/deploy/headers.ts "$TARGET" dist/_headers
 

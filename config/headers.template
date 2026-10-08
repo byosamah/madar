@@ -12,7 +12,12 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}}; frame-src {{FILES}}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}}; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The service worker of browser push (public/sw.js). The browser checks it for a new version on its own; no-cache makes it ask the
+# server every time, so a fixed worker reaches the phones at once. The scope is the root, so the worker needs no extra header.
+/sw.js
+  Cache-Control: no-cache

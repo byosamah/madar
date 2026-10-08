@@ -35,7 +35,10 @@ export const FUNCTION_SECRETS = [
   'DATABASE_URL', 'DATABASE_READ_URL', 'APP_URL', 'API_URL', 'MCP_URL', 'MAIL_FROM', 'MAIL_DRIVER', 'RESEND_API_KEY',
   'MADAR_FILE_STORE', 'FILES_BUCKET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET',
   'MIN_CLIENT_BUILD', 'ALLOWED_ORIGINS', 'MCP_FORWARD_REGION', 'MADAR_LOCK_KEY', 'JOBS_SECRET', 'MADAR_SECRET_KEY', 'AUTH_ISSUER',
+  'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
 ] as const;
+/** Browser push (owner, 2026-10-08): all three or none (server/core/deps.ts). scripts/push/make-vapid.ts writes them. */
+const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
 
 /** The KEY=VALUE lines of secrets/<env>.env. Errors name the line or the name, never a value. */
@@ -92,6 +95,14 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
   // secrets.ts sets the role password from DATABASE_URL only, and postgres must never read for the server: it skips RLS.
   if (values.DATABASE_READ_URL !== undefined && checkServerUrl('DATABASE_READ_URL', values.DATABASE_READ_URL, ref) !== serverPassword) {
     throw new Error('DATABASE_READ_URL must hold the password of DATABASE_URL: the role madar_server has one password.');
+  }
+
+  if (VAPID_NAMES.some((name) => values[name] !== undefined)) {
+    const absent = VAPID_NAMES.filter((name) => !values[name]);
+    if (absent.length > 0) throw new Error(`Browser push needs all of ${VAPID_NAMES.join(', ')}. The secrets file needs ${absent.join(', ')}.`);
+    if (!/^B[A-Za-z0-9_-]{86}$/.test(values.VAPID_PUBLIC_KEY)) throw new Error('VAPID_PUBLIC_KEY must be the 65 byte public point as 87 base64url characters.');
+    if (!/^[A-Za-z0-9_-]{43}$/.test(values.VAPID_PRIVATE_KEY)) throw new Error('VAPID_PRIVATE_KEY must be the 32 byte private value as 43 base64url characters.');
+    if (!/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/.test(values.VAPID_SUBJECT)) throw new Error('VAPID_SUBJECT must be a mailto: or https: address.');
   }
 
   if (values.MADAR_LOCK_KEY !== undefined) {

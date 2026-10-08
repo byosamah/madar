@@ -114,6 +114,50 @@ describe('parseSecretsFile', () => {
   });
 });
 
+// Made-up VAPID values of the right size: 87 and 43 base64url characters.
+const VAPID_PUBLIC = `B${'a'.repeat(86)}`;
+const VAPID_PRIVATE = 'b'.repeat(43);
+const VAPID_LINES = `VAPID_PRIVATE_KEY=${VAPID_PRIVATE}\nVAPID_PUBLIC_KEY=${VAPID_PUBLIC}\nVAPID_SUBJECT=mailto:madar@vado.sa`;
+
+describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
+  const check = (text: string) => checkSecrets(parseSecretsFile(text), TEST);
+
+  it('takes the three names in the secrets file, and sends them to the functions with the other secrets', async () => {
+    expect(Object.keys(parseSecretsFile(file(TEST, VAPID_LINES)))).toEqual(
+      ['DATABASE_URL', 'APP_URL', 'MAIL_FROM', 'RESEND_API_KEY', 'JOBS_SECRET', 'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT'],
+    );
+    const h = harness({ text: file(TEST, VAPID_LINES) });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    expect(body.map((secret) => secret.name)).toEqual(expect.arrayContaining(['VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT']));
+    expect(h.logs.join('\n')).toContain('VAPID_PRIVATE_KEY');
+    expect(h.logs.join('\n')).not.toContain(VAPID_PRIVATE);
+  });
+
+  it('needs no VAPID value: push is off without them, and an old secrets file still passes', () => {
+    expect(() => check(file())).not.toThrow();
+  });
+
+  it('needs all three or none, and names each missing one', () => {
+    expect(() => check(file(TEST, `VAPID_PUBLIC_KEY=${VAPID_PUBLIC}`))).toThrow(/needs VAPID_PRIVATE_KEY, VAPID_SUBJECT/);
+    expect(() => check(file(TEST, `VAPID_PRIVATE_KEY=${VAPID_PRIVATE}\nVAPID_SUBJECT=mailto:madar@vado.sa`))).toThrow(/needs VAPID_PUBLIC_KEY/);
+    expect(() => check(file(TEST, VAPID_LINES))).not.toThrow();
+  });
+
+  it('checks the size of each key and the subject, with an error that names the variable and never the value', () => {
+    const cases: [string, RegExp][] = [
+      [VAPID_LINES.replace(VAPID_PRIVATE, 'short-private-value'), /VAPID_PRIVATE_KEY/],
+      [VAPID_LINES.replace(VAPID_PUBLIC, 'short-public-value'), /VAPID_PUBLIC_KEY/],
+      [VAPID_LINES.replace('mailto:madar@vado.sa', 'madar@vado.sa'), /VAPID_SUBJECT/],
+    ];
+    for (const [lines, name] of cases) {
+      const message = refusal(() => check(file(TEST, lines)));
+      expect(message).toMatch(name);
+      for (const value of ['short-private-value', 'short-public-value', VAPID_PRIVATE, VAPID_PUBLIC]) expect(message).not.toContain(value);
+    }
+  });
+});
+
 describe('checkSecrets', () => {
   const check = (ref: string, text: string) => checkSecrets(parseSecretsFile(text), ref);
 

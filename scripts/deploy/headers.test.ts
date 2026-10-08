@@ -28,6 +28,20 @@ describe('renderHeaders', () => {
     expect(directive(headers, 'script-src')).toEqual(["'self'"]);
   });
 
+  it('lets the service worker of browser push run from the own site only, and never lets it be cached (owner, 2026-10-08)', () => {
+    const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
+    expect(headers).toMatch(/\n\/sw\.js\n {2}Cache-Control: no-cache\n/);
+    expect(directive(headers, 'worker-src')).toEqual(["'self'"]);
+    // The security headers still reach the worker script: the rule of /* applies to /sw.js too.
+    expect(headers).toMatch(/^\/\*\n/);
+  });
+
+  it('adds no host for the push services: the browser, not the page, talks to them', () => {
+    const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
+    for (const host of ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']) expect(headers).not.toContain(host);
+    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
+  });
+
   it('while the files are on Supabase Storage, names the Supabase host for pictures, the PDF frame and the calls, and no R2 host', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', TEST]);
