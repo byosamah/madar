@@ -1,9 +1,10 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { CommentView, MessageView } from '../../api/contract/views';
+import type { ChatRow, CommentView, MessageView } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -109,7 +110,11 @@ export function TaskPane({ id }: { id: string }) {
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
   const office = task.data !== undefined && task.data.project === null;
-  const projectId = task.data?.project?.id;
+  // The Inbox row of the thread already names its project, so projects.get starts with tasks.get, and the message box shows
+  // with the messages (performance audit 2026-10-07, FET-M2). getQueryData adds no observer. A direct link works as before.
+  const queryClient = useQueryClient();
+  const row = queryClient.getQueryData<ChatRow[]>(['api', 'chats.list', {}])?.find((chat) => chat.id === id);
+  const projectId = task.data ? task.data.project?.id : row?.project?.id;
   const project = useCall('projects.get', { id: projectId ?? 'prj_000' }, { enabled: projectId !== undefined });
   const users = useCall('users.list', {}, { enabled: office });
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
