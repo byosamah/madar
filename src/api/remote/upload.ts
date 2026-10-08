@@ -163,12 +163,18 @@ export function uploadAdapter(o: {
     })) as { uploadId: string; put: SignedPut; thumbPut?: SignedPut };
 
     // Step 2: the browser sends the file straight to the store. Only the browser sees the size refusal of the store.
-    const result = await send(start.put, blob);
+    // The small picture goes at the same time, because the two uploads do not depend on each other (performance audit BGR-M2).
+    const fileSent = send(start.put, blob);
+    const thumbSent = thumb && start.thumbPut ? send(start.thumbPut, thumb) : null;
+    // A failed file upload throws before the small picture ends, so its end needs a handler. The uploads job removes a staging
+    // picture that no version uses.
+    thumbSent?.catch(() => undefined);
+    const result = await fileSent;
     const failure = putFailure(result);
     if (failure === 'too_large') throw tooLarge('blob', await limitOf(ctx));
     if (failure) throw uploadFailed(result.status);
     // The small picture is extra: when it does not arrive, the server saves the version without one.
-    if (thumb && start.thumbPut) await send(start.thumbPut, thumb);
+    if (thumbSent) await thumbSent;
     keepUploads(ctx.meta.key, [blob], [start.uploadId]);
 
     // Step 3: the server checks the stored object and saves the version.

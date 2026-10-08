@@ -1,10 +1,14 @@
 /** The long side of a small picture, in pixels (plan 5.2). */
 export const THUMB_EDGE = 960;
 
+/** The quality of the small picture, in WebP and in JPEG. */
+const QUALITY = 0.8;
+
 /**
  * The small picture of an image for the file lists and the cards: a WebP of at most 960 px on the long side, made in the browser
- * before the upload. It gives null when the file is not a picture, is a drawing (SVG), or the browser cannot read it or cannot
- * write WebP. The upload then goes without a small picture, and the lists show the full picture.
+ * before the upload. A browser that cannot write WebP gives a JPEG for a JPEG photo. It gives null when the file is not a
+ * picture, is a drawing (SVG), or the browser cannot read it or cannot write the type. The upload then goes without a small
+ * picture, and the lists show the full picture.
  */
 export async function makeThumb(file: Blob): Promise<Blob | null> {
   if (!file.type.startsWith('image/') || file.type.startsWith('image/svg')) return null;
@@ -19,9 +23,15 @@ export async function makeThumb(file: Blob): Promise<Blob | null> {
     const pen = canvas.getContext('2d');
     if (!pen) return null;
     pen.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const thumb = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.8));
-    // A browser that cannot write WebP gives a PNG instead, which can be larger than the original: no small picture then.
-    return thumb && thumb.type === 'image/webp' ? thumb : null;
+    const encode = (type: 'image/webp' | 'image/jpeg') => new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, QUALITY));
+    const thumb = await encode('image/webp');
+    if (thumb && thumb.type === 'image/webp') return thumb;
+    // A browser that cannot write WebP (Safari, and every browser on an iPhone or iPad) gives a PNG instead, which can be larger
+    // than the original. A JPEG photo then gets a JPEG small picture, when it is smaller than the photo (performance audit
+    // BGR-M1). Every other picture gets none: a PNG or a GIF can have clear parts, and a JPEG turns them black.
+    if (file.type !== 'image/jpeg') return null;
+    const jpeg = await encode('image/jpeg');
+    return jpeg && jpeg.type === 'image/jpeg' && jpeg.size < file.size ? jpeg : null;
   } catch {
     return null;
   } finally {

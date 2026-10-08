@@ -97,6 +97,20 @@ describe('files.uploadStart', () => {
     expect(db.intents.get(output.uploadId)).toMatchObject({ actorId: 'usr_009', thumbKey: `prj-001/${part}/thumb`, expiresAt: new Date('2026-10-04T07:10:00Z') });
   });
 
+  it('takes a JPEG small picture as a WebP one: it signs the PUT with the JPEG type, and the preflight keeps it (performance audit BGR-M1)', async () => {
+    // Safari and the browsers of an iPhone or iPad cannot write WebP, so the screens send a JPEG small picture of a JPEG photo.
+    const { deps, ctx } = setup();
+    const { output } = await filesUploadStart({ ...START, name: 'IMG_0412.jpg', mimeType: 'image/jpeg', thumb: { size: 300, mimeType: 'image/jpeg' } }, ctx('usr_002'));
+    const part = output.uploadId.replace('_', '-');
+    expect(output.thumbPut).toMatchObject({ url: `https://files.test/put/up/${part}/thumb`, headers: { 'Content-Type': 'image/jpeg' } });
+    deps.files.objects.set(`up/${part}/file`, { size: 1200, mimeType: 'image/jpeg' });
+    deps.files.objects.set(`up/${part}/thumb`, { size: 300, mimeType: 'image/jpeg' });
+    const upload = { projectId: 'prj_001', uploadId: output.uploadId, name: 'IMG_0412.jpg', stageId: null, taskId: null, asCover: false, receivedFromClient: false };
+    expect(await filesUploadHooks.preflight!(upload, { actorId: 'usr_002', now: NOW, deps })).toEqual({
+      blobKey: `prj-001/${part}/file`, size: 1200, mimeType: 'image/jpeg', thumbKey: `prj-001/${part}/thumb`,
+    });
+  });
+
   it('refuses an inactive person and an agent whose person is off before it signs or writes anything (plan 2b, point 7)', async () => {
     for (const userId of ['usr_003', 'usr_010']) {
       const { db, deps, ctx } = setup();
