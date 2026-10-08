@@ -1,5 +1,6 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type Announcements, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +8,7 @@ import { useSearchParams } from 'react-router';
 import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
-import { useCall } from '../../app/runtime';
+import { useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -18,6 +19,7 @@ import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { LoadFailed } from '../../components/LoadFailed';
 import { openTask } from '../../lib/params';
+import { homePlaceholder } from './minePlaceholder';
 
 type Open = (row: TaskRow, thread?: boolean) => void;
 
@@ -168,10 +170,27 @@ const WorkBody = memo(function WorkBody({ mine, review, me, today, onOpen }: {
   );
 });
 
+const MINE_OPEN = { filter: 'mine', includeDone: false } as const;
+
+/**
+ * My open tasks: useCall('tasks.list', MINE_OPEN), with the same key and function. In the real build, while the list loads, it
+ * shows the open rows of the list that Home holds, when no change marked that list. The answer then puts back the same rows
+ * (performance audit 2026-10-07, FET-9). The prototype loads the list as before.
+ */
+function useMyOpenTasks() {
+  const { api, mode } = useRuntime();
+  const client = useQueryClient();
+  return useQuery<TaskRow[]>({
+    queryKey: ['api', 'tasks.list', MINE_OPEN],
+    queryFn: () => api.call('tasks.list', MINE_OPEN),
+    placeholderData: mode === 'remote' ? () => homePlaceholder(client) : undefined,
+  });
+}
+
 /** My open tasks from all projects and the office, by date, with the leader's review queue first (spec 6.1). */
 export function WorkTasks() {
   const [params, setParams] = useSearchParams();
-  const mine = useCall('tasks.list', { filter: 'mine', includeDone: false });
+  const mine = useMyOpenTasks();
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // One session.get for every group. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
