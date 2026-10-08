@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions, type Query } from '@tanstack/react-query';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
 import { AttemptKeys } from '../api/remote/keys';
 import type { Store } from '../api/store';
+import { addDays, todayISO } from '../lib/dates';
 import type { AuthPort } from './auth';
 import { READS } from './readMap';
 import { connectChanges, type ChangeSource } from './signals';
@@ -22,20 +23,115 @@ export type Runtime = { store?: Store; api: MadarApi; auth?: AuthPort; changes?:
 
 const RuntimeContext = createContext<Runtime | null>(null);
 
+/** How long the real build keeps an answer that no screen shows (performance audit FET-5). */
+export const KEEP_MS = 60 * 60_000;
+/** The life of an answer that no screen shows, as before FET-5: a signed link, a search, an answer that a change marked. */
+export const SHORT_MS = 5 * 60_000;
+
 /**
  * remote: a read keeps its answer until a change signal names it (plan R2), so a screen that opens again shows the cached list
- * at once and asks the server nothing. A read that never reloads on a signal (a signed link, a screenshot, the usage meters)
- * still loads each time a screen opens it. The prototype reloads every list after each change and on each mount, as before.
+ * at once and asks the server nothing. An answer that no screen shows stays for an hour (keepAnswers has the two exceptions).
+ * A read that never reloads on a signal (a signed link, a screenshot, the usage meters) still loads each time a screen opens it,
+ * and it goes 5 minutes after its screen closed, as does a search (one answer for each typed text). The prototype reloads
+ * every list after each change and on each mount, as before.
  */
 export function createQueryClient(o: { remote?: boolean } = {}): QueryClient {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 0 }, mutations: { retry: false } },
   });
   if (o.remote) {
-    client.setQueryDefaults(['api'], { staleTime: Infinity });
-    for (const [name, rule] of Object.entries(READS)) if (rule.scope === 'none') client.setQueryDefaults(['api', name], { staleTime: 0 });
+    // The specific defaults come after the general one: TanStack merges them in this order.
+    client.setQueryDefaults(['api'], { staleTime: Infinity, gcTime: KEEP_MS });
+    for (const [name, rule] of Object.entries(READS)) if (rule.scope === 'none') client.setQueryDefaults(['api', name], { staleTime: 0, gcTime: SHORT_MS });
+    client.setQueryDefaults(['api', 'search.query'], { gcTime: SHORT_MS });
   }
   return client;
+}
+
+/** The time from a moment to the start of the next office day (the day of the screens, todayISO). */
+function msToNextDay(at: number): number {
+  return Date.parse(`${addDays(todayISO(new Date(at)), 1)}T00:00:00.000+03:00`) - at;
+}
+
+/**
+ * The two exceptions to the hour of the real build (performance audit FET-5). Returns the stop.
+ * - An answer that a change marked goes 5 minutes after its last screen closed (or after its last load), as before. So a screen
+ *   that opens later never shows a list that a change made old.
+ * - When the office day changes, every answer that no screen shows goes, so no count of yesterday ("due today", "2 days past
+ *   due") comes back. The check runs at midnight and when the tab shows again, because a sleeping computer runs no timer.
+ * A screen that shows an answer keeps it, as before. A sign-out resets the whole cache (useLeaveScreen).
+ */
+export function keepAnswers(queryClient: QueryClient): () => void {
+  const cache = queryClient.getQueryCache();
+  /** When each answer lost its last screen. */
+  const lostAt = new WeakMap<Query, number>();
+  const timers = new Map<Query, ReturnType<typeof setTimeout>>();
+  const isApi = (query: Query) => query.queryKey[0] === 'api';
+  const unseen = (query: Query) => query.getObserversCount() === 0;
+
+  const cancel = (query: Query) => {
+    const timer = timers.get(query);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    timers.delete(query);
+  };
+  /** The last of: the close of its last screen, the end of its last load. TanStack counts its own gcTime from the same moments. */
+  const idleSince = (query: Query) => Math.max(lostAt.get(query) ?? 0, query.state.dataUpdatedAt, query.state.errorUpdatedAt);
+
+  /** Starts the wait of a marked answer that no screen shows, once. A load that runs ends the wait itself (its end tells again). */
+  function check(query: Query): void {
+    if (!unseen(query) || !query.state.isInvalidated) {
+      cancel(query);
+      return;
+    }
+    if (timers.has(query)) return;
+    timers.set(query, setTimeout(() => {
+      timers.delete(query);
+      if (!unseen(query) || !query.state.isInvalidated || query.state.fetchStatus !== 'idle' || cache.get(query.queryHash) !== query) return;
+      if (Date.now() - idleSince(query) >= SHORT_MS) cache.remove(query);
+      else check(query);
+    }, Math.max(0, idleSince(query) + SHORT_MS - Date.now())));
+  }
+
+  const unsubscribe = cache.subscribe((event) => {
+    const { query } = event;
+    if (!isApi(query)) return;
+    if (event.type === 'removed') {
+      cancel(query);
+      return;
+    }
+    if (event.type === 'observerRemoved' && unseen(query)) lostAt.set(query, Date.now());
+    if (event.type === 'observerRemoved' || event.type === 'observerAdded' || event.type === 'updated') check(query);
+  });
+
+  let day = todayISO();
+  let dayTimer: ReturnType<typeof setTimeout> | undefined;
+  const newDay = () => {
+    const today = todayISO();
+    if (today === day) return;
+    day = today;
+    queryClient.removeQueries({ queryKey: ['api'], predicate: unseen });
+  };
+  const atMidnight = () => {
+    // One second after midnight, so a timer that fires a little early still sees the new day.
+    dayTimer = setTimeout(() => {
+      newDay();
+      atMidnight();
+    }, msToNextDay(Date.now()) + 1000);
+  };
+  atMidnight();
+  const onVisibility = () => {
+    if (typeof document !== 'undefined' && !document.hidden) newDay();
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
+
+  return () => {
+    unsubscribe();
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    if (dayTimer !== undefined) clearTimeout(dayTimer);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
+  };
 }
 
 /** The change signals of a runtime: its own source, or for a runtime with only a store, one "reload all" for each store change. */
@@ -52,12 +148,19 @@ function personOf(queryClient: QueryClient): string {
   return session?.user?.id ?? '';
 }
 
-/** Reloads the screen queries that a change touches (src/app/signals.ts): all of them for each change of the prototype store. */
+/**
+ * Reloads the screen queries that a change touches (src/app/signals.ts): all of them for each change of the prototype store.
+ * The real build also keeps the answers of closed screens by the rules of keepAnswers.
+ */
 export function RuntimeProvider({ runtime, queryClient, children }: { runtime: Runtime; queryClient: QueryClient; children: ReactNode }) {
   useEffect(() => {
     const source = changesOf(runtime);
-    if (!source) return undefined;
-    return connectChanges(queryClient, source, () => personOf(queryClient));
+    const stopChanges = source ? connectChanges(queryClient, source, () => personOf(queryClient)) : undefined;
+    const stopKeep = runtime.mode === 'remote' ? keepAnswers(queryClient) : undefined;
+    return () => {
+      stopChanges?.();
+      stopKeep?.();
+    };
   }, [runtime, queryClient]);
   return (
     <RuntimeContext.Provider value={runtime}>
