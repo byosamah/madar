@@ -7,7 +7,7 @@ import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import type { CallOutput } from '../../api/calls';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
-import { useCall } from '../../app/runtime';
+import { useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -21,6 +21,7 @@ import { DayRing } from './DayRing';
 import { NextCard } from './NextCard';
 import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
+import { readRoleHint, writeRoleHint } from './roleHint';
 
 /**
  * Both columns of Home: the greeting, Next for you, Today and Your projects. It takes only plain props and stable handlers, so a
@@ -92,7 +93,16 @@ export function HomeScreen() {
   const review = useCall('tasks.list', { filter: 'review_for_me' });
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
-  const admin = session.data?.user.systemRole === 'admin';
+  // Before session.get answers, the real build takes the role that this device saw last for this auth user, so the Admin's list
+  // goes out in the first request. The session answer then decides (performance audit 2026-10-07, FET-8).
+  const { mode, auth } = useRuntime();
+  const authUserId = mode === 'remote' ? auth?.userId?.() ?? null : null;
+  const [hint] = useState(() => readRoleHint(authUserId));
+  const role = session.data?.user.systemRole;
+  useEffect(() => {
+    if (authUserId && role) writeRoleHint(authUserId, role);
+  }, [authUserId, role]);
+  const admin = (role ?? hint) === 'admin';
   const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
   const open = useStableHandler((projectId: string | null, taskId: string, thread: boolean = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }));

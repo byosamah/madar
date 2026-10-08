@@ -80,6 +80,16 @@ describe('the Supabase sign-in port (plan 5.1, client map 7.2)', () => {
     expect(auth.status()).toBe('signed_in');
   });
 
+  it('names the auth user of the session, and no one when signed out (performance audit 2026-10-07, FET-8)', async () => {
+    const stub = stubClient({ session: { access_token: 'token-1', user: { id: 'auth-1' } } });
+    const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test/functions/v1/api' });
+    expect(auth.userId?.()).toBe('auth-1');
+    stub.fire('SIGNED_IN', { access_token: 'token-2', user: { id: 'auth-2' } });
+    expect(auth.userId?.()).toBe('auth-2');
+    stub.fire('SIGNED_OUT', null);
+    expect(auth.userId?.()).toBeNull();
+  });
+
   it('signs in, and turns a wrong email or password into one reason', async () => {
     const stub = stubClient({ results: { signIn: { error: apiError('invalid_credentials') } } });
     const auth = await createSupabaseAuth(stub.client, { apiUrl: 'https://api.test' });
