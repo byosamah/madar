@@ -374,7 +374,7 @@ no grips, because its tasks fall on different days.
 Owner choices: free Web Push (no email, WhatsApp, SMS or vendor account). One fixed line with no data: "You have something new in Madar."
 (Arabic: "لديك جديد في مدار."), title Madar / مدار. It goes for every new bell notice (all triggers) and every new chat message, to the
 people who read them, never to the sender, only to active people. One switch for each device in Settings. This replaces "No phone push"
-of 2026-10-03. Record: `server/push/CLAUDE.md`. Branch `rb/push`, not merged, not deployed.
+of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main (2026-10-08); not deployed.
 
 - [x] The record `PushDevice`, the calls `push.register`, `push.remove`, `push.mine` (prototype fake and server), the migration `20261008000100_push_devices.sql`, the loader, the MCP deny list, no event and no signal for a device
 - [x] The sender (`server/push/vapid.ts`, `send.ts`): an ES256 token with WebCrypto only, an empty POST, 201 and 202 sent, 404 and 410 delete the device, 429 and 5xx retry
@@ -386,12 +386,14 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Branch `rb/push`, not merged, no
 - [x] Leak probes: `pushLeaks.test.ts`, the loader probe in `server/data/loaders/push.test.ts`, the save test, the MCP deny test
 - [x] Tests first for each part. Gates: typecheck, `npm test` 4,550 passed and 6 skipped, `npm run build` (RTL and bundle checks), `build:server`, `build:remote -- test`
 - [x] The SQL and the migration ran once on an in-memory Postgres 18 (pglite, outside the repo): the producer, the loaders, the save, the effect, the unique endpoint
-- [ ] Not run: `test:db` and `test:it` (Docker was off). `server/it/push.it.test.ts` is written and typechecks, and it has not run
+- [x] Gates of the merge lead (2026-10-08, Docker on): typecheck; `npm test` 4,550 passed (448 files); `test:db` 1,117 passed (25 skipped); `test:it` 261 passed (33 files, `server/it/push.it.test.ts` included); `test:mcp` 135 passed and the conformance runner exits 0; the prototype, server and remote (test) builds
+- [ ] Not run: the prototype smoke
 - [ ] Not run: screenshots (EN and AR, light and dark, 390 px) of the Settings section: a separate agent does the browser checks
-- [ ] Owner: `scripts/deploy/secrets.ts test` (sends the three secrets), then `all.sh test`; then try it on a device (steps in the report of the builder)
+- [ ] Owner: `all.sh test` in his Terminal (it pushes the migration and sends the three secrets); then try it on a device: Settings, Notify me on this device, allow; a second person assigns a task or sends a chat message; an iPhone needs Madar on the Home Screen first
 - [ ] Owner: the same for production after the test copy works. The production pair exists but no deploy ran
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
-- [x] The hand-set `Content-Length: 0` header is removed from `sender` (`server/push/send.ts`): a fetch POST with no body sends it by itself (2026-10-08)
+- [x] The hand-set `Content-Length: 0` header is removed from `server/push/send.ts`: a fetch POST with no body sends it by itself (2026-10-08)
 - [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?
-- [ ] Question: a sign-out also unsubscribes the browser (the next person on a shared browser gets no push and must turn it on). Keep?
-- [ ] Question: the endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there. Keep?
+- [x] A sign-out also unsubscribes the browser (the next person on a shared browser gets no push and must turn it on): kept (merge lead, 2026-10-08)
+- [x] The endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there: kept (merge lead, 2026-10-08)
+- [ ] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on?
