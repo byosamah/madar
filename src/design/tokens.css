@@ -211,7 +211,7 @@
    IBM Plex Sans Arabic has no middle dot, so the Arabic screens showed the Inter dot before Thmanyah too. */
 @font-face {
   font-family: "Madar Dot";
-  src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");
+  src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -220,7 +220,7 @@
 /* Thmanyah Sans has no tabular figures, so the number spots (.tabular) take only the digits 0 to 9 from Inter. */
 @font-face {
   font-family: "Madar Digits";
-  src: url("@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2") format("woff2-variations");
+  src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
