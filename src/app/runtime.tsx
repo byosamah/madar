@@ -1,12 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQuery, keepPreviousData, type MutateOptions, type Query } from '@tanstack/react-query';
+import {
+  QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient, keepPreviousData, type MutateOptions, type Query,
+} from '@tanstack/react-query';
 import type { CallInput, CallName, CallOutput, MadarApi } from '../api/calls';
+import { canFollow } from '../api/remote/follow';
 import { AttemptKeys } from '../api/remote/keys';
 import type { Store } from '../api/store';
 import { addDays, todayISO } from '../lib/dates';
 import type { AuthPort } from './auth';
 import { READS } from './readMap';
-import { connectChanges, type ChangeSource } from './signals';
+import { connectChanges, followMeta, readsAfterWrite, type ChangeSource } from './signals';
 import { useToast } from './toasts';
 
 /**
@@ -175,6 +178,48 @@ export function useRuntime(): Runtime {
   return runtime;
 }
 
+/** How long the success steps of an action wait at most for a read of its follow step that went in another request (FET-3). */
+export const FOLLOW_WAIT_MS = 50;
+
+/** Resolves when every promise has settled, or after ms at most. The promises never reject. */
+function settledWithin(promises: Promise<unknown>[], ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void Promise.all(promises).then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+/**
+ * A write of the real build with the reads on screen that it will change (performance audit FET-3, owner plan a, 2026-10-08).
+ * The reads go in the request of the write, right after it (RemoteApi follow step), so the result of a save shows with its own
+ * answer, one round trip sooner. Nothing shows before the server answers. The success steps of the action (the end of the tick
+ * of a row, the clear of a comment box) run after the screen shows the new answers: after the reads, and one task later,
+ * because TanStack tells the screen on the next task. A refused write throws at once; its reads still bring the current data.
+ * The prototype, and an api with no follow step, send the write alone, as before.
+ */
+export async function writeWithReads<T>(runtime: Runtime, queryClient: QueryClient, name: string, input: unknown, write: () => Promise<T>): Promise<T> {
+  const { api } = runtime;
+  if (runtime.mode !== 'remote' || !canFollow(api)) return write();
+  const chosen = readsAfterWrite(queryClient, name, input, personOf(queryClient));
+  if (chosen.length === 0) return write();
+  const tag = {};
+  const loads: Promise<unknown>[] = [];
+  // The write goes on the wire first, then each read: the follow step puts them behind it in its request.
+  const result = await api.follow(write, () => {
+    for (const query of chosen) loads.push(query.fetch(undefined, { cancelRefetch: true, meta: followMeta(tag) }).catch(() => undefined));
+  }, tag);
+  if (loads.length > 0) {
+    await settledWithin(loads, FOLLOW_WAIT_MS);
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+  return result;
+}
+
 /** keepPrevious: while a new input loads, the screen keeps showing the last answer, so a list never blanks out between key presses. */
 export function useCall<N extends CallName>(name: N, input: CallInput<N>, options: { enabled?: boolean; keepPrevious?: boolean } = {}) {
   const { api } = useRuntime();
@@ -219,7 +264,9 @@ export function useAction<N extends CallName>(
   name: N,
   options: { onSuccess?: (output: CallOutput<N>) => void; onRefused?: (error: unknown, input: CallInput<N>) => boolean } = {},
 ) {
-  const { api } = useRuntime();
+  const runtime = useRuntime();
+  const { api } = runtime;
+  const queryClient = useQueryClient();
   const toast = useToast();
   const latest = useRef(options);
   latest.current = options;
@@ -227,7 +274,8 @@ export function useAction<N extends CallName>(
   const attempts = useAttemptKeys();
   const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
-    mutationFn: (input) => attempts.run(input, (key) => api.call(name, input, { key })),
+    // The real build sends the reads that the write changes right after it (FET-3, writeWithReads).
+    mutationFn: (input) => attempts.run(input, (key) => writeWithReads(runtime, queryClient, name, input, () => api.call(name, input, { key }))),
     onSuccess: (output) => options.onSuccess?.(output),
     onError: (error, input) => {
       if (latest.current.onRefused?.(error, input)) return;

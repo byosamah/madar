@@ -1,6 +1,8 @@
-import type { Query, QueryClient } from '@tanstack/react-query';
-import type { ChangeSignal, Kind } from '../api/remote/wire';
+import { hashKey, type Query, type QueryClient } from '@tanstack/react-query';
+import type { FreshReads } from '../api/remote/follow';
+import { MAX_BATCH, isOverviewCall, type ChangeSignal, type Kind } from '../api/remote/wire';
 import { PERSONAL_KINDS, READS } from './readMap';
+import { WRITE_KINDS } from './writeKinds';
 
 /**
  * The reload after a change (plan 5.3, client map 3.3). A change signal names what a saved change touched; this file reloads only
@@ -21,11 +23,16 @@ import { PERSONAL_KINDS, READS } from './readMap';
  *   channel that joined (origin 'join', signals may be lost). It also starts the seq of each channel again, at once. The joins of
  *   one dropped socket come a few milliseconds apart, one for each channel, so a join waits 100 ms for the other and for any
  *   signal, and they reload in one pass after the last join (performance audit FET-4).
+ * - Reads after an own write (real build, performance audit FET-3): the runtime loads the reads on screen that a write will
+ *   change (readsAfterWrite) in the request of the write, right after it. RemoteApi names the ones that answered there. The own
+ *   pass does not reload such a read while its last load is that one. Every other read that the signals name reloads as before,
+ *   and a pass that also holds other changes reloads them all.
  */
 
 /** own: the signals of an answer to this screen's own write. channel: Realtime (the default). join: a Realtime channel joined. */
 export type ChangeOrigin = 'own' | 'channel' | 'join';
-export type ChangeListener = (signals: ChangeSignal[], origin?: ChangeOrigin) => void;
+/** fresh: for an own answer, the reads that ran after its write in its request (performance audit FET-3). */
+export type ChangeListener = (signals: ChangeSignal[], origin?: ChangeOrigin, fresh?: FreshReads) => void;
 
 /** Where change signals come from: Realtime in the real build, the store in the prototype. */
 export type ChangeSource = { subscribe(listener: ChangeListener): () => void; status(): 'open' | 'closed' };
@@ -80,6 +87,92 @@ export function affects(queryKey: readonly unknown[], data: unknown, merged: Mer
   return project === undefined || merged.office || merged.projects.has(project);
 }
 
+/** The fetch meta key that holds the tag of a load in the follow step of a write (FET-3). */
+export const FOLLOW_META = 'madarAfterWrite';
+
+/** The fetch meta of TanStack (the package exports no name for it). */
+type FetchMeta = NonNullable<Query['state']['fetchMeta']>;
+
+/** The fetch meta of a load in the follow step with this tag. TanStack types the meta for paged reads only; Madar has none. */
+export function followMeta(tag: object): FetchMeta {
+  return { [FOLLOW_META]: tag } as FetchMeta;
+}
+
+/** The tag of the follow step of the last load of a read, if that load was one. */
+function followTagOf(query: Query): unknown {
+  return (query.state.fetchMeta as Record<string, unknown> | null)?.[FOLLOW_META];
+}
+
+/** At most this many reads go after a write: the write takes one place of a request. */
+const FOLLOW_MAX = MAX_BATCH - 1;
+
+const textField = (value: unknown, key: string): string | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const found = (value as Record<string, unknown>)[key];
+  return typeof found === 'string' && found !== '' ? found : undefined;
+};
+
+/** The record that a write changes, by the id in its input. */
+function recordOf(input: unknown): string | undefined {
+  for (const key of ['id', 'taskId', 'targetId', 'commentId', 'conversationId', 'fileId']) {
+    const id = textField(input, key);
+    if (id) return id;
+  }
+  return undefined;
+}
+
+/** True when a list answer holds a row of the record: the row itself, or a part of the row (row.task, row.project). */
+function holdsRecord(data: unknown, record: string): boolean {
+  if (!Array.isArray(data)) return false;
+  return data.some((row) => typeof row === 'object' && row !== null
+    && ((row as { id?: unknown }).id === record || Object.values(row).some((part) => textField(part, 'id') === record)));
+}
+
+/** 0: the read names the record in its input. 1: its answer holds a row of the record. 2: any other read. */
+function rankOf(query: Query, record: string | undefined): number {
+  if (!record) return 2;
+  const input = query.queryKey[2];
+  if (typeof input === 'object' && input !== null && Object.values(input).includes(record)) return 0;
+  return holdsRecord(query.state.data, record) ? 1 : 2;
+}
+
+/**
+ * The reads on screen that a write will change (real build, performance audit FET-3): the active reads with an answer that
+ * affects() gives for the kinds of WRITE_KINDS, in the project of the input, else in every project, and the personal lists of
+ * me for a personal kind. The reads that show the record of the write come first, then the others in cache order. At most
+ * FOLLOW_MAX reads and one overview read, so that all fit with the write in one request. The rest load on the signals.
+ */
+export function readsAfterWrite(queryClient: QueryClient, name: string, input: unknown, me: string): Query[] {
+  const kinds = WRITE_KINDS[name];
+  if (!kinds || kinds.length === 0) return [];
+  const merged = emptyMerge();
+  for (const kind of kinds) merged.kinds.add(kind);
+  const projectId = textField(input, 'projectId');
+  if (projectId) merged.projects.add(projectId);
+  else merged.office = true;
+  if (me) addPeople(merged, [me], kinds);
+  const record = recordOf(input);
+  const ranked = queryClient.getQueryCache().findAll({ queryKey: ['api'], type: 'active' })
+    .filter((query) => {
+      const readName = query.queryKey[1];
+      return typeof readName === 'string' && READS[readName] !== undefined && query.state.data !== undefined
+        && affects(query.queryKey, query.state.data, merged, me);
+    })
+    .map((query, at) => ({ query, at, rank: rankOf(query, record) }))
+    .sort((a, b) => a.rank - b.rank || a.at - b.at);
+  const chosen: Query[] = [];
+  let overview = false;
+  for (const { query } of ranked) {
+    if (chosen.length >= FOLLOW_MAX) break;
+    if (isOverviewCall(query.queryKey[1] as string, query.queryKey[2])) {
+      if (overview) continue;
+      overview = true;
+    }
+    chosen.push(query);
+  }
+  return chosen;
+}
+
 export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; joinMs?: number; now?: () => number };
 
 /** How many signal ids the screen remembers, so a signal that comes again applies once. */
@@ -104,6 +197,9 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   let joinBy: number | null = null;
   // True while a pass for own answers waits for its microtask.
   let ownQueued = false;
+  // The pending pass (FET-3): the fresh reads of each own answer in it (null: none), and whether it holds any other change.
+  let owns: (FreshReads | null)[] = [];
+  let mixed = false;
   let hiddenAt: number | null = isHidden() ? now() : null;
   let stopped = false;
 
@@ -111,14 +207,27 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     return typeof document !== 'undefined' && document.hidden;
   }
 
-  function run(merged: MergedSignal): void {
+  function run(merged: MergedSignal, fresh?: (query: Query) => boolean): void {
     if (stopped) return;
     const person = me();
     void queryClient.invalidateQueries({
       queryKey: ['api'],
-      predicate: (query: Query) => affects(query.queryKey, query.state.data, merged, person),
+      predicate: (query: Query) => affects(query.queryKey, query.state.data, merged, person) && !fresh?.(query),
       refetchType: isHidden() ? 'none' : 'active',
     });
+  }
+
+  /**
+   * The reads that the pending pass does not reload (FET-3): only for a pass of own answers alone, a read that each of them names
+   * as fresh, while its last load is the load of that follow step. Any other pass reloads every read that its signals name.
+   */
+  function freshOf(): ((query: Query) => boolean) | undefined {
+    if (mixed || owns.length === 0 || owns.some((fresh) => fresh === null)) return undefined;
+    const lists = (owns as FreshReads[]).map((fresh) => ({
+      tag: fresh.tag,
+      hashes: new Set(fresh.reads.map((read) => hashKey(['api', read.name, read.input]))),
+    }));
+    return (query) => lists.every((list) => list.hashes.has(query.queryHash) && followTagOf(query) === list.tag);
   }
 
   function flush(): void {
@@ -127,7 +236,10 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     joinBy = null;
     const merged = pending;
     pending = null;
-    if (merged) run(merged);
+    const fresh = freshOf();
+    owns = [];
+    mixed = false;
+    if (merged) run(merged, fresh);
   }
 
   function queue(): MergedSignal {
@@ -175,9 +287,10 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     else if (signal.channel === `person:${me()}`) merged.personAll = true;
   }
 
-  const unsubscribe = source.subscribe((signals, origin = 'channel') => {
+  const unsubscribe = source.subscribe((signals, origin = 'channel', fresh) => {
     if (stopped) return;
     if (signals.length === 0) {
+      mixed = true;
       lastSeq.clear();
       queue().all = true;
       if (origin === 'join') {
@@ -189,6 +302,8 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
       return;
     }
     const merged = queue();
+    if (origin === 'own') owns.push(fresh ?? null);
+    else mixed = true;
     for (const signal of signals) {
       if (origin === 'channel') checkSeq(merged, signal);
       take(merged, signal);
@@ -227,6 +342,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     timer = undefined;
     joinBy = null;
     pending = null;
+    owns = [];
     unsubscribe();
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
   };

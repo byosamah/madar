@@ -4,7 +4,10 @@ import { render } from '@testing-library/react';
 import type { MadarApi } from '../api/calls';
 import type { ChangeSignal, Kind } from '../api/remote/wire';
 import { RuntimeProvider, createQueryClient, useCall } from './runtime';
-import { affects, connectChanges, emptyMerge, mergeSignals, type ChangeListener, type ChangeOrigin, type ChangeSource } from './signals';
+import type { FreshReads } from '../api/remote/remoteApi';
+import {
+  affects, connectChanges, emptyMerge, followMeta, mergeSignals, readsAfterWrite, type ChangeListener, type ChangeOrigin, type ChangeSource,
+} from './signals';
 
 const ME = 'usr_001';
 const OTHER = 'usr_002';
@@ -33,10 +36,11 @@ function setup(o: { me?: string } = {}) {
   const loads = new Map<string, number>();
   const offs: (() => void)[] = [];
   /** A list on screen: an observer keeps the query active, so a reload runs its call again. */
-  const show = (name: string, input: Record<string, unknown> = {}, data: unknown = {}) => {
+  const show = (name: string, input: Record<string, unknown> = {}, data: unknown = {}, o: { enabled?: boolean } = {}) => {
     const key = JSON.stringify([name, input]);
     const observer = new QueryObserver(client, {
       queryKey: ['api', name, input],
+      enabled: o.enabled ?? true,
       queryFn: async () => {
         loads.set(key, (loads.get(key) ?? 0) + 1);
         return data;
@@ -49,7 +53,10 @@ function setup(o: { me?: string } = {}) {
   return {
     client,
     show,
-    send: (signals: ChangeSignal[], origin?: ChangeOrigin) => listener?.(signals, origin),
+    send: (signals: ChangeSignal[], origin?: ChangeOrigin, fresh?: FreshReads) => (fresh ? listener?.(signals, origin, fresh) : listener?.(signals, origin)),
+    /** The load of a read in the follow step of a write: the runtime starts it with the tag of the step (FET-3). */
+    follow: (name: string, input: Record<string, unknown>, tag: object) =>
+      client.getQueryCache().find({ queryKey: ['api', name, input], exact: true })!.fetch(undefined, { cancelRefetch: true, meta: followMeta(tag) }),
     close: () => {
       open = 'closed';
     },
@@ -461,6 +468,136 @@ describe('the reload after a change signal (plan 5.3)', () => {
     setHidden(false);
     await settle();
     expect(tasks()).toBe(1);
+    app.stop();
+  });
+});
+
+describe('the own pass after a write with reads in its request (performance audit FET-3)', () => {
+  const TASK = { id: 'tsk_001' };
+  const LIST = { projectId: 'prj_001' };
+  const own = () => sig({ kinds: ['tasks', 'events'], projects: ['prj_001'], actorId: ME });
+
+  it('does not reload a read that ran after the write in its request, and reloads every other read that the signals name', async () => {
+    const app = setup();
+    const task = app.show('tasks.get', TASK, { task: { projectId: 'prj_001' } });
+    const list = app.show('tasks.list', LIST);
+    const feed = app.show('updates.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.get', TASK, tag);
+    await app.follow('tasks.list', LIST, tag);
+    expect([task(), list(), feed()]).toEqual([2, 2, 1]);
+    app.send([own()], 'own', { tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }] });
+    await settle();
+    expect([task(), list(), feed()]).toEqual([2, 2, 2]);
+    expect(app.client.getQueryState(['api', 'tasks.get', TASK])?.isInvalidated).toBe(false);
+    app.stop();
+  });
+
+  it('reloads such a read when another load of it started after the load of the follow step', async () => {
+    const app = setup();
+    const list = app.show('tasks.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.list', LIST, tag);
+    // A later load (for example a pass of Realtime) may have run before the write: it carries no tag.
+    await app.client.refetchQueries({ queryKey: ['api', 'tasks.list', LIST] });
+    expect(list()).toBe(3);
+    app.send([own()], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
+    await settle();
+    expect(list()).toBe(4);
+    app.stop();
+  });
+
+  it('reloads every read that the signals name when the pass also holds a signal of Realtime', async () => {
+    const app = setup();
+    const list = app.show('tasks.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.list', LIST, tag);
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    app.send([own()], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+
+  it('reloads a read when one own answer of the pass names it and another one does not', async () => {
+    const app = setup();
+    const list = app.show('tasks.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.list', LIST, tag);
+    // Two writes in one request: the read ran after the first write, but before the second one.
+    app.send([own()], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
+    app.send([own()], 'own');
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+});
+
+describe('the reads that a write will change (performance audit FET-3)', () => {
+  const ROW = (id: string) => ({ task: { id, projectId: 'prj_001' } });
+
+  it('chooses the reads on screen that the kinds of the write touch: the record of the write first, then the others', async () => {
+    const app = setup();
+    app.show('session.get', {}, { user: { id: ME } });
+    app.show('notifications.count', {}, 2);
+    app.show('clients.list');
+    app.show('tasks.list', { filter: 'mine' }, [ROW('tsk_009'), ROW('tsk_001')]);
+    app.show('tasks.list', { filter: 'review_for_me' }, [ROW('tsk_005')]);
+    app.show('tasks.get', { id: 'tsk_001' }, { task: { projectId: 'prj_001' } });
+    await settle();
+    const chosen = readsAfterWrite(app.client, 'tasks.complete', { id: 'tsk_001' }, ME).map((q) => q.queryKey.slice(1));
+    // tasks.list of both filters is an overview read: only the one with the ticked row goes in the request of the write. The
+    // session and the clients read no kind of the write.
+    expect(chosen).toEqual([['tasks.get', { id: 'tsk_001' }], ['tasks.list', { filter: 'mine' }], ['notifications.count', {}]]);
+    app.stop();
+  });
+
+  it('keeps to the project of the input, and takes every project when the input names none', async () => {
+    const app = setup();
+    app.show('tasks.list', { projectId: 'prj_001' });
+    app.show('tasks.list', { projectId: 'prj_002' });
+    await settle();
+    const names = (input: unknown) => readsAfterWrite(app.client, 'tasks.create', input, ME).map((q) => q.queryKey[2]);
+    expect(names({ projectId: 'prj_002', title: 'New' })).toEqual([{ projectId: 'prj_002' }]);
+    expect(names({ title: 'Office errand' })).toEqual([{ projectId: 'prj_001' }, { projectId: 'prj_002' }]);
+    app.stop();
+  });
+
+  it('takes at most 11 reads, so they fit with the write in one request of 12', async () => {
+    const app = setup();
+    for (let n = 0; n < 14; n += 1) app.show('tasks.get', { id: `tsk_${100 + n}` }, { task: { projectId: 'prj_001' } });
+    await settle();
+    expect(readsAfterWrite(app.client, 'tasks.update', { id: 'tsk_200', patch: {} }, ME)).toHaveLength(11);
+    app.stop();
+  });
+
+  it('leaves out a read that never reloads, a read with no answer yet, a read that no screen shows, and a turned-off read', async () => {
+    const app = setup();
+    app.show('files.link', { id: 'fil_001', variant: 'thumb', disposition: 'inline' });
+    app.show('tasks.list', { projectId: 'prj_001' }, [], { enabled: false });
+    app.show('tasks.get', { id: 'tsk_002' }, { task: { projectId: 'prj_001' } });
+    await settle();
+    // A read whose screen closed, and a read on screen whose first answer still loads.
+    app.client.setQueryData(['api', 'tasks.get', { id: 'tsk_003' }], { task: { projectId: 'prj_001' } });
+    const loading = new QueryObserver(app.client, { queryKey: ['api', 'tasks.get', { id: 'tsk_004' }], queryFn: () => new Promise(() => undefined) });
+    const off = loading.subscribe(() => undefined);
+    expect(readsAfterWrite(app.client, 'files.markDelivered', { id: 'fil_001' }, ME).map((q) => q.queryKey[2])).toEqual([{ id: 'tsk_002' }]);
+    off();
+    app.stop();
+  });
+
+  it('chooses nothing for a write with no line, and the personal lists of the actor only for a personal kind', async () => {
+    const app = setup();
+    app.show('chats.unreadCount');
+    app.show('clients.list');
+    await settle();
+    expect(readsAfterWrite(app.client, 'agents.remove', { agentId: 'usr_009' }, ME)).toEqual([]);
+    expect(readsAfterWrite(app.client, 'chats.markRead', { conversationId: 'cnv_001' }, ME).map((q) => q.queryKey[1])).toEqual(['chats.unreadCount']);
+    expect(readsAfterWrite(app.client, 'chats.markRead', { conversationId: 'cnv_001' }, '')).toEqual([]);
     app.stop();
   });
 });

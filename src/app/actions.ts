@@ -1,8 +1,8 @@
 import { useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CallInput, CallName, CallOutput } from '../api/calls';
 import type { CallResult } from '../api/client';
-import { useAttemptKeys, useRetryableMutate, useRuntime } from './runtime';
+import { useAttemptKeys, useRetryableMutate, useRuntime, writeWithReads } from './runtime';
 import { useToast } from './toasts';
 
 /**
@@ -25,7 +25,9 @@ export function useUndoable<N extends CallName>(
     onUndo?: () => void;
   },
 ) {
-  const { api } = useRuntime();
+  const runtime = useRuntime();
+  const { api } = runtime;
+  const queryClient = useQueryClient();
   const toast = useToast();
   const latest = useRef(options);
   latest.current = options;
@@ -34,8 +36,9 @@ export function useUndoable<N extends CallName>(
   const mutation = useMutation<CallResult<CallOutput<N>>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
     // run() returns the story that the call used (the server makes it in the real build) and whether it changed a record,
-    // so no second call is needed. A Retry sends the idempotency key of the failed attempt again (plan 4.10).
-    mutationFn: (input) => attempts.run(input, (key) => api.run(name, input, { key })),
+    // so no second call is needed. A Retry sends the idempotency key of the failed attempt again (plan 4.10). The real build
+    // sends the reads that the write changes right after it (performance audit FET-3, writeWithReads).
+    mutationFn: (input) => attempts.run(input, (key) => writeWithReads(runtime, queryClient, name, input, () => api.run(name, input, { key }))),
     onSuccess: ({ output, storyId, changed }) => {
       latest.current.onSuccess?.(output);
       // An action that changed nothing gets no toast: there is nothing to report and nothing to undo.

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { Language } from '../../api/contract/entities';
+import type { FreshReads } from '../../api/remote/follow';
 import { createRemoteApi } from '../../api/remote/remoteApi';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
@@ -62,8 +63,11 @@ export function browserLanguage(): Language {
   return firstLanguage(saved, list.filter(Boolean));
 }
 
-/** A change source that also takes the signals of own answers (RemoteApi onSignals). */
-export type PersonChangeSource = ChangeSource & { own(signals: ChangeSignal[]): void };
+/**
+ * A change source that also takes the signals of own answers (RemoteApi onSignals), with the reads that ran after the write in
+ * its request (performance audit FET-3).
+ */
+export type PersonChangeSource = ChangeSource & { own(signals: ChangeSignal[], fresh?: FreshReads): void };
 
 /**
  * The change signals of whoever is signed in. The channels of a person need the person's id, which only the session names, so
@@ -87,8 +91,8 @@ export function personChangeSource(o: {
   // True while the session is asked for the person, so a second sign-in note does not ask again.
   let asking = false;
 
-  const tell: ChangeListener = (signals, origin) => {
-    for (const listener of [...listeners]) listener(signals, origin);
+  const tell: ChangeListener = (...args) => {
+    for (const listener of [...listeners]) listener(...args);
   };
 
   function disconnect(): void {
@@ -145,7 +149,7 @@ export function personChangeSource(o: {
       };
     },
     status: () => current?.status() ?? 'closed',
-    own: (signals) => tell(signals, 'own'),
+    own: (signals, fresh) => (fresh ? tell(signals, 'own', fresh) : tell(signals, 'own')),
   };
 }
 
@@ -185,7 +189,7 @@ export async function bootstrapRemote(o: {
     adapters,
     // The Supabase gateway names the project by its public key.
     headers: { apikey: config.publishableKey },
-    onSignals: (signals) => changes?.own(signals),
+    onSignals: (signals, fresh) => changes?.own(signals, fresh),
   });
   changes = personChangeSource({
     auth,
