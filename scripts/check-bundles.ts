@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,8 @@ import { fileURLToPath } from 'node:url';
  * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code and stay
- * under FIRST_LOAD_MAX_BYTES.
+ * under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah files and a connection to each
+ * Supabase origin.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
  * artifact stays a static page with the fake API.
  * server: no sample office and no settleFuture in the function bundles, which run on the real office (cleanup 2026-10-06).
@@ -20,7 +22,12 @@ export type BundleOptions = {
    * The rules of the first load of the remote build. The script always gives them. Without them (the tests of the older
    * rules), the check prints that it skipped them.
    */
-  firstLoad?: Record<string, never>;
+  firstLoad?: {
+    /** The origins that index.html connects to early (VITE_SUPABASE_URL, VITE_API_URL). None: that rule says it skips. */
+    origins: string[];
+    /** The folder of the Thmanyah files that the font links must match (src/design/fonts). */
+    fontsDir: string;
+  };
 };
 
 function walk(dir: string): string[] {
@@ -38,6 +45,9 @@ export const FIRST_LOAD_MAX_BYTES = 1_350_000;
 
 /** Text that only the chart package (recharts) holds. */
 export const CHART_MARKER = 'recharts-wrapper';
+
+/** The Thmanyah weights that index.html preloads, as named in src/design/fonts. */
+export const FONT_WEIGHTS = ['Regular', 'Medium', 'Bold'] as const;
 
 const TEXT = /\.(html|js|mjs|css|json|txt|map|svg|webmanifest)$/;
 
@@ -115,8 +125,10 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       lines.push(`FAIL: ${dir} has no index.html.`);
     } else {
       report("a relative './assets/' path in index.html", /(src|href)=["']\.\/assets\//.test(index.text) ? ['index.html'] : []);
-      if (options.firstLoad) checkFirstLoad();
-      else lines.push('skip: no first-load options given, so the first-load rules did not run.');
+      if (options.firstLoad) {
+        checkFirstLoad();
+        checkEarlyLinks(options.firstLoad);
+      } else lines.push('skip: no first-load options given, so the first-load rules did not run.');
     }
   } else {
     report("'supabase' (any case)", texts.filter((f) => /supabase/i.test(f.text)).map((f) => f.name));
@@ -149,6 +161,62 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       `${closure.length} files, ${bytes} B`,
     );
   }
+
+  /** BND-2, BND-3, BND-4: the links that start the bootstrap chunk, the fonts and the Supabase connection with the page. */
+  function checkEarlyLinks(o: NonNullable<BundleOptions['firstLoad']>): void {
+    const preloads = new Set(rels('modulepreload').map((tag) => assetOf(tag.attrs.href)));
+    const entry = tags.find((tag) => tag.name === 'script' && tag.attrs.type === 'module');
+    const started = new Set([...preloads, assetOf(entry?.attrs.src)]);
+    const boot = [...scripts.keys()].filter((name) => name.startsWith('bootstrap-'));
+    if (boot.length !== 1) rule('one bootstrap chunk', [`assets/ holds ${boot.length}`], '');
+    else {
+      const unlinked = closureOf(boot, scripts).filter((name) => !started.has(name));
+      rule('index.html starts the bootstrap chunk and its static imports', unlinked.map((name) => `no modulepreload link to ${name}`), `${boot[0]} and its imports`);
+    }
+
+    const fonts = rels('preload').filter((tag) => tag.attrs.as === 'font');
+    const fontProblems: string[] = [];
+    if (fonts.length !== FONT_WEIGHTS.length) fontProblems.push(`${fonts.length} font links, not ${FONT_WEIGHTS.length}`);
+    for (const weight of FONT_WEIGHTS) {
+      const pattern = new RegExp(`^thmanyahsans-${weight}-[\\w-]+\\.otf$`);
+      const link = fonts.find((tag) => pattern.test(assetOf(tag.attrs.href) ?? ''));
+      if (!link) {
+        fontProblems.push(`no link to assets/thmanyahsans-${weight}-*.otf`);
+        continue;
+      }
+      const name = `assets/${assetOf(link.attrs.href)}`;
+      if (link.attrs.crossorigin === undefined) fontProblems.push(`the ${weight} link has no crossorigin`);
+      if (link.attrs.type !== 'font/otf') fontProblems.push(`the ${weight} link has no type font/otf`);
+      const file = files[names.indexOf(name)];
+      const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+      if (!file) fontProblems.push(`${name} is missing`);
+      else if (sha(file) !== sha(join(o.fontsDir, `thmanyahsans-${weight}.otf`))) fontProblems.push(`${name} differs from thmanyahsans-${weight}.otf`);
+    }
+    rule('index.html preloads the three Thmanyah files', fontProblems, 'each with crossorigin and the same bytes as the font folder');
+
+    const origins = [...new Set(o.origins)];
+    const connects = rels('preconnect');
+    if (origins.length === 0) lines.push('skip: no Supabase origin given (VITE_SUPABASE_URL, VITE_API_URL), so the preconnect rule did not run.');
+    else {
+      const problems = [
+        ...origins.filter((origin) => !connects.some((tag) => tag.attrs.href === origin && tag.attrs.crossorigin !== undefined)).map((origin) => `no preconnect with crossorigin to ${origin}`),
+        ...connects.filter((tag) => !origins.includes(String(tag.attrs.href))).map((tag) => `a preconnect to ${String(tag.attrs.href)}`),
+      ];
+      rule('index.html connects early to each Supabase origin', problems, origins.join(', '));
+    }
+  }
+}
+
+/** The distinct origins of the Supabase values of a remote build. A missing or broken value gives none. */
+export function originsOf(env: Record<string, string | undefined>): string[] {
+  const origins = ['VITE_SUPABASE_URL', 'VITE_API_URL'].flatMap((name) => {
+    try {
+      return env[name] ? [new URL(env[name]!).origin] : [];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(origins)];
 }
 
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
@@ -161,7 +229,8 @@ if (isMain) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   // The server check reads both outputs of npm run build:server: the Supabase functions and the Workers fallback.
   const folders = process.argv[3] ? [process.argv[3]] : kind === 'server' ? [join(root, 'supabase/functions/_build'), join(root, 'dist-server')] : [join(root, 'dist')];
-  const options: BundleOptions = { firstLoad: {} };
+  // npm run build:remote exports the public values of config/remote.<env>.env before this check, so the origins are known.
+  const options: BundleOptions = { firstLoad: { origins: originsOf(process.env), fontsDir: join(root, 'src/design/fonts') } };
   const results = folders.map((folder) => checkBundles(kind, folder, options));
   const ok = results.every((result) => result.ok);
   for (const result of results) for (const line of result.lines) (result.ok ? console.log : console.error)(line);

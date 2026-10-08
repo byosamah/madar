@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import config from '../vite.config.ts';
+import type { HtmlTagDescriptor, Plugin } from 'vite';
+import config, { earlyLinks } from '../vite.config.ts';
 
 type Project = { test: { name: string; include?: string[]; exclude?: string[]; globalSetup?: string[]; setupFiles?: string[]; fileParallelism?: boolean; testTimeout?: number } };
 
@@ -77,5 +78,62 @@ describe('the build output', () => {
   it('keeps code splitting in the remote modes', () => {
     expect(buildOf('remote-test').rolldownOptions).toBeUndefined();
     expect(buildOf('remote-production').rolldownOptions).toBeUndefined();
+  });
+});
+
+/** The names of the plugins that vite.config.ts gives for a mode, the nested lists included. */
+function pluginsOf(mode: string): string[] {
+  const resolved = (config as unknown as (e: { mode: string; command: string }) => { plugins: unknown[] })({ mode, command: 'build' });
+  return (resolved.plugins.flat(Infinity) as (Plugin | null | false)[]).flatMap((plugin) => (plugin ? [plugin.name] : []));
+}
+
+/** The tags that the early-link plugin adds to an index.html with a given bundle. */
+function earlyTags(env: Record<string, string | undefined>, html: string, bundle: Record<string, object>): HtmlTagDescriptor[] {
+  const plugin = earlyLinks(env);
+  (plugin.configResolved as (c: { base: string }) => void)({ base: '/' });
+  const hook = plugin.transformIndexHtml as { order: string; handler: (html: string, ctx: { bundle: Record<string, object> }) => HtmlTagDescriptor[] };
+  expect(hook.order).toBe('post');
+  return hook.handler(html, { bundle });
+}
+
+const chunk = (fileName: string, imports: string[], facadeModuleId: string | null = null) => ({ type: 'chunk', fileName, imports, facadeModuleId });
+const asset = (fileName: string) => ({ type: 'asset', fileName });
+
+describe('the early links of the remote build (performance audit BND-2, BND-3, BND-4)', () => {
+  it('join only the remote modes, and only the build', () => {
+    expect(pluginsOf('remote-test')).toContain('madar-early-links');
+    expect(pluginsOf('remote-production')).toContain('madar-early-links');
+    expect(pluginsOf('production')).not.toContain('madar-early-links');
+    expect(earlyLinks({}).apply).toBe('build');
+  });
+
+  it('start the bootstrap chunk and the chunks it imports that index.html does not start, the three fonts, and each Supabase origin once', () => {
+    const html = '<script type="module" crossorigin src="/assets/index-a1.js"></script>\n<link rel="modulepreload" crossorigin href="/assets/vendor-v1.js">';
+    const bundle = {
+      'assets/index-a1.js': chunk('assets/index-a1.js', ['assets/vendor-v1.js'], '/repo/src/main.tsx'),
+      'assets/vendor-v1.js': chunk('assets/vendor-v1.js', []),
+      'assets/bootstrap-b1.js': chunk('assets/bootstrap-b1.js', ['assets/supabase-s1.js', 'assets/index-a1.js'], '/repo/src/app/remote/bootstrap.ts'),
+      'assets/supabase-s1.js': chunk('assets/supabase-s1.js', ['assets/vendor-v1.js']),
+      'assets/DashboardScreen-d1.js': chunk('assets/DashboardScreen-d1.js', ['assets/vendor-v1.js'], '/repo/src/features/dashboard/DashboardScreen.tsx'),
+      'assets/thmanyahsans-Regular-r1.otf': asset('assets/thmanyahsans-Regular-r1.otf'),
+      'assets/thmanyahsans-Medium-m1.otf': asset('assets/thmanyahsans-Medium-m1.otf'),
+      'assets/thmanyahsans-Bold-b1.otf': asset('assets/thmanyahsans-Bold-b1.otf'),
+      'assets/inter-latin-opsz-normal-i1.woff2': asset('assets/inter-latin-opsz-normal-i1.woff2'),
+    };
+    const env = { VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: 'https://ref.supabase.co/functions/v1/api' };
+    expect(earlyTags(env, html, bundle)).toEqual([
+      { tag: 'link', attrs: { rel: 'preconnect', href: 'https://ref.supabase.co', crossorigin: true }, injectTo: 'head' },
+      { tag: 'link', attrs: { rel: 'modulepreload', crossorigin: true, href: '/assets/bootstrap-b1.js' }, injectTo: 'head' },
+      { tag: 'link', attrs: { rel: 'modulepreload', crossorigin: true, href: '/assets/supabase-s1.js' }, injectTo: 'head' },
+      { tag: 'link', attrs: { rel: 'preload', as: 'font', type: 'font/otf', crossorigin: true, href: '/assets/thmanyahsans-Regular-r1.otf' }, injectTo: 'head' },
+      { tag: 'link', attrs: { rel: 'preload', as: 'font', type: 'font/otf', crossorigin: true, href: '/assets/thmanyahsans-Medium-m1.otf' }, injectTo: 'head' },
+      { tag: 'link', attrs: { rel: 'preload', as: 'font', type: 'font/otf', crossorigin: true, href: '/assets/thmanyahsans-Bold-b1.otf' }, injectTo: 'head' },
+    ]);
+  });
+
+  it('add a second preconnect only for a second origin, and none when the values are missing', () => {
+    const preconnects = (env: Record<string, string | undefined>) => earlyTags(env, '', {}).filter((tag) => tag.attrs?.rel === 'preconnect').map((tag) => tag.attrs?.href);
+    expect(preconnects({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: 'https://api.example.test/api' })).toEqual(['https://ref.supabase.co', 'https://api.example.test']);
+    expect(preconnects({})).toEqual([]);
   });
 });

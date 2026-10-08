@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, SEED_MARKERS, staticImports, tagsOf, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -95,6 +95,11 @@ describe('checkBundles', () => {
   });
 });
 
+/** The font folder of a test: three small files in place of the Thmanyah files. */
+function fonts(): string {
+  return dist({ 'thmanyahsans-Regular.otf': 'regular', 'thmanyahsans-Medium.otf': 'medium', 'thmanyahsans-Bold.otf': 'bold' });
+}
+
 const ORIGIN = 'https://ref.supabase.co';
 const link = (rel: string, href: string, extra = '') => `<link rel="${rel}"${extra} crossorigin href="${href}">`;
 const FONT_LINKS = ['Regular', 'Medium', 'Bold'].map((weight) => link('preload', `/assets/thmanyahsans-${weight}-x1.otf`, ' as="font" type="font/otf"')).join('\n');
@@ -129,19 +134,24 @@ function goodRemote(): Record<string, string> {
 }
 
 /** The check of a remote build with the first-load rules, with some files changed. */
-function checkRemote(change: (files: Record<string, string>) => void = () => undefined) {
+function checkRemote(change: (files: Record<string, string>) => void = () => undefined, origins = [ORIGIN]) {
   const files = goodRemote();
   change(files);
-  const options: BundleOptions = { firstLoad: {} };
+  const options: BundleOptions = { firstLoad: { origins, fontsDir: fonts() } };
   const result = checkBundles('remote', dist(files), options);
   return { ...result, text: result.lines.join('\n') };
 }
+
+const without = (html: string, part: string) => {
+  expect(html).toContain(part);
+  return html.replace(part, '');
+};
 
 describe('the first-load rules of the remote build (performance audit 2026-10-07)', () => {
   it('pass a build that keeps them, and name each rule and its finding', () => {
     const result = checkRemote();
     expect(result.ok, result.text).toBe(true);
-    for (const part of [CHART_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`]) {
+    for (const part of [CHART_MARKER, `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN]) {
       expect(result.text).toContain(part);
     }
     // index, the runtime, vendor, bootstrap and supabase: the dynamic imports stay out.
@@ -180,6 +190,52 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
     expect(result.ok).toBe(false);
     expect(result.text).toContain('rolldown-runtime-r1.js is missing');
   });
+
+  it('fail when index.html does not start the bootstrap chunk, or one of its imports (BND-2)', () => {
+    const boot = checkRemote((files) => { files['index.html'] = without(files['index.html'], link('modulepreload', '/assets/bootstrap-b1.js')); });
+    expect(boot.ok).toBe(false);
+    expect(boot.text).toContain('no modulepreload link to bootstrap-b1.js');
+    const supabase = checkRemote((files) => { files['index.html'] = without(files['index.html'], link('modulepreload', '/assets/supabase-s1.js')); });
+    expect(supabase.ok).toBe(false);
+    expect(supabase.text).toContain('no modulepreload link to supabase-s1.js');
+  });
+
+  it('fail when the font links are not the three Thmanyah files with crossorigin and their own bytes (BND-3)', () => {
+    const two = checkRemote((files) => { files['index.html'] = without(files['index.html'], link('preload', '/assets/thmanyahsans-Bold-x1.otf', ' as="font" type="font/otf"')); });
+    expect(two.ok).toBe(false);
+    expect(two.text).toContain('2 font links, not 3');
+    expect(two.text).toContain('no link to assets/thmanyahsans-Bold-*.otf');
+    const bare = checkRemote((files) => { files['index.html'] = files['index.html'].replace('type="font/otf" crossorigin href="/assets/thmanyahsans-Medium', 'href="/assets/thmanyahsans-Medium'); });
+    expect(bare.ok).toBe(false);
+    expect(bare.text).toContain('the Medium link has no crossorigin');
+    expect(bare.text).toContain('the Medium link has no type font/otf');
+    const changed = checkRemote((files) => { files['assets/thmanyahsans-Regular-x1.otf'] = 'a subset'; });
+    expect(changed.ok).toBe(false);
+    expect(changed.text).toContain('assets/thmanyahsans-Regular-x1.otf differs from thmanyahsans-Regular.otf');
+    const gone = checkRemote((files) => { delete files['assets/thmanyahsans-Medium-x1.otf']; });
+    expect(gone.ok).toBe(false);
+    expect(gone.text).toContain('assets/thmanyahsans-Medium-x1.otf is missing');
+  });
+
+  it('fail when index.html does not connect early to each Supabase origin with crossorigin, or connects elsewhere (BND-4)', () => {
+    const none = checkRemote((files) => { files['index.html'] = without(files['index.html'], link('preconnect', ORIGIN)); });
+    expect(none.ok).toBe(false);
+    expect(none.text).toContain(`no preconnect with crossorigin to ${ORIGIN}`);
+    const bare = checkRemote((files) => { files['index.html'] = files['index.html'].replace(link('preconnect', ORIGIN), `<link rel="preconnect" href="${ORIGIN}">`); });
+    expect(bare.ok).toBe(false);
+    expect(bare.text).toContain(`no preconnect with crossorigin to ${ORIGIN}`);
+    const other = checkRemote(() => undefined, ['https://other.supabase.co']);
+    expect(other.ok).toBe(false);
+    expect(other.text).toContain(`a preconnect to ${ORIGIN}`);
+    const two = checkRemote(() => undefined, [ORIGIN, 'https://api.example.test']);
+    expect(two.ok).toBe(false);
+    expect(two.text).toContain('no preconnect with crossorigin to https://api.example.test');
+  });
+
+  it('skip the preconnect rule with a line when no origin is known', () => {
+    const result = checkRemote(() => undefined, []);
+    expect(result.text).toContain('skip: no Supabase origin given');
+  });
 });
 
 describe('the first-load rules of the prototype build', () => {
@@ -208,5 +264,12 @@ describe('the helpers of the bundle check', () => {
 
   it('read the static imports of a minified chunk, and leave the dynamic imports out', () => {
     expect(staticImports('import{a as e,b as $t}from"./a-1.js";import"./b-2.js";export{c}from\'./c-3.js\';import*as d from"./d-4.js";const x=()=>import(`./e-5.js`),y=()=>import("./f-6.js");')).toEqual(['a-1.js', 'b-2.js', 'c-3.js', 'd-4.js']);
+  });
+
+  it('give the distinct origins of the Supabase values, and none for a missing or broken value', () => {
+    expect(originsOf({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: 'https://ref.supabase.co/functions/v1/api' })).toEqual(['https://ref.supabase.co']);
+    expect(originsOf({ VITE_SUPABASE_URL: 'https://ref.supabase.co/', VITE_API_URL: 'https://api.example.test/api' })).toEqual(['https://ref.supabase.co', 'https://api.example.test']);
+    expect(originsOf({ VITE_SUPABASE_URL: 'not a url' })).toEqual([]);
+    expect(originsOf({})).toEqual([]);
   });
 });
