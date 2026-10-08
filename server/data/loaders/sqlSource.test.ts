@@ -119,3 +119,32 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
     expect(text).not.toContain('join tasks');
   });
 });
+
+describe('the rows that still name a record (DB-M3)', () => {
+  async function sentFor(c: Parameters<ReturnType<typeof sqlSource>['referencing']>[0], path: string): Promise<{ text: string; values: unknown[] }> {
+    const sent: { text: string; values: unknown[] }[] = [];
+    const q: Query = async <R,>(text: string, values: unknown[] = []) => {
+      sent.push({ text, values });
+      return [] as R[];
+    };
+    await sqlSource(q).referencing(c, path, 'tsk_001', 'cmt_001');
+    return sent[0];
+  }
+
+  it('looks up a plain field with a text column of its own on that column', async () => {
+    expect(await sentFor('comments', 'targetId')).toEqual({
+      text: 'select t.ord, t.doc from comments t where t.target_id = $1::text and t.id is distinct from $2::text order by t.ord limit 1', values: ['tsk_001', 'cmt_001'],
+    });
+    expect((await sentFor('chatReads', 'conversationId')).text).toContain('from chat_reads t where t.conversation_id = $1::text');
+    expect((await sentFor('tracker', 'replyTaskId')).text).toContain('where t.reply_task_id = $1::text');
+    expect((await sentFor('files', 'taskId')).text).toContain('where t.task_id = $1::text');
+  });
+
+  it('keeps the JSON path for a list, a nested field, and a field with no column', async () => {
+    for (const [c, path] of [['comments', 'dates.byTaskId'], ['tasks', 'prerequisiteIds[]'], ['tasks', 'dateNotes[].byTaskId'], ['tasks', 'createdBy'], ['comments', 'reactions.*[]']] as const) {
+      const { text, values } = await sentFor(c, path);
+      expect(text, path).toContain('jsonb_path_exists(t.doc, $1::jsonpath');
+      expect(values[1], path).toBe('tsk_001');
+    }
+  });
+});

@@ -12,11 +12,15 @@ import { tableOf, type TableCollection, type TableSpec } from '../tables';
 
 type Rec = Record<string, unknown>;
 
-/** A column that a condition or an order may name. text: doc->>'field'; bool and int: the typed generated column. */
-type Column = { type: 'text' | 'bool' | 'int'; value(rec: Rec, state: State, spec: TableSpec): string | boolean | number | null };
+/**
+ * A column that a condition or an order may name. text: doc->>'field'; bool and int: the typed generated column. "field" is the
+ * doc field of a text column that the migration builds as doc->>'field', so a lookup by that field may use the column.
+ */
+type Column = { type: 'text' | 'bool' | 'int'; field?: string; value(rec: Rec, state: State, spec: TableSpec): string | boolean | number | null };
 
 const text = (field: string): Column => ({
   type: 'text',
+  field,
   value: (rec) => (rec[field] === undefined || rec[field] === null ? null : String(rec[field])),
 });
 const server = (column: string): Column => ({
@@ -57,6 +61,11 @@ export function columnOf(c: TableCollection, name: string): Column {
   return column;
 }
 const ID: Column = { type: 'text', value: (rec, _state, spec) => spec.key(rec) };
+
+/** The text column that the migration builds as doc->>'field' for this plain doc field, or undefined when the table has none. */
+export function columnOfField(c: TableCollection, field: string): string | undefined {
+  return Object.entries(COLUMNS[c] ?? {}).find(([, column]) => column.field === field)?.[0];
+}
 
 /** A JSON field of "doc" that has no column: a scan inside the database, never an index. Only names of plain fields. */
 const FIELD = /^[a-zA-Z]+$/;

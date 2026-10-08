@@ -2,7 +2,7 @@ import { jsonPathOf } from '../../../src/api/references';
 import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, fieldName, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
+import { columnOf, columnOfField, fieldName, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -213,11 +213,19 @@ export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): So
     },
 
     async referencing(c, path, id, except) {
-      const rows = await read<{ ord: string | number; doc: Record<string, unknown> }>(
-        `select t.ord, t.doc from ${tableOf(c).table} t where jsonb_path_exists(t.doc, $1::jsonpath, jsonb_build_object('id', $2::text)) `
-          + 'and t.id is distinct from $3::text order by t.ord limit 1',
-        [`${jsonPathOf(path)} ? (@ == $id)`, id, except],
-      );
+      // A plain field with a text column of its own (doc->>'field'): one equality on that column, often on its index, never a
+      // jsonpath scan of every row (performance audit DB-M3). A zod id field holds one string or null, so both give the same row.
+      const column = /^[a-zA-Z]+$/.test(path) ? columnOfField(c, path) : undefined;
+      const rows = column
+        ? await read<{ ord: string | number; doc: Record<string, unknown> }>(
+          `select t.ord, t.doc from ${tableOf(c).table} t where t.${column} = $1::text and t.id is distinct from $2::text order by t.ord limit 1`,
+          [id, except],
+        )
+        : await read<{ ord: string | number; doc: Record<string, unknown> }>(
+          `select t.ord, t.doc from ${tableOf(c).table} t where jsonb_path_exists(t.doc, $1::jsonpath, jsonb_build_object('id', $2::text)) `
+            + 'and t.id is distinct from $3::text order by t.ord limit 1',
+          [`${jsonPathOf(path)} ? (@ == $id)`, id, except],
+        );
       return rows.map((row) => ({ ord: Number(row.ord), doc: row.doc }));
     },
 

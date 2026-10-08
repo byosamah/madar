@@ -169,4 +169,11 @@ describe('the read indexes on growth data', () => {
     }));
     expect(uses(gone, 'events_target_id')).toBe(true);
   });
+
+  it('DB-M3: finds a comment that still names a task on an index of target_id, with no scan of every comment', async () => {
+    const [lookup] = await statementsOf((s) => s.referencing('comments', 'targetId', 'tsk_9999', null));
+    const nodes = await planOf(lookup);
+    expect(nodes.some((n) => n['Index Name'] === 'comments_target_id' || n['Index Name'] === 'comments_target')).toBe(true);
+    expect(scans(nodes, 'comments')).toBe(false);
+  });
 });

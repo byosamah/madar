@@ -6,11 +6,13 @@ import { buildSeed } from '../../src/data/seed';
 import type { Query } from '../core/ports';
 import { runBoth } from '../data/loaders/compare';
 import { memorySource } from '../data/loaders/memorySource';
-import type { CountSelect, Select } from '../data/loaders/query';
+import { columnOfField, type CountSelect, type Select } from '../data/loaders/query';
 import type { Source } from '../data/loaders/source';
 import { countSql, selectSql, sqlSource } from '../data/loaders/sqlSource';
 import { badgeTraps, readSweep, TIE_PROJECT, trapOffice, writeSweep } from '../data/loaders/sweep';
 import { diffState, writeDiff } from '../data/save';
+import { tableOf, type TableCollection } from '../data/tables';
+import { REFERENCE_FIELDS } from '../../src/api/references';
 import { writeState } from '../data/whole';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
@@ -246,6 +248,31 @@ describe('the loaders on the local database', () => {
       await db.query('rollback');
     }
   }, 120_000);
+
+  it('finds the first row that still names a record as the memory form does, on the column of each plain field (DB-M3)', async () => {
+    const plain = REFERENCE_FIELDS.filter((f) => columnOfField(f.collection as TableCollection, f.path) !== undefined);
+    expect(plain.map((f) => `${f.collection}.${f.path}`)).toEqual(expect.arrayContaining([
+      'comments.targetId', 'files.taskId', 'files.projectId', 'files.stageId', 'tasks.projectId', 'tasks.stageId', 'updates.projectId',
+      'tracker.projectId', 'tracker.replyTaskId', 'payments.projectId', 'chatReads.conversationId',
+    ]));
+    const sql = sqlSource(q);
+    const memory = memorySource(office);
+    let found = 0;
+    for (const { collection, path } of plain) {
+      const c = collection as TableCollection;
+      const rows = c === 'settings' ? [] : Object.values((office[c as keyof State] ?? {}) as Record<string, Record<string, unknown>>);
+      const holders = rows.filter((row) => typeof row[path] === 'string');
+      // No match; a match; the same id with the first holder left out (the record of the Undo itself), which finds the next one.
+      const cases: [string, string | null][] = [['zzz_none', null]];
+      if (holders.length > 0) cases.push([holders[0][path] as string, null], [holders[0][path] as string, tableOf(c).key(holders[0])]);
+      for (const [id, except] of cases) {
+        const fromSql = comparable('referencing', await sql.referencing(c, path, id, except)) as unknown[];
+        expect(fromSql, `${c}.${path} ${id} ${except}`).toEqual(comparable('referencing', await memory.referencing(c, path, id, except)));
+        found += fromSql.length;
+      }
+    }
+    expect(found).toBeGreaterThan(10);
+  });
 
   it('counts the bytes it reads toward the egress meter', async () => {
     let bytes = 0;
