@@ -24,13 +24,22 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
   return null;
 }
 
+/**
+ * The context menu of one row. Its items read the router (useCardMenu calls useHref), so this part renders again on each link
+ * change. The row around it does not, also when a task panel opens over the list (performance audit 2026-10-07, RND-M1).
+ */
+function RowMenu({ summary, point, onClose }: { summary: ProjectSummary; point: { x: number; y: number } | null; onClose: () => void }) {
+  const { t } = useTranslation();
+  const items = useCardMenu(summary);
+  return <ContextMenu label={t('projects.menu', { name: summary.project.name })} items={items} point={point} onClose={onClose} />;
+}
+
 /** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
 export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = summary;
   const menu = useContextMenu();
-  const items = useCardMenu(summary);
   const index = summary.stages.findIndex((stage) => stage.id === summary.currentStage.id);
   return (
     <motion.li
@@ -80,7 +89,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
           </span>
         </span>
       </Link>
-      <ContextMenu label={t('projects.menu', { name: project.name })} items={items} point={menu.point} onClose={menu.close} />
+      <RowMenu summary={summary} point={menu.point} onClose={menu.close} />
     </motion.li>
   );
 }
