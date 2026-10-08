@@ -10,7 +10,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `contract/entities.ts` (records, ids like `prj_`, `tsk_`), `contract/views.ts` (read shapes), `contract/server.ts`
   (the server-only calls, `UPLOAD_LIFE_MS`, `FREE_PLAN_LIMITS`), `contract/limits.ts` (the plain limits and marks with no zod:
   `MAX_FILE_BYTES`, `MAX_SHOT_BYTES`, `MAX_ATTACHMENTS`, `MAX_HELPERS`, `MAX_PREREQUISITES`, `REACTIONS`, `PICTURE_DATA`,
-  `PASSWORD_SET_MARK`). entities.ts and server.ts export these again under the same names.
+  `PASSWORD_SET_MARK`, `DEFAULT_STALE_DAYS`). entities.ts and server.ts export these again under the same names.
+- `rowKeys.ts`: `memberKey` and `chatReadKey` (store.ts exports them again). `permissions.ts` and `store.ts` take no value
+  from the schema files: `can()` is in the first load of the real build (`limits.test.ts` checks it).
 - `permissions.ts`: `can(actor, action, resource)`. `execute.ts`: runs a call. `errors.ts`: `ApiError` and its codes.
 - `store.ts`, `persist.ts`: the prototype store in IndexedDB. `remote/`: the client of the real build (batcher, wire, keys,
   `follow.ts`: the reads that go after an own write, in a file of its own so the prototype bundle never takes RemoteApi). With
