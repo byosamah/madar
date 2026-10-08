@@ -759,6 +759,18 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   same name as the deploy address), "Order saved." in it; `api/health` 200 with 113 calls; `POST /mcp` with no token 401;
   the Data API still answers PGRST002.
 
+### The performance batch (2026-10-08)
+- **Change:** the speed fixes of the performance audit (sections "Performance audit" below): screens on demand, early
+  links, the font preload, one language at a time, memo lists, prefetch, the save reads in the request of the write, an
+  hour of cache, the server work after the answer, a joined transaction start, the read indexes, the picture fixes. No
+  visible change, no contract change, no new call. MCP: no change. The batch forwarder was measured and removed.
+- **Local:** see "The merge and the measurements (2026-10-08)" below. Not run: the deploy suite, the prototype smoke.
+- **Test copy at 62855bc:** `all.sh test`: the migration `20261007000100_read_indexes.sql` pushed, health 113 calls, page
+  200, `POST /mcp` with no token 401, three font preloads in index.html, `POST /api/batch` 405 (no forwarder).
+- **Production at 62855bc (the owner's words "deploy to test copy and production"):** `all.sh production`: the same
+  migration pushed, health 113 calls, madar.vado.sa serves `index-BGsCDciP.js` (the name of the deploy address), page 200,
+  `POST /mcp` with no token 401.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
