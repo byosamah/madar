@@ -7,11 +7,13 @@ import { defineConfig, type EnvironmentOptions } from 'vite';
  *   dist-server/worker.js                        for Cloudflare Workers, the fallback host; Wrangler resolves pg from node_modules
  * Every library is inside the bundle except pg and the node: modules, which each host provides. One file for each entry: no
  * shared chunks, so a function never imports a file that its deploy leaves out.
+ * The bundles are minified, with the names of functions and classes kept, so a new worker starts faster (performance audit
+ * SRV-11). Minify drops the JSDoc comments too, which Deno cannot read (proof.md G3).
  */
 
 const EXTERNAL = ['pg', /^node:/];
 
-function serverEntry(name: string, input: string, outDir: string, conditions: string[]): EnvironmentOptions {
+export function serverEntry(name: string, input: string, outDir: string, conditions: string[]): EnvironmentOptions {
   return {
     consumer: 'server',
     resolve: { conditions, externalConditions: conditions, noExternal: true, external: ['pg'] },
@@ -19,19 +21,20 @@ function serverEntry(name: string, input: string, outDir: string, conditions: st
       outDir,
       emptyOutDir: false,
       target: 'es2022',
-      minify: false,
+      minify: true,
       sourcemap: false,
       copyPublicDir: false,
       rollupOptions: {
         input: { [name]: input },
         external: EXTERNAL,
-        output: { format: 'es', entryFileNames: `${name}.js`, codeSplitting: false, comments: { legal: true, annotation: true, jsdoc: false } },
+        // keepNames: the error classes name themselves from their constructor, and check-bundles finds settleFuture by its name.
+        output: { format: 'es', entryFileNames: `${name}.js`, codeSplitting: false, keepNames: true, comments: { legal: true, annotation: true, jsdoc: false } },
       },
     },
   };
 }
 
-const DENO = ['deno', 'worker', 'import', 'module', 'default'];
+export const DENO = ['deno', 'worker', 'import', 'module', 'default'];
 const WORKERD = ['workerd', 'worker', 'import', 'module', 'default'];
 
 export default defineConfig({
