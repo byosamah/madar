@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Select } from './query';
-import { selectSql } from './sqlSource';
+import type { Query } from '../../core/ports';
+import type { CountSelect, Select } from './query';
+import { countSql, selectSql, sqlSource } from './sqlSource';
 
 /**
  * The SQL text of the loader reads (performance audit 2026-10-07). server/it/loaders.it.test.ts proves that each form gives the
@@ -77,5 +78,44 @@ describe('the field pick (DB-4)', () => {
   it('gives an empty doc for an empty pick, and never writes a field name into the SQL text', () => {
     expect(selectSql({ c: 'tasks', where: [], pick: [] }).text).toBe(`select t.ord, '{}'::jsonb as doc from tasks t order by t.ord`);
     expect(selectSql({ c: 'tasks', where: [], pick: ['dueDate'] }).text).not.toContain('dueDate');
+  });
+});
+
+describe('the unread counts and the task threads of the badge (DB-6)', () => {
+  const bounds = { col: 'target_id', by: { tsk_001: { gt: '' }, tsk_002: { gt: '2026-10-01', ge: '2026-10-02', after: { at: '2026-10-03', id: 'cmt_009' } } } };
+  const unread: CountSelect = { c: 'comments', per: 'target_id', where: [{ col: 'target_type', eq: 'task' }, { bounds }, { field: 'authorId', notIn: ['usr_001'] }] };
+
+  it('joins the bounds to the table on the key, so each key reads its own rows on the index', () => {
+    const { text, values } = countSql(unread);
+    expect(text).toBe(
+      'select b.k as v, count(*)::integer as n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) '
+        + 'join comments t on t.target_id = b.k where t.target_type = $2::text and '
+        + '(t.created_at collate "C" > b.gt collate "C" and (b.ge is null or t.created_at collate "C" >= b.ge collate "C") '
+        + 'and (b.aat is null or t.created_at collate "C" > b.aat collate "C" or (t.created_at = b.aat and t.id collate "C" > b.aid collate "C"))) '
+        + `and (t.doc->>'authorId' is null or not (t.doc->>'authorId' = any($3::text[]))) group by b.k`,
+    );
+    expect(JSON.parse(values[0] as string)).toEqual([
+      { k: 'tsk_001', gt: '', ge: null, aat: null, aid: null }, { k: 'tsk_002', gt: '2026-10-01', ge: '2026-10-02', aat: '2026-10-03', aid: 'cmt_009' },
+    ]);
+    expect(values.slice(1)).toEqual(['task', ['usr_001']]);
+  });
+
+  it('keeps the grouped count when the bounds name another column, or when no bounds are set', () => {
+    expect(countSql({ ...unread, per: 'created_at' }).text).toMatch(/^select t\.created_at as v, count\(\*\)::integer as n from comments t where /);
+    expect(countSql({ c: 'comments', per: 'target_id', where: [{ col: 'target_type', eq: 'task' }] }).text)
+      .toBe('select t.target_id as v, count(*)::integer as n from comments t where t.target_type = $1::text group by t.target_id');
+  });
+
+  it('finds the candidate tasks of the threads first, then groups only their comments', async () => {
+    const sent: string[] = [];
+    const q: Query = async <R,>(text: string) => {
+      sent.push(text);
+      return [] as R[];
+    };
+    await sqlSource(q).threads({ owner: 'usr_005', led: [], me: ['usr_005'], limit: 100, admin: false });
+    const text = sent[0].replace(/\s+/g, ' ');
+    expect(text).toContain('cand as (select k.id from tasks k where');
+    expect(text).toContain("from comments c where c.target_type = 'task' and c.target_id in (select id from cand)");
+    expect(text).not.toContain('join tasks');
   });
 });

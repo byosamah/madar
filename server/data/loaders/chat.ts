@@ -4,7 +4,7 @@ import { can } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
 import type { Bound } from './query';
-import { namedFiles, newestMessages, officeState } from './steps';
+import { namedFiles, newestMessages, officeState, pickedByKey } from './steps';
 
 /**
  * The chat loader (plan 4.6): the chats and the task threads of the person U.
@@ -15,9 +15,19 @@ import { namedFiles, newestMessages, officeState } from './steps';
  * For the task threads (chats.ts, taskThreads): the source finds the newest TASK_THREAD_LIMIT threads that U is part of, and the
  * loader brings each thread's task, its newest comment and U's newest own comment, and counts the comments by other people after
  * both U's mark and U's own last comment. These are what the preview, the order and the unread count read (AM 6, row 15).
+ * The badge (chats.unreadCount) reads only the numbers: no newest message, and only the fields of its rules from the thread
+ * tasks and comments (performance audit DB-6, DB-M1).
  */
 
 type Input = Record<string, unknown>;
+
+/**
+ * The task fields of a thread that the badge reads (chats.unreadCount, performance audit DB-M1): taskThreads (chats.ts) reads the
+ * id, the project, the lead and the maker, and the view rule of an office task (mayViewTask, taskResource) reads the helpers too.
+ */
+export const THREAD_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
+/** The comment fields of a thread that the badge reads: taskThreads groups, sorts and finds the own comments with these. */
+export const THREAD_COMMENT_FIELDS = ['id', 'targetType', 'targetId', 'createdAt', 'authorId'] as const;
 
 /** U and U's agents: a message or comment by one of them is U's own (principalOf). */
 function meOf(L: Load, userId: string): string[] {
@@ -28,21 +38,24 @@ const markOf = (L: Load, id: string, userId: string) => L.get<ChatRead>('chatRea
 
 /** Only chats.markRead counts in a write: its handler keeps the count true (Load.countWhere). */
 type Kept = { inWrite?: true };
+/** badge: the read of chats.unreadCount, which needs the numbers only. */
+type Mode = Kept & { badge?: true };
 
 /** The read marks, newest message and unread count of these chats. */
-async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[], kept: Kept = {}): Promise<void> {
+async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[], mode: Mode = {}): Promise<void> {
   const ids = conversations.map((c) => c.id);
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
-  await newestMessages(L, ids);
+  // unreadIn (chatState.ts) takes the count first, so the badge never reads the newest message.
+  if (!mode.badge) await newestMessages(L, ids);
   const by = Object.fromEntries(ids.map((id): [string, Bound] => [id, { gt: markOf(L, id, userId) }]));
   await L.countWhere({
     c: 'messages', per: 'conversation_id',
     where: [{ bounds: { col: 'conversation_id', by } }, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }],
-  }, ids, (id) => unreadCountKey(id, userId), kept);
+  }, ids, (id) => unreadCountKey(id, userId), mode);
 }
 
 /** The task threads of U, with the comments that their preview and order read, and their unread counts. */
-async function threadsOf(L: Load, userId: string, kept: Kept): Promise<void> {
+async function threadsOf(L: Load, userId: string, mode: Mode): Promise<void> {
   if (!L.authority || !can(L.authority, 'comment.read')) return;
   const me = meOf(L, userId);
   const led = Object.values(L.office.projects).filter((project) => project.leaderId === userId).map((project) => project.id);
@@ -50,9 +63,10 @@ async function threadsOf(L: Load, userId: string, kept: Kept): Promise<void> {
   const threads = await L.src.threads({ owner: userId, led, me, limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) });
   if (threads.length === 0) return;
   const ids = threads.map((thread) => thread.id);
-  await L.byKey('tasks', ids);
+  if (mode.badge) await pickedByKey(L, 'tasks', ids, THREAD_TASK_FIELDS);
+  else await L.byKey('tasks', ids);
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
-  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
   await L.select({ c: 'comments', where: onThreads, ...newest });
   const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }], ...newest })) as Comment[];
@@ -65,7 +79,7 @@ async function threadsOf(L: Load, userId: string, kept: Kept): Promise<void> {
   await L.countWhere({
     c: 'comments', per: 'target_id',
     where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }],
-  }, ids, (id) => unreadCountKey(id, userId), kept);
+  }, ids, (id) => unreadCountKey(id, userId), mode);
 }
 
 /** The chats U may open, from the office. */
@@ -75,15 +89,20 @@ function visible(L: Load): Conversation[] {
 }
 
 /** Every chat and task thread of U. */
-async function everyChat(L: Load, kept: Kept): Promise<void> {
+async function everyChat(L: Load, mode: Mode): Promise<void> {
   if (!L.authority) return;
-  await chatsOf(L, L.authority.id, visible(L), kept);
-  await threadsOf(L, L.authority.id, kept);
+  await chatsOf(L, L.authority.id, visible(L), mode);
+  await threadsOf(L, L.authority.id, mode);
 }
 
-/** chats.list and chats.unreadCount: every chat and task thread of U. */
+/** chats.list: every chat and task thread of U, with the previews. */
 export async function chatsAll(L: Load): Promise<void> {
   await everyChat(L, {});
+}
+
+/** chats.unreadCount: the numbers of every chat and task thread of U, with no preview (performance audit DB-6). */
+export async function chatsUnread(L: Load): Promise<void> {
+  await everyChat(L, { badge: true });
 }
 
 /** chats.markRead: as chats.list (it returns the full unread count), and the newest comment of a task thread it marks. */

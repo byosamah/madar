@@ -1,5 +1,6 @@
 import type { Notification } from '../../../src/api/contract/entities';
 import type { Load } from './build';
+import { pickedByKey } from './steps';
 
 /**
  * The Inbox loader (plan 4.6): the notices of the person U. The badge and the list read only the unread notices and the newest
@@ -9,6 +10,13 @@ import type { Load } from './build';
 
 type Input = Record<string, unknown>;
 
+/**
+ * The task fields that the bell reads (notifications.count, performance audit DB-M2): isGone and hiddenTask (notifications.ts)
+ * read whether the task is there, and for an office task its view rule (mayViewTask): the project, the lead, the helpers and the
+ * maker. A post or a report counts only by being there (feedbackNoticeHidden reads the notice alone), so it needs its id only.
+ */
+export const INBOX_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
+
 async function unreadOf(L: Load, userId: string): Promise<void> {
   await L.select({ c: 'notifications', where: [{ col: 'user_id', in: [userId] }, { col: 'read', eq: false }] });
 }
@@ -16,12 +24,21 @@ async function unreadOf(L: Load, userId: string): Promise<void> {
 /**
  * The target of each notice that is not an office row: a task, a post or a report. Projects and chats are in the office. A report
  * notice reads as gone when its report is gone, so it needs the row, but the view takes no words from it (review 2026-10-07).
+ * counted: the read of the bell, which takes only the fields that its count reads (performance audit DB-M2). The list and the
+ * writes keep whole rows.
  */
-async function targets(L: Load): Promise<void> {
+async function targets(L: Load, counted = false): Promise<void> {
   const notices = L.list<Notification>('notifications');
-  await L.byKey('tasks', notices.filter((n) => n.targetType === 'task').map((n) => n.targetId));
-  await L.byKey('updates', notices.filter((n) => n.targetType === 'update').map((n) => n.targetId));
-  await L.byKey('feedback', notices.filter((n) => n.targetType === 'feedback').map((n) => n.targetId));
+  const of = (type: Notification['targetType']) => notices.filter((n) => n.targetType === type).map((n) => n.targetId);
+  if (counted) {
+    await pickedByKey(L, 'tasks', of('task'), INBOX_TASK_FIELDS);
+    await pickedByKey(L, 'updates', of('update'), ['id']);
+    await pickedByKey(L, 'feedback', of('feedback'), ['id']);
+    return;
+  }
+  await L.byKey('tasks', of('task'));
+  await L.byKey('updates', of('update'));
+  await L.byKey('feedback', of('feedback'));
 }
 
 /** notifications.count, markAllRead, and the count that markRead and markUnread return. */
@@ -29,7 +46,7 @@ export async function inboxCount(L: Load, input: Input): Promise<void> {
   if (!L.authority) return;
   await unreadOf(L, L.authority.id);
   await L.byKey('notifications', (input.ids as string[] | undefined) ?? []);
-  await targets(L);
+  await targets(L, !L.write);
 }
 
 /** notifications.list: every unread notice, the newest "limit" read ones, their targets, and the delete event of each gone target. */

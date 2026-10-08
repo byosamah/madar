@@ -196,6 +196,16 @@ export async function newestMessages(L: Load, conversationIds: readonly string[]
   })) as Message[];
 }
 
+/**
+ * The rows of these keys that the load does not hold yet, with only some fields (AM 9): for a read that never saves and whose
+ * handler reads only those fields. A later read of the same rows keeps the picked copy, so only a read that loads nothing else
+ * of the table may use it.
+ */
+export async function pickedByKey(L: Load, c: TableCollection, keys: readonly string[], pick: readonly string[]): Promise<void> {
+  const missing = [...new Set(keys.filter((key) => key !== ''))].filter((key) => !L.get(c, key));
+  if (missing.length > 0) await L.select({ c, where: [{ col: 'id', in: missing }], pick });
+}
+
 /** The files of a file record by id (sharing and the file calls). */
 export async function fileById(L: Load, id: string): Promise<FileRec | undefined> {
   await L.byKey('files', [id]);

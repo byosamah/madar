@@ -2,7 +2,7 @@ import { jsonPathOf } from '../../../src/api/references';
 import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, fieldName, matchesNothing, type Cond, type CountSelect, type Row, type Select } from './query';
+import { columnOf, fieldName, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -26,8 +26,20 @@ function textBoundOf(time: string): string | null {
   return Number.isNaN(back.getTime()) ? null : back.toISOString().slice(0, 19);
 }
 
-/** The table and the where clause of a Select or a count: $1 and up are its values. "conds" holds each condition alone. */
-function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: string) => string; conds: string[]; where: string } {
+/** The rows of a "bounds" condition, one for each key, as jsonb_to_recordset reads them. */
+function boundRows(by: Readonly<Record<string, Bound>>): string {
+  return JSON.stringify(Object.entries(by).map(([k, bound]) => ({ k, gt: bound.gt, ge: bound.ge ?? null, aat: bound.after?.at ?? null, aid: bound.after?.id ?? null })));
+}
+
+/** The terms of one bound "b" on a row "t": created_at after gt, at or after ge, and (created_at, id) after the pair of "after". */
+const BOUND_TERMS = `t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
+  + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C}))`;
+
+/**
+ * The table and the where clause of a Select or a count: $1 and up are its values. "conds" holds each condition alone. "joined"
+ * is a bounds condition whose rows "b" the statement joins (countSql), so its terms name b directly.
+ */
+function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { col: (name: string) => string; conds: string[]; where: string } {
   const param = (value: unknown, type: string) => {
     values.push(value);
     return `$${values.length}::${type}`;
@@ -49,12 +61,9 @@ function whereSql(s: Select | CountSelect, values: unknown[]): { col: (name: str
       return `(t.created_at ${C} < ${at} or (t.created_at = ${at} and t.id ${C} < ${param(one.before.id, 'text')}))`;
     }
     if ('bounds' in one) {
-      const rows = Object.entries(one.bounds.by).map(([k, bound]) => ({
-        k, gt: bound.gt, ge: bound.ge ?? null, aat: bound.after?.at ?? null, aid: bound.after?.id ?? null,
-      }));
-      return `exists (select 1 from jsonb_to_recordset(${param(JSON.stringify(rows), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
-        + `where b.k = ${col(one.bounds.col)} and t.created_at ${C} > b.gt ${C} and (b.ge is null or t.created_at ${C} >= b.ge ${C}) `
-        + `and (b.aat is null or t.created_at ${C} > b.aat ${C} or (t.created_at = b.aat and t.id ${C} > b.aid ${C})))`;
+      if (one === joined) return `(${BOUND_TERMS})`;
+      return `exists (select 1 from jsonb_to_recordset(${param(boundRows(one.bounds.by), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
+        + `where b.k = ${col(one.bounds.col)} and ${BOUND_TERMS})`;
     }
     if ('key' in one) return `t.doc->'${fieldName(one.field)}'->>'${fieldName(one.key)}' = any(${param(one.in, 'text[]')})`;
     if ('field' in one) {
@@ -143,9 +152,24 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
   };
 }
 
-/** The SQL of one count: one grouped count over the rows that the conditions match. */
+/**
+ * The SQL of one count: one grouped count over the rows that the conditions match. With a bounds condition on the column "per"
+ * (the unread counts), the bounds join the table on that column, so each key reads its own rows on the index of the column
+ * (performance audit DB-6). Its keys come from an object, so each one is unique, and the count of each key stays the same.
+ */
 export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   const values: unknown[] = [];
+  const joined = s.where.find((one): one is Extract<Cond, { bounds: unknown }> => 'bounds' in one && one.bounds.col === s.per);
+  if (joined) {
+    columnOf(s.c, s.per);
+    values.push(boundRows(joined.bounds.by));
+    const { conds } = whereSql(s, values, joined);
+    return {
+      text: `select b.k as v, count(*)::integer as n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) `
+        + `join ${tableOf(s.c).table} t on t.${s.per} = b.k where ${conds.join(' and ')} group by b.k`,
+      values,
+    };
+  }
   const { col, where } = whereSql(s, values);
   const per = col(s.per);
   return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
@@ -200,15 +224,16 @@ export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): So
     async threads(o) {
       return read<{ id: string; last: string; mine: string | null }>(
         `with mine as (select distinct target_id from comments where target_type = 'task' and doc->>'authorId' = any($3::text[])),
-         threads as (
-           select c.target_id as id, max(c.created_at ${C}) as last,
-                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
-           from comments c join tasks k on k.id = c.target_id
-           where c.target_type = 'task'
-             and (k.owner_id = $1::text or k.project_id = any($2::text[]) or c.target_id in (select target_id from mine)
+         cand as (select k.id from tasks k
+           where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
                or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
              and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
                or k.doc->>'createdBy' = any($3::text[]))
+         ),
+         threads as (
+           select c.target_id as id, max(c.created_at ${C}) as last,
+                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
+           from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
            group by c.target_id
          ),
          ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)

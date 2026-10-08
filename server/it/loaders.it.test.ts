@@ -6,10 +6,11 @@ import { buildSeed } from '../../src/data/seed';
 import type { Query } from '../core/ports';
 import { runBoth } from '../data/loaders/compare';
 import { memorySource } from '../data/loaders/memorySource';
-import type { Select } from '../data/loaders/query';
+import type { CountSelect, Select } from '../data/loaders/query';
 import type { Source } from '../data/loaders/source';
-import { selectSql, sqlSource } from '../data/loaders/sqlSource';
-import { readSweep, TIE_PROJECT, trapOffice, writeSweep } from '../data/loaders/sweep';
+import { countSql, selectSql, sqlSource } from '../data/loaders/sqlSource';
+import { badgeTraps, readSweep, TIE_PROJECT, trapOffice, writeSweep } from '../data/loaders/sweep';
+import { diffState, writeDiff } from '../data/save';
 import { writeState } from '../data/whole';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
@@ -202,6 +203,49 @@ describe('the loaders on the local database', () => {
       await db.query('rollback');
     }
   });
+
+  it('counts with the bounds joined on the key as the memory form does: gt, ge, after, a repeated stamp and a key with no row (DB-6)', async () => {
+    const thread = office.comments.cmt_903.targetId;
+    const stamp = '2026-10-03T11:00:00.000+03:00';
+    const counts: CountSelect[] = [
+      { c: 'comments', per: 'target_id', where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by: { [thread]: { gt: '', ge: stamp }, tsk_none: { gt: '', ge: stamp } } } }] },
+      { c: 'comments', per: 'target_id', where: [
+        { col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by: { [thread]: { gt: '2026-10-01T00:00:00.000+03:00', ge: '2026-10-02T00:00:00.000+03:00', after: { at: stamp, id: 'cmt_903' } } } } },
+        { field: 'authorId', notIn: ['usr_006'] },
+      ] },
+      { c: 'messages', per: 'conversation_id', where: [
+        { bounds: { col: 'conversation_id', by: Object.fromEntries(Object.keys(office.conversations).map((id, i) => [id, { gt: i % 2 === 0 ? '' : stamp, ...(i % 3 === 0 ? { ge: stamp } : {}) }])) } },
+        { field: 'authorId', notIn: ['usr_001'] },
+      ] },
+    ];
+    const sql = sqlSource(q);
+    const memory = memorySource(office);
+    for (const s of counts) {
+      expect(countSql(s).text).toContain('join');
+      const fromSql = comparable('countWhere', await sql.countWhere(s));
+      expect(fromSql, JSON.stringify(s)).toEqual(comparable('countWhere', await memory.countWhere(s)));
+      expect(Object.keys(fromSql as object).length).toBeGreaterThan(0);
+    }
+    expect((await sql.countWhere(counts[1])).get(thread)).toBe(1);
+  });
+
+  it('gives the badge, the chat list and the bell the answers of the whole office, with the badge traps in the database (DB-6, DB-M1, DB-M2)', async () => {
+    const traps = badgeTraps(office);
+    const actors = [...Object.values(traps.users).filter((u) => u.kind === 'human' && u.active).map((u) => u.id), ...Object.values(traps.users).filter((u) => u.kind === 'agent').map((u) => u.id)];
+    await db.query('begin');
+    try {
+      await writeDiff(q, diffState(office, traps), { signals: false });
+      const source = sqlSource(q);
+      for (const actor of actors) {
+        for (const name of ['chats.unreadCount', 'chats.list', 'notifications.count', 'notifications.list'] as const) {
+          const { whole, scoped } = await runBoth(traps, name, {}, actor, { now: NOW, correlationId: 'cor_it', source });
+          expect(scoped, `${name} as ${actor}`).toEqual(whole);
+        }
+      }
+    } finally {
+      await db.query('rollback');
+    }
+  }, 120_000);
 
   it('counts the bytes it reads toward the egress meter', async () => {
     let bytes = 0;

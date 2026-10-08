@@ -7,11 +7,13 @@ import { chatReadKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { snapshotOf } from '../officeCache';
 import { Load } from './build';
+import { THREAD_COMMENT_FIELDS, THREAD_TASK_FIELDS } from './chat';
 import { changesOf, runBoth, runOn, type Run } from './compare';
+import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -645,6 +647,78 @@ describe('the changes that the Dashboard reads (performance audit DB-5)', () => 
     expect(read.map((e) => e.id).sort()).toEqual(changes.filter((e) => (e.after as { status?: string } | null)?.status === 'in_review').map((e) => e.id).sort());
     expect(read.length).toBeLessThan(changes.length);
     expect(read.find((e) => e.id === first.id)?.undoneBy).toBeTruthy();
+  });
+});
+
+describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', () => {
+  type ChatRow = { id: string; unread: number };
+  type View = { notification: Notification; gone: boolean };
+  const keysOf = (rows: Record<string, unknown>) => Object.values(rows).map((row) => Object.keys(row as object));
+  let state: State;
+  let actors: string[];
+  beforeAll(() => {
+    state = badgeTraps(trapOffice(seed));
+    actors = [...humans(), ...Object.values(state.users).filter((u) => u.kind === 'agent').map((u) => u.id)];
+  });
+
+  it('holds each case: a tie with the own last comment, a helper, an agent that made the task, a hidden notice, a gone task, a report', async () => {
+    const leader = state.projects.prj_001.leaderId!;
+    const tie = Object.values(state.comments).filter((c) => c.body === `Same stamp by ${leader}`);
+    const member = Object.values(state.comments).find((c) => c.body.startsWith('Same stamp by') && c.authorId !== leader)!.authorId;
+    const licence = Object.values(state.tasks).find((t) => t.projectId === null && t.ownerId === 'usr_005')!;
+    const hall = Object.values(state.tasks).find((t) => t.title === AGENT_MADE_TASK)!;
+    expect(hall.createdBy).toBe(OFFICE_AGENT);
+    const rows = async (actor: string) => (await same(state, 'chats.list', {}, actor)).outcome.output as ChatRow[];
+    expect((await rows(member)).find((row) => row.id === tie[0].targetId)?.unread).toBe(1);
+    expect((await rows('usr_006')).find((row) => row.id === licence.id)?.unread).toBe(1);
+    expect((await rows('usr_005')).find((row) => row.id === hall.id)?.unread).toBe(1);
+    expect((await rows('usr_006')).find((row) => row.id === hall.id)).toBeUndefined();
+    const views = async (actor: string) => (await same(state, 'notifications.list', {}, actor)).outcome.output as View[];
+    expect((await views('usr_006')).find((v) => v.notification.targetId === hall.id)).toMatchObject({ gone: true });
+    expect((await views(member)).some((v) => v.notification.targetType === 'task' && v.gone && !state.tasks[v.notification.targetId])).toBe(true);
+    expect((await views(ADMIN)).find((v) => v.notification.targetType === 'feedback' && v.notification.trigger === 'feedback_sent')).toMatchObject({ gone: false });
+  });
+
+  it('the badge gives every person and agent the number of the whole office, with no message and only the picked fields', async () => {
+    for (const actor of actors) {
+      await same(state, 'chats.unreadCount', {}, actor);
+      const { loaded } = await runBoth(state, 'chats.unreadCount', {}, actor, { now: NOW, correlationId: 'cor_test' });
+      expect(Object.keys(loaded.messages), actor).toEqual([]);
+      for (const keys of keysOf(loaded.tasks)) expect(keys.every((key) => (THREAD_TASK_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+      for (const keys of keysOf(loaded.comments)) expect(keys.every((key) => (THREAD_COMMENT_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+    }
+    // The list keeps the newest message of each chat and the whole rows, for its previews.
+    const { loaded } = await runBoth(state, 'chats.list', {}, ADMIN, { now: NOW, correlationId: 'cor_test' });
+    expect(Object.keys(loaded.messages).length).toBeGreaterThan(0);
+    expect(Object.values(loaded.comments).every((c) => typeof c.body === 'string')).toBe(true);
+  });
+
+  it('the bell gives every person and agent the numbers of the whole office, from the picked fields of its targets', async () => {
+    for (const actor of actors) {
+      await same(state, 'notifications.count', {}, actor);
+      const { loaded } = await runBoth(state, 'notifications.count', {}, actor, { now: NOW, correlationId: 'cor_test' });
+      for (const keys of keysOf(loaded.tasks)) expect(keys.every((key) => (INBOX_TASK_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+      for (const keys of [...keysOf(loaded.updates), ...keysOf(loaded.feedback ?? {})]) expect(keys, actor).toEqual(['id']);
+    }
+    // The writes of the bell keep whole rows.
+    const notice = Object.values(state.notifications).find((n) => n.targetType === 'task' && state.tasks[n.targetId])!;
+    for (const name of ['notifications.markRead', 'notifications.markUnread'] as const) {
+      const { loaded } = await runBoth(state, name, { ids: [notice.id] }, notice.userId, { now: NOW, correlationId: 'cor_test' });
+      expect(loaded.tasks[notice.targetId]).toEqual(state.tasks[notice.targetId]);
+    }
+  });
+
+  it('the badge and the bell keep their numbers for a chat with no read mark and a thread read up to a tie', async () => {
+    const marked = structuredClone(state);
+    for (const key of Object.keys(marked.chatReads)) if (marked.chatReads[key].userId === 'usr_005') delete marked.chatReads[key];
+    const leader = marked.projects.prj_001.leaderId!;
+    const tie = Object.values(marked.comments).find((c) => c.body === `Same stamp by ${leader}`)!;
+    marked.chatReads[chatReadKey(tie.targetId, leader)] = { conversationId: tie.targetId, userId: leader, lastReadAt: tie.createdAt };
+    for (const actor of ['usr_005', leader]) {
+      const count = await same(marked, 'chats.unreadCount', {}, actor);
+      expect((count.outcome.output as { unread: number }).unread, actor).toBeGreaterThan(0);
+      await same(marked, 'notifications.count', {}, actor);
+    }
   });
 });
 

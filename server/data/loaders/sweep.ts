@@ -236,6 +236,38 @@ function newestTies(state: State): void {
   }
 }
 
+/** The title of the office task of badgeTraps that the agent of usr_005 makes. */
+export const AGENT_MADE_TASK = 'Book the hall for the client';
+
+/**
+ * The cases of the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2), on a copy of trapOffice:
+ * - in prj_001, a member's own last comment shares its stamp with an unread one of the leader, and an older one of that stamp;
+ * - on the office task of trapOffice, usr_006 only helps and comments, and usr_005 answers later;
+ * - the agent of usr_005 makes an office task for usr_006, who comments on it; then its lead moves to usr_007, so usr_006 no
+ *   longer sees it, and the notice of usr_006 is hidden;
+ * - a notice of a project task that the leader deletes, and a report notice of the Admins.
+ */
+export function badgeTraps(traps: State): State {
+  const state = structuredClone(traps);
+  const at = (hour: number, minute = 0) => new Date(Date.UTC(2026, 9, 4, hour, minute));
+  const leader = state.projects.prj_001.leaderId!;
+  const member = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== leader)!.userId;
+  const thread = Object.values(state.tasks).filter((t) => t.projectId === 'prj_001' && t.status !== 'done').at(-1)!;
+  for (const author of [leader, member, leader]) {
+    apply(state, 'comments.create', { targetType: 'task', targetId: thread.id, body: `Same stamp by ${author}` }, author, 'cor_trap_badge_tie', undefined, at(8));
+  }
+  const licence = Object.values(state.tasks).find((t) => t.projectId === null && t.ownerId === 'usr_005')!;
+  apply(state, 'comments.create', { targetType: 'task', targetId: licence.id, body: 'The fee is paid.' }, 'usr_006', 'cor_trap_badge_helper', undefined, at(8, 10));
+  apply(state, 'comments.create', { targetType: 'task', targetId: licence.id, body: 'Thanks.' }, 'usr_005', 'cor_trap_badge_lead', undefined, at(8, 20));
+  const made = apply(state, 'tasks.create', { title: AGENT_MADE_TASK, ownerId: 'usr_006' }, OFFICE_AGENT, 'cor_trap_badge_agent', undefined, at(8, 30)) as { task: { id: string } };
+  apply(state, 'comments.create', { targetType: 'task', targetId: made.task.id, body: 'The hall is free on Sunday.' }, 'usr_006', 'cor_trap_badge_hall', undefined, at(8, 40));
+  apply(state, 'tasks.update', { id: made.task.id, patch: { ownerId: 'usr_007' } }, 'usr_005', 'cor_trap_badge_lead_change', undefined, at(8, 50));
+  const gone = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Short lived', ownerId: member }, leader, 'cor_trap_badge_gone', undefined, at(9)) as { task: { id: string } };
+  apply(state, 'tasks.delete', { id: gone.task.id }, leader, 'cor_trap_badge_delete', undefined, at(9, 10));
+  apply(state, 'feedback.send', { kind: 'bug', message: 'The badge counts twice.' }, 'usr_003', 'cor_trap_badge_report', { shots: [] }, at(9, 20));
+  return state;
+}
+
 /**
  * The sample office with records that the reads of the loaders must find: office tasks, an undo pair, a helper and a flag, a
  * decision, a direct message with a project file, two messages with the same stamp, a task thread with a read mark, and ties at
