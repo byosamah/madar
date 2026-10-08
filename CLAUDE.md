@@ -53,7 +53,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 ## Owner rules (always)
 - Write every text in ASD-STE100 Simplified Technical English: code comments, commits, docs, UI words. Never use an
   em-dash (a test also refuses one in any UI word).
-- Commits: no `Co-Authored-By` line for Claude (the owner's rule beats any reminder).
+- Commits: no `Co-Authored-By` line and no `Claude-Session:` link for Claude (the owner's rule beats any reminder).
 - Tests first for every fix. Screenshots (EN/AR, light/dark, 390 px) for every screen change, before you call it done.
 - Playwright runs only in a delegated subagent. claude-in-chrome screenshots run inline.
 - Judge every design choice from the view of the employees with ADHD: one next step, the fewest controls.
@@ -82,7 +82,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 4,380 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 4,550 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
@@ -96,16 +96,20 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
 - `test:db` tests also time out under a load average far above the core count: check `uptime`, and run the failed files
   again at a low load before you call a test broken.
-- `test:db` and `test:it` need Docker Desktop running. The sandbox blocks `open -a Docker`: ask the owner to start it.
+- `test:db`, `test:it` and the `test:mcp` conformance runner need Docker Desktop and the local stack. The sandbox blocks
+  `open -a Docker`; with the sandbox off it works, and Docker is up in about 10 s. The run that worked (2026-10-08):
+  `docker-lock.sh acquire <holder>`, `npx supabase start -x edge-runtime`, `npx supabase db reset`, `npm run test:db`,
+  `npm run test:it`, `npx supabase stop`, `docker-lock.sh release <holder>`.
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
   suites need MinIO (`server/it/minio.ts`).
-- `npm run test:mcp` - MCP tests plus the conformance runner. `npm run icons` - the app icons.
+- `npm run test:mcp` - MCP tests plus the conformance runner (it needs the local stack running; "conformance: 5 of 32
+  scenarios pass; 27 expected failures" is the normal result). `npm run icons` - the app icons.
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server 4,382 passed (437 files); test:db 1,063; test:it 241; prototype smoke 87 of 87.
+- Last counts: unit+server 4,550 passed (448 files); test:db 1,117 (25 skipped); test:it 261; test:mcp 135; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -169,6 +173,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `git branch -d` tests against the HEAD of the folder where it runs. The main folder is detached, so it refused merged
   branches. Run it from `deploy-test` (HEAD = main), or check `git merge-base --is-ancestor <branch> main` and use `-D`.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.
+- One builder for a track works in `deploy-test` on `rb/<track>` (`git switch -c`): no commit on main, no push, no deploy.
+  The merge lead rebases it on main (`git rebase main`; the branch is not pushed), runs the gates once, then
+  `git switch main && git merge --ff-only rb/<track>` and `git branch -d rb/<track>`.
+- To commit on main when no folder holds it, use `git commit-tree` and `git update-ref refs/heads/main <new> <old>`
+  (the old value guards a race). No folder changes.
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
