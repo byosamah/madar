@@ -66,7 +66,7 @@ const filesUploadStart = {
     mimeType: MimeType,
     stageId: StageId.nullable().optional(),
     taskId: TaskId.nullable().optional(),
-    /** The small picture of an image (960 px WebP), made in the browser. */
+    /** The small picture of an image (960 px WebP, or JPEG where the browser cannot write WebP), made in the browser. */
     thumb: z.object({ size: z.number().int().min(1).max(MAX_SHOT_BYTES), mimeType: ImageType }).optional(),
   }),
   output: z.object({ uploadId: UploadId, put: SignedPut, thumbPut: SignedPut.optional() }),

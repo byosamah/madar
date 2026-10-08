@@ -1,32 +1,12 @@
 import type { ComponentType } from 'react';
+import { LOADERS } from './screenLoaders';
 
 /**
- * The screens that load on demand (performance audit BND-1). The remote build splits each one into its own chunk, so the
- * first script holds only the frame, the sign-in gate, Home and the error pages. The prototype keeps one script file
- * (codeSplitting false), so there each import is already in the file.
+ * The screens that load on demand (performance audit BND-1): the list is in screenLoaders.ts. The remote build splits each
+ * screen into its own chunk. The prototype keeps one script file (codeSplitting false) and plain imports.
  * routes.tsx gives a route its Component when the screen is loaded, else a lazy import. main.tsx loads the screens of the
  * first address before it makes the router, so the router starts with no lazy route there and shows the screen at once.
- * The order is the order of the prefetch at idle: the likely next screens first.
  */
-const LOADERS = {
-  projects: () => import('../features/projects/ProjectsScreen').then((m) => m.ProjectsScreen),
-  project: () => import('../features/project/ProjectScreen').then((m) => m.ProjectScreen),
-  work: () => import('../features/work/WorkScreen').then((m) => m.WorkScreen),
-  inbox: () => import('../features/inbox/InboxScreen').then((m) => m.InboxScreen),
-  notifications: () => import('../features/notifications/NotificationsScreen').then((m) => m.NotificationsScreen),
-  search: () => import('../features/search/SearchScreen').then((m) => m.SearchScreen),
-  tasks: () => import('../features/tasklist/TaskListScreen').then((m) => m.TaskListScreen),
-  dashboard: () => import('../features/dashboard/DashboardScreen').then((m) => m.DashboardScreen),
-  meeting: () => import('../features/dashboard/MeetingView').then((m) => m.MeetingView),
-  settings: () => import('../features/settings/SettingsScreen').then((m) => m.SettingsScreen),
-  admin: () => import('../features/settings/admin/AdminScreen').then((m) => m.AdminScreen),
-  projectByCode: () => import('../features/project/ProjectByCode').then((m) => m.ProjectByCode),
-  signIn: () => import('../features/auth/SignInScreen').then((m) => m.SignInScreen),
-  welcome: () => import('../features/auth/WelcomeScreen').then((m) => m.WelcomeScreen),
-  forgot: () => import('../features/auth/ForgotScreen').then((m) => m.ForgotScreen),
-  reset: () => import('../features/auth/ResetScreen').then((m) => m.ResetScreen),
-  consent: () => import('../features/oauth/ConsentScreen').then((m) => m.ConsentScreen),
-} satisfies Record<string, () => Promise<ComponentType>>;
 
 export type ScreenName = keyof typeof LOADERS;
 export const SCREEN_NAMES = Object.keys(LOADERS) as ScreenName[];

@@ -10,11 +10,15 @@ import { buildSeed } from '../data/seed';
 import { sampleOffice } from '../data/sampleOffice';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
+import { preloadScreens } from '../app/screens';
 import { RuntimeProvider, createQueryClient, type ChangeSource } from '../app/runtime';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
 import { NOW, TODAY } from './factories';
+
+// The routes start initialized only when their screens are loaded (performance audit BND-1), as in render.tsx.
+await preloadScreens();
 
 /** One call that the screens asked, with its input. */
 export type Asked = { name: string; input: unknown };

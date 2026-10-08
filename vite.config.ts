@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -76,6 +77,13 @@ export default defineConfig(({ mode }) => ({
   // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.
   build: mode.startsWith('remote') ? { rolldownOptions: { output: { codeSplitting: REMOTE_CHUNKS } } } : { rolldownOptions: { output: { codeSplitting: false } } },
   base: mode.startsWith('remote') ? '/' : './',
+  // The prototype takes the screen list with plain imports: in its one script file, an on-demand import costs extra start-up
+  // code for each screen (performance audit BND-1). The remote modes split the screens, and the tests keep the on-demand list.
+  resolve: {
+    alias: mode.startsWith('remote') || mode === 'test'
+      ? []
+      : [{ find: /^\.\/screenLoaders$/, replacement: fileURLToPath(new URL('./src/app/screenLoaders.static.ts', import.meta.url)) }],
+  },
   define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify(MADAR_API) },
   plugins: [react(), tailwindcss(), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],
   test: {

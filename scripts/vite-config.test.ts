@@ -80,6 +80,20 @@ describe('the build output', () => {
     expect(buildOf('remote-production').rolldownOptions?.output?.codeSplitting).not.toBe(false);
   });
 
+  it('gives the prototype build the screen list with plain imports, and the remote modes and the tests the on-demand list', () => {
+    type Alias = { find: RegExp; replacement: string };
+    const aliasOf = (mode: string, command = 'build') =>
+      ((config as unknown as (e: { mode: string; command: string }) => { resolve?: { alias?: Alias[] } })({ mode, command }).resolve?.alias ?? []);
+    const prototype = aliasOf('production');
+    expect(prototype).toHaveLength(1);
+    expect(prototype[0].find.test('./screenLoaders')).toBe(true);
+    expect(prototype[0].find.test('./screenLoaders.static')).toBe(false);
+    expect(prototype[0].replacement.endsWith('/src/app/screenLoaders.static.ts')).toBe(true);
+    expect(aliasOf('remote-test')).toEqual([]);
+    expect(aliasOf('remote-production')).toEqual([]);
+    expect(aliasOf('test', 'serve')).toEqual([]);
+  });
+
   it('puts the packages of the first screen and the Supabase packages into their own chunks in the remote modes, with zod outside (performance audit BND-5)', () => {
     for (const mode of ['remote-test', 'remote-production']) {
       const split = buildOf(mode).rolldownOptions?.output?.codeSplitting;
