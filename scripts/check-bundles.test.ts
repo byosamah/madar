@@ -27,10 +27,10 @@ const prototypeIndex = '<html><head><script type="module" src="./assets/index-ab
 
 describe('checkBundles', () => {
   it('passes a clean remote build and prints what it searched', () => {
-    const result = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)' }));
+    const result = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)', 'sw.js': 'self.addEventListener("push", () => {})' }));
     expect(result.ok).toBe(true);
     for (const marker of SEED_MARKERS) expect(result.lines.join('\n')).toContain(marker);
-    expect(result.lines.join('\n')).toMatch(/2 files/);
+    expect(result.lines.join('\n')).toMatch(/3 files/);
   });
 
   it('fails a remote index.html with a relative ./assets/ path', () => {
@@ -129,6 +129,8 @@ function goodRemote(): Record<string, string> {
     'assets/words.en-w1.js': `export const en={failed:"${WORD_MARKERS.en}"};`,
     'assets/words.ar-w2.js': `export const ar={failed:"${WORD_MARKERS.ar}"};`,
     'assets/index-c1.css': 'body{}',
+    // The service worker of browser push (owner, 2026-10-08): the remote build carries it.
+    'sw.js': 'self.addEventListener("push", () => {});',
     'assets/thmanyahsans-Regular-x1.otf': 'regular',
     'assets/thmanyahsans-Medium-x1.otf': 'medium',
     'assets/thmanyahsans-Bold-x1.otf': 'bold',
@@ -271,6 +273,32 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
     const ar = JSON.parse(readFileSync(new URL('../src/i18n/ar.json', import.meta.url), 'utf8')) as { routeError: { failed: string } };
     expect(en.routeError.failed).toBe(WORD_MARKERS.en);
     expect(ar.routeError.failed).toBe(WORD_MARKERS.ar);
+  });
+});
+
+describe('the push service worker (owner, 2026-10-08)', () => {
+  it('fails a prototype dist that holds sw.js: the prototype is one script file and never registers a worker', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': '', 'sw.js': 'self.addEventListener("push", () => {})' }));
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('\n')).toContain("'sw.js'");
+  });
+
+  it('fails a prototype script that registers the worker', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'navigator.serviceWorker.register("/sw.js")' }));
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('\n')).toContain('/sw.js');
+  });
+
+  it('passes a prototype dist with no worker file and no registration', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'buildSeed()' }));
+    expect(result.ok).toBe(true);
+    expect(result.lines.join('\n')).toContain("'sw.js'");
+  });
+
+  it('fails a remote dist with no sw.js: the Settings switch would turn on a worker that is not there', () => {
+    const result = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)' }));
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('\n')).toContain('sw.js');
   });
 });
 

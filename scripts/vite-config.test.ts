@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { HtmlTagDescriptor, Plugin } from 'vite';
-import config, { earlyLinks } from '../vite.config.ts';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import config, { earlyLinks, workerOnlyInRemote } from '../vite.config.ts';
 
 type Project = { test: { name: string; include?: string[]; exclude?: string[]; globalSetup?: string[]; setupFiles?: string[]; fileParallelism?: boolean; testTimeout?: number } };
 
@@ -165,5 +168,36 @@ describe('the early links of the remote build (performance audit BND-2, BND-3, B
     const preconnects = (env: Record<string, string | undefined>) => earlyTags(env, '', {}).filter((tag) => tag.attrs?.rel === 'preconnect').map((tag) => tag.attrs?.href);
     expect(preconnects({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: 'https://api.example.test/api' })).toEqual(['https://ref.supabase.co', 'https://api.example.test']);
     expect(preconnects({})).toEqual([]);
+  });
+});
+
+describe('the push service worker in the build (owner, 2026-10-08)', () => {
+  /** A dist folder with sw.js and index.html, and the plugin after Vite resolved its config. */
+  function built(remote: boolean) {
+    const root = mkdtempSync(join(tmpdir(), 'madar-vite-'));
+    mkdirSync(join(root, 'dist'));
+    writeFileSync(join(root, 'dist', 'sw.js'), '// worker');
+    writeFileSync(join(root, 'dist', 'index.html'), '<html></html>');
+    const plugin = workerOnlyInRemote(remote);
+    (plugin.configResolved as (c: { root: string; build: { outDir: string } }) => void)({ root, build: { outDir: 'dist' } });
+    (plugin.closeBundle as () => void)();
+    const left = { worker: existsSync(join(root, 'dist', 'sw.js')), index: existsSync(join(root, 'dist', 'index.html')) };
+    rmSync(root, { recursive: true, force: true });
+    return left;
+  }
+
+  it('keeps sw.js in the remote build', () => {
+    expect(built(true)).toEqual({ worker: true, index: true });
+  });
+
+  it('drops sw.js from the prototype build, so the prototype stays one script file', () => {
+    expect(built(false)).toEqual({ worker: false, index: true });
+  });
+
+  it('is part of every build, and only a build', () => {
+    expect(workerOnlyInRemote(false).apply).toBe('build');
+    const names = (mode: string) => ((config as unknown as (e: { mode: string; command: string }) => { plugins: Plugin[] })({ mode, command: 'build' }).plugins.flat() as Plugin[]).map((plugin) => plugin.name);
+    expect(names('production')).toContain('madar-worker-only-remote');
+    expect(names('remote-test')).toContain('madar-worker-only-remote');
   });
 });

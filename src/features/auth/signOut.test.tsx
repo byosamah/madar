@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { PUSH_TEST_ENDPOINT, pushBrowser, stopPushBrowser } from '../../test/pushBrowser';
 import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
 
 // The remote build: the person menu has Sign out and no Preview as.
@@ -30,6 +31,45 @@ async function signInAsFaisal(app: App, path: string) {
   expect(app.store.state.session.currentUserId).toBe('usr_002');
   await app.router.navigate(path);
 }
+
+describe('sign out and browser push (owner, 2026-10-08)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    stopPushBrowser();
+  });
+
+  it('removes this device on the server while the session lives, and unsubscribes this browser, so the next person gets no push', async () => {
+    const browser = pushBrowser({ permission: 'granted', subscribed: true });
+    const app = await renderRemoteApp('/');
+    await app.api.call('push.register', { endpoint: PUSH_TEST_ENDPOINT, label: 'Chrome on Mac' });
+    expect(Object.keys(app.store.state.pushDevices ?? {})).toHaveLength(1);
+    await signOut(app);
+    // After the sign-out every call fails, so the row is gone only if the call went first.
+    expect(app.store.state.pushDevices).toEqual({});
+    expect(browser.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(app.auth.status()).toBe('signed_out');
+  });
+
+  it('still signs out, and still unsubscribes this browser, when the server does not answer', async () => {
+    const browser = pushBrowser({ permission: 'granted', subscribed: true });
+    const app = await renderRemoteApp('/');
+    await app.api.call('push.register', { endpoint: PUSH_TEST_ENDPOINT, label: 'Chrome on Mac' });
+    const original = app.api.call.bind(app.api);
+    app.api.call = ((name: string, input: unknown, meta?: unknown) => (name === 'push.remove'
+      ? Promise.reject(new Error('No network.'))
+      : (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta))) as typeof app.api.call;
+    await signOut(app);
+    expect(browser.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(app.auth.status()).toBe('signed_out');
+  });
+
+  it('signs out as before in a browser with no push', async () => {
+    pushBrowser({ none: true });
+    const app = await renderRemoteApp('/');
+    await signOut(app);
+    expect(app.auth.status()).toBe('signed_out');
+  });
+});
 
 describe('sign out from the person menu (plan 5.1, client map 7.3)', () => {
   it('ends the session, drops the lists of the person from the cache and goes to Sign in with the reason', async () => {

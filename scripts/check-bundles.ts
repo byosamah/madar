@@ -131,6 +131,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
       lines.push(`FAIL: ${dir} has no index.html.`);
     } else {
       report("a relative './assets/' path in index.html", /(src|href)=["']\.\/assets\//.test(index.text) ? ['index.html'] : []);
+      // Browser push (owner, 2026-10-08): the Settings switch registers /sw.js, so the build must carry it.
+      rule('the push service worker', names.includes('sw.js') ? [] : ['dist has no sw.js'], 'sw.js is in the build');
       if (options.firstLoad) {
         checkFirstLoad();
         checkEarlyLinks(options.firstLoad);
@@ -140,6 +142,9 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
   } else {
     report("'supabase' (any case)", texts.filter((f) => /supabase/i.test(f.text)).map((f) => f.name));
     report("a '_headers' file", names.filter((name) => name === '_headers' || name.endsWith('/_headers')));
+    // Browser push (owner, 2026-10-08): the prototype never registers the worker, and vite.config.ts drops the file.
+    report("the push service worker 'sw.js'", names.filter((name) => name === 'sw.js' || name.endsWith('/sw.js')));
+    report("a registration of '/sw.js'", texts.filter((f) => f.text.includes('/sw.js')).map((f) => f.name));
     const js = names.filter((name) => name.endsWith('.js'));
     rule('the prototype is one script file', js.length === 1 ? [] : [`${js.length} script files (${js.join(', ')})`], js.join(', '));
     const early = ['modulepreload', 'preload', 'preconnect'].flatMap((rel) => rels(rel).map(() => rel));

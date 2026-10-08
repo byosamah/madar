@@ -2,6 +2,9 @@ import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { keepDraftsOf } from '../../app/drafts';
+import { REMOTE } from '../../app/mode';
+import { removeThisDevice, type PushApi } from '../../app/remote/push';
+import { useRuntime } from '../../app/runtime';
 import { signInPath } from './paths';
 import { useAuth } from './useAuth';
 
@@ -40,20 +43,24 @@ export function useLeaveScreen(): (reason: Reason) => Promise<void> {
 }
 
 /**
- * Sign out on this device (plan 5.1, client map 7.3): end the session (the Supabase port also closes the Realtime channels), then
- * the steps of useLeaveScreen.
+ * Sign out on this device (plan 5.1, client map 7.3): remove the push device of this browser (real build), end the session (the
+ * Supabase port also closes the Realtime channels), then the steps of useLeaveScreen.
  */
 export function useSignOut(): (reason?: Reason) => Promise<void> {
   const auth = useAuth();
   const leave = useLeaveScreen();
+  const { api } = useRuntime();
   return useCallback(async (reason = 'signed_out') => {
     leaving = true;
     try {
+      // Browser push (owner, 2026-10-08): the device leaves the server while the session still lives, and this browser stops
+      // its push subscription, so the next person on a shared browser gets no push. It never throws and waits 4 s at most.
+      if (REMOTE) await removeThisDevice(api as unknown as PushApi);
       // The session is gone on this device even when the server does not answer.
       await auth.signOut().catch(() => undefined);
     } finally {
       leaving = false;
     }
     await leave(reason);
-  }, [auth, leave]);
+  }, [auth, leave, api]);
 }

@@ -1,4 +1,6 @@
 /// <reference types="vitest/config" />
+import { rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -58,6 +60,24 @@ export function earlyLinks(env: Record<string, string | undefined> = process.env
 }
 
 /**
+ * The service worker of browser push (public/sw.js, owner 2026-10-08) belongs to the remote build. The prototype is one script file
+ * and registers no worker, so its dist drops the copy that Vite makes from the public folder. check-bundles.ts checks both builds.
+ */
+export function workerOnlyInRemote(remote: boolean): Plugin {
+  let target = '';
+  return {
+    name: 'madar-worker-only-remote',
+    apply: 'build',
+    configResolved(config) {
+      target = resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      if (!remote) rmSync(join(target, 'sw.js'), { force: true });
+    },
+  };
+}
+
+/**
  * The chunk groups of the remote build (performance audit BND-5). The packages of the first screen go into one vendor chunk,
  * and the Supabase packages into one supabase chunk. Neither imports app code, so a release that changes only app code keeps
  * their names, and the browser keeps them in its cache. zod is not in the list: it stays with the screens that parse, so the
@@ -85,7 +105,7 @@ export default defineConfig(({ mode }) => ({
       : [{ find: /^\.\/screenLoaders$/, replacement: fileURLToPath(new URL('./src/app/screenLoaders.static.ts', import.meta.url)) }],
   },
   define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify(MADAR_API) },
-  plugins: [react(), tailwindcss(), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],
+  plugins: [react(), tailwindcss(), workerOnlyInRemote(mode.startsWith('remote')), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],
   test: {
     restoreMocks: true,
     projects: [

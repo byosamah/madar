@@ -6,8 +6,10 @@ import { useDraftOwner, useDraftSweep } from './drafts';
 import { projectsListLink } from './lastList';
 import { FocusMode } from '../features/focus/FocusMode';
 import { NAV, isNavActive } from './nav';
+import { REMOTE } from './mode';
 import { PersonMenu } from './PersonMenu';
 import { PicturesProvider } from './pictures';
+import { PushSync } from './remote/PushSync';
 import { StorageBanner } from './StorageBanner';
 import { BellButton, SearchButton, TabPill } from './TabPill';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
@@ -114,6 +116,8 @@ function Shell() {
   return (
     <div className="min-h-dvh text-ink">
       <StorageBanner />
+      {/* Browser push (owner, 2026-10-08): saves the endpoint of this browser again when the server does not list it. No screen. */}
+      {REMOTE && <PushSync />}
       <TabPill />
       <FocusMode />
       <div className="fixed start-4 top-4 z-30 hidden sm:block">

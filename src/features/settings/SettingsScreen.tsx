@@ -13,6 +13,7 @@ import { Switch } from '../../components/Switch';
 import { AgentsSection } from './AgentsSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PasswordSection } from './PasswordSection';
+import { PushSection } from './PushSection';
 import { ProfileSection } from './ProfileSection';
 import { SettingsSection as Section } from './Section';
 
@@ -61,6 +62,8 @@ export function SettingsScreen() {
       </Section>
 
       <NotificationsSection />
+      {/* The real build: browser push on this device (owner, 2026-10-08). */}
+      <PushSection />
 
       {/* The real build: the password (track U) and the person's agents (track G). The prototype has no sign-in, so no password. */}
       <PasswordSection />
