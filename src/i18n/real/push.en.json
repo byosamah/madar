@@ -3,6 +3,8 @@
     "title": "Notifications on this device",
     "switch": "Notify me on this device",
     "hint": "Madar sends one short line when you have a new notice or message. The line shows no task, project or person.",
+    "ask": "Get one short line on this device when you have a new notice or message.",
+    "askButton": "Turn on notifications",
     "unsupported": "This browser cannot show Madar notifications. Use a recent Chrome, Edge, Firefox or Safari.",
     "needsInstall": "To get notifications on an iPhone, add Madar to the Home Screen first. Then open Madar from the Home Screen, go to Settings and turn on “Notify me on this device”.",
     "blocked": "This browser blocks notifications from Madar. Allow notifications for this site in the browser settings. Then open Settings again and turn on “Notify me on this device”.",

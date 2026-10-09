@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  deviceLabel, keyBytes, readEnv, removeThisDevice, sameKey, statusOf, syncThisDevice, turnOff, turnOn, type PushApi, type PushEnv,
+  canAsk, deviceLabel, isPushOptedOut, keyBytes, readEnv, removeThisDevice, sameKey, setPushOptOut, statusOf, syncThisDevice, turnOff, turnOn,
+  type PushApi, type PushEnv,
 } from './push';
 
 /**
@@ -11,8 +12,10 @@ import {
 // A made-up public key of the right size: the first byte is 4, as for every uncompressed P-256 point.
 const KEY = `BA${'a'.repeat(85)}`;
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/sample-token';
+const ME = 'usr_001';
+const OTHER = 'usr_002';
 
-const env = (more: Partial<PushEnv> = {}): PushEnv => ({
+const env =(more: Partial<PushEnv> = {}): PushEnv => ({
   hasNotification: true, hasWorker: true, hasManager: true, permission: 'default', iosBrowser: false, standalone: false, ...more,
 });
 
@@ -160,8 +163,10 @@ function apiOf(o: { mine?: { endpoint: string }[]; failRegister?: boolean; failR
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Reflect.deleteProperty(navigator, 'serviceWorker');
+  localStorage.clear();
 });
 
 describe('readEnv', () => {
@@ -246,14 +251,14 @@ describe('turnOff', () => {
 });
 
 describe('syncThisDevice: the check at the start of the app', () => {
-  it('does nothing without a subscription or without the permission', async () => {
-    const b = browser({ permission: 'granted' });
-    const none = apiOf();
-    expect(await syncThisDevice(none.api, KEY)).toBe('none');
-    expect(none.sent).toEqual([]);
+  it('does nothing without the permission, even when the browser holds a subscription', async () => {
+    const b = browser({ permission: 'default' });
     b.setCurrent(b.subscription());
-    vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn() });
-    expect(await syncThisDevice(none.api, KEY)).toBe('none');
+    const none = apiOf();
+    expect(await syncThisDevice(none.api, KEY, ME)).toBe('none');
+    expect(none.sent).toEqual([]);
+    vi.stubGlobal('Notification', { permission: 'denied', requestPermission: vi.fn() });
+    expect(await syncThisDevice(none.api, KEY, ME)).toBe('none');
     expect(none.sent).toEqual([]);
   });
 
@@ -261,7 +266,7 @@ describe('syncThisDevice: the check at the start of the app', () => {
     const b = browser({ permission: 'granted' });
     b.setCurrent(b.subscription());
     const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT }] });
-    expect(await syncThisDevice(api, KEY)).toBe('same');
+    expect(await syncThisDevice(api, KEY, ME)).toBe('same');
     expect(sent).toEqual([['push.mine', {}]]);
   });
 
@@ -269,7 +274,7 @@ describe('syncThisDevice: the check at the start of the app', () => {
     const b = browser({ permission: 'granted' });
     b.setCurrent(b.subscription('https://fcm.googleapis.com/fcm/send/renewed-token'));
     const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT }] });
-    expect(await syncThisDevice(api, KEY)).toBe('registered');
+    expect(await syncThisDevice(api, KEY, ME)).toBe('registered');
     expect(sent.map(([name]) => name)).toEqual(['push.mine', 'push.register']);
     expect(sent[1][1]).toMatchObject({ endpoint: 'https://fcm.googleapis.com/fcm/send/renewed-token' });
   });
@@ -278,9 +283,88 @@ describe('syncThisDevice: the check at the start of the app', () => {
     const b = browser({ permission: 'granted' });
     b.setCurrent(b.subscription(ENDPOINT, `BA${'b'.repeat(85)}`));
     const { api, sent } = apiOf({ mine: [] });
-    expect(await syncThisDevice(api, KEY)).toBe('registered');
+    expect(await syncThisDevice(api, KEY, ME)).toBe('registered');
     expect(b.steps).toEqual(['unsubscribe', 'subscribe']);
     expect(sent.map(([name]) => name)).toEqual(['push.mine', 'push.register']);
+  });
+
+  // Default on (owner, 2026-10-09): the permission lasts in the browser, so the next sign-in needs no new question.
+  it('turns push on by itself when the permission is granted and the browser holds no subscription', async () => {
+    const b = browser({ permission: 'granted' });
+    const { api, sent } = apiOf();
+    expect(await syncThisDevice(api, KEY, ME)).toBe('registered');
+    expect(b.steps).toEqual(['register worker', 'subscribe']);
+    expect(sent).toEqual([['push.register', { endpoint: ENDPOINT, label: expect.any(String) }]]);
+    expect(Notification.requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('stays off when this person turned push off on this browser', async () => {
+    const b = browser({ permission: 'granted' });
+    setPushOptOut(ME, true);
+    const { api, sent } = apiOf();
+    expect(await syncThisDevice(api, KEY, ME)).toBe('none');
+    expect(b.steps).toEqual([]);
+    expect(sent).toEqual([]);
+  });
+
+  it('does not bind the next person on the same browser to the choice of the first', async () => {
+    const b = browser({ permission: 'granted' });
+    setPushOptOut(ME, true);
+    const { api, sent } = apiOf();
+    expect(await syncThisDevice(api, KEY, OTHER)).toBe('registered');
+    expect(b.steps).toEqual(['register worker', 'subscribe']);
+    expect(sent.map(([name]) => name)).toEqual(['push.register']);
+  });
+
+  it('takes back the new subscription when the server does not save the device, and passes the error on', async () => {
+    const b = browser({ permission: 'granted' });
+    const { api } = apiOf({ failRegister: true });
+    await expect(syncThisDevice(api, KEY, ME)).rejects.toThrow('The server said no.');
+    expect(b.steps).toEqual(['register worker', 'subscribe', 'unsubscribe']);
+  });
+
+  it('does nothing in a browser with a permission but no push manager', async () => {
+    browser({ permission: 'granted' });
+    Reflect.deleteProperty(window, 'PushManager');
+    const { api, sent } = apiOf();
+    expect(await syncThisDevice(api, KEY, ME)).toBe('none');
+    expect(sent).toEqual([]);
+  });
+});
+
+describe('the choice to stay off, kept on this browser for each person', () => {
+  it('is not set at first, and is kept for one person only', () => {
+    expect(isPushOptedOut(ME)).toBe(false);
+    setPushOptOut(ME, true);
+    expect(isPushOptedOut(ME)).toBe(true);
+    expect(isPushOptedOut(OTHER)).toBe(false);
+    setPushOptOut(ME, false);
+    expect(isPushOptedOut(ME)).toBe(false);
+  });
+
+  it('reads as not set, and never throws, when the browser keeps no storage', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('No storage.'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('No storage.'); });
+    expect(isPushOptedOut(ME)).toBe(false);
+    expect(() => setPushOptOut(ME, true)).not.toThrow();
+  });
+});
+
+describe('canAsk: when Madar shows its one ask on Home', () => {
+  it('is true when the browser can push, the key is set, and the person was never asked', () => {
+    expect(canAsk(env(), KEY, false)).toBe(true);
+  });
+
+  it('is false after any answer, and after the person turned push off', () => {
+    expect(canAsk(env({ permission: 'granted' }), KEY, false)).toBe(false);
+    expect(canAsk(env({ permission: 'denied' }), KEY, false)).toBe(false);
+    expect(canAsk(env(), KEY, true)).toBe(false);
+  });
+
+  it('is false where the switch has a note in place of a control', () => {
+    expect(canAsk(env({ hasManager: false }), KEY, false)).toBe(false);
+    expect(canAsk(env({ iosBrowser: true, hasManager: false, hasNotification: false }), KEY, false)).toBe(false);
+    expect(canAsk(env(), undefined, false)).toBe(false);
   });
 });
 

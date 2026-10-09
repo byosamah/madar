@@ -47,7 +47,15 @@ any screen work.
 - `public/sw.js` is plain JavaScript with no build step. The prototype build never registers it and `workerOnlyInRemote`
   (`vite.config.ts`) drops the file from its dist; `check-bundles.ts` fails a prototype with it and a remote build without it.
 - The public VAPID key comes from `VITE_VAPID_PUBLIC_KEY` (`config/remote.<env>.env`). Without it the section says push is not set up.
-- A sign-out unsubscribes the browser, so the next person on it must turn push on again.
+- A sign-out unsubscribes the browser, so the person who stays signed out gets no push.
+- Push is on by default (owner, 2026-10-09). A browser lets a page turn push on only after a tap on Allow, so each new device gets
+  one ask: `features/home/PushAskCard.tsx`, a small card under Today on Home with one short line and one button (not the main
+  button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
+  `syncThisDevice(api, key, userId)` turns push on again by itself when the permission is granted and the browser holds no
+  subscription (after a sign-out, or for the next person on a shared browser). It never asks the question.
+- Only a person who turned the switch off stays off. `usePushDevice` keeps that choice in localStorage for each person
+  (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
+  the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
 
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.

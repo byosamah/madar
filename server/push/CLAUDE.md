@@ -61,7 +61,8 @@ Madar window, or opens `/`.
   browser.
 - At most 10 devices for each person (`PUSH_DEVICES_PER_PERSON`). A new one pushes the oldest out.
 - A sign-out removes the device of the browser and unsubscribes the browser (`removeThisDevice`, `src/app/remote/push.ts`), so the
-  next person on a shared browser gets no push.
+  person who signed out gets no push. Push is on by default (owner, 2026-10-09): the permission stays in the browser, so the next
+  sign-in saves the device again for that person, and `push.register` moves the endpoint to them (see `src/CLAUDE.md`).
 
 ## Keys and secrets
 - Function secrets (`secrets/<env>.env`): `VAPID_PRIVATE_KEY` (raw 32 byte private value, base64url), `VAPID_PUBLIC_KEY` (65 byte

@@ -220,3 +220,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   fixed line with no data ("You have something new in Madar." / "لديك جديد في مدار.", title Madar / مدار). It goes for every new
   notice of the bell (all triggers) and every new chat message, to the people who read them, never to the sender, only to active
   people. One switch for each device in Settings: "Notify me on this device". Record: `server/push/CLAUDE.md`.
+- 2026-10-09: "Notify me on this device" is on by default. A browser needs one tap on Allow for each device, so Home shows one small
+  card with one button (the owner chose the card over an ask at the first tap or at the start). After Allow, push turns on again by
+  itself at each sign-in. A person who turns the switch off stays off on that browser. No MCP change: the three push calls stay
+  on the deny list. Record: `src/CLAUDE.md`.

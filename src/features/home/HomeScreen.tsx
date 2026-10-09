@@ -19,6 +19,7 @@ import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
 import { NextCard } from './NextCard';
+import { PushAskCard } from './PushAskCard';
 import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
 import { readRoleHint, writeRoleHint } from './roleHint';
@@ -60,6 +61,9 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
         </ScreenTitle>
         <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
         <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
+        {/* The one ask for browser push (owner, 2026-10-09). It sits after Today, so the next step of the day stays first. It has
+            its own state and draws nothing for a device that was asked, so it never renders the rows again. */}
+        <PushAskCard />
       </div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">

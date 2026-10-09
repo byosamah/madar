@@ -5,7 +5,12 @@
  * The steps to turn push on: ask the permission (inside the click, first), register the worker (public/sw.js), subscribe with the
  * public VAPID key, and save the push address with push.register. The steps to turn it off: remove the device on the server,
  * unsubscribe the browser. The push address (endpoint) belongs to the browser, so the check at the start of the app saves it again
- * when the browser renewed it. A sign-out also unsubscribes this browser, so the next person on a shared browser gets no push.
+ * when the browser renewed it. A sign-out also unsubscribes this browser.
+ *
+ * Push is on by default (owner, 2026-10-09). A browser never lets a page turn push on alone, so the person taps Allow once on each
+ * device (the card on Home or the Settings switch). The permission then stays in the browser, and the check at the start of the app
+ * turns push on again by itself, for example after a sign-out or for the next person on a shared browser. Only a person who turned
+ * the switch off stays off, and this browser keeps that choice for that person.
  */
 
 export type PushStatus = 'unsupported' | 'needs_install' | 'not_set' | 'blocked' | 'off' | 'on';
@@ -52,6 +57,31 @@ export function statusOf(env: PushEnv, key: string | undefined, subscribed: bool
   if (!key) return 'not_set';
   if (env.permission === 'denied') return 'blocked';
   return env.permission === 'granted' && subscribed ? 'on' : 'off';
+}
+
+/** True when Madar may show its one ask on Home: the switch could go on, the person was never asked, and did not turn it off. */
+export function canAsk(env: PushEnv, key: string | undefined, optedOut: boolean): boolean {
+  return statusOf(env, key, false) === 'off' && env.permission === 'default' && !optedOut;
+}
+
+const OPT_OUT_PREFIX = 'madar.pushOff.';
+
+/** True when this person turned push off on this browser. The choice sits in this browser for each person, never on the server. */
+export function isPushOptedOut(userId: string): boolean {
+  try {
+    return localStorage.getItem(OPT_OUT_PREFIX + userId) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setPushOptOut(userId: string, off: boolean): void {
+  try {
+    if (off) localStorage.setItem(OPT_OUT_PREFIX + userId, '1');
+    else localStorage.removeItem(OPT_OUT_PREFIX + userId);
+  } catch {
+    // A browser with no storage keeps no choice. The next check may turn push on again.
+  }
 }
 
 /** A short name for this browser and system, for the device row: "Chrome on Mac". It is not a word of the screens. */
@@ -111,6 +141,17 @@ export async function isSubscribed(): Promise<boolean> {
   }
 }
 
+/** The steps of turn on after the permission: register the worker, subscribe, and save the device. It asks nothing. */
+async function subscribeAndSave(api: PushApi, key: string): Promise<void> {
+  const subscription = await subscribeOn(await registerWorker(), key);
+  try {
+    await api.call('push.register', { endpoint: subscription.endpoint, label: labelOfThisDevice() });
+  } catch (error) {
+    await subscription.unsubscribe().catch(() => undefined);
+    throw error;
+  }
+}
+
 /**
  * Turns push on for this browser. Call it in the click handler of the switch: the permission question must start inside the
  * click, before any other wait (Safari refuses it otherwise). An error from the browser or the server is passed on, after the
@@ -120,13 +161,7 @@ export async function turnOn(api: PushApi, key: string): Promise<'on' | 'blocked
   const permission = await Notification.requestPermission();
   if (permission === 'denied') return 'blocked';
   if (permission !== 'granted') return 'dismissed';
-  const subscription = await subscribeOn(await registerWorker(), key);
-  try {
-    await api.call('push.register', { endpoint: subscription.endpoint, label: labelOfThisDevice() });
-  } catch (error) {
-    await subscription.unsubscribe().catch(() => undefined);
-    throw error;
-  }
+  await subscribeAndSave(api, key);
   return 'on';
 }
 
@@ -139,15 +174,21 @@ export async function turnOff(api: PushApi): Promise<void> {
 }
 
 /**
- * The check at the start of the app, for a person who is signed in. A browser that holds a subscription and has the permission
- * gets its endpoint saved again when the server does not list it (the browser renewed it). A subscription made with another key
- * (the keys changed) is made again with the key of this build.
+ * The check at the start of the app, for a person who is signed in. Without the permission it does nothing: only a tap can ask.
+ * A browser that holds a subscription gets its endpoint saved again when the server does not list it (the browser renewed it). A
+ * subscription made with another key (the keys changed) is made again with the key of this build. A browser that has the permission
+ * and no subscription (after a sign-out, or for the next person) gets push turned on, unless this person turned it off here.
  */
-export async function syncThisDevice(api: PushApi, key: string): Promise<'none' | 'same' | 'registered'> {
-  if (!readEnv().hasNotification || Notification.permission !== 'granted') return 'none';
+export async function syncThisDevice(api: PushApi, key: string, userId: string): Promise<'none' | 'same' | 'registered'> {
+  const env = readEnv();
+  if (!env.hasNotification || !env.hasWorker || !env.hasManager || Notification.permission !== 'granted') return 'none';
   const registration = await navigator.serviceWorker.getRegistration();
   const found = registration ? await registration.pushManager.getSubscription() : null;
-  if (!registration || !found) return 'none';
+  if (!registration || !found) {
+    if (isPushOptedOut(userId)) return 'none';
+    await subscribeAndSave(api, key);
+    return 'registered';
+  }
   const subscription = sameKey(found, key) ? found : await subscribeOn(registration, key);
   const mine = (await api.call('push.mine', {})) as { endpoint: string }[];
   if (mine.some((device) => device.endpoint === subscription.endpoint)) return 'same';

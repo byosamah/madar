@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { initI18n } from '../../i18n';
+import { isPushOptedOut, setPushOptOut } from '../../app/remote/push';
 import { iphoneBrowser, PUSH_TEST_ENDPOINT, PUSH_TEST_KEY, pushBrowser, pushWords, stopPushBrowser } from '../../test/pushBrowser';
 import { renderWithRuntime } from '../../test/render';
 import { expectCalm } from '../auth/calmChecks';
@@ -31,6 +32,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   stopPushBrowser();
+  localStorage.clear();
   initI18n('en');
 });
 
@@ -155,6 +157,48 @@ describe('the Notifications on this device section (owner, 2026-10-08)', () => {
     const { api } = await renderWithRuntime(<PushSection />);
     await screen.findByRole('switch', { name: pushWords.en.switch });
     await waitFor(async () => expect(await api.call('push.mine', {})).toEqual([expect.objectContaining({ endpoint: ENDPOINT })]));
+  });
+
+  // Push is on by default (owner, 2026-10-09). The permission lasts in the browser, so the switch is on again without a tap.
+  it('shows the switch on by itself when the permission was granted before and the browser holds no subscription', async () => {
+    browser({ permission: 'granted', subscribed: false });
+    const { api } = await renderWithRuntime(<PushSection />);
+    await waitFor(() => expect(screen.getByRole('switch', { name: pushWords.en.switch })).toHaveAttribute('aria-checked', 'true'));
+    expect(await api.call('push.mine', {})).toEqual([expect.objectContaining({ endpoint: ENDPOINT })]);
+  });
+
+  it('keeps the switch off, after a reload, when the person turned it off', async () => {
+    const b = browser({ permission: 'granted', subscribed: true });
+    const { api } = await renderWithRuntime(<PushSection />);
+    await api.call('push.register', { endpoint: ENDPOINT, label: 'Chrome on Mac' });
+    await userEvent.click(await screen.findByRole('switch', { name: pushWords.en.switch }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: pushWords.en.switch })).toHaveAttribute('aria-checked', 'false'));
+    expect(isPushOptedOut('usr_001')).toBe(true);
+    cleanup();
+    await renderWithRuntime(<PushSection />);
+    expect(await screen.findByRole('switch', { name: pushWords.en.switch })).toHaveAttribute('aria-checked', 'false');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(b.subscribe).not.toHaveBeenCalled();
+  });
+
+  it('forgets the choice to stay off when the person turns the switch on again', async () => {
+    browser({ permission: 'granted', subscribed: false });
+    setPushOptOut('usr_001', true);
+    await renderWithRuntime(<PushSection />);
+    await userEvent.click(await screen.findByRole('switch', { name: pushWords.en.switch }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: pushWords.en.switch })).toHaveAttribute('aria-checked', 'true'));
+    expect(isPushOptedOut('usr_001')).toBe(false);
+  });
+
+  it('keeps the choice to stay off, and shows the error, when the browser cannot turn push off', async () => {
+    const b = browser({ permission: 'granted', subscribed: true });
+    b.unsubscribe.mockRejectedValue(new Error('Browser failed.'));
+    const { api } = await renderWithRuntime(<PushSection />);
+    await api.call('push.register', { endpoint: ENDPOINT, label: 'Chrome on Mac' });
+    await userEvent.click(await screen.findByRole('switch', { name: pushWords.en.switch }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(pushWords.en.offError);
+    expect(screen.getByRole('switch', { name: pushWords.en.switch })).toHaveAttribute('aria-checked', 'true');
+    expect(isPushOptedOut('usr_001')).toBe(false);
   });
 
   it('reads right to left in Arabic with the same single switch', async () => {

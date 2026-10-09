@@ -3,6 +3,7 @@ import { cleanup, waitFor } from '@testing-library/react';
 import { PUSH_TEST_ENDPOINT, PUSH_TEST_KEY, pushBrowser, stopPushBrowser } from '../../test/pushBrowser';
 import { renderWithRuntime } from '../../test/render';
 import { PushSync } from './PushSync';
+import { setPushOptOut } from './push';
 
 // The build flag, switched per test: the prototype build (the default) or the remote build.
 const mode = vi.hoisted(() => ({ REMOTE: false, PROTOTYPE: true }));
@@ -21,6 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   stopPushBrowser();
+  localStorage.clear();
 });
 
 const OWN_DEVICE = { id: 'pdv_001', userId: 'usr_001', endpoint: PUSH_TEST_ENDPOINT, label: 'Chrome on Mac', createdAt: '2026-10-03T09:00:00.000+03:00', lastPushAt: null };
@@ -46,10 +48,28 @@ describe('PushSync: the check at the start of the app (owner, 2026-10-08)', () =
     expect(call.mock.calls.filter(([name]) => name === 'push.register')).toEqual([]);
   });
 
-  it('does nothing without the permission, without a subscription, or without a public key', async () => {
+  // Push is on by default (owner, 2026-10-09): the permission lasts in the browser, so a new sign-in needs no new question.
+  it('turns push on by itself when the permission is granted and the browser holds no subscription', async () => {
+    const b = pushBrowser({ permission: 'granted', subscribed: false });
+    const { store } = await renderWithRuntime(<PushSync delayMs={0} />);
+    await waitFor(() => expect(Object.values(store.state.pushDevices ?? {})).toEqual([expect.objectContaining({ userId: 'usr_001', endpoint: PUSH_TEST_ENDPOINT })]));
+    expect(b.requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('stays off when the person turned push off on this browser', async () => {
+    const b = pushBrowser({ permission: 'granted', subscribed: false });
+    setPushOptOut('usr_001', true);
+    const { store } = await renderWithRuntime(<PushSync delayMs={0} />);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(b.subscribe).not.toHaveBeenCalled();
+    expect(Object.values(store.state.pushDevices ?? {})).toEqual([]);
+  });
+
+  it('does nothing without the permission, or without a public key', async () => {
     for (const setup of [
       () => pushBrowser({ permission: 'default', subscribed: true }),
-      () => pushBrowser({ permission: 'granted', subscribed: false }),
+      () => pushBrowser({ permission: 'default', subscribed: false }),
+      () => pushBrowser({ permission: 'denied', subscribed: false }),
       () => {
         vi.stubEnv('VITE_VAPID_PUBLIC_KEY', '');
         pushBrowser({ permission: 'granted', subscribed: true });

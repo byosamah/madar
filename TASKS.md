@@ -395,6 +395,9 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test co
 - [ ] Not proven: a real push service. The first push on Chrome, Edge, Firefox, Safari and an iPhone (Home Screen) shows only on the test copy
 - [x] The hand-set `Content-Length: 0` header is removed from `server/push/send.ts`: a fetch POST with no body sends it by itself (2026-10-08)
 - [ ] Question: a plain comment on a task makes no bell notice and no chat message, so it sends no push. The Inbox shows it as a task thread. Add a push for it?
-- [x] A sign-out also unsubscribes the browser (the next person on a shared browser gets no push and must turn it on): kept (merge lead, 2026-10-08)
+- [x] A sign-out also unsubscribes the browser: kept (merge lead, 2026-10-08). Since 2026-10-09 the next sign-in on that browser turns push on again for that person, because the permission stays (see the default-on items below)
+- [x] Push on by default (owner, 2026-10-09), branch `rb/push-default-on`: a card on Home asks once for the Allow tap (`PushAskCard`), then `syncThisDevice` turns push on again by itself at each sign-in; a person who turned the switch off stays off on that browser (`madar.pushOff.<user id>`). Tests first in `push.test.ts`, `PushSync.test.tsx`, `PushSection.test.tsx`, `PushAskCard.test.tsx`
+- [ ] Owner: try it on a real device after the next test deploy: sign in, tap the card on Home, Allow; sign out and in again (push is on without a new question); turn the switch off in Settings, reload (it stays off). An iPhone needs Madar on the Home Screen first, and shows no card before that
+- [ ] Not proven: the card and the silent turn on in a real browser with a real push service (jsdom tests and headless screenshots only)
 - [x] The endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there: kept (merge lead, 2026-10-08)
 - [ ] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on?
