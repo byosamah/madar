@@ -824,6 +824,26 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Not proven:** a real push on a real browser or phone. The first one shows only on a device. Not run: the deploy suite and the
   prototype smoke.
 
+### Browser push on by default (2026-10-09)
+- **Change:** "Notify me on this device" is on by default. A browser lets a page turn push on only after a tap on Allow, so Home
+  shows one small card with one button on each new device (`PushAskCard`). After Allow, the check at the start of the app turns
+  push on again by itself at each sign-in. A person who turns the switch off stays off on that browser (`madar.pushOff.<user id>`
+  in localStorage, never on the server). Screens only: no migration, no server change, no contract change, no MCP change (the
+  three push calls stay on the deny list). The old rule "the next person on a shared browser gets no push" is gone: that person
+  gets push at their own sign-in.
+- **Local:** typecheck; npm test 4,577 passed and 6 skipped (449 files, 27 new tests); the prototype, server and remote (test)
+  builds; the first load is 1,119,098 B (the limit is 1,350,000 B). Screenshots of the card in EN and AR, light and dark, at 390 px,
+  and one at 1280 px (headless Chromium over the fake API, with the card forced on and the permission set to "default"): the card
+  fits, nothing is cut, Arabic reads right to left. Not run: test:db and test:it (no server code changed), the prototype smoke
+  (the card does not show in the prototype).
+- **Test copy at ef8e392:** `all.sh test`, run by the owner. The first run did not finish: no record of the commit, and the test
+  copy still served the old code. The second run finished and recorded `ef8e392`.
+- **Production at ef8e392:** `all.sh production` with the typed word, run by Claude after the owner's OK. The safety check did not
+  refuse it. All steps done. `api` answers in eu-central-1 with 116 calls. Pages deployment 014ba99b. madar.vado.sa: page 200 with
+  the title "Madar", the live script `index-Bj8qKkSD.js` (it holds `madar.pushOff`), the English and Arabic words of the card are in
+  the live words files, `POST /mcp` with no token 401, `/favicon.ico` 200, `sw.js` 200 with `no-cache`.
+- **Not proven:** the card and the silent turn on in a real browser with a real push service. Not run: the deploy suite.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
