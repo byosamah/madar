@@ -111,7 +111,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server 4,650 passed (457 files, 2026-10-12); test:db 1,117 (25 skipped); test:it 261; test:mcp 135; prototype smoke 87 of 87.
+- Last counts (2026-10-12): unit+server 4,654 passed (457 files); test:db 1,139 (25 skipped); test:it 261; test:mcp 147; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
