@@ -118,6 +118,18 @@ describe('a code that a person keeps outside the office pattern (feedback fbk_00
     for (const code of ['', ' X', 'X ', 'A\nB', 'X'.repeat(61)]) expect(isFreeCode(code), code).toBe(false);
   });
 
+  it('refuses hidden characters, so a code always shows as it is saved', () => {
+    // Direction marks and isolates, zero-width characters and control characters can make a code show as other text.
+    const hidden = ['\u202E', '\u202A', '\u2066', '\u2069', '\u200E', '\u200F', '\u061C', '\u200B', '\u200D', '\u2060', '\uFEFF', '\t', '\u0007', '\u0085'];
+    for (const mark of hidden) {
+      expect(isFreeCode(`ARC${mark}77`), JSON.stringify(mark)).toBe(false);
+      expect(isFreeCode(`${mark}ARC77`), JSON.stringify(mark)).toBe(false);
+      expect(isFreeCode(`ARC77${mark}`), JSON.stringify(mark)).toBe(false);
+    }
+    // Arabic letters and other visible signs stay.
+    expect(isFreeCode('مشروع 12/أ')).toBe(true);
+  });
+
   it('warns about a code outside the pattern, and about the month and series of another contract', () => {
     expect(codeWarning('ARC/2019/77', projects, null)).toBe('format');
     expect(codeWarning('250311BAY-COM-Shop', projects, null)).toBe('taken');

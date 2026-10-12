@@ -33,9 +33,12 @@ export const PROJECT_CODE_PATTERN = new RegExp(
  * A code that a person keeps after the warning (feedback fbk_003, 2026-10-12): any code on one line, with no space at its start or
  * end, of 1 to 60 characters. Every code of the office pattern is one too. The record takes any of them; a typed code outside the
  * pattern needs codeAnyway (projects.create, projects.update).
+ * No hidden character: control characters, line breaks, direction marks and isolates, and zero-width characters can make a code
+ * show as other text in a list, so the pattern refuses them (the escapes stay escapes, see src/CLAUDE.md).
  */
 export const FREE_CODE_MAX = 60;
-export const FREE_CODE_PATTERN = new RegExp(`^\\S(?:[^\\n\\r\\u2028\\u2029]{0,${FREE_CODE_MAX - 2}}\\S)?$`);
+const HIDDEN = '\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u2069\\uFEFF';
+export const FREE_CODE_PATTERN = new RegExp(`^[^\\s${HIDDEN}](?:[^${HIDDEN}]{0,${FREE_CODE_MAX - 2}}[^\\s${HIDDEN}])?$`);
 
 /** True for any code that a person may keep after the warning. */
 export function isFreeCode(code: string): boolean {

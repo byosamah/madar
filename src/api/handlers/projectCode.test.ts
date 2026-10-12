@@ -228,7 +228,7 @@ describe('a code outside the office pattern, kept after a warning (feedback fbk_
 
   it('never takes an empty code, a code on two lines or a code over 60 characters, also with codeAnyway', async () => {
     const t = testApi(calls, world());
-    for (const code of ['   ', 'A\nB', 'X'.repeat(61)]) {
+    for (const code of ['   ', 'A\nB', 'X'.repeat(61), 'ARC\u202E77']) {
       await expect(t.api.call('projects.create', { name: 'X', code, codeAnyway: true }), code).rejects.toMatchObject({ code: 'invalid_input' });
     }
   });
