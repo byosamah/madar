@@ -70,10 +70,25 @@ export function inFrame(place: CSSProperties, frame: Box & { height: number }, s
   return out;
 }
 
-/** The place of a popover: centred under its control, or above it when the screen ends first, and 8 px inside the screen. */
-export function popoverPlace(box: Box, screen: Screen): { width: number; left: number; top?: number; bottom?: number } {
+/**
+ * The place of a popover: centred under its control, or above it when the screen ends first, and 8 px inside the screen.
+ * A popover of unknown or long height asks to "fit" (the lead list of a task row): it then goes to the side with room, and gets a
+ * `maxHeight` that ends 8 px inside the screen, so a long list scrolls inside the panel and never hangs off the screen.
+ * `expected` is the height that the panel likes to have; below the control wins when that much room is there.
+ */
+export function popoverPlace(
+  box: Box, screen: Screen, { fit = false, expected = 300 }: { fit?: boolean; expected?: number } = {},
+): { width: number; left: number; top?: number; bottom?: number; maxHeight?: number } {
   const width = Math.min(320, screen.width - 16);
   const left = Math.min(Math.max(8, box.left + box.width / 2 - width / 2), screen.width - width - 8);
-  const below = box.bottom + 300 < screen.height;
-  return below ? { width, top: box.bottom + 8, left } : { width, bottom: screen.height - box.top + 8, left }; // rtl-ok: screen coordinates
+  if (!fit) {
+    const below = box.bottom + 300 < screen.height;
+    return below ? { width, top: box.bottom + 8, left } : { width, bottom: screen.height - box.top + 8, left }; // rtl-ok: screen coordinates
+  }
+  const roomBelow = screen.height - box.bottom - 16;
+  const roomAbove = box.top - 16;
+  const below = roomBelow >= expected || roomBelow >= roomAbove;
+  return below
+    ? { width, top: box.bottom + 8, left, maxHeight: roomBelow }
+    : { width, bottom: screen.height - box.top + 8, left, maxHeight: roomAbove }; // rtl-ok: screen coordinates
 }

@@ -92,6 +92,48 @@ describe('projects.list and the card', () => {
     expect((await t.api.call('projects.get', { id: 'prj_001' })).nextDeadline).toMatchObject({ name: 'Client presentation', daysLeft: 12 });
   });
 
+  // Feedback fbk_004 (2026-10-11): the Projects list said "No deadline" for every project, while the Late tag used the end date
+  // of the current stage. With no named deadline, the stage end date is the date to show.
+  // In this world the stage tag picks stg_001 (Concept), the first stage, and it ended on 2026-08-31. Today is 2026-09-30.
+  it('gives the end of the current stage when the project has no named deadline', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const detail = await t.api.call('projects.get', { id: 'prj_001' });
+    expect(detail.currentStage.id).toBe('stg_001');
+    expect(detail.nextDeadline).toBeNull();
+    expect(detail.stageEnd).toEqual({ date: '2026-08-31', daysLeft: -30 });
+    expect((await t.api.call('projects.list', {}))[0].stageEnd).toEqual({ date: '2026-08-31', daysLeft: -30 });
+  });
+
+  it('counts the days of a stage end that is still to come', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    t.store.state.stages.stg_001.endDate = '2026-10-31';
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).stageEnd).toEqual({ date: '2026-10-31', daysLeft: 31 });
+  });
+
+  it('gives no stage end when the stage has no end date, or the project is not active', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    t.store.state.stages.stg_001.endDate = null;
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).stageEnd).toBeNull();
+    t.store.state.stages.stg_001.endDate = '2026-10-31';
+    t.store.state.projects.prj_001.status = 'completed';
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).stageEnd).toBeNull();
+  });
+
+  it('sorts by the next deadline, then by the stage end of a project with no named deadline', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    t.store.state.stages.stg_001.endDate = '2026-10-31';
+    await t.api.call('projects.create', { name: 'Alpha Villa', leader: 'usr_002' });
+    const alpha = Object.values(t.store.state.projects).find((p) => p.name === 'Alpha Villa')!;
+    t.store.state.stages[alpha.currentStageId].endDate = '2026-10-05';
+    expect((await t.api.call('projects.list', { sort: 'deadline' })).map((s) => s.project.name)).toEqual(['Alpha Villa', 'Test Tower']);
+    await t.api.call('deadlines.create', { projectId: 'prj_001', name: 'Site survey', date: '2026-10-01' });
+    expect((await t.api.call('projects.list', { sort: 'deadline' })).map((s) => s.project.name)).toEqual(['Test Tower', 'Alpha Villa']);
+  });
+
   it('shows the two latest feed items', async () => {
     const t = testApi({ ...projectCalls, ...taskCalls });
     t.as('usr_002');

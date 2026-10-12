@@ -10,9 +10,6 @@ import { useUndoable } from '../../../app/actions';
 import { useToast } from '../../../app/toasts';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
-import { Avatar } from '../../../components/Avatar';
-import { AvatarStack } from '../../../components/AvatarStack';
-import { NoLeadMark } from '../../../components/NoLeadMark';
 import { ProjectTile } from '../../../components/ProjectTile';
 import { StatusSign } from '../../../components/StatusSign';
 import { spring } from '../../../design/motion';
@@ -26,6 +23,7 @@ import { CircleIcon } from '../../../components/icons/animated/circle';
 import { CircleDashedIcon } from '../../../components/icons/animated/circle-dashed';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
+import { TaskPeople } from './TaskPeople';
 
 /** A mark that no translation contains. It shows where the name sits in a translated line. */
 const NAME_MARK = '\u0001';
@@ -178,11 +176,7 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
         </button>
         {showProject && row.project
           ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
-          : <span className="pe-1">{!row.owner
-            ? <NoLeadMark size={26} />
-            : row.helpers.length > 0
-              ? <AvatarStack leader={row.owner} team={row.helpers} max={3} size={20} leaderSize={28} />
-              : <Avatar user={row.owner} size={26} />}</span>}
+          : <span className="pe-1"><TaskPeople row={row} /></span>}
         {drag?.grip}
       </div>
     </motion.li>

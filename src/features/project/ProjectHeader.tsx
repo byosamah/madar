@@ -69,7 +69,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
           label={t('projects.stageCount', { n: index + 1, total: detail.stages.length })}
           className="w-28 sm:w-36"
         />
-        <NextDeadlineLabel deadline={detail.nextDeadline} />
+        <NextDeadlineLabel deadline={detail.nextDeadline} stageEnd={detail.stageEnd} />
         <HealthControl detail={detail} />
       </div>
     </header>

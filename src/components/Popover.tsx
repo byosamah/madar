@@ -4,8 +4,12 @@ import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 import { measure, popoverPlace } from './placement';
 
-/** A small floating panel next to its control, for a short choice. Escape, a press outside or the focus moving out closes it. */
-export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElement; label: string; onClose: () => void; children: ReactNode }) {
+/**
+ * A small floating panel next to its control, for a short choice. Escape, a press outside or the focus moving out closes it.
+ * `fit` is for a panel with a long list: it takes the side with room, and its height stops 8 px inside the screen (`popoverPlace`).
+ * A child that must stay in view (a heading, a last row) is `shrink-0`; the list is `min-h-0 flex-1 overflow-y-auto`.
+ */
+export function Popover({ anchor, label, onClose, fit = false, children }: { anchor: HTMLElement; label: string; onClose: () => void; fit?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Focus moves into the panel, to its first control or to the panel itself, so Escape always reaches it.
@@ -35,7 +39,7 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
   }, [anchor, onClose]);
   // The measures come in the units of the panel, so the panel opens next to its control also under Big screen.
   const { box, screen } = measure(anchor);
-  const place = popoverPlace(box, screen);
+  const { maxHeight, ...place } = popoverPlace(box, screen, { fit, expected: 480 });
   return createPortal(
     <motion.div
       ref={ref}
@@ -51,7 +55,8 @@ export function Popover({ anchor, label, onClose, children }: { anchor: HTMLElem
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={spring.standard}
-      style={{ position: 'fixed', ...place }}
+      // The class keeps the usual limit (80% of the screen, 36 rem); a "fit" panel also stops at the room it has.
+      style={{ position: 'fixed', ...place, ...(maxHeight === undefined ? {} : { maxHeight: `min(${maxHeight}px, 80dvh, 36rem)` }) }}
       className="float z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4"
     >
       {children}

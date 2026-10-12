@@ -58,6 +58,42 @@ describe('the place of a panel next to its control (final review, 2026-10-02)', 
   }
 });
 
+// A tall popover (the lead list of a task row, up to 36 rem) must fit the screen: the phone check of fbk_006 (2026-10-12) found it
+// hanging below the end of a 390 x 844 screen, with its last row out of reach. A "fit" popover takes the side with room and its
+// height never passes that room, so the panel scrolls inside itself.
+describe('a tall popover that fits the screen', () => {
+  const PHONE = { width: 390, height: 844 };
+  const control = (top: number): Box => ({ top, right: 380, bottom: top + 28, left: 340, width: 40 });
+
+  it('keeps the old place and sets no height when "fit" is not asked', () => {
+    const place = popoverPlace(control(200), PHONE);
+    expect(place).toMatchObject({ top: 236 });
+    expect('maxHeight' in place).toBe(false);
+  });
+
+  it('opens below the control and stops at the end of the screen, when the room below is the larger', () => {
+    const place = popoverPlace(control(200), PHONE, { fit: true });
+    expect(place.top).toBe(236);
+    expect(place.bottom).toBeUndefined();
+    // 844 - 228 (the control end) - 8 (the gap) - 8 (the edge of the screen)
+    expect(place.maxHeight).toBe(600);
+  });
+
+  it('opens above the control, and stops at the top of the screen, when the room above is the larger', () => {
+    const place = popoverPlace(control(700), PHONE, { fit: true });
+    expect(place.top).toBeUndefined();
+    expect(place.bottom).toBe(844 - 700 + 8);
+    // 700 (the control top) - 8 (the gap) - 8 (the edge of the screen)
+    expect(place.maxHeight).toBe(684);
+  });
+
+  it('stays below, with the full height, when the whole panel fits there', () => {
+    const place = popoverPlace(control(100), PHONE, { fit: true, expected: 400 });
+    expect(place.top).toBe(136);
+    expect(place.maxHeight).toBe(700);
+  });
+});
+
 describe('a menu inside a sheet that moves (audit 2026-10-03, SHL-1)', () => {
   // A bottom sheet on a 390 x 844 phone: its top edge sits at 120 px and it fills the width (padding box 1..389).
   const PHONE = { width: 390, height: 844 };

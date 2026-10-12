@@ -81,6 +81,12 @@ export const ProjectSummary = z.object({
   currentStage: Stage,
   latest: z.array(FeedItem).max(2),
   nextDeadline: NextDeadline.nullable(),
+  /**
+   * When the current stage of an active project ends: the date that the Late tag reads. A list shows it while the project has no
+   * named deadline (feedback fbk_004, 2026-10-11). Null with no end date or with a project that is not active. Optional, so older
+   * answers still parse.
+   */
+  stageEnd: z.object({ date: Day, daysLeft: z.number().int() }).nullable().optional(),
   leader: UserCard.nullable(),
   team: z.array(UserCard),
   openTasks: z.number().int().min(0),
@@ -125,6 +131,11 @@ export const TaskRow = z.object({
   fileCount: z.number().int().min(0),
   overdue: z.boolean(),
   canMove: z.boolean(),
+  /**
+   * The viewer may change the lead and the helpers of this task: the same rule as `viewerCan.editAll` of the task panel. The avatar
+   * of the row opens its small pop-up only then (feedback fbk_006, 2026-10-11). Optional, so older answers still parse.
+   */
+  canEditPeople: z.boolean().optional(),
   /** What an open task waits for: the tasks it needs and the stages its stage needs, while they are not done. Empty for a done task. */
   waitingFor: z.object({
     tasks: z.array(z.object({ id: TaskId, title: z.string() })),

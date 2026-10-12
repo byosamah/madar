@@ -114,6 +114,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - On the Tasks screen the tasks the person may move come first, then the tasks they only help with (no grip, and no drop
   between them). Home shows only the tasks the person may finish, in the same order.
 
+## Facts of a row for the list screens (feedback, 2026-10-11)
+- `ProjectSummary.stageEnd { date, daysLeft }` is the end date of the current stage (`stageTagOf`, the same stage that the Late tag
+  reads) of an active project. It is null with no end date or with a project that is not active. A row shows it as "Stage ends"
+  while `nextDeadline` (a named deadline) is null. The sort `deadline` of `projects.list` uses `nextDeadline`, then `stageEnd`.
+  The field is optional, so older answers still parse. MCP: `TOOL_DOCS` of `projects.get` and `projects.list` name it.
+- `TaskRow.canEditPeople` is `can('task.updateAny')`, the rule of `viewerCan.editAll` in the task panel (the leader, the maker of
+  the task, the Admin). The avatar of a task row opens its small pop-up for the lead and the helpers only when it is true.
+
 ## Requests and bugs notices (owner, 2026-10-07)
 - `feedback_sent`: a new report tells each active Admin (`activeAdmins`, `notify.ts`). `feedback_done`: a report that goes
   from open to done tells `principalOf(createdBy)`. The skips of `notify` apply: the actor and the person of an agent actor,

@@ -198,6 +198,9 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   const health = computeHealth({ project, stages, tasks }, today);
   const viewerRole = projectRoleOf(state, project.id, viewer.id);
   const cover = project.coverFileId ? state.files[project.coverFileId] : undefined;
+  // The tag follows the tasks, so it is computed here and never read from the saved value.
+  const currentStage = stages.length > 0 ? stageTagOf(stages, tasks) : state.stages[project.currentStageId];
+  const stageEndDate = project.status === 'active' ? currentStage?.endDate : null;
   return {
     project,
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
@@ -207,10 +210,10 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     staleDays: staleDaysOf(state, project, today),
     coverLetter: cover ? cover.versions[cover.versions.length - 1].letter : null,
     stages,
-    // The tag follows the tasks, so it is computed here and never read from the saved value.
-    currentStage: stages.length > 0 ? stageTagOf(stages, tasks) : state.stages[project.currentStageId],
+    currentStage,
     latest,
     nextDeadline: next ? { id: next.id, name: next.name, date: next.date, daysLeft: diffDays(today, next.date) } : null,
+    stageEnd: stageEndDate ? { date: stageEndDate, daysLeft: diffDays(today, stageEndDate) } : null,
     leader: project.leaderId ? cardOf(state, project.leaderId) : null,
     team: Object.values(state.members)
       .filter((m) => m.projectId === project.id && m.userId !== project.leaderId)
@@ -258,6 +261,7 @@ function waitingOf(state: State, task: Task): TaskRow['waitingFor'] {
 export function taskRowOf(state: State, task: Task, today: string, viewer: User): TaskRow {
   const project = task.projectId === null ? undefined : state.projects[task.projectId];
   const stage = task.stageId === null ? undefined : state.stages[task.stageId];
+  const resource = taskResource(state, task, viewer.id);
   return {
     task,
     owner: task.ownerId === null ? null : cardOf(state, task.ownerId),
@@ -268,7 +272,8 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     commentCount: countComments(state, 'task', task.id),
     fileCount: countFiles(state, task.id),
     overdue: isOverdue(task, today),
-    canMove: can(viewer, 'task.updateOwn', taskResource(state, task, viewer.id)),
+    canMove: can(viewer, 'task.updateOwn', resource),
+    canEditPeople: can(viewer, 'task.updateAny', resource),
     waitingFor: waitingOf(state, task),
   };
 }

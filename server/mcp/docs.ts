@@ -125,11 +125,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form).',
+    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project: the screens show it when there is no named deadline. It is null with no end date.',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId; sort by updated, deadline or name.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId; sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline and stageEnd, as projects.get does.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -157,7 +157,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.get': {
     title: 'Get a task',
-    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead; viewerCan.editAll when your person may change the lead and helpers; viewerCan.setNeedsReview when your person may change the review need. project and stage are null for an office task.',
+    description: 'Returns one task by id (for example tsk_014): title, status, owner (the lead, or null for a task with no lead) and helpers, stage, dates, checklist, prerequisites, review need and versions. viewerCan.take is true when your person may take the lead; viewerCan.editAll (also canEditPeople, on every task row) when your person may change the lead and helpers; viewerCan.setNeedsReview when your person may change the review need. project and stage are null for an office task.',
   },
   'tasks.list': {
     title: 'List tasks',

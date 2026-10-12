@@ -63,6 +63,22 @@ describe('the maker of a project task (owner, 2026-10-07)', () => {
     expect((await t.api.call('tasks.get', { id })).viewerCan).toMatchObject({ editAll: true, setNeedsReview: true, saveTemplate: true });
   });
 
+  // Feedback fbk_006 (2026-10-11): a row gives its avatar a small pop-up for the lead and the helpers. The row says who may use it,
+  // with the same rule as the task panel (editAll).
+  it('tells each row who may change its lead and helpers', async () => {
+    const { t, id } = await memberTask();
+    const flag = async (userId: string) => {
+      t.as(userId);
+      const rows = await t.api.call('tasks.list', { projectId: 'prj_001' });
+      return rows.find((row) => row.task.id === id)?.canEditPeople;
+    };
+    expect(await flag('usr_003')).toBe(true);
+    expect(await flag('usr_002')).toBe(true);
+    expect(await flag('usr_004')).toBe(false);
+    t.as('usr_003');
+    expect((await t.api.call('tasks.get', { id })).canEditPeople).toBe(true);
+  });
+
   it('names only a person on the team', async () => {
     const { t, id } = await memberTask();
     await expect(t.api.call('tasks.update', { id, patch: { ownerId: 'usr_004' } }))

@@ -66,6 +66,41 @@ describe('the project row', () => {
     expect(when.closest('.truncate')).toBeNull();
   });
 
+  // Feedback fbk_004 (2026-10-11): with no named deadline the row shows when the current stage ends, never "No deadline" while
+  // the Late tag reads that same stage end.
+  it('shows the end of the current stage when the project has no named deadline', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, (state) => {
+      for (const deadline of Object.values(state.deadlines)) if (deadline.projectId === 'prj_001') delete state.deadlines[deadline.id];
+      for (const stage of Object.values(state.stages)) if (stage.projectId === 'prj_001') stage.endDate = '2099-01-15';
+    }, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    expect(within(row).getByText('Stage ends').closest('p')).toHaveTextContent(/^Stage ends · .*15/);
+    expect(within(row).queryByText('No deadline')).toBeNull();
+  });
+
+  // The phone check (2026-10-12) cut "نهاية المرحلة" to "نهاي..." on a Late row, where the past-due words are long. The stage word
+  // is the one fact that says what the date is, so on a narrow row the line wraps; only a named deadline gives way and truncates.
+  it('wraps the stage end on a narrow row and never cuts its word', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, (state) => {
+      for (const deadline of Object.values(state.deadlines)) if (deadline.projectId === 'prj_001') delete state.deadlines[deadline.id];
+      for (const stage of Object.values(state.stages)) if (stage.projectId === 'prj_001') stage.endDate = '2099-01-15';
+    }, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const word = within(row).getByText('Stage ends');
+    expect(word).not.toHaveClass('truncate');
+    expect(word.closest('p')).not.toHaveClass('inline-flex');
+  });
+
+  it('says "No deadline" only when there is no named deadline and no stage end', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, (state) => {
+      for (const deadline of Object.values(state.deadlines)) if (deadline.projectId === 'prj_001') delete state.deadlines[deadline.id];
+      for (const stage of Object.values(state.stages)) if (stage.projectId === 'prj_001') stage.endDate = null;
+    }, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    expect(within(row).getByText('No deadline')).toBeInTheDocument();
+    expect(within(row).queryByText('Stage ends')).toBeNull();
+  });
+
   it('draws the project picture large when there is no cover', async () => {
     await renderWithRuntime(<Cover id="prj_005" />, undefined, { path: '/' });
     const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });

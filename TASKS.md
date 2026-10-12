@@ -403,3 +403,16 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test co
 - [ ] Not proven: the card and the silent turn on in a real browser with a real push service (jsdom tests and headless screenshots only)
 - [x] The endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there: kept (merge lead, 2026-10-08)
 - [ ] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on?
+
+## 2026-10-12: team reports fbk_004, fbk_005 and fbk_006 (branch `rb/feedback-batch`)
+Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all three on 2026-10-12. Guides: `src/CLAUDE.md`, `src/api/CLAUDE.md`.
+
+- [x] fbk_004 "No deadline" on every project: not a code error. The column shows named deadlines (the Schedule tab), and Madar held none. A row and the project header now show "Stage ends" and the date (`ProjectSummary.stageEnd`, the date that the Late tag reads) while there is no named deadline. The sort by deadline follows the same date. The line wraps on a narrow row and never truncates
+- [x] fbk_005 the "+" of a stage did nothing, and the team did not know to press the words: it opens `NewTaskSheet` (title, a lead from the team, due date). The words stay the quick add
+- [x] fbk_006 the avatar of a task row opens a pop-up for the lead (`TaskPeople`), a "+" on hover opens the helper list, and one press on a name changes the task at once with an Undo toast. The right is `TaskRow.canEditPeople` (the rule of `viewerCan.editAll`). The pop-up is `Popover` with `fit` (`popoverPlace`), so a long list scrolls inside a phone screen
+- [x] MCP: the `TOOL_DOCS` of `projects.get`, `projects.list` and `tasks.get` name the new fields. No new call, so no list and no count changed
+- [x] Tests first for each part. Gates: typecheck; `npm test` 4,599 passed and 6 skipped (451 files); the RTL check. Phone check (390 px, real touch emulation, headless Chromium, English and Arabic, light and dark): the pop-up fits, the "+" is gone, the Arabic stage line wraps whole
+- [ ] Not run: `test:db` and `test:it` (Docker was off), the prototype smoke, the deploy suite
+- [ ] Known and old: in Arabic a bottom sheet makes the page 391 px wide for a moment. The older "New office task" sheet does the same, so this change did not cause it
+- [ ] Remove the worktree `~/dev/madar-rb/feedback-batch` and the branch `rb/feedback-batch` after the merge: only with the owner's OK
+- [ ] The folder `.playwright-mcp` in the main folder was made by the screenshot agent (untracked): remove it only with the owner's OK

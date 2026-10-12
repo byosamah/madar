@@ -247,6 +247,7 @@
     "empty": "لا توجد مشاريع تطابق هذه التصفية.",
     "showAll": "عرض كل المشاريع",
     "noDeadline": "لا يوجد موعد",
+    "stageEnds": "نهاية المرحلة",
     "morePeople": "+{{n}}",
     "menu": "إجراءات {{name}}",
     "open": "فتح",
@@ -511,6 +512,7 @@
     "showDone": "إظهار المهام المنجزة",
     "addTask": "أضف مهمة",
     "addTaskIn": "أضف مهمة في {{stage}}",
+    "newTaskIn": "مهمة جديدة في {{stage}}",
     "complete": "إنجاز {{title}}",
     "completed": "أُنجزت المهمة.",
     "sentToReview": "أُرسلت للمراجعة. يراجعها القائد بعد ذلك.",
@@ -542,6 +544,21 @@
     "helperLine_female": "مساعدة · المسؤول الرئيسي: {{name}}",
     "completeBlocked": "لا يمكن إنهاء {{title}} الآن. تنتظر {{names}}.",
     "waitingToast": "ليس بعد. هذه المهمة تنتظر {{names}}."
+  },
+  "taskPeople": {
+    "open": "المسؤول والمساعدون في {{title}}",
+    "addHelperTo": "أضف مساعدًا إلى {{title}}",
+    "leadTitle": "غيّر المسؤول الرئيسي",
+    "helperTitle": "أضف مساعدًا",
+    "addHelper": "أضف مساعدًا",
+    "currentLead": "المسؤول الحالي",
+    "joinsTeam": "ينضم إلى الفريق",
+    "joinsTeam_female": "تنضم إلى الفريق",
+    "none": "لا يوجد أحد آخر لإضافته.",
+    "helperAdded": "{{name}} يساعد في هذه المهمة.",
+    "helperAdded_female": "{{name}} تساعد في هذه المهمة.",
+    "helperAddedJoined": "{{name}} يساعد في هذه المهمة وانضم إلى فريق المشروع.",
+    "helperAddedJoined_female": "{{name}} تساعد في هذه المهمة وانضمت إلى فريق المشروع."
   },
   "taskSheet": {
     "title": "العنوان",

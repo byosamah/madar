@@ -215,6 +215,7 @@
     "empty": "No projects match these filters.",
     "showAll": "Show all projects",
     "noDeadline": "No deadline",
+    "stageEnds": "Stage ends",
     "morePeople": "+{{n}}",
     "menu": "Actions for {{name}}",
     "open": "Open",
@@ -447,6 +448,7 @@
     "showDone": "Show done tasks",
     "addTask": "Add a task",
     "addTaskIn": "Add a task in {{stage}}",
+    "newTaskIn": "New task in {{stage}}",
     "complete": "Complete {{title}}",
     "completed": "Task done.",
     "sentToReview": "Sent to review. The leader checks it next.",
@@ -477,6 +479,18 @@
     "helperLine": "Helper · Lead: {{name}}",
     "completeBlocked": "{{title}} cannot be finished yet. Waiting for {{names}}.",
     "waitingToast": "Not yet. This task is waiting for {{names}}."
+  },
+  "taskPeople": {
+    "open": "Lead and helpers of {{title}}",
+    "addHelperTo": "Add a helper to {{title}}",
+    "leadTitle": "Change the lead",
+    "helperTitle": "Add a helper",
+    "addHelper": "Add a helper",
+    "currentLead": "Current lead",
+    "joinsTeam": "Joins the team",
+    "none": "No one else to add.",
+    "helperAdded": "{{name}} helps on this task.",
+    "helperAddedJoined": "{{name}} helps on this task and joined the project team."
   },
   "taskSheet": {
     "title": "Title",

@@ -135,6 +135,19 @@ any screen work.
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
   tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
   the row never set one transform.
+- The project Tasks tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a task" opens
+  `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
+  the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is
+  `TaskPeople`: for a person with `row.canEditPeople` a press opens a small pop-up with the lead list (the lead first, then the
+  team, then the others, who join the team), and a small "+" beside it (it shows on hover or focus, and is gone on a touch screen
+  and under 640 px: `pointer-coarse:hidden max-sm:hidden`) opens the helper list. The pop-up also holds an "Add a helper" row,
+  which is the only way on a phone. One press on a name changes the task at once, with an Undo toast and no confirm button. The
+  pop-up takes its people from the cached `users.list` and `projects.get`, with the rules of the task panel. A row without the right
+  keeps an empty box of the "+" size, so the avatars line up. The pop-up is a `Popover` with `fit`: it takes the side with room, its
+  height stops 8 px inside the screen (`popoverPlace`), and only its list scrolls, so the heading and "Add a helper" stay in view.
+- The Projects list and the project header show "Stage ends" (the end of the current stage, `ProjectSummary.stageEnd`) while the
+  project has no named deadline (feedback fbk_004, 2026-10-11). "No deadline" shows only with neither. That line wraps on a narrow
+  row and never truncates (a named deadline still gives way and truncates, V-32).
 - Admin Requests and bugs (`FeedbackSection.tsx`) has two tabs, Waiting (the default) and Done. A report moves between them.
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
@@ -193,7 +206,9 @@ any screen work.
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
 - claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
 - Chrome slows the timers of a hidden tab, so a list can show a change late. Bring the tab to the front
-  before you judge it.
+  before you judge it. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then `connectChanges` marks
+  the lists old and never loads them again: a saved change does not show until a reload (2026-10-12, fbk_006). In that tab run
+  `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
 - Prototype language and theme: the person menu (stored in IndexedDB, not localStorage). A switch takes a few seconds,
   and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.

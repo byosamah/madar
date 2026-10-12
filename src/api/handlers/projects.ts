@@ -195,10 +195,13 @@ function requireDeadline(ctx: Ctx, id: string): Deadline {
   return deadline;
 }
 
+const shownDate = (s: ProjectSummary) => s.nextDeadline?.date ?? s.stageEnd?.date ?? '9999-12-31';
+
 type Sorter = (a: ProjectSummary, b: ProjectSummary) => number;
 const SORTS: Record<'updated' | 'deadline' | 'name', Sorter> = {
   updated: (a, b) => (a.lastActivityAt < b.lastActivityAt ? 1 : a.lastActivityAt > b.lastActivityAt ? -1 : 0),
-  deadline: (a, b) => (a.nextDeadline?.date ?? '9999-12-31').localeCompare(b.nextDeadline?.date ?? '9999-12-31'),
+  // The date a row shows: the next named deadline, else the end of the current stage (feedback fbk_004).
+  deadline: (a, b) => shownDate(a).localeCompare(shownDate(b)),
   name: (a, b) => a.project.name.localeCompare(b.project.name),
 };
 

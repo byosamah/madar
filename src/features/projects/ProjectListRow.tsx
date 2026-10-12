@@ -89,7 +89,7 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
               <AvatarStack leader={summary.leader} team={summary.team} size={26} leaderSize={30} />
             </span>
             <span className="min-w-0 max-w-full @4xl:text-end">
-              <NextDeadlineLabel deadline={summary.nextDeadline} />
+              <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} />
             </span>
           </span>
         </span>
