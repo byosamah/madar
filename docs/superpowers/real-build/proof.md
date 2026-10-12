@@ -865,6 +865,27 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Not proven:** the message tools on the live MCP. The session that deployed holds a connector whose tool list was fixed at session
   start, and the discover answer needs a token. Not run: `test:db`, `test:it` (Docker was off), the prototype smoke, the deploy suite.
 
+### Agent names and Remove for a turned-off person (2026-10-12)
+- **Change:** an agent user is named "<first name> <AI app> Agent" ("Osama Claude Agent"), and in Arabic "وكيل <first name> <AI app>" when
+  the person has an Arabic name (`agentNamesOf`, `src/lib/agentName.ts`, used by `ensureAgentUser`). `agent_links.client_name` keeps the
+  plain app name for the match of a reconnect. The migration `20261012000100_agent_names.sql` renamed the agents that existed. A
+  turned-off person or agent can be removed from every list for good (`users.remove`, 117 calls, `User.removed`): the record stays for
+  the History, the email stays reserved, the agents of a person go with them, and nothing in the screens brings them back. People
+  screen: "Remove from the list" with a sheet that asks first. Guides: `src/api/CLAUDE.md`, `src/CLAUDE.md`, `server/mcp/CLAUDE.md`.
+- **Gates (2026-10-12):** typecheck; `npm test` 4,626 passed and 6 skipped (455 files); the RTL check; `npm run build` and
+  `build:server` with their bundle checks. The migration ran on an in-memory Postgres (pglite, outside the repo): 8 cases and a second
+  run that changes nothing. Phone check at 390 px with real touch emulation, English and Arabic, light and dark: the menu and the sheet
+  fit, no horizontal scroll.
+- **Test copy at fe3ac49:** `all.sh test`, run by Claude. The migration applied. `api` answers with 117 calls.
+- **Production at fe3ac49 (the owner ran `all.sh production` himself with `!` after the auto-mode check refused Claude's run once):**
+  a read-only query on production first listed the 3 agents (all linked to the app "Claude") and the 3 names the migration would give.
+  The migration applied, the functions api, mcp and jobs deployed, `api` answers with 117 calls. Pages deployment 5b9e534d. madar.vado.sa:
+  page 200 with the title "Madar", `POST /mcp` with no token 401, `/favicon.ico` 200, the live main script `index-BDRLt0Om.js` holds
+  `stageEnds`. Through the production MCP, `users.list` gives usr_004 "Osama Claude Agent", usr_011 "Faisal Claude Agent" (nameAr
+  "وكيل فيصل Claude") and usr_012 "Tarek Claude Agent" (nameAr "وكيل طارق Claude").
+- **Not proven:** `users.remove` and the People sheet on the live site (they need an Admin sign-in; the tests and the prototype
+  walk cover them). Not run: `test:db`, `test:it` (Docker was off), the prototype smoke, the deploy suite.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
