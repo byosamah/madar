@@ -42,7 +42,7 @@ export const MCP_DENY = [
   // The session and the person's own settings.
   'session.get', 'me.updateProfile', 'me.updatePreferences',
   // People, clients, teams and office settings: Admin and Management work in the screens.
-  'users.get', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.invites', 'users.resendInvite',
+  'users.get', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'users.invites', 'users.resendInvite',
   'clients.list', 'clients.create', 'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
   'settings.get', 'settings.update',
   // Project set-up, members, stages, links, health and deletes.

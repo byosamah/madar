@@ -148,6 +148,9 @@ any screen work.
 - The Projects list and the project header show "Stage ends" (the end of the current stage, `ProjectSummary.stageEnd`) while the
   project has no named deadline (feedback fbk_004, 2026-10-11). "No deadline" shows only with neither. That line wraps on a narrow
   row and never truncates (a named deadline still gives way and truncates, V-32).
+- Admin People (`PeopleSection.tsx`): a turned-off person or agent has "Remove from the list" in the row menu (`RemoveSheet.tsx`, owner
+  2026-10-12). The sheet asks first (Cancel has the focus, the confirm sits on the start side) and has no Undo. The person leaves the
+  list for good, and the History keeps the name (`api/CLAUDE.md`).
 - Admin Requests and bugs (`FeedbackSection.tsx`) has two tabs, Waiting (the default) and Done. A report moves between them.
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the

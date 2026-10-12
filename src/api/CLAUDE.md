@@ -114,6 +114,16 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - On the Tasks screen the tasks the person may move come first, then the tasks they only help with (no grip, and no drop
   between them). Home shows only the tasks the person may finish, in the same order.
 
+## Remove a person (owner, 2026-10-12)
+- `users.remove { id }` takes a turned-off person or agent out of every list for good: `User.removed` is true. The record stays, so the
+  History, tasks, comments and messages keep the name (`cardOf` still finds it), and the email stays reserved (`assertEmailFree`).
+  `users.list` (also with `includeInactive`) leaves removed users out, `detailOf` leaves them out of a project team, and `users.update` and
+  `users.reactivate` refuse them (reason `removed`). `users.get` still gives the record.
+- The rules: `people.manage`, `assertMayTouch` (Management never removes an Admin or the agent of an Admin), never yourself, and only a
+  person who is off (reason `still_active`). The agents of a removed person go with them, turned off first. A second call is harmless
+  and writes no second event. Event verb `user.removed`. No screen brings a removed person back, so the sheet asks first and has no Undo.
+- MCP: deny list (people work is in the screens). The sweep (`everyCall.ts`) runs it after `users.deactivate`, because it is a remover.
+
 ## Facts of a row for the list screens (feedback, 2026-10-11)
 - `ProjectSummary.stageEnd { date, daysLeft }` is the end date of the current stage (`stageTagOf`, the same stage that the Late tag
   reads) of an active project. It is null with no end date or with a project that is not active. A row shows it as "Stage ends"

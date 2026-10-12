@@ -138,6 +138,11 @@ export const User = z.object({
   preferences: Preferences,
   // For Arabic grammar only: a verb after a person's name agrees with it. Unset reads as masculine.
   gender: Gender.optional(),
+  /**
+   * True for a turned-off person that the Admin removed from the lists (owner, 2026-10-12). The record stays, so the History, the
+   * tasks, the comments and the messages keep the name. Optional, so people saved before it still read. Unset means not removed.
+   */
+  removed: z.boolean().optional(),
 });
 export type User = z.infer<typeof User>;
 

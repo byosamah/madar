@@ -232,8 +232,9 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
   // A person leads a task or helps on it. Both count, as in members.remove and the Overview (audit 2026-10-03, PRJ-3).
   const openBy = (userId: string) =>
     Object.values(state.tasks).filter((t) => t.projectId === project.id && involves(t, userId) && t.status !== 'done').length;
+  // A person who was removed from the lists (owner, 2026-10-12) is not in the team either; their work keeps their name.
   const members = Object.values(state.members)
-    .filter((m) => m.projectId === project.id)
+    .filter((m) => m.projectId === project.id && !state.users[m.userId]?.removed)
     .map((m) => ({
       user: cardOf(state, m.userId), discipline: m.discipline, isLeader: m.userId === project.leaderId, openTasks: openBy(m.userId),
       active: state.users[m.userId]?.active ?? false,

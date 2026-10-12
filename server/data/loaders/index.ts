@@ -65,6 +65,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'users.update': office,
   'users.deactivate': office,
   'users.reactivate': office,
+  'users.remove': office,
   'me.updateProfile': office,
   'me.updatePreferences': office,
   'clients.list': office,

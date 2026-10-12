@@ -20,6 +20,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'users.create': ['events', 'users'],
   'users.update': ['events', 'users'],
   'users.deactivate': ['events', 'users'],
+  'users.remove': ['events', 'users'],
   'users.reactivate': ['events', 'users'],
   'me.updateProfile': ['events', 'users'],
   'me.updatePreferences': ['preferences'],

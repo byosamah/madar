@@ -17,6 +17,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { Menu } from '../../../components/Menu';
 import { useDeactivate } from './DeactivateSheet';
 import { PersonFormSheet } from './PersonFormSheet';
+import { useRemove } from './RemoveSheet';
 
 export function PeopleSection() {
   const { t } = useTranslation();
@@ -36,6 +37,8 @@ export function PeopleSection() {
   const deactivate = useDeactivate();
   // A person deactivated by mistake can come back with their account and history (audit 2026-10-03, SHL-7).
   const reactivate = useUndoable('users.reactivate', { message: (user) => t('admin.reactivated', { name: nameOf(user) }) });
+  // A turned-off person who will not come back leaves the list for good (owner, 2026-10-12).
+  const remove = useRemove();
   const me = session.data?.authority.id;
   const people = { users: Object.fromEntries((users.data ?? []).map((user) => [user.id, user])) };
   // Management cannot change an Admin, so an Admin's row has no actions for it.
@@ -83,6 +86,7 @@ export function PeopleSection() {
                 { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },
                 // An agent comes back only while its person is active, as the API asks.
                 { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !people.users[user.ownerId ?? '']?.active) },
+                { label: t('admin.remove'), onSelect: () => remove.ask(user), hidden: user.active || user.id === me, destructive: true },
               ]}
             />}
           </li>
@@ -90,6 +94,7 @@ export function PeopleSection() {
         })}
       </ul>
       {deactivate.sheet}
+      {remove.sheet}
       <PersonFormSheet open={adding} onOpenChange={setAdding} person={null} />
       <PersonFormSheet open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }} person={editing} />
     </section>

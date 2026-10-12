@@ -97,7 +97,8 @@ export const usersList = defineCall({
   output: z.array(User),
   readOnly: true,
   run(input, ctx) {
-    return Object.values(ctx.state.users).filter((u) => input.includeInactive || u.active).sort(byName);
+    // A removed person is in no list (owner, 2026-10-12). users.get still gives the record, for the name in the History.
+    return Object.values(ctx.state.users).filter((u) => !u.removed && (input.includeInactive || u.active)).sort(byName);
   },
 });
 
@@ -194,6 +195,7 @@ export const usersUpdate = defineCall({
   run(input, ctx) {
     assertCan(ctx, 'people.manage');
     const user = requireUser(ctx, input.id);
+    assertNotRemoved(user);
     assertMayTouch(ctx, user, input.patch.systemRole);
     if (input.patch.email !== undefined && input.patch.email.toLowerCase() !== user.email.toLowerCase()) {
       // The sign-in email is the key to the account: Auth takes the new email as confirmed, and "Forgot password" goes there.
@@ -237,10 +239,44 @@ export const usersReactivate = defineCall({
   run(input, ctx) {
     assertCan(ctx, 'people.manage');
     const user = requireUser(ctx, input.id);
+    assertNotRemoved(user);
     assertMayTouch(ctx, user, undefined);
     const owner = user.ownerId ? ctx.state.users[user.ownerId] : undefined;
     if (user.kind === 'agent' && !owner?.active) throw invalid('id', 'An agent needs an active person to act for.');
     applyPatch(ctx, user, { active: true }, { projectId: null, verb: 'user.reactivated', targetType: 'user', targetId: user.id });
+    return user;
+  },
+});
+
+/** A removed person is not changed or turned on again: the Admin removed them for good (owner, 2026-10-12). */
+function assertNotRemoved(user: User): void {
+  if (user.removed) throw invalid('id', 'This person was removed from the list.', 'removed');
+}
+
+/**
+ * Removes a turned-off person from every list for good (owner, 2026-10-12): the people list, the pickers and the team of each
+ * project. The record stays, so the History, the tasks, the comments and the messages keep their name, and the email stays reserved.
+ * The agents of the person go with them. Only a turned-off person can be removed, never yourself, and Management never removes an
+ * Admin or the agent of an Admin (assertMayTouch). Nothing in the screens brings a removed person back. A second call is harmless.
+ */
+export const usersRemove = defineCall({
+  input: z.object({ id: UserId }),
+  output: User,
+  run(input, ctx) {
+    assertCan(ctx, 'people.manage');
+    const user = requireUser(ctx, input.id);
+    assertMayTouch(ctx, user, undefined);
+    if (user.id === ctx.authority.id) throw invalid('id', 'You cannot remove your own account.');
+    if (user.active) throw invalid('id', 'Turn this person off first. Only a turned-off person can be removed.', 'still_active');
+    const meta = { projectId: null, verb: 'user.removed', targetType: 'user', targetId: user.id } as const;
+    applyPatch(ctx, user, { removed: true }, meta);
+    // The agents of a person cannot act without them. They leave the list too, turned off first when they are still on.
+    if (user.kind === 'human') {
+      for (const agent of Object.values(ctx.state.users)) {
+        if (agent.kind !== 'agent' || agent.ownerId !== user.id) continue;
+        applyPatch(ctx, agent, { active: false, removed: true }, { ...meta, targetId: agent.id });
+      }
+    }
     return user;
   },
 });
@@ -355,6 +391,7 @@ export const peopleCalls = {
   'users.update': usersUpdate,
   'users.deactivate': usersDeactivate,
   'users.reactivate': usersReactivate,
+  'users.remove': usersRemove,
   'me.updateProfile': meUpdateProfile,
   'me.updatePreferences': meUpdatePreferences,
   'clients.list': clientsList,

@@ -50,6 +50,8 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'users.update': [{ id: 'usr_003', patch: { discipline: 'Design' } }],
     'users.deactivate': [{ id: 'usr_007' }],
     'users.reactivate': [{ id: 'usr_007' }],
+    // A remover, so it runs after users.deactivate: usr_007 is off then, and only a turned-off person can be removed (owner, 2026-10-12).
+    'users.remove': [{ id: 'usr_007' }],
     'me.updateProfile': [{ name: 'Hala N.' }],
     'me.updatePreferences': [{ patch: { theme: 'dark' } }],
     'clients.list': [{}],

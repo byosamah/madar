@@ -112,7 +112,8 @@ describe('suite 12: MCP on the local stack', () => {
     const link = await linkOf(firstClient);
     expect(link).toMatchObject({ owner_user_id: 'usr_001', client_name: appName, redirect_host: '127.0.0.1', revoked_at: null });
     agentId = link.agent_user_id;
-    expect(await userDoc(agentId)).toMatchObject({ kind: 'agent', ownerId: 'usr_001', name: appName, active: true, email: `${agentId}@agents.madar.invalid` });
+    // The agent user is named after its person and its app (owner, 2026-10-12): "Hala Claude Code ab12cd Agent".
+    expect(await userDoc(agentId)).toMatchObject({ kind: 'agent', ownerId: 'usr_001', name: `Hala ${appName} Agent`, active: true, email: `${agentId}@agents.madar.invalid` });
     const { rows } = await office.admin.query<{ doc: Record<string, unknown> }>("select doc from public.events where target_type = 'user' and target_id = $1 and verb = 'user.created'", [agentId]);
     expect(rows[0].doc).toMatchObject({ actorId: 'usr_001', actingForId: 'usr_001' });
   });

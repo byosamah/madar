@@ -5,6 +5,7 @@ import { recordCreate } from '../../src/api/events';
 import { executeParsed } from '../../src/api/execute';
 import { defineCall } from '../../src/api/registry';
 import { nextId } from '../../src/api/store';
+import { agentNamesOf } from '../../src/lib/agentName';
 import type { Deps } from '../core/ports';
 import { sqlData, type CallData } from '../core/runCall';
 import { resolveStory } from '../core/story';
@@ -28,8 +29,8 @@ import { signInAgain } from './auth';
  *   address of its own never takes over an agent user, its name and its History (security review of G3). The earlier clients'
  *   addresses come from Auth; a client that Auth no longer has matches nothing. A removed agent stays off: its app gets a new one.
  * - A link that exists stays as it is: a removed link never links again here (server/mcp/auth.ts).
- * - None: a new users row (kind agent, the person as owner, the app name, the address <agentId>@agents.madar.invalid, which no
- *   mail reaches) and the user.created event with the person as the actor, through the save step, so the History, the change
+ * - None: a new users row (kind agent, the person as owner, the name "<first name> <app name> Agent" and its Arabic twin
+ *   (agentNamesOf, owner 2026-10-12), the address <agentId>@agents.madar.invalid, which no mail reaches) and the user.created event with the person as the actor, through the save step, so the History, the change
  *   signal and the office cache see it as any other new person.
  * - The new agent link (agent_links).
  */
@@ -74,12 +75,14 @@ export function redirectSetOf(redirectUris: string): string {
 
 /** The new agent user, as users.create makes a person, without the people.manage check: a person approves an agent for themself. */
 export const AGENT_USER_CREATE = defineCall({
-  input: z.object({ name: z.string().trim().min(1).max(NAME_MAX) }),
+  // The names come from agentNamesOf (src/lib/agentName.ts): "Osama Claude Agent", and in Arabic "وكيل أسامة Claude".
+  input: z.object({ name: z.string().trim().min(1).max(NAME_MAX), nameAr: z.string().trim().min(1).max(NAME_MAX).optional() }),
   output: User,
   run(input, ctx) {
     const id = nextId(ctx.state, 'usr');
     const user: User = {
-      id, name: input.name, email: `${id}@agents.madar.invalid`, kind: 'agent', systemRole: 'member', discipline: AGENT_DISCIPLINE,
+      id, name: input.name, ...(input.nameAr === undefined ? {} : { nameAr: input.nameAr }),
+      email: `${id}@agents.madar.invalid`, kind: 'agent', systemRole: 'member', discipline: AGENT_DISCIPLINE,
       ownerId: ctx.authority.id, avatarUrl: null, active: true,
       preferences: { ...defaultPreferences(), language: ctx.authority.preferences.language },
     };
@@ -140,7 +143,8 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
       const story = await resolveStory(t.stories, undefined, new Map(), owner.id, now);
       const state = await loadFor('users.create', {}, { src: t.source(), office, actorId: owner.id, write: true });
       const before = structuredClone(state);
-      const user = executeParsed(AGENT_USER_CREATE, 'agents.connect', { name }, state, {
+      // `name` stays the AI app, for the link and for the match of a reconnect. The agent user is named after its person and its app.
+      const user = executeParsed(AGENT_USER_CREATE, 'agents.connect', agentNamesOf(owner, name), state, {
         actorId: owner.id, authorityId: owner.id, correlationId: story.storyId, now, persistent: true,
       }, undefined) as User;
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId: owner.id } });

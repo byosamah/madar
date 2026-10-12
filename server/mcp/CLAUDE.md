@@ -61,6 +61,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   a warning.
 - An agent user is reused only for the same person, the same app name and the same sorted set of redirect addresses
   (`agentUser.ts`).
+- An agent user is named after its person and its AI app (owner, 2026-10-12): "<first name> <app> Agent", for example "Osama Claude
+  Agent", and "وكيل <first name> <app>" when the person has an Arabic name (`agentNamesOf`, `src/lib/agentName.ts`). With no app name it
+  reads "Osama Agent". `agent_links.client_name` keeps the plain app name: the match of a reconnect reads it, never the user name.
+  The migration `20261012000100_agent_names.sql` gave the names to the agents that existed (only an agent that still had its app
+  name, so a name that an Admin set stays). Change the function and the migration together.
 - A removed link never links again (`agent_removed`). Turn-off of a person runs `agents.revokeAll` (`revokeAll.ts`).
 - An agent never joins a team. An agent never changes an email.
 - Open risk (owner decision, Z7): an agent token has the person's full rights on the own endpoints of Auth.

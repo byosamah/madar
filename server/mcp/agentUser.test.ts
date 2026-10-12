@@ -49,4 +49,16 @@ describe('the agent user of an approval', () => {
     const event = Object.values(state.events).find((e) => e.targetId === 'usr_012');
     expect(event).toMatchObject({ verb: 'user.created', actorId: owner.id, correlationId: 'sty_test', targetType: 'user' });
   });
+
+  // Owner, 2026-10-12: the agent user is named after its person and its AI app ("Faisal Claude Agent"), in both languages.
+  it('takes the Arabic name too when it is given, and has none when it is not', async () => {
+    const state = await buildSeed('2026-10-04', async () => undefined);
+    const owner = state.users.usr_002;
+    const ctx = { actorId: owner.id, authorityId: owner.id, correlationId: 'sty_test', now: new Date('2026-10-04T06:00:00Z'), persistent: true };
+    const both = executeParsed(AGENT_USER_CREATE, 'agents.connect', { name: 'Faisal Claude Agent', nameAr: 'وكيل فيصل Claude' }, state, ctx, undefined) as User;
+    expect(User.parse(both)).toEqual(both);
+    expect(both).toMatchObject({ name: 'Faisal Claude Agent', nameAr: 'وكيل فيصل Claude', kind: 'agent', ownerId: owner.id });
+    const one = executeParsed(AGENT_USER_CREATE, 'agents.connect', { name: 'Faisal Claude Agent' }, state, ctx, undefined) as User;
+    expect('nameAr' in one).toBe(false);
+  });
 });
