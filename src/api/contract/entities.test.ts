@@ -50,7 +50,11 @@ describe('entity schemas', () => {
 
   it('checks project codes', () => {
     expect(Project.safeParse(project).success).toBe(true);
-    expect(Project.safeParse({ ...project, code: 'kh-26-014' }).success).toBe(false);
+    // A code outside the office pattern is a code that a person kept after the warning (feedback fbk_003, 2026-10-12), so the record
+    // reads it. A code with a line break or a hidden direction mark never is.
+    expect(Project.safeParse({ ...project, code: 'kh-26-014' }).success).toBe(true);
+    expect(Project.safeParse({ ...project, code: 'KH-26\n014' }).success).toBe(false);
+    expect(Project.safeParse({ ...project, code: 'KH-26-\u202E014' }).success).toBe(false);
   });
 
   // The real build adds optional fields (plan, T0.3). Records saved before them must still parse, unchanged.
