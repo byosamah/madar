@@ -844,6 +844,27 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   the live words files, `POST /mcp` with no token 401, `/favicon.ico` 200, `sw.js` 200 with `no-cache`.
 - **Not proven:** the card and the silent turn on in a real browser with a real push service. Not run: the deploy suite.
 
+### Team reports fbk_004, fbk_005, fbk_006 and MCP messages (2026-10-12)
+- **Change:** a project with no named deadline shows "Stage ends" and the date of the current stage (fbk_004); the "+" before "Add a
+  task" opens a new task panel (fbk_005); the avatar of a task row opens a pop-up for the lead and the helpers, with a "+" on hover
+  for the helpers (fbk_006). An agent may open a direct chat, list chats and send a message (`chats.openDirect`, `chats.list`,
+  `chats.send`): 44 tools for an Admin's agent. An agent never reads a chat, and a direct chat in `chats.list` has no preview.
+  Guides: `src/CLAUDE.md`, `src/api/CLAUDE.md`, `server/mcp/CLAUDE.md`.
+- **Gates (2026-10-12):** typecheck; `npm test` 4,607 passed and 6 skipped (452 files); the RTL check; `npm run build`,
+  `build:server` and `build:remote -- test` with their bundle checks (first load 1,124,334 B of 1,350,000 B). Phone check at 390 px
+  with real touch emulation, English and Arabic: the pop-up fits the screen, the "+" is gone on touch, the Arabic stage line wraps
+  whole. The MCP migration-free change ran against the MCP tests (142 passed).
+- **Test copy at cb0f7b9:** `all.sh test`, run by Claude on the owner's go. It had no keyboard, so the config question took its
+  default (yes), as the owner answered on the earlier releases. No migration. The functions api, mcp and jobs deployed. `api`
+  answers in eu-central-1 with 116 calls. Page 200, `POST /mcp` with no token 401.
+- **Production at cb0f7b9:** `echo production | scripts/deploy/all.sh production` (Claude, after the owner's "deploy go"; the
+  commit record matched HEAD and the tree was clean). No migration. The functions api, mcp and jobs deployed; `api` answers with 116
+  calls. Pages deployment 43838635. madar.vado.sa: page 200 with the title "Madar", `POST /mcp` with no token 401, `/favicon.ico` 200.
+  The live scripts hold `projects.stageEnds` (index), `taskPeople.open` and `canEditPeople` (the task row chunk).
+- **Done in Madar:** fbk_004, fbk_005 and fbk_006 (story `sty_mjlygivmx4k7xlwgekxaps`).
+- **Not proven:** the message tools on the live MCP. The session that deployed holds a connector whose tool list was fixed at session
+  start, and the discover answer needs a token. Not run: `test:db`, `test:it` (Docker was off), the prototype smoke, the deploy suite.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

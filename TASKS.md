@@ -416,5 +416,8 @@ Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all
 - [x] Tests first for each part. Gates: typecheck; `npm test` 4,607 passed and 6 skipped (452 files); the RTL check; `npm run build` (prototype), `build:server` and `build:remote -- test` with their bundle checks (first load 1,124,334 B). Phone check (390 px, real touch emulation, headless Chromium, English and Arabic, light and dark): the pop-up fits, the "+" is gone, the Arabic stage line wraps whole
 - [ ] Not run: `test:db` and `test:it` (Docker was off), the prototype smoke, the deploy suite
 - [ ] Known and old: in Arabic a bottom sheet makes the page 391 px wide for a moment. The older "New office task" sheet does the same, so this change did not cause it
+- [x] Test copy and production at cb0f7b9 (owner's "deploy go", 2026-10-12; Claude ran both). No migration. Health 116 calls, page 200, `POST /mcp` with no token 401. fbk_004, fbk_005 and fbk_006 are done in Madar. Record: proof.md, "Team reports fbk_004, fbk_005, fbk_006 and MCP messages"
+- [ ] fbk_002 stays open: the message tools are not proven on the live MCP yet (a new session or a reconnect of the connector shows them). Mark it done after the first message goes out
+- [ ] The message to Faisal that explains the three changes: send it with `chats.send` from a session that sees the tool
 - [ ] Remove the worktree `~/dev/madar-rb/feedback-batch` and the branch `rb/feedback-batch` after the merge: only with the owner's OK
 - [ ] The folder `.playwright-mcp` in the main folder was made by the screenshot agent (untracked): remove it only with the owner's OK
