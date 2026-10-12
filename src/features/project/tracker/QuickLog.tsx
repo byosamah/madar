@@ -111,7 +111,8 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
         />
         <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>
       </div>
-      <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-5 gap-1.5">
+      {/* Equal columns that never get narrower than their word: "Government" is wider than a fifth of a phone row (2026-10-12). */}
+      <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-[repeat(5,minmax(min-content,1fr))] gap-1.5">
         {TRACKER_TYPES.map((value, index) => (
           <button
             key={value}

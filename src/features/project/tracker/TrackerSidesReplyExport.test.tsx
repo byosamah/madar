@@ -29,7 +29,16 @@ describe('the Tracker tab: types, sides and replies', () => {
     expect(entriesOf(store.state, 'A neighbour phoned')[0]).toMatchObject({ type: 'other', direction: 'none' });
   });
 
-  it('shows the side choices that fit each type, and none for a meeting or a Balady update', async () => {
+  it('gives each type tile at least the width of its word, so "Government" stays in its tile on a phone (2026-10-12)', async () => {
+    await renderApp(TRACKER, as('usr_002'));
+    await screen.findByRole('radio', { name: 'Government' });
+    // jsdom draws nothing, so the test reads the column rule: equal columns that never get narrower than their word.
+    const group = screen.getAllByRole('radiogroup', { name: 'Type' }).find((node) => within(node).queryByRole('radio', { name: 'Government' }))!;
+    expect(group.className).toContain('grid-cols-[repeat(5,minmax(min-content,1fr))]');
+    expect(group.className).not.toMatch(/(^|\s)grid-cols-5(\s|$)/);
+  });
+
+  it('shows the side choices that fit each type, and none for a meeting or a government update', async () => {
     const { store } = await renderApp(TRACKER, as('usr_002'));
     await screen.findByRole('radio', { name: 'Message' });
     expect(sideButtons()).toEqual(['From the client', 'To the client']);
