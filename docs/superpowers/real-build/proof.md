@@ -886,6 +886,19 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Not proven:** `users.remove` and the People sheet on the live site (they need an Admin sign-in; the tests and the prototype
   walk cover them). Not run: `test:db`, `test:it` (Docker was off), the prototype smoke, the deploy suite.
 
+### The MCP server names its release (2026-10-12)
+- **Why:** after the message tools went live, the claude.ai connector of the owner kept the old 41 tools, also after a remove and a
+  new add and a `/mcp` reconnect. The production `mcp` function (version 42) held `chats.send` and the Messages instructions, and a
+  direct client of the test copy got the three chat tools (`agents.spec.ts` with `MADAR_E2E_AFTER_G=1`, 5 passed). So the server was
+  right, and the client kept the tool list of the fixed serverInfo version "1.0.0".
+- **Change:** serverInfo version "1.0.<number of commits>" (`releaseVersion`, `vite.server.config.ts`); `check-bundles.ts server` fails
+  an unstamped bundle; `server/discover` keeps its answer 5 minutes, not 1 hour.
+- **Gates:** typecheck; `npm test` 4,629 passed and 6 skipped (456 files); `build:server` with its bundle check.
+- **Test copy and production at 6c78a25 (Claude ran both; the auto-mode check let production through this time):** `api` answers with
+  117 calls. The production `mcp` function is version 44, and its bundle says `1.0.1158`. madar.vado.sa: page 200, `POST /mcp` with no
+  token 401.
+- **Not proven yet:** that claude.ai now shows the chat tools. That shows after a reconnect of the connector.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

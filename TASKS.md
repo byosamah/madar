@@ -439,4 +439,5 @@ After the message tools went live, the claude.ai connector of the owner kept the
 - [x] The serverInfo version was a fixed "1.0.0". It is now "1.0.<number of commits>" (`releaseVersion`, `vite.server.config.ts`), so each release names a new server version and a client that keys its tool list on it loads the new one. `check-bundles.ts server` fails a bundle with the placeholder. `server/discover` keeps its answer 5 minutes, not 1 hour
 - [x] `agents.spec.ts` checks the three chat tools in the tool list of the test copy, and that `chats.messages` is not in it
 - [x] Gates: typecheck; `npm test` 4,629 passed and 6 skipped (456 files); `build:server` with its bundle check (the mcp bundle says `version: "1.0.1157"`). Not run: `test:db`, `test:it` (Docker off), the prototype smoke
+- [x] Test copy and production at 6c78a25 (2026-10-12): the live `mcp` function says version `1.0.1158`. Record: proof.md, "The MCP server names its release"
 - [ ] After the deploy: the owner reconnects the Madar connector in Claude Code (`/mcp`); then the message to Faisal goes out with `chats.send` and fbk_002 is marked done
