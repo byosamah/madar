@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLASSIFICATIONS, buildProjectCode, codeMatches, codeMonth, codeWarning, contractOf, isFreeCode, isProjectCode, KEY_PATTERN, nextSeries,
-  normalizeInitials, normalizeTypedCode, parseProjectCode, PROJECT_CODE_PATTERN, projectKey,
+  normalizeInitials, normalizeTypedCode, RECORD_CODE_PATTERN, TYPE_MAX, TYPE_PATTERN, parseProjectCode, PROJECT_CODE_PATTERN, projectKey,
 } from './projectCode';
 
 const OWNER_EXAMPLE = '260902AZT-RES-Multi-unit Dev.';
@@ -120,14 +120,32 @@ describe('a code that a person keeps outside the office pattern (feedback fbk_00
 
   it('refuses hidden characters, so a code always shows as it is saved', () => {
     // Direction marks and isolates, zero-width characters and control characters can make a code show as other text.
-    const hidden = ['\u202E', '\u202A', '\u2066', '\u2069', '\u200E', '\u200F', '\u061C', '\u200B', '\u200D', '\u2060', '\uFEFF', '\t', '\u0007', '\u0085'];
+    const hidden = [
+      '\u202E', '\u202A', '\u2066', '\u2069', '\u200E', '\u200F', '\u061C', '\u200B', '\u200D', '\u2060', '\uFEFF', '\t', '\u0007', '\u0085',
+      // Spaces that look like a plain space, so two codes would look the same, and the other invisible marks.
+      '\u00A0', '\u2007', '\u202F', '\u3000', '\u00AD', '\u034F', '\u180E', '\uFE0F', '\u206A', '\u206F', '\u3164', '\uFFF9',
+      // Anything outside the basic plane: invisible tag characters and emoji.
+      '\u{E0041}', '\u{1F600}',
+    ];
     for (const mark of hidden) {
       expect(isFreeCode(`ARC${mark}77`), JSON.stringify(mark)).toBe(false);
       expect(isFreeCode(`${mark}ARC77`), JSON.stringify(mark)).toBe(false);
       expect(isFreeCode(`ARC77${mark}`), JSON.stringify(mark)).toBe(false);
     }
-    // Arabic letters and other visible signs stay.
+    // Arabic letters with their marks, plain spaces inside and other visible signs stay.
     expect(isFreeCode('مشروع 12/أ')).toBe(true);
+    expect(isFreeCode('مَدار - B (2)')).toBe(true);
+  });
+
+  it('keeps every code that a record held before, and asks visible text of each new building type', () => {
+    // A code of the office pattern saved before 2026-10-12 may hold another space in its type: the record still reads it.
+    expect(RECORD_CODE_PATTERN.test('260902AZT-RES-Multi\u00A0unit')).toBe(true);
+    expect(RECORD_CODE_PATTERN.test('ARC/2019/77')).toBe(true);
+    expect(RECORD_CODE_PATTERN.test('260902AZT\nVilla')).toBe(false);
+    expect(RECORD_CODE_PATTERN.test('ARC\u202E77')).toBe(false);
+    expect(TYPE_PATTERN.test('Multi-unit Dev.')).toBe(true);
+    expect(TYPE_PATTERN.test('فيلا سكنية')).toBe(true);
+    for (const type of ['Villa\u202E', '\u200BVilla', 'Multi\u00A0unit', ' Villa', 'X'.repeat(TYPE_MAX + 1)]) expect(TYPE_PATTERN.test(type), JSON.stringify(type)).toBe(false);
   });
 
   it('warns about a code outside the pattern, and about the month and series of another contract', () => {

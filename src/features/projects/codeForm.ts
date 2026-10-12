@@ -1,5 +1,5 @@
 import {
-  buildProjectCode, codeWarning, INITIALS_PATTERN, isFreeCode, normalizeTypedCode, TYPE_MAX, type Classification,
+  buildProjectCode, codeWarning, INITIALS_PATTERN, isFreeCode, normalizeTypedCode, TYPE_PATTERN, type Classification,
 } from '../../lib/projectCode';
 
 /**
@@ -58,7 +58,7 @@ export function validateCodeValues(values: CodeValues, projects: CodeProjects = 
   if (!INITIALS_PATTERN.test(values.initials.trim())) errors.initials = 'projectCode.errors.initials';
   if (!values.classification) errors.classification = 'projectCode.errors.classification';
   const type = values.buildingType.trim();
-  if (!type || type.length > TYPE_MAX || /[\n\r]/.test(type)) errors.buildingType = 'projectCode.errors.type';
+  if (!TYPE_PATTERN.test(type)) errors.buildingType = 'projectCode.errors.type';
   return errors;
 }
 

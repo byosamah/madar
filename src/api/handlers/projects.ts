@@ -17,6 +17,7 @@ import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
   buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, isProjectCode, nextSeries, projectKey, TYPE_MAX,
+  TYPE_PATTERN,
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { markOf, pickMark } from '../../lib/projectMark';
@@ -36,14 +37,14 @@ const DeadlineName = z.string().trim().min(1).max(120);
  * A full code typed by hand. Any code on one line goes through here (feedback fbk_003, 2026-10-12): the handler then asks for the
  * office pattern and a free contract, unless the call says codeAnyway.
  */
-const TypedCode = z.string().trim().regex(FREE_CODE_PATTERN, `Write the code on one line, with ${FREE_CODE_MAX} characters or fewer.`);
+const TypedCode = z.string().trim().regex(FREE_CODE_PATTERN, `Write the code on one line, with visible characters and ${FREE_CODE_MAX} characters or fewer.`);
 /** True keeps a typed code that does not match the office pattern or takes the series of another contract. Ask the person first. */
 const CodeAnyway = z.boolean().optional();
 /** The parts of a new code. The server adds YYMM (today in Riyadh) and the next series (owner, 2026-10-05). */
 const CodeParts = z.object({
   initials: ClientInitials,
   classification: z.enum(CLASSIFICATIONS),
-  type: z.string().trim().min(1).max(TYPE_MAX).regex(/^[^\n\r\u2028\u2029]+$/, 'Write the building type on one line.'),
+  type: z.string().trim().min(1).max(TYPE_MAX).regex(TYPE_PATTERN, 'Write the building type on one line, with visible characters only.'),
 });
 
 /**

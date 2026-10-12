@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FREE_CODE_PATTERN, INITIALS_PATTERN } from '../../lib/projectCode';
+import { INITIALS_PATTERN, RECORD_CODE_PATTERN } from '../../lib/projectCode';
 import { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
@@ -214,10 +214,10 @@ export const StageBack = z.object({ fromStageId: StageId, toStageId: StageId, re
 export type StageBack = z.infer<typeof StageBack>;
 
 /**
- * A project code: the old or the new form, or a code that a person kept after the warning (feedback fbk_003, 2026-10-12): one line,
- * 1 to 60 characters. The office pattern is a check of projects.create and projects.update, not of the record.
+ * A project code: the old or the new form, or a code that a person kept after the warning (feedback fbk_003, 2026-10-12): visible
+ * text of 1 to 60 characters. The office pattern is a check of projects.create and projects.update, not of the record.
  */
-export const ProjectCode = z.string().regex(FREE_CODE_PATTERN, 'Write the code on one line, with 60 characters or fewer.');
+export const ProjectCode = z.string().regex(RECORD_CODE_PATTERN, 'Write the code on one line, with visible characters and 60 characters or fewer.');
 
 export const Project = z.object({
   id: ProjectId,

@@ -228,7 +228,7 @@ describe('a code outside the office pattern, kept after a warning (feedback fbk_
 
   it('never takes an empty code, a code on two lines or a code over 60 characters, also with codeAnyway', async () => {
     const t = testApi(calls, world());
-    for (const code of ['   ', 'A\nB', 'X'.repeat(61), 'ARC\u202E77']) {
+    for (const code of ['   ', 'A\nB', 'X'.repeat(61), 'ARC\u202E77', '260902AZT-RES-Multi\u00A0unit']) {
       await expect(t.api.call('projects.create', { name: 'X', code, codeAnyway: true }), code).rejects.toMatchObject({ code: 'invalid_input' });
     }
   });
@@ -249,6 +249,16 @@ describe('a code outside the office pattern, kept after a warning (feedback fbk_
     t.as('usr_002');
     await expect(t.api.call('projects.update', { id: 'prj_001', patch: { code: 'CORNICHE TOWER 7' }, codeAnyway: true })).rejects.toMatchObject({ code: 'forbidden' });
     expect(t.store.state.projects.prj_001.code).toBe('KH-26-001');
+  });
+
+  it('refuses a hidden character in the building type of the parts', async () => {
+    const t = testApi(calls, world());
+    await expect(t.api.call('projects.create', { name: 'X', clientId: 'cli_001', codeParts: { ...villa, type: 'Villa\u202E' } }))
+      .rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('still loads a project whose code of the office pattern holds another space, saved before the change', () => {
+    expect(Project.safeParse({ ...makeProject(), code: '260902AZT-RES-Multi\u00A0unit' }).success).toBe(true);
   });
 
   it('saves the other fields of a project with a kept code, with no new warning', async () => {

@@ -33,12 +33,29 @@ export const PROJECT_CODE_PATTERN = new RegExp(
  * A code that a person keeps after the warning (feedback fbk_003, 2026-10-12): any code on one line, with no space at its start or
  * end, of 1 to 60 characters. Every code of the office pattern is one too. The record takes any of them; a typed code outside the
  * pattern needs codeAnyway (projects.create, projects.update).
- * No hidden character: control characters, line breaks, direction marks and isolates, and zero-width characters can make a code
- * show as other text in a list, so the pattern refuses them (the escapes stay escapes, see src/CLAUDE.md).
+ * Only visible characters and the plain space (U+0020), so a code always shows as it is saved: the pattern refuses control
+ * characters, line breaks, every other space (two codes would look the same), direction marks and isolates, zero-width and
+ * other invisible marks, variation selectors, and every character outside the basic plane (their surrogate halves: invisible
+ * tag characters and emoji). The escapes stay escapes (src/CLAUDE.md). The server reads the pattern with no "u" flag, one UTF-16
+ * unit at a time, as the 60-character limit of the field counts them.
  */
 export const FREE_CODE_MAX = 60;
-const HIDDEN = '\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u2069\\uFEFF';
-export const FREE_CODE_PATTERN = new RegExp(`^[^\\s${HIDDEN}](?:[^${HIDDEN}]{0,${FREE_CODE_MAX - 2}}[^\\s${HIDDEN}])?$`);
+const HIDDEN = [
+  '\\u0000-\\u001F', '\\u007F-\\u00A0', '\\u00AD', '\\u034F', '\\u061C', '\\u115F\\u1160', '\\u1680', '\\u17B4\\u17B5', '\\u180B-\\u180F',
+  '\\u2000-\\u200F', '\\u2028-\\u202F', '\\u205F-\\u206F', '\\u3000', '\\u3164', '\\uD800-\\uDFFF', '\\uE000-\\uF8FF', '\\uFE00-\\uFE0F',
+  '\\uFEFF', '\\uFFA0', '\\uFFF0-\\uFFFF',
+].join('');
+/** Visible text of 1 to "max" characters: no hidden character, and no space at its start or end. */
+const visibleText = (max: number) => `[^ ${HIDDEN}](?:[^${HIDDEN}]{0,${max - 2}}[^ ${HIDDEN}])?`;
+export const FREE_CODE_PATTERN = new RegExp(`^${visibleText(FREE_CODE_MAX)}$`);
+/** The building type of a new code from its parts: visible text of 1 to 40 characters. */
+export const TYPE_PATTERN = new RegExp(`^${visibleText(TYPE_MAX)}$`);
+
+/**
+ * Every code that a record may hold: a code of the office pattern (also one saved before 2026-10-12, whose type may hold a
+ * character that a new code may not), or a kept code of visible text. A new or changed code passes FREE_CODE_PATTERN.
+ */
+export const RECORD_CODE_PATTERN = new RegExp(`${PROJECT_CODE_PATTERN.source}|${FREE_CODE_PATTERN.source}`);
 
 /** True for any code that a person may keep after the warning. */
 export function isFreeCode(code: string): boolean {

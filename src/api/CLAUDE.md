@@ -47,8 +47,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `projects.create` takes `codeParts`, `code` or `sameContractAs` (at most one); with none, the old automatic code. A typed
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
 - Only the Admin corrects a code (`project.editCode`, `projects.update` `patch.code`, verb `project.code_changed`).
-- A person may keep a code of their own (feedback fbk_003, 2026-10-12). The record takes any code on one line of 1 to 60
-  characters (`FREE_CODE_PATTERN`). A typed code (create, or the Admin's correction) outside the office pattern fails with
+- A person may keep a code of their own (feedback fbk_003, 2026-10-12). A new or changed code is visible text of 1 to 60
+  characters (`FREE_CODE_PATTERN`): only visible characters and the plain space, nothing outside the basic plane, so a code
+  always shows as it is saved. A new building type passes `TYPE_PATTERN`. The record takes that or any code of the office
+  pattern (`RECORD_CODE_PATTERN`), so a code saved before still loads. A typed code (create, or the Admin's correction) outside the office pattern fails with
   `code_format`, and one with the YYMMSS of another contract with `code_taken`, unless the call says `codeAnyway: true`.
   `codeWarning` (`lib/projectCode.ts`) is the one rule for the screens and the handler. A kept code is its own key
   (`projectKey`), has no contract, and gets no `#` link in posts. A save that keeps the stored code checks nothing.
