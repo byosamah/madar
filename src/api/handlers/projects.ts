@@ -15,7 +15,9 @@ import { can, projectRoleOf } from '../permissions';
 import { memberKey, nextId, paymentsOf, projectTemplatesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
-import { buildProjectCode, CLASSIFICATIONS, codeMonth, contractOf, nextSeries, PROJECT_CODE_PATTERN, projectKey, TYPE_MAX } from '../../lib/projectCode';
+import {
+  buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, isProjectCode, nextSeries, projectKey, TYPE_MAX,
+} from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
@@ -30,8 +32,13 @@ const FolderPath = z.string().trim().max(260);
 const Description = z.string().max(5000);
 const DeadlineName = z.string().trim().min(1).max(120);
 
-/** A full code typed by hand, of the old or the new form. */
-const TypedCode = z.string().trim().regex(PROJECT_CODE_PATTERN, 'Use a code like 260902AZT-RES-Villa.');
+/**
+ * A full code typed by hand. Any code on one line goes through here (feedback fbk_003, 2026-10-12): the handler then asks for the
+ * office pattern and a free contract, unless the call says codeAnyway.
+ */
+const TypedCode = z.string().trim().regex(FREE_CODE_PATTERN, `Write the code on one line, with ${FREE_CODE_MAX} characters or fewer.`);
+/** True keeps a typed code that does not match the office pattern or takes the series of another contract. Ask the person first. */
+const CodeAnyway = z.boolean().optional();
 /** The parts of a new code. The server adds YYMM (today in Riyadh) and the next series (owner, 2026-10-05). */
 const CodeParts = z.object({
   initials: ClientInitials,
@@ -44,13 +51,25 @@ const CodeParts = z.object({
  * the whole code. An old code has no contract part, so it is never taken.
  */
 function assertCodeFree(ctx: Ctx, code: string, selfId: string | null): void {
-  const contract = contractOf(code);
-  if (!contract) return;
-  const other = Object.values(ctx.state.projects).find((p) => p.id !== selfId && p.code !== code && contractOf(p.code) === contract);
-  if (other) throw invalid('code', `The series ${contract} belongs to another contract (${projectKey(other.code)}).`, 'code_taken');
+  const other = contractClash(code, Object.values(ctx.state.projects), selfId);
+  if (other) {
+    throw invalid('code', `The series ${contractOf(code)} belongs to another contract (${projectKey(other.code)}). To keep this code, send codeAnyway: true.`, 'code_taken');
+  }
 }
 
-type CodeInput = { clientId: string | null; codeParts?: z.output<typeof CodeParts>; code?: string; sameContractAs?: string };
+/**
+ * The checks of a typed code: the office pattern, then a free contract. A person may keep the code after the warning: then the call
+ * says codeAnyway, and no check stops it (feedback fbk_003, 2026-10-12).
+ */
+function assertTypedCode(ctx: Ctx, code: string, selfId: string | null, anyway: boolean | undefined): void {
+  if (anyway) return;
+  if (!isProjectCode(code)) {
+    throw invalid('code', 'This code does not match the office pattern, like 260902AZT-RES-Villa. To keep it, send codeAnyway: true.', 'code_format');
+  }
+  assertCodeFree(ctx, code, selfId);
+}
+
+type CodeInput = { clientId: string | null; codeParts?: z.output<typeof CodeParts>; code?: string; sameContractAs?: string; codeAnyway?: boolean };
 
 /** The code of a new project: from its parts, typed by hand, or the code of another project of the same contract. */
 function codeOfNew(ctx: Ctx, input: CodeInput): string {
@@ -63,7 +82,7 @@ function codeOfNew(ctx: Ctx, input: CodeInput): string {
     return other.code;
   }
   if (input.code !== undefined) {
-    assertCodeFree(ctx, input.code, null);
+    assertTypedCode(ctx, input.code, null, input.codeAnyway);
     return input.code;
   }
   if (input.codeParts !== undefined) {
@@ -270,6 +289,8 @@ export const projectsCreate = defineCall({
     code: TypedCode.optional(),
     /** Another project of the same contract: the new project gets its code. */
     sameContractAs: ProjectId.optional(),
+    /** Keeps a typed "code" that does not match the office pattern or takes the series of another contract (feedback fbk_003). */
+    codeAnyway: CodeAnyway,
     /** Start from a project template: its stages, its tasks with dates and leads, and the project start and end. No stages or dates beside it. */
     template: TemplateUse.optional(),
   }),
@@ -342,6 +363,8 @@ export const projectsUpdate = defineCall({
       /** A correction of the code: the Admin only (right project.editCode). The History records it as project.code_changed. */
       code: TypedCode.optional(),
     }),
+    /** Keeps a corrected code that does not match the office pattern or takes the series of another contract (feedback fbk_003). */
+    codeAnyway: CodeAnyway,
   }),
   output: ProjectDetail,
   run(input, ctx) {
@@ -351,7 +374,7 @@ export const projectsUpdate = defineCall({
     if (newCode !== undefined) {
       // The checks come before any change, so a refused code changes nothing.
       assertCan(ctx, 'project.editCode', { projectRole: roleIn(ctx, project.id) });
-      assertCodeFree(ctx, newCode, project.id);
+      assertTypedCode(ctx, newCode, project.id, input.codeAnyway);
     }
     const start = patch.startDate !== undefined ? patch.startDate : project.startDate;
     const end = patch.targetEndDate !== undefined ? patch.targetEndDate : project.targetEndDate;

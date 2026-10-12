@@ -20,10 +20,17 @@ describe('the agent docs of the project code (owner, 2026-10-05, item 6b)', () =
     expect(TOOL_DOCS['projects.update'].description).toMatch(/code.*Admin|Admin.*code/);
   });
 
-  it('give the agent the code field in the projects.update schema, with both forms', () => {
+  it('give the agent the code field in the projects.update schema, with both forms and a code of its own', () => {
     const tool = mcpTools().find((t) => t.name === 'projects.update')!;
     expect(tool.input.safeParse({ id: 'prj_001', patch: { code: '260902AZT-RES-Villa' } }).success).toBe(true);
     expect(tool.input.safeParse({ id: 'prj_001', patch: { code: 'KH-26-014' } }).success).toBe(true);
-    expect(tool.input.safeParse({ id: 'prj_001', patch: { code: '260902AZT-XYZ-Villa' } }).success).toBe(false);
+    // A code outside the pattern reaches the handler, which asks for codeAnyway (feedback fbk_003, 2026-10-12). Two lines never do.
+    expect(tool.input.safeParse({ id: 'prj_001', patch: { code: '260902AZT-XYZ-Villa' }, codeAnyway: true }).success).toBe(true);
+    expect(tool.input.safeParse({ id: 'prj_001', patch: { code: '260902AZT\nVilla' } }).success).toBe(false);
+  });
+
+  it('say in the instructions that a code of its own needs the person and codeAnyway (feedback fbk_003)', () => {
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Project codes:'))!;
+    for (const word of ['code_format', 'code_taken', 'codeAnyway: true', 'only your person decides']) expect(line, word).toContain(word);
   });
 });

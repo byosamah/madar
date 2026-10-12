@@ -115,7 +115,7 @@ describe('the Tracker tab', () => {
     const all = titles().length;
     expect(all).toBe(8);
     await userEvent.click(screen.getByRole('button', { name: 'Filter' }));
-    await userEvent.click(within(screen.getByRole('group', { name: 'Type' })).getByRole('radio', { name: 'Balady' }));
+    await userEvent.click(within(screen.getByRole('group', { name: 'Type' })).getByRole('radio', { name: 'Government' }));
     await waitFor(() => expect(titles()).toHaveLength(2));
     expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
     await userEvent.click(within(screen.getByRole('group', { name: 'Direction' })).getByRole('radio', { name: 'To the client' }));

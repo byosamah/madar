@@ -47,6 +47,15 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `projects.create` takes `codeParts`, `code` or `sameContractAs` (at most one); with none, the old automatic code. A typed
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
 - Only the Admin corrects a code (`project.editCode`, `projects.update` `patch.code`, verb `project.code_changed`).
+- A person may keep a code of their own (feedback fbk_003, 2026-10-12). The record takes any code on one line of 1 to 60
+  characters (`FREE_CODE_PATTERN`). A typed code (create, or the Admin's correction) outside the office pattern fails with
+  `code_format`, and one with the YYMMSS of another contract with `code_taken`, unless the call says `codeAnyway: true`.
+  `codeWarning` (`lib/projectCode.ts`) is the one rule for the screens and the handler. A kept code is its own key
+  (`projectKey`), has no contract, and gets no `#` link in posts. A save that keeps the stored code checks nothing.
+
+## The Tracker type Government (owner, 2026-10-12)
+- The screens call the type `balady` Government: any government body, not only the Balady portal. The stored value stays
+  `balady`, so the contract, the data and the agents keep it. `TOOL_DOCS` of `tracker.log` and `tracker.list` say what it means.
 
 ## Project templates (owner, 2026-10-05, item 6a)
 - `ProjectTemplate` (`ptp_`): roles (a name and a default person), stages, and tasks with a start day and a length in working

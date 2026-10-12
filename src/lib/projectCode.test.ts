@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CLASSIFICATIONS, buildProjectCode, codeMatches, codeMonth, contractOf, isProjectCode, KEY_PATTERN, nextSeries, normalizeInitials,
-  normalizeTypedCode, parseProjectCode, PROJECT_CODE_PATTERN, projectKey,
+  CLASSIFICATIONS, buildProjectCode, codeMatches, codeMonth, codeWarning, contractOf, isFreeCode, isProjectCode, KEY_PATTERN, nextSeries,
+  normalizeInitials, normalizeTypedCode, parseProjectCode, PROJECT_CODE_PATTERN, projectKey,
 } from './projectCode';
 
 const OWNER_EXAMPLE = '260902AZT-RES-Multi-unit Dev.';
@@ -107,5 +107,24 @@ describe('the project code (owner, 2026-10-05)', () => {
     expect(key.test('260902ABCD')).toBe(true);
     expect(key.test('261302AZT')).toBe(false);
     expect(key.test('260902AZ')).toBe(false);
+  });
+});
+
+describe('a code that a person keeps outside the office pattern (feedback fbk_003, 2026-10-12)', () => {
+  const projects = [{ id: 'prj_001', code: '250311AZT-INS-Mosque' }];
+
+  it('takes any code on one line of 1 to 60 characters, with no space at its start or end', () => {
+    for (const code of ['ARC/2019/77', 'CORNICHE TOWER 7', 'X', '250311AZT-INS-Mosque', 'KH-24-031', 'X'.repeat(60)]) expect(isFreeCode(code), code).toBe(true);
+    for (const code of ['', ' X', 'X ', 'A\nB', 'X'.repeat(61)]) expect(isFreeCode(code), code).toBe(false);
+  });
+
+  it('warns about a code outside the pattern, and about the month and series of another contract', () => {
+    expect(codeWarning('ARC/2019/77', projects, null)).toBe('format');
+    expect(codeWarning('250311BAY-COM-Shop', projects, null)).toBe('taken');
+    expect(codeWarning('250311BAY-COM-Shop', projects, 'prj_001')).toBeNull();
+    // Two projects of one contract share one code, and another series is free.
+    expect(codeWarning('250311AZT-INS-Mosque', projects, null)).toBeNull();
+    expect(codeWarning('250312BAY-COM-Shop', projects, null)).toBeNull();
+    expect(codeWarning('KH-24-031', projects, null)).toBeNull();
   });
 });

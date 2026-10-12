@@ -115,23 +115,56 @@ describe('the Project code group (item 6b)', () => {
     await waitFor(() => expect(named(store, 'Old Mosque')?.code).toBe('250311AZT-INS-Mosque'));
   });
 
-  it('refuses a wrong typed code under its field', async () => {
-    const { sheet } = await openSheet();
+  it('warns under its field when a typed code does not match the office pattern, and creates nothing', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Archive tower');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Type the code by hand' }));
     await userEvent.type(within(sheet).getByLabelText('Full project code'), '250311AZT-XYZ-Mosque');
     await userEvent.tab();
-    expect(within(sheet).getByText('Use a code like 260902AZT-RES-Villa.')).toBeInTheDocument();
+    expect(within(sheet).getByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' })).not.toBeChecked();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(named(store, 'Archive tower')).toBeUndefined();
   });
 
-  it('says so when a typed code takes the series of another contract', async () => {
-    const { sheet } = await openSheet((state) => {
+  it('keeps a typed code outside the office pattern after a tick on "Use this code anyway" (feedback fbk_003)', async () => {
+    const { sheet, store } = await openSheet();
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Archive tower');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Type the code by hand' }));
+    await userEvent.type(within(sheet).getByLabelText('Full project code'), 'arc/2019/77');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(within(sheet).getByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' }));
+    expect(within(sheet).queryByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeNull();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(named(store, 'Archive tower')?.code).toBe('ARC/2019/77'));
+  });
+
+  it('asks again when the person changes the code after the tick', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Type the code by hand' }));
+    const field = within(sheet).getByLabelText('Full project code');
+    await userEvent.type(field, 'ARC/2019/77');
+    await userEvent.tab();
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' }));
+    await userEvent.type(field, '8');
+    expect(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' })).not.toBeChecked();
+    expect(within(sheet).getByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeInTheDocument();
+  });
+
+  it('says so under its field when a typed code takes the series of another contract, and keeps it after the tick', async () => {
+    const { sheet, store } = await openSheet((state) => {
       state.projects.prj_003.code = '250311BAY-COM-Shop';
     });
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Old Mosque');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Type the code by hand' }));
     await userEvent.type(within(sheet).getByLabelText('Full project code'), '250311AZT-INS-Mosque');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    expect(await screen.findByText('Another contract has this month and series. Check the code.')).toBeInTheDocument();
+    expect(await within(sheet).findByText('Another contract has this month and series.')).toBeInTheDocument();
+    expect(named(store, 'Old Mosque')).toBeUndefined();
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(named(store, 'Old Mosque')?.code).toBe('250311AZT-INS-Mosque'));
   });
 
   it('copies the code of a project of the same contract', async () => {

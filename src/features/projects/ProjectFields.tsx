@@ -16,8 +16,9 @@ import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
 import { ClientForm, useClientForm } from './ClientForm';
 import { clientInput, emptyClientDraft } from './clientRules';
-import { CODE_FIELDS, upperCodeHead } from './codeForm';
-import { ProjectCodeFields } from './ProjectCodeFields';
+import { FREE_CODE_MAX } from '../../lib/projectCode';
+import { CODE_FIELDS, isCodeWarning, upperCodeHead } from './codeForm';
+import { CodeAnywayTick, ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
@@ -195,18 +196,27 @@ export function ProjectFields({
         error={error('name')}
       />
       {mode === 'edit' && editCode && (
-        <TextField
-          id="project-code"
-          label={t('projectCode.group')}
-          hint={t('projectCode.editHint')}
-          required
-          dir="ltr"
-          autoComplete="off"
-          value={values.code}
-          onChange={(event) => set('code', upperCodeHead(event.target.value))}
-          onBlur={() => touch('code')}
-          error={error('code')}
-        />
+        <div className="flex flex-col gap-1">
+          <TextField
+            id="project-code"
+            label={t('projectCode.group')}
+            hint={t('projectCode.editHint')}
+            required
+            dir="ltr"
+            autoComplete="off"
+            maxLength={FREE_CODE_MAX}
+            value={values.code}
+            onChange={(event) => {
+              set('code', upperCodeHead(event.target.value));
+              set('codeAnyway', false);
+            }}
+            onBlur={() => touch('code')}
+            error={error('code')}
+          />
+          {(isCodeWarning(errors.code) || values.codeAnyway) && (
+            <CodeAnywayTick id="project-code-anyway" checked={values.codeAnyway} onChange={(checked) => set('codeAnyway', checked)} />
+          )}
+        </div>
       )}
       <ClientPicker value={values.clientId} onChange={(id) => set('clientId', id)} clients={clients.data ?? []} />
       {mode === 'create' && <ProjectCodeFields form={form} clients={clients.data ?? []} />}

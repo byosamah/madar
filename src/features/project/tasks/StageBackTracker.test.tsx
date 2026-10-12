@@ -24,7 +24,8 @@ const as = (userId: string) => (state: State) => {
 };
 // "Ground floor plan" is done and sits in Design Development, before the stage the project is in. Opening it again moves the project back.
 const TASK = '/projects/prj_001?task=tsk_003';
-const BOX = 'Also log this in the Tracker as a Balady update';
+// The type is Government since 2026-10-12: a permit step is with any government body, not only Balady (owner).
+const BOX = 'Also log this in the Tracker as a government update';
 const ASK = 'This moves the project back to Design Development. Why?';
 const logged = (store: Store, title: string) => Object.values(store.state.tracker ?? {}).filter((entry) => entry.title === title);
 

@@ -1,5 +1,5 @@
 import {
-  buildProjectCode, INITIALS_PATTERN, isProjectCode, normalizeTypedCode, TYPE_MAX, type Classification,
+  buildProjectCode, codeWarning, INITIALS_PATTERN, isFreeCode, normalizeTypedCode, TYPE_MAX, type Classification,
 } from '../../lib/projectCode';
 
 /**
@@ -15,6 +15,8 @@ export type CodeValues = {
   buildingType: string;
   typedCode: string;
   sameAs: string;
+  /** The tick "Use this code anyway" under a typed code (feedback fbk_003, 2026-10-12). A change of the code clears it. */
+  codeAnyway: boolean;
 };
 
 /** Each value is a text key, so the form shows the message in the screen language. */
@@ -22,12 +24,35 @@ export type CodeErrors = Partial<Record<'initials' | 'classification' | 'buildin
 export const CODE_FIELDS = ['initials', 'classification', 'buildingType', 'typedCode', 'sameAs'] as const;
 
 export function emptyCodeValues(): CodeValues {
-  return { codeMode: 'parts', initials: '', classification: '', buildingType: '', typedCode: '', sameAs: '' };
+  return { codeMode: 'parts', initials: '', classification: '', buildingType: '', typedCode: '', sameAs: '', codeAnyway: false };
+}
+
+/** The projects that a typed code must not take the series of: the list of projects.list. */
+export type CodeProjects = readonly { id: string; code: string }[];
+
+/**
+ * The message under a code typed by hand, as a text key (feedback fbk_003, 2026-10-12). A code that is empty or on two lines is
+ * never right. A code outside the office pattern, or with the series of another contract, is a warning: the tick
+ * "Use this code anyway" lets it go. "selfId" is the project of a correction.
+ */
+export function typedCodeError(text: string, anyway: boolean, projects: CodeProjects, selfId: string | null): string | undefined {
+  const code = normalizeTypedCode(text);
+  if (!isFreeCode(code)) return 'projectCode.errors.full';
+  const warning = codeWarning(code, projects, selfId);
+  return warning && !anyway ? `projectCode.errors.${warning}` : undefined;
+}
+
+/** True when the message under a typed code is a warning that the tick "Use this code anyway" lets go. */
+export function isCodeWarning(error: string | undefined): boolean {
+  return error === 'projectCode.errors.format' || error === 'projectCode.errors.taken';
 }
 
 /** The same rules as projects.create. Only the fields of the open way count. */
-export function validateCodeValues(values: CodeValues): CodeErrors {
-  if (values.codeMode === 'typed') return isProjectCode(normalizeTypedCode(values.typedCode)) ? {} : { typedCode: 'projectCode.errors.full' };
+export function validateCodeValues(values: CodeValues, projects: CodeProjects = []): CodeErrors {
+  if (values.codeMode === 'typed') {
+    const error = typedCodeError(values.typedCode, values.codeAnyway, projects, null);
+    return error ? { typedCode: error } : {};
+  }
   if (values.codeMode === 'same') return values.sameAs ? {} : { sameAs: 'projectCode.errors.sameAs' };
   const errors: CodeErrors = {};
   if (!INITIALS_PATTERN.test(values.initials.trim())) errors.initials = 'projectCode.errors.initials';
@@ -39,7 +64,7 @@ export function validateCodeValues(values: CodeValues): CodeErrors {
 
 /** The part of the projects.create input that gives the code. Call it only when validateCodeValues found nothing. */
 export function codeInput(values: CodeValues) {
-  if (values.codeMode === 'typed') return { code: normalizeTypedCode(values.typedCode) };
+  if (values.codeMode === 'typed') return { code: normalizeTypedCode(values.typedCode), ...(values.codeAnyway ? { codeAnyway: true } : {}) };
   if (values.codeMode === 'same') return { sameContractAs: values.sameAs };
   return {
     codeParts: { initials: values.initials.trim(), classification: values.classification as Classification, type: values.buildingType.trim() },

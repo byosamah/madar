@@ -12,7 +12,7 @@ import { StampIcon } from '../../../components/icons/animated/stamp';
 import { UsersIcon } from '../../../components/icons/animated/users';
 import { WaypointsIcon } from '../../../components/icons/animated/waypoints';
 
-// Every icon moves (owner rule, 2026-10-01). Balady is the permit stamp. "Other" is the three dots.
+// Every icon moves (owner rule, 2026-10-01). Government (the value 'balady') is the permit stamp. "Other" is the three dots.
 const ICON: Record<TrackerType, AnimatedIconComponent> = { meeting: UsersIcon, message: MessageCircleIcon, file: FileTextIcon, balady: StampIcon, other: EllipsisIcon };
 
 /** The icon of an entry type. It plays when its button or row is hovered or focused. */

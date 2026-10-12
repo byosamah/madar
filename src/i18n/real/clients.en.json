@@ -61,17 +61,21 @@
       "classification": "Choose a classification.",
       "type": "Write the building type.",
       "full": "Use a code like {{example}}.",
-      "sameAs": "Choose the project of the same contract."
+      "sameAs": "Choose the project of the same contract.",
+      "format": "This code does not match the office pattern, like {{example}}.",
+      "taken": "Another contract has this month and series."
     },
     "sharedTitle": "Projects with this code",
     "sharedBody": "These projects belong to one contract and share one code. Choose one.",
-    "searchHint": "Try a project name, a code such as {{example}}, a task, a person or a file name."
+    "searchHint": "Try a project name, a code such as {{example}}, a task, a person or a file name.",
+    "useAnyway": "Use this code anyway"
   },
   "errors": {
     "reasons": {
       "code_taken": "Another contract has this month and series. Check the code.",
       "initials_mismatch": "Use the initials of the client.",
-      "code_series_full": "This month has no free series. Type the code by hand."
+      "code_series_full": "This month has no free series. Type the code by hand.",
+      "code_format": "This code does not match the office pattern. Check the code."
     }
   },
   "feed": {

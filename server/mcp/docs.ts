@@ -41,7 +41,7 @@ export const INSTRUCTIONS = [
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
-  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update.',
+  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */
@@ -151,7 +151,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, location, area in square metres, dates, model folder path, description, cover file. Send only the fields that change, in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it.',
+    description: 'Changes the details of one project: name, client, location, area in square metres, dates, model folder path, description, cover file. Send only the fields that change, in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
   },
   'search.query': {
     title: 'Search',
@@ -203,11 +203,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tracker.list': {
     title: 'List the client tracker',
-    description: 'Lists the tracker of one project (projectId): meetings, messages, files and Balady steps with the client and third parties, newest first. Filters: type, direction, openOnly (only entries that wait for a reply).',
+    description: 'Lists the tracker of one project (projectId): meetings, messages, files and government steps (Balady, Civil Defense or another body) with the client and third parties, newest first. Filters: type, direction, openOnly (only entries that wait for a reply).',
   },
   'tracker.log': {
     title: 'Log in the tracker',
-    description: 'Logs one contact in the client tracker of a project: type (meeting, message, file, balady, other), direction, title, and optionally note, date, who waits (us or client), files, people, and a reply task (replyBy: who and by when).',
+    description: 'Logs one contact in the client tracker of a project: type (meeting, message, file, balady (any government body, not only the Balady portal), other), direction, title, and optionally note, date, who waits (us or client), files, people, and a reply task (replyBy: who and by when).',
   },
   'tracker.update': {
     title: 'Change a tracker entry',

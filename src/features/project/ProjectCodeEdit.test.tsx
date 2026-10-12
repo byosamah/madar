@@ -46,8 +46,36 @@ describe('the project code on the project page (item 6b)', () => {
     await userEvent.clear(field);
     await userEvent.type(field, '260902GCH');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
-    expect(within(sheet).getByText('Use a code like 260902AZT-RES-Villa.')).toBeInTheDocument();
+    expect(within(sheet).getByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeInTheDocument();
     expect(store.state.projects.prj_001.code).toBe('KH-26-001');
+  });
+
+  it('keeps a corrected code outside the office pattern after the tick (feedback fbk_003)', async () => {
+    const { store } = await renderApp(PROJECT);
+    const sheet = await openEdit();
+    const field = within(sheet).getByLabelText('Project code');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Corniche Tower 7');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    expect(within(sheet).getByText('This code does not match the office pattern, like 260902AZT-RES-Villa.')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Use this code anyway' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_001.code).toBe('CORNICHE TOWER 7'));
+  });
+
+  it('saves the other fields of a project whose code is outside the pattern, with no warning', async () => {
+    const { store } = await renderApp(PROJECT, (state: State) => {
+      state.projects.prj_001.code = 'ARC/2019/77';
+    });
+    const sheet = await openEdit();
+    expect(within(sheet).getByLabelText('Project code')).toHaveValue('ARC/2019/77');
+    const name = within(sheet).getByLabelText('Name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Corniche Tower');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_001.name).toBe('Corniche Tower'));
+    expect(store.state.projects.prj_001.code).toBe('ARC/2019/77');
+    expect(within(document.body).queryByRole('checkbox', { name: 'Use this code anyway' })).toBeNull();
   });
 
   it('does not offer the code to the project leader', async () => {

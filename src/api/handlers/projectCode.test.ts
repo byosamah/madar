@@ -144,7 +144,9 @@ describe('projects.update of the code: the Admin only (item 6b)', () => {
     const base = makeProject();
     expect(Project.safeParse({ ...base, code: 'KH-26-014' }).success).toBe(true);
     expect(Project.safeParse({ ...base, code: '260902AZT-RES-Multi-unit Dev.' }).success).toBe(true);
-    expect(Project.safeParse({ ...base, code: '260902AZT-XXX-Villa' }).success).toBe(false);
+    // A code outside the office pattern is a code that a person kept after the warning (feedback fbk_003). Two lines never are.
+    expect(Project.safeParse({ ...base, code: '260902AZT-XXX-Villa' }).success).toBe(true);
+    expect(Project.safeParse({ ...base, code: '260902AZT\nVilla' }).success).toBe(false);
   });
 
   it('lets the Admin correct the code, and the History records it', async () => {
@@ -204,5 +206,57 @@ describe('search.query finds a project by its code (item 6b)', () => {
   it('still finds an old code', async () => {
     const t = testApi(calls, world());
     expect((await t.api.call('search.query', { text: '#KH-26-001' })).projects.map((p) => p.id)).toEqual(['prj_001']);
+  });
+});
+
+describe('a code outside the office pattern, kept after a warning (feedback fbk_003, 2026-10-12)', () => {
+  it('refuses a typed code that does not match the office pattern, and keeps it with codeAnyway', async () => {
+    const t = testApi(calls, world());
+    await expect(t.api.call('projects.create', { name: 'Archive', code: 'ARC/2019/77' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['code'], reason: 'code_format' } });
+    expect(Object.values(t.store.state.projects).some((p) => p.name === 'Archive')).toBe(false);
+    const kept = await t.api.call('projects.create', { name: 'Archive', code: 'ARC/2019/77', codeAnyway: true });
+    expect(kept.project.code).toBe('ARC/2019/77');
+  });
+
+  it('keeps a typed code whose month and series belong to another contract with codeAnyway', async () => {
+    const t = testApi(calls, world());
+    await t.api.call('projects.create', { name: 'First', code: '250311AZT-INS-Mosque' });
+    const second = await t.api.call('projects.create', { name: 'Second', code: '250311BAY-COM-Shop', codeAnyway: true });
+    expect(second.project.code).toBe('250311BAY-COM-Shop');
+  });
+
+  it('never takes an empty code, a code on two lines or a code over 60 characters, also with codeAnyway', async () => {
+    const t = testApi(calls, world());
+    for (const code of ['   ', 'A\nB', 'X'.repeat(61)]) {
+      await expect(t.api.call('projects.create', { name: 'X', code, codeAnyway: true }), code).rejects.toMatchObject({ code: 'invalid_input' });
+    }
+  });
+
+  it('lets the Admin correct a code to one outside the pattern with codeAnyway, and the History records it', async () => {
+    const t = testApi(calls, world());
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { code: 'CORNICHE TOWER 7' } }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'code_format' } });
+    expect(t.store.state.projects.prj_001.code).toBe('KH-26-001');
+    const detail = await t.api.call('projects.update', { id: 'prj_001', patch: { code: 'CORNICHE TOWER 7' }, codeAnyway: true });
+    expect(detail.project.code).toBe('CORNICHE TOWER 7');
+    const event = Object.values(t.store.state.events).find((e) => e.verb === 'project.code_changed');
+    expect(event).toMatchObject({ before: { code: 'KH-26-001' }, after: { code: 'CORNICHE TOWER 7' } });
+  });
+
+  it('keeps the code change for the Admin: codeAnyway gives the leader no right', async () => {
+    const t = testApi(calls, world());
+    t.as('usr_002');
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { code: 'CORNICHE TOWER 7' }, codeAnyway: true })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.projects.prj_001.code).toBe('KH-26-001');
+  });
+
+  it('saves the other fields of a project with a kept code, with no new warning', async () => {
+    const state = world();
+    state.projects.prj_001.code = 'ARC/2019/77';
+    const t = testApi(calls, state);
+    const detail = await t.api.call('projects.update', { id: 'prj_001', patch: { name: 'Renamed', code: 'ARC/2019/77' } });
+    expect(detail.project).toMatchObject({ name: 'Renamed', code: 'ARC/2019/77' });
+    expect(Object.values(t.store.state.events).some((e) => e.verb === 'project.code_changed')).toBe(false);
   });
 });

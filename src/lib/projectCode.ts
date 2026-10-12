@@ -29,6 +29,19 @@ export const PROJECT_CODE_PATTERN = new RegExp(
   `^(?:${OLD_CODE_PATTERN}|\\d{2}(?:0[1-9]|1[0-2])\\d{2}[A-Z]{3,4}-(?:${CLASS_GROUP})-${TYPE_GROUP})$`,
 );
 
+/**
+ * A code that a person keeps after the warning (feedback fbk_003, 2026-10-12): any code on one line, with no space at its start or
+ * end, of 1 to 60 characters. Every code of the office pattern is one too. The record takes any of them; a typed code outside the
+ * pattern needs codeAnyway (projects.create, projects.update).
+ */
+export const FREE_CODE_MAX = 60;
+export const FREE_CODE_PATTERN = new RegExp(`^\\S(?:[^\\n\\r\\u2028\\u2029]{0,${FREE_CODE_MAX - 2}}\\S)?$`);
+
+/** True for any code that a person may keep after the warning. */
+export function isFreeCode(code: string): boolean {
+  return FREE_CODE_PATTERN.test(code);
+}
+
 export type CodeParts = { yymm: string; series: string; initials: string; classification: Classification; type: string };
 
 /** The parts of a code of the new form, or null for an old code or a wrong one. */
@@ -91,4 +104,24 @@ export function normalizeTypedCode(text: string): string {
   const parts = text.trim().split('-');
   if (parts.length < 3) return text.trim().toUpperCase();
   return [parts[0].toUpperCase(), parts[1].toUpperCase(), parts.slice(2).join('-')].join('-');
+}
+
+/**
+ * Why a typed code needs the tick "Use this code anyway" (feedback fbk_003, 2026-10-12): 'format' when it does not match the office
+ * pattern, 'taken' when its YYMMSS belongs to another contract. Null: no warning. Two projects of one contract share the whole
+ * code, so the same code is no warning, and "selfId" is the project itself in a correction.
+ */
+export function codeWarning(code: string, projects: Iterable<{ id: string; code: string }>, selfId: string | null): 'format' | 'taken' | null {
+  if (!isProjectCode(code)) return 'format';
+  return contractClash(code, projects, selfId) ? 'taken' : null;
+}
+
+/** The other project whose code has the YYMMSS of this code with other initials, class or type. An old code has no YYMMSS. */
+export function contractClash<P extends { id: string; code: string }>(code: string, projects: Iterable<P>, selfId: string | null): P | null {
+  const contract = contractOf(code);
+  if (!contract) return null;
+  for (const project of projects) {
+    if (project.id !== selfId && project.code !== code && contractOf(project.code) === contract) return project;
+  }
+  return null;
 }

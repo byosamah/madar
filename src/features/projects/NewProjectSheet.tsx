@@ -28,8 +28,12 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const settings = useCall('settings.get', {});
   const templates = useCall('projectTemplates.list', {});
   const users = useCall('users.list', {});
+  // The codes of the office, so a typed code that takes the series of another contract warns before Create (feedback fbk_003).
+  const projects = useCall('projects.list', { status: 'all' });
   const defaults = settings.data?.defaultStages ?? [];
-  const form = useProjectForm(emptyProjectForm(defaults), { create: true, templates: templates.data });
+  const form = useProjectForm(emptyProjectForm(defaults), {
+    create: true, templates: templates.data, projects: projects.data?.map((summary) => summary.project),
+  });
   const [cover, setCover] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 

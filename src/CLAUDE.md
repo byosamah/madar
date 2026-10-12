@@ -194,6 +194,9 @@ any screen work.
   and a hidden "required" word in the description. The label text stays the field name, and the browser never checks
   the field.
 - A project code shows as its key (`projectKey`) in lists and rows, and in full in the project header and About.
+- A code typed by hand (the new-project form, the Admin's correction) with a warning shows the tick "Use this code anyway"
+  under its field (`CodeAnywayTick`, feedback fbk_003): the code does not match the office pattern, or another contract has
+  its month and series. The warning is the field message until the tick. A change of the code clears the tick.
 - A person has an English name (`name`) and maybe an Arabic name (`nameAr`). Every spot that shows a person's name uses
   `usePersonName()` (`app/personName.ts`, the name of the screen language), and lists of people sort with
   `useByPersonName()`. A name that the server writes into a detail has an `Ar` twin: read it with `localName`.

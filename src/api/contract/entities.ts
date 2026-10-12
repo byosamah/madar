@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { INITIALS_PATTERN, PROJECT_CODE_PATTERN } from '../../lib/projectCode';
+import { FREE_CODE_PATTERN, INITIALS_PATTERN } from '../../lib/projectCode';
 import { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
@@ -213,8 +213,11 @@ export type ProjectLink = z.infer<typeof ProjectLink>;
 export const StageBack = z.object({ fromStageId: StageId, toStageId: StageId, reason: z.string().trim().min(1).max(280), by: UserId, at: Stamp });
 export type StageBack = z.infer<typeof StageBack>;
 
-/** A project code of the old or the new form. */
-export const ProjectCode = z.string().regex(PROJECT_CODE_PATTERN, 'Use a code like 260902AZT-RES-Villa.');
+/**
+ * A project code: the old or the new form, or a code that a person kept after the warning (feedback fbk_003, 2026-10-12): one line,
+ * 1 to 60 characters. The office pattern is a check of projects.create and projects.update, not of the record.
+ */
+export const ProjectCode = z.string().regex(FREE_CODE_PATTERN, 'Write the code on one line, with 60 characters or fewer.');
 
 export const Project = z.object({
   id: ProjectId,
@@ -531,6 +534,7 @@ export type Message = z.infer<typeof Message>;
 export const ChatRead = z.object({ conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp });
 export type ChatRead = z.infer<typeof ChatRead>;
 
+/** The screens call 'balady' Government since 2026-10-12: any government body, not only the Balady portal (owner). The value stays. */
 export const TRACKER_TYPES = ['meeting', 'message', 'file', 'balady', 'other'] as const;
 export const TrackerType = z.enum(TRACKER_TYPES);
 export type TrackerType = z.infer<typeof TrackerType>;
@@ -542,7 +546,7 @@ export const TrackerWaiting = z.enum(['us', 'client']);
 export type TrackerWaiting = z.infer<typeof TrackerWaiting>;
 
 /**
- * One exchange with the client: a meeting, a message, a file or a Balady permit-portal update (owner, 2026-10-01).
+ * One exchange with the client: a meeting, a message, a file or a government update, such as the Balady permit portal (owner, 2026-10-01).
  * An entry with "waiting" set and no "closedAt" is an open loop. "auto" says the office made the entry itself.
  */
 export const TrackerEntry = z.object({

@@ -39,7 +39,7 @@ describe('the Tracker tab: types, sides and replies', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Log an exchange' }), 'Site meeting{Enter}');
     await waitFor(() => expect(entriesOf(store.state, 'Site meeting')).toHaveLength(1));
     expect(entriesOf(store.state, 'Site meeting')[0]).toMatchObject({ type: 'meeting', direction: 'both' });
-    await userEvent.click(screen.getByRole('radio', { name: 'Balady' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Government' }));
     expect(sideButtons()).toEqual([]);
     await userEvent.type(screen.getByRole('textbox', { name: 'Log an exchange' }), 'Permit moved{Enter}');
     await waitFor(() => expect(entriesOf(store.state, 'Permit moved')).toHaveLength(1));

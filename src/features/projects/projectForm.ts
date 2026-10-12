@@ -1,6 +1,6 @@
 import type { ProjectTemplate } from '../../api/contract/entities';
-import { isProjectCode, normalizeTypedCode } from '../../lib/projectCode';
-import { emptyCodeValues, validateCodeValues, type CodeErrors, type CodeValues } from './codeForm';
+import { normalizeTypedCode } from '../../lib/projectCode';
+import { emptyCodeValues, typedCodeError, validateCodeValues, type CodeErrors, type CodeProjects, type CodeValues } from './codeForm';
 import { planOfForm } from './templateForm';
 
 /** The project template to start from (owner, 2026-10-05, item 6a). templateId '' is no template. See templateForm.ts. */
@@ -33,9 +33,12 @@ export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | '
 
 /**
  * Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. "templates" are the
- * project templates that the new-project form offers, so the form can check the chosen one.
+ * project templates that the new-project form offers, so the form can check the chosen one. "projects" are the codes that a typed
+ * code must not take the series of, and "project" is the saved project of the edit form: its own code needs no new check.
  */
-export type ProjectFormRules = { create?: boolean; editCode?: boolean; templates?: readonly ProjectTemplate[] };
+export type ProjectFormRules = {
+  create?: boolean; editCode?: boolean; templates?: readonly ProjectTemplate[]; projects?: CodeProjects; project?: { id: string; code: string };
+};
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
@@ -72,7 +75,10 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
     else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.template = 'templateUse.tooShort';
   } else if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
-  if (rules.create) Object.assign(errors, validateCodeValues(values));
-  if (rules.editCode && !isProjectCode(normalizeTypedCode(values.code))) errors.code = 'projectCode.errors.full';
+  if (rules.create) Object.assign(errors, validateCodeValues(values, rules.projects));
+  if (rules.editCode && normalizeTypedCode(values.code) !== rules.project?.code) {
+    const error = typedCodeError(values.code, values.codeAnyway, rules.projects ?? [], rules.project?.id ?? null);
+    if (error) errors.code = error;
+  }
   return errors;
 }

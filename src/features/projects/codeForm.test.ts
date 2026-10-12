@@ -5,7 +5,7 @@ const parts = { ...emptyCodeValues(), initials: 'AZT', classification: 'RES' as 
 
 describe('the project code group of the new-project form (item 6b)', () => {
   it('starts from the parts, with every part empty', () => {
-    expect(emptyCodeValues()).toEqual({ codeMode: 'parts', initials: '', classification: '', buildingType: '', typedCode: '', sameAs: '' });
+    expect(emptyCodeValues()).toEqual({ codeMode: 'parts', initials: '', classification: '', buildingType: '', typedCode: '', sameAs: '', codeAnyway: false });
   });
 
   it('asks for the initials, the class and the building type', () => {
@@ -21,7 +21,19 @@ describe('the project code group of the new-project form (item 6b)', () => {
     const typed = { ...emptyCodeValues(), codeMode: 'typed' as const };
     expect(validateCodeValues({ ...typed, typedCode: ' 260902azt-res-Villa ' })).toEqual({});
     expect(validateCodeValues({ ...typed, typedCode: 'KH-24-031' })).toEqual({});
-    expect(validateCodeValues({ ...typed, typedCode: '260902AZT-XYZ-Villa' })).toEqual({ typedCode: 'projectCode.errors.full' });
+    // Outside the office pattern: a warning that the tick "Use this code anyway" lets go (feedback fbk_003). Empty is never right.
+    expect(validateCodeValues({ ...typed, typedCode: '260902AZT-XYZ-Villa' })).toEqual({ typedCode: 'projectCode.errors.format' });
+    expect(validateCodeValues({ ...typed, typedCode: '260902AZT-XYZ-Villa', codeAnyway: true })).toEqual({});
+    expect(validateCodeValues({ ...typed, typedCode: '  ', codeAnyway: true })).toEqual({ typedCode: 'projectCode.errors.full' });
+  });
+
+  it('warns when a typed code takes the series of another contract, and sends the tick with the code (feedback fbk_003)', () => {
+    const typed = { ...emptyCodeValues(), codeMode: 'typed' as const, typedCode: '260902BAY-COM-Shop' };
+    const projects = [{ id: 'prj_001', code: '260902AZT-RES-Villa' }];
+    expect(validateCodeValues(typed, projects)).toEqual({ typedCode: 'projectCode.errors.taken' });
+    expect(validateCodeValues({ ...typed, codeAnyway: true }, projects)).toEqual({});
+    expect(codeInput(typed)).toEqual({ code: '260902BAY-COM-Shop' });
+    expect(codeInput({ ...typed, codeAnyway: true })).toEqual({ code: '260902BAY-COM-Shop', codeAnyway: true });
   });
 
   it('asks for the project of the same contract', () => {

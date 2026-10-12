@@ -6,13 +6,31 @@ import { Button } from '../../components/Button';
 import { SelectField, TextField } from '../../components/Fields';
 import { todayISO } from '../../lib/dates';
 import {
-  CLASSIFICATIONS, codeMonth, nextSeries, normalizeInitials, projectKey, TYPE_MAX, type Classification,
+  CLASSIFICATIONS, codeMonth, FREE_CODE_MAX, nextSeries, normalizeInitials, projectKey, TYPE_MAX, type Classification,
 } from '../../lib/projectCode';
-import { codePreview, upperCodeHead, type CodeErrors, type CodeMode } from './codeForm';
+import { codePreview, isCodeWarning, upperCodeHead, type CodeErrors, type CodeMode } from './codeForm';
 import type { ProjectForm } from './ProjectFields';
 
 /** The examples in the hints. They are code, so they stay in Latin letters in both languages. */
 const EXAMPLES = { initials: 'AZT', type: 'Villa, Office Tower', code: '260902AZT-RES-Villa' };
+
+/**
+ * The tick under a code typed by hand that has a warning (feedback fbk_003, 2026-10-12): the code does not match the office
+ * pattern, or another contract has its month and series. The warning is the field message until the tick. The tick stays in view
+ * while it is on, and a change of the code clears it, so each new code asks again.
+ */
+export function CodeAnywayTick({ id, checked, onChange }: { id: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  const { t } = useTranslation();
+  return (
+    <label htmlFor={id} className="flex min-h-11 items-center gap-3 self-start">
+      <input
+        id={id} type="checkbox" className="size-5 shrink-0 accent-[var(--c-accent-fill)]" checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="text-subheadline text-ink">{t('projectCode.useAnyway')}</span>
+    </label>
+  );
+}
 
 /**
  * The "Project code" group of the new-project form (owner, 2026-10-05, item 6b): the client initials (from the client and
@@ -75,11 +93,20 @@ export function ProjectCodeFields({ form, clients }: { form: ProjectForm; client
         </div>
       )}
       {values.codeMode === 'typed' && (
-        <TextField
-          id="code-full" label={t('projectCode.full')} required dir="ltr" autoComplete="off" autoCapitalize="characters"
-          hint={t('projectCode.fullHint', { example: EXAMPLES.code })} value={values.typedCode}
-          onChange={(event) => set('typedCode', upperCodeHead(event.target.value))} onBlur={() => touch('typedCode')} error={message('typedCode')}
-        />
+        <div className="flex flex-col gap-1">
+          <TextField
+            id="code-full" label={t('projectCode.full')} required dir="ltr" autoComplete="off" autoCapitalize="characters" maxLength={FREE_CODE_MAX}
+            hint={t('projectCode.fullHint', { example: EXAMPLES.code })} value={values.typedCode}
+            onChange={(event) => {
+              set('typedCode', upperCodeHead(event.target.value));
+              set('codeAnyway', false);
+            }}
+            onBlur={() => touch('typedCode')} error={message('typedCode')}
+          />
+          {(isCodeWarning(errors.typedCode) || values.codeAnyway) && (
+            <CodeAnywayTick id="code-full-anyway" checked={values.codeAnyway} onChange={(checked) => set('codeAnyway', checked)} />
+          )}
+        </div>
       )}
       {values.codeMode === 'same' && (
         <SelectField
