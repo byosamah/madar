@@ -1236,6 +1236,7 @@
     "ageToday": "Today",
     "logLabel": "Log an exchange",
     "placeholder": "Log something… e.g. Client sent the land survey",
+    "placeholderShort": "e.g. Client sent the survey",
     "save": "Log it",
     "logged": "Logged.",
     "typeLabel": "Type",

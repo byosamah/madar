@@ -252,7 +252,7 @@ Branch feedback-notices. Owner decisions: in-app notices only (no email); the do
 - [x] Merge gate, screenshots (EN/AR, light/dark, 390 px), merge to main, test copy (a0ce0be) and production (owner OK, 2026-10-07). Skipped on the owner's word: the local walk (stopped at 56 of 168), the prototype smoke and the deploy suite on the test copy
 - [ ] The new walk step for requests and bugs (tests/e2e-deploy/walk.spec.ts, uncommitted in the main folder): review it and run the walk in its 4 variants
 - [ ] Later (proposed, 2026-10-07): report screenshots load at full size as thumbnails (up to 10 MB each; lazy loading only for now). A small picture made at upload would save Storage egress
-- [ ] Later (proposed, 2026-10-07): on a phone, the Mark done button of Requests and bugs takes about 40% of the row, so a message wraps into a narrow column; the button could sit under the message
+- [x] On a phone, the Mark done button of Requests and bugs took about 40% of the row. It now sits on its own line under the message (2026-10-12)
 - [ ] Later (proposed, 2026-10-07): an Admin's agent gets screenshot storage keys in report events (events.list, events.undo); strip them as feedback.list does. Also the general rule "an agent never gets a storage key" (files.list)
 - [ ] Later (proposed, 2026-10-07): the office Realtime signal shows that someone sent or changed a report, and when; give report rows the private part of the diff (the Admins and the sender)
 - [ ] Later (proposed, 2026-10-07): feedback.list has no page limit; the status filter keeps an agent answer small for now
@@ -399,7 +399,7 @@ of 2026-10-03. Record: `server/push/CLAUDE.md`. Merged into main; on the test co
 - [x] Push on by default (owner, 2026-10-09), branch `rb/push-default-on`: a card on Home asks once for the Allow tap (`PushAskCard`), then `syncThisDevice` turns push on again by itself at each sign-in; a person who turned the switch off stays off on that browser (`madar.pushOff.<user id>`). Tests first in `push.test.ts`, `PushSync.test.tsx`, `PushSection.test.tsx`, `PushAskCard.test.tsx`
 - [x] Push on by default is on production at ef8e392 (owner's OK, 2026-10-09; test copy first, the owner ran `all.sh test` twice because the first run did not finish). Record: proof.md, "Browser push on by default"
 - [ ] Owner: try it on a real device on madar.vado.sa: sign in, tap the card on Home, Allow; sign out and in again (push is on without a new question); turn the switch off in Settings, reload (it stays off). An iPhone needs Madar on the Home Screen first, and shows no card before that
-- [ ] Remove the worktree `~/dev/madar-rb/push-default-on` and the branch `rb/push-default-on` (merged into main): only with the owner's OK
+- [x] The worktree `~/dev/madar-rb/push-default-on` and the branch `rb/push-default-on` are removed (owner's OK, 2026-10-12)
 - [ ] Not proven: the card and the silent turn on in a real browser with a real push service (jsdom tests and headless screenshots only)
 - [x] The endpoint must name a known push service (`PUSH_HOSTS`), so the server cannot be aimed at any host. A new browser vendor needs one line there: kept (merge lead, 2026-10-08)
 - [ ] Question for the owner: an Admin gets a push for every project chat message in the office, because the Inbox counts every project chat unread for an Admin. Limit it to the chats of the projects the Admin is on?
@@ -419,8 +419,8 @@ Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all
 - [x] Test copy and production at cb0f7b9 (owner's "deploy go", 2026-10-12; Claude ran both). No migration. Health 116 calls, page 200, `POST /mcp` with no token 401. fbk_004, fbk_005 and fbk_006 are done in Madar. Record: proof.md, "Team reports fbk_004, fbk_005, fbk_006 and MCP messages"
 - [x] fbk_002 done (2026-10-12): the first live message went out through `chats.send` (msg_004, the direct chat with Faisal), sent by the new agent "Osama Claude Code (madar-direct) Agent" for Osama
 - [x] The message to Faisal that explains the three changes went out (2026-10-12, story `sty_5l3zglxu35rjyn7ghhr27t`)
-- [ ] Remove the worktree `~/dev/madar-rb/feedback-batch` and the branch `rb/feedback-batch` after the merge: only with the owner's OK
-- [ ] The folder `.playwright-mcp` in the main folder was made by the screenshot agent (untracked): remove it only with the owner's OK
+- [x] The worktrees and branches of the 2026-10-12 releases are removed (owner's OK)
+- [x] The folder `.playwright-mcp` in the main folder is removed (owner's OK)
 
 ## 2026-10-12: agent names and Remove for a turned-off person (branch `rb/agent-names`, worktree `~/dev/madar-rb/agent-names`)
 The owner asked on 2026-10-12. Decisions: the name format "Osama Claude Agent"; "delete" means remove from every list and keep the history; a separate release after the ready one (`cb0f7b9`). Not merged into main, so the ready release is not disturbed.
@@ -451,3 +451,7 @@ Faisal (fbk_003): "allow a user to override project code verifying after a warni
 - [x] The quick-log type tiles keep at least the width of their word, so "Government" stays in its tile at 390 px (found by the phone screenshots)
 - [x] Gates: typecheck; `npm test` 4,650 passed and 6 skipped (457 files; one record test pinned the old rule and moved to the new one); `npm run build`, `build:server`, `build:remote -- test`; `test:mcp` 147 passed. Not run: `test:db`, `test:it` and the MCP conformance runner (Docker off), the prototype smoke. Screenshots: 390 px in EN and AR, light and dark (new project, Edit project, Tracker)
 - [x] Test copy and production at 23342eb (2026-10-12). The Pages step of production failed twice at Cloudflare ("Unknown internal error") and went through on a third run of `pages.sh production`. fbk_003 is done, so Faisal got the done notice. Record: proof.md
+
+## 2026-10-12: two small phone fixes (branch `rb/small-fixes`)
+- [x] Tracker quick log: on a phone the hint is the example only ("e.g. Client sent the survey"), so it fits the field. An empty field follows the side of the page; with text, `dir="auto"` decides. Before, an empty field with `dir="auto"` was left to right, and the Arabic hint lost its first word
+- [x] Requests and bugs: on a phone, Mark done (or Open again) sits on its own line under the message, so the message keeps the width of the row

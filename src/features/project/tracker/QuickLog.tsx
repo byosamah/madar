@@ -5,6 +5,7 @@ import type { UserCard } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Switch } from '../../../components/Switch';
@@ -23,6 +24,7 @@ import { arrowStep } from '../../../lib/keys';
  */
 export function QuickLog({ projectId, members }: { projectId: string; members: UserCard[] }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const toast = useToast();
   const attachments = useAttachments();
   const field = useRef<HTMLInputElement>(null);
@@ -101,13 +103,16 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
         <input
           ref={field}
           type="text"
-          dir="auto"
+          // An empty field with dir="auto" is left to right, so a long Arabic hint lost its first word. Empty, the field follows the
+          // page; with text, the text decides (2026-10-12).
+          dir={text ? 'auto' : undefined}
           maxLength={200}
           aria-label={t('tracker.logLabel')}
-          placeholder={t('tracker.placeholder')}
+          // The full hint is wider than the field on a phone: there it is the example only.
+          placeholder={t(phone ? 'tracker.placeholderShort' : 'tracker.placeholder')}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          className="field min-w-0 flex-1"
+          className="field min-w-0 flex-1 text-ellipsis"
         />
         <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>
       </div>

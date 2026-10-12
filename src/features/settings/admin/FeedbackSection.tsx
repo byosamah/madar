@@ -5,6 +5,7 @@ import { useUndoable } from '../../../app/actions';
 import { useScreenshotLink } from '../../../app/files';
 import { usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
@@ -62,6 +63,7 @@ function Screenshot({ id, index }: { id: string; index: number }) {
  */
 export function FeedbackSection() {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const nameOf = usePersonName();
   const [tab, setTab] = useState<'waiting' | 'done'>('waiting');
   const list = useCall('feedback.list', {});
@@ -96,6 +98,12 @@ export function FeedbackSection() {
       <ul className="hairline flex flex-col">
         {shown.map(({ item, sender }) => {
           const done = item.status === 'done';
+          // On a phone the button sits under the message, so the message keeps the width of the row (2026-10-12).
+          const action = (
+            <Button disabled={busy} onClick={() => (done ? reopen.mutate({ id: item.id, status: 'new' }) : markDone.mutate({ id: item.id, status: 'done' }))}>
+              {done ? t('feedback.reopen') : t('feedback.markDone')}
+            </Button>
+          );
           return (
             <li key={item.id} className="flex flex-col gap-2 py-3">
               <div className="flex items-start gap-3">
@@ -112,10 +120,9 @@ export function FeedbackSection() {
                   {item.page && (isAppPath(item.page)
                     ? <Link to={item.page} className="text-footnote font-semibold text-link"><bdi dir="ltr">{item.page}</bdi></Link>
                     : <bdi dir="ltr" className="block text-footnote text-ink-2">{item.page}</bdi>)}
+                  {phone && <div className="mt-2">{action}</div>}
                 </div>
-                <Button disabled={busy} onClick={() => (done ? reopen.mutate({ id: item.id, status: 'new' }) : markDone.mutate({ id: item.id, status: 'done' }))}>
-                  {done ? t('feedback.reopen') : t('feedback.markDone')}
-                </Button>
+                {!phone && action}
               </div>
               {item.screenshots.length > 0 && (
                 <div className="flex flex-wrap gap-2 ps-11">

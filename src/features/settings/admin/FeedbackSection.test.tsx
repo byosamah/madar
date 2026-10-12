@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -17,6 +17,11 @@ const REPORT: Feedback = {
   screenshots: [{ blobKey: 'blob_shot_1', type: 'image/png' }, { blobKey: 'blob_shot_2', type: 'image/png' }],
   status: 'new', createdBy: 'usr_003', createdAt: '2026-09-29T09:00:00.000+03:00', doneBy: null, doneAt: null,
 };
+/** The useIsPhone query answers true: the screen takes its phone shape (under 640 px). */
+const phoneWidth = () => vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+  matches: query === '(max-width: 639px)', media: query, onchange: null,
+  addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+}) as MediaQueryList);
 const SENDER = { id: 'usr_003', name: 'Reem Al-Ghamdi', avatarUrl: null, kind: 'human' as const, discipline: 'Architect', gender: 'female' as const };
 
 type Sign = { id: string; index: number };
@@ -176,6 +181,31 @@ const withShot = (state: State) => {
 };
 
 describe('Requests and bugs in the prototype (spec 4.3)', () => {
+  const oneReport = (state: State) => {
+    state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
+  };
+
+  it('puts Mark done under the message on a phone, so the message keeps the width of the row (2026-10-12)', async () => {
+    const spy = phoneWidth();
+    try {
+      await renderApp('/admin/feedback', oneReport);
+      const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+      const button = await within(section).findByRole('button', { name: 'Mark done' });
+      const message = within(section).getByText(REPORT.message);
+      expect(message.parentElement).toContainElement(button);
+      expect(message.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps Mark done beside the message on a wider screen', async () => {
+    await renderApp('/admin/feedback', oneReport);
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    const button = await within(section).findByRole('button', { name: 'Mark done' });
+    expect(within(section).getByText(REPORT.message).parentElement).not.toContainElement(button);
+  });
+
   it('shows the stored picture and opens it in a sheet', async () => {
     const { store } = await renderApp('/admin/feedback', withShot);
     await store.persister.putBlob('blob_shot_1', new Blob(['x'], { type: 'image/png' }));

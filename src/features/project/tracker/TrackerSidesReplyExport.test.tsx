@@ -17,6 +17,11 @@ const entriesOf = (state: State, title: string) => Object.values(state.tracker ?
 
 const SIDES = ['From the client', 'To the client', 'Both sides', 'Third party', 'None'];
 const sideButtons = () => SIDES.filter((name) => screen.queryByRole('radio', { name }));
+/** The useIsPhone query answers true: the screen takes its phone shape (under 640 px). */
+const phoneWidth = () => vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+  matches: query === '(max-width: 639px)', media: query, onchange: null,
+  addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+}) as MediaQueryList);
 
 describe('the Tracker tab: types, sides and replies', () => {
   it('logs an "Other" entry with no side by default', async () => {
@@ -27,6 +32,27 @@ describe('the Tracker tab: types, sides and replies', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Log an exchange' }), 'A neighbour phoned{Enter}');
     await waitFor(() => expect(entriesOf(store.state, 'A neighbour phoned')).toHaveLength(1));
     expect(entriesOf(store.state, 'A neighbour phoned')[0]).toMatchObject({ type: 'other', direction: 'none' });
+  });
+
+  it('gives the quick log a short hint on a phone, and lets the empty field follow the side of the page (2026-10-12)', async () => {
+    const spy = phoneWidth();
+    try {
+      await renderApp(TRACKER, as('usr_002'));
+      const field = await screen.findByRole('textbox', { name: 'Log an exchange' });
+      // The full hint was cut on a phone. An empty field with dir="auto" is left to right, so an Arabic hint lost its first word.
+      expect(field).toHaveAttribute('placeholder', 'e.g. Client sent the survey');
+      expect(field).not.toHaveAttribute('dir');
+      await userEvent.type(field, 'Site visit');
+      expect(field).toHaveAttribute('dir', 'auto');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps the full hint of the quick log on a wider screen', async () => {
+    await renderApp(TRACKER, as('usr_002'));
+    const field = await screen.findByRole('textbox', { name: 'Log an exchange' });
+    expect(field).toHaveAttribute('placeholder', 'Log something… e.g. Client sent the land survey');
   });
 
   it('gives each type tile at least the width of its word, so "Government" stays in its tile on a phone (2026-10-12)', async () => {
