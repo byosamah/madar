@@ -417,8 +417,8 @@ Faisal Al Howshani sent the three reports on 2026-10-11. The owner asked for all
 - [ ] Not run: `test:db` and `test:it` (Docker was off), the prototype smoke, the deploy suite
 - [ ] Known and old: in Arabic a bottom sheet makes the page 391 px wide for a moment. The older "New office task" sheet does the same, so this change did not cause it
 - [x] Test copy and production at cb0f7b9 (owner's "deploy go", 2026-10-12; Claude ran both). No migration. Health 116 calls, page 200, `POST /mcp` with no token 401. fbk_004, fbk_005 and fbk_006 are done in Madar. Record: proof.md, "Team reports fbk_004, fbk_005, fbk_006 and MCP messages"
-- [ ] fbk_002 stays open: the message tools are not proven on the live MCP yet (a new session or a reconnect of the connector shows them). Mark it done after the first message goes out
-- [ ] The message to Faisal that explains the three changes: send it with `chats.send` from a session that sees the tool
+- [x] fbk_002 done (2026-10-12): the first live message went out through `chats.send` (msg_004, the direct chat with Faisal), sent by the new agent "Osama Claude Code (madar-direct) Agent" for Osama
+- [x] The message to Faisal that explains the three changes went out (2026-10-12, story `sty_5l3zglxu35rjyn7ghhr27t`)
 - [ ] Remove the worktree `~/dev/madar-rb/feedback-batch` and the branch `rb/feedback-batch` after the merge: only with the owner's OK
 - [ ] The folder `.playwright-mcp` in the main folder was made by the screenshot agent (untracked): remove it only with the owner's OK
 
@@ -440,4 +440,4 @@ After the message tools went live, the claude.ai connector of the owner kept the
 - [x] `agents.spec.ts` checks the three chat tools in the tool list of the test copy, and that `chats.messages` is not in it
 - [x] Gates: typecheck; `npm test` 4,629 passed and 6 skipped (456 files); `build:server` with its bundle check (the mcp bundle says `version: "1.0.1157"`). Not run: `test:db`, `test:it` (Docker off), the prototype smoke
 - [x] Test copy and production at 6c78a25 (2026-10-12): the live `mcp` function says version `1.0.1158`. Record: proof.md, "The MCP server names its release"
-- [ ] After the deploy: the owner reconnects the Madar connector in Claude Code (`/mcp`); then the message to Faisal goes out with `chats.send` and fbk_002 is marked done
+- [x] After the deploy the claude.ai connector listed "Open a direct chat" and "Send a message". A Claude Code session keeps the tool names it saw at its start, so the message went out through a direct connection (`claude mcp add --transport http madar-direct https://madar.vado.sa/mcp`, local scope of the `deploy-test` folder). Remove that entry when it is not needed: `claude mcp remove madar-direct`
