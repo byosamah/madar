@@ -450,4 +450,4 @@ Faisal (fbk_003): "allow a user to override project code verifying after a warni
 - [x] The Tracker type `balady` shows as Government ("جهة حكومية"), also in the move-back tick. The stored value stays `balady`. `TOOL_DOCS` of `tracker.log` and `tracker.list` say what it means
 - [x] The quick-log type tiles keep at least the width of their word, so "Government" stays in its tile at 390 px (found by the phone screenshots)
 - [x] Gates: typecheck; `npm test` 4,650 passed and 6 skipped (457 files; one record test pinned the old rule and moved to the new one); `npm run build`, `build:server`, `build:remote -- test`; `test:mcp` 147 passed. Not run: `test:db`, `test:it` and the MCP conformance runner (Docker off), the prototype smoke. Screenshots: 390 px in EN and AR, light and dark (new project, Edit project, Tracker)
-- [ ] Test copy, production, then mark fbk_003 done and tell Faisal
+- [x] Test copy and production at 23342eb (2026-10-12). The Pages step of production failed twice at Cloudflare ("Unknown internal error") and went through on a third run of `pages.sh production`. fbk_003 is done, so Faisal got the done notice. Record: proof.md

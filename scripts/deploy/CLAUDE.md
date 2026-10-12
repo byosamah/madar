@@ -104,6 +104,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 ## Quick check of production
 - `npx wrangler pages deployment list --project-name madar` shows the commit of each production and preview deploy.
 - The `config push` step always says `api.enabled` true and pushes false: a false difference (`supabase/CLAUDE.md`).
+- A Pages step that fails with "Failed to publish your Function. Got error: Unknown internal error occurred." is a fault at
+  Cloudflare when `functions/` did not change. The steps before it stay done: run `scripts/deploy/pages.sh <env>` again after a
+  few minutes (2026-10-12: the third run went through).
 - `madar.vado.sa/api/health` answers with the app page (200), so it proves nothing. Without `forceFunctionRegion` the
   health answers from another region.
 - Just after a deploy, madar.vado.sa can serve the old bundle for a short time. Compare the `index-*.js` name there with

@@ -899,6 +899,28 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   token 401.
 - **Not proven yet:** that claude.ai now shows the chat tools. That shows after a reconnect of the connector.
 
+### A code of your own (fbk_003) and the Tracker type Government (2026-10-12)
+- **Why:** Faisal (fbk_003): "allow a user to override project code verifying after a warning message". The owner: "the main thing
+  is allow the user to use their code if not match the main code". The owner also asked to call the Tracker type "Balady"
+  "Government", because the office deals with more government bodies than Balady.
+- **Change:** a typed code outside the office pattern, or with the month and series of another contract, shows a warning and the
+  tick "Use this code anyway" (new project, the Admin's correction); the server answers `code_format` or `code_taken` unless
+  `codeAnyway: true`. MCP: the `projects.update` schema, `TOOL_DOCS` and the "Project codes" line of `INSTRUCTIONS`. The type
+  `balady` shows as Government ("جهة حكومية"); the stored value stays.
+- **Security:** two background notes on the first commit: a kept code could hold hidden direction marks and other invisible
+  characters, so a code could show as other text. A new or changed code is now visible text only (`FREE_CODE_PATTERN`,
+  `TYPE_PATTERN`); the record also keeps every code of the office pattern saved before (`RECORD_CODE_PATTERN`).
+- **Gates:** typecheck; `npm test` 4,650 passed and 6 skipped (457 files; one record test pinned the old rule and moved to the new
+  one); `npm run build`, `build:server`, `build:remote -- test`; `test:mcp` 147 passed. Not run: `test:db`, `test:it` and the MCP
+  conformance runner (Docker off), the prototype smoke. Screenshots at 390 px in EN and AR, light and dark: they found
+  "Government" wider than its quick-log tile, and the tiles now keep the width of their word.
+- **Test copy at 23342eb (Claude, `all.sh test`).** **Production at 23342eb:** the owner ran `all.sh production`. The database,
+  settings, secrets and functions steps ended well (`api` answers with 117 calls). The Pages step failed twice at Cloudflare with
+  "Failed to publish your Function. Got error: Unknown internal error occurred." The forwarder in `functions/` had no change, and
+  the test copy took the same bundle minutes before. Cloudflare showed no Pages incident. After 3 minutes Claude ran
+  `pages.sh production` again: deployment 9cd5e473 is live. madar.vado.sa serves `index-i4G-1MRY.js`; `POST /mcp` with no token 401.
+- fbk_003 marked done on 2026-10-12 at 13:18, so Faisal got the done notice.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
