@@ -35,7 +35,16 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
-  return result.ok ? { ...result, output: withoutStorageKeys(tool.name, withoutPictureData(tool.name, result.output)) } : result;
+  return result.ok ? { ...result, output: withoutDirectPreviews(tool.name, withoutStorageKeys(tool.name, withoutPictureData(tool.name, result.output))) } : result;
+}
+
+/**
+ * An agent may send a direct message but never reads one (owner, 2026-10-12). In chats.list a direct chat gives no preview: the last
+ * message and its author leave the row. A project chat and a task thread keep theirs, because the project team reads them.
+ */
+function withoutDirectPreviews(name: string, output: unknown): unknown {
+  if (name !== 'chats.list' || !Array.isArray(output)) return output;
+  return output.map((row: { kind?: unknown }) => (row.kind === 'direct' ? { ...row, preview: '', previewAuthor: null, previewMine: false } : row));
 }
 
 /**

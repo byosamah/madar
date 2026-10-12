@@ -22,13 +22,21 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 38 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 41, with 17 reads and 24 writes. The factory in `app.ts` picks the list for each
+- 41 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 44, with 18 reads and 26 writes. The factory in `app.ts` picks the list for each
   request from the role of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
+- Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
+  there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
+  person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
+  `comments.create`, and for the feed of a project `updates.create`. An agent sends but never reads a chat: `chats.messages`,
+  `chats.markRead` and `chats.unreadCount` stay on `MCP_DENY`, and `run.ts` (`withoutDirectPreviews`) gives a direct chat of
+  `chats.list` no preview (the last message and its author leave the row). A project chat and a task thread keep theirs. A sent
+  message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
+  ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,

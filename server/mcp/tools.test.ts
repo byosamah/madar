@@ -27,19 +27,36 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   const adminTools = mcpTools({ admin: true });
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN];
 
-  it('has the 38 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(38);
-    expect(new Set(MCP_ALLOW).size).toBe(38);
+  it('has the 41 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(41);
+    expect(new Set(MCP_ALLOW).size).toBe(41);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 41 tools (owner, 2026-10-07)', () => {
+  // Owner, 2026-10-12: an agent may message the team, direct and in a project chat (task comments and project posts it has already).
+  // It sends and finds a chat; it never reads one. A direct chat gives it no preview (run.ts).
+  it('lets an agent message the team: the direct chat, the chat list and the send are tools, and reading a chat is not', () => {
+    for (const name of ['chats.openDirect', 'chats.list', 'chats.send']) {
+      expect(MCP_ALLOW, name).toContain(name);
+      expect(MCP_DENY, name).not.toContain(name);
+      expect(tools.map((tool) => tool.name), name).toContain(name);
+    }
+    for (const name of ['chats.messages', 'chats.markRead', 'chats.unreadCount']) {
+      expect(MCP_DENY, name).toContain(name);
+      expect(tools.map((tool) => tool.name), name).not.toContain(name);
+    }
+    expect(tools.find((tool) => tool.name === 'chats.list')!.readOnly).toBe(true);
+    // A sent message reaches real people at once and no Undo takes it back, so the client may ask its person first.
+    for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
+  });
+
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 44 tools (owner, 2026-10-07)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
-    expect(tools).toHaveLength(38);
+    expect(tools).toHaveLength(41);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(41);
+    expect(adminTools).toHaveLength(44);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The default list is the Admin list without the 3 tools, in the same order.
     expect(tools.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
@@ -108,9 +125,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(tool.annotations.openWorldHint, tool.name).toBe(false);
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
-    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(15);
+    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(16);
     // feedback.list and feedback.screenshot are reads of an agent of an Admin.
-    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(17);
+    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(18);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
     expect(tools.find((tool) => tool.name === 'events.undo')!.annotations.destructiveHint).toBe(true);
@@ -125,8 +142,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
       expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(16);
-    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(17);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(18);
+    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(19);
     expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);
     // A done change sends the sender a notice, so the client may ask its person first.
     expect(adminTools.find((tool) => tool.name === 'feedback.setStatus')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });
@@ -187,7 +204,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
 
 describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
   it('tells an agent the rules, stories, Undo, reasons and uploads', () => {
-    for (const word of ['madar.readFirst', 'story.start', 'storyId', 'events.undoStory', 'reason', 'dateReason', 'upload', 'act for', 'notification', 'no lead', 'tasks.take']) {
+    for (const word of ['madar.readFirst', 'story.start', 'storyId', 'events.undoStory', 'reason', 'dateReason', 'upload', 'act for', 'notification', 'no lead', 'tasks.take', 'chats.send', 'chats.openDirect']) {
       expect(INSTRUCTIONS, word).toContain(word);
     }
   });

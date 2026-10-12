@@ -5,10 +5,11 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 37 tools for every agent: the
- * reads and writes an agent can use for an office project. The Admin list adds 3 tools for an agent whose person is an Admin
- * (requests and bugs, owner 2026-10-07), so that agent gets 40. Every other call stays on the deny list: screen work (uploads, read
- * marks, counts), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 41 tools for every agent: the
+ * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 44. Every other call stays on
+ * the deny list: screen work (uploads, read marks, counts), reading a chat, the prototype controls, and the other Admin calls. VS
+ * Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  */
 
@@ -16,13 +17,15 @@ import { TOOL_DOCS } from './docs';
 export const READ_FIRST = 'madar.readFirst';
 
 export const MCP_ALLOW = [
-  // Reads (15).
+  // Reads (16). chats.list finds a chat to send to; run.ts gives a direct chat no preview.
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
-  'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list',
-  // Writes (23).
+  'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list',
+  // Writes (25). chats.openDirect and chats.send message the team: a direct chat or a project chat (task comments and project posts
+  // are comments.create and updates.create).
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
+  'chats.openDirect', 'chats.send',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
 
 /**
@@ -52,9 +55,9 @@ export const MCP_DENY = [
   'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
   // Files: uploads and links happen in the Madar screens.
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
-  // Notifications, chats and read marks: screen state of one person.
+  // Notifications and read marks: screen state of one person. An agent sends a message but never reads a chat (owner, 2026-10-12).
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount',
+  'notifications.updateSettings', 'chats.messages', 'chats.markRead', 'chats.unreadCount',
   // Templates, tracker extras and payment deletes.
   'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
   'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',

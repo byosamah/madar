@@ -91,6 +91,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('dashboard.get', { status: 'active' });
     await run('search.query', { text: project.name.split(' ')[0] });
     await run('events.list', { projectId: project.id, limit: 10 });
+    await run('chats.list', {});
     // The reads of an agent of an Admin. feedback.list goes with no filter, so the sample does not need the status input.
     await run('feedback.list', {});
     await run('feedback.screenshot', { id: report.id, index: 0 });
@@ -114,6 +115,10 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await write('tasks.complete', { id: newTask });
     await write('comments.create', { targetType: 'task', targetId: newTask, body: 'The levels match the survey.' });
     await write('updates.create', { projectId: project.id, body: 'The drainage check is done. The levels match the survey.' });
+    // The message tools (owner, 2026-10-12): the direct chat with one other active person, then one message into it.
+    const colleague = first(Object.values(s().users).filter((u) => u.kind === 'human' && u.active && u.id !== agent.ownerId), 'person to message');
+    const chat = (await write('chats.openDirect', { userId: colleague.id })) as { id: string };
+    await write('chats.send', { conversationId: chat.id, body: 'The drainage check is done. I posted the result on the project.' });
 
     const inReview = Object.values(s().tasks).filter((t) => t.status === 'in_review' && s().projects[t.projectId!]?.status === 'active');
     await write('tasks.approve', { id: first(inReview, 'task in review').id });
