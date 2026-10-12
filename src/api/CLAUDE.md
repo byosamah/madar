@@ -27,6 +27,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - One permission function: `can()`. No screen and no handler checks a right another way. An agent acts with its owner's
   rights (`resolveAuthority`).
 - A contract change is additive, or it keeps both forms.
+- A change to the rule of a stored field keeps the old rule as one side of a union (`RECORD_CODE_PATTERN`), so stored
+  records still load. Free text that names a record refuses hidden characters (`visibleText`, `lib/projectCode.ts`).
 - Handlers stay synchronous and pure. A handler never does network work. Outside work is an effect.
 - The test count only grows, except when the code a test checks is deleted.
 - A screen file of the first load (the shell, Home, the sign-in gate and what they import) takes a plain limit from

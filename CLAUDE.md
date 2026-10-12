@@ -82,12 +82,14 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 4,550 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 4,650 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
+- A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
+  its root): Arabic screenshots then show a fallback font.
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
   `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
 - A one-off script in the sandbox: `node --import tsx <file>` needs no tsx pipe. Add `NODE_USE_ENV_PROXY=1` when the
@@ -109,7 +111,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts: unit+server 4,550 passed (448 files); test:db 1,117 (25 skipped); test:it 261; test:mcp 135; prototype smoke 87 of 87.
+- Last counts: unit+server 4,650 passed (457 files, 2026-10-12); test:db 1,117 (25 skipped); test:it 261; test:mcp 135; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -166,7 +168,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Claude's `git push origin main` is refused by the auto-mode check. Commit on main in `deploy-test`, then hand the owner
   `! git -C /Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test push origin main` (2026-10-08).
 - A Playwright agent writes `.playwright-mcp/` into its working directory. In the repo it is a new untracked folder, and
-  production refuses a folder with a new file. Brief each agent to `cd` into the scratchpad first. After each run, check
+  production refuses a folder with a new file. The Playwright MCP saves only inside the repo, so a `cd` does not help: brief
+  each agent to `mv` every shot into the scratchpad. After each run, check
   `git status` in the main folder and in `deploy-test`, and move the folder out.
 - Start a browser-check agent without `name`: named agents became teammates that handed the work to a sub-agent, and several
   reports ended with "no report". Ask for the report in the final message and in a scratchpad file.

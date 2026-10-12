@@ -218,6 +218,8 @@ any screen work.
 - Prototype language and theme: the person menu (stored in IndexedDB, not localStorage). A switch takes a few seconds,
   and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.
+- A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page
+  (`innerWidth` is 390). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB).
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).
