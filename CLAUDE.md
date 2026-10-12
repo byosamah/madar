@@ -101,7 +101,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `test:db`, `test:it` and the `test:mcp` conformance runner need Docker Desktop and the local stack. The sandbox blocks
   `open -a Docker`; with the sandbox off it works, and Docker is up in about 10 s. The run that worked (2026-10-08):
   `docker-lock.sh acquire <holder>`, `npx supabase start -x edge-runtime`, `npx supabase db reset`, `npm run test:db`,
-  `npm run test:it`, `npx supabase stop`, `docker-lock.sh release <holder>`.
+  `npm run test:it`, `npm run test:mcp` (its conformance runner needs the stack), `npx supabase stop`,
+  `docker-lock.sh release <holder>` (again on 2026-10-12).
 - `MADAR_IT=1 npx vitest run --project it <files>` - integration tests on the full local stack, one file at a time.
   Each suite uses its own schema. `scripts/restore-check.test.ts` needs `MADAR_AGE` (the `age` binary). Storage and R2
   suites need MinIO (`server/it/minio.ts`).

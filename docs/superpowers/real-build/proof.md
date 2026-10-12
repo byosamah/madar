@@ -921,6 +921,18 @@ C2 left this section out because track Z owns this file; track Y writes it from 
   `pages.sh production` again: deployment 9cd5e473 is live. madar.vado.sa serves `index-i4G-1MRY.js`; `POST /mcp` with no token 401.
 - fbk_003 marked done on 2026-10-12 at 13:18, so Faisal got the done notice.
 
+### Two phone fixes, and the gates of the day with Docker on (2026-10-12)
+- **Change:** the Tracker quick log gives a phone the example-only hint, and an empty field follows the side of the page (an empty
+  field with `dir="auto"` was left to right, so a long Arabic hint lost its first word). Requests and bugs puts Mark done under the
+  message on a phone. Checked at 390 px in claude-in-chrome (a fixed iframe): the hint fits (189 px of 207 in English, 173 of 200
+  in Arabic), and the button has its own line.
+- **Gates (they also cover the three earlier releases of the day):** `npm test` 4,654 passed and 6 skipped; the three builds;
+  `test:db` 1,139 passed and 25 skipped; `test:it` 261 of 261; `test:mcp` 147 and conformance 5 of 32 with 27 known gaps; the
+  prototype smoke 86 of 87, then 87 of 87: "Member daily work" waited for the Home panel "Today", which is "Coming up" on a day with
+  nothing due (owner rule of 2026-10-07). The test now takes either name.
+- **Test copy and production at 817355d** (the owner ran production). madar.vado.sa serves `index-CIYv85RI.js`; `POST /mcp` with no
+  token 401; `api` answers with 117 calls.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

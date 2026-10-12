@@ -220,6 +220,8 @@ any screen work.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.
 - A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page
   (`innerWidth` is 390). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB).
+- To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB
+  `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).
