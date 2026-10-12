@@ -174,6 +174,8 @@ describe('suite 12: the MCP server in process', () => {
       resultType: 'complete', supportedVersions: expect.arrayContaining([VERSION]), capabilities: { tools: expect.any(Object) },
       instructions: INSTRUCTIONS, _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'madar', version: '1.0.0' } },
     });
+    // A client keeps the discover answer for 5 minutes at most, so a new release (a new version) reaches it soon (owner, 2026-10-12).
+    expect(body.result.ttlMs).toBe(300_000);
   });
 
   it('lists the 44 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {

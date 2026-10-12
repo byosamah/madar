@@ -124,6 +124,9 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
   if (kind === 'server') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
     report("'settleFuture'", texts.filter((f) => f.text.includes('settleFuture')).map((f) => f.name));
+    // The build stamps the release version into the MCP serverInfo (vite.server.config.ts, owner 2026-10-12). A placeholder left in
+    // a bundle means a fixed "1.0.0", and a client keeps its old tool list.
+    report("the unstamped version '__MADAR_SERVER_VERSION__'", texts.filter((f) => f.text.includes('__MADAR_SERVER_VERSION__')).map((f) => f.name));
   } else if (kind === 'remote') {
     report(`the sample office (${SEED_MARKERS.map((m) => `'${m}'`).join(', ')})`, seedHits());
     if (!index) {

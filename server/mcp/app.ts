@@ -42,7 +42,16 @@ import { ADMIN_TOOLS, mcpTools, type ToolDef } from './tools';
  *      after the answer on a host with after.
  */
 
-export const SERVER_INFO = { name: 'madar', title: 'Madar', version: '1.0.0' } as const;
+/** Set by vite.server.config.ts (releaseVersion): "1.0.<number of commits>". Tests and scripts run without the build. */
+declare const __MADAR_SERVER_VERSION__: string | undefined;
+
+/**
+ * The version of this release of the server. A client such as claude.ai keeps its tool list for one server version, so each
+ * release names a new one; a fixed "1.0.0" kept the message tools away from it (owner, 2026-10-12).
+ */
+export const SERVER_VERSION: string = typeof __MADAR_SERVER_VERSION__ === 'string' ? __MADAR_SERVER_VERSION__ : '1.0.0';
+
+export const SERVER_INFO = { name: 'madar', title: 'Madar', version: SERVER_VERSION } as const;
 
 type ServerIcon = { src: string; mimeType: string; sizes: string[] };
 type ServerInfo = { name: string; title: string; version: string; websiteUrl?: string; icons?: ServerIcon[] };
@@ -188,7 +197,8 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
       instructions: INSTRUCTIONS,
       capabilities: { tools: {} },
       cacheHints: {
-        'server/discover': { ttlMs: 3_600_000, cacheScope: 'public' },
+        // 5 minutes, as the tool list: a new release (a new server version) reaches a client soon (owner, 2026-10-12).
+        'server/discover': { ttlMs: 300_000, cacheScope: 'public' },
         'tools/list': { ttlMs: 300_000, cacheScope: 'private' },
       },
       requestState: { verify: (value, ctx) => stateCodec.verify(value, ctx) },

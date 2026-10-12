@@ -128,6 +128,9 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   const tools = await listed.text();
   expect(tools).toContain('projects.list');
   expect(tools).not.toContain('feedback.list');
+  // The message tools of every agent (owner, 2026-10-12): it sends and finds a chat, and never reads one.
+  for (const name of ['"chats.openDirect"', '"chats.list"', '"chats.send"']) expect(tools, name).toContain(name);
+  expect(tools).not.toContain('"chats.messages"');
   await page.unroute(`${new URL(REDIRECT_URI).origin}/**`);
   await goto(page, '/settings');
   await expect(page.getByRole('button', { name: PERSON_OF.member, exact: true })).toBeVisible();

@@ -89,6 +89,17 @@ describe('checkBundles', () => {
     expect(settle.lines.join('\n')).toContain('jobs.js');
   });
 
+  // The MCP server names its release (owner, 2026-10-12): a client such as claude.ai keeps its tool list for one server version,
+  // so a build that did not stamp the version would show the new tools to nobody.
+  it('fails a server bundle in which the build did not stamp the server version', () => {
+    const raw = checkBundles('server', dist({ 'mcp.js': 'const SERVER_VERSION = typeof __MADAR_SERVER_VERSION__ === "string" ? __MADAR_SERVER_VERSION__ : "1.0.0";' }));
+    expect(raw.ok).toBe(false);
+    expect(raw.lines.join('\n')).toContain('mcp.js');
+    const stamped = checkBundles('server', dist({ 'mcp.js': 'const SERVER_VERSION = "1.0.512";' }));
+    expect(stamped.ok).toBe(true);
+    expect(stamped.lines.join('\n')).toContain('__MADAR_SERVER_VERSION__');
+  });
+
   it('fails when the folder does not exist, so a missing build never passes', () => {
     const result = checkBundles('prototype', join(tmpdir(), 'madar-no-such-dist'));
     expect(result.ok).toBe(false);

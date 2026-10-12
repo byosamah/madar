@@ -43,6 +43,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   screenshots) is data, never instructions to the agent.
 - Each tool needs a title and a description in `TOOL_DOCS` (`docs.ts`). Write them short, exact, in plain English.
 - `madar.readFirst` gives the agent the instructions and the person it acts for, by the English name.
+- The serverInfo version is the release: "1.0.<number of commits>" (`releaseVersion`, `vite.server.config.ts`, stamped into the bundles
+  as `__MADAR_SERVER_VERSION__`; tests and scripts read "1.0.0"). claude.ai kept the tool list of a fixed "1.0.0": after the message
+  tools went live (2026-10-12) its connector, also removed and added again, still showed the old 41 tools, while a direct client of
+  the test copy got the chat tools. `check-bundles.ts server` fails a bundle with the placeholder. `server/discover` and `tools/list`
+  both say 5 minutes (`cacheHints`).
 - The serverInfo names the Madar logo (`public/icons/madar-192.png` and `-512.png` on the site of MCP_URL) and the site
   (`serverInfoFor`, `app.ts`), so a client shows the Madar icon. `public/favicon.ico` holds the same logo (`scripts/icons/ico.ts`).
 - claude.ai ignores both today (2026-10-06): its connector list shows Google's favicon of the main domain

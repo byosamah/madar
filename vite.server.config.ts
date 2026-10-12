@@ -1,4 +1,20 @@
+import { execFileSync } from 'node:child_process';
 import { defineConfig, type EnvironmentOptions } from 'vite';
+
+/**
+ * The release of the server bundle: "1.0.<number of commits>", so each commit gives a higher version (owner, 2026-10-12). The MCP
+ * server names it in serverInfo (server/mcp/app.ts). A client such as claude.ai keeps its tool list for one server version, and a
+ * fixed "1.0.0" kept the new tools away from it. A deploy builds a committed tree only, so the number belongs to that commit.
+ * With no git (or no count), "1.0.0". check-bundles.ts fails a bundle that still holds the placeholder.
+ */
+export function releaseVersion(countCommits: () => string = () => execFileSync('git', ['rev-list', '--count', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })): string {
+  try {
+    const count = Number(countCommits().trim());
+    return Number.isInteger(count) && count > 0 ? `1.0.${count}` : '1.0.0';
+  } catch {
+    return '1.0.0';
+  }
+}
 
 /**
  * The server bundle (plan, section 3, "How the server runs the shared code on Deno"; plan 2b, point 2).
@@ -39,7 +55,7 @@ const WORKERD = ['workerd', 'worker', 'import', 'module', 'default'];
 
 export default defineConfig({
   // The build flag of the screens means nothing on the server; the shared code never reads it, and this keeps it fixed.
-  define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify('remote') },
+  define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify('remote'), __MADAR_SERVER_VERSION__: JSON.stringify(releaseVersion()) },
   publicDir: false,
   environments: {
     api: serverEntry('api', 'server/entries/deno-api.ts', 'supabase/functions/_build', DENO),

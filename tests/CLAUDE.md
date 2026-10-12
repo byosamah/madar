@@ -15,7 +15,9 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
   `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
   The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.
-- Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`).
+- Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips
+  itself without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). Its first case also checks that the tool list of the test copy holds
+  the three chat tools (2026-10-12). One case alone: `-g "an approved agent shows in Settings"`.
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
 - Playwright's Chromium does not start in the sandbox (SIGTRAP): run browser scripts with the sandbox off.
 - Signed-in screens take the language and theme saved on the account (server). The device keys change only the screens
