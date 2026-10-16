@@ -180,7 +180,7 @@ copy). The database, Auth and Realtime stay on Supabase. Every `all.sh` run depl
 host is always the way back. The file store does not follow the host (see the R2 runbook).
 - What follows the word: the `VITE_API_URL` of the screens (`build:remote`: the page's own `/api`, or the api function); the
   Pages Functions of `/api` and `/mcp` (the Worker through the service binding, or the Supabase function); the calls limit of
-  the Usage page (10 million or 500,000); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
+  the Usage page (10 million or 500,000; the 10 million are the Paid month, see First setup step 1); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
   Pages builds them, so a change reaches them only with `pages.sh`.
 - What does not follow it: MCP_URL (the agents keep their connection), the jobs (pg_cron calls the Supabase jobs function in
   both settings), the Vault, the database password.
@@ -195,7 +195,10 @@ host is always the way back. The file store does not follow the host (see the R2
 
 ### First setup of a copy (once, before its first switch)
 The lead runs these with the sandbox off. Production needs the owner's yes and the typed word.
-1. The owner: the Workers Paid plan on the account ($5 a month).
+1. The Workers plan. The account stays on Free (owner, 2026-10-16: "free is enough for now"): 10 ms of CPU for each
+   request, and 100,000 requests and 100,000 Hyperdrive queries a day for the whole account (`platform-facts.md` 2.7). Before
+   production goes to the Worker on Free, measure the CPU time and the queries of each call on the test copy. Workers Paid
+   ($5 a month) removes the day limits; only the owner buys it.
 2. `npx tsx scripts/deploy/cloudflare-setup.ts --env <env>`: the CA, the Hyperdrive config, the R2 bucket and its CORS rule
    (only when R2 is on), and the Pages binding (it waits for the Worker). It prints the Hyperdrive id: put it into
    `[[env.<env>.hyperdrive]]` of `wrangler.server.toml` and into `accounts.md`, then commit.
