@@ -459,3 +459,17 @@ Faisal (fbk_003): "allow a user to override project code verifying after a warni
 - [x] The smoke test "Member daily work" waited for the Home panel "Today". On a day with nothing due today or past due, that panel is "Coming up" (owner, 2026-10-07), so the test failed on Monday 2026-10-12. It now takes either name
 - [x] The owner removed the local `madar-direct` MCP entry (`claude mcp remove madar-direct`), so the claude.ai Madar connector works again in this project
 - [x] Test copy and production at 817355d (2026-10-12, the owner ran production; every step went through at once). Record: proof.md
+
+## 2026-10-16: files to R2 and the server to Cloudflare Workers (owner; branch `rb/cloudflare`, worktree `~/dev/madar-rb/cloudflare`)
+Owner decision (2026-10-16): switch both moves of plan 2b. Files go from Supabase Storage to R2. The server goes from
+Supabase Edge Functions to one Worker per copy (Workers Paid, $5 a month), first on the test copy. The Worker stays
+only if it measures faster than the Supabase functions (the forwarder rule). The database, Auth and Realtime stay on
+Supabase. Production follows in the same run after the test copy passes. The Supabase functions stay deployed as the way back.
+- [ ] Owner: turn on R2 in the Cloudflare dashboard (card, free plan)
+- [ ] Owner: the Workers Paid plan ($5 a month)
+- [ ] Map of every change (three readers)
+- [ ] Build on `rb/cloudflare`: deploy steps for R2 and the Worker, the screens address, the jobs trigger, the MCP forwarder, guides
+- [ ] Cloud setup: two EU buckets and their CORS, the Supabase CA, two Hyperdrive setups (caching off), two Workers
+- [ ] Owner: one R2 API token for each bucket, into the secrets files
+- [ ] Test copy: copy the files, switch, deploy suite, measure the Worker against the Supabase functions
+- [ ] Production: copy the files twice, switch, checks, release record
