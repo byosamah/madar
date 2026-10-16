@@ -5,6 +5,7 @@ import { invalid } from '../../src/api/errors';
 import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
 import { errorResponse, runErrorOf } from '../http/errors';
+import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reserve, sendCounted } from '../mail/quota';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
@@ -66,7 +67,7 @@ export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth fro
 const Body = z.object({ email: z.email() });
 
 /** The header of the client address that the Pages Function writes for the Worker (server/http/pagesApiProxy.ts). */
-export const CLIENT_ADDRESS_HEADER = 'x-madar-client-address';
+export { CLIENT_ADDRESS_HEADER };
 
 /**
  * The network address of the sender: on the Worker the value of the Pages Function, on Supabase the value that Cloudflare writes
