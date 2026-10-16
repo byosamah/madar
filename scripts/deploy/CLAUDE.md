@@ -66,8 +66,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   nothing (2026-10-08). The owner may also run the script in his Terminal window and type the word.
 - `all.sh test` asks "Do you want to push api config to remote? [Y/n]" (`api.enabled`: config.toml false, the hosted projects
   true). A run with no keyboard takes yes by itself, so the owner runs `all.sh test` in his Terminal and answers (2026-10-08).
-- After production, check the live site: page 200 with the title Madar, `POST /mcp` with no token 401, `/favicon.ico` 200. The
-  health is the Supabase address, because `madar.vado.sa/api/health` answers with the app page. Then write the release
+- After production, check the live site: `all.sh` ends with `checks.sh` (the health, the database check and `POST /mcp` with no
+  token 401, through the page host), then page 200 with the title Madar and `/favicon.ico` 200. Then write the release
   record: a section before "Performance audit" in `docs/superpowers/real-build/proof.md`, a line in `TASKS.md`, one commit
   on main. The owner pushes it. That commit changes HEAD, so the next production needs `all.sh test` again.
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
@@ -97,6 +97,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `oauth_token` in `~/Library/Preferences/.wrangler/config/default.toml`).
 - vado.sa DNS is in a Vercel team that the CLI cannot see. Give the owner the records, and he adds them himself.
   Never pay Vercel.
+- Workers (owner, 2026-10-16): `worker.sh` deploys `madar-server-<env>` from `wrangler.server.toml`. The account workers.dev
+  subdomain is `vado-sa`, but no Madar Worker has a workers.dev address (`workers_dev` and `preview_urls` false). A Worker
+  fetch of a workers.dev address of the same account fails with error 1042, so Pages reaches the Worker only through its
+  service binding. Never touch the Worker `binhindi-massing` of the same account.
 
 ## Other scripts
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.
@@ -117,11 +121,61 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - A Pages step that fails with "Failed to publish your Function. Got error: Unknown internal error occurred." is a fault at
   Cloudflare when `functions/` did not change. The steps before it stay done: run `scripts/deploy/pages.sh <env>` again after a
   few minutes (2026-10-12: the third run went through).
-- `madar.vado.sa/api/health` answers with the app page (200), so it proves nothing. Without `forceFunctionRegion` the
-  health answers from another region.
+- `madar.vado.sa/api/health` goes through the page api (`functions/api`) to the host of `config/server-host.json`, and its
+  `x-madar-server` names that host (`checks.sh`). Straight to the function, the health needs `forceFunctionRegion`, else it
+  answers from another region.
 - Just after a deploy, madar.vado.sa can serve the old bundle for a short time. Compare the `index-*.js` name there with
   the deploy address (`<id>.madar-46r.pages.dev`, the last line of `all.sh`).
 - `curl -s -o /dev/null -w '%{http_code}' https://madar.vado.sa/` gives 200.
 - `POST https://madar.vado.sa/mcp` with no token gives 401 (the right answer).
 - `https://oprkvdjudjxxhvodkzgs.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1` gives 200.
 - `gh run list -R byosamah/madar --workflow "DB backup" --limit 1` shows the last nightly backup.
+
+## The server host (owner, 2026-10-16)
+`config/server-host.json` holds one word for each copy: `supabase` (the Supabase functions) or `workers` (the Worker of the
+copy). The database, Auth and Realtime stay on Supabase. Every `all.sh` run deploys both hosts with the same code, so the other
+host is always the way back. The file store does not follow the host (see the R2 runbook).
+- What follows the word: the `VITE_API_URL` of the screens (`build:remote`: the page's own `/api`, or the api function); the
+  Pages Functions of `/api` and `/mcp` (the Worker through the service binding, or the Supabase function); the calls limit of
+  the Usage page (10 million or 500,000); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
+  Pages builds them, so a change reaches them only with `pages.sh`.
+- What does not follow it: MCP_URL (the agents keep their connection), the jobs (pg_cron calls the Supabase jobs function in
+  both settings), the Vault, the database password.
+- Names: the Workers `madar-server-test` and `madar-server-production` (`wrangler.server.toml`, `[env.test]` and
+  `[env.production]`); the Pages bindings `MADAR_SERVER_TEST` (preview) and `MADAR_SERVER_PRODUCTION` (production); the
+  Hyperdrive configs `madar-db-test` and `madar-db-production` (the session pooler, port 5432: the transaction pooler hangs
+  behind Hyperdrive, proof.md). Ids in `accounts.md`.
+- `secrets.ts` gives the Worker every function secret but `DATABASE_URL`, `DATABASE_READ_URL` and `DATABASE_CA` (Hyperdrive
+  replaces them), with `MADAR_SECRET_KEY` from the Management API and `MCP_URL` required. A name removed from the file goes as
+  null, so the Worker loses it. The same run sets the Hyperdrive password from `DATABASE_URL`, so a new password never cuts the
+  Worker off. A deploy resets the Worker vars (`SUPABASE_URL`, `WORKER_REGION`) to the file and keeps its secrets.
+
+### First setup of a copy (once, before its first switch)
+The lead runs these with the sandbox off. Production needs the owner's yes and the typed word.
+1. The owner: the Workers Paid plan on the account ($5 a month).
+2. `npx tsx scripts/deploy/cloudflare-setup.ts --env <env>`: the CA, the Hyperdrive config, the R2 bucket and its CORS rule
+   (only when R2 is on), and the Pages binding (it waits for the Worker). It prints the Hyperdrive id: put it into
+   `[[env.<env>.hyperdrive]]` of `wrangler.server.toml` and into `accounts.md`, then commit.
+3. `scripts/deploy/worker.sh <env>`: the first deploy makes the Worker. Then `npx tsx scripts/deploy/secrets.ts <env>` gives it
+   its secrets (a run before the Worker existed skipped it with a clear line).
+4. `cloudflare-setup.ts --env <env>` again: now it sets the Pages binding. The next `pages.sh` uses it.
+5. `scripts/deploy/all.sh <env>`, with the word still `supabase`: `checks.sh` must pass.
+
+### The switch of a copy
+1. Set the word of the copy to `workers` in `config/server-host.json`, in its own commit.
+2. `scripts/deploy/all.sh test` (production: the Release flow). `checks.sh` then wants `x-madar-server: workers;colo=...` through
+   the page host, and the database check. A tab that was open before keeps calling the api function until it reloads; both
+   hosts serve it.
+3. `scripts/proof/server-time.sh 20` (sandbox off, from the Mac). The Worker stays only if it measures faster (owner rule).
+
+### The way back
+Set the word back to `supabase`, commit, `all.sh test`, check, then `all.sh production`. The screens get the api function
+again, and the forwarders send `/api` and `/mcp` to the Supabase functions, so a tab built for the Worker keeps working through
+the page api. Nothing in the database changes. The Worker stays deployed with its secrets.
+
+### Quick checks of the Worker
+- `scripts/deploy/checks.sh <env>`: the health, the database check and `POST /mcp`, through the page host. It only reads.
+- `npx wrangler deployments list -c wrangler.server.toml --env <env>` shows the versions of the Worker.
+- `npx wrangler tail madar-server-<env>` shows the live log (the logs are on, also in the dashboard).
+- The Pages log has one JSON line for each request that went to a Supabase function (`reason` `setting` or `binding_missing`).
+- The GitHub workflow "Deploy test" updates only the functions: after a switch it leaves the test Worker on older code.

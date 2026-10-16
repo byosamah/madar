@@ -29,7 +29,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   query, see `data/CLAUDE.md`), the office lock, the idempotency check, the story, the loader, `executeParsed`, the diff
   save, the outbox rows, the signals, the commit.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
-  alive after the answer on both hosts.
+  alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
+  about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
 - The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`) run after
   the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
   entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
@@ -105,7 +106,9 @@ The other host stays deployed as the way back. Each area below has its own guide
   helpers, before and after) and each active Admin. The office signal tells only the project part (`Diff.publicKinds`),
   with its names, and a save of office tasks alone sends none (review 2026-10-06). The Realtime rules need no change: the
   server sends on any `person:` topic, and each person reads only their own.
-- pg_cron calls `jobs/run` every 15 minutes, with the secret header `x-madar-jobs-secret`. Steps (`jobs/steps/`):
+- pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
+  secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
+  `project_url` do not change. Steps (`jobs/steps/`):
   heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on

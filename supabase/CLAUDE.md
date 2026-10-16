@@ -28,6 +28,9 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 ## Functions (`functions/`)
 - `api`, `mcp`, `jobs`: each `index.ts` is a thin wrapper over a bundle in `functions/_build/` (git-ignored).
 - Edit `server/`, then run `npm run build:server`. Never edit a bundle or a wrapper for logic.
+- Every `all.sh` run deploys them, also when `config/server-host.json` says `workers` (owner, 2026-10-16): they are the way
+  back, and `jobs` runs the 15-minute job in both settings (pg_cron posts to `<project_url>/functions/v1/jobs/run`).
+- Every answer names its host: `x-madar-server: supabase`.
 
 ## `seed.sql`
 - It runs only on the local stack (after `db reset` and the first `start`). It never reaches a hosted project.

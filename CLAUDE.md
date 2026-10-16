@@ -33,7 +33,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 | Browser tests | `tests/CLAUDE.md` | prototype smoke, deploy suite, its env and guards |
 | CI and backups | `.github/CLAUDE.md` | workflows, their secrets, backups |
 | Browser push | `server/push/CLAUDE.md` | the empty push, VAPID, who gets one, devices, keys, the service worker |
-| Pages Functions | `functions/CLAUDE.md` | the /mcp forwarder on Cloudflare Pages |
+| Pages Functions | `functions/CLAUDE.md` | the /api and /mcp forwarders on Cloudflare Pages |
 
 **Keep the guides true.** When you learn a fact about one part, write it in that part's guide, not here. When a change
 makes a guide line wrong, fix the line in the same commit. A rule that applies to two or more parts stays in this file.
@@ -129,7 +129,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   `VITE_MADAR_API`: `fake` (the prototype) and `remote` (the real build).
 - Contract (`src/api/`): every call is a zod-checked `defineCall`. The prototype runs it in the browser. The server runs
   the same handler.
-- Server (`server/`): one Hono app on Supabase Edge Functions (Deno, Frankfurt), with a Workers fallback.
+- Server (`server/`): one Hono app on Supabase Edge Functions (Deno, Frankfurt) or on one Cloudflare Worker for each copy;
+  `config/server-host.json` picks the host of each copy, and the other host stays deployed as the way back.
 - Data: Supabase Postgres, Auth, Realtime and Storage (Free plans). Email: Resend. Browser push: Web Push, free (`server/push/`).
   AI agents: MCP at /mcp.
 - A screen calls `api.call(name, input)`. The remote build sends it to `POST /api/batch`. The server runs it in `runCall`
@@ -228,3 +229,6 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   card with one button (the owner chose the card over an ask at the first tap or at the start). After Allow, push turns on again by
   itself at each sign-in. A person who turns the switch off stays off on that browser. No MCP change: the three push calls stay
   on the deny list. Record: `src/CLAUDE.md`.
+- 2026-10-16: move the files from Supabase Storage to R2, and the server from Supabase Edge Functions to one Cloudflare Worker
+  for each copy (the test copy first); the database, Auth and Realtime stay; the functions stay as the way back; the Worker
+  stays only if it measures faster.

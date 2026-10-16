@@ -312,6 +312,29 @@ Measured on madar-test on 2026-10-16 (proof.md, "Hyperdrive probe on madar-test 
 - Inside a placed Worker, `request.cf.colo` names the data center where the request came in, not where the code runs. The answer header `cf-placement: remote-FRA` and the colo of a `/cdn-cgi/trace` subrequest name the run location. The Worker sees no `cf-placement` request header.
 - `[placement] region = "aws:eu-central-1"` also places the Worker when another Worker calls it through a service binding.
 
+### 2.7 The Worker host of Madar (Workers Paid, owner 2026-10-16)
+
+The server of each copy can run on one Worker (`wrangler.server.toml`, `[env.test]` and `[env.production]`). Facts for that host:
+
+| Item | Value | Source |
+|---|---|---|
+| Requests | Workers Paid: 10 million a month included, then $0.30 for each extra million. A call through a service binding adds no request: the Pages Function of `/api` or `/mcp` is the one request. An OPTIONS preflight counts (Supabase did not bill it); the page api has none. | https://developers.cloudflare.com/workers/platform/pricing/ |
+| CPU | 30 million CPU ms a month included, then $0.02 for each extra million. 30 s for each HTTP request by default, 5 min at most (`[limits] cpu_ms`). Waiting on fetch or the database does not count. Over the limit: error 1102. | https://developers.cloudflare.com/workers/platform/limits/ |
+| Memory | 128 MB for each isolate (not each request) | same |
+| Connections | 6 open outgoing connections for each request (fetch, TCP, R2); a 7th waits. The server opens 2 database connections at most. | same |
+| Subrequests | 10,000 for each request on Paid | same |
+| Time | No wall-clock limit for HTTP while the client stays. waitUntil work runs up to 30 s after the answer (Supabase: 150 s), so a long mail or push chain can stop part way; the 15-minute job retries the outbox. | same |
+| Sizes | Request body 100 MB (Free and Pro zones), answer no limit, Worker 64 MiB, start 1 s, 128 vars of 5 KB | same |
+| Placement | `[placement] region = "aws:eu-central-1"` places fetch handlers only, next to the database. The `cf-placement` answer header names the run place. | https://developers.cloudflare.com/workers/configuration/placement/ |
+| Hyperdrive | Unlimited queries on Paid. About 100 origin connections for each config, initial connection 15 s, idle 10 min, longest query 60 s. Caching is on by default: Madar turns it off (writes do not clear the cache). | https://developers.cloudflare.com/hyperdrive/platform/limits/ |
+| Address | No Madar Worker has a public address (`workers_dev` and `preview_urls` false). Security vendors report heavy phishing abuse of workers.dev, and a Worker fetch of a workers.dev address of the same account fails with error 1042, so the Pages Functions reach the Worker through a service binding. | https://developers.cloudflare.com/workers/configuration/routing/workers-dev/ |
+| Secrets | `wrangler secret bulk` takes JSON on stdin; null removes a name. A deploy resets the vars to the file and keeps the secrets. | https://developers.cloudflare.com/workers/wrangler/commands/workers/ |
+
+**Effect on Madar:** the Usage page counts calls against 10 million when `config/server-host.json` says `workers` for the copy
+(`CALL_LIMITS`, `server/core/ports.ts`), else against the 500,000 Edge Function invocations of Supabase Free (section 1.1). The
+Worker uses `query_timeout` 12 s on each query (`server/data/sql.ts`), because a wait for a free Hyperdrive origin connection
+has no other limit (section 2.6). The jobs stay on the Supabase jobs function (section 5).
+
 ---
 
 ## 3. Supabase Auth
