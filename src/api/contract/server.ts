@@ -22,7 +22,10 @@ export type ServerReason = (typeof SERVER_REASONS)[number];
 
 /** A signed upload link lives 10 minutes (plan 5.2). */
 export const UPLOAD_LIFE_MS = 10 * 60 * 1000;
-/** The free plan limits of the usage meters (plan 5.8). Files use 1 GB while the files stay on Supabase Storage (plan 2b, point 1). */
+/**
+ * The free plan limits of the usage meters (plan 5.8). Files use the 1 GB of Supabase Storage. On R2 the server gives 10 GB
+ * (FILE_STORE_LIMITS, server/core/ports.ts), and the Usage screen tells the two apart by it (plan 2b, point 1).
+ */
 export const FREE_PLAN_LIMITS = {
   calls: 500_000,
   databaseBytes: 500 * 1024 * 1024,

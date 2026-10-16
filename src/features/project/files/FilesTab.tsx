@@ -143,7 +143,7 @@ export function FilesTab({ detail }: TabProps) {
 
   const upload = async (list: FileList | null) => {
     const chosen = [...(list ?? [])];
-    // The limit of the active store (50 MB on Supabase Storage), checked before any upload starts (plan 2b, point 1).
+    // The limit of the active store (50 MB on Supabase Storage, 250 MB on R2), checked before any upload starts (plan 2b, point 1).
     for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
     const accepted = chosen.filter((f) => f.size <= limit);
     if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() });

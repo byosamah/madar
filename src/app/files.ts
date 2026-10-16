@@ -188,8 +188,8 @@ export function remoteFileAdapters(): { 'files.upload': Adapter; 'feedback.send'
 }
 
 /**
- * The largest file that the office takes: the limit of the active store from session.get (50 MB on Supabase Storage, plan 2b,
- * point 1), never above the ceiling of the contract. The prototype names no limit, so it keeps the ceiling.
+ * The largest file that the office takes: the limit of the active store from session.get (50 MB on Supabase Storage, 250 MB on
+ * R2, plan 2b, point 1), never above the ceiling of the contract. The prototype names no limit, so it keeps the ceiling.
  */
 export function useFileLimit(): number {
   const limit = useCall('session.get', {}).data?.limits?.maxFileBytes;

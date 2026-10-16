@@ -5,8 +5,23 @@ server checks the final object, then saves the record.
 
 ## Stores
 - Supabase Storage first: the private bucket `madar-files`, 50 MB for each file, 1 GB in total (`supabaseStorage.ts`).
-- R2 is built behind the S3 interface (`r2.ts`). `MADAR_FILE_STORE=r2` switches to it. The owner has not turned R2 on.
-- The CSP of the screens follows the same setting (`scripts/deploy/headers.ts`).
+- R2 behind the S3 interface (`r2.ts`): 250 MB for each file, 10 GB in total. `MADAR_FILE_STORE=r2` switches to it. The
+  owner decided the switch on 2026-10-16 (the test copy first, then production). R2 is not on yet: the owner turns it on.
+- The buckets: `madar-files-test` (test copy) and `madar-files` (production), both in the EU jurisdiction, path style on
+  `https://<account>.eu.r2.cloudflarestorage.com`. A bucket made without the EU jurisdiction breaks every link, and the
+  jurisdiction cannot change later. `scripts/deploy/secrets.ts` refuses the bucket of the other copy.
+- The store is a switch of its own: it does not follow the server host. The Supabase functions (which also run the 15-minute
+  jobs) and the Worker of one copy get the same `MADAR_FILE_STORE` and R2 values in one step. A mismatch signs an upload on one
+  store and checks it on the other ("The file did not arrive. Upload it again."), and new files get links to the wrong store.
+- No copy from R2 back to Storage exists. A way back to the Supabase functions keeps `MADAR_FILE_STORE=r2`. The Storage
+  bucket stays as the frozen copy of the files before the switch (no delete without the owner's OK).
+- The CSP of the screens follows the same setting (`scripts/deploy/headers.ts`). The R2 CORS rules are
+  `config/r2-cors.<env>.json`: only the browser upload (PUT with Content-Type) needs them.
+- The scripts of the switch: `scripts/storage/move-to-r2.ts --env` (the copy; `--copy-only` after the switch) and
+  `scripts/storage/verify-r2-keys.ts --env` (every record key has an object on R2). The runbook is in
+  `scripts/deploy/CLAUDE.md`, "Switch the files to R2".
+- On R2 the storage meter counts only the file versions of the records, not the small pictures, the screenshots, the staging
+  objects or the data that Undo keeps (`server/usage/meters.ts`). The 10 GB R2 free tier is one for both buckets.
 
 ## Upload flow
 1. `files.uploadStart` (or `feedback.uploadStart`) writes one upload intent and gives a signed upload link (`intents.ts`).
