@@ -30,9 +30,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive. Push
   devices go too: turn the switch on again after a seed (and after the deploy suite, which seeds at its end).
-- The seed uploads the sample files to Storage under real object keys, the pictures as PNG (`scripts/seed-pictures.ts`;
-  the real store serves an SVG only as a download). With `MAIL_DRIVER=outbox` it also empties `mail_log`, so the day count
-  of test mail starts again.
+- The seed uploads the sample files to the file store of the test copy under real object keys, the pictures as PNG
+  (`scripts/seed-pictures.ts`; the real store serves an SVG only as a download). `MADAR_FILE_STORE` of `secrets/test.env`
+  chooses the store: Supabase Storage, or with `r2` the R2 bucket `madar-files-test` (the four R2 lines must be there; it
+  refuses every other bucket). With `MAIL_DRIVER=outbox` it also empties `mail_log`, so the day count of test mail starts again.
 
 ## Steps
 - `scripts/deploy/all.sh <test|production>` runs every step in this order. Each step also runs alone:
