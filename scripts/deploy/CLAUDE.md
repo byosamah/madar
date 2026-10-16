@@ -202,9 +202,10 @@ host is always the way back. The file store does not follow the host (see the R2
 ### First setup of a copy (once, before its first switch)
 The lead runs these with the sandbox off. Production needs the owner's yes and the typed word.
 1. The Workers plan. The account stays on Free (owner, 2026-10-16: "free is enough for now"): 10 ms of CPU for each
-   request, and 100,000 requests and 100,000 Hyperdrive queries a day for the whole account (`platform-facts.md` 2.7). Before
-   production goes to the Worker on Free, measure the CPU time and the queries of each call on the test copy. Workers Paid
-   ($5 a month) removes the day limits; only the owner buys it.
+   request, and 100,000 requests and 100,000 Hyperdrive queries a day for the whole account (`platform-facts.md` 2.7).
+   Measured 2026-10-16 (proof.md, "The deploy suite on Workers Free"): after about 7 minutes of steady load, Free stops each
+   call at 10 ms, and a median Madar call needs 37 ms. So a copy goes to `workers` only on Workers Paid ($5 a month, which
+   only the owner buys). Both copies say `supabase` until then.
 2. `npx tsx scripts/deploy/cloudflare-setup.ts --env <env>`: the CA, the Hyperdrive config, the R2 bucket and its CORS rule
    (only when R2 is on), and the Pages binding (it waits for the Worker). It prints the Hyperdrive id: put it into
    `[[env.<env>.hyperdrive]]` of `wrangler.server.toml` and into `accounts.md`, then commit.

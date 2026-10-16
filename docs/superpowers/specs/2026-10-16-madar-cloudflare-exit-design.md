@@ -2,6 +2,11 @@
 
 16 October 2026. A proposal for the owner's OK. Nothing is built yet.
 
+**Update, 16 October, 17:50 UTC.** The deploy suite on the test Worker showed that Workers Free stops each call at 10 ms of
+CPU after a grace of about 7 minutes (proof.md, "The deploy suite on Workers Free"). A median Madar call needs 37 ms. The FAQ
+says that a Durable Object gets "the same as any Worker". If wave 0 confirms that, this plan cannot run on Free: it then needs
+Workers Paid ($5 a month), or it stops. Wave 0 tests this first, before any other probe.
+
 ## Summary
 - **What moves:** the database, sign-in, live updates, the 15-minute jobs and the backups leave Supabase. Each copy gets one Cloudflare Worker and one Durable Object. The screens and the business rules stay.
 - **Money:** $0 a month on Workers Free. The safety valve is Workers Paid at $5 a month.

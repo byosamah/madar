@@ -1109,3 +1109,22 @@ One `db.sh` run gave `DbPushMissingLocalError` with both files in the folder; `d
   200; 10 calls of about 500 ms gave 9 times 200 and once 503 (error 1102). The heaviest Madar call measured 137 ms. This is
   Cloudflare behaviour that the documents do not promise (they say 10 ms): it can change without notice.
 
+### The deploy suite on Workers Free (2026-10-16, fac41ca)
+The deploy suite on the test copy with the server on `madar-server-test` (Workers Free), with `MADAR_E2E_AFTER_G`,
+`MADAR_E2E_AFTER_M` and `MADAR_E2E_WALK`, 15:53 to 17:47 UTC, with `wrangler tail madar-server-test --format json` beside it.
+The files were already on R2 (`MADAR_FILE_STORE=r2`, 72 sample files in `madar-files-test`).
+- **Result:** 79 of 168 tests failed. The lead stopped the last test (walk en-390) after 15 minutes. One failure is a test
+  fault: "Member daily work" waited for the Home panel "Today", and on a Friday with nothing due that panel is "Coming up" (the
+  prototype smoke test got the same fix on 2026-10-12). The other 78 failed on server errors.
+- **Cause: the Free CPU limit.** The tail gave 1,712 Worker events: 1,241 `ok` and 471 `exceededCpu` ("Worker exceeded CPU
+  time limit.", answer 503). From 15:53:25, the first 474 calls passed with 24 s of CPU in total (460 of them over 10 ms, up to
+  320 ms). From 16:00:20, Cloudflare stopped calls at 10 ms: the stopped calls have a median of 10 ms CPU. After that, about
+  45% of the calls in each 10 minutes failed. The calls that passed have a median of 37 ms, p90 98 ms, max 320 ms.
+- **What it means:** the short probe of 15:40 saw a grace that a steady load uses up in minutes. A Madar call needs more than
+  10 ms, so neither copy can run its server on Workers Free. Both copies go back to `supabase` in `config/server-host.json`
+  (the way back of `scripts/deploy/CLAUDE.md`). The Worker stays deployed and unused. Workers Paid ($5 a month) would lift the
+  limit; the owner refuses paid plans (2026-10-16).
+- **Database:** `pg_stat_statements` of madar_server went from 1,111,266 to 1,159,078 statements (47,812) for 1,232 calls of
+  the usage meter, with one seed inside. On the Worker, Hyperdrive counts each one against the 100,000 queries a day of Free.
+- **Files on R2:** no failure points at the files. The file store does not follow the server host, so the files stay on R2.
+
