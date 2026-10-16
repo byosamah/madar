@@ -193,12 +193,15 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
     const fetchJwks = vi.fn((_url: string | URL | Request) => new Promise<Response>((resolve) => (answer = () => resolve(Response.json(jwks)))));
     vi.stubGlobal('fetch', fetchJwks);
     setEnvSource({ SUPABASE_URL: 'https://warm.supabase.co', AUTH_ISSUER: ISSUER });
-    expect(warmKeySet()).toBeUndefined();
+    // It gives back the pending load (the Worker hands it to ctx.waitUntil), and the fetch starts before any await.
+    const warming = warmKeySet();
+    expect(warming).toBeInstanceOf(Promise);
     expect(fetchJwks).toHaveBeenCalledTimes(1);
     expect(String(fetchJwks.mock.calls[0][0])).toBe('https://warm.supabase.co/auth/v1/.well-known/jwks.json');
     const check = verifyBrowserToken(`Bearer ${await token()}`);
     answer();
     await expect(check).resolves.toEqual({ authUserId: SUB });
+    await expect(warming).resolves.toBeUndefined();
     expect(fetchJwks).toHaveBeenCalledTimes(1);
   });
 
