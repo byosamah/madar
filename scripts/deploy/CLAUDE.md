@@ -45,10 +45,18 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
      2026-10-16): the origin password of its Hyperdrive config `madar-db-<env>`, and its secrets through `wrangler secret bulk`
      (JSON on stdin; see "The server host" below). It prints names, never a value.
   4. `functions.sh`: builds the server bundles and deploys `api`, `mcp`, `jobs`. Then it asks `api/health` in Frankfurt.
-  5. `pages.sh`: builds the remote screens, writes `dist/_headers` (CSP) with `headers.ts`, and uploads to the Pages
-     project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the /mcp forwarder) goes too.
-     `headers.template` gives `/sw.js` the header `Cache-Control: no-cache` and the CSP `worker-src 'self'`. The push services need no
-     `connect-src`: the browser, not the page, talks to them.
+  5. `worker.sh --prebuilt` (owner, 2026-10-16): deploys the Worker of the copy (`madar-server-<env>`, `wrangler deploy -c
+     wrangler.server.toml --env <env>`) with the bundle of step 4, then lists its deployments. A copy whose Hyperdrive id in
+     `wrangler.server.toml` is still the placeholder is skipped with a clear line. Every run deploys both hosts, so the way
+     back always holds the same code.
+  6. `pages.sh`: builds the remote screens, writes `dist/_headers` (CSP) with `headers.ts`, and uploads to the Pages
+     project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the /api and /mcp forwarders)
+     goes too. `headers.template` gives `/sw.js` the header `Cache-Control: no-cache` and the CSP `worker-src 'self'`. The push
+     services need no `connect-src`: the browser, not the page, talks to them. The page's own `/api` needs none either.
+  7. `checks.sh` (owner, 2026-10-16): through the page host, `GET /api/health` gives 200 with `x-madar-server` of the host in
+     `config/server-host.json`; with `JOBS_SECRET` (curl reads it on stdin, `-K -`) database, lock and asyncContext are ok;
+     `POST /mcp` with no token gives 401 from the same host. It only reads, so it asks no typed word. A failed check stops
+     `all.sh test` before it records the commit.
 - All CLIs come from `package.json`, never a global copy.
 
 ## Production rules

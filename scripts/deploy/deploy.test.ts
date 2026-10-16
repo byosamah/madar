@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const TEST = 'qdgwpnesxppnqsaabqzd';
 const PRODUCTION = 'oprkvdjudjxxhvodkzgs';
-const SCRIPTS = ['lib.sh', 'db.sh', 'config.sh', 'functions.sh', 'pages.sh', 'all.sh'];
+const SCRIPTS = ['lib.sh', 'db.sh', 'config.sh', 'functions.sh', 'worker.sh', 'pages.sh', 'checks.sh', 'all.sh'];
+/** The node helpers that the shell steps run (owner, 2026-10-16). */
+const HELPERS = ['token-scope.sh', 'headers.ts', 'config-check.ts', 'wranglerServer.ts', 'serverHost.ts'];
 const HOOK_MIGRATION = 'create function public.madar_access_token_hook(event jsonb) returns jsonb language sql as $$ select event $$;\n';
 const REMOTES = (env: string, ref: string) =>
   `\n[remotes.${env}]\nproject_id = "${ref}"\n\n[remotes.${env}.auth]\nsite_url = "https://${env}.madar.example"\nadditional_redirect_urls = ["https://${env}.madar.example"]\n`;
@@ -21,6 +23,22 @@ const REMOTES = (env: string, ref: string) =>
 let root = '';
 let log = '';
 let stubs = '';
+
+/**
+ * The curl stub: it logs its arguments. A -K - call (the jobs secret on stdin) keeps its stdin in curl-input and answers the
+ * database checks. An -i call answers with headers: STUB_SERVER names the host (supabase by default), STUB_STATUS the status of
+ * the health. Every other call answers STUB_CURL, the body of the Supabase health of functions.sh.
+ */
+const CURL_STUB = `#!/bin/sh
+echo "curl $*" >> "$STUB_LOG"
+case "$*" in
+  *"-K -"*) cat > "$STUB_ROOT/curl-input"; printf '%s' "\${STUB_CHECKS:-{\\"ok\\":true,\\"checks\\":{\\"database\\":\\"ok\\",\\"lock\\":\\"ok\\",\\"asyncContext\\":\\"ok\\"}}}" ;;
+  *"/mcp"*) printf 'HTTP/2 %s\\r\\nx-madar-server: %s\\r\\n\\r\\n{}' "\${STUB_MCP_STATUS:-401}" "\${STUB_SERVER:-supabase}" ;;
+  *" -i "*) printf 'HTTP/2 %s\\r\\nx-madar-server: %s\\r\\ncf-placement: remote-FRA\\r\\n\\r\\n{"ok":true,"host":"x","calls":108}' "\${STUB_STATUS:-200}" "\${STUB_SERVER:-supabase}" ;;
+  *) printf '%s' "\${STUB_CURL:-{\\"ok\\":true,\\"region\\":\\"eu-central-1\\",\\"calls\\":108}}" ;;
+esac
+exit 0
+`;
 
 const STUB = (name: string, body = '') => `#!/bin/sh
 echo "${name} $*" >> "$STUB_LOG"
@@ -36,13 +54,16 @@ function stub(dir: string, name: string, body = ''): void {
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'madar-deploy-'));
-  for (const file of [...SCRIPTS, 'token-scope.sh', 'headers.ts', 'config-check.ts']) {
+  for (const file of [...SCRIPTS, ...HELPERS]) {
     const from = join(repo, 'scripts/deploy', file);
     mkdirSync(join(root, 'scripts/deploy'), { recursive: true });
     cpSync(from, join(root, 'scripts/deploy', file));
     chmodSync(join(root, 'scripts/deploy', file), statSync(from).mode);
   }
   cpSync(join(repo, 'scripts/build-remote.ts'), join(root, 'scripts/build-remote.ts'));
+  mkdirSync(join(root, 'server/core'), { recursive: true });
+  cpSync(join(repo, 'server/core/serverHost.ts'), join(root, 'server/core/serverHost.ts'));
+  cpSync(join(repo, 'wrangler.server.toml'), join(root, 'wrangler.server.toml'));
   cpSync(join(repo, 'config'), join(root, 'config'), { recursive: true });
   cpSync(join(repo, 'supabase/config.toml'), join(root, 'supabase/config.toml'));
   cpSync(join(repo, 'supabase/migrations'), join(root, 'supabase/migrations'), { recursive: true });
@@ -53,8 +74,10 @@ beforeEach(() => {
   stub(bin, 'wrangler', 'echo "wrangler account $CLOUDFLARE_ACCOUNT_ID" >> "$STUB_LOG"');
   stub(bin, 'tsx');
   stubs = join(root, 'stubs');
-  stub(stubs, 'npm', 'case "$*" in *build:remote*) mkdir -p dist && echo "<html></html>" > dist/index.html ;; esac');
-  stub(stubs, 'curl', 'printf "%s" "${STUB_CURL:-{\\"ok\\":true,\\"region\\":\\"eu-central-1\\",\\"calls\\":108}}"');
+  // npm run build:server writes the Worker bundle too (dist-server/worker.js), which worker.sh --prebuilt wants.
+  stub(stubs, 'npm', 'case "$*" in *build:remote*) mkdir -p dist && echo "<html></html>" > dist/index.html ;; *build:server*) mkdir -p dist-server && echo "export default {};" > dist-server/worker.js ;; esac');
+  // The checks after a deploy (checks.sh) ask with -i for the headers; functions.sh asks for the body of the Supabase health.
+  writeFileSync(join(stubs, 'curl'), CURL_STUB, { mode: 0o755 });
   stub(stubs, 'sleep');
 });
 
@@ -69,7 +92,7 @@ function run(script: string, args: string[], o: { input?: string; env?: Record<s
     cwd: at,
     input: o.input ?? '',
     encoding: 'utf8',
-    env: { PATH: `${stubs}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, STUB_LOG: log, ...o.env },
+    env: { PATH: `${stubs}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, STUB_LOG: log, STUB_ROOT: root, ...o.env },
   });
   return { code: result.status, out: `${result.stdout}${result.stderr}`, calls: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
 }
@@ -144,7 +167,7 @@ describe('every deploy script', () => {
   });
 
   it('has no em dash', () => {
-    for (const file of [...SCRIPTS, 'token-scope.sh', 'headers.ts', 'config-check.ts', 'secrets.ts']) {
+    for (const file of [...SCRIPTS, ...HELPERS, 'secrets.ts', 'cloudflare.ts']) {
       expect(readFileSync(join(repo, 'scripts/deploy', file), 'utf8'), file).not.toContain('\u2014');
     }
   });
@@ -207,10 +230,14 @@ describe('all.sh production', () => {
       'npm run build:server',
       `supabase functions deploy api mcp jobs --project-ref ${PRODUCTION} --use-api`,
       `curl -fsS --max-time 20 https://${PRODUCTION}.supabase.co/functions/v1/api/health?forceFunctionRegion=eu-central-1`,
+      // worker.sh skips production while its Hyperdrive id is the placeholder (see the worker.sh tests).
       'npm run build:remote -- production',
       'wrangler pages deploy dist --project-name madar --branch main',
       'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      'curl -sS --max-time 20 -i https://madar.vado.sa/api/health',
+      "curl -sS --max-time 20 -i -X POST -H Content-Type: application/json --data {} https://madar.vado.sa/mcp",
     ]);
+    expect(result.out).toContain('Skip: [env.production] of wrangler.server.toml has no Hyperdrive id yet');
     expect(result.calls.join('\n')).not.toContain(TEST);
     expect(result.calls.join('\n')).not.toContain('pg-prod-secret');
   });
@@ -489,5 +516,180 @@ describe('pages.sh', () => {
     expect(result.out).toContain('VITE_SUPABASE_PUBLISHABLE_KEY');
     expect(result.calls).toEqual([]);
     expect(existsSync(join(root, 'dist/_headers'))).toBe(false);
+  });
+});
+
+/** Gives the copied wrangler.server.toml a made-up Hyperdrive id for production, as cloudflare-setup.ts would. */
+function productionHyperdrive(): void {
+  const file = join(root, 'wrangler.server.toml');
+  const text = readFileSync(file, 'utf8');
+  const at = text.indexOf('[[env.production.hyperdrive]]');
+  writeFileSync(file, `${text.slice(0, at)}${text.slice(at).replace('id = "00000000000000000000000000000000"', 'id = "0123456789abcdef0123456789abcdef"')}`);
+}
+
+/** Sets the word of one copy in the copied config/server-host.json. */
+function setHost(copy: 'test' | 'production', word: 'supabase' | 'workers'): void {
+  const file = join(root, 'config/server-host.json');
+  const setting = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
+  writeFileSync(file, `${JSON.stringify({ ...setting, [copy]: word })}\n`);
+}
+
+describe('worker.sh (owner, 2026-10-16)', () => {
+  it('builds the server bundles, deploys the test Worker from [env.test], and lists its deployments', () => {
+    const result = run('worker.sh', ['test'], { env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toEqual([
+      'npm run build:server',
+      'wrangler deploy -c wrangler.server.toml --env test',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+      'wrangler deployments list -c wrangler.server.toml --env test',
+      'wrangler account d76d34779c63849f5acdf3d6af3751cd',
+    ]);
+    expect(result.out).toContain('madar-server-test is deployed');
+  });
+
+  it('with --prebuilt, deploys the bundle of an earlier step and builds nothing; without the bundle it stops', () => {
+    const missing = run('worker.sh', ['test', '--prebuilt'], { env: TOKENS });
+    expect(missing.code).toBe(1);
+    expect(missing.out).toContain('dist-server/worker.js is missing');
+    expect(missing.calls).toEqual([]);
+    mkdirSync(join(root, 'dist-server'), { recursive: true });
+    writeFileSync(join(root, 'dist-server/worker.js'), 'export default {};\n');
+    const result = run('worker.sh', ['test', '--prebuilt'], { env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls[0]).toBe('wrangler deploy -c wrangler.server.toml --env test');
+    expect(result.calls).not.toContain('npm run build:server');
+  });
+
+  it('stops with the usage for an unknown option, and runs nothing', () => {
+    const result = run('worker.sh', ['test', '--fast'], { env: TOKENS });
+    expect(result.code).toBe(2);
+    expect(result.out).toMatch(/Usage: worker\.sh <test\|production> \[--prebuilt\]/);
+    expect(result.calls).toEqual([]);
+  });
+
+  it('skips a copy whose Hyperdrive id is still the placeholder, with a clear line, and deploys nothing', () => {
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const result = run('worker.sh', ['production'], { input: 'production\n', env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain('Skip: [env.production] of wrangler.server.toml has no Hyperdrive id yet, so madar-server-production is not deployed');
+    expect(result.calls).toEqual([]);
+  });
+
+  it('deploys production only after the typed word, from the recorded commit, to the production Worker only', () => {
+    productionHyperdrive();
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const refused = run('worker.sh', ['production'], { input: 'yes\n', env: TOKENS });
+    expect(refused.code).toBe(1);
+    expect(refused.calls).toEqual([]);
+    const result = run('worker.sh', ['production'], { input: 'production\n', env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toContain('wrangler deploy -c wrangler.server.toml --env production');
+    expect(result.calls.join('\n')).not.toContain('--env test');
+  });
+
+  it('refuses production in CI, before any step', () => {
+    productionHyperdrive();
+    const result = run('worker.sh', ['production'], { input: 'production\n', env: { ...TOKENS, CI: 'true' } });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('from the Mac only');
+    expect(result.calls).toEqual([]);
+  });
+});
+
+describe('all.sh with the Worker (owner, 2026-10-16)', () => {
+  it('runs the Worker after the functions with their bundle, then the screens, then the checks through the page host', () => {
+    productionHyperdrive();
+    readyForConfigPush();
+    commitAll();
+    deployTest();
+    const result = run('all.sh', ['production'], { input: 'production\n', env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    const at = (call: string) => result.calls.indexOf(call);
+    expect(at('wrangler deploy -c wrangler.server.toml --env production')).toBeGreaterThan(at(`supabase functions deploy api mcp jobs --project-ref ${PRODUCTION} --use-api`));
+    expect(at('wrangler pages deploy dist --project-name madar --branch main')).toBeGreaterThan(at('wrangler deployments list -c wrangler.server.toml --env production'));
+    expect(at('curl -sS --max-time 20 -i https://madar.vado.sa/api/health')).toBeGreaterThan(at('wrangler pages deploy dist --project-name madar --branch main'));
+    expect(result.calls.filter((call) => call === 'npm run build:server')).toHaveLength(1);
+    expect(result.calls.join('\n')).not.toContain(TEST);
+  });
+
+  it('stops after the screens when the checks fail, so a test deploy with a wrong host records no commit', () => {
+    readyForConfigPush();
+    commitAll();
+    const result = run('all.sh', ['test'], { env: { ...TOKENS, STUB_SERVER: 'workers;colo=FRA' } });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('did not answer 200 from the host supabase');
+    expect(result.out).not.toContain('Production may now take it');
+  });
+});
+
+describe('checks.sh (owner, 2026-10-16)', () => {
+  it('checks the health and the MCP answer through the page host of the copy, from the host of the setting', () => {
+    const result = run('checks.sh', ['test'], { env: {} });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toEqual([
+      'curl -sS --max-time 20 -i https://preview.madar-46r.pages.dev/api/health',
+      "curl -sS --max-time 20 -i -X POST -H Content-Type: application/json --data {} https://preview.madar-46r.pages.dev/mcp",
+    ]);
+    expect(result.out).toContain('answers from supabase');
+    expect(result.out).toContain('cf-placement: remote-FRA');
+    expect(result.out).toContain('Skip: secrets/test.env has no JOBS_SECRET');
+  });
+
+  it('wants workers;colo=<data center> when the setting says workers, and refuses an answer from Supabase', () => {
+    setHost('test', 'workers');
+    const good = run('checks.sh', ['test'], { env: { STUB_SERVER: 'workers;colo=FRA' } });
+    expect(good.code, good.out).toBe(0);
+    expect(good.out).toContain('answers from workers;colo=FRA');
+    const unknown = run('checks.sh', ['test'], { env: { STUB_SERVER: 'workers;colo=unknown' } });
+    expect(unknown.code, unknown.out).toBe(0);
+    expect(unknown.out).toContain('colo=unknown');
+    writeFileSync(log, '');
+    const wrong = run('checks.sh', ['test'], { env: { STUB_SERVER: 'supabase' } });
+    expect(wrong.code).toBe(1);
+    expect(wrong.out).toContain('did not answer 200 from the host workers');
+    expect(wrong.calls.filter((call) => call.includes('/api/health'))).toHaveLength(6);
+  });
+
+  it('refuses an MCP answer that is not 401, or that comes from the other host', () => {
+    const status = run('checks.sh', ['test'], { env: { STUB_MCP_STATUS: '200' } });
+    expect(status.code).toBe(1);
+    expect(status.out).toContain('must give 401 from the host supabase');
+    setHost('test', 'workers');
+    const host = run('checks.sh', ['test'], { env: { STUB_SERVER: 'workers;colo=FRA', STUB_MCP_STATUS: '401' } });
+    expect(host.code, host.out).toBe(0);
+  });
+
+  it('sends the jobs secret to curl on stdin only, never as an argument, and wants the three database checks', () => {
+    mkdirSync(join(root, 'secrets'), { recursive: true });
+    writeFileSync(join(root, 'secrets/test.env'), 'APP_URL=https://x\nJOBS_SECRET="jobs-secret-value-9"\n', { mode: 0o600 });
+    const result = run('checks.sh', ['test'], { env: {} });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain('Database check: database, lock and asyncContext ok.');
+    expect(readFileSync(join(root, 'curl-input'), 'utf8')).toBe('header = "x-madar-jobs-secret: jobs-secret-value-9"\n');
+    expect(result.calls).toContain('curl -sS --max-time 20 -K - https://preview.madar-46r.pages.dev/api/health');
+    expect(result.calls.join('\n')).not.toContain('jobs-secret-value-9');
+    expect(result.out).not.toContain('jobs-secret-value-9');
+    const failed = run('checks.sh', ['test'], { env: { STUB_CHECKS: '{"ok":false,"checks":{"database":"ok","lock":"failed","asyncContext":"ok"}}' } });
+    expect(failed.code).toBe(1);
+    expect(failed.out).toContain('did not give database, lock and asyncContext ok');
+  });
+
+  it('checks the production page host for production, and needs no typed word: it only reads', () => {
+    const result = run('checks.sh', ['production'], { input: '', env: {} });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls[0]).toBe('curl -sS --max-time 20 -i https://madar.vado.sa/api/health');
+    expect(result.out).not.toContain('Type production');
+  });
+
+  it('stops on a setting with another word, before any call', () => {
+    writeFileSync(join(root, 'config/server-host.json'), '{"test":"worker","production":"supabase"}\n');
+    const result = run('checks.sh', ['test'], { env: {} });
+    expect(result.code).not.toBe(0);
+    expect(result.calls).toEqual([]);
   });
 });
