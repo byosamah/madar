@@ -312,7 +312,7 @@ Measured on madar-test on 2026-10-16 (proof.md, "Hyperdrive probe on madar-test 
 - Inside a placed Worker, `request.cf.colo` names the data center where the request came in, not where the code runs. The answer header `cf-placement: remote-FRA` and the colo of a `/cdn-cgi/trace` subrequest name the run location. The Worker sees no `cf-placement` request header.
 - `[placement] region = "aws:eu-central-1"` also places the Worker when another Worker calls it through a service binding.
 
-### 2.7 The Worker host of Madar (Workers Paid, owner 2026-10-16)
+### 2.7 The Worker host of Madar (owner 2026-10-16: the Free plan first, Workers Paid when the numbers ask for it)
 
 The server of each copy can run on one Worker (`wrangler.server.toml`, `[env.test]` and `[env.production]`). Facts for that host:
 
@@ -334,6 +334,21 @@ The server of each copy can run on one Worker (`wrangler.server.toml`, `[env.tes
 (`CALL_LIMITS`, `server/core/ports.ts`), else against the 500,000 Edge Function invocations of Supabase Free (section 1.1). The
 Worker uses `query_timeout` 12 s on each query (`server/data/sql.ts`), because a wait for a free Hyperdrive origin connection
 has no other limit (section 2.6). The jobs stay on the Supabase jobs function (section 5).
+
+**The Free plan (owner, 2026-10-16: "free is enough for now").** The table above gives the Paid values. Free differs here:
+
+| Item | Free | Source |
+|---|---|---|
+| Requests | 100,000 a day for the whole account (the Workers and the Pages Functions of every project). Over the limit: error 1027 until 00:00 UTC. | https://developers.cloudflare.com/workers/platform/limits/ |
+| CPU | 10 ms for each request. Waiting on fetch or the database does not count. Over the limit: error 1102 (`Worker exceeded resource limits`, outcome `exceededCpu`). | same |
+| Subrequests | 50 for each request | same |
+| Hyperdrive | 100,000 database queries a day for the account, so the test copy and production share them. Over the limit, every further query fails until the next day. About 20 origin connections for each config, 10 configs. | https://developers.cloudflare.com/hyperdrive/platform/pricing/ |
+| Same on both | 128 MB memory, 6 open connections, start 1 s, placement, Workers Logs | the Hyperdrive probe ran on Free: placement in FRA and every case passed (proof.md) |
+
+**Effect on Madar on Free:** a day of heavy test runs takes from the query day of production. The calls meter of the Usage page
+counts a month against 10 million, so it does not warn before a day limit. Before production runs on the Worker on Free, measure
+the CPU time of each call (`wrangler tail`: `cpuTime` and `outcome` of each event) and the queries of each call, against the
+production calls of a day.
 
 ---
 
