@@ -466,16 +466,21 @@ Supabase Edge Functions to one Worker per copy (Workers Paid, $5 a month), first
 only if it measures faster than the Supabase functions (the forwarder rule). The database, Auth and Realtime stay on
 Supabase. Production follows in the same run after the test copy passes. The Supabase functions stay deployed as the way back.
 - [ ] Owner: turn on R2 in the Cloudflare dashboard (card, free plan)
-- [ ] Workers plan: Free first (owner, 2026-10-16: "free is enough for now"). The probe ran on the Free plan: the
-  Frankfurt placement and Hyperdrive work there. The test copy measures the CPU time of each call (Free allows 10 ms,
-  error 1102 above it) and the calls a day (Free allows 100,000, Pages Functions included). Pay $5 only if a call goes over.
-  The usage meter must use the Free day limit, not 10M a month.
+- [x] Workers plan: Free (owner, 2026-10-16: "no money, free"). The account is on Free (a call stopped at 50 fetches). The
+  documents say 10 ms of CPU; in practice calls of 26 and 150 ms passed, 500 ms failed 1 time in 10 (proof.md). Madar: median
+  14 ms, heaviest 137 ms. The Free day limits stay: 100,000 requests and 100,000 Hyperdrive queries for the whole account.
+- [ ] Usage meter on Free: count the calls of a UTC day against the day limits (requests, about 15 queries for each call), not
+  10 million a month.
+- [ ] Heavy test runs (the deploy suite) after office hours: the test copy shares the day limits with production.
+- [ ] Owner decision (2026-10-16): no Supabase at all, everything on Cloudflare Free (reason: one vendor, one bill). After this
+  run: a plan for the database (Postgres to SQLite in a Durable Object or D1), sign-in (no ready-made Cloudflare service), live
+  updates (Durable Objects), the 15-minute jobs (Cron Triggers) and the backups, with its time, for the owner's OK.
 - [x] Map of every change (three readers)
 - [x] Hyperdrive probe on madar-test: go on the session pooler 5432, no go on 6543 (proof.md, commit 0457809)
 - [x] Live updates on madar-test: no realtime.messages day table for 2026-10-16 at 14:39 UTC. Not a defect: a WebSocket
   client makes the day table (platform-facts.md 2, realtime.send), and no screen of the test copy was open today.
 - [ ] Build on `rb/cloudflare`: deploy steps for R2 and the Worker, the screens address, the jobs trigger, the MCP forwarder, guides
-- [ ] Cloud setup: two EU buckets and their CORS, the Supabase CA, two Hyperdrive setups (caching off), two Workers
+- [ ] Cloud setup: two EU buckets and their CORS (both buckets made; test CORS set), the Supabase CA, two Hyperdrive setups (caching off), two Workers (test done)
 - [ ] Owner: one R2 API token for each bucket, into the secrets files
 - [ ] Test copy: copy the files, switch, deploy suite, measure the Worker against the Supabase functions
 - [ ] Production: copy the files twice, switch, checks, release record
