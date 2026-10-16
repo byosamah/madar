@@ -1,0 +1,12 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://madar.vado.sa", "https://www.madar.vado.sa", "https://madar-46r.pages.dev"],
+        "methods": ["PUT", "GET"],
+        "headers": ["Content-Type"]
+      },
+      "maxAgeSeconds": 7200
+    }
+  ]
+}
