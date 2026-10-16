@@ -34,7 +34,7 @@ echo "curl $*" >> "$STUB_LOG"
 case "$*" in
   *"-K -"*) cat > "$STUB_ROOT/curl-input"; printf '%s' "\${STUB_CHECKS:-{\\"ok\\":true,\\"checks\\":{\\"database\\":\\"ok\\",\\"lock\\":\\"ok\\",\\"asyncContext\\":\\"ok\\"}}}" ;;
   *"/mcp"*) printf 'HTTP/2 %s\\r\\nx-madar-server: %s\\r\\n\\r\\n{}' "\${STUB_MCP_STATUS:-401}" "\${STUB_SERVER:-supabase}" ;;
-  *" -i "*) printf 'HTTP/2 %s\\r\\nx-madar-server: %s\\r\\ncf-placement: remote-FRA\\r\\n\\r\\n{"ok":true,"host":"x","calls":108}' "\${STUB_STATUS:-200}" "\${STUB_SERVER:-supabase}" ;;
+  *" -i "*) printf 'HTTP/2 %s\\r\\nx-madar-server: %s\\r\\n%s\\r\\n{"ok":true,"host":"x","calls":108}' "\${STUB_STATUS:-200}" "\${STUB_SERVER:-supabase}" "\${STUB_PLACEMENT-cf-placement: remote-FRA\\r\\n}" ;;
   *) printf '%s' "\${STUB_CURL:-{\\"ok\\":true,\\"region\\":\\"eu-central-1\\",\\"calls\\":108}}" ;;
 esac
 exit 0
@@ -638,6 +638,14 @@ describe('checks.sh (owner, 2026-10-16)', () => {
     expect(result.out).toContain('answers from supabase');
     expect(result.out).toContain('cf-placement: remote-FRA');
     expect(result.out).toContain('Skip: secrets/test.env has no JOBS_SECRET');
+  });
+
+  it('goes on when the answer has no cf-placement header (the Supabase host never sends one)', () => {
+    const result = run('checks.sh', ['test'], { env: { STUB_PLACEMENT: '' } });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain('answers from supabase');
+    expect(result.out).not.toContain('cf-placement');
+    expect(result.out).toContain('The quick checks of test passed on the host supabase.');
   });
 
   it('wants workers;colo=<data center> when the setting says workers, and refuses an answer from Supabase', () => {

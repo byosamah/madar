@@ -13,9 +13,10 @@ cd "$ROOT"
 host="$(node scripts/deploy/serverHost.ts host "$TARGET")"
 page="$(node scripts/deploy/serverHost.ts page "$TARGET")"
 
-# The status, one header and the body of a `curl -i` answer.
+# The status, one header and the body of a `curl -i` answer. A header that is not there gives an empty text: under pipefail
+# a grep with no match would stop the script with no message (the Supabase host sends no cf-placement header).
 status_of() { printf '%s\n' "$1" | tr -d '\r' | head -n 1 | awk '{print $2}'; }
-header_of() { printf '%s\n' "$1" | tr -d '\r' | sed -n '1,/^$/p' | grep -i "^$2:" | head -n 1 | sed 's/^[^:]*:[[:space:]]*//'; }
+header_of() { printf '%s\n' "$1" | tr -d '\r' | sed -n '1,/^$/p' | { grep -i "^$2:" || true; } | head -n 1 | sed 's/^[^:]*:[[:space:]]*//'; }
 body_of() { printf '%s\n' "$1" | tr -d '\r' | sed '1,/^$/d'; }
 # True when the header names the host of the setting.
 names_host() {
