@@ -7,6 +7,11 @@ CPU after a grace of about 7 minutes (proof.md, "The deploy suite on Workers Fre
 says that a Durable Object gets "the same as any Worker". If wave 0 confirms that, this plan cannot run on Free: it then needs
 Workers Paid ($5 a month), or it stops. Wave 0 tests this first, before any other probe.
 
+**Wave 0, first result (16 October, 18:50 UTC).** The office object passed 2,696 of 2,696 calls in 45 minutes of steady load,
+with 16 to 135 ms of CPU each, on Workers Free. A plain Worker beside it failed 1,309 of 1,797 calls in the same minutes
+(proof.md, "Wave 0 of the Supabase exit"). So the CPU limit does not block this plan today. The rows, the sockets and bcrypt
+are still to measure.
+
 ## Summary
 - **What moves:** the database, sign-in, live updates, the 15-minute jobs and the backups leave Supabase. Each copy gets one Cloudflare Worker and one Durable Object. The screens and the business rules stay.
 - **Money:** $0 a month on Workers Free. The safety valve is Workers Paid at $5 a month.

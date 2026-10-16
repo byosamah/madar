@@ -1128,3 +1128,22 @@ The files were already on R2 (`MADAR_FILE_STORE=r2`, 72 sample files in `madar-f
   the usage meter, with one seed inside. On the Worker, Hyperdrive counts each one against the 100,000 queries a day of Free.
 - **Files on R2:** no failure points at the files. The file store does not follow the server host, so the files stay on R2.
 
+
+## Wave 0 of the Supabase exit: the office object on Workers Free (2026-10-16)
+The question of the exit plan (`docs/superpowers/specs/2026-10-16-madar-cloudflare-exit-design.md`): does a Durable Object on
+Workers Free get more than 10 ms of CPU for each call under a steady load? The probes are in `scripts/proof/do-cpu/`:
+`madar-do-probe` (one SQLite Durable Object `Office`; each call runs a fixed loop and writes one row) and `madar-cpu-probe`
+(the same loop in a plain Worker, the control). Both had a workers.dev address with a secret header during the runs; now
+`workers_dev` is false (404). `wrangler tail --format json` read the CPU of each event.
+- **Round 1** (18:03 to 18:34 UTC, one call each second to each probe): the object passed 1,797 of 1,797 calls (one network
+  fault on the Mac, no answer from Cloudflare). Every one of its 1,795 logged events used more than 10 ms: median 16 ms, p90 47 ms,
+  max 70 ms, `ok` each time. The control in the same minutes: 488 passed, 1,309 gave 503 `exceededCpu`.
+- **Round 2** (18:35 to 18:50 UTC, the object only, heavier calls in turn): 899 of 899 passed, CPU min 32 ms, median 75 ms,
+  p90 118 ms, max 135 ms, 67 s of CPU in 15 minutes. No event other than `ok`.
+- **The front Worker** of the object used 0 to 3 ms for each call (it only hands the request on).
+- **PBKDF2** with 100,000 rounds (SHA-256) inside the object: 30 to 35 ms of CPU (3 calls).
+- **What it means:** on this account, the Free plan held a plain Worker to 10 ms, but did not stop the office object at 10 ms in
+  45 minutes of steady load, up to 135 ms a call. This matches the 30 s of the Durable Object limits table, not the FAQ line.
+  Cloudflare does not promise it in one clear place, so the exit plan keeps its way back.
+- Not measured yet (the rest of wave 0): the rows read of heavy calls on one year of data, a socket to an object that sleeps,
+  bcrypt.

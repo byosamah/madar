@@ -1,0 +1,13 @@
+name = "madar-do-probe"
+main = "index.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Office"]
