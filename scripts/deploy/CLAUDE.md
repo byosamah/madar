@@ -164,6 +164,12 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
 - A Pages step that fails with "Failed to publish your Function. Got error: Unknown internal error occurred." is a fault at
   Cloudflare when `functions/` did not change. The steps before it stay done: run `scripts/deploy/pages.sh <env>` again after a
   few minutes (2026-10-12: the third run went through).
+- `db.sh` once stopped with `DbPushMissingLocalError` ("Remote migration versions not found in local migrations directory",
+  20261008000100 and 20261012000100) while both files were in the folder; `db.sh` alone a minute later said up to date
+  (2026-10-16). Run `db.sh` again. Never run the `supabase migration repair` that the CLI suggests: it rewrites the migration
+  history of the project.
+- The Hyperdrive password step of `secrets.ts` can get 2013 (invalid credentials) right after it writes the new verifier: the
+  session pooler keeps the old one for some time (2026-10-16). `secrets.ts` tries again within its sign-in limit (60 s).
 - `madar.vado.sa/api/health` goes through the page api (`functions/api`) to the host of `config/server-host.json`, and its
   `x-madar-server` names that host (`checks.sh`). Straight to the function, the health needs `forceFunctionRegion`, else it
   answers from another region.

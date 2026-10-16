@@ -3,8 +3,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   HEALTH_LOCK_KEY,
+  HyperdriveCredentialsRefused,
   NOT_FOR_WORKER,
   R2_BUCKETS,
+  SIGN_IN_LIMIT_MS,
+  SIGN_IN_WAIT_MS,
   WORKER_SECRETS,
   checkSecrets,
   parseSecretsFile,
@@ -50,7 +53,8 @@ function file(ref = TEST, extra = ''): string {
  * A run with fakes: it records each database statement, each Management API request and each log line. The Worker of the copy
  * does not exist unless the test says so (worker: true), so the steps before the move to Cloudflare run as they did.
  */
-function harness(o: { target?: 'test' | 'production'; text?: string; env?: Record<string, string>; answer?: string; dryRun?: boolean; worker?: boolean; hyperdrive?: boolean } = {}) {
+function harness(o: { target?: 'test' | 'production'; text?: string; env?: Record<string, string>; answer?: string; dryRun?: boolean; worker?: boolean; hyperdrive?: boolean; hyperdriveRefusals?: number } = {}) {
+  let refusals = o.hyperdriveRefusals ?? 0;
   const sql: { text: string; values?: unknown[] }[] = [];
   const workerCalls: { step: string; args: unknown[]; requestsBefore: number }[] = [];
   const requests: { url: string; init: RequestInit }[] = [];
@@ -88,7 +92,13 @@ function harness(o: { target?: 'test' | 'production'; text?: string; env?: Recor
     worker: {
       exists: async (name) => (workerCalls.push({ step: 'exists', args: [name], requestsBefore: requests.length }), o.worker === true),
       hyperdriveId: async (name) => (workerCalls.push({ step: 'hyperdriveId', args: [name], requestsBefore: requests.length }), o.hyperdrive === false ? undefined : `${name}-id`),
-      updateHyperdrive: async (id, origin) => void workerCalls.push({ step: 'updateHyperdrive', args: [id, origin], requestsBefore: requests.length }),
+      updateHyperdrive: async (id, origin) => {
+        workerCalls.push({ step: 'updateHyperdrive', args: [id, origin], requestsBefore: requests.length });
+        if (refusals > 0) {
+          refusals -= 1;
+          throw new HyperdriveCredentialsRefused('The Cloudflare API refused the Hyperdrive password: 2013 Invalid database credentials.');
+        }
+      },
       secretBulk: async (target, json) => void workerCalls.push({ step: 'secretBulk', args: [target, json], requestsBefore: requests.length }),
     } satisfies WorkerPort,
     secretKey: async (ref, token) => (workerCalls.push({ step: 'secretKey', args: [ref, token], requestsBefore: requests.length }), 'sb_secret_from_api_1'),
@@ -500,6 +510,21 @@ describe('the Worker of the copy (owner, 2026-10-16)', () => {
     const call = h.workerCalls.find((c) => c.step === 'secretBulk')!;
     return { target: call.args[0], secrets: JSON.parse(String(call.args[1])) as Record<string, string | null> };
   };
+
+  it('tries the Hyperdrive password again while the session pooler still refuses the new login (2013), then goes on', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true, hyperdriveRefusals: 2 });
+    await runSecrets(h.run);
+    expect(steps(h)).toEqual(['exists', 'hyperdriveId', 'updateHyperdrive', 'updateHyperdrive', 'updateHyperdrive', 'secretKey', 'secretBulk']);
+    expect(h.slept.filter((ms) => ms === SIGN_IN_WAIT_MS).length).toBeGreaterThanOrEqual(2);
+    expect(h.logs.join('\n')).toMatch(/Hyperdrive madar-db-test: the madar_server password of DATABASE_URL, on the session pooler/);
+  });
+
+  it('stops after the sign-in limit when Hyperdrive keeps refusing the password, and sends no Worker secret', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true, hyperdriveRefusals: 1000 });
+    await expect(runSecrets(h.run)).rejects.toThrow(/2013 Invalid database credentials/);
+    expect(steps(h)).not.toContain('secretBulk');
+    expect(steps(h).filter((step) => step === 'updateHyperdrive')).toHaveLength(SIGN_IN_LIMIT_MS / SIGN_IN_WAIT_MS + 1);
+  });
 
   it('skips the Worker with a clear line when it does not exist yet, and still sets the function secrets', async () => {
     const h = harness({ text: file(TEST, MCP) });

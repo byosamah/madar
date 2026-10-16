@@ -35,6 +35,13 @@ export const HEALTH_LOCK_KEY = 7_310_999;
 export const SIGN_IN_WAIT_MS = 5_000;
 export const SIGN_IN_LIMIT_MS = 60_000;
 
+/**
+ * Hyperdrive refused the origin login (Cloudflare code 2013). Each run writes a new SCRAM verifier for madar_server, and the
+ * session pooler can keep the old one for some time, so the PATCH right after it can fail (2026-10-16, the second all.sh test
+ * of that day). pushWorker tries again within the sign-in limit.
+ */
+export class HyperdriveCredentialsRefused extends Error {}
+
 /** The function secrets that the server reads (server/core/deps.ts). Supabase injects SUPABASE_URL, SUPABASE_SECRET_KEYS and SB_REGION. */
 export const FUNCTION_SECRETS = [
   'DATABASE_URL', 'DATABASE_READ_URL', 'APP_URL', 'API_URL', 'MCP_URL', 'MAIL_FROM', 'MAIL_DRIVER', 'RESEND_API_KEY',
@@ -337,7 +344,16 @@ async function planWorker(run: SecretsRun, values: Record<string, string>): Prom
 /** After the function secrets: the Hyperdrive password first (the role has the new one), then the Worker secrets. */
 async function pushWorker(run: SecretsRun, ref: string, token: string, values: Record<string, string>, checked: Checked, plan: WorkerPlan): Promise<void> {
   if (plan.hyperdrive) {
-    await run.worker.updateHyperdrive(plan.hyperdrive.id, hyperdriveOrigin(ref, checked.serverPassword));
+    const origin = hyperdriveOrigin(ref, checked.serverPassword);
+    for (let waited = 0; ; waited += SIGN_IN_WAIT_MS) {
+      try {
+        await run.worker.updateHyperdrive(plan.hyperdrive.id, origin);
+        break;
+      } catch (error) {
+        if (!(error instanceof HyperdriveCredentialsRefused) || waited >= SIGN_IN_LIMIT_MS) throw error;
+        await run.sleep(SIGN_IN_WAIT_MS);
+      }
+    }
     run.log(`Hyperdrive ${plan.hyperdrive.name}: the madar_server password of DATABASE_URL, on the session pooler.`);
   }
   const secrets = workerSecretsOf(values, await run.secretKey(ref, token));
@@ -435,7 +451,8 @@ if (isMain) {
       updateHyperdrive: async (id, origin) => {
         const answer = await (await cf())(`/hyperdrive/configs/${id}`, { method: 'PATCH', body: { origin } });
         if (!answer.success) {
-          throw new Error(`The Cloudflare API refused the Hyperdrive password: ${cloudflare.redact(cloudflare.codesOf(answer), [origin.password])}. The function secrets are set; the Worker has the old password. Run secrets.ts again.`);
+          const text = `The Cloudflare API refused the Hyperdrive password: ${cloudflare.redact(cloudflare.codesOf(answer), [origin.password])}. The function secrets are set; the Worker has the old password. Run secrets.ts again.`;
+          throw answer.errors.some((e) => e.code === 2013) ? new HyperdriveCredentialsRefused(text) : new Error(text);
         }
       },
       secretBulk: async (env, json) => {

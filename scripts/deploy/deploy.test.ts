@@ -65,6 +65,8 @@ beforeEach(() => {
   cpSync(join(repo, 'server/core/serverHost.ts'), join(root, 'server/core/serverHost.ts'));
   cpSync(join(repo, 'wrangler.server.toml'), join(root, 'wrangler.server.toml'));
   cpSync(join(repo, 'config'), join(root, 'config'), { recursive: true });
+  // Each test starts from the same server host setting, never from the live one (the test copy may already say workers).
+  writeFileSync(join(root, 'config/server-host.json'), '{"test":"supabase","production":"supabase"}\n');
   cpSync(join(repo, 'supabase/config.toml'), join(root, 'supabase/config.toml'));
   cpSync(join(repo, 'supabase/migrations'), join(root, 'supabase/migrations'), { recursive: true });
   log = join(root, 'stub.log');
