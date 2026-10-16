@@ -31,6 +31,7 @@ export function remoteConfig(env: Record<string, string | boolean | undefined>):
   return {
     supabaseUrl,
     publishableKey: text('VITE_SUPABASE_PUBLISHABLE_KEY')!,
+    // The api function, or the page's own /api on the Worker host (owner, 2026-10-16): a relative address, which fetch resolves.
     apiUrl: (text('VITE_API_URL') ?? `${supabaseUrl}/functions/v1/api`).replace(/\/+$/, ''),
     // The server answers 409 client_outdated to a build older than MIN_CLIENT_BUILD. '0' passes while that is 0.
     build: text('VITE_MADAR_BUILD') ?? '0',

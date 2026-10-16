@@ -16,7 +16,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
 ## Request path
-- `POST /api/batch?forceFunctionRegion=eu-central-1` (`http/batch.ts`): at most 12 entries, 256 KB, 1 overview call
+- `POST /api/batch` (`http/batch.ts`; on a Supabase function URL with `?forceFunctionRegion=eu-central-1`, on the Worker
+  through the page's own `/api`): at most 12 entries, 256 KB, 1 overview call
   (`http/limits.ts`). An old `X-Madar-Build` gives 409 `client_outdated`. CORS allows only listed origins, never `*`.
 - Extra routes (`http/routes.ts`) sit under the api app: `POST /auth/forgot` answers at `/api/auth/forgot`.
 - The token check (`auth/verify.ts`): jose, ES256 only, issuer `${SUPABASE_URL}/auth/v1` (or `AUTH_ISSUER`). Never compare

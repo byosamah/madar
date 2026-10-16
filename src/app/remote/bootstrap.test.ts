@@ -227,6 +227,19 @@ describe('the remote runtime (plan R2)', () => {
     expect(requests[0].headers).toMatchObject({ Authorization: 'Bearer token-1', 'X-Madar-Build': '2026.10.4', apikey: 'sb_publishable_x' });
   });
 
+  it('sends the batch to the page api when the build names /api (the Worker host), with no region parameter (owner, 2026-10-16)', async () => {
+    expect(remoteConfig({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_x', VITE_API_URL: '/api/' }).apiUrl).toBe('/api');
+    const urls: string[] = [];
+    const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      urls.push(String(url));
+      const body = JSON.parse(String(init?.body)) as { calls: { i: number }[] };
+      return new Response(JSON.stringify({ v: 1, serverTime: '2026-10-04T09:00:00.000+03:00', results: body.calls.map((call) => ({ i: call.i, ok: true, output: [], storyId: 'cor_srv_1', changed: false })) }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const runtime = await bootstrapRemote({ config: { ...config, apiUrl: '/api' }, supabase, auth: stubAuth().auth, fetch });
+    await runtime.api.call('clients.list', {});
+    expect(urls).toEqual(['/api/batch']);
+  });
+
   it('makes the Supabase sign-in port, whose reset request also runs in Frankfurt', async () => {
     const fetch = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof globalThis.fetch;
     const withAuth = {
