@@ -53,7 +53,15 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - Each Supabase function imports only its own mount. Deno needs the bundle (no extensionless imports), so
   `npm run build:server` writes `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
   Edit `server/`, never the bundles.
-- Workers (`entries/worker.ts`): one Db for each request, the database through the Hyperdrive binding `DB`.
+- Workers (`entries/worker.ts`): one Db for each request, the database through the Hyperdrive binding `DB`. The region
+  label is the public var `WORKER_REGION` (`workers-eu-central-1`): it is no AWS region name, so the MCP region hop never
+  starts there. The first request after a build starts the key set load (`warmKeySet`) and hands it to waitUntil. Never
+  `db.warm` there: the database belongs to one request.
+- Every answer carries `x-madar-server` (`entries/serverHeader.ts`): `supabase` on the three Deno entries,
+  `workers;colo=<request.cf.colo>` on the Worker, also on a 404 and on the 503 of a failed start. The colo is the data center
+  where the request came in; the run place shows in the `cf-placement` answer header.
+- `GET /api/health` names the region, the host (`workers` or `supabase`), the file store and the call count. With the jobs
+  secret it also runs the database check (`http/health.ts`).
 - `wrangler dev` uses esbuild with no `import.meta.glob`, so server code reads word files with plain JSON imports
   (`workerGraph.test.ts` checks it).
 - The bundles run on the real office, so they hold no sample office and no `settleFuture` (it moves every later stamp to
@@ -81,7 +89,9 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - Only `set local` on the pooler: `data/sql.ts` refuses a plain SET.
 - Database TLS fails closed: TLS with the Supabase root CA (`DATABASE_CA`) for every host except loopback and the local
   Docker hosts. No `sslmode` in a URL.
-- The client address is `cf-connecting-ip` only. Never read `x-forwarded-for` or `true-client-ip`.
+- The client address is `cf-connecting-ip` on Supabase, and `x-madar-client-address` on the Worker (`clientAddress`,
+  `auth/forgot.ts`): the Worker has no public address, and the Pages Function always writes that header. Never read
+  `x-forwarded-for` or `true-client-ip`.
 
 ## Realtime, jobs, usage
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and

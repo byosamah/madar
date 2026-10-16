@@ -23,8 +23,9 @@ mail itself, through Resend (see `server/mail/CLAUDE.md`).
 - Forgot (`forgot.ts`): the same answer for every email. 3 in one window for each email (the window is 1 hour, the life of a
   link; a test reads config.toml), 10 an hour for each address. Over a limit: 429 with Retry-After. No office-wide cap.
 - `users.resendInvite`: 5 a day for each person.
-- The client address is `cf-connecting-ip` only (proven: it cannot be forged behind Cloudflare). Never read
-  `x-forwarded-for` or `true-client-ip`.
+- The client address is `cf-connecting-ip` on Supabase (proven: it cannot be forged behind Cloudflare). On the Worker it is
+  `x-madar-client-address`, which the Pages Function writes from its own `cf-connecting-ip` (the Worker has no public
+  address). Never read `x-forwarded-for` or `true-client-ip`.
 - Welcome and Reset use the link token only on the button press, and sign out the other devices after a save.
 
 ## Accepted or Invited

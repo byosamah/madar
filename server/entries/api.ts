@@ -1,4 +1,5 @@
 import { warmKeySet } from '../auth/verify';
+import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
 import { apiApp } from '../http/app';
 import { healthAnswer, pgHealthClient } from '../http/health';
@@ -14,6 +15,9 @@ export const apiMount: AppMount = {
         healthAnswer(request, {
           connect: pgHealthClient(values.database.writeUrl, values.database.ca),
           region: values.config.region,
+          // The host of this request: the health answer names it, so a check through the page host sees which host answered.
+          host: requestHost().host,
+          fileStore: values.config.fileStore,
           log: deps.log,
           secret: values.jobsSecret,
         }),
@@ -26,7 +30,7 @@ export const apiMount: AppMount = {
  * database read (a connect reads nothing).
  */
 export function warmApi(deps: Deps): void {
-  warmKeySet();
+  void warmKeySet();
   void deps.db.warm?.('read').catch(() => undefined);
 }
 

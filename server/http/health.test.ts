@@ -123,3 +123,23 @@ describe('GET /api/health', () => {
     expect(connects).toBe(0);
   });
 });
+
+describe('the host and the file store in the health answer (owner, 2026-10-16)', () => {
+  const SECRET = 'made-up-jobs-secret';
+  const get = (headers: Record<string, string> = {}) => new Request('http://127.0.0.1/api/health', { headers });
+
+  it('names the host and the file store without the secret, and needs no database for it', async () => {
+    let connects = 0;
+    const o = { connect: async () => { connects += 1; return fakeClient(); }, region: 'workers-eu-central-1', host: 'workers', fileStore: 'r2', secret: SECRET };
+    const result = await healthAnswer(get(), o);
+    expect(result.body).toEqual({ ok: true, region: 'workers-eu-central-1', host: 'workers', fileStore: 'r2', calls: 117 });
+    expect(connects).toBe(0);
+  });
+
+  it('names them beside the database checks too, and never a secret', async () => {
+    const o = { connect: async () => fakeClient(), region: 'eu-central-1', host: 'supabase', fileStore: 'supabase', secret: SECRET };
+    const result = await healthAnswer(get({ [HEALTH_SECRET_HEADER]: SECRET }), o);
+    expect(result.body).toMatchObject({ ok: true, host: 'supabase', fileStore: 'supabase', checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+    expect(JSON.stringify(result.body)).not.toContain(SECRET);
+  });
+});

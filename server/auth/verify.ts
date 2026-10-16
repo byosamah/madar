@@ -109,14 +109,15 @@ export function verifyBrowserToken(header: string | null): Promise<{ authUserId:
  * Starts the load of the key set of SUPABASE_URL and does not wait for it (performance audit LIV-7). The api function calls it
  * once when its worker starts, so the first token check finds the keys loaded or on the way: jose shares one load. It checks no
  * token and reads no database. A load that fails changes nothing: the next check loads the keys again. Without SUPABASE_URL it
- * does nothing, and the first check names the missing value as before.
+ * does nothing, and the first check names the missing value as before. The promise never fails: the Worker hands it to
+ * ctx.waitUntil (server/entries/worker.ts), so the load ends also when the first request ends first.
  */
-export function warmKeySet(): void {
+export function warmKeySet(): Promise<void> {
   let keys: { reload(): Promise<void> };
   try {
     keys = checkerFromEnv().keys;
   } catch {
-    return;
+    return Promise.resolve();
   }
-  void keys.reload().catch(() => undefined);
+  return keys.reload().catch(() => undefined);
 }

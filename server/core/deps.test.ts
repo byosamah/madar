@@ -76,6 +76,13 @@ describe('the real Deps from the environment', () => {
     });
   });
 
+  it('names the Worker by WORKER_REGION when SB_REGION is absent; on Supabase SB_REGION wins (owner, 2026-10-16)', () => {
+    const { SB_REGION: _region, ...worker } = FULL as Record<string, string>;
+    expect(configFromEnv(reader({ ...worker, WORKER_REGION: 'workers-eu-central-1' })).region).toBe('workers-eu-central-1');
+    expect(configFromEnv(reader({ ...FULL, WORKER_REGION: 'workers-eu-central-1' })).region).toBe(FULL.SB_REGION);
+    expect(configFromEnv(reader(worker)).region).toBe('unknown');
+  });
+
   it('refuses to start with a missing secret, and names each missing value', () => {
     expect(missingOf(without('DATABASE_URL'))).toEqual(['DATABASE_URL']);
     expect(missingOf(without('APP_URL', 'MAIL_FROM'))).toEqual(['APP_URL', 'MAIL_FROM']);
