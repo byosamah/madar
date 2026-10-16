@@ -1,0 +1,12 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://preview.madar-46r.pages.dev", "http://127.0.0.1:5173"],
+        "methods": ["PUT", "GET"],
+        "headers": ["Content-Type"]
+      },
+      "maxAgeSeconds": 7200
+    }
+  ]
+}

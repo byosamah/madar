@@ -29,8 +29,9 @@ export interface Clock {
 }
 
 /**
- * Where the files live (plan 2b, point 1): Supabase Storage first (MADAR_FILE_STORE=supabase, the default), R2 when the owner
- * turns it on (MADAR_FILE_STORE=r2). The limits come from the active store; MAX_FILE_BYTES in the contract stays the ceiling.
+ * Where the files live (plan 2b, point 1): Supabase Storage first (MADAR_FILE_STORE=supabase, the default), R2 after the switch
+ * (MADAR_FILE_STORE=r2; owner, 2026-10-16: the test copy first, then production). The limits come from the active store;
+ * MAX_FILE_BYTES in the contract stays the ceiling.
  */
 export type FileStoreKind = 'supabase' | 'r2';
 export const FILE_STORE_LIMITS: Record<FileStoreKind, { maxFileBytes: number; totalBytes: number }> = {

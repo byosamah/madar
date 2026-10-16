@@ -18,6 +18,16 @@ branch, and a push that changes only `docs/` runs nothing.
 - `files-backup.yml`, Friday 03:07 Riyadh: rclone sync of the file store to a Backblaze B2 crypt remote. PAUSED since
   2026-10-05 (`disabled_manually`): it waits for the owner's B2 account (`B2_KEY_ID`, `B2_APPLICATION_KEY`, the S3 key of
   the store, the crypt password and salt). After those secrets: `gh workflow enable "Files backup"`, then one run by hand.
+- After the production switch to R2 (owner, 2026-10-16), the source of the file backup is R2: the workflow follows
+  `vars.MADAR_FILE_STORE`. The source key is a read-only R2 token, never the server token. Each GitHub write needs the
+  owner's OK. The steps:
+  1. The owner makes the R2 token `madar-production-backup` in the dashboard: Object Read only, the bucket `madar-files` only.
+  2. `gh variable set MADAR_FILE_STORE --body r2 -R byosamah/madar`.
+  3. `gh secret set FILES_S3_ENDPOINT --body https://d76d34779c63849f5acdf3d6af3751cd.eu.r2.cloudflarestorage.com -R byosamah/madar`.
+  4. `gh secret set FILES_S3_ACCESS_KEY_ID -R byosamah/madar`, then `gh secret set FILES_S3_SECRET_ACCESS_KEY -R byosamah/madar`:
+     the owner types each value of the read-only token at the prompt (never in chat).
+  5. One run by hand (`gh workflow run "Files backup"`), when the workflow is on.
+  `FILES_BUCKET` stays `madar-files`: the production bucket has that name on both stores. The test copy has no file backup.
 - `restore-reminder.yml`, the first day of each month: opens one issue with the steps of the restore check.
 
 ## Rules

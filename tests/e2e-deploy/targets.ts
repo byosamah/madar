@@ -1,3 +1,4 @@
+import { r2Values, type R2Values } from '../../scripts/deploy/secrets';
 import { TEST_REF } from '../../scripts/seed-test-office';
 
 /**
@@ -62,4 +63,13 @@ export function appOrigin(env: Env, baseURL: string | undefined): string {
   const url = env.MADAR_E2E_APP_URL ?? baseURL;
   if (!url) throw new Error('MADAR_E2E_APP_URL is missing and the run has no baseURL.');
   return new URL(url).origin;
+}
+
+/**
+ * The R2 bucket that the walk reads after its upload (owner, 2026-10-16): the object count of the new files. Only the bucket of
+ * the test copy (madar-files-test), only on the R2 EU endpoint, and only with the four R2_ values of the environment (the R2
+ * lines of secrets/test.env). None of them gives null, and the walk then reports the count as n/a.
+ */
+export function r2BucketTarget(env: Env): R2Values | null {
+  return r2Values(env, 'test');
 }

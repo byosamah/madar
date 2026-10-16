@@ -6,7 +6,8 @@
 // among them. A run:
 //   1. reads the plan: the Madar tables with their rows now and after, the 4 accounts, and the other Auth users;
 //   2. sets the 4 Auth accounts (one for each office role): a new password on an Auth user that exists, or a new Auth user;
-//      then uploads the sample files to Storage, each under a real object key (the pictures as PNG, scripts/seed-pictures.ts);
+//      then uploads the sample files to the file store of madar-test, each under a real object key (the pictures as PNG,
+//      scripts/seed-pictures.ts): Supabase Storage, or the R2 bucket madar-files-test when MADAR_FILE_STORE is r2;
 //   3. in one transaction as postgres under the office lock: records every office row as deleted (so a warm office cache drops
 //      it), empties the Madar tables and the platform table agent_approvals, writes the sample office of today (writeState of
 //      buildSeed, without its agents: testOffice), and links the 4 accounts. With MAIL_DRIVER=outbox it also empties mail_log;
@@ -18,6 +19,7 @@
 // Values: load ~/dev/madar/.env.local first (set -a; . ~/dev/madar/.env.local; set +a); secrets/test.env is read too when it
 // exists. The database password: MADAR_TEST_DB_PASSWORD. The secret key: MADAR_SECRET_KEY, else the Management API with
 // SUPABASE_ACCESS_TOKEN. The 4 passwords: the secrets that tests/e2e-deploy/accounts.ts names (MADAR_TEST_PASSWORD_<ROLE>).
+// MADAR_FILE_STORE and the four R2 values of secrets/test.env choose the file store (seedFilesFor).
 // The script never prints a password or a key.
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -32,13 +34,17 @@ import { authAdminPort, AuthAdminError } from '../server/auth/admin';
 import { LOCK_TIMEOUT_CODE, takeOfficeLock } from '../server/core/lock';
 import type { AuthUserInfo, Query } from '../server/core/ports';
 import { setAuthUserId } from '../server/data/officeCache';
+import { fileStoreKind } from '../server/core/ports';
 import { assertObjectKey, isObjectKey, objectKey } from '../server/files/keys';
 import { storedMimeType } from '../server/files/links';
+import type { R2Env } from '../server/files/r2';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES } from '../server/data/tables';
 import { writeState } from '../server/data/whole';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES, type DeployAccount } from '../tests/e2e-deploy/accounts';
+import { R2_BUCKETS, r2Values } from './deploy/secrets';
 import { clientDb, cloudTarget, OFFICE_LOCK_KEY, secretKeyFromApi, type FirstAdminDb } from './first-admin';
 import { PNG_PICTURES } from './seed-pictures';
+import { r2Target } from './storage/move-to-r2';
 
 /** madar-test, the only project this script changes. */
 export const TEST_REF = 'qdgwpnesxppnqsaabqzd';
@@ -233,8 +239,8 @@ export function withObjectKeys(state: State, blobs: ReadonlyMap<string, Blob>): 
   return { office, uploads };
 }
 
-/** The Storage call of the seed: one sample file into the bucket of the real store. */
-export type SeedFiles = { put(key: string, blob: Blob): Promise<void> };
+/** The file store call of the seed: one sample file into the bucket of the real store. where names the store in the plan. */
+export type SeedFiles = { where: string; put(key: string, blob: Blob): Promise<void> };
 
 /**
  * Puts a file with the secret key, and replaces the object of an earlier seed (x-upsert). The object keeps the type that the
@@ -244,6 +250,7 @@ export function seedFilesPort(o: { supabaseUrl: string; secretKey: string; bucke
   const send = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
   const base = `${o.supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${o.bucket}`;
   return {
+    where: 'Supabase Storage',
     async put(key, blob) {
       assertObjectKey(key);
       const response = await send(`${base}/${key}`, {
@@ -255,6 +262,42 @@ export function seedFilesPort(o: { supabaseUrl: string; secretKey: string; bucke
       if (!response.ok) throw new Error(`Storage refused the sample file ${key} with ${response.status}.`);
     },
   };
+}
+
+/**
+ * Puts a file into the R2 bucket madar-files-test (owner, 2026-10-16), signed with the R2 values of secrets/test.env, on the R2
+ * EU endpoint. An R2 PUT replaces the object of an earlier seed, as x-upsert does on Storage. The object keeps the type that
+ * the real store keeps (storedMimeType). It refuses every other bucket and every other endpoint, so a seed never writes into
+ * the bucket of production. Errors name the key and the status, never a key of the account.
+ */
+export function seedR2Port(env: R2Env): SeedFiles {
+  if (env.bucket !== R2_BUCKETS.test) throw new SeedRefused(`The seed writes only into the R2 bucket ${R2_BUCKETS.test}, not ${env.bucket}.`);
+  if (env.endpoint !== undefined) throw new SeedRefused('The seed writes only to the R2 EU endpoint of the account.');
+  const target = r2Target(env);
+  return {
+    where: `the R2 bucket ${env.bucket}`,
+    async put(key, blob) {
+      assertObjectKey(key);
+      try {
+        await target.write(key, await blob.arrayBuffer(), storedMimeType(blob.type));
+      } catch (error) {
+        throw new Error(`R2 refused the sample file ${key}: ${error instanceof Error ? error.message : 'network error'}`);
+      }
+    },
+  };
+}
+
+/**
+ * The file store of the seed, by MADAR_FILE_STORE (the environment, then secrets/test.env): Supabase Storage before the switch,
+ * the R2 bucket madar-files-test after it. Without the R2 port, a seed after the switch left every sample file with no content.
+ */
+export function seedFilesFor(env: Record<string, string | undefined>, o: { supabaseUrl: string; secretKey: string; fetch?: typeof fetch }): SeedFiles {
+  if (fileStoreKind(env.MADAR_FILE_STORE) === 'supabase') {
+    return seedFilesPort({ supabaseUrl: o.supabaseUrl, secretKey: o.secretKey, bucket: env.FILES_BUCKET ?? 'madar-files', ...(o.fetch ? { fetch: o.fetch } : {}) });
+  }
+  const r2 = r2Values(env, 'test');
+  if (!r2) throw new SeedRefused('MADAR_FILE_STORE is r2, but the R2 values are missing: add the four R2 lines to secrets/test.env. Nothing changed.');
+  return seedR2Port({ ...r2, ...(o.fetch ? { fetch: o.fetch } : {}) });
 }
 
 // ---------- The accounts ----------
@@ -347,8 +390,9 @@ export type SeedPlan = {
   removeAuth: { authUserId: string; email: string | null }[];
   missingSecrets: string[];
   shortSecrets: string[];
-  /** The sample files that the run uploads to Storage. */
+  /** The sample files that the run uploads, and the store that gets them (SeedFiles.where). */
   uploads: number;
+  uploadsTo?: string;
   /** True with MAIL_DRIVER=outbox: the run empties mail_log (CLEAR_MAIL_LOG_SQL). */
   clearMailLog: boolean;
 };
@@ -362,7 +406,7 @@ export function planText(plan: SeedPlan): string {
     for (const t of plan.tables) lines.push(t.kept ? `  ${t.table}: ${t.rowsNow} rows, kept` : `  ${t.table}: ${t.rowsNow} rows now, ${t.rowsAfter} after`);
     if (plan.clearMailLog) lines.push('  The mail count of the day starts again: madar-test sends no mail (MAIL_DRIVER=outbox).');
   }
-  if (plan.uploads > 0) lines.push(`Upload ${plan.uploads} sample files to Storage, so they open on madar-test.`);
+  if (plan.uploads > 0) lines.push(`Upload ${plan.uploads} sample files to ${plan.uploadsTo ?? 'the file store'}, so they open on madar-test.`);
   lines.push('Accounts:');
   for (const a of plan.accounts) {
     const what = a.authUserId ? 'set a new password on the existing Auth user' : 'make a new Auth user';
@@ -380,7 +424,7 @@ export function planText(plan: SeedPlan): string {
 }
 
 async function readPlan(o: {
-  q: Query; auth: SeedAuth; seed: State; ref: string; env: Record<string, string | undefined>; dryRun: boolean; uploads: number;
+  q: Query; auth: SeedAuth; seed: State; ref: string; env: Record<string, string | undefined>; dryRun: boolean; uploads: number; uploadsTo?: string;
 }): Promise<SeedPlan> {
   const clearMailLog = o.env.MAIL_DRIVER === 'outbox';
   const accounts = seedAccounts(o.seed);
@@ -407,7 +451,7 @@ async function readPlan(o: {
     removeAuth: users.filter((user) => !mine.has(user.authUserId)).map((user) => ({ authUserId: user.authUserId, email: user.email })),
     missingSecrets: accounts.filter((a) => !o.env[a.passwordSecret]).map((a) => a.passwordSecret),
     shortSecrets: accounts.filter((a) => (o.env[a.passwordSecret] ?? '').length > 0 && o.env[a.passwordSecret]!.length < MIN_PASSWORD).map((a) => a.passwordSecret),
-    uploads: o.uploads, clearMailLog,
+    uploads: o.uploads, ...(o.uploadsTo ? { uploadsTo: o.uploadsTo } : {}), clearMailLog,
   };
 }
 
@@ -436,8 +480,8 @@ export type SeedOptions = {
 export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan: SeedPlan }> {
   if (o.ref !== TEST_REF) throw new SeedRefused(`This script runs only on madar-test (${TEST_REF}), not on the project ${o.ref}.`);
   const { office, uploads } = o.blobs ? withObjectKeys(testOffice(o.seed), o.blobs) : { office: testOffice(o.seed), uploads: [] };
-  if (uploads.length > 0 && !o.files) throw new Error('The run has sample files to upload, but no Storage port.');
-  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: office, ref: o.ref, env: o.env, dryRun: o.dryRun, uploads: uploads.length });
+  if (uploads.length > 0 && !o.files) throw new Error('The run has sample files to upload, but no file store port.');
+  const plan = await readPlan({ q: o.db.q, auth: o.auth, seed: office, ref: o.ref, env: o.env, dryRun: o.dryRun, uploads: uploads.length, uploadsTo: o.files?.where });
   o.log(planText(plan));
   if (o.dryRun) {
     o.log('Nothing changed (dry run).');
@@ -464,7 +508,7 @@ export async function runSeed(o: SeedOptions): Promise<{ changed: boolean; plan:
 
   // Before the tables, so no row names an object that is not there yet. A key of an earlier seed gets the new content.
   for (const upload of uploads) await o.files!.put(upload.key, upload.blob);
-  if (uploads.length > 0) changes.push(`Uploaded ${uploads.length} sample files to Storage.`);
+  if (uploads.length > 0) changes.push(`Uploaded ${uploads.length} sample files to ${o.files!.where}.`);
 
   const writeOffice = o.writeOffice ?? writeState;
   try {
@@ -525,10 +569,8 @@ async function main(): Promise<void> {
   const now = new Date();
   const blobs = new Map<string, Blob>();
   const seed = settleFuture(await buildSeed(todayISO(now), async (key, blob) => void blobs.set(key, blob), PNG_PICTURES), now);
-  // Only Supabase Storage gets the sample files. With another store (r2) the files stay without content, as before.
-  const store = (process.env.MADAR_FILE_STORE ?? 'supabase') === 'supabase'
-    ? { blobs, files: seedFilesPort({ supabaseUrl: target.supabaseUrl, secretKey, bucket: process.env.FILES_BUCKET ?? 'madar-files' }) }
-    : {};
+  // The store of the screens gets the sample files: Supabase Storage, or madar-files-test after the switch to R2.
+  const store = { blobs, files: seedFilesFor(process.env, { supabaseUrl: target.supabaseUrl, secretKey }) };
   const client = new pg.Client(cloud.pg);
   await client.connect();
   try {

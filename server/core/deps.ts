@@ -39,7 +39,8 @@ import { copyOfSupabaseUrl, serverHostOf } from './serverHost';
  *   VAPID_PUBLIC_KEY       browser push: the public key of the VAPID pair, base64url (all three VAPID values or none)
  *   VAPID_PRIVATE_KEY      browser push: the raw 32 byte private value, base64url
  *   VAPID_SUBJECT          browser push: a mailto: or https: address of the sender, for example mailto:madar@vado.sa
- *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values)
+ *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values). The store
+ *                          does not follow the host: the Supabase functions and the Worker of one copy get the same values
  *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
  *                          sees another address for Storage than the browser does (a local function sees http://kong:8000)
  *   MIN_CLIENT_BUILD       the oldest screen build the server accepts (default 0)

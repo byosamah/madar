@@ -1066,26 +1066,41 @@ Source of the pattern: https://developers.cloudflare.com/r2/examples/aws/aws4fet
 
 ### 8.5 CORS for browser uploads
 
+`wrangler r2 bucket cors set` takes only the R2 form: a `rules` array, each rule with an `allowed` object of lower-case keys.
+wrangler 4.147.0 refuses the S3 form: it stops on a `CORSRules` key, on a file with no `rules` array, and on the keys
+`AllowedOrigins`, `AllowedMethods` and `AllowedHeaders` (checked in `node_modules/wrangler/wrangler-dist/cli.js`, 2026-10-16).
+The S3 API and the dashboard use the S3 form instead.
+
+The two files of Madar (`config/r2-cors.test.json`, `config/r2-cors.production.json`; `scripts/deploy/r2-cors.test.ts` checks
+them). The production file:
+
 ```json
-[
-  {
-    "AllowedOrigins": ["https://<madar domain>"],
-    "AllowedMethods": ["PUT", "GET", "HEAD"],
-    "AllowedHeaders": ["Content-Type"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://madar.vado.sa", "https://www.madar.vado.sa", "https://madar-46r.pages.dev"],
+        "methods": ["PUT", "GET"],
+        "headers": ["Content-Type"]
+      },
+      "maxAgeSeconds": 7200
+    }
+  ]
+}
 ```
+
+The test file has `https://preview.madar-46r.pages.dev` and `http://127.0.0.1:5173` (the local port goes on the test bucket only).
+No `exposeHeaders`: the screens read no R2 header. The browser sends only the upload PUT with `Content-Type` across origins.
+A picture, the PDF preview (`iframe`) and a download link need no CORS.
 
 ```bash
-npx wrangler r2 bucket cors set <BUCKET_NAME> --file cors.json
-npx wrangler r2 bucket cors list <BUCKET_NAME>
+npx wrangler r2 bucket cors set madar-files-test --file config/r2-cors.test.json --jurisdiction eu --force
+npx wrangler r2 bucket cors set madar-files --file config/r2-cors.production.json --jurisdiction eu --force
+npx wrangler r2 bucket cors list madar-files-test --jurisdiction eu
 ```
 
-A change can take up to 30 seconds. A request without `Origin` gets no CORS headers. List each localhost port on its own. Source: https://developers.cloudflare.com/r2/buckets/cors/
-
-**CHECK AT STEP 4:** the file format that `wrangler r2 bucket cors set` accepts. The dashboard takes the JSON above.
+A change can take up to 30 seconds. A request without `Origin` gets no CORS headers. List each localhost port on its own. An expired
+presigned URL gets 403 with no CORS headers, so the screen cannot read the error body. Source: https://developers.cloudflare.com/r2/buckets/cors/
 
 ---
 

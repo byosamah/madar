@@ -1,12 +1,15 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Browser, Locator, Page, Request } from '@playwright/test';
+import { r2FilesPort } from '../../server/files/r2';
 import { DEPLOY_ACCOUNTS } from './accounts';
 import { expect, passwordOf, PERSON_AR_OF, PERSON_OF, test } from './fixtures';
 import { goto, settle, urlPattern } from './goto';
 import { withClient } from './mail';
 import { closeTo, shownColors, WALK_PICTURE } from './picture';
 import { batchAs, NO_SESSION, openMenu, runId, type Lang } from './steps';
+import { isSignedFileLink, storeOfUpload, type WalkStore } from './store';
+import { r2BucketTarget } from './targets';
 import { word } from './words';
 
 /**
@@ -56,6 +59,26 @@ async function waitRow<T = Record<string, unknown>>(label: string, sql: string, 
 }
 
 type Result = { step: string; role: string; ok: boolean; note: string };
+
+/**
+ * The new objects of the walk upload, in the store that took it (owner, 2026-10-16): storage.objects on Supabase Storage, a head
+ * of each new key on R2. R2 needs the four R2_ values of the test bucket in the environment (targets.ts, r2BucketTarget);
+ * without them the count is n/a.
+ */
+async function objectCount(store: WalkStore | undefined, keys: string[]): Promise<string> {
+  if (store === 'supabase') {
+    const [row] = await q<{ n: string }>("select count(*)::text as n from storage.objects where bucket_id = 'madar-files' and created_at > now() - interval '3 minutes'");
+    return `store supabase; new storage objects ${row.n}`;
+  }
+  if (store === 'r2') {
+    const r2 = r2BucketTarget(process.env);
+    if (!r2) return 'store r2; R2 objects n/a (no R2 values in the environment)';
+    const port = r2FilesPort(r2);
+    const found = await Promise.all(keys.map((key) => port.head(key, { timeoutMs: 15_000 }).catch(() => null)));
+    return `store r2; R2 objects ${found.filter(Boolean).length} of ${keys.length}`;
+  }
+  return 'store unknown (no upload PUT seen)';
+}
 
 /** Signs in a fresh browser of one person and puts the language back to English (the end of the walk). */
 async function restoreEnglish(browser: Browser, baseURL: string, role: Role): Promise<void> {
@@ -366,14 +389,20 @@ for (const { lang, width } of VARIANTS) {
       const page = pages.admin;
       await goto(page, `/projects/${ctx.projectId}?tab=files`);
       const pdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 200 200]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+      // The store of the upload comes from the host of its signed PUT (store.ts).
+      const puts: string[] = [];
+      const watchPut = (request: Request) => { if (request.method() === 'PUT') puts.push(request.url()); };
+      page.on('request', watchPut);
       await page.locator('input[type="file"]').first().setInputFiles([
         { name: `${fileBase}.png`, mimeType: 'image/png', buffer: WALK_PICTURE.png() },
         { name: `${fileBase}.pdf`, mimeType: 'application/pdf', buffer: pdf },
       ]);
       await expect(page.getByText(w('files.uploaded', { n: '2' })).first()).toBeVisible({ timeout: 30_000 });
-      const rows = await q<{ id: string }>('select id from files where project_id = $1 and doc::text like $2', [ctx.projectId, `%${fileBase}%`]);
+      page.off('request', watchPut);
+      const stores = [...new Set(puts.map(storeOfUpload).filter((store): store is WalkStore => store !== null))];
+      const rows = await q<{ id: string; key: string | null }>("select id, doc->'versions'->0->>'blobKey' as key from files where project_id = $1 and doc::text like $2", [ctx.projectId, `%${fileBase}%`]);
       if (rows.length !== 2) throw new Error(`DB: ${rows.length} files rows`);
-      const objects = await q<{ n: string }>("select count(*)::text as n from storage.objects where bucket_id = 'madar-files' and created_at > now() - interval '3 minutes'");
+      const objects = await objectCount(stores.length === 1 ? stores[0] : undefined, rows.map((row) => row.key ?? ''));
       await shot('file', 'admin');
       // The toast sits over the bottom of the preview at 390 px; the pixel check waits until it goes.
       await expect(page.getByText(w('files.uploaded', { n: '2' }))).toHaveCount(0, { timeout: 15_000 });
@@ -390,7 +419,7 @@ for (const { lang, width } of VARIANTS) {
       await page.keyboard.press('Escape');
       // The download of the PDF: a download, a new tab, or at least a signed link.
       const signed: string[] = [];
-      const watch = (request: Request) => { if (/storage\/v1\/object\/sign/.test(request.url())) signed.push(request.url()); };
+      const watch = (request: Request) => { if (isSignedFileLink(request.url())) signed.push(request.url()); };
       page.on('request', watch);
       const download = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
       const popup = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null);
@@ -409,7 +438,7 @@ for (const { lang, width } of VARIANTS) {
       } else {
         throw new Error('the Download gave no download, no new tab and no signed link');
       }
-      return `files rows 2; new storage objects ${objects[0].n}; preview pixels match the 4 quarters; ${how}`;
+      return `files rows 2; ${objects}; preview pixels match the 4 quarters; ${how}`;
     });
 
     // 11. Requests and bugs (owner, 2026-10-07): the Member reports a bug with a screenshot. Each active Admin gets a notice that

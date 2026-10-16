@@ -11,10 +11,16 @@ import { HEAD_TIMEOUT_MS, baseMimeType, isPictureType, storedMimeType } from './
  *      staging leftover goes quietly, and nothing is copied. Storage refuses a copy onto a key that holds an object, and R2
  *      would replace it, so a confirmed version never changes.
  *   2. head on the staging key, compared with the intent: the size, and the type in lower case without parameters against
- *      storedMimeType of the declared type. The signed link does not fix the type on Storage, so this is the only type guard.
+ *      storedMimeType of the declared type. The signed link does not fix the type on Storage, so this is the only type guard
+ *      there. An R2 link signs the type, so R2 refuses a PUT with another type; the check still runs.
  *   3. copy to the empty final key, then head on the final key and the same comparison: the copy result is what a file version uses.
- *   4. remove the staging key. A second PUT to the staging link cannot replace the object between steps 2 and 3: the links are
- *      signed without upsert, so the store refuses a PUT to a key that holds an object.
+ *   4. remove the staging key.
+ *
+ * A second PUT to the staging link: Supabase Storage signs the links without upsert, so it refuses a PUT to a staging key that
+ * holds an object. R2 (S3) has no such rule: a second PUT replaces the staged object, also between steps 2 and 3. The guard on
+ * both stores is the head of the final key after the copy (step 3): the object that the version uses must have the declared
+ * size and type, so a replaced object passes only when it matches the intent. Only the person who started the upload has the
+ * link. server/it/files.it.test.ts pins both stores.
  *
  * A mismatch refuses the call and removes the object.
  */

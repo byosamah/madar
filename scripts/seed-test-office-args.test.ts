@@ -6,7 +6,8 @@ import { buildSeed } from '../src/data/seed';
 import { DEPLOY_ACCOUNTS, DEPLOY_ROLES } from '../tests/e2e-deploy/accounts';
 import {
   CLEAR_MAIL_LOG_SQL, KEEP_TABLES, PLATFORM_SEED_TABLES, PRESENT_SQL, RECORD_DELETES_SQL, SEED_LOCK_TIMEOUT_SQL, SeedRefused, TEST_REF, TRUNCATE_SQL,
-  TRUNCATE_TABLES, parseArgs, planText, runSeed, seedAccounts, seedAuthPort, seedFilesPort, seedTarget, testOffice, withObjectKeys, type SeedAuth,
+  TRUNCATE_TABLES, parseArgs, planText, runSeed, seedAccounts, seedAuthPort, seedFilesFor, seedFilesPort, seedR2Port, seedTarget, testOffice, withObjectKeys,
+  type SeedAuth,
 } from './seed-test-office';
 import { isObjectKey } from '../server/files/keys';
 import { OFFICE_LOCK_KEY } from './first-admin';
@@ -411,7 +412,7 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
   it('uploads the files after the accounts and before the tables, and the dry run only counts them', async () => {
     const { state, blobs } = await withBlobs();
     const order: string[] = [];
-    const files = { async put(key: string) { order.push(`put ${key}`); } };
+    const files = { where: 'Supabase Storage', async put(key: string) { order.push(`put ${key}`); } };
     const dry = fakeDb();
     const dryLines: string[] = [];
     await runSeed({
@@ -420,7 +421,7 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
     });
     expect(order).toEqual([]);
     const count = Object.values(state.files).reduce((n, file) => n + file.versions.length, 0);
-    expect(dryLines.join('\n')).toMatch(new RegExp(`Upload ${count} sample files to Storage`));
+    expect(dryLines.join('\n')).toMatch(new RegExp(`Upload ${count} sample files to Supabase Storage, so they open on madar-test`));
 
     const { fake, db } = fakeDb();
     const lines: string[] = [];
@@ -436,7 +437,7 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
     expect(order.lastIndexOf('account')).toBeLessThan(order.indexOf(`put prj-001/fil-001/1/file`));
     expect(order.at(-1)).toBe('tables');
     expect(fake.written[0].files.fil_001.versions[0].blobKey).toBe('prj-001/fil-001/1/file');
-    expect(lines.join('\n')).toMatch(new RegExp(`Uploaded ${count} sample files to Storage`));
+    expect(lines.join('\n')).toMatch(new RegExp(`Uploaded ${count} sample files to Supabase Storage\\.`));
   });
 
   it('puts a file into the bucket with the secret key, upsert, and the type that the store keeps; an SVG goes as a download', async () => {
@@ -446,6 +447,7 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
       return seen.length === 3 ? new Response('{"error":"nope"}', { status: 403 }) : Response.json({ Key: 'x' });
     }) as typeof globalThis.fetch;
     const store = seedFilesPort({ supabaseUrl: TEST_URL, secretKey: 'sb_secret_k', bucket: 'madar-files', fetch });
+    expect(store.where).toBe('Supabase Storage');
     await store.put('prj-001/fil-001/1/file', new Blob(['png'], { type: 'image/png' }));
     expect(seen[0].method).toBe('POST');
     expect(seen[0].url).toBe(`${TEST_URL}/storage/v1/object/madar-files/prj-001/fil-001/1/file`);
@@ -459,6 +461,78 @@ describe('seed-test-office: the sample files (2026-10-06)', () => {
     expect(String(error)).not.toContain('sb_secret_k');
     await expect(store.put('blob_seed_001', new Blob(['x']))).rejects.toThrow(/not a valid object key/);
     expect(seen).toHaveLength(3);
+  });
+});
+
+describe('seed-test-office: the sample files on R2 (owner, 2026-10-16)', () => {
+  const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
+  const R2 = { accountId: ACCOUNT, accessKeyId: 'key-id-value-7', secretAccessKey: 'secret-value-7', bucket: 'madar-files-test' };
+  const R2_ENV = {
+    MADAR_FILE_STORE: 'r2', R2_ACCOUNT_ID: ACCOUNT, R2_ACCESS_KEY_ID: 'key-id-value-7', R2_SECRET_ACCESS_KEY: 'secret-value-7', R2_BUCKET: 'madar-files-test',
+  };
+  const watch = (status = 200) => {
+    const seen: Request[] = [];
+    const fetch = (async (input: RequestInfo | URL) => {
+      seen.push(input as Request);
+      return new Response('', { status: seen.length === 3 ? 403 : status });
+    }) as typeof globalThis.fetch;
+    return { seen, fetch };
+  };
+
+  it('puts a file into madar-files-test on the R2 EU endpoint, signed, with the type that the store keeps; an SVG goes as a download', async () => {
+    const { seen, fetch } = watch();
+    const store = seedR2Port({ ...R2, fetch });
+    expect(store.where).toBe('the R2 bucket madar-files-test');
+    await store.put('prj-001/fil-001/1/file', new Blob(['png'], { type: 'image/png' }));
+    expect(seen[0].method).toBe('PUT');
+    expect(seen[0].url).toBe(`https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files-test/prj-001/fil-001/1/file`);
+    expect(seen[0].headers.get('content-type')).toBe('image/png');
+    expect(seen[0].headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 Credential=key-id-value-7\//);
+    expect(await seen[0].text()).toBe('png');
+    await store.put('prj-001/fil-002/1/file', new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+    expect(seen[1].headers.get('content-type')).toBe('application/octet-stream');
+    const error = await store.put('prj-001/fil-003/1/file', new Blob(['%PDF'], { type: 'application/pdf' })).catch((e: unknown) => String(e));
+    expect(error).toMatch(/R2 refused the sample file prj-001\/fil-003\/1\/file.*403/);
+    for (const value of ['secret-value-7', 'key-id-value-7']) expect(error).not.toContain(value);
+    await expect(store.put('blob_seed_001', new Blob(['x']))).rejects.toThrow(/not a valid object key/);
+    expect(seen).toHaveLength(3);
+  });
+
+  it('refuses every bucket but madar-files-test, and any endpoint but the R2 EU endpoint', () => {
+    expect(() => seedR2Port({ ...R2, bucket: 'madar-files' })).toThrow(SeedRefused);
+    expect(() => seedR2Port({ ...R2, bucket: 'madar-files' })).toThrow(/only into the R2 bucket madar-files-test, not madar-files/);
+    expect(() => seedR2Port({ ...R2, endpoint: 'http://127.0.0.1:9100' })).toThrow(/R2 EU endpoint/);
+  });
+
+  it('chooses the port by MADAR_FILE_STORE of secrets/test.env: Storage by default, R2 after the switch', () => {
+    const o = { supabaseUrl: TEST_URL, secretKey: 'sb_secret_k' };
+    expect(seedFilesFor({}, o).where).toBe('Supabase Storage');
+    expect(seedFilesFor({ ...R2_ENV, MADAR_FILE_STORE: 'supabase' }, o).where).toBe('Supabase Storage');
+    expect(seedFilesFor(R2_ENV, o).where).toBe('the R2 bucket madar-files-test');
+  });
+
+  it('after the switch, refuses a seed with no R2 values, or with the production bucket, before any upload', () => {
+    const o = { supabaseUrl: TEST_URL, secretKey: 'sb_secret_k' };
+    expect(() => seedFilesFor({ MADAR_FILE_STORE: 'r2' }, o)).toThrow(/MADAR_FILE_STORE is r2, but the R2 values are missing/);
+    expect(() => seedFilesFor({ ...R2_ENV, R2_BUCKET: 'madar-files' }, o)).toThrow(/R2_BUCKET must be madar-files-test for test/);
+    expect(() => seedFilesFor({ MADAR_FILE_STORE: 's3' }, o)).toThrow(/MADAR_FILE_STORE must be supabase or r2/);
+  });
+
+  it('uploads every sample file through the R2 port, so no sample file of the test copy breaks after the switch', async () => {
+    const blobs = new Map<string, Blob>();
+    const state = await buildSeed('2026-10-04', async (key, blob) => void blobs.set(key, blob));
+    const seen: Request[] = [];
+    const ok = (async (input: RequestInfo | URL) => (seen.push(input as Request), new Response('', { status: 200 }))) as typeof globalThis.fetch;
+    const { fake, db } = fakeDb();
+    const lines: string[] = [];
+    await runSeed({
+      db, auth: fakeAuth(fake, EXISTING), seed: state, ref: TEST_REF, env: PASSWORDS, dryRun: false, lockKey: OFFICE_LOCK_KEY,
+      log: (line) => lines.push(line), writeOffice: async (_q, written) => void fake.written.push(written), blobs, files: seedR2Port({ ...R2, fetch: ok }),
+    });
+    const count = Object.values(state.files).reduce((n, file) => n + file.versions.length, 0);
+    expect(seen).toHaveLength(count);
+    expect(seen.every((request) => request.url.startsWith(`https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files-test/`))).toBe(true);
+    expect(lines.join('\n')).toMatch(new RegExp(`Uploaded ${count} sample files to the R2 bucket madar-files-test\\.`));
   });
 });
 
