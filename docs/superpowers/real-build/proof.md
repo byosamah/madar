@@ -1103,3 +1103,9 @@ One `db.sh` run gave `DbPushMissingLocalError` with both files in the folder; `d
 - **Statements** (`pg_stat_statements` of madar_server through the Management API, read only): 752 statements for 40 member
   calls, 40 health checks and 40 refusals (both paths). That is about 15 statements for each call at most (Hyperdrive counts one query for
   a joined start that Postgres counts as two or three statements).
+- **How strict is the Free CPU limit** (throwaway Worker `madar-cpu-probe`, a fixed CPU loop, 2026-10-16 15:40 UTC; now
+  `workers_dev` false, 404). The plan of the account is Free: a call with 60 fetches stopped at 50 with "Too many subrequests"
+  (Paid allows 10,000). Yet the CPU limit of 10 ms did not stop calls: 60 calls of about 26 ms and 20 of about 150 ms all gave
+  200; 10 calls of about 500 ms gave 9 times 200 and once 503 (error 1102). The heaviest Madar call measured 137 ms. This is
+  Cloudflare behaviour that the documents do not promise (they say 10 ms): it can change without notice.
+
