@@ -472,8 +472,8 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   The usage meter must use the Free day limit, not 10M a month.
 - [x] Map of every change (three readers)
 - [x] Hyperdrive probe on madar-test: go on the session pooler 5432, no go on 6543 (proof.md, commit 0457809)
-- [ ] Live updates: madar-test has no realtime.messages day table for 2026-10-16 (last: 2026-10-15), so every change
-  signal fails since 00:00 UTC (saves still work). Check production read only. Find why Realtime stopped making the tables.
+- [x] Live updates on madar-test: no realtime.messages day table for 2026-10-16 at 14:39 UTC. Not a defect: a WebSocket
+  client makes the day table (platform-facts.md 2, realtime.send), and no screen of the test copy was open today.
 - [ ] Build on `rb/cloudflare`: deploy steps for R2 and the Worker, the screens address, the jobs trigger, the MCP forwarder, guides
 - [ ] Cloud setup: two EU buckets and their CORS, the Supabase CA, two Hyperdrive setups (caching off), two Workers
 - [ ] Owner: one R2 API token for each bucket, into the secrets files
