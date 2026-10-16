@@ -3,18 +3,32 @@ import { fileURLToPath } from 'node:url';
 import { AwsClient } from 'aws4fetch';
 import { storedMimeType } from '../../server/files/links';
 import { r2Endpoint, r2FilesPort, type R2Env } from '../../server/files/r2';
+import type { Target } from '../deploy/secrets';
+import { secretKeyFromApi } from '../first-admin';
+import { accessToken, askLine, confirmProduction, copyEnv, envArg, readLocalEnv, readSecretsText } from './env';
 
 /**
- * The move of the files from Supabase Storage to R2 (plan 2b, point 1): every object goes to R2 with the same key, and with
- * the type that an upload gets (storedMimeType, so a download-only type lands as application/octet-stream).
+ * The move of the files from Supabase Storage to R2 (plan 2b, point 1; owner, 2026-10-16): every object goes to R2 with the same
+ * key, and with the type that an upload gets (storedMimeType, so a download-only type lands as application/octet-stream).
  * A full copy first, then a second pass for the objects that changed or came during the first. Then every key on R2 that the
  * source no longer has goes, also one from an earlier run (a project delete between two runs). Last, a size check of each
  * object on R2. The source stays as it is. After a clean run the switch is one setting: MADAR_FILE_STORE=r2 plus the R2 secrets.
- * The run refuses to start after the switch (MADAR_FILE_STORE=r2): R2 then holds files that Storage never had, and the
+ * The full move refuses to start after the switch (MADAR_FILE_STORE=r2): R2 then holds files that Storage never had, and the
  * clean-up step would remove them.
  *
- * Run (the screens keep working during the run, so run it once more right before the switch):
- *   set -a; . <secrets file>; set +a; npx tsx scripts/storage/move-to-r2.ts
+ * --copy-only is the pass for after the switch (scripts/deploy/CLAUDE.md, "Switch the files to R2"): it copies only the keys
+ * that R2 lacks (an upload that people confirmed on Storage just before the switch), never removes a key, and never writes a key
+ * that R2 holds. It runs before and after the switch.
+ *
+ * Run for one copy (the screens keep working during the run, so run it once more right before the switch):
+ *   npx tsx scripts/storage/move-to-r2.ts --env test|production [--copy-only]
+ * The project comes from the fixed ref, the Storage secret key from the Management API with SUPABASE_ACCESS_TOKEN (the
+ * environment, else .env.local), and MADAR_FILE_STORE, FILES_BUCKET and the four R2 values from secrets/<env>.env only. It
+ * refuses an R2_BUCKET that is not the bucket of that copy (madar-files-test, madar-files). Production asks for the typed word
+ * production on stdin (echo production | ...) and refuses under CI. Network calls need the sandbox off.
+ *
+ * The old form takes every value from the shell (the integration test runs it on MinIO):
+ *   set -a; . <values>; set +a; npx tsx scripts/storage/move-to-r2.ts [--copy-only]
  * Values: SUPABASE_URL, MADAR_SECRET_KEY (the Storage secret key), FILES_BUCKET (default madar-files),
  *   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and R2_ENDPOINT only for a test target (MinIO).
  * It prints one JSON report with no secret and no link, and exits 1 when an object differs on R2.
@@ -94,6 +108,54 @@ export async function moveToR2(source: MoveSource, target: MoveTarget, o: { log?
   };
 }
 
+export type CopyReport = {
+  /** The objects on the source. */
+  objects: number;
+  /** Source keys that R2 holds already: R2 keeps its object. */
+  alreadyOnTarget: number;
+  copied: number;
+  /** Keys that went from the source between the list and the read. */
+  goneFromSource: number;
+  /** Copied keys whose size on R2 differs from the source. */
+  mismatched: string[];
+};
+
+/**
+ * The copy-only pass: every source key that R2 lacks goes to R2. It never removes a key and never writes a key that R2 holds,
+ * so it is safe after the switch, when R2 holds files that Storage never had. A new upload never takes an old key (each upload
+ * has a new intent), but a head right before each write keeps that rule also when a key reaches R2 after the list.
+ */
+export async function copyMissing(source: MoveSource, target: MoveTarget, o: { log?: (line: string) => void } = {}): Promise<CopyReport> {
+  const log = o.log ?? ((line: string) => console.error(line));
+  const objects = await source.list();
+  const present = new Set(await target.list());
+  const missing = objects.filter((object) => !present.has(object.key));
+  let late = 0;
+  let gone = 0;
+  const copied: SourceObject[] = [];
+  for (const object of missing) {
+    if (await target.head(object.key)) {
+      late += 1;
+      continue;
+    }
+    const read = await source.read(object.key);
+    if (!read) {
+      gone += 1;
+      continue;
+    }
+    await target.write(object.key, read.body, storedMimeType(object.mimeType || read.mimeType));
+    copied.push(object);
+    if (copied.length % 100 === 0) log(`copied ${copied.length} of ${missing.length}`);
+  }
+  log(`copy-only: ${copied.length} of ${objects.length} objects were missing on R2`);
+  const mismatched: string[] = [];
+  for (const object of copied) {
+    const head = await target.head(object.key);
+    if (!head || head.size !== object.size) mismatched.push(object.key);
+  }
+  return { objects: objects.length, alreadyOnTarget: objects.length - missing.length + late, copied: copied.length, goneFromSource: gone, mismatched };
+}
+
 /** The objects of a Supabase Storage bucket, through the raw Storage API with the secret key. */
 export function storageSource(env: { supabaseUrl: string; secretKey: string; bucket: string }): MoveSource {
   const storage = `${env.supabaseUrl.replace(/\/+$/, '')}/storage/v1`;
@@ -152,9 +214,11 @@ export function r2Target(env: R2Env): MoveTarget {
   const port = r2FilesPort(env);
   const client = new AwsClient({ accessKeyId: env.accessKeyId, secretAccessKey: env.secretAccessKey, service: 's3', region: 'auto', retries: 2 });
   const endpoint = r2Endpoint(env);
+  // A signed request through the fetch of the env (the tests watch it), else through aws4fetch with its retries.
+  const send = async (url: string, init: RequestInit = {}): Promise<Response> => (env.fetch ? env.fetch(await client.sign(url, init)) : client.fetch(url, init));
   return {
     async write(key, body, mimeType) {
-      const response = await client.fetch(`${endpoint}/${env.bucket}/${key}`, { method: 'PUT', headers: { 'content-type': mimeType }, body });
+      const response = await send(`${endpoint}/${env.bucket}/${key}`, { method: 'PUT', headers: { 'content-type': mimeType }, body });
       await response.arrayBuffer();
       if (!response.ok) throw new Error(`R2 write failed with ${response.status}.`);
     },
@@ -167,7 +231,7 @@ export function r2Target(env: R2Env): MoveTarget {
         const url = new URL(`${endpoint}/${env.bucket}`);
         url.searchParams.set('list-type', '2');
         if (token) url.searchParams.set('continuation-token', token);
-        const response = await client.fetch(url.toString());
+        const response = await send(url.toString());
         const body = await response.text();
         if (!response.ok) throw new Error(`R2 list failed with ${response.status}.`);
         for (const match of body.matchAll(/<Key>([^<]*)<\/Key>/g)) keys.push(xmlText(match[1]));
@@ -182,25 +246,84 @@ export function r2Target(env: R2Env): MoveTarget {
 /** Stops the run after the switch: R2 is then the store of the screens, and the clean-up step would remove its new files. */
 export function assertBeforeSwitch(values: Record<string, string | undefined>): void {
   if ((values.MADAR_FILE_STORE ?? '').trim().toLowerCase() === 'r2') {
-    throw new Error('MADAR_FILE_STORE is r2: the move runs only before the switch, never after the switch.');
+    throw new Error('MADAR_FILE_STORE is r2: the full move runs only before the switch, never after the switch. After it, use --copy-only.');
   }
 }
 
-function need(name: string): string {
-  const value = process.env[name];
+export type MoveArgs = { env?: Target; copyOnly: boolean };
+
+export function parseMoveArgs(argv: string[]): MoveArgs {
+  const env = envArg(argv);
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--env') i += 1;
+    else if (argv[i] !== '--copy-only') throw new Error(`${argv[i]} is not an option. Use --env test|production and --copy-only.`);
+  }
+  return { ...(env ? { env } : {}), copyOnly: argv.includes('--copy-only') };
+}
+
+export type MovePlan = { target?: Target; ref?: string; supabaseUrl: string; sourceBucket: string; r2: R2Env };
+
+/**
+ * The plan of --env: the source from the fixed project, the target from secrets/<env>.env only (never a shell value, never
+ * another endpoint). The full move refuses after the switch, by the file or by the shell. No network call.
+ */
+export function envPlan(args: { env: Target; copyOnly: boolean }, secretsText: string, shell: Record<string, string | undefined>): Required<MovePlan> {
+  const copy = copyEnv(args.env, secretsText);
+  if (!args.copyOnly) {
+    assertBeforeSwitch({ MADAR_FILE_STORE: copy.fileStore });
+    assertBeforeSwitch(shell);
+  }
+  return { target: copy.target, ref: copy.ref, supabaseUrl: copy.supabaseUrl, sourceBucket: copy.filesBucket, r2: copy.r2 };
+}
+
+function needIn(values: Record<string, string | undefined>, name: string): string {
+  const value = values[name];
   if (!value) throw new Error(`${name} is not set.`);
   return value;
 }
 
+/** The plan of the old form: every value from the shell. */
+export function shellPlan(args: { copyOnly: boolean }, shell: Record<string, string | undefined>): MovePlan & { secretKey: string } {
+  if (!args.copyOnly) assertBeforeSwitch(shell);
+  return {
+    supabaseUrl: needIn(shell, 'SUPABASE_URL'), secretKey: needIn(shell, 'MADAR_SECRET_KEY'), sourceBucket: shell.FILES_BUCKET || 'madar-files',
+    r2: {
+      accountId: needIn(shell, 'R2_ACCOUNT_ID'), accessKeyId: needIn(shell, 'R2_ACCESS_KEY_ID'), secretAccessKey: needIn(shell, 'R2_SECRET_ACCESS_KEY'),
+      bucket: needIn(shell, 'R2_BUCKET'), ...(shell.R2_ENDPOINT ? { endpoint: shell.R2_ENDPOINT } : {}),
+    },
+  };
+}
+
+async function main(argv: string[]): Promise<number> {
+  const args = parseMoveArgs(argv);
+  let plan: MovePlan;
+  let secretKey: string;
+  if (args.env) {
+    const envForm = envPlan({ env: args.env, copyOnly: args.copyOnly }, readSecretsText(args.env), process.env);
+    await confirmProduction(args.env, process.env, askLine);
+    secretKey = await secretKeyFromApi(envForm.ref, accessToken(process.env, readLocalEnv));
+    plan = envForm;
+  } else {
+    const shellForm = shellPlan(args, process.env);
+    secretKey = shellForm.secretKey;
+    plan = shellForm;
+  }
+  const mode = args.copyOnly ? 'copy-only' : 'move';
+  console.error(`${mode}: Storage bucket ${plan.sourceBucket}${plan.ref ? ` of ${plan.ref}` : ''} to the R2 bucket ${plan.r2.bucket}.`);
+  const source = storageSource({ supabaseUrl: plan.supabaseUrl, secretKey, bucket: plan.sourceBucket });
+  const target = r2Target(plan.r2);
+  const report = args.copyOnly ? await copyMissing(source, target) : await moveToR2(source, target);
+  console.log(JSON.stringify({ ...(plan.target ? { env: plan.target } : {}), bucket: plan.r2.bucket, mode, ...report }, null, 2));
+  return report.mismatched.length > 0 ? 1 : 0;
+}
+
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
-  assertBeforeSwitch(process.env);
-  const source = storageSource({ supabaseUrl: need('SUPABASE_URL'), secretKey: need('MADAR_SECRET_KEY'), bucket: process.env.FILES_BUCKET || 'madar-files' });
-  const target = r2Target({
-    accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET'),
-    ...(process.env.R2_ENDPOINT ? { endpoint: process.env.R2_ENDPOINT } : {}),
-  });
-  const report = await moveToR2(source, target);
-  console.log(JSON.stringify(report, null, 2));
-  if (report.mismatched.length > 0) process.exit(1);
+  main(process.argv.slice(2)).then(
+    (code) => process.exit(code),
+    (error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    },
+  );
 }
