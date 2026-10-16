@@ -17,8 +17,9 @@ for (const width of WIDTHS) {
         await page.emulateMedia({ colorScheme: theme });
         if (lang === 'ar') await useLanguage(page, 'ar');
         await goto(page, '/settings');
+        // exact: the push card heading "Notifications on this device" also starts with "Notifications".
         for (const key of ['settings.notifications', 'password.title']) {
-          await expect(page.getByRole('heading', { level: 2, name: word(lang, key) })).toBeVisible();
+          await expect(page.getByRole('heading', { level: 2, name: word(lang, key), exact: true })).toBeVisible();
         }
         await expect(page.getByRole('switch', { name: word(lang, 'notices.summary') })).toBeVisible();
         await page.waitForTimeout(800);
