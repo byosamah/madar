@@ -83,8 +83,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A transaction starts with one simple query: BEGIN and the `set local` lines go joined (`sql.ts` START), with no values,
   so pg uses the simple protocol. The pooler keeps the settings inside the transaction only (proof.md, pooler probes,
   2026-10-08). The D1 harness path keeps `savepoint madar_tx` and the `set local` lines as separate queries.
-- The pooler pools (`writeUrl`, `readUrl`) keep an idle connection 120 s (`IDLE_TIMEOUT_MS`, under the 150 s worker life),
-  with `keepAlive: true`. The Workers `connectionString` form keeps the pg defaults: that Db lives for one request.
+- The pooler pools (`writeUrl`, `readUrl`) close an idle connection after 1 s (`IDLE_TIMEOUT_MS`), with `keepAlive: true`.
+  It was 120 s until 2026-10-16: Supabase gives each request a new worker that never takes a second one, so a kept connection
+  only held a pooler client, and the client limit of 200 filled under the deploy suite (EMAXCONN, `server/CLAUDE.md`). The
+  Workers `connectionString` form keeps the pg defaults: that Db lives for one request.
 - The Workers `connectionString` form (the Hyperdrive binding) also sets `query_timeout` 12 s (`QUERY_TIMEOUT_MS`).
   Hyperdrive can hold a BEGIN until it has a free origin connection, and neither `lock_timeout` nor `statement_timeout`
   covers that wait (proof.md, Hyperdrive probe, 2026-10-16). A query that hits the limit throws its client away with no

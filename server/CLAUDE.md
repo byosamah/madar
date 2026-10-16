@@ -75,10 +75,11 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `vite.server.config.ts` minifies the four bundles with `output.keepNames: true`. The names matter: the jose and SDK
   error classes name themselves from their constructor, and check-bundles finds a leaked `settleFuture` by its name.
   `entries/bundles.test.ts` checks this on fixtures.
-- On Supabase, each entry closes its database pools on `beforeunload` (`closeOnUnload`, `entries/start.ts`; 2026-10-16).
-  Supabase stops a worker as soon as it has no work left (shutdown reason `EarlyDrop`), on madar-test about once for each
-  request. Without the close, the dropped workers kept their pooler connections, the client limit of the pooler (200) filled
-  under the deploy suite, and requests failed at once with `EMAXCONN` (the whole batch 500 "Something went wrong").
+- Supabase serves each request with a new worker: about one cold start for each request, each worker lives 75 s and then
+  stops (`EarlyDrop`), and none takes a second request (function logs of madar-test, 2026-10-16). So the pools close an idle
+  connection after 1 s (`IDLE_TIMEOUT_MS`, `data/sql.ts`), and each entry also closes its pools on `beforeunload`
+  (`closeOnUnload`, `entries/start.ts`). With the old 120 s, about 85 workers under the deploy suite held up to 2 pooler
+  clients each, the client limit of the pooler (200) filled, and requests failed at once with `EMAXCONN` (a whole-batch 500).
 - On Supabase only, `deno-api.ts` calls `lazyStart(...).warm()` at module start: it builds the app, starts the jose key set
   load (`warmKeySet`, `auth/verify.ts`) and `db.warm('read')`, and waits for neither. It reads no office before the token
   check. A build that fails there stays silent; the first request logs it and answers 503.

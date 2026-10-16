@@ -96,8 +96,9 @@ describe('pgDb connections', () => {
     expect(pools).toHaveLength(2);
     for (const pool of pools) expect(pool.config).toMatchObject({ max: 1, connectionTimeoutMillis: 5000 });
     expect(pools.map((pool) => pool.config.connectionString)).toEqual([LOCAL.readUrl, LOCAL.writeUrl]);
-    // An idle connection stays 120 s, under the 150 s life of a worker, with TCP keepalive (performance audit SRV-3, proof.md).
-    for (const pool of pools) expect(pool.config).toMatchObject({ idleTimeoutMillis: 120_000, keepAlive: true });
+    // An idle connection closes after 1 s (2026-10-16): Supabase serves each request with a new worker that lives 75 s and never
+    // takes a second request, so a kept connection only filled the client limit of the pooler (200, EMAXCONN). Keepalive stays.
+    for (const pool of pools) expect(pool.config).toMatchObject({ idleTimeoutMillis: 1_000, keepAlive: true });
     // An idle client that breaks must not stop the process: the pool keeps an error listener.
     for (const pool of pools) expect(typeof pool.handlers.error).toBe('function');
   });
@@ -151,7 +152,7 @@ describe('pgDb connections', () => {
 
   it('keeps the idle time and keepalive also with the root CA', async () => {
     await pgDb(CLOUD).statement('read', 'select 1');
-    expect(pools[0].config).toMatchObject({ max: 1, connectionTimeoutMillis: 5000, idleTimeoutMillis: 120_000, keepAlive: true });
+    expect(pools[0].config).toMatchObject({ max: 1, connectionTimeoutMillis: 5000, idleTimeoutMillis: 1_000, keepAlive: true });
   });
 
   it('ends both pools on close, and opens new ones on a later query', async () => {
