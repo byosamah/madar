@@ -60,6 +60,12 @@ describe('readMeters', () => {
     expect(q.asked.find((a) => a.text === SENT_TODAY_SQL)?.values).toEqual(['2026-10-04']);
   });
 
+  it('uses the calls limit of the host that serves the copy: 10 million on Workers Paid, 500,000 on Supabase (owner, 2026-10-16)', async () => {
+    expect((await readMeters(answering({}), testConfig({ servingHost: 'workers' }), NOW)).calls.limit).toBe(10_000_000);
+    expect((await readMeters(answering({}), testConfig({ servingHost: 'supabase' }), NOW)).calls.limit).toBe(500_000);
+    expect((await readMeters(answering({}), testConfig(), NOW)).calls.limit).toBe(500_000);
+  });
+
   it('uses the limit of the active store: 10 GB on R2', async () => {
     const meters = await readMeters(answering({}), testConfig({ fileStore: 'r2', limits: { maxFileBytes: 250 * 1024 * 1024, filesTotalBytes: 10 * GB } }), NOW);
     expect(meters.files.limit).toBe(10 * GB);
@@ -141,6 +147,9 @@ describe('the meters of the 80% warning', () => {
     const meters = await readMeters(answering({}), testConfig(), NOW);
     expect(warningMeters(meters, 'supabase').map((m) => m.meter)).toEqual(['calls', 'database', 'files', 'backup', 'emailsToday', 'emailsMonth', 'egress']);
     expect(warningMeters(meters, 'r2').map((m) => m.meter)).toEqual(['calls', 'database', 'filesR2', 'backup', 'emailsToday', 'emailsMonth', 'egress']);
+    // On the Worker the calls meter has its own name, so its mail names the Workers next step (owner, 2026-10-16).
+    expect(warningMeters(meters, 'r2', 'workers').map((m) => m.meter)).toEqual(['callsWorkers', 'database', 'filesR2', 'backup', 'emailsToday', 'emailsMonth', 'egress']);
+    expect(warningMeters(meters, 'supabase', 'supabase')[0].meter).toBe('calls');
   });
 
   it('passes 80% at four fifths of the limit, not before', () => {

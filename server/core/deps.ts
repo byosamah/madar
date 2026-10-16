@@ -19,6 +19,7 @@ import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
 import { meterPort } from '../usage/meter';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
+import { copyOfSupabaseUrl, serverHostOf } from './serverHost';
 
 /**
  * The real Deps from the environment (plan 4.5, task E2), the same on Supabase Edge Functions and on Cloudflare Workers.
@@ -168,6 +169,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     forwardRegion: read('MCP_FORWARD_REGION') ?? FUNCTION_REGION,
     fileStore,
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
+    servingHost: servingHostOf(supabaseUrl),
     ...(push ? { push } : {}),
   };
 
@@ -180,6 +182,12 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     mail: driver === 'resend' ? { driver, apiKey } : { driver },
     files: r2 ? { r2 } : { bucket: read('FILES_BUCKET') ?? 'madar-files', ...(read('FILES_PUBLIC_URL') ? { publicUrl: read('FILES_PUBLIC_URL') } : {}) },
   };
+}
+
+/** The host that serves the copy of SUPABASE_URL (config/server-host.json); supabase for a local stack or another URL. */
+function servingHostOf(supabaseUrl: string): Config['servingHost'] {
+  const copy = copyOfSupabaseUrl(supabaseUrl);
+  return copy ? serverHostOf(copy) : 'supabase';
 }
 
 export function configFromEnv(read: ReadEnv = env): Config {

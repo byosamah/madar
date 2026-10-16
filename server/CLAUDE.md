@@ -106,7 +106,11 @@ The other host stays deployed as the way back. Each area below has its own guide
   server sends on any `person:` topic, and each person reads only their own.
 - pg_cron calls `jobs/run` every 15 minutes, with the secret header `x-madar-jobs-secret`. Steps (`jobs/steps/`):
   heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
-- Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`.
+- Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
+  the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
+  Workers Paid (`CALL_LIMITS`, `core/ports.ts`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
+  screen picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
+  limit, because both read the setting, not the running host.
 
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.

@@ -33,7 +33,7 @@ export const WARNING_MARK_SQL = 'insert into usage_warnings (month, metric) valu
 export async function checkLimits(deps: Deps): Promise<{ warned: UsageMeter[] }> {
   const now = deps.clock.now();
   const meters = await deps.db.tx('read', (q) => readMeters(q, deps.config, now));
-  const over = warningMeters(meters, deps.config.fileStore).filter((m) => overLimit(m.value));
+  const over = warningMeters(meters, deps.config.fileStore, deps.config.servingHost).filter((m) => overLimit(m.value));
   if (over.length === 0) return { warned: [] };
   const { warned, ids } = await deps.db.tx('write', async (q) => {
     const marked: UsageMeter[] = [];

@@ -176,6 +176,15 @@ describe('renderMail', () => {
     expect(renderMail('limitWarning', 'en', SAMPLES.limitWarning).text).toContain('move the files to Cloudflare R2, or remove old file versions');
   });
 
+  it('gives the calls on the Worker their own next step: Workers Paid charges above 10 million, no action (owner, 2026-10-16)', () => {
+    const en = renderMail('limitWarning', 'en', { meter: 'callsWorkers', percent: 82, link: LINK }).text;
+    expect(en).toContain('Server calls this month: 82% of the free plan limit.');
+    expect(en).toContain('Above 10 million calls in a month, Cloudflare Workers charges about $0.30 for each extra million. No action is needed.');
+    const ar = renderMail('limitWarning', 'ar', { meter: 'callsWorkers', percent: 82, link: LINK }).text;
+    expect(ar).toContain('طلبات الخادم هذا الشهر');
+    expect(ar).toContain('لا يلزم أي إجراء.');
+  });
+
   it('never names the database vendor: the screen bundle loads these words, and the prototype bundle check refuses the name', () => {
     for (const lang of ['en', 'ar']) {
       const words = readFileSync(new URL(`../../../src/i18n/real/mail.${lang}.json`, import.meta.url), 'utf8');
