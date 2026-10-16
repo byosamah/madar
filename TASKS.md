@@ -466,8 +466,14 @@ Supabase Edge Functions to one Worker per copy (Workers Paid, $5 a month), first
 only if it measures faster than the Supabase functions (the forwarder rule). The database, Auth and Realtime stay on
 Supabase. Production follows in the same run after the test copy passes. The Supabase functions stay deployed as the way back.
 - [ ] Owner: turn on R2 in the Cloudflare dashboard (card, free plan)
-- [ ] Owner: the Workers Paid plan ($5 a month)
-- [ ] Map of every change (three readers)
+- [ ] Workers plan: Free first (owner, 2026-10-16: "free is enough for now"). The probe ran on the Free plan: the
+  Frankfurt placement and Hyperdrive work there. The test copy measures the CPU time of each call (Free allows 10 ms,
+  error 1102 above it) and the calls a day (Free allows 100,000, Pages Functions included). Pay $5 only if a call goes over.
+  The usage meter must use the Free day limit, not 10M a month.
+- [x] Map of every change (three readers)
+- [x] Hyperdrive probe on madar-test: go on the session pooler 5432, no go on 6543 (proof.md, commit 0457809)
+- [ ] Live updates: madar-test has no realtime.messages day table for 2026-10-16 (last: 2026-10-15), so every change
+  signal fails since 00:00 UTC (saves still work). Check production read only. Find why Realtime stopped making the tables.
 - [ ] Build on `rb/cloudflare`: deploy steps for R2 and the Worker, the screens address, the jobs trigger, the MCP forwarder, guides
 - [ ] Cloud setup: two EU buckets and their CORS, the Supabase CA, two Hyperdrive setups (caching off), two Workers
 - [ ] Owner: one R2 API token for each bucket, into the secrets files
