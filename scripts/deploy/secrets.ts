@@ -39,7 +39,26 @@ export const FUNCTION_SECRETS = [
 ] as const;
 /** Browser push (owner, 2026-10-08): all three or none (server/core/deps.ts). scripts/push/make-vapid.ts writes them. */
 const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
-const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
+export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
+/** The R2 bucket of each copy (owner, 2026-10-16). Both are in the EU jurisdiction (server/files/r2.ts signs on the EU endpoint). */
+export const R2_BUCKETS: Record<Target, string> = { test: 'madar-files-test', production: 'madar-files' };
+
+export type R2Values = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string };
+
+/**
+ * The R2 values of one copy, or null when no R2_ name is set. All four or none. R2_ACCOUNT_ID is the 32 hex characters of the
+ * Cloudflare account, and R2_BUCKET is the bucket of that copy, so production never points at the test bucket (or the reverse).
+ * The R2 lines may go into the file before the switch: the server ignores them while MADAR_FILE_STORE is supabase.
+ * scripts/storage and the seed use the same check. Errors name the variable, never a value.
+ */
+export function r2Values(values: Record<string, string | undefined>, target: Target): R2Values | null {
+  if (!R2_NAMES.some((name) => values[name] !== undefined)) return null;
+  const absent = R2_NAMES.filter((name) => !values[name]);
+  if (absent.length > 0) throw new Error(`R2 needs all of ${R2_NAMES.join(', ')}. The secrets file needs ${absent.join(', ')}.`);
+  if (!/^[0-9a-f]{32}$/.test(values.R2_ACCOUNT_ID!)) throw new Error('R2_ACCOUNT_ID must be the 32 hex characters of the Cloudflare account.');
+  if (values.R2_BUCKET !== R2_BUCKETS[target]) throw new Error(`R2_BUCKET must be ${R2_BUCKETS[target]} for ${target}.`);
+  return { accountId: values.R2_ACCOUNT_ID!, accessKeyId: values.R2_ACCESS_KEY_ID!, secretAccessKey: values.R2_SECRET_ACCESS_KEY!, bucket: values.R2_BUCKET! };
+}
 
 /** The KEY=VALUE lines of secrets/<env>.env. Errors name the line or the name, never a value. */
 export function parseSecretsFile(text: string): Record<string, string> {
@@ -90,6 +109,9 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
   const missing = needed.filter((name) => !values[name]);
   if (missing.length > 0) throw new Error(`The secrets file needs ${missing.join(', ')}.`);
   if (values.MADAR_FILE_STORE !== undefined && !['supabase', 'r2'].includes(values.MADAR_FILE_STORE)) throw new Error('MADAR_FILE_STORE must be supabase or r2.');
+  const target = (Object.keys(REFS) as Target[]).find((name) => REFS[name] === ref);
+  if (!target) throw new Error('The project must be madar-test or madar.');
+  r2Values(values, target);
 
   const serverPassword = checkServerUrl('DATABASE_URL', values.DATABASE_URL, ref);
   // secrets.ts sets the role password from DATABASE_URL only, and postgres must never read for the server: it skips RLS.

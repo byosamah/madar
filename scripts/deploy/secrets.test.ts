@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   HEALTH_LOCK_KEY,
+  R2_BUCKETS,
   checkSecrets,
   parseSecretsFile,
   runSecrets,
@@ -230,6 +231,56 @@ describe('checkSecrets', () => {
 
   it('wants https screens, never a local address', () => {
     expect(() => check(TEST, file().replace('https://preview.madar.pages.dev', 'http://127.0.0.1:5173'))).toThrow(/APP_URL/);
+  });
+});
+
+describe('the R2 values of each copy (owner, 2026-10-16)', () => {
+  const check = (ref: string, text: string) => checkSecrets(parseSecretsFile(text), ref);
+  const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
+  const r2 = (bucket: string, account = ACCOUNT) =>
+    `R2_ACCOUNT_ID=${account}\nR2_ACCESS_KEY_ID=key-id-value-3\nR2_SECRET_ACCESS_KEY=secret-value-3\nR2_BUCKET=${bucket}`;
+
+  it('names the bucket of each copy', () => {
+    expect(R2_BUCKETS).toEqual({ test: 'madar-files-test', production: 'madar-files' });
+  });
+
+  it('takes the R2 lines before the switch, while the store is still supabase, and after it', () => {
+    expect(() => check(TEST, file(TEST, r2('madar-files-test')))).not.toThrow();
+    expect(() => check(TEST, file(TEST, `MADAR_FILE_STORE=supabase\n${r2('madar-files-test')}`))).not.toThrow();
+    expect(() => check(TEST, file(TEST, `MADAR_FILE_STORE=r2\n${r2('madar-files-test')}`))).not.toThrow();
+    expect(() => check(PRODUCTION, file(PRODUCTION, r2('madar-files')))).not.toThrow();
+    expect(() => check(PRODUCTION, file(PRODUCTION, `MADAR_FILE_STORE=r2\n${r2('madar-files')}`))).not.toThrow();
+  });
+
+  it('refuses the bucket of the other copy, so production never points at the test bucket (or the reverse)', () => {
+    expect(() => check(TEST, file(TEST, r2('madar-files')))).toThrow(/R2_BUCKET must be madar-files-test for test/);
+    expect(() => check(PRODUCTION, file(PRODUCTION, r2('madar-files-test')))).toThrow(/R2_BUCKET must be madar-files for production/);
+    expect(() => check(PRODUCTION, file(PRODUCTION, `MADAR_FILE_STORE=r2\n${r2('madar-files-test')}`))).toThrow(/R2_BUCKET must be madar-files for production/);
+    expect(() => check(TEST, file(TEST, r2('other-bucket')))).toThrow(/R2_BUCKET must be madar-files-test/);
+  });
+
+  it('wants R2_ACCOUNT_ID as the 32 hex characters of the Cloudflare account', () => {
+    for (const account of ['d76d34779c63849f5acdf3d6af3751c', 'D76D34779C63849F5ACDF3D6AF3751CD', 'd76d34779c63849f5acdf3d6af3751cdx', 'not-an-account']) {
+      expect(() => check(TEST, file(TEST, r2('madar-files-test', account))), account).toThrow(/R2_ACCOUNT_ID must be the 32 hex characters/);
+    }
+  });
+
+  it('needs all four R2 names when any one is in the file, and names each missing one', () => {
+    expect(() => check(TEST, file(TEST, 'R2_BUCKET=madar-files-test'))).toThrow(/R2 needs all of .*The secrets file needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY\./);
+    expect(() => check(TEST, file(TEST, `R2_ACCOUNT_ID=${ACCOUNT}`))).toThrow(/needs R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET\./);
+    // No R2 name at all: the store stays on Supabase Storage.
+    expect(() => check(TEST, file())).not.toThrow();
+  });
+
+  it('never puts a key or a secret into the R2 errors', () => {
+    const errors = [
+      refusal(() => check(TEST, file(TEST, r2('madar-files')))),
+      refusal(() => check(TEST, file(TEST, r2('madar-files-test', 'leaky-value-3')))),
+      refusal(() => check(TEST, file(TEST, 'R2_SECRET_ACCESS_KEY=secret-value-3'))),
+    ];
+    for (const error of errors) {
+      for (const value of ['key-id-value-3', 'secret-value-3', 'leaky-value-3']) expect(error).not.toContain(value);
+    }
   });
 });
 
