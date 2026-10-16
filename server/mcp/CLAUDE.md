@@ -5,12 +5,17 @@ https://madar.vado.sa/mcp. The test copy is https://preview.madar-46r.pages.dev/
 Connect Claude Code with `claude mcp add --transport http madar https://madar.vado.sa/mcp`.
 
 ## The path of a request
-1. The Pages Function `functions/mcp/[[path]].ts` runs `server/http/pagesMcpProxy.ts`. It forwards the request to the mcp
-   function of the host's Supabase project, with `x-region: eu-central-1`.
-2. The proxy has a fixed host list (`MCP_TARGETS`). Any other host, any path outside `/mcp`, and any encoded dot, encoded
-   slash or backslash gets 404. It drops the `cf-*` headers and the client address headers.
-3. The mcp function (`entries/mcp.ts`, `app.ts`). A request that comes straight to Supabase gets one region hop first
-   (`forward.ts`, `MCP_FORWARD_REGION`, default eu-central-1).
+1. The Pages Function `functions/mcp/[[path]].ts` runs `server/http/pagesMcpProxy.ts`. It follows the server host of the copy
+   (owner, 2026-10-16; `config/server-host.json`). With `workers` and the Pages service binding of the copy
+   (`MADAR_SERVER_TEST`, `MADAR_SERVER_PRODUCTION`), the request goes to the Worker as `/mcp<rest>` with the query, and no
+   `x-region`. Otherwise it goes to the mcp function of the host's Supabase project, with `x-region: eu-central-1`, and the
+   Pages log gets one line (`reason` `setting`, or `binding_missing` as a warning).
+2. The proxy has a fixed host list (`PAGE_HOSTS` in `server/core/serverHost.ts`; `MCP_TARGETS` names the Supabase function of
+   each host). Any other host, any path outside `/mcp`, and any encoded dot, encoded slash or backslash gets 404, on both
+   paths. A production host never reaches the test binding. It drops the `cf-*` headers and the client address headers.
+3. The mcp app (`entries/mcp.ts`, `app.ts`) on the host. A request that comes straight to a Supabase function gets one region
+   hop first (`forward.ts`, `MCP_FORWARD_REGION`, default eu-central-1). The Worker never hops: its region label
+   (`WORKER_REGION`, `workers-eu-central-1`) is no AWS region name. Every answer names its host in `x-madar-server`.
 4. The token check (`auth.ts`). Then the tool runs through `runCall` with the person's rights (`run.ts`).
 5. With a host `after`, the usage meter counts (the request, and the hop count when `hopTagOk`) run after the answer, as one
    work, in order. With no `after`, they run before the answer.
@@ -18,7 +23,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 ## The address
 - MCP_URL in `secrets/<env>.env` is the short address. It is the token audience, the resource metadata and the
   `WWW-Authenticate` value. `scripts/deploy/secrets.ts` copies it into `platform_config.mcp_url`.
-- If the address changes, change MCP_URL, run the secrets step, and change `MCP_TARGETS` in the same commit.
+- If the address changes, change MCP_URL, run the secrets step, and change `PAGE_HOSTS` in the same commit.
+- A switch of the server host (owner, 2026-10-16) keeps MCP_URL: the Worker gets the same MCP_URL as the functions
+  (`secrets.ts` requires it for the Worker), so the token audience, the metadata and every agent connection stay. No agent
+  connects again. MADAR_SECRET_KEY of the Worker is the default secret key of the project, as on Supabase, so a reason
+  question that spans a switch keeps its state key.
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
