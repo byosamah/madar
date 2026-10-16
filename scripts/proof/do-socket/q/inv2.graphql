@@ -1,0 +1,6 @@
+query ($acc: String!, $from: Time!, $to: Time!) { viewer { accounts(filter: { accountTag: $acc }) {
+  inv: durableObjectsInvocationsAdaptiveGroups(limit: 100, filter: { datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { namespaceId scriptName type status } sum { requests errors wallTime } quantiles { cpuTimeP50 cpuTimeP90 cpuTimeP99 } }
+  per: durableObjectsPeriodicGroups(limit: 100, filter: { datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { namespaceId } sum { activeTime duration cpuTime rowsRead rowsWritten inboundWebsocketMsgCount outboundWebsocketMsgCount exceededCpuErrors } max { activeWebsocketConnections } }
+} } }

@@ -1,0 +1,6 @@
+query ($acc: String!, $from: Time!, $to: Time!) { viewer { accounts(filter: { accountTag: $acc }) {
+  inv: durableObjectsInvocationsAdaptiveGroups(limit: 100, filter: { scriptName: "madar-socket-probe", datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { namespaceId type status } sum { requests errors wallTime } quantiles { cpuTimeP50 cpuTimeP90 cpuTimeP99 } }
+  w: workersInvocationsAdaptive(limit: 100, filter: { scriptName: "madar-socket-probe", datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { status } sum { requests errors } quantiles { cpuTimeP50 cpuTimeP90 cpuTimeP99 } }
+} } }

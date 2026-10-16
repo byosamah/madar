@@ -1,0 +1,4024 @@
+{
+ "at": "2026-10-16T19:52:49.707Z",
+ "proof": {
+  "drop": {
+   "rows": 0,
+   "rowsRead": 5,
+   "rowsWritten": 0
+  },
+  "create": {
+   "rows": 0,
+   "rowsRead": 1,
+   "rowsWritten": 3
+  },
+  "insert3": {
+   "rows": 0,
+   "rowsRead": 0,
+   "rowsWritten": 6
+  },
+  "selectAll": {
+   "rows": 3,
+   "rowsRead": 3,
+   "rowsWritten": 0
+  },
+  "selectOne": {
+   "rows": 1,
+   "rowsRead": 1,
+   "rowsWritten": 0
+  },
+  "count": {
+   "rows": 1,
+   "rowsRead": 3,
+   "rowsWritten": 0
+  },
+  "updateOne": {
+   "rows": 0,
+   "rowsRead": 1,
+   "rowsWritten": 1
+  },
+  "deleteOne": {
+   "rows": 0,
+   "rowsRead": 1,
+   "rowsWritten": 1
+  },
+  "databaseSize": 16384
+ },
+ "matrix": {
+  "writes": {
+   "rowid, 0 index": {
+    "insert": 2,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 1,
+    "update a to the same value": 1,
+    "update a, b, c": 1,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "rowid, 1 index": {
+    "insert": 3,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 2,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "rowid, 2 index": {
+    "insert": 4,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 3,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "rowid, 3 index": {
+    "insert": 5,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 4,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "norowid, 0 index": {
+    "insert": 1,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 1,
+    "update a to the same value": 1,
+    "update a, b, c": 1,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "norowid, 1 index": {
+    "insert": 2,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 2,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "norowid, 2 index": {
+    "insert": 3,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 3,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "norowid, 3 index": {
+    "insert": 4,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 4,
+    "upsert of a row that exists (doc only)": 1,
+    "delete": 1
+   },
+   "intpk, 0 index": {
+    "insert": 1,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 1,
+    "update a to the same value": 1,
+    "update a, b, c": 1,
+    "upsert of a row that exists (doc only)": null,
+    "delete": 1
+   },
+   "intpk, 1 index": {
+    "insert": 2,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 2,
+    "upsert of a row that exists (doc only)": null,
+    "delete": 1
+   },
+   "intpk, 2 index": {
+    "insert": 3,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 3,
+    "upsert of a row that exists (doc only)": null,
+    "delete": 1
+   },
+   "intpk, 3 index": {
+    "insert": 4,
+    "update doc only": 1,
+    "update a (indexed when k >= 1)": 2,
+    "update a to the same value": 2,
+    "update a, b, c": 4,
+    "upsert of a row that exists (doc only)": null,
+    "delete": 1
+   }
+  },
+  "reads": {
+   "rowid": {
+    "lookup by key": 1,
+    "lookup by key, no row": 0,
+    "lookup on a secondary index (1 row)": 2,
+    "index range of 10 rows": 11,
+    "covering index range of 10 rows (b only)": 11,
+    "scan with a filter that matches 1 row (no index on doc)": 99,
+    "count(*)": 99,
+    "in-list of 5 keys by json_each": 15,
+    "in-list of 5 keys by bound values": 10,
+    "order by key desc limit 5": 5,
+    "order by doc limit 5 (a sort of every row)": 198
+   },
+   "norowid": {
+    "lookup by key": 1,
+    "lookup by key, no row": 0,
+    "lookup on a secondary index (1 row)": 2,
+    "index range of 10 rows": 11,
+    "covering index range of 10 rows (b only)": 11,
+    "scan with a filter that matches 1 row (no index on doc)": 99,
+    "count(*)": 99,
+    "in-list of 5 keys by json_each": 15,
+    "in-list of 5 keys by bound values": 10,
+    "order by key desc limit 5": 5,
+    "order by doc limit 5 (a sort of every row)": 198
+   },
+   "intpk": {
+    "lookup by key": 1,
+    "lookup by key, no row": 1,
+    "lookup on a secondary index (1 row)": 2,
+    "index range of 10 rows": 11,
+    "covering index range of 10 rows (b only)": 11,
+    "scan with a filter that matches 1 row (no index on doc)": 99,
+    "count(*)": 99,
+    "in-list of 5 keys by json_each": 15,
+    "in-list of 5 keys by bound values": 10,
+    "order by key desc limit 5": 5,
+    "order by doc limit 5 (a sort of every row)": 198
+   }
+  },
+  "other": {
+   "generated columns (2 virtual, 1 stored), 3 indexes: insert": 5,
+   "generated columns: update doc, only an unindexed field changes": 4,
+   "partial index, insert of a row outside it": 2,
+   "partial index, insert of a row inside it": 3,
+   "partial index, update that moves the row out of it": 1,
+   "create index on 100 rows: rows read, rows written": [
+    202,
+    101
+   ],
+   "150 bound values in one statement": "refused: too many SQL variables at offset 337: SQLITE_ERROR",
+   "100 bound values in one statement": "accepted"
+  }
+ },
+ "year-rowid": {
+  "schema": {
+   "ok": true,
+   "rowsRead": 149,
+   "rowsWritten": 169,
+   "statements": 94
+  },
+  "import": {
+   "records": {
+    "rows": 138053,
+    "rowsWritten": 962636,
+    "rowsRead": 0
+   },
+   "serverRows": {
+    "rows": 8627,
+    "rowsWritten": 17913,
+    "rowsRead": 31
+   },
+   "byTable": {
+    "users": {
+     "rows": 20,
+     "rowsWritten": 80,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "teams": {
+     "rows": 4,
+     "rowsWritten": 12,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "settings": {
+     "rows": 1,
+     "rowsWritten": 3,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "clients": {
+     "rows": 60,
+     "rowsWritten": 180,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stage_templates": {
+     "rows": 7,
+     "rowsWritten": 21,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "task_templates": {
+     "rows": 30,
+     "rowsWritten": 90,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "project_templates": {
+     "rows": 5,
+     "rowsWritten": 15,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "projects": {
+     "rows": 72,
+     "rowsWritten": 288,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "members": {
+     "rows": 424,
+     "rowsWritten": 2120,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stages": {
+     "rows": 504,
+     "rowsWritten": 2016,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "deadlines": {
+     "rows": 216,
+     "rowsWritten": 864,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "conversations": {
+     "rows": 116,
+     "rowsWritten": 464,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "tasks": {
+     "rows": 3419,
+     "rowsWritten": 13676,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "chat_reads": {
+     "rows": 2500,
+     "rowsWritten": 7500,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "events": {
+     "rows": 62000,
+     "rowsWritten": 620000,
+     "rowsRead": 0,
+     "requests": 13
+    },
+    "comments": {
+     "rows": 12000,
+     "rowsWritten": 60000,
+     "rowsRead": 0,
+     "requests": 3
+    },
+    "notifications": {
+     "rows": 26000,
+     "rowsWritten": 137305,
+     "rowsRead": 0,
+     "requests": 6
+    },
+    "messages": {
+     "rows": 20000,
+     "rowsWritten": 80000,
+     "rowsRead": 0,
+     "requests": 4
+    },
+    "files": {
+     "rows": 6000,
+     "rowsWritten": 24000,
+     "rowsRead": 0,
+     "requests": 2
+    },
+    "tracker": {
+     "rows": 1500,
+     "rowsWritten": 4572,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "payments": {
+     "rows": 430,
+     "rowsWritten": 1290,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "updates": {
+     "rows": 2600,
+     "rowsWritten": 7800,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "feedback": {
+     "rows": 120,
+     "rowsWritten": 240,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "push_devices": {
+     "rows": 25,
+     "rowsWritten": 100,
+     "rowsRead": 0,
+     "requests": 1
+    }
+   },
+   "server": {
+    "counters": {
+     "rows": 22,
+     "rowsRead": 0,
+     "rowsWritten": 44,
+     "statements": 22
+    },
+    "office_meta": {
+     "rows": 1,
+     "rowsRead": 1,
+     "rowsWritten": 1,
+     "statements": 1
+    },
+    "person_seq": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 40,
+     "statements": 20
+    },
+    "stories": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 900,
+     "statements": 300
+    },
+    "idempotency": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 900,
+     "statements": 300
+    },
+    "outbox": {
+     "rows": 1500,
+     "rowsRead": 0,
+     "rowsWritten": 3000,
+     "statements": 1500
+    },
+    "mail_log": {
+     "rows": 6000,
+     "rowsRead": 0,
+     "rowsWritten": 12000,
+     "statements": 6000
+    },
+    "usage_month": {
+     "rows": 12,
+     "rowsRead": 0,
+     "rowsWritten": 24,
+     "statements": 12
+    },
+    "job_runs": {
+     "rows": 365,
+     "rowsRead": 0,
+     "rowsWritten": 730,
+     "statements": 365
+    },
+    "rate_limits": {
+     "rows": 50,
+     "rowsRead": 0,
+     "rowsWritten": 100,
+     "statements": 50
+    },
+    "office_deletes": {
+     "rows": 30,
+     "rowsRead": 30,
+     "rowsWritten": 90,
+     "statements": 30
+    },
+    "agent_links": {
+     "rows": 5,
+     "rowsRead": 0,
+     "rowsWritten": 20,
+     "statements": 5
+    },
+    "upload_intents": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 60,
+     "statements": 20
+    },
+    "platform_config": {
+     "rows": 2,
+     "rowsRead": 0,
+     "rowsWritten": 4,
+     "statements": 2
+    }
+   }
+  },
+  "stats": {
+   "total": 146680,
+   "counts": {
+    "agent_links": 5,
+    "chat_reads": 2500,
+    "clients": 60,
+    "comments": 12000,
+    "conversations": 116,
+    "counters": 22,
+    "deadlines": 216,
+    "events": 62000,
+    "feedback": 120,
+    "files": 6000,
+    "idempotency": 300,
+    "job_runs": 365,
+    "mail_log": 6000,
+    "members": 424,
+    "messages": 20000,
+    "notifications": 26000,
+    "office_deletes": 30,
+    "office_meta": 1,
+    "office_snapshot": 0,
+    "outbox": 1500,
+    "payments": 430,
+    "person_seq": 20,
+    "platform_config": 2,
+    "project_templates": 5,
+    "projects": 72,
+    "push_devices": 25,
+    "rate_limits": 50,
+    "settings": 1,
+    "stage_templates": 7,
+    "stages": 504,
+    "stories": 300,
+    "task_templates": 30,
+    "tasks": 3419,
+    "teams": 4,
+    "tracker": 1500,
+    "updates": 2600,
+    "upload_intents": 20,
+    "usage_month": 12,
+    "users": 20
+   },
+   "indexes": 91,
+   "databaseSize": 90234880
+  },
+  "cold": {
+   "fromTables": {
+    "rowsRead": 1459,
+    "rowsWritten": 0,
+    "statements": 12
+   },
+   "snapshotWrite": {
+    "parts": 1,
+    "bytes": 232457,
+    "rowsRead": 2,
+    "rowsWritten": 1,
+    "statements": 2
+   },
+   "fromSnapshot": {
+    "rowsRead": 1,
+    "rowsWritten": 0,
+    "statements": 1
+   }
+  },
+  "reads": {
+   "picks": {
+    "project": "prj_041",
+    "projectTasks": 60,
+    "busyTask": {
+     "id": "tsk_530",
+     "n": 29
+    },
+    "busyChat": {
+     "id": "cnv_020",
+     "n": 343
+    },
+    "busyThread": {
+     "id": "tsk_1260",
+     "n": 12
+    },
+    "activeProjects": 29
+   },
+   "calls": [
+    {
+     "name": "session.get",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 89,
+     "statements": 4,
+     "loaded": {
+      "notifications": 17,
+      "tasks": 10,
+      "updates": 2,
+      "feedback": 1
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 56258,
+     "statements": 249,
+     "loaded": {
+      "chatReads": 19,
+      "tasks": 53,
+      "comments": 84
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 2965,
+     "statements": 4,
+     "loaded": {
+      "tasks": 24
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3279,
+     "statements": 5,
+     "loaded": {
+      "tasks": 365
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "all"
+     },
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "dashboard.get",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 6015,
+     "statements": 6,
+     "loaded": {
+      "tasks": 1448,
+      "events": 88,
+      "tracker": 265,
+      "payments": 138
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 298,
+     "statements": 7,
+     "loaded": {
+      "events": 50,
+      "tasks": 27,
+      "files": 3,
+      "payments": 1,
+      "comments": 5,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 2542,
+     "statements": 5,
+     "loaded": {
+      "notifications": 117,
+      "tasks": 85,
+      "updates": 7,
+      "feedback": 5
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 56516,
+     "statements": 335,
+     "loaded": {
+      "chatReads": 19,
+      "messages": 86,
+      "tasks": 53,
+      "comments": 84
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_001",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 2795,
+     "statements": 5,
+     "loaded": {
+      "tasks": 165,
+      "files": 10
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_001",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8074,
+     "statements": 5,
+     "loaded": {
+      "tasks": 160,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 165,
+     "statements": 3,
+     "loaded": {
+      "notifications": 31,
+      "tasks": 24,
+      "updates": 1
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 22753,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 48,
+      "tasks": 100,
+      "comments": 123
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 4507,
+     "statements": 5,
+     "loaded": {
+      "tasks": 285
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3172,
+     "statements": 5,
+     "loaded": {
+      "tasks": 353
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 5094,
+     "statements": 70,
+     "loaded": {
+      "tasks": 1476,
+      "updates": 64,
+      "files": 36,
+      "events": 64
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "dashboard.get",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 5973,
+     "statements": 6,
+     "loaded": {
+      "tasks": 1308,
+      "events": 78,
+      "tracker": 265,
+      "payments": 138
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 665,
+     "statements": 8,
+     "loaded": {
+      "tasks": 46,
+      "events": 50,
+      "comments": 6,
+      "files": 3,
+      "payments": 1,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 4850,
+     "statements": 5,
+     "loaded": {
+      "notifications": 131,
+      "tasks": 82,
+      "updates": 10,
+      "feedback": 3
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 22852,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 48,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 123
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_002",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 3052,
+     "statements": 5,
+     "loaded": {
+      "tasks": 25,
+      "files": 6
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_002",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8067,
+     "statements": 5,
+     "loaded": {
+      "tasks": 20,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 173,
+     "statements": 3,
+     "loaded": {
+      "notifications": 35,
+      "tasks": 22,
+      "updates": 3
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 24591,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 59,
+      "tasks": 100,
+      "comments": 119
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 5243,
+     "statements": 5,
+     "loaded": {
+      "tasks": 419
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3183,
+     "statements": 5,
+     "loaded": {
+      "tasks": 354
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 4614,
+     "statements": 68,
+     "loaded": {
+      "tasks": 1383,
+      "updates": 62,
+      "files": 32,
+      "events": 62
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 677,
+     "statements": 7,
+     "loaded": {
+      "tasks": 45,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 4934,
+     "statements": 5,
+     "loaded": {
+      "notifications": 135,
+      "tasks": 78,
+      "updates": 14,
+      "feedback": 3
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 24690,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 59,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 119
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_005",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 3057,
+     "statements": 5,
+     "loaded": {
+      "tasks": 23,
+      "files": 7
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_005",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8068,
+     "statements": 5,
+     "loaded": {
+      "tasks": 18,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 99,
+     "statements": 2,
+     "loaded": {
+      "notifications": 20,
+      "tasks": 14
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 21064,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 53,
+      "tasks": 100,
+      "comments": 139
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 4431,
+     "statements": 5,
+     "loaded": {
+      "tasks": 294
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3171,
+     "statements": 5,
+     "loaded": {
+      "tasks": 353
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 4018,
+     "statements": 58,
+     "loaded": {
+      "tasks": 1164,
+      "updates": 52,
+      "files": 25,
+      "events": 52
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 678,
+     "statements": 7,
+     "loaded": {
+      "tasks": 44,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 2636,
+     "statements": 5,
+     "loaded": {
+      "notifications": 120,
+      "tasks": 76,
+      "updates": 9,
+      "feedback": 2
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 21163,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 53,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 139
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_012",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 3055,
+     "statements": 5,
+     "loaded": {
+      "tasks": 22,
+      "files": 6
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_012",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8069,
+     "statements": 5,
+     "loaded": {
+      "tasks": 17,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 2585,
+     "statements": 4,
+     "loaded": {
+      "notifications": 513,
+      "tasks": 337,
+      "updates": 38,
+      "feedback": 14
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 22520,
+     "statements": 341,
+     "loaded": {
+      "chatReads": 52,
+      "tasks": 100,
+      "comments": 138
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 5432,
+     "statements": 5,
+     "loaded": {
+      "tasks": 463
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3182,
+     "statements": 5,
+     "loaded": {
+      "tasks": 355
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 5077,
+     "statements": 70,
+     "loaded": {
+      "tasks": 1495,
+      "updates": 64,
+      "files": 39,
+      "events": 64
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 680,
+     "statements": 7,
+     "loaded": {
+      "tasks": 56,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 4022,
+     "statements": 5,
+     "loaded": {
+      "notifications": 613,
+      "tasks": 401,
+      "updates": 47,
+      "feedback": 15
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 22631,
+     "statements": 378,
+     "loaded": {
+      "chatReads": 52,
+      "messages": 37,
+      "tasks": 100,
+      "comments": 138
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_014",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 3059,
+     "statements": 5,
+     "loaded": {
+      "tasks": 34,
+      "files": 9
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_014",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8071,
+     "statements": 5,
+     "loaded": {
+      "tasks": 29,
+      "files": 0
+     }
+    },
+    {
+     "name": "projects.get",
+     "actorId": "usr_005",
+     "input": {
+      "id": "prj_041"
+     },
+     "rowsRead": 171,
+     "statements": 5,
+     "loaded": {
+      "tasks": 60,
+      "updates": 2,
+      "events": 2
+     }
+    },
+    {
+     "name": "tasks.get (busiest task)",
+     "actorId": "usr_001",
+     "input": {
+      "id": "tsk_530"
+     },
+     "rowsRead": 237,
+     "statements": 6,
+     "loaded": {
+      "tasks": 49,
+      "events": 29
+     }
+    },
+    {
+     "name": "updates.list",
+     "actorId": "usr_005",
+     "input": {
+      "projectId": "prj_041",
+      "limit": 50
+     },
+     "rowsRead": 755,
+     "statements": 7,
+     "loaded": {
+      "tasks": 60,
+      "updates": 50,
+      "files": 16,
+      "events": 50
+     }
+    },
+    {
+     "name": "files.list",
+     "actorId": "usr_005",
+     "input": {
+      "projectId": "prj_041"
+     },
+     "rowsRead": 253,
+     "statements": 1,
+     "loaded": {
+      "files": 125
+     }
+    },
+    {
+     "name": "chats.messages (busiest chat)",
+     "actorId": "usr_001",
+     "input": {
+      "conversationId": "cnv_020",
+      "limit": 200
+     },
+     "rowsRead": 1728,
+     "statements": 4,
+     "loaded": {
+      "chatReads": 0,
+      "messages": 200
+     }
+    },
+    {
+     "name": "comments.list (busiest thread)",
+     "actorId": "usr_001",
+     "input": {
+      "targetType": "task",
+      "targetId": "tsk_1260"
+     },
+     "rowsRead": 31,
+     "statements": 2,
+     "loaded": {
+      "tasks": 1,
+      "comments": 12
+     }
+    },
+    {
+     "name": "events.list since 1 hour (meeting)",
+     "actorId": "usr_012",
+     "input": {
+      "since": "2026-10-16T14:00:00.000+03:00",
+      "limit": 500
+     },
+     "rowsRead": 124339,
+     "statements": 4,
+     "loaded": {
+      "tasks": 23,
+      "events": 7
+     }
+    }
+   ],
+   "jobs": {
+    "openTasks": 437,
+    "loader": {
+     "rowsRead": 1975,
+     "rowsWritten": 0,
+     "statements": 3
+    },
+    "dedupe": {
+     "keys": 367,
+     "rowsRead": 734,
+     "rowsWritten": 0,
+     "statements": 1
+    },
+    "outbox": {
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "statements": 1
+    },
+    "cleanup": {
+     "rowsRead": 28,
+     "rowsWritten": 0,
+     "statements": 4
+    }
+   }
+  },
+  "writes": {
+   "taskId": "tsk_1470",
+   "changedColumns": {
+    "tasks.complete (to review)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 32,
+      "statements": 11
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 256,
+      "rowsWritten": 39
+     }
+    },
+    "tasks.update (title and due date, with reason)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 4,
+      "rowsWritten": 35,
+      "statements": 9
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 249,
+      "rowsWritten": 36
+     }
+    },
+    "comments.create (with a mention)": {
+     "load": {
+      "rowsRead": 26,
+      "rowsWritten": 0,
+      "statements": 2
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 37,
+      "statements": 12
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 38,
+      "rowsWritten": 44
+     }
+    },
+    "chats.send": {
+     "load": {
+      "rowsRead": 28,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 19,
+      "statements": 8
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 3,
+      "rowsWritten": 2,
+      "statements": 3
+     },
+     "total": {
+      "rowsRead": 35,
+      "rowsWritten": 22
+     }
+    },
+    "projects.update (an office record)": {
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 20,
+      "statements": 6
+     },
+     "snapshot": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 5,
+      "rowsWritten": 22
+     }
+    },
+    "notifications.markAllRead (usr_012)": {
+     "load": {
+      "rowsRead": 121,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 20,
+      "rowsWritten": 40,
+      "statements": 20
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 142,
+      "rowsWritten": 41
+     },
+     "unread": 20
+    },
+    "notifications.markAllRead (usr_014)": {
+     "load": {
+      "rowsRead": 2607,
+      "rowsWritten": 0,
+      "statements": 5
+     },
+     "save": {
+      "rowsRead": 513,
+      "rowsWritten": 1026,
+      "statements": 513
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 3121,
+      "rowsWritten": 1027
+     },
+     "unread": 513
+    }
+   },
+   "allColumns": {
+    "tasks.complete (to review)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 34,
+      "statements": 11
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 256,
+      "rowsWritten": 41
+     }
+    },
+    "tasks.update (title and due date, with reason)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 4,
+      "rowsWritten": 37,
+      "statements": 9
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 249,
+      "rowsWritten": 38
+     }
+    },
+    "comments.create (with a mention)": {
+     "load": {
+      "rowsRead": 26,
+      "rowsWritten": 0,
+      "statements": 2
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 37,
+      "statements": 12
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 38,
+      "rowsWritten": 44
+     }
+    },
+    "chats.send": {
+     "load": {
+      "rowsRead": 28,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 19,
+      "statements": 8
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 3,
+      "rowsWritten": 2,
+      "statements": 3
+     },
+     "total": {
+      "rowsRead": 35,
+      "rowsWritten": 22
+     }
+    },
+    "projects.update (an office record)": {
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 20,
+      "statements": 6
+     },
+     "snapshot": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 5,
+      "rowsWritten": 22
+     }
+    },
+    "notifications.markAllRead (usr_012)": {
+     "load": {
+      "rowsRead": 121,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 20,
+      "rowsWritten": 40,
+      "statements": 20
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 142,
+      "rowsWritten": 41
+     },
+     "unread": 20
+    },
+    "notifications.markAllRead (usr_014)": {
+     "load": {
+      "rowsRead": 2607,
+      "rowsWritten": 0,
+      "statements": 5
+     },
+     "save": {
+      "rowsRead": 513,
+      "rowsWritten": 1026,
+      "statements": 513
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 3121,
+      "rowsWritten": 1027
+     },
+     "unread": 513
+    }
+   }
+  },
+  "export": {
+   "rows": 146681,
+   "rowsRead": 146681,
+   "bytes": 80935221,
+   "byTable": {
+    "agent_links": 5,
+    "chat_reads": 2500,
+    "clients": 60,
+    "comments": 12000,
+    "conversations": 116,
+    "counters": 22,
+    "deadlines": 216,
+    "events": 62000,
+    "feedback": 120,
+    "files": 6000,
+    "idempotency": 300,
+    "job_runs": 365,
+    "mail_log": 6000,
+    "members": 424,
+    "messages": 20000,
+    "notifications": 26000,
+    "office_deletes": 30,
+    "office_meta": 1,
+    "office_snapshot": 1,
+    "outbox": 1500,
+    "payments": 430,
+    "person_seq": 20,
+    "platform_config": 2,
+    "project_templates": 5,
+    "projects": 72,
+    "push_devices": 25,
+    "rate_limits": 50,
+    "settings": 1,
+    "stage_templates": 7,
+    "stages": 504,
+    "stories": 300,
+    "task_templates": 30,
+    "tasks": 3419,
+    "teams": 4,
+    "tracker": 1500,
+    "updates": 2600,
+    "upload_intents": 20,
+    "usage_month": 12,
+    "users": 20
+   }
+  }
+ },
+ "year-norowid": {
+  "schema": {
+   "ok": true,
+   "rowsRead": 149,
+   "rowsWritten": 145,
+   "statements": 94
+  },
+  "import": {
+   "records": {
+    "rows": 138053,
+    "rowsWritten": 824583,
+    "rowsRead": 0
+   },
+   "serverRows": {
+    "rows": 8627,
+    "rowsWritten": 17913,
+    "rowsRead": 31
+   },
+   "byTable": {
+    "users": {
+     "rows": 20,
+     "rowsWritten": 60,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "teams": {
+     "rows": 4,
+     "rowsWritten": 8,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "settings": {
+     "rows": 1,
+     "rowsWritten": 2,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "clients": {
+     "rows": 60,
+     "rowsWritten": 120,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stage_templates": {
+     "rows": 7,
+     "rowsWritten": 14,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "task_templates": {
+     "rows": 30,
+     "rowsWritten": 60,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "project_templates": {
+     "rows": 5,
+     "rowsWritten": 10,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "projects": {
+     "rows": 72,
+     "rowsWritten": 216,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "members": {
+     "rows": 424,
+     "rowsWritten": 1696,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stages": {
+     "rows": 504,
+     "rowsWritten": 1512,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "deadlines": {
+     "rows": 216,
+     "rowsWritten": 648,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "conversations": {
+     "rows": 116,
+     "rowsWritten": 348,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "tasks": {
+     "rows": 3419,
+     "rowsWritten": 10257,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "chat_reads": {
+     "rows": 2500,
+     "rowsWritten": 5000,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "events": {
+     "rows": 62000,
+     "rowsWritten": 558000,
+     "rowsRead": 0,
+     "requests": 13
+    },
+    "comments": {
+     "rows": 12000,
+     "rowsWritten": 48000,
+     "rowsRead": 0,
+     "requests": 3
+    },
+    "notifications": {
+     "rows": 26000,
+     "rowsWritten": 111305,
+     "rowsRead": 0,
+     "requests": 6
+    },
+    "messages": {
+     "rows": 20000,
+     "rowsWritten": 60000,
+     "rowsRead": 0,
+     "requests": 4
+    },
+    "files": {
+     "rows": 6000,
+     "rowsWritten": 18000,
+     "rowsRead": 0,
+     "requests": 2
+    },
+    "tracker": {
+     "rows": 1500,
+     "rowsWritten": 3072,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "payments": {
+     "rows": 430,
+     "rowsWritten": 860,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "updates": {
+     "rows": 2600,
+     "rowsWritten": 5200,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "feedback": {
+     "rows": 120,
+     "rowsWritten": 120,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "push_devices": {
+     "rows": 25,
+     "rowsWritten": 75,
+     "rowsRead": 0,
+     "requests": 1
+    }
+   },
+   "server": {
+    "counters": {
+     "rows": 22,
+     "rowsRead": 0,
+     "rowsWritten": 44,
+     "statements": 22
+    },
+    "office_meta": {
+     "rows": 1,
+     "rowsRead": 1,
+     "rowsWritten": 1,
+     "statements": 1
+    },
+    "person_seq": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 40,
+     "statements": 20
+    },
+    "stories": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 900,
+     "statements": 300
+    },
+    "idempotency": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 900,
+     "statements": 300
+    },
+    "outbox": {
+     "rows": 1500,
+     "rowsRead": 0,
+     "rowsWritten": 3000,
+     "statements": 1500
+    },
+    "mail_log": {
+     "rows": 6000,
+     "rowsRead": 0,
+     "rowsWritten": 12000,
+     "statements": 6000
+    },
+    "usage_month": {
+     "rows": 12,
+     "rowsRead": 0,
+     "rowsWritten": 24,
+     "statements": 12
+    },
+    "job_runs": {
+     "rows": 365,
+     "rowsRead": 0,
+     "rowsWritten": 730,
+     "statements": 365
+    },
+    "rate_limits": {
+     "rows": 50,
+     "rowsRead": 0,
+     "rowsWritten": 100,
+     "statements": 50
+    },
+    "office_deletes": {
+     "rows": 30,
+     "rowsRead": 30,
+     "rowsWritten": 90,
+     "statements": 30
+    },
+    "agent_links": {
+     "rows": 5,
+     "rowsRead": 0,
+     "rowsWritten": 20,
+     "statements": 5
+    },
+    "upload_intents": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 60,
+     "statements": 20
+    },
+    "platform_config": {
+     "rows": 2,
+     "rowsRead": 0,
+     "rowsWritten": 4,
+     "statements": 2
+    }
+   }
+  },
+  "stats": {
+   "total": 146680,
+   "counts": {
+    "agent_links": 5,
+    "chat_reads": 2500,
+    "clients": 60,
+    "comments": 12000,
+    "conversations": 116,
+    "counters": 22,
+    "deadlines": 216,
+    "events": 62000,
+    "feedback": 120,
+    "files": 6000,
+    "idempotency": 300,
+    "job_runs": 365,
+    "mail_log": 6000,
+    "members": 424,
+    "messages": 20000,
+    "notifications": 26000,
+    "office_deletes": 30,
+    "office_meta": 1,
+    "office_snapshot": 0,
+    "outbox": 1500,
+    "payments": 430,
+    "person_seq": 20,
+    "platform_config": 2,
+    "project_templates": 5,
+    "projects": 72,
+    "push_devices": 25,
+    "rate_limits": 50,
+    "settings": 1,
+    "stage_templates": 7,
+    "stages": 504,
+    "stories": 300,
+    "task_templates": 30,
+    "tasks": 3419,
+    "teams": 4,
+    "tracker": 1500,
+    "updates": 2600,
+    "upload_intents": 20,
+    "usage_month": 12,
+    "users": 20
+   },
+   "indexes": 67,
+   "databaseSize": 95793152
+  },
+  "cold": {
+   "fromTables": {
+    "rowsRead": 2918,
+    "rowsWritten": 0,
+    "statements": 12
+   },
+   "snapshotWrite": {
+    "parts": 1,
+    "bytes": 232457,
+    "rowsRead": 2,
+    "rowsWritten": 1,
+    "statements": 2
+   },
+   "fromSnapshot": {
+    "rowsRead": 1,
+    "rowsWritten": 0,
+    "statements": 1
+   }
+  },
+  "reads": {
+   "picks": {
+    "project": "prj_041",
+    "projectTasks": 60,
+    "busyTask": {
+     "id": "tsk_530",
+     "n": 29
+    },
+    "busyChat": {
+     "id": "cnv_020",
+     "n": 343
+    },
+    "busyThread": {
+     "id": "tsk_1260",
+     "n": 12
+    },
+    "activeProjects": 29
+   },
+   "calls": [
+    {
+     "name": "session.get",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 89,
+     "statements": 4,
+     "loaded": {
+      "notifications": 17,
+      "tasks": 10,
+      "updates": 2,
+      "feedback": 1
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 56258,
+     "statements": 249,
+     "loaded": {
+      "chatReads": 19,
+      "tasks": 53,
+      "comments": 84
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 2989,
+     "statements": 4,
+     "loaded": {
+      "tasks": 24
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3291,
+     "statements": 5,
+     "loaded": {
+      "tasks": 365
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_001",
+     "input": {
+      "filter": "all"
+     },
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "dashboard.get",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 6175,
+     "statements": 6,
+     "loaded": {
+      "tasks": 1448,
+      "events": 88,
+      "tracker": 265,
+      "payments": 138
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 349,
+     "statements": 7,
+     "loaded": {
+      "events": 50,
+      "tasks": 27,
+      "files": 3,
+      "payments": 1,
+      "comments": 5,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 2542,
+     "statements": 5,
+     "loaded": {
+      "notifications": 117,
+      "tasks": 85,
+      "updates": 7,
+      "feedback": 5
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_001",
+     "input": {},
+     "rowsRead": 56516,
+     "statements": 335,
+     "loaded": {
+      "chatReads": 19,
+      "messages": 86,
+      "tasks": 53,
+      "comments": 84
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_001",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 8704,
+     "statements": 5,
+     "loaded": {
+      "tasks": 165,
+      "files": 10
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_001",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8236,
+     "statements": 5,
+     "loaded": {
+      "tasks": 160,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 165,
+     "statements": 3,
+     "loaded": {
+      "notifications": 31,
+      "tasks": 24,
+      "updates": 1
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 22753,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 48,
+      "tasks": 100,
+      "comments": 123
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 4527,
+     "statements": 5,
+     "loaded": {
+      "tasks": 285
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3173,
+     "statements": 5,
+     "loaded": {
+      "tasks": 353
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_002",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 5094,
+     "statements": 70,
+     "loaded": {
+      "tasks": 1476,
+      "updates": 64,
+      "files": 36,
+      "events": 64
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "dashboard.get",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 5993,
+     "statements": 6,
+     "loaded": {
+      "tasks": 1308,
+      "events": 78,
+      "tracker": 265,
+      "payments": 138
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 737,
+     "statements": 8,
+     "loaded": {
+      "tasks": 46,
+      "events": 50,
+      "comments": 6,
+      "files": 3,
+      "payments": 1,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 4850,
+     "statements": 5,
+     "loaded": {
+      "notifications": 131,
+      "tasks": 82,
+      "updates": 10,
+      "feedback": 3
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_002",
+     "input": {},
+     "rowsRead": 22852,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 48,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 123
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_002",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 8543,
+     "statements": 5,
+     "loaded": {
+      "tasks": 25,
+      "files": 6
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_002",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8089,
+     "statements": 5,
+     "loaded": {
+      "tasks": 20,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 173,
+     "statements": 3,
+     "loaded": {
+      "notifications": 35,
+      "tasks": 22,
+      "updates": 3
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 24591,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 59,
+      "tasks": 100,
+      "comments": 119
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 5261,
+     "statements": 5,
+     "loaded": {
+      "tasks": 419
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3184,
+     "statements": 5,
+     "loaded": {
+      "tasks": 354
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_005",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 4614,
+     "statements": 68,
+     "loaded": {
+      "tasks": 1383,
+      "updates": 62,
+      "files": 32,
+      "events": 62
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 747,
+     "statements": 7,
+     "loaded": {
+      "tasks": 45,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 4934,
+     "statements": 5,
+     "loaded": {
+      "notifications": 135,
+      "tasks": 78,
+      "updates": 14,
+      "feedback": 3
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_005",
+     "input": {},
+     "rowsRead": 24690,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 59,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 119
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_005",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 8546,
+     "statements": 5,
+     "loaded": {
+      "tasks": 23,
+      "files": 7
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_005",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8088,
+     "statements": 5,
+     "loaded": {
+      "tasks": 18,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 99,
+     "statements": 2,
+     "loaded": {
+      "notifications": 20,
+      "tasks": 14
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 21064,
+     "statements": 337,
+     "loaded": {
+      "chatReads": 53,
+      "tasks": 100,
+      "comments": 139
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 4448,
+     "statements": 5,
+     "loaded": {
+      "tasks": 294
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3172,
+     "statements": 5,
+     "loaded": {
+      "tasks": 353
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_012",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 4018,
+     "statements": 58,
+     "loaded": {
+      "tasks": 1164,
+      "updates": 52,
+      "files": 25,
+      "events": 52
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 747,
+     "statements": 7,
+     "loaded": {
+      "tasks": 44,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 2636,
+     "statements": 5,
+     "loaded": {
+      "notifications": 120,
+      "tasks": 76,
+      "updates": 9,
+      "feedback": 2
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_012",
+     "input": {},
+     "rowsRead": 21163,
+     "statements": 370,
+     "loaded": {
+      "chatReads": 53,
+      "messages": 33,
+      "tasks": 100,
+      "comments": 139
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_012",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 8543,
+     "statements": 5,
+     "loaded": {
+      "tasks": 22,
+      "files": 6
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_012",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8088,
+     "statements": 5,
+     "loaded": {
+      "tasks": 17,
+      "files": 0
+     }
+    },
+    {
+     "name": "session.get",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 0,
+     "statements": 0,
+     "loaded": {}
+    },
+    {
+     "name": "notifications.count",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 2585,
+     "statements": 4,
+     "loaded": {
+      "notifications": 513,
+      "tasks": 337,
+      "updates": 38,
+      "feedback": 14
+     }
+    },
+    {
+     "name": "chats.unreadCount",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 22520,
+     "statements": 341,
+     "loaded": {
+      "chatReads": 52,
+      "tasks": 100,
+      "comments": 138
+     }
+    },
+    {
+     "name": "tasks.list mine",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "mine"
+     },
+     "rowsRead": 5460,
+     "statements": 5,
+     "loaded": {
+      "tasks": 463
+     }
+    },
+    {
+     "name": "tasks.list review_for_me",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "review_for_me"
+     },
+     "rowsRead": 3184,
+     "statements": 5,
+     "loaded": {
+      "tasks": 355
+     }
+    },
+    {
+     "name": "projects.list (Home)",
+     "actorId": "usr_014",
+     "input": {
+      "filter": "mine",
+      "status": "all"
+     },
+     "rowsRead": 5077,
+     "statements": 70,
+     "loaded": {
+      "tasks": 1495,
+      "updates": 64,
+      "files": 39,
+      "events": 64
+     }
+    },
+    {
+     "name": "projects.list (Projects screen, active)",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 4268,
+     "statements": 64,
+     "loaded": {
+      "tasks": 1288,
+      "updates": 58,
+      "files": 26,
+      "events": 58
+     }
+    },
+    {
+     "name": "events.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 761,
+     "statements": 7,
+     "loaded": {
+      "tasks": 56,
+      "events": 50,
+      "files": 4,
+      "comments": 6,
+      "tracker": 1
+     }
+    },
+    {
+     "name": "notifications.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 4022,
+     "statements": 5,
+     "loaded": {
+      "notifications": 613,
+      "tasks": 401,
+      "updates": 47,
+      "feedback": 15
+     }
+    },
+    {
+     "name": "chats.list",
+     "actorId": "usr_014",
+     "input": {},
+     "rowsRead": 22631,
+     "statements": 378,
+     "loaded": {
+      "chatReads": 52,
+      "messages": 37,
+      "tasks": 100,
+      "comments": 138
+     }
+    },
+    {
+     "name": "search.query common word",
+     "actorId": "usr_014",
+     "input": {
+      "text": "roof"
+     },
+     "rowsRead": 8561,
+     "statements": 5,
+     "loaded": {
+      "tasks": 34,
+      "files": 9
+     }
+    },
+    {
+     "name": "search.query no match",
+     "actorId": "usr_014",
+     "input": {
+      "text": "zzqx"
+     },
+     "rowsRead": 8102,
+     "statements": 5,
+     "loaded": {
+      "tasks": 29,
+      "files": 0
+     }
+    },
+    {
+     "name": "projects.get",
+     "actorId": "usr_005",
+     "input": {
+      "id": "prj_041"
+     },
+     "rowsRead": 171,
+     "statements": 5,
+     "loaded": {
+      "tasks": 60,
+      "updates": 2,
+      "events": 2
+     }
+    },
+    {
+     "name": "tasks.get (busiest task)",
+     "actorId": "usr_001",
+     "input": {
+      "id": "tsk_530"
+     },
+     "rowsRead": 237,
+     "statements": 6,
+     "loaded": {
+      "tasks": 49,
+      "events": 29
+     }
+    },
+    {
+     "name": "updates.list",
+     "actorId": "usr_005",
+     "input": {
+      "projectId": "prj_041",
+      "limit": 50
+     },
+     "rowsRead": 755,
+     "statements": 7,
+     "loaded": {
+      "tasks": 60,
+      "updates": 50,
+      "files": 16,
+      "events": 50
+     }
+    },
+    {
+     "name": "files.list",
+     "actorId": "usr_005",
+     "input": {
+      "projectId": "prj_041"
+     },
+     "rowsRead": 253,
+     "statements": 1,
+     "loaded": {
+      "files": 125
+     }
+    },
+    {
+     "name": "chats.messages (busiest chat)",
+     "actorId": "usr_001",
+     "input": {
+      "conversationId": "cnv_020",
+      "limit": 200
+     },
+     "rowsRead": 1728,
+     "statements": 4,
+     "loaded": {
+      "chatReads": 0,
+      "messages": 200
+     }
+    },
+    {
+     "name": "comments.list (busiest thread)",
+     "actorId": "usr_001",
+     "input": {
+      "targetType": "task",
+      "targetId": "tsk_1260"
+     },
+     "rowsRead": 31,
+     "statements": 2,
+     "loaded": {
+      "tasks": 1,
+      "comments": 12
+     }
+    },
+    {
+     "name": "events.list since 1 hour (meeting)",
+     "actorId": "usr_012",
+     "input": {
+      "since": "2026-10-16T14:00:00.000+03:00",
+      "limit": 500
+     },
+     "rowsRead": 653,
+     "statements": 4,
+     "loaded": {
+      "tasks": 23,
+      "events": 7
+     }
+    }
+   ],
+   "jobs": {
+    "openTasks": 437,
+    "loader": {
+     "rowsRead": 1998,
+     "rowsWritten": 0,
+     "statements": 3
+    },
+    "dedupe": {
+     "keys": 367,
+     "rowsRead": 734,
+     "rowsWritten": 0,
+     "statements": 1
+    },
+    "outbox": {
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "statements": 1
+    },
+    "cleanup": {
+     "rowsRead": 28,
+     "rowsWritten": 0,
+     "statements": 4
+    }
+   }
+  },
+  "writes": {
+   "taskId": "tsk_1470",
+   "changedColumns": {
+    "tasks.complete (to review)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 30,
+      "statements": 11
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 256,
+      "rowsWritten": 37
+     }
+    },
+    "tasks.update (title and due date, with reason)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 4,
+      "rowsWritten": 32,
+      "statements": 9
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 249,
+      "rowsWritten": 33
+     }
+    },
+    "comments.create (with a mention)": {
+     "load": {
+      "rowsRead": 26,
+      "rowsWritten": 0,
+      "statements": 2
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 34,
+      "statements": 12
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 38,
+      "rowsWritten": 41
+     }
+    },
+    "chats.send": {
+     "load": {
+      "rowsRead": 28,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 17,
+      "statements": 8
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 3,
+      "rowsWritten": 2,
+      "statements": 3
+     },
+     "total": {
+      "rowsRead": 35,
+      "rowsWritten": 20
+     }
+    },
+    "projects.update (an office record)": {
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 19,
+      "statements": 6
+     },
+     "snapshot": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 5,
+      "rowsWritten": 21
+     }
+    },
+    "notifications.markAllRead (usr_012)": {
+     "load": {
+      "rowsRead": 121,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 20,
+      "rowsWritten": 40,
+      "statements": 20
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 142,
+      "rowsWritten": 41
+     },
+     "unread": 20
+    },
+    "notifications.markAllRead (usr_014)": {
+     "load": {
+      "rowsRead": 2607,
+      "rowsWritten": 0,
+      "statements": 5
+     },
+     "save": {
+      "rowsRead": 513,
+      "rowsWritten": 1026,
+      "statements": 513
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 3121,
+      "rowsWritten": 1027
+     },
+     "unread": 513
+    }
+   },
+   "allColumns": {
+    "tasks.complete (to review)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 32,
+      "statements": 11
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 256,
+      "rowsWritten": 39
+     }
+    },
+    "tasks.update (title and due date, with reason)": {
+     "load": {
+      "rowsRead": 244,
+      "rowsWritten": 0,
+      "statements": 7
+     },
+     "save": {
+      "rowsRead": 4,
+      "rowsWritten": 34,
+      "statements": 9
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 249,
+      "rowsWritten": 35
+     }
+    },
+    "comments.create (with a mention)": {
+     "load": {
+      "rowsRead": 26,
+      "rowsWritten": 0,
+      "statements": 2
+     },
+     "save": {
+      "rowsRead": 5,
+      "rowsWritten": 34,
+      "statements": 12
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 6,
+      "rowsWritten": 6,
+      "statements": 6
+     },
+     "total": {
+      "rowsRead": 38,
+      "rowsWritten": 41
+     }
+    },
+    "chats.send": {
+     "load": {
+      "rowsRead": 28,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 17,
+      "statements": 8
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "after": {
+      "rowsRead": 3,
+      "rowsWritten": 2,
+      "statements": 3
+     },
+     "total": {
+      "rowsRead": 35,
+      "rowsWritten": 20
+     }
+    },
+    "projects.update (an office record)": {
+     "save": {
+      "rowsRead": 3,
+      "rowsWritten": 19,
+      "statements": 6
+     },
+     "snapshot": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 5,
+      "rowsWritten": 21
+     }
+    },
+    "notifications.markAllRead (usr_012)": {
+     "load": {
+      "rowsRead": 121,
+      "rowsWritten": 0,
+      "statements": 3
+     },
+     "save": {
+      "rowsRead": 20,
+      "rowsWritten": 40,
+      "statements": 20
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 142,
+      "rowsWritten": 41
+     },
+     "unread": 20
+    },
+    "notifications.markAllRead (usr_014)": {
+     "load": {
+      "rowsRead": 2607,
+      "rowsWritten": 0,
+      "statements": 5
+     },
+     "save": {
+      "rowsRead": 513,
+      "rowsWritten": 1026,
+      "statements": 513
+     },
+     "request": {
+      "rowsRead": 1,
+      "rowsWritten": 1,
+      "statements": 1
+     },
+     "total": {
+      "rowsRead": 3121,
+      "rowsWritten": 1027
+     },
+     "unread": 513
+    }
+   }
+  },
+  "export": {
+   "rows": 146681,
+   "rowsRead": 146681,
+   "bytes": 83005562,
+   "byTable": {
+    "agent_links": 5,
+    "chat_reads": 2500,
+    "clients": 60,
+    "comments": 12000,
+    "conversations": 116,
+    "counters": 22,
+    "deadlines": 216,
+    "events": 62000,
+    "feedback": 120,
+    "files": 6000,
+    "idempotency": 300,
+    "job_runs": 365,
+    "mail_log": 6000,
+    "members": 424,
+    "messages": 20000,
+    "notifications": 26000,
+    "office_deletes": 30,
+    "office_meta": 1,
+    "office_snapshot": 1,
+    "outbox": 1500,
+    "payments": 430,
+    "person_seq": 20,
+    "platform_config": 2,
+    "project_templates": 5,
+    "projects": 72,
+    "push_devices": 25,
+    "rate_limits": 50,
+    "settings": 1,
+    "stage_templates": 7,
+    "stages": 504,
+    "stories": 300,
+    "task_templates": 30,
+    "tasks": 3419,
+    "teams": 4,
+    "tracker": 1500,
+    "updates": 2600,
+    "upload_intents": 20,
+    "usage_month": 12,
+    "users": 20
+   }
+  }
+ },
+ "year-late-indexes": {
+  "schema": {
+   "ok": true,
+   "rowsRead": 39,
+   "rowsWritten": 114,
+   "statements": 39
+  },
+  "import": {
+   "records": {
+    "rows": 138053,
+    "rowsWritten": 276106,
+    "rowsRead": 0
+   },
+   "serverRows": {
+    "rows": 8627,
+    "rowsWritten": 17223,
+    "rowsRead": 31
+   },
+   "byTable": {
+    "users": {
+     "rows": 20,
+     "rowsWritten": 40,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "teams": {
+     "rows": 4,
+     "rowsWritten": 8,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "settings": {
+     "rows": 1,
+     "rowsWritten": 2,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "clients": {
+     "rows": 60,
+     "rowsWritten": 120,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stage_templates": {
+     "rows": 7,
+     "rowsWritten": 14,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "task_templates": {
+     "rows": 30,
+     "rowsWritten": 60,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "project_templates": {
+     "rows": 5,
+     "rowsWritten": 10,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "projects": {
+     "rows": 72,
+     "rowsWritten": 144,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "members": {
+     "rows": 424,
+     "rowsWritten": 848,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "stages": {
+     "rows": 504,
+     "rowsWritten": 1008,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "deadlines": {
+     "rows": 216,
+     "rowsWritten": 432,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "conversations": {
+     "rows": 116,
+     "rowsWritten": 232,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "tasks": {
+     "rows": 3419,
+     "rowsWritten": 6838,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "chat_reads": {
+     "rows": 2500,
+     "rowsWritten": 5000,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "events": {
+     "rows": 62000,
+     "rowsWritten": 124000,
+     "rowsRead": 0,
+     "requests": 13
+    },
+    "comments": {
+     "rows": 12000,
+     "rowsWritten": 24000,
+     "rowsRead": 0,
+     "requests": 3
+    },
+    "notifications": {
+     "rows": 26000,
+     "rowsWritten": 52000,
+     "rowsRead": 0,
+     "requests": 6
+    },
+    "messages": {
+     "rows": 20000,
+     "rowsWritten": 40000,
+     "rowsRead": 0,
+     "requests": 4
+    },
+    "files": {
+     "rows": 6000,
+     "rowsWritten": 12000,
+     "rowsRead": 0,
+     "requests": 2
+    },
+    "tracker": {
+     "rows": 1500,
+     "rowsWritten": 3000,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "payments": {
+     "rows": 430,
+     "rowsWritten": 860,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "updates": {
+     "rows": 2600,
+     "rowsWritten": 5200,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "feedback": {
+     "rows": 120,
+     "rowsWritten": 240,
+     "rowsRead": 0,
+     "requests": 1
+    },
+    "push_devices": {
+     "rows": 25,
+     "rowsWritten": 50,
+     "rowsRead": 0,
+     "requests": 1
+    }
+   },
+   "server": {
+    "counters": {
+     "rows": 22,
+     "rowsRead": 0,
+     "rowsWritten": 44,
+     "statements": 22
+    },
+    "office_meta": {
+     "rows": 1,
+     "rowsRead": 1,
+     "rowsWritten": 1,
+     "statements": 1
+    },
+    "person_seq": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 40,
+     "statements": 20
+    },
+    "stories": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 600,
+     "statements": 300
+    },
+    "idempotency": {
+     "rows": 300,
+     "rowsRead": 0,
+     "rowsWritten": 600,
+     "statements": 300
+    },
+    "outbox": {
+     "rows": 1500,
+     "rowsRead": 0,
+     "rowsWritten": 3000,
+     "statements": 1500
+    },
+    "mail_log": {
+     "rows": 6000,
+     "rowsRead": 0,
+     "rowsWritten": 12000,
+     "statements": 6000
+    },
+    "usage_month": {
+     "rows": 12,
+     "rowsRead": 0,
+     "rowsWritten": 24,
+     "statements": 12
+    },
+    "job_runs": {
+     "rows": 365,
+     "rowsRead": 0,
+     "rowsWritten": 730,
+     "statements": 365
+    },
+    "rate_limits": {
+     "rows": 50,
+     "rowsRead": 0,
+     "rowsWritten": 100,
+     "statements": 50
+    },
+    "office_deletes": {
+     "rows": 30,
+     "rowsRead": 30,
+     "rowsWritten": 30,
+     "statements": 30
+    },
+    "agent_links": {
+     "rows": 5,
+     "rowsRead": 0,
+     "rowsWritten": 10,
+     "statements": 5
+    },
+    "upload_intents": {
+     "rows": 20,
+     "rowsRead": 0,
+     "rowsWritten": 40,
+     "statements": 20
+    },
+    "platform_config": {
+     "rows": 2,
+     "rowsRead": 0,
+     "rowsWritten": 4,
+     "statements": 2
+    }
+   }
+  },
+  "indexBuild": {
+   "total": {
+    "rowsRead": 1371019,
+    "rowsWritten": 679922
+   },
+   "byIndex": {
+    "exists": {
+     "rowsRead": 124331,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "users_chg": {
+     "rowsRead": 42,
+     "rowsWritten": 21,
+     "statements": 1
+    },
+    "clients_chg": {
+     "rowsRead": 122,
+     "rowsWritten": 61,
+     "statements": 1
+    },
+    "teams_chg": {
+     "rowsRead": 10,
+     "rowsWritten": 5,
+     "statements": 1
+    },
+    "stage_templates_chg": {
+     "rowsRead": 16,
+     "rowsWritten": 8,
+     "statements": 1
+    },
+    "task_templates_chg": {
+     "rowsRead": 62,
+     "rowsWritten": 31,
+     "statements": 1
+    },
+    "project_templates_chg": {
+     "rowsRead": 12,
+     "rowsWritten": 6,
+     "statements": 1
+    },
+    "push_devices_user": {
+     "rowsRead": 52,
+     "rowsWritten": 26,
+     "statements": 1
+    },
+    "settings_chg": {
+     "rowsRead": 3,
+     "rowsWritten": 2,
+     "statements": 1
+    },
+    "projects_status": {
+     "rowsRead": 146,
+     "rowsWritten": 73,
+     "statements": 1
+    },
+    "projects_chg": {
+     "rowsRead": 146,
+     "rowsWritten": 73,
+     "statements": 1
+    },
+    "members_project": {
+     "rowsRead": 851,
+     "rowsWritten": 425,
+     "statements": 1
+    },
+    "members_user": {
+     "rowsRead": 851,
+     "rowsWritten": 425,
+     "statements": 1
+    },
+    "members_chg": {
+     "rowsRead": 850,
+     "rowsWritten": 425,
+     "statements": 1
+    },
+    "stages_project": {
+     "rowsRead": 1011,
+     "rowsWritten": 505,
+     "statements": 1
+    },
+    "stages_chg": {
+     "rowsRead": 1010,
+     "rowsWritten": 505,
+     "statements": 1
+    },
+    "deadlines_project": {
+     "rowsRead": 434,
+     "rowsWritten": 217,
+     "statements": 1
+    },
+    "deadlines_chg": {
+     "rowsRead": 434,
+     "rowsWritten": 217,
+     "statements": 1
+    },
+    "conversations_project": {
+     "rowsRead": 234,
+     "rowsWritten": 117,
+     "statements": 1
+    },
+    "conversations_chg": {
+     "rowsRead": 234,
+     "rowsWritten": 117,
+     "statements": 1
+    },
+    "tasks_project": {
+     "rowsRead": 6863,
+     "rowsWritten": 3420,
+     "statements": 1
+    },
+    "tasks_owner": {
+     "rowsRead": 6863,
+     "rowsWritten": 3420,
+     "statements": 1
+    },
+    "updates_project_created": {
+     "rowsRead": 5257,
+     "rowsWritten": 2601,
+     "statements": 1
+    },
+    "comments_target": {
+     "rowsRead": 24297,
+     "rowsWritten": 12001,
+     "statements": 1
+    },
+    "comments_project": {
+     "rowsRead": 24087,
+     "rowsWritten": 12001,
+     "statements": 1
+    },
+    "comments_target_id": {
+     "rowsRead": 24091,
+     "rowsWritten": 12001,
+     "statements": 1
+    },
+    "files_project": {
+     "rowsRead": 12042,
+     "rowsWritten": 6001,
+     "statements": 1
+    },
+    "files_task": {
+     "rowsRead": 12037,
+     "rowsWritten": 6001,
+     "statements": 1
+    },
+    "tracker_project": {
+     "rowsRead": 3011,
+     "rowsWritten": 1501,
+     "statements": 1
+    },
+    "tracker_open": {
+     "rowsRead": 1574,
+     "rowsWritten": 73,
+     "statements": 1
+    },
+    "payments_project": {
+     "rowsRead": 863,
+     "rowsWritten": 431,
+     "statements": 1
+    },
+    "notifications_inbox": {
+     "rowsRead": 52585,
+     "rowsWritten": 26001,
+     "statements": 1
+    },
+    "notifications_story": {
+     "rowsRead": 52253,
+     "rowsWritten": 26001,
+     "statements": 1
+    },
+    "notifications_target": {
+     "rowsRead": 52269,
+     "rowsWritten": 26001,
+     "statements": 1
+    },
+    "messages_conversation": {
+     "rowsRead": 40439,
+     "rowsWritten": 20001,
+     "statements": 1
+    },
+    "messages_conversation_newest": {
+     "rowsRead": 40527,
+     "rowsWritten": 20001,
+     "statements": 1
+    },
+    "chat_reads_user": {
+     "rowsRead": 5019,
+     "rowsWritten": 2501,
+     "statements": 1
+    },
+    "events_target": {
+     "rowsRead": 124770,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_story": {
+     "rowsRead": 124619,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_project": {
+     "rowsRead": 124562,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_undoes": {
+     "rowsRead": 124256,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_created_c": {
+     "rowsRead": 125131,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_project_created": {
+     "rowsRead": 125367,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "events_target_id": {
+     "rowsRead": 124485,
+     "rowsWritten": 62001,
+     "statements": 1
+    },
+    "office_deletes_chg": {
+     "rowsRead": 62,
+     "rowsWritten": 31,
+     "statements": 1
+    },
+    "office_deletes_created": {
+     "rowsRead": 62,
+     "rowsWritten": 31,
+     "statements": 1
+    },
+    "stories_created": {
+     "rowsRead": 605,
+     "rowsWritten": 301,
+     "statements": 1
+    },
+    "idempotency_created": {
+     "rowsRead": 605,
+     "rowsWritten": 301,
+     "statements": 1
+    },
+    "outbox_open": {
+     "rowsRead": 1501,
+     "rowsWritten": 1,
+     "statements": 1
+    },
+    "upload_intents_open": {
+     "rowsRead": 42,
+     "rowsWritten": 21,
+     "statements": 1
+    },
+    "agent_links_owner": {
+     "rowsRead": 12,
+     "rowsWritten": 6,
+     "statements": 1
+    },
+    "agent_links_agent": {
+     "rowsRead": 12,
+     "rowsWritten": 6,
+     "statements": 1
+    }
+   }
+  },
+  "stats": {
+   "total": 146680,
+   "counts": {
+    "agent_links": 5,
+    "chat_reads": 2500,
+    "clients": 60,
+    "comments": 12000,
+    "conversations": 116,
+    "counters": 22,
+    "deadlines": 216,
+    "events": 62000,
+    "feedback": 120,
+    "files": 6000,
+    "idempotency": 300,
+    "job_runs": 365,
+    "mail_log": 6000,
+    "members": 424,
+    "messages": 20000,
+    "notifications": 26000,
+    "office_deletes": 30,
+    "office_meta": 1,
+    "office_snapshot": 0,
+    "outbox": 1500,
+    "payments": 430,
+    "person_seq": 20,
+    "platform_config": 2,
+    "project_templates": 5,
+    "projects": 72,
+    "push_devices": 25,
+    "rate_limits": 50,
+    "settings": 1,
+    "stage_templates": 7,
+    "stages": 504,
+    "stories": 300,
+    "task_templates": 30,
+    "tasks": 3419,
+    "teams": 4,
+    "tracker": 1500,
+    "updates": 2600,
+    "upload_intents": 20,
+    "usage_month": 12,
+    "users": 20
+   },
+   "indexes": 91,
+   "databaseSize": 85516288
+  }
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "bcryptHash": "$2a$10$QyXrSV0ETPiKCL3760g9quRekv0QTzq.mEQMDpYVsBVKRWmu3o5p2",
+ "publicJwk": {
+  "kty": "EC",
+  "x": "V-rmMoVGpK4JwRMUiYsQpzqENMYxm1sQhf0o-JqjtSk",
+  "y": "SNxS8XIrmMjMwtRZR4lwL1UtKXDty26VbPY858qk3wg",
+  "crv": "P-256",
+  "kid": "probe-1",
+  "alg": "ES256",
+  "use": "sig"
+ }
+}

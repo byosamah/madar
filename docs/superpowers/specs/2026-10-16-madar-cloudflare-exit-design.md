@@ -9,8 +9,15 @@ Workers Paid ($5 a month), or it stops. Wave 0 tests this first, before any othe
 
 **Wave 0, first result (16 October, 18:50 UTC).** The office object passed 2,696 of 2,696 calls in 45 minutes of steady load,
 with 16 to 135 ms of CPU each, on Workers Free. A plain Worker beside it failed 1,309 of 1,797 calls in the same minutes
-(proof.md, "Wave 0 of the Supabase exit"). So the CPU limit does not block this plan today. The rows, the sockets and bcrypt
-are still to measure.
+(proof.md, "Wave 0 of the Supabase exit"). So the CPU limit does not block this plan today.
+
+**Wave 0, the rest (16 October, 21:00 UTC; proof.md "Wave 0, the rest").** Sockets, bcrypt (77 to 95 ms in the object) and
+ES256 (under 1.2 ms in the front Worker) fit Free. Rows read is the tight limit: as ported, a day reads 65% to 145% of the Free
+5 million, and the chat badge makes about 75% of it. Changes to this plan before any build: (1) a stored unread number for each
+person and chat, written by the message and comment writes (estimate 38% of the day); (2) sorts in JavaScript, never SQL;
+(3) no ANALYZE, and a test that pins the rows read of each heavy read; (4) a socket sweep by the auto-pong time, and a client
+ping each 30 s that opens again and reloads; (5) the import writes about 7 rows for each record (980,549 for a year), so the
+switch should come while production is small; (6) count real calls, not requests, before the budget is final.
 
 ## Summary
 - **What moves:** the database, sign-in, live updates, the 15-minute jobs and the backups leave Supabase. Each copy gets one Cloudflare Worker and one Durable Object. The screens and the business rules stay.

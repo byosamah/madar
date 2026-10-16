@@ -493,8 +493,10 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   7 of 7 files on R2, health `"fileStore":"r2"`. Record: proof.md "Files to R2 on production"
 - [x] Wave 0 of the exit plan, the CPU question: a Durable Object on Free passed 2,696 of 2,696 calls of 16 to 135 ms in 45 minutes,
   while a plain Worker failed 1,309 of 1,797 (proof.md "Wave 0 of the Supabase exit")
-- [ ] Owner: the exit plan after wave 0 (go or no-go for the rest of wave 0: rows read on one year of data, a socket to a sleeping
-  object, bcrypt; then the build). The Free CPU risk is now measured, not only read
+- [x] The rest of wave 0 (owner, 2026-10-16: "yes go ahead"): rows on one year of data, sockets, bcrypt and ES256 (proof.md
+  "Wave 0, the rest"). Sockets and crypto fit Free; rows read is the tight limit (the chat badge is about 75% of it)
+- [ ] Owner: go or no-go for the build of the exit plan, with the six changes of wave 0 at the top of the spec
+- [ ] Owner: delete the throwaway probe Workers `madar-do-probe`, `madar-cpu-probe` and `madar-socket-probe` (all off, 404)
 - [ ] The walk: a quick add of a task (Enter in "Add a task") gave no row in each of the 4 walks of 2026-10-16. Find out if the screen
   or the test is at fault: run the en-1440 walk alone with `--trace on` and a longer limit (the walk reached 15 minutes first)
 - [ ] The shell test: single cases with no `h1` within 10 s, or a language switch over 10 s (2 of 12 in each run)

@@ -1,0 +1,7 @@
+{ a: __type(name: "AccountDurableObjectsPeriodicGroupsSum") { fields { name } }
+  b: __type(name: "AccountDurableObjectsInvocationsAdaptiveGroupsSum") { fields { name } }
+  c: __type(name: "AccountDurableObjectsPeriodicGroupsDimensions") { fields { name } }
+  d: __type(name: "AccountDurableObjectsInvocationsAdaptiveGroupsQuantiles") { fields { name } }
+  e: __type(name: "AccountDurableObjectsPeriodicGroupsMax") { fields { name } }
+  f: __type(name: "AccountDurableObjectsInvocationsAdaptiveGroupsDimensions") { fields { name } }
+  g: __type(name: "account") { fields { name } } }

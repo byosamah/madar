@@ -1,0 +1,363 @@
+{
+ "mixPerCall": {
+  "production": {
+   "ported": {
+    "readPerCall": 5924.599999999998,
+    "writtenPerCall": 7.12,
+    "readParts": {
+     "chats.unreadCount": 4421,
+     "notifications.count": 56,
+     "session.get": 0,
+     "office only": 0,
+     "tasks.list mine": 180,
+     "tasks.list review_for_me": 128,
+     "projects.list (Home)": 134,
+     "projects.list (Projects screen, active)": 128,
+     "dashboard.get": 120,
+     "projects.get": 5,
+     "tasks.get (busiest task)": 7,
+     "updates.list": 8,
+     "files.list": 3,
+     "comments.list (busiest thread)": 0,
+     "events.list": 18,
+     "notifications.list": 110,
+     "chats.list": 444,
+     "chats.messages (busiest chat)": 26,
+     "search.query common word": 30,
+     "search.query no match": 81
+    }
+   },
+   "fixed": {
+    "readPerCall": 4032.2416666666663,
+    "writtenPerCall": 7.12,
+    "readParts": {
+     "chats.unreadCount": 2862,
+     "notifications.count": 37,
+     "session.get": 0,
+     "office only": 0,
+     "tasks.list mine": 166,
+     "tasks.list review_for_me": 112,
+     "projects.list (Home)": 93,
+     "projects.list (Projects screen, active)": 89,
+     "dashboard.get": 85,
+     "projects.get": 3,
+     "tasks.get (busiest task)": 5,
+     "updates.list": 7,
+     "files.list": 1,
+     "comments.list (busiest thread)": 0,
+     "events.list": 17,
+     "notifications.list": 104,
+     "chats.list": 288,
+     "chats.messages (busiest chat)": 26,
+     "search.query common word": 30,
+     "search.query no match": 81
+    }
+   }
+  },
+  "testCopy": {
+   "ported": {
+    "readPerCall": 112.60633333333331,
+    "writtenPerCall": 6.32,
+    "readParts": {
+     "chats.unreadCount": 27,
+     "notifications.count": 1,
+     "session.get": 0,
+     "office only": 0,
+     "tasks.list mine": 9,
+     "tasks.list review_for_me": 7,
+     "projects.list (Home)": 12,
+     "projects.list (Projects screen, active)": 16,
+     "dashboard.get": 6,
+     "projects.get": 3,
+     "tasks.get (busiest task)": 2,
+     "updates.list": 2,
+     "files.list": 0,
+     "comments.list (busiest thread)": 0,
+     "events.list": 11,
+     "notifications.list": 0,
+     "chats.list": 3,
+     "chats.messages (busiest chat)": 0,
+     "search.query common word": 2,
+     "search.query no match": 2
+    }
+   },
+   "fixed": {
+    "readPerCall": 101.39783333333335,
+    "writtenPerCall": 6.32,
+    "readParts": {
+     "chats.unreadCount": 26,
+     "notifications.count": 0,
+     "session.get": 0,
+     "office only": 0,
+     "tasks.list mine": 8,
+     "tasks.list review_for_me": 6,
+     "projects.list (Home)": 10,
+     "projects.list (Projects screen, active)": 13,
+     "dashboard.get": 4,
+     "projects.get": 2,
+     "tasks.get (busiest task)": 1,
+     "updates.list": 2,
+     "files.list": 0,
+     "comments.list (busiest thread)": 0,
+     "events.list": 9,
+     "notifications.list": 0,
+     "chats.list": 3,
+     "chats.messages (busiest chat)": 0,
+     "search.query common word": 2,
+     "search.query no match": 2
+    }
+   }
+  }
+ },
+ "days": [
+  {
+   "label": "A. as ported, 422 and 2,000 are calls, cold wakes read the tables",
+   "prod": {
+    "label": "production (one year of data)",
+    "calls": 422,
+    "readPerCall": 5925,
+    "writtenPerCall": 7.1,
+    "rowsRead": {
+     "calls": 2500181,
+     "wakes": 87540,
+     "jobs": 262848,
+     "export": 146681,
+     "total": 2997250
+    },
+    "rowsWritten": {
+     "calls": 3005,
+     "usage": 422,
+     "cleanup": 338,
+     "reminders": 800,
+     "total": 4564
+    }
+   },
+   "test": {
+    "label": "test copy (sample office)",
+    "calls": 2000,
+    "readPerCall": 113,
+    "writtenPerCall": 6.3,
+    "rowsRead": {
+     "calls": 225213,
+     "wakes": 20580,
+     "jobs": 20544,
+     "export": 9717,
+     "total": 276054
+    },
+    "rowsWritten": {
+     "calls": 12640,
+     "usage": 2000,
+     "cleanup": 1600,
+     "reminders": 200,
+     "total": 16440
+    }
+   },
+   "rowsRead": 3273304,
+   "rowsWritten": 21004,
+   "readShare": 65.5,
+   "writtenShare": 21
+  },
+  {
+   "label": "B. as ported, with the snapshot (a wake reads 1 row)",
+   "prod": {
+    "label": "production (one year of data)",
+    "calls": 422,
+    "readPerCall": 5925,
+    "writtenPerCall": 7.1,
+    "rowsRead": {
+     "calls": 2500181,
+     "wakes": 60,
+     "jobs": 262848,
+     "export": 146681,
+     "total": 2909770
+    },
+    "rowsWritten": {
+     "calls": 3005,
+     "usage": 422,
+     "cleanup": 338,
+     "reminders": 800,
+     "total": 4564
+    }
+   },
+   "test": {
+    "label": "test copy (sample office)",
+    "calls": 2000,
+    "readPerCall": 113,
+    "writtenPerCall": 6.3,
+    "rowsRead": {
+     "calls": 225213,
+     "wakes": 60,
+     "jobs": 20544,
+     "export": 9717,
+     "total": 255534
+    },
+    "rowsWritten": {
+     "calls": 12640,
+     "usage": 2000,
+     "cleanup": 1600,
+     "reminders": 200,
+     "total": 16440
+    }
+   },
+   "rowsRead": 3165304,
+   "rowsWritten": 21004,
+   "readShare": 63.3,
+   "writtenShare": 21
+  },
+  {
+   "label": "C. as ported, snapshot, 422 and 2,000 are requests of 2.5 calls each",
+   "prod": {
+    "label": "production (one year of data)",
+    "calls": 1055,
+    "readPerCall": 5925,
+    "writtenPerCall": 7.1,
+    "rowsRead": {
+     "calls": 6250453,
+     "wakes": 60,
+     "jobs": 262848,
+     "export": 146681,
+     "total": 6660042
+    },
+    "rowsWritten": {
+     "calls": 7512,
+     "usage": 422,
+     "cleanup": 844,
+     "reminders": 800,
+     "total": 9578
+    }
+   },
+   "test": {
+    "label": "test copy (sample office)",
+    "calls": 5000,
+    "readPerCall": 113,
+    "writtenPerCall": 6.3,
+    "rowsRead": {
+     "calls": 563032,
+     "wakes": 60,
+     "jobs": 20544,
+     "export": 9717,
+     "total": 593353
+    },
+    "rowsWritten": {
+     "calls": 31600,
+     "usage": 2000,
+     "cleanup": 4000,
+     "reminders": 200,
+     "total": 37800
+    }
+   },
+   "rowsRead": 7253395,
+   "rowsWritten": 47378,
+   "readShare": 145.1,
+   "writtenShare": 47.4
+  },
+  {
+   "label": "D. fixed reads, snapshot, 422 and 2,000 are calls",
+   "prod": {
+    "label": "production (one year of data)",
+    "calls": 422,
+    "readPerCall": 4032,
+    "writtenPerCall": 7.1,
+    "rowsRead": {
+     "calls": 1701606,
+     "wakes": 60,
+     "jobs": 262848,
+     "export": 146681,
+     "total": 2111195
+    },
+    "rowsWritten": {
+     "calls": 3005,
+     "usage": 422,
+     "cleanup": 338,
+     "reminders": 800,
+     "total": 4564
+    }
+   },
+   "test": {
+    "label": "test copy (sample office)",
+    "calls": 2000,
+    "readPerCall": 101,
+    "writtenPerCall": 6.3,
+    "rowsRead": {
+     "calls": 202796,
+     "wakes": 60,
+     "jobs": 20544,
+     "export": 9717,
+     "total": 233117
+    },
+    "rowsWritten": {
+     "calls": 12640,
+     "usage": 2000,
+     "cleanup": 1600,
+     "reminders": 200,
+     "total": 16440
+    }
+   },
+   "rowsRead": 2344312,
+   "rowsWritten": 21004,
+   "readShare": 46.9,
+   "writtenShare": 21
+  },
+  {
+   "label": "E. fixed reads, snapshot, 2.5 calls a request",
+   "prod": {
+    "label": "production (one year of data)",
+    "calls": 1055,
+    "readPerCall": 4032,
+    "writtenPerCall": 7.1,
+    "rowsRead": {
+     "calls": 4254015,
+     "wakes": 60,
+     "jobs": 262848,
+     "export": 146681,
+     "total": 4663604
+    },
+    "rowsWritten": {
+     "calls": 7512,
+     "usage": 422,
+     "cleanup": 844,
+     "reminders": 800,
+     "total": 9578
+    }
+   },
+   "test": {
+    "label": "test copy (sample office)",
+    "calls": 5000,
+    "readPerCall": 101,
+    "writtenPerCall": 6.3,
+    "rowsRead": {
+     "calls": 506989,
+     "wakes": 60,
+     "jobs": 20544,
+     "export": 9717,
+     "total": 537310
+    },
+    "rowsWritten": {
+     "calls": 31600,
+     "usage": 2000,
+     "cleanup": 4000,
+     "reminders": 200,
+     "total": 37800
+    }
+   },
+   "rowsRead": 5200914,
+   "rowsWritten": 47378,
+   "readShare": 104,
+   "writtenShare": 47.4
+  }
+ ],
+ "deploySuiteDay": {
+  "calls": 1700,
+  "rowsRead": 172030,
+  "rowsWritten": 33971,
+  "seedRowsWritten": 8301
+ },
+ "import": {
+  "yearRecords": 138053,
+  "rowsWrittenRowid": 980549,
+  "rowsWrittenNoRowid": 842496,
+  "rowsWrittenLateIndexes": 973251,
+  "perRecord": 6.97,
+  "freeDays": 9.8
+ }
+}

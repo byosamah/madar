@@ -1,0 +1,6 @@
+query ($acc: String!, $from: Time!, $to: Time!, $ns: String!) { viewer { accounts(filter: { accountTag: $acc }) {
+  per: durableObjectsPeriodicGroups(limit: 200, orderBy: [datetimeMinute_ASC], filter: { namespaceId: $ns, datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { datetimeMinute } sum { activeTime duration cpuTime rowsRead rowsWritten inboundWebsocketMsgCount outboundWebsocketMsgCount } max { activeWebsocketConnections } }
+  inv: durableObjectsInvocationsAdaptiveGroups(limit: 200, orderBy: [datetimeMinute_ASC], filter: { namespaceId: $ns, datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { datetimeMinute type status } sum { requests wallTime } }
+} } }

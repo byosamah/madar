@@ -1,0 +1,15 @@
+# A throwaway probe for wave 0 of the Supabase exit plan. workers_dev was true only while the probe measured.
+name = "madar-socket-probe"
+main = "index.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

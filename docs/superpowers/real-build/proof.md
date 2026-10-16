@@ -1170,3 +1170,32 @@ Workers Free get more than 10 ms of CPU for each call under a steady load? The p
   Cloudflare does not promise it in one clear place, so the exit plan keeps its way back.
 - Not measured yet (the rest of wave 0): the rows read of heavy calls on one year of data, a socket to an object that sleeps,
   bcrypt.
+
+### Wave 0, the rest: rows, sockets and sign-in crypto (2026-10-16)
+Two probes of the exit plan, in `scripts/proof/do-rows/` (local `wrangler dev`, nothing in the cloud) and
+`scripts/proof/do-socket/` (`madar-socket-probe` on Workers Free, now `workers_dev` false, 1042).
+- **Rows, the counter rules** (local workerd, SQL cursor `rowsRead` and `rowsWritten`): an insert writes 1 row, plus 1 for each
+  index, plus 1 for the hidden key index of a `text primary key` table. An update writes 1 plus 1 for each indexed column in
+  SET (also with the same value). A delete writes 1. An `order by` with no matching index reads each row twice. A statement
+  takes at most 100 bound values. `ANALYZE` read 1.67 million rows and made two notification reads about 260 times worse.
+- **Rows on one year of made-up data** (15 people, 138,053 records, 146,680 rows with the server rows, 90 MB): the chat badge
+  `chats.unreadCount` reads 21,064 rows for a member and 56,258 for the Admin on each call (it counts the message history and
+  scans every task comment), about 75% of all rows read. Home open: 32,783 (member) and 66,859 (Admin). `dashboard.get` 6,015,
+  `projects.list` about 4,000, `tasks.list` (mine) 4,431, `search.query` 2,795 to 8,074, `notifications.count` 99 to 2,585.
+  Writes: `tasks.complete` 39 rows, `tasks.update` 36, `comments.create` 44, `chats.send` 22. A cold wake reads 1,459 rows
+  from the tables or 1 from a one-row snapshot (232 KB). The nightly export reads 146,681 rows (3% of a day).
+- **A day of rows** (production 422 and the test copy 2,000 a day, a work-day mix in `day.mjs`): as ported, 3.3 million rows
+  read (65% of Free) if those counts are calls, 7.25 million (145%) if they are requests of 2.5 calls. With a stored unread
+  number for each person and chat (an estimate, not measured): 1.9 million (38%). Rows written: 21,000 to 47,000 (21 to 47%).
+  A deploy suite day: 172,030 read and 33,971 written.
+- **The import of a year** writes 980,549 rows, almost 10 Free days of writes. Today's production is small, so an import now
+  is cheap.
+- **Sockets** (Hibernation API, 3 clients, 32 minutes): the object slept after under 15 s of quiet, and 5 of 5 broadcasts after
+  gaps of 15 s to 10 minutes woke it and reached every open socket. The auto-response answered 59 of 60 pings and never woke
+  the object. Cloudflare closed no idle socket in 10 minutes. One socket broke with code 1006, and the object kept it in
+  `getWebSockets` for at least 17.7 minutes with no `webSocketClose`: a sweep by the auto-pong time is needed. 0.04 GB-s of
+  duration in 32 minutes.
+- **Sign-in crypto CPU**: bcrypt cost 10 (the Supabase hashes) 77 to 95 ms in the object, 20 of 20 passed. ES256 verify in the
+  front Worker 0.59 ms median, 1.13 ms p99. ES256 sign in the object under 1 ms.
+- **What it means:** sockets and crypto fit Workers Free. Rows read is the tight limit, and the chat badge decides it. The plan
+  needs a stored unread number, sorts in JavaScript, no ANALYZE, and a test that pins the rows read of each heavy read.
