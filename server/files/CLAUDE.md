@@ -10,8 +10,10 @@ server checks the final object, then saves the record.
 
 ## Upload flow
 1. `files.uploadStart` (or `feedback.uploadStart`) writes one upload intent and gives a signed upload link (`intents.ts`).
-2. The browser uploads to a staging key (`up/<intent>/file`, `up/<intent>/thumb`). Upload links never upsert. It sends
-   the PUT of the small picture together with the PUT of the file, and `files.upload` goes only after both end.
+2. The browser uploads to a staging key (`up/<intent>/file`, `up/<intent>/thumb`). Storage upload links never upsert. On R2
+   a second PUT to a staging key replaces the staged object: the head of the final key after the copy is the guard on both
+   stores (`confirm.ts`). It sends the PUT of the small picture together with the PUT of the file, and `files.upload` goes
+   only after both end.
    The small picture (`makeThumb`, `src/app/thumbs.ts`) is a WebP of at most 960 px. A browser that cannot write WebP
    (Safari, every browser on an iPhone or iPad) gives a JPEG for a JPEG photo, only when it is smaller than the photo.
    Other pictures get none. The server takes any inline-safe picture as the small picture.
@@ -33,4 +35,6 @@ server checks the final object, then saves the record.
 
 ## Tests
 - Storage and R2 integration suites need MinIO (`server/it/minio.ts`). CI starts MinIO in `ci-stack.yml`.
+- `server/it/files.it.test.ts` runs each runCall upload suite twice: on the local Storage, then on `r2FilesPort` over MinIO.
+  The rules that differ are pinned for each store: the second PUT, the signed type, the intent life, the file limit.
 - The weekly file backup copies the store to Backblaze B2 (see `.github/CLAUDE.md`).
