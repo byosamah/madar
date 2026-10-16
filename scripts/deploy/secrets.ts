@@ -2,6 +2,8 @@ import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
+import { COPY_HOSTS } from '../../server/core/serverHost.ts';
+import { hyperdriveOrigin, type HyperdriveOrigin } from './cloudflare.ts';
 
 /**
  * The secrets of one Supabase project (plan 5.9; proof Z0a, item 3):
@@ -13,7 +15,10 @@ import { fileURLToPath } from 'node:url';
  *   2. signs in with DATABASE_URL through the transaction pooler until current_user is madar_server, for up to a minute, because the
  *      pooler once refused a new password at first (proof Z0a, item 7); without that sign in it stops, and no function secret changes;
  *   3. sets the function secrets through the Management API (what `supabase secrets set` calls), with the Supabase root certificate
- *      as DATABASE_CA.
+ *      as DATABASE_CA;
+ *   4. the Worker of the copy (owner, 2026-10-16), when it exists: the origin password of its Hyperdrive config madar-db-<env>
+ *      from DATABASE_URL, then its secrets with `wrangler secret bulk` (JSON on stdin), every function secret but the database
+ *      values, with MADAR_SECRET_KEY from the Management API. A Worker that does not exist yet is skipped with a clear line.
  *
  * It needs SUPABASE_ACCESS_TOKEN (the Madar account, never the Halulu sign-in of the CLI) and the postgres password of the project:
  * MADAR_TEST_DB_PASSWORD for test, MADAR_DB_PASSWORD for production. Production runs from the Mac only, after the typed word
@@ -156,6 +161,10 @@ export type SecretsRun = {
   fetch: typeof fetch;
   ask: (question: string) => Promise<string>;
   log: (line: string) => void;
+  /** The Worker of the copy and its Hyperdrive config (Cloudflare API and wrangler). */
+  worker: WorkerPort;
+  /** The default secret key of the project, from the Management API (secretKeyFromApi of scripts/first-admin.ts). */
+  secretKey: (ref: string, token: string) => Promise<string>;
 };
 
 /** Production only from the Mac, and only after the typed word (plan, section 10, decision 9). all.sh asks once for every step. */
@@ -198,12 +207,16 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
     run.log(`Dry run for ${run.target} (${ref}). Nothing changes.`);
     run.log(`Database: Vault project_url and jobs_secret, platform_config.mcp_url = ${checked.mcpUrl}, madar_server login with a SCRAM verifier.`);
     run.log(`Function secrets: ${names}.`);
+    for (const line of workerDryRun(run.target, values)) run.log(line);
     return;
   }
   const token = run.env.SUPABASE_ACCESS_TOKEN;
   if (!token) throw new Error('SUPABASE_ACCESS_TOKEN is not set: load the Madar token from ~/dev/madar/.env.local (never the Halulu sign-in).');
   const dbPassword = run.env[DB_PASSWORD[run.target]];
   if (!dbPassword) throw new Error(`${DB_PASSWORD[run.target]} is not set: the postgres password of ${run.target}.`);
+
+  // The Worker checks come before any change, so a missing MCP_URL stops the run with nothing changed.
+  const worker = await planWorker(run, values);
 
   const db = await run.connect({ ref, password: dbPassword, ca: run.rootCa });
   try {
@@ -234,6 +247,82 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
   });
   if (!answer.ok) throw new Error(`The Management API refused the function secrets of ${run.target}: HTTP ${answer.status}.`);
   run.log(`Function secrets of ${run.target}: ${names}.`);
+  if (worker) await pushWorker(run, ref, token, values, checked, worker);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The Worker of the copy (owner, 2026-10-16). Kept apart from the steps above, so the server and the files tracks of the move
+// to Cloudflare merge without a clash. The Supabase functions keep every step above: they are the way back.
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+/** Hyperdrive replaces the database values on the Worker (the binding DB of wrangler.server.toml), so these never go there. */
+export const NOT_FOR_WORKER = ['DATABASE_URL', 'DATABASE_READ_URL', 'DATABASE_CA'] as const;
+/** The secret names of the Worker: every function secret but the database values. MADAR_SECRET_KEY comes from the Management API. */
+export const WORKER_SECRETS: readonly string[] = FUNCTION_SECRETS.filter((name) => !(NOT_FOR_WORKER as readonly string[]).includes(name));
+
+export type WorkerPort = {
+  /** True when the Worker exists on the Cloudflare account. */
+  exists(name: string): Promise<boolean>;
+  /** The id of the Hyperdrive config of that name, or undefined when it does not exist. */
+  hyperdriveId(name: string): Promise<string | undefined>;
+  /** Sets the origin of a Hyperdrive config (the password changes with it), through the Cloudflare API. */
+  updateHyperdrive(id: string, origin: HyperdriveOrigin): Promise<void>;
+  /** `wrangler secret bulk -c wrangler.server.toml --env <target>`, with the JSON on stdin. */
+  secretBulk(target: Target, json: string): Promise<void>;
+};
+
+/**
+ * The JSON of `wrangler secret bulk`: each Worker name with its value. A name that the file does not set goes as null, so the
+ * Worker loses it (Supabase function secrets stay until someone removes them). The file's MADAR_SECRET_KEY never counts: the
+ * Worker gets the key that Supabase gives the functions, so both hosts sign the MCP state with the same key.
+ */
+export function workerSecretsOf(values: Record<string, string>, secretKey: string): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const name of WORKER_SECRETS) out[name] = name === 'MADAR_SECRET_KEY' ? secretKey : (values[name] ?? null);
+  return out;
+}
+
+/** The Worker lines of a dry run: names only, and no network call. */
+export function workerDryRun(target: Target, values: Record<string, string>): string[] {
+  const hosts = COPY_HOSTS[target].workers;
+  const set = WORKER_SECRETS.filter((name) => name === 'MADAR_SECRET_KEY' || values[name] !== undefined);
+  const removed = WORKER_SECRETS.filter((name) => name !== 'MADAR_SECRET_KEY' && values[name] === undefined);
+  return [
+    `Worker ${hosts.name}, when it exists: Hyperdrive ${hosts.hyperdrive} gets the madar_server password of DATABASE_URL (session pooler).`,
+    `Worker secrets: ${set.join(', ')}. MADAR_SECRET_KEY comes from the Management API.${values.MCP_URL ? '' : ' MCP_URL is missing: the Worker step would stop.'}`,
+    ...(removed.length > 0 ? [`Removed from the Worker (not in the file): ${removed.join(', ')}.`] : []),
+    `Never sent to the Worker: ${NOT_FOR_WORKER.join(', ')}.`,
+  ];
+}
+
+type WorkerPlan = { name: string; hyperdrive?: { name: string; id: string } };
+
+/** The Worker and its Hyperdrive config, looked up before any change. A Worker needs MCP_URL: it has no default there. */
+async function planWorker(run: SecretsRun, values: Record<string, string>): Promise<WorkerPlan | undefined> {
+  const hosts = COPY_HOSTS[run.target].workers;
+  if (!(await run.worker.exists(hosts.name))) {
+    run.log(`Skip: the Worker ${hosts.name} does not exist yet, so it gets no secrets and no Hyperdrive password. Deploy it (scripts/deploy/worker.sh ${run.target}), then run secrets.ts again.`);
+    return undefined;
+  }
+  if (!values.MCP_URL) {
+    throw new Error(`MCP_URL: the Worker ${hosts.name} needs the short MCP address in secrets/${run.target}.env (it has no default there). Nothing changed.`);
+  }
+  const id = await run.worker.hyperdriveId(hosts.hyperdrive);
+  if (!id) run.log(`Skip: the Hyperdrive config ${hosts.hyperdrive} does not exist yet (npx tsx scripts/deploy/cloudflare-setup.ts --env ${run.target}).`);
+  return { name: hosts.name, ...(id ? { hyperdrive: { name: hosts.hyperdrive, id } } : {}) };
+}
+
+/** After the function secrets: the Hyperdrive password first (the role has the new one), then the Worker secrets. */
+async function pushWorker(run: SecretsRun, ref: string, token: string, values: Record<string, string>, checked: Checked, plan: WorkerPlan): Promise<void> {
+  if (plan.hyperdrive) {
+    await run.worker.updateHyperdrive(plan.hyperdrive.id, hyperdriveOrigin(ref, checked.serverPassword));
+    run.log(`Hyperdrive ${plan.hyperdrive.name}: the madar_server password of DATABASE_URL, on the session pooler.`);
+  }
+  const secrets = workerSecretsOf(values, await run.secretKey(ref, token));
+  await run.worker.secretBulk(run.target, JSON.stringify(secrets));
+  const removed = Object.keys(secrets).filter((name) => secrets[name] === null);
+  run.log(`Worker secrets of ${plan.name}: ${Object.keys(secrets).filter((name) => secrets[name] !== null).join(', ')} (MADAR_SECRET_KEY from the Management API).`);
+  if (removed.length > 0) run.log(`Removed from the Worker (not in the file): ${removed.join(', ')}.`);
 }
 
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
@@ -251,6 +340,19 @@ if (isMain) {
     process.exit(1);
   }
   const { default: pg } = await import('pg');
+  const cloudflare = await import('./cloudflare.ts');
+  const wrangler = `${root}node_modules/.bin/wrangler`;
+  const wranglerEnv = { ...process.env, CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID ?? cloudflare.ACCOUNT_ID };
+  let api: ReturnType<typeof cloudflare.cloudflareApi> | undefined;
+  /** The Cloudflare API, made at the first Worker step: a dry run and a run before the cloud setup need no sign-in. */
+  const cf = async () => {
+    if (!api) {
+      // wrangler whoami refreshes the OAuth token of the sign-in. Its output names the account, so it stays out of the log.
+      if (!process.env.CLOUDFLARE_API_TOKEN) await cloudflare.runWithStdin(wrangler, ['whoami'], '', { cwd: root, env: wranglerEnv });
+      api = cloudflare.cloudflareApi(cloudflare.cloudflareToken());
+    }
+    return api;
+  };
   runSecrets({
     target,
     text: readFileSync(file, 'utf8'),
@@ -296,6 +398,35 @@ if (isMain) {
       }
     },
     log: (line) => console.log(line),
+    worker: {
+      exists: async (name) => {
+        const answer = await (await cf())(`/workers/scripts/${name}/settings`);
+        if (answer.status === 404) return false;
+        if (!answer.success) throw new Error(`The Cloudflare API refused the check of the Worker ${name}: ${cloudflare.codesOf(answer)}. Run npx wrangler whoami, then secrets.ts again.`);
+        return true;
+      },
+      hyperdriveId: async (name) => {
+        const answer = await (await cf())<{ id: string; name: string }[]>('/hyperdrive/configs');
+        if (!answer.success) throw new Error(`The Cloudflare API refused the list of the Hyperdrive configs: ${cloudflare.codesOf(answer)}.`);
+        return answer.result.find((config) => config.name === name)?.id;
+      },
+      updateHyperdrive: async (id, origin) => {
+        const answer = await (await cf())(`/hyperdrive/configs/${id}`, { method: 'PATCH', body: { origin } });
+        if (!answer.success) {
+          throw new Error(`The Cloudflare API refused the Hyperdrive password: ${cloudflare.redact(cloudflare.codesOf(answer), [origin.password])}. The function secrets are set; the Worker has the old password. Run secrets.ts again.`);
+        }
+      },
+      secretBulk: async (env, json) => {
+        const values = Object.values(JSON.parse(json) as Record<string, string | null>).filter((value): value is string => typeof value === 'string');
+        // The values go on stdin only: never in an argument, never in a file.
+        const { code, output } = await cloudflare.runWithStdin(wrangler, ['secret', 'bulk', '-c', 'wrangler.server.toml', '--env', env], json, { cwd: root, env: wranglerEnv });
+        if (code !== 0) {
+          const tail = cloudflare.redact(output, values).trim().split('\n').slice(-6).join(' | ');
+          throw new Error(`wrangler secret bulk failed for ${env} (exit ${code}): ${tail}`);
+        }
+      },
+    },
+    secretKey: async (ref, token) => (await import('../first-admin.ts')).secretKeyFromApi(ref, token),
   }).catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);

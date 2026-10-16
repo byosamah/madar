@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   HEALTH_LOCK_KEY,
+  NOT_FOR_WORKER,
+  WORKER_SECRETS,
   checkSecrets,
   parseSecretsFile,
   runSecrets,
@@ -10,6 +12,7 @@ import {
   serverRoleSql,
   type Query,
   type SecretsRun,
+  type WorkerPort,
 } from './secrets.ts';
 
 /** scripts/deploy/secrets.ts (plan 5.9; proof Z0a, item 3): function secrets, Vault, platform_config and the madar_server role. */
@@ -42,9 +45,13 @@ function file(ref = TEST, extra = ''): string {
   ].join('\n');
 }
 
-/** A run with fakes: it records each database statement, each Management API request and each log line. */
-function harness(o: { target?: 'test' | 'production'; text?: string; env?: Record<string, string>; answer?: string; dryRun?: boolean } = {}) {
+/**
+ * A run with fakes: it records each database statement, each Management API request and each log line. The Worker of the copy
+ * does not exist unless the test says so (worker: true), so the steps before the move to Cloudflare run as they did.
+ */
+function harness(o: { target?: 'test' | 'production'; text?: string; env?: Record<string, string>; answer?: string; dryRun?: boolean; worker?: boolean; hyperdrive?: boolean } = {}) {
   const sql: { text: string; values?: unknown[] }[] = [];
+  const workerCalls: { step: string; args: unknown[]; requestsBefore: number }[] = [];
   const requests: { url: string; init: RequestInit }[] = [];
   const logs: string[] = [];
   const asked: string[] = [];
@@ -77,8 +84,15 @@ function harness(o: { target?: 'test' | 'production'; text?: string; env?: Recor
       return o.answer ?? '';
     },
     log: (line) => logs.push(line),
+    worker: {
+      exists: async (name) => (workerCalls.push({ step: 'exists', args: [name], requestsBefore: requests.length }), o.worker === true),
+      hyperdriveId: async (name) => (workerCalls.push({ step: 'hyperdriveId', args: [name], requestsBefore: requests.length }), o.hyperdrive === false ? undefined : `${name}-id`),
+      updateHyperdrive: async (id, origin) => void workerCalls.push({ step: 'updateHyperdrive', args: [id, origin], requestsBefore: requests.length }),
+      secretBulk: async (target, json) => void workerCalls.push({ step: 'secretBulk', args: [target, json], requestsBefore: requests.length }),
+    } satisfies WorkerPort,
+    secretKey: async (ref, token) => (workerCalls.push({ step: 'secretKey', args: [ref, token], requestsBefore: requests.length }), 'sb_secret_from_api_1'),
   };
-  return { run, sql, requests, logs, asked, signIns, slept };
+  return { run, sql, requests, logs, asked, signIns, slept, workerCalls };
 }
 
 const secretValues = [SERVER_PASSWORD, 're_secret_value_1', 'jobs-secret-value-1', 'sbp_token_value', 'pg-test-pw', 'pg-prod-pw'];
@@ -425,5 +439,123 @@ describe('runSecrets', () => {
       await runSecrets(h.run);
       expect(h.asked).toEqual([]);
     });
+  });
+});
+
+describe('the Worker of the copy (owner, 2026-10-16)', () => {
+  const MCP = 'MCP_URL=https://preview.madar-46r.pages.dev/mcp';
+  const steps = (h: ReturnType<typeof harness>) => h.workerCalls.map((call) => call.step);
+  const bulk = (h: ReturnType<typeof harness>) => {
+    const call = h.workerCalls.find((c) => c.step === 'secretBulk')!;
+    return { target: call.args[0], secrets: JSON.parse(String(call.args[1])) as Record<string, string | null> };
+  };
+
+  it('skips the Worker with a clear line when it does not exist yet, and still sets the function secrets', async () => {
+    const h = harness({ text: file(TEST, MCP) });
+    await runSecrets(h.run);
+    expect(steps(h)).toEqual(['exists']);
+    expect(h.workerCalls[0].args).toEqual(['madar-server-test']);
+    expect(h.requests).toHaveLength(1);
+    expect(h.logs.join('\n')).toMatch(/Skip: the Worker madar-server-test does not exist yet/);
+  });
+
+  it('sends the Worker every function secret but the database values, as JSON for wrangler secret bulk, after the function secrets', async () => {
+    const h = harness({ text: file(TEST, `${MCP}\nMAIL_DRIVER=outbox\nALLOWED_ORIGINS=https://preview.madar-46r.pages.dev`), worker: true });
+    await runSecrets(h.run);
+    expect(steps(h)).toEqual(['exists', 'hyperdriveId', 'updateHyperdrive', 'secretKey', 'secretBulk']);
+    for (const call of h.workerCalls.slice(2)) expect(call.requestsBefore).toBe(1);
+    const { target, secrets } = bulk(h);
+    expect(target).toBe('test');
+    expect(Object.keys(secrets).sort()).toEqual([...WORKER_SECRETS].sort());
+    for (const name of NOT_FOR_WORKER) expect(secrets, name).not.toHaveProperty(name);
+    expect(secrets).toMatchObject({
+      APP_URL: 'https://preview.madar.pages.dev',
+      MAIL_FROM: 'Madar <notices@example.com>',
+      MAIL_DRIVER: 'outbox',
+      JOBS_SECRET: 'jobs-secret-value-1',
+      MCP_URL: 'https://preview.madar-46r.pages.dev/mcp',
+      ALLOWED_ORIGINS: 'https://preview.madar-46r.pages.dev',
+    });
+  });
+
+  it('sends null for a name that the file does not set, so the Worker loses a value that was removed from the file', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true });
+    await runSecrets(h.run);
+    const { secrets } = bulk(h);
+    for (const name of ['API_URL', 'MADAR_FILE_STORE', 'R2_BUCKET', 'VAPID_PRIVATE_KEY', 'MIN_CLIENT_BUILD', 'AUTH_ISSUER']) expect(secrets[name], name).toBeNull();
+    expect(h.logs.join('\n')).toMatch(/Removed from the Worker \(not in the file\): .*VAPID_PRIVATE_KEY/);
+  });
+
+  it('gives the Worker the default secret key of the project from the Management API, never the value of the file', async () => {
+    const h = harness({ text: file(TEST, `${MCP}\nMADAR_SECRET_KEY=sb_secret_from_file_9`), worker: true });
+    await runSecrets(h.run);
+    expect(h.workerCalls.find((c) => c.step === 'secretKey')?.args).toEqual([TEST, 'sbp_token_value']);
+    expect(bulk(h).secrets.MADAR_SECRET_KEY).toBe('sb_secret_from_api_1');
+  });
+
+  it('needs MCP_URL for the Worker, and stops before any change when it is missing', async () => {
+    const h = harness({ worker: true });
+    await expect(runSecrets(h.run)).rejects.toThrow(/MCP_URL.*madar-server-test.*Nothing changed/);
+    expect([h.sql, h.requests]).toEqual([[], []]);
+    expect(steps(h)).toEqual(['exists']);
+  });
+
+  it('sets the Hyperdrive origin of the copy from DATABASE_URL: madar_server on the session pooler', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true });
+    await runSecrets(h.run);
+    const update = h.workerCalls.find((c) => c.step === 'updateHyperdrive')!;
+    expect(h.workerCalls.find((c) => c.step === 'hyperdriveId')?.args).toEqual(['madar-db-test']);
+    expect(update.args).toEqual(['madar-db-test-id', {
+      scheme: 'postgres', host: 'aws-1-eu-central-1.pooler.supabase.com', port: 5432, database: 'postgres', user: `madar_server.${TEST}`, password: SERVER_PASSWORD,
+    }]);
+  });
+
+  it('skips the Hyperdrive step with a clear line when the config does not exist, and still sends the Worker secrets', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true, hyperdrive: false });
+    await runSecrets(h.run);
+    expect(steps(h)).toEqual(['exists', 'hyperdriveId', 'secretKey', 'secretBulk']);
+    expect(h.logs.join('\n')).toMatch(/Skip: the Hyperdrive config madar-db-test does not exist yet/);
+  });
+
+  it('uses the Worker and the Hyperdrive config of production for production, never those of the test copy', async () => {
+    const h = harness({ target: 'production', answer: 'production', text: file(PRODUCTION, 'MCP_URL=https://madar.vado.sa/mcp'), env: { SUPABASE_ACCESS_TOKEN: 't', MADAR_DB_PASSWORD: 'p' }, worker: true });
+    await runSecrets(h.run);
+    expect(h.workerCalls.map((c) => [c.step, c.step === 'secretBulk' ? c.args[0] : c.args[0]])).toEqual([
+      ['exists', 'madar-server-production'], ['hyperdriveId', 'madar-db-production'], ['updateHyperdrive', 'madar-db-production-id'], ['secretKey', PRODUCTION], ['secretBulk', 'production'],
+    ]);
+    expect((h.workerCalls[2].args[1] as { user: string }).user).toBe(`madar_server.${PRODUCTION}`);
+  });
+
+  it('logs the Worker names only, never a value', async () => {
+    const h = harness({ text: file(TEST, MCP), worker: true });
+    await runSecrets(h.run);
+    const text = h.logs.join('\n');
+    expect(text).toContain('Worker secrets of madar-server-test');
+    for (const secret of [...secretValues, 'sb_secret_from_api_1']) expect(text).not.toContain(secret);
+  });
+
+  it('lists the Worker names in a dry run, and calls neither Cloudflare nor the Management API', async () => {
+    const h = harness({ dryRun: true, env: {}, text: file(TEST, MCP) });
+    await runSecrets(h.run);
+    const text = h.logs.join('\n');
+    expect(text).toMatch(/Worker madar-server-test, when it exists: Hyperdrive madar-db-test/);
+    expect(text).toMatch(/Worker secrets: .*JOBS_SECRET.*MADAR_SECRET_KEY\. MADAR_SECRET_KEY comes from the Management API\./);
+    expect(text).toContain('Never sent to the Worker: DATABASE_URL, DATABASE_READ_URL, DATABASE_CA.');
+    expect(h.workerCalls).toEqual([]);
+    for (const secret of secretValues) expect(text).not.toContain(secret);
+  });
+
+  it('says in a dry run that the Worker step would stop without MCP_URL', async () => {
+    const h = harness({ dryRun: true, env: {} });
+    await runSecrets(h.run);
+    expect(h.logs.join('\n')).toContain('MCP_URL is missing: the Worker step would stop.');
+  });
+
+  it('asks Cloudflare nothing in CI or without the typed word for production', async () => {
+    const ci = harness({ target: 'production', answer: 'production', env: { SUPABASE_ACCESS_TOKEN: 't', MADAR_DB_PASSWORD: 'p', CI: 'true' }, worker: true });
+    await expect(runSecrets(ci.run)).rejects.toThrow(/from the Mac only/);
+    const word = harness({ target: 'production', answer: 'yes', env: { SUPABASE_ACCESS_TOKEN: 't', MADAR_DB_PASSWORD: 'p' }, worker: true });
+    await expect(runSecrets(word.run)).rejects.toThrow(/typed word/);
+    expect([ci.workerCalls, word.workerCalls]).toEqual([[], []]);
   });
 });

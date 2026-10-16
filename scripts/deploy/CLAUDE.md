@@ -41,7 +41,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
      The check refuses the Data API, vector buckets (the free plan has none; a push with them on stops with 402), and a
      `jwt_expiry` above 900.
   3. `secrets.ts`: from `secrets/<env>.env`. It writes the Vault secrets, `platform_config.mcp_url`, the madar_server
-     password (as a SCRAM verifier), and the function secrets. It prints names, never a value.
+     password (as a SCRAM verifier), and the function secrets. Then the Worker of the copy, when it exists (owner,
+     2026-10-16): the origin password of its Hyperdrive config `madar-db-<env>`, and its secrets through `wrangler secret bulk`
+     (JSON on stdin; see "The server host" below). It prints names, never a value.
   4. `functions.sh`: builds the server bundles and deploys `api`, `mcp`, `jobs`. Then it asks `api/health` in Frankfurt.
   5. `pages.sh`: builds the remote screens, writes `dist/_headers` (CSP) with `headers.ts`, and uploads to the Pages
      project `madar`: branch `preview` for test, `main` for production. The `functions/` folder (the /mcp forwarder) goes too.
