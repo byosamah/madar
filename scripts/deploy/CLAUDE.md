@@ -134,7 +134,7 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
 
 ## Cloudflare
 - wrangler is signed in as o.khalil@mazj.org. The Pages project `madar` is `madar-46r.pages.dev` (`madar.pages.dev`
-  belongs to someone else). R2 is not on.
+  belongs to someone else). R2 is on (2026-10-16): the buckets `madar-files-test` and `madar-files`, both EU.
 - wrangler 4.147+ sends `pages project create` to the new Workers path. The project exists, so `pages deploy` works.
 - Pages custom domains go through the Cloudflare API with the wrangler login token (`npx wrangler whoami` refreshes it;
   `oauth_token` in `~/Library/Preferences/.wrangler/config/default.toml`).

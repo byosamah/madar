@@ -64,6 +64,8 @@ beforeEach(() => {
   mkdirSync(join(root, 'server/core'), { recursive: true });
   cpSync(join(repo, 'server/core/serverHost.ts'), join(root, 'server/core/serverHost.ts'));
   cpSync(join(repo, 'wrangler.server.toml'), join(root, 'wrangler.server.toml'));
+  // Each test starts with the placeholder id of production, as before the first setup; productionHyperdrive() sets one.
+  setProductionHyperdrive(PLACEHOLDER_ID);
   cpSync(join(repo, 'config'), join(root, 'config'), { recursive: true });
   // Each test starts from the same server host setting, never from the live one (the test copy may already say workers).
   writeFileSync(join(root, 'config/server-host.json'), '{"test":"supabase","production":"supabase"}\n');
@@ -521,12 +523,21 @@ describe('pages.sh', () => {
   });
 });
 
-/** Gives the copied wrangler.server.toml a made-up Hyperdrive id for production, as cloudflare-setup.ts would. */
-function productionHyperdrive(): void {
+const PLACEHOLDER_ID = '00000000000000000000000000000000';
+
+/** Sets the Hyperdrive id of production in the copied wrangler.server.toml. */
+function setProductionHyperdrive(id: string): void {
   const file = join(root, 'wrangler.server.toml');
   const text = readFileSync(file, 'utf8');
   const at = text.indexOf('[[env.production.hyperdrive]]');
-  writeFileSync(file, `${text.slice(0, at)}${text.slice(at).replace('id = "00000000000000000000000000000000"', 'id = "0123456789abcdef0123456789abcdef"')}`);
+  const next = `${text.slice(0, at)}${text.slice(at).replace(/id = "[0-9a-f]{32}"/, `id = "${id}"`)}`;
+  if (!next.slice(at).includes(`id = "${id}"`)) throw new Error('The copied wrangler.server.toml has no [[env.production.hyperdrive]] id.');
+  writeFileSync(file, next);
+}
+
+/** Gives the copied wrangler.server.toml a made-up Hyperdrive id for production, as cloudflare-setup.ts would. */
+function productionHyperdrive(): void {
+  setProductionHyperdrive('0123456789abcdef0123456789abcdef');
 }
 
 /** Sets the word of one copy in the copied config/server-host.json. */

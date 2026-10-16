@@ -57,12 +57,11 @@ preview_urls = false
 [env.production.placement]
 region = "aws:eu-central-1"
 
-# madar-db-production: the session pooler of madar (port 5432), made like madar-db-test. The id is a placeholder until
-# `npx tsx scripts/deploy/cloudflare-setup.ts --env production` makes the config and prints its id. Put that id here.
-# While the placeholder stays, scripts/deploy/worker.sh skips the production Worker with a clear line.
+# madar-db-production: the session pooler of madar (port 5432), made like madar-db-test by
+# `npx tsx scripts/deploy/cloudflare-setup.ts --env production` (2026-10-16).
 [[env.production.hyperdrive]]
 binding = "DB"
-id = "00000000000000000000000000000000"
+id = "21d31839432b41a8b2ca3f808891e04c"
 
 [env.production.vars]
 SUPABASE_URL = "https://oprkvdjudjxxhvodkzgs.supabase.co"
