@@ -956,6 +956,23 @@ because Workers Free stops a Madar call at 10 ms of CPU (section "The deploy sui
   steps failed after it. Open item in TASKS. The last full run of the suite before today was at 2bb11f5 (2026-10-06), so these
   three faults may be older than this release.
 
+### The pooler client limit under load (2026-10-16, 9797fb3 and ff963e1)
+The walk lost a task create in each of its 4 runs, and some screens showed "The data did not load". A network log inside the
+walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, twice in one second.
+- **Cause** (the function logs of madar-test, through the Management API `analytics/endpoints/logs`, ClickHouse SQL): the
+  pooler refused new clients with `(EMAXCONN) max client connections reached, limit: 200`, from 18:00 UTC whenever the tests ran.
+  Supabase served each request with a new worker: about one cold start for each request, every worker lived 75 s (p10 75.0 s,
+  p99 75.04 s, 673 workers in 10 minutes), then stopped with `EarlyDrop`, and none took a second request. With the 120 s idle
+  of the performance audit (SRV-3), each worker held up to 2 pooler clients for its whole life: about 85 workers at once filled
+  the limit. The pooler log showed 730 clients opened and 706 closed in 4 minutes, so nothing leaked; the clients only stayed.
+- **Production** (the same logs, read only): 212 cold starts on 2026-10-16 and 0 `EMAXCONN`. 15 people never fill the limit.
+- **First fix, 9797fb3:** each Supabase entry closes its pools on `beforeunload`. The next run still had 34, then 129
+  `EMAXCONN` in 5 minutes: alone it did not help.
+- **Second fix, ff963e1:** `IDLE_TIMEOUT_MS` 1 s in place of 120 s (`server/data/sql.ts`). Under the same load (428 cold starts in
+  5 minutes): 0 `EMAXCONN` and 0 failed batches. The deploy suite (acceptance, settings, shell, the 4 walks): 38 passed, 1
+  skipped (Preview as), 0 failed, 19 minutes. A probe of 10 quick adds outside the walk had passed 10 of 10 before the fix.
+- Not run for this change: `test:db` and `test:it` (the change is an entry and one pool setting; `npm test` 4,866 passed).
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

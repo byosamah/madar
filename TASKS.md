@@ -497,8 +497,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   "Wave 0, the rest"). Sockets and crypto fit Free; rows read is the tight limit (the chat badge is about 75% of it)
 - [ ] Owner: go or no-go for the build of the exit plan, with the six changes of wave 0 at the top of the spec
 - [ ] Owner: delete the throwaway probe Workers `madar-do-probe`, `madar-cpu-probe` and `madar-socket-probe` (all off, 404)
-- [ ] The walk: a quick add of a task (Enter in "Add a task") gave no row in each of the 4 walks of 2026-10-16. Find out if the screen
-  or the test is at fault: run the en-1440 walk alone with `--trace on` and a longer limit (the walk reached 15 minutes first)
-- [ ] The shell test: single cases with no `h1` within 10 s, or a language switch over 10 s (2 of 12 in each run)
+- [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
+  pooler connection now closes after 1 s idle (ff963e1). The 4 walks, acceptance, settings and shell: 38 passed, 0 failed
+  (proof.md "The pooler client limit under load")
+- [ ] Production: deploy ff963e1 (the owner's `!` command; production had 0 EMAXCONN, so it is a guard, not a repair)
 - [ ] The weekly file backup: its source is now R2 (both copies). It stays paused until the owner's Backblaze B2 (`.github/CLAUDE.md`)
 - [ ] Production: copy the files twice, switch, checks, release record
