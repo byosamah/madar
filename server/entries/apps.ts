@@ -24,12 +24,17 @@ export function hostOf(mounts: AppMount[], deps: Deps, values: ServerEnv): Hono 
 
 /**
  * The mounted apps with the Deps of the isolate: the two pools live as long as the isolate (Supabase Edge Functions). warm: the
- * work that a new worker starts before its first request (start.ts).
+ * work that a new worker starts before its first request (start.ts). close: ends the pools when Supabase stops the worker.
  */
 export function startApps(mounts: AppMount[], o: { warm?: (deps: Deps) => void } = {}): Started {
   const values = serverEnvFrom();
   const deps = depsFrom(values);
   const host = hostOf(mounts, deps, values);
   const warm = o.warm;
-  return { fetch: (request) => host.fetch(request), region: values.config.region, ...(warm ? { warm: () => warm(deps) } : {}) };
+  return {
+    fetch: (request) => host.fetch(request),
+    region: values.config.region,
+    ...(warm ? { warm: () => warm(deps) } : {}),
+    close: async () => deps.db.close?.(),
+  };
 }

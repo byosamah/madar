@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MissingConfigError } from '../core/deps';
 import { setEnvSource } from '../env';
-import { warmApi } from './api';
+import { apiMount, warmApi } from './api';
+import { startApps } from './apps';
 import denoApi from './deno-api';
 import denoJobs from './deno-jobs';
 import denoMcp from './deno-mcp';
 import { onSupabase, SERVER_HEADER, withServerHeader } from './serverHeader';
-import { lazyStart } from './start';
+import { closeOnUnload, lazyStart } from './start';
 import worker from './worker';
 
 /** A local environment with made-up values. No test here opens a database connection. */
@@ -120,6 +121,82 @@ describe('the warm-up of a new worker (performance audit LIV-7)', () => {
       expect(warmed).toEqual(['warm']);
     } finally {
       vi.doUnmock('./api');
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+});
+
+describe('the database pools when Supabase stops a worker (2026-10-16)', () => {
+  it('close ends the pools of the built app; before a build, and after a failed close, nothing breaks', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const warnings: string[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((line: string) => void warnings.push(line));
+    let closes = 0;
+    let fails = false;
+    const start = lazyStart('api', () => ({
+      fetch: () => new Response('ok'),
+      region: 'eu-central-1',
+      close: async () => {
+        closes += 1;
+        if (fails) throw new Error('the pool end failed');
+      },
+    }));
+    await start.close();
+    expect(closes).toBe(0);
+    await start(new Request('http://127.0.0.1/'));
+    await start.close();
+    expect(closes).toBe(1);
+    fails = true;
+    await expect(start.close()).resolves.toBeUndefined();
+    expect(closes).toBe(2);
+    expect(warnings.join('\n')).toContain('The database pools did not close.');
+    expect(await (await start(new Request('http://127.0.0.1/'))).text()).toBe('ok');
+  });
+
+  it('closeOnUnload closes the start on the beforeunload event of the worker', async () => {
+    const target = new EventTarget();
+    const close = vi.fn(async () => undefined);
+    closeOnUnload({ close }, target);
+    expect(close).not.toHaveBeenCalled();
+    target.dispatchEvent(new Event('beforeunload'));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('the app of startApps closes its database, and a close with no open pool resolves', async () => {
+    setEnvSource(LOCAL);
+    const started = startApps([apiMount]);
+    expect(typeof started.close).toBe('function');
+    await expect(started.close?.()).resolves.toBeUndefined();
+  });
+
+  it('each Supabase entry closes its pools on beforeunload only on Supabase, never in a test or a script', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const closed: string[] = [];
+    const fake = (name: string) => () => ({ fetch: () => new Response('ok'), region: 'eu-central-1', close: async () => void closed.push(name) });
+    // Deno has addEventListener on globalThis and Node has not: the test gives the entries an event bus of its own.
+    const bus = new EventTarget();
+    vi.stubGlobal('addEventListener', bus.addEventListener.bind(bus));
+    vi.resetModules();
+    vi.doMock('./api', () => ({ startApi: fake('api') }));
+    vi.doMock('./mcp', () => ({ startMcp: fake('mcp') }));
+    vi.doMock('./jobs', () => ({ startJobs: fake('jobs') }));
+    try {
+      const entries = [await import('./deno-api'), await import('./deno-mcp'), await import('./deno-jobs')];
+      for (const entry of entries) await entry.default.fetch(new Request('http://127.0.0.1/'));
+      bus.dispatchEvent(new Event('beforeunload'));
+      expect(closed).toEqual([]);
+      vi.resetModules();
+      vi.stubGlobal('EdgeRuntime', { waitUntil: () => undefined });
+      const onSupabaseEntries = [await import('./deno-api'), await import('./deno-mcp'), await import('./deno-jobs')];
+      for (const entry of onSupabaseEntries) await entry.default.fetch(new Request('http://127.0.0.1/'));
+      bus.dispatchEvent(new Event('beforeunload'));
+      await Promise.resolve();
+      expect(closed.sort()).toEqual(['api', 'jobs', 'mcp']);
+    } finally {
+      vi.doUnmock('./api');
+      vi.doUnmock('./mcp');
+      vi.doUnmock('./jobs');
       vi.unstubAllGlobals();
       vi.resetModules();
     }
