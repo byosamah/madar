@@ -139,7 +139,14 @@ describe('pgDb connections', () => {
     await db.tx('write', async (q) => q('select 1'));
     expect(pools.map((pool) => [pool.config.connectionString, pool.config.ssl])).toEqual([[finished, undefined], [finished, undefined]]);
     // One Db for each request, closed after the answer: the pg defaults of idle time and keepalive stay (performance audit SRV-3).
-    for (const pool of pools) expect(pool.config).toEqual({ max: 1, connectionTimeoutMillis: 5000, connectionString: finished });
+    // A client limit of 12 s on each query covers the wait for a free Hyperdrive origin connection (Hyperdrive probe, 2026-10-16).
+    for (const pool of pools) expect(pool.config).toEqual({ max: 1, connectionTimeoutMillis: 5000, query_timeout: 12_000, connectionString: finished });
+  });
+
+  it('sets no client query limit on the pooler URLs, where statement_timeout and lock_timeout cover every wait', async () => {
+    await pgDb(CLOUD).statement('read', 'select 1');
+    await pgDb(LOCAL).statement('read', 'select 1');
+    for (const pool of pools) expect(pool.config.query_timeout).toBeUndefined();
   });
 
   it('keeps the idle time and keepalive also with the root CA', async () => {
@@ -207,6 +214,27 @@ describe('pgDb transactions', () => {
     const [client] = pools[0].clients;
     expect(client.sql.at(-1)).toBe('rollback');
     expect(client.released).toEqual([null]);
+  });
+
+  it('throws away a client whose query hit the client limit, with no rollback on it, and gives back the error', async () => {
+    const db = pgDb({ connectionString: 'postgresql://user:pw@0123abcd.hyperdrive.local:5432/postgres' });
+    const timeout = new Error('Query read timeout');
+    const client = await (async () => {
+      await db.statement('read', 'select 1');
+      return pools[0].clients[0];
+    })();
+    const query = client.query.bind(client);
+    client.query = async (text: string, values?: unknown[]) => {
+      if (text === 'select 2') {
+        client.sql.push(text);
+        throw timeout;
+      }
+      return query(text, values);
+    };
+    await expect(db.tx('read', async (q) => q('select 2'))).rejects.toBe(timeout);
+    expect(client.sql.at(-1)).toBe('select 2');
+    expect(client.sql).not.toContain('rollback');
+    expect(client.released.at(-1)).toBe(true);
   });
 
   it('throws away a client whose rollback fails, so a broken connection never goes back to the pool', async () => {
