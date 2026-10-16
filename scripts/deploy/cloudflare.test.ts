@@ -68,6 +68,9 @@ describe('cloudflareApi', () => {
     expect(seen[0].method).toBe('PATCH');
     expect(seen[0].headers.get('authorization')).toBe('Bearer token-1');
     expect(await seen[0].json()).toEqual({ origin: { password: 'pw' } });
+    await api('/r2/buckets/madar-files-test', { headers: { 'cf-r2-jurisdiction': 'eu' } });
+    expect(seen[1].headers.get('cf-r2-jurisdiction')).toBe('eu');
+    expect(seen[1].headers.get('authorization')).toBe('Bearer token-1');
   });
 
   it('counts an answer that is not JSON, or an HTTP error, as no success, and names its codes', async () => {

@@ -34,14 +34,15 @@ export function cloudflareToken(env: Record<string, string | undefined> = proces
 }
 
 export type CloudflareAnswer<T> = { status: number; success: boolean; errors: { code: number; message: string }[]; result: T };
-export type CloudflareApi = <T>(path: string, init?: { method?: string; body?: unknown }) => Promise<CloudflareAnswer<T>>;
+export type CloudflareInit = { method?: string; body?: unknown; headers?: Record<string, string> };
+export type CloudflareApi = <T>(path: string, init?: CloudflareInit) => Promise<CloudflareAnswer<T>>;
 
 /** The account API: path is under /accounts/<id>. A body that is not JSON gives success false with the HTTP status. */
 export function cloudflareApi(token: string, fetcher: typeof fetch = fetch): CloudflareApi {
-  return async <T>(path: string, init: { method?: string; body?: unknown } = {}) => {
+  return async <T>(path: string, init: CloudflareInit = {}) => {
     const response = await fetcher(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}${path}`, {
       method: init.method ?? 'GET',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...init.headers },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
     let body: Partial<CloudflareAnswer<T>> = {};
