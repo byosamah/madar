@@ -300,6 +300,18 @@ Free also means 500 MB of database, shared CPU, and up to 0.5 GB memory. Source:
 - Outside Supabase (Railway, GitHub Actions), use at least `sslmode=require`. `require` encrypts but does not verify the server. For verification, download the root certificate from Database settings and use `verify-full`. Source: https://supabase.com/docs/guides/database/connecting-to-postgres
 - **CHECK AT STEP 1:** the exact `ssl` option for `pg` on Railway with the Supabase root certificate.
 
+### 2.6 Postgres from a Cloudflare Worker through Hyperdrive
+
+Measured on madar-test on 2026-10-16 (proof.md, "Hyperdrive probe on madar-test (2026-10-16)"):
+
+- Put Hyperdrive in front of the **session pooler** (`aws-1-eu-central-1.pooler.supabase.com:5432`). In front of the transaction pooler (port 6543), a statement (mostly the first one) hung with no error in 55 of 57 requests, also with a 25 s wait and with a limit of 10 connections. One request failed at once with "Protocol Error: Tried to recycle a connection still in a transaction", and one answered.
+- Through the session pooler, `pg_advisory_xact_lock` inside `begin ... commit`, `set local lock_timeout` (55P03), the joined start and `set local` work. Cloudflare lists advisory locks as unsupported, but the transaction form works because Hyperdrive keeps one origin connection for the whole transaction.
+- A config takes `verify-full` with an uploaded CA (`mtls.ca_certificate_id`) and `caching.disabled: true`. The create call connects to the origin, so a wrong CA or host fails at create.
+- With `origin_connection_limit` 5 (the lowest value), one Worker request often got only 1 or 2 origin connections. A second transaction then waited in its `begin` until the first one ended. `lock_timeout` does not cover that wait. With 10, the wait went away in the probe. The session pooler gives each origin connection its own backend, so keep the limit under the Supavisor pool size of the project.
+- `RAISE WARNING` reaches the pg `notice` event through Hyperdrive, with severity `WARNING`.
+- Inside a placed Worker, `request.cf.colo` names the data center where the request came in, not where the code runs. The answer header `cf-placement: remote-FRA` and the colo of a `/cdn-cgi/trace` subrequest name the run location. The Worker sees no `cf-placement` request header.
+- `[placement] region = "aws:eu-central-1"` also places the Worker when another Worker calls it through a service binding.
+
 ---
 
 ## 3. Supabase Auth

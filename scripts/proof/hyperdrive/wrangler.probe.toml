@@ -1,0 +1,24 @@
+# madar-probe: the Hyperdrive probe Worker on madar-test (proof.md, "Hyperdrive probe on madar-test (2026-10-16)").
+# Deploy: npx wrangler deploy -c scripts/proof/hyperdrive/wrangler.probe.toml (the sandbox must be off).
+# The secret PROBE_SECRET is set with wrangler secret put from stdin; its value is never in git.
+name = "madar-probe"
+main = "probe.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+# After the probe run: no public address. Set true only for a new run, then false again.
+workers_dev = false
+preview_urls = false
+
+# Run the Worker next to the database (Supabase madar-test in AWS eu-central-1, Frankfurt).
+[placement]
+region = "aws:eu-central-1"
+
+# The session pooler (port 5432), verify-full with the CA supabase-root-2021-ca, caching off.
+[[hyperdrive]]
+binding = "DB_SESSION"
+id = "1c4fc4b830234fad8956b6e80c52f4fc"
+
+# The transaction pooler (port 6543), verify-full with the CA supabase-root-2021-ca, caching off.
+[[hyperdrive]]
+binding = "DB_TX"
+id = "5dee5c010db64061a45c5fd3ff592136"

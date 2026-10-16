@@ -1002,3 +1002,79 @@ Proven:
   POST 285 to 287 ms, a direct preflight plus POST 537 to 558 ms. Not faster over a session: removed.
 - Not measured: the live numbers after the deploy and the font priority test (the owner stopped them), the prototype smoke.
 
+
+## Hyperdrive probe on madar-test (2026-10-16)
+
+**Result: GO on the session pooler (port 5432), NO GO on the transaction pooler (port 6543).** Through real Hyperdrive in
+front of the session pooler, the office lock waits and releases correctly, `lock_timeout` gives 55P03, the joined start keeps
+its settings inside the transaction, `set local` works, and RAISE WARNING reaches the pg `notice` event. In front of the
+transaction pooler, statements hang. Production was not touched.
+
+**What ran.** Supabase `madar-test` only. Cloudflare account `d76d34779c63849f5acdf3d6af3751cd`:
+- CA `supabase-root-2021-ca` (`056db33b-f928-46b0-8302-e167f5d1d832`), uploaded from `config/supabase-root-2021-ca.crt`.
+- Hyperdrive `madar-db-test` (`1c4fc4b830234fad8956b6e80c52f4fc`): the session pooler, port 5432. Hyperdrive
+  `madar-db-test-tx` (`5dee5c010db64061a45c5fd3ff592136`): the transaction pooler, port 6543. Both: host
+  `aws-1-eu-central-1.pooler.supabase.com`, user `madar_server.qdgwpnesxppnqsaabqzd`, database `postgres`, `verify-full`
+  with that CA, caching off. Both creates passed with `verify-full`, so the `require` fallback was not needed.
+- Worker `madar-probe` (`[placement] region = "aws:eu-central-1"`, bindings `DB_SESSION` and `DB_TX`, secret
+  `PROBE_SECRET`) and Worker `madar-probe-edge` (no placement, service binding `PROBE`). Both use pg 8.23.1,
+  `nodejs_compat`, compatibility date 2026-09-01, and a pg Client for each request.
+- Scripts in `scripts/proof/hyperdrive/`: `setup.ts` (the CA check and the configs, a second run makes no copy), `probe.ts` and
+  `edge.ts` (the Workers), `run.ts` (the Mac side: `cases`, `cross`, `placement`, `e2e`, `sample`), `control.ts` (the same
+  statements straight to the transaction pooler, no Hyperdrive). `lib.test.ts` tests the helpers. The probe repeats the
+  statements of `server/data/sql.ts` (START, the two-key lock 7310999) and `server/signal/realtime.ts` (SEND, the warning text).
+
+| Case | Session pooler (5432) | Transaction pooler (6543) |
+|---|---|---|
+| a. `select $1::int + 1` | 42, 15 of 15 (14 to 80 ms in the Worker) | Hung: `Query read timeout` after 8 s, 15 of 15; also with a 25 s wait (3 of 3) |
+| b. Joined read start, `show` inside and after | Inside 10s, repeatable read, read only on; after: 2min, read committed, off (12 of 12) | Hung |
+| b. Joined write start | Inside lock 5s, statement 10s; after 0 and 2min. The pid stays the same inside each transaction. A joined start with a bad value fails (22023), and the rollback leaves the outside values | Hung |
+| c. Lock, three clients in one request | B waited 1,144 to 1,230 ms (867 ms in the one queued run) and got the lock within 4 ms of A's commit; C got 55P03 after 307 to 320 ms; D waited 6 to 26 ms (17 of 17 at limit 10) | Hung at `begin` |
+| c. Lock across two HTTP requests | B waited 1,135 to 1,237 ms and got the lock within 7 ms of A's commit, two isolates in 7 of 8 (8 of 8 at limit 10) | Hung (12 of 12 requests); A answered once |
+| c. Stale answers (`pg_locks` while the lock is held) | None: the same text, other text, simple query and inside a transaction all follow the lock (13 of 13 at limit 10) | "Protocol Error: Tried to recycle a connection still in a transaction" (once, at once) |
+| d. `RAISE WARNING` | The `notice` event fires with severity `WARNING`, outside and inside a transaction | Hung |
+| e. `realtime.send` (the server's SEND), then rollback | No error. Both sends gave `WarnSendingBroadcastMessage: no partition of relation "messages" found for row` (see fact 4), and the server's warning check counted 1 failed signal each | Hung |
+| f. Timing in the Worker | New connect 2 to 12 ms; 20 x `select 1`: median 10.5 ms, max 14 to 17 ms; 5-statement transaction 34 to 95 ms (median 49.5 ms in 10 rounds) | Hung |
+| g. Placement | Direct: runs in FRA 6 of 6, `cf-placement: remote-FRA`. Through the binding: the edge in MRS, the probe in FRA 6 of 6 | |
+| h. Mac to the edge, one 5-statement transaction | New connection each round: median 419 ms (223 ms after TLS). One open connection: median 163 ms. In the Worker: 56 ms; the edge with the binding hop: 106 ms | |
+
+**Facts found.**
+
+1. **The transaction pooler behind Hyperdrive hangs.** 55 of 57 requests hung on a statement with no error (mostly the first
+   statement, even `select 1` and `begin`), one failed at once with the Protocol Error above, and one answered. A 25 s wait and
+   a limit of 10 connections changed nothing. This matches the field report in the Cloudflare move map.
+2. **The connection limit decides the queue.** At `origin_connection_limit` 5 (the lowest value), one request often got only 1
+   or 2 origin connections: the 5 pids of the pool came back, but a second transaction waited in its `begin` until the first one
+   ended (up to 1,243 ms). Two transactions never held the lock at the same time; the wait only moved from the lock to the
+   `begin`. `lock_timeout` does not cover that wait. A request that waits on its own open transaction (the probe's cache case)
+   hung until the client timeout (3 of 12). At limit 10, the queue showed once in 17 lock runs (351 ms), and no case hung. Both
+   configs now have limit 10, under the default Supavisor pool size of madar-test (`default_pool_size` not set).
+3. **Placement.** `request.cf.colo` names the data center where the request came in (ZRH, MRS), also inside the placed Worker.
+   The run location shows in the answer header `cf-placement: remote-FRA` and in the colo of a `/cdn-cgi/trace` subrequest
+   (FRA). The Worker sees no `cf-placement` request header. A call through a service binding runs the placed Worker in FRA.
+4. **madar-test has no Realtime partition for today.** `realtime.messages` has partitions up to `messages_2026_10_15`. The
+   control (`control.ts`, straight to the transaction pooler, as the live test server sends) gives the same warning, so every
+   change signal on the test copy fails today with or without Hyperdrive. A public channel join answered `PrivateOnly`, and the
+   partition did not appear after it. The success path of `realtime.send` through Hyperdrive is therefore not proved here;
+   the failure path (the WARNING that the server counts) is.
+5. **The time of one statement.** Through Hyperdrive and the session pooler, one statement costs about 10 ms from FRA, not the
+   1 to 3 ms that the Hyperdrive FAQ names. The repo has no number for the same statement from Supabase Edge Functions.
+6. **Plan limits.** No error 1102 or other plan limit in about 280 probe requests.
+7. Seen once, cause not proven: the control's first joined start on a new connection to the transaction pooler (no Hyperdrive)
+   gave the notice "there is already a transaction in progress". Two later runs did not.
+
+**Design consequences for the Workers track.**
+- The Worker binding `DB` uses `madar-db-test` (the session pooler), with an origin connection limit of at least 10.
+- `pgDb` sets no pg `query_timeout`, and `statement_timeout` starts only when the backend has the statement. A wait for an
+  origin connection therefore has no limit in the server today. The Workers path needs a client-side limit (for example
+  `query_timeout` on the pool config of the binding).
+- The read pool and the write pool of `pgDb` share one Hyperdrive config, so under a queue a read can wait behind a write.
+- The rule "the Worker stays only if it measures faster" needs the same batch call measured on both hosts (fact 5).
+
+**After the probe.** Both probe Workers run again with `workers_dev = false`: their workers.dev addresses answer 404
+(error 1042). The two configs, the CA and the secret stay. Nothing was deleted.
+
+**Re-run.** Set `workers_dev = true` in both `wrangler.*.toml` files of `scripts/proof/hyperdrive/`, deploy `madar-probe`, then
+`madar-probe-edge` (`npx wrangler deploy -c <file>`, sandbox off), then
+`PROBE_SECRET_FILE=<file> node --import tsx scripts/proof/hyperdrive/run.ts <step>`. Set `workers_dev = false` and deploy again
+after the run.
