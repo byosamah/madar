@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { routeUrl, urlPattern } from '../tests/e2e-deploy/goto';
 import { linkPath } from '../tests/e2e-deploy/mail';
-import { appOrigin, databaseTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
+import { appOrigin, databaseTarget, r2BucketTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
+import { isSignedFileLink, storeOfUpload } from '../tests/e2e-deploy/store';
 import { functionsEnvLines, localOnly } from '../tests/e2e-deploy/local';
 import { word } from '../tests/e2e-deploy/words';
 import { closeTo, pngOf, WALK_PICTURE } from '../tests/e2e-deploy/picture';
@@ -217,5 +218,36 @@ describe('pngOf: the test picture of the walk, made at run time', () => {
   it('compares a shown colour with some room for the scaling of the screen', () => {
     expect(closeTo([200, 40, 40], [210, 30, 52])).toBe(true);
     expect(closeTo([200, 40, 40], [255, 255, 255])).toBe(false);
+  });
+});
+
+describe('the file store of the walk (owner, 2026-10-16)', () => {
+  const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
+  const R2_PUT = `https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files-test/up/upl-1/file?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc`;
+  const STORAGE_PUT = 'https://qdgwpnesxppnqsaabqzd.supabase.co/storage/v1/object/upload/sign/madar-files/up/upl-1/file?token=x';
+
+  it('names the store of an upload PUT by its host', () => {
+    expect(storeOfUpload(R2_PUT)).toBe('r2');
+    expect(storeOfUpload(STORAGE_PUT)).toBe('supabase');
+    expect(storeOfUpload('http://127.0.0.1:54321/storage/v1/object/upload/sign/madar-files/up/upl-1/file?token=x')).toBe('supabase');
+    expect(storeOfUpload('https://preview.madar-46r.pages.dev/api/batch')).toBeNull();
+    expect(storeOfUpload(`https://${ACCOUNT}.r2.cloudflarestorage.com/madar-files-test/up/upl-1/file`)).toBeNull();
+  });
+
+  it('takes a signed download link of Storage or of the R2 test bucket as the fallback of the download', () => {
+    expect(isSignedFileLink('https://qdgwpnesxppnqsaabqzd.supabase.co/storage/v1/object/sign/madar-files/prj-001/fil-001/1/file?token=x&download=a.pdf')).toBe(true);
+    expect(isSignedFileLink(`https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files-test/prj-001/fil-001/1/file?response-content-disposition=attachment&X-Amz-Signature=abc`)).toBe(true);
+    // Not signed, another bucket, or not a file link.
+    expect(isSignedFileLink(`https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files-test/prj-001/fil-001/1/file`)).toBe(false);
+    expect(isSignedFileLink(`https://${ACCOUNT}.eu.r2.cloudflarestorage.com/madar-files/prj-001/fil-001/1/file?X-Amz-Signature=abc`)).toBe(false);
+    expect(isSignedFileLink('https://preview.madar-46r.pages.dev/projects/prj_001?tab=files')).toBe(false);
+  });
+
+  it('reads R2 only in the test bucket, and only with the four R2 values; none gives n/a', () => {
+    expect(r2BucketTarget({})).toBeNull();
+    const values = { R2_ACCOUNT_ID: ACCOUNT, R2_ACCESS_KEY_ID: 'key-id-value-8', R2_SECRET_ACCESS_KEY: 'secret-value-8', R2_BUCKET: 'madar-files-test' };
+    expect(r2BucketTarget(values)).toEqual({ accountId: ACCOUNT, accessKeyId: 'key-id-value-8', secretAccessKey: 'secret-value-8', bucket: 'madar-files-test' });
+    expect(() => r2BucketTarget({ ...values, R2_BUCKET: 'madar-files' })).toThrow(/R2_BUCKET must be madar-files-test/);
+    expect(() => r2BucketTarget({ R2_BUCKET: 'madar-files-test' })).toThrow(/R2 needs all of/);
   });
 });

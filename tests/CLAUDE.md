@@ -21,6 +21,10 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
   itself without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). Its first case also checks that the tool list of the test copy holds
   the three chat tools (2026-10-12). One case alone: `-g "an approved agent shows in Settings"`.
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
+- The walk names the file store from the host of its upload PUT (`store.ts`): Supabase Storage or R2. On Storage it counts
+  `storage.objects`. On R2 it heads the new keys in `madar-files-test`, only with the four R2 lines of `secrets/test.env` in the
+  environment (`set -a; . <(grep '^R2_' secrets/test.env); set +a`). Without them it reports the count as n/a. The download
+  fallback takes a signed link of Storage or of the R2 test bucket (owner, 2026-10-16).
 - Playwright's Chromium does not start in the sandbox (SIGTRAP): run browser scripts with the sandbox off.
 - Signed-in screens take the language and theme saved on the account (server). The device keys change only the screens
   before sign-in. A change through the person menu is a write: on a test account, set it back to English and light after.
@@ -32,6 +36,7 @@ CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the m
 - The suite never reads the production database and never names a production host. It reads madar-test or the local
   stack only. Keep these guards. A new target needs a new guard and a test in `scripts/e2e-deploy-helpers.test.ts`.
 - `TEST_MCP_HOST` is the only short host it accepts, and only for `MADAR_E2E_MCP_URL`.
+- `r2BucketTarget` takes only the R2 bucket `madar-files-test` on the R2 EU endpoint (`r2Values` of `scripts/deploy/secrets.ts`).
 - No `ssl` or `sslmode` in a database URL: the specs pass the root certificate as `ca`.
 
 ## Helpers
