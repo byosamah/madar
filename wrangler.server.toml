@@ -1,7 +1,12 @@
-# The Cloudflare Workers entry of the Madar server: the fallback host (plan, section 2b, point 2).
-# For local runs only (`npm run start:server`, `server/it/worker.it.test.ts`): `wrangler dev` on the Mac against the local stack.
-# A deploy needs the paid Workers plan and the owner's yes; nothing here deploys.
-# Values: pass them with `--env-file` (never in this file, never in git). The names are in server/core/deps.ts.
+# The Cloudflare Workers entry of the Madar server (owner, 2026-10-16: the server host of each copy, config/server-host.json).
+# The top level is for local runs only (`npm run start:server`, `server/it/worker.it.test.ts`): `wrangler dev` on the Mac against
+# the local stack, with no --env.
+# [env.test] and [env.production] are the Workers of the two copies. Wrangler deploys them as madar-server-test and
+# madar-server-production (`scripts/deploy/worker.sh <env>`). Bindings and vars do not inherit: each env repeats them.
+# No env has a public address: the Pages Functions of the page host reach each Worker through a service binding
+# (server/http/pagesApiProxy.ts, server/http/pagesMcpProxy.ts).
+# Secrets: never in this file, never in git. `scripts/deploy/secrets.ts` sends them with `wrangler secret bulk`; local runs pass
+# them with `--env-file`. The names are in server/core/deps.ts. A deploy resets the vars to this file and keeps the secrets.
 name = "madar-server"
 main = "dist-server/worker.js"
 compatibility_date = "2026-09-01"
@@ -14,8 +19,54 @@ port = 8787
 
 # The database (proof.md, Z0a item 7): the Workers socket cannot check the private Supabase root, so the Worker connects through
 # Hyperdrive, which checks it (verify-full) and gives the Worker a finished connection string (server/entries/worker.ts).
-# Local runs set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB to the local pooler, so no password is in this file. The id is a
-# placeholder: a real deploy (only if the fallback is ever needed) makes a Hyperdrive config with the uploaded CA and caching off.
+# Local runs set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB to the local pooler, so no password is in this file. The id of
+# the top level is a placeholder: only the envs below deploy.
 [[hyperdrive]]
 binding = "DB"
 id = "00000000000000000000000000000000"
+
+# The Worker of the test copy (madar-test, qdgwpnesxppnqsaabqzd).
+[env.test]
+workers_dev = false
+preview_urls = false
+
+# Run next to the database (Supabase in AWS eu-central-1): the probe ran in FRA, also through a service binding.
+[env.test.placement]
+region = "aws:eu-central-1"
+
+# madar-db-test: the session pooler of madar-test (port 5432), verify-full with the CA supabase-root-2021-ca, caching off,
+# origin connection limit 10 (proof.md, "Hyperdrive probe on madar-test (2026-10-16)"). Never the transaction pooler: it hangs.
+[[env.test.hyperdrive]]
+binding = "DB"
+id = "1c4fc4b830234fad8956b6e80c52f4fc"
+
+# Public values. WORKER_REGION is the region label (server/core/deps.ts): no AWS region name, so no MCP region hop starts.
+[env.test.vars]
+SUPABASE_URL = "https://qdgwpnesxppnqsaabqzd.supabase.co"
+WORKER_REGION = "workers-eu-central-1"
+
+# The Worker logs (npx wrangler tail madar-server-test, or the dashboard).
+[env.test.observability]
+enabled = true
+
+# The Worker of production (madar, oprkvdjudjxxhvodkzgs).
+[env.production]
+workers_dev = false
+preview_urls = false
+
+[env.production.placement]
+region = "aws:eu-central-1"
+
+# madar-db-production: the session pooler of madar (port 5432), made like madar-db-test. The id is a placeholder until
+# `npx tsx scripts/deploy/cloudflare-setup.ts --env production` makes the config and prints its id. Put that id here.
+# While the placeholder stays, scripts/deploy/worker.sh skips the production Worker with a clear line.
+[[env.production.hyperdrive]]
+binding = "DB"
+id = "00000000000000000000000000000000"
+
+[env.production.vars]
+SUPABASE_URL = "https://oprkvdjudjxxhvodkzgs.supabase.co"
+WORKER_REGION = "workers-eu-central-1"
+
+[env.production.observability]
+enabled = true
