@@ -489,5 +489,14 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Cloud setup: two EU buckets and their CORS (both buckets made; test CORS set), the Supabase CA, two Hyperdrive setups (caching off), two Workers (test done)
 - [x] Owner: one R2 API token for each bucket, into the secrets files (both checked: put, get, remove, and 403 on the other bucket)
 - [x] Test copy: copy the files, switch, deploy suite, measure the Worker against the Supabase functions (the Worker was faster, but Free stops it under load)
-- [ ] Production: files to R2 (the server stays on the Supabase functions)
+- [x] Production: files to R2 (the server stays on the Supabase functions). Production at ae63498 (2026-10-16, the owner ran it):
+  7 of 7 files on R2, health `"fileStore":"r2"`. Record: proof.md "Files to R2 on production"
+- [x] Wave 0 of the exit plan, the CPU question: a Durable Object on Free passed 2,696 of 2,696 calls of 16 to 135 ms in 45 minutes,
+  while a plain Worker failed 1,309 of 1,797 (proof.md "Wave 0 of the Supabase exit")
+- [ ] Owner: the exit plan after wave 0 (go or no-go for the rest of wave 0: rows read on one year of data, a socket to a sleeping
+  object, bcrypt; then the build). The Free CPU risk is now measured, not only read
+- [ ] The walk: a quick add of a task (Enter in "Add a task") gave no row in each of the 4 walks of 2026-10-16. Find out if the screen
+  or the test is at fault: run the en-1440 walk alone with `--trace on` and a longer limit (the walk reached 15 minutes first)
+- [ ] The shell test: single cases with no `h1` within 10 s, or a language switch over 10 s (2 of 12 in each run)
+- [ ] The weekly file backup: its source is now R2 (both copies). It stays paused until the owner's Backblaze B2 (`.github/CLAUDE.md`)
 - [ ] Production: copy the files twice, switch, checks, release record

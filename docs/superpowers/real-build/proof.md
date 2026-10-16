@@ -933,6 +933,29 @@ C2 left this section out because track Z owns this file; track Y writes it from 
 - **Test copy and production at 817355d** (the owner ran production). madar.vado.sa serves `index-CIYv85RI.js`; `POST /mcp` with no
   token 401; `api` answers with 117 calls.
 
+### Files to R2 on production (2026-10-16, ae63498)
+The owner's run of 2026-10-16: the files of both copies leave Supabase Storage for R2. The server stays on the Supabase functions,
+because Workers Free stops a Madar call at 10 ms of CPU (section "The deploy suite on Workers Free").
+- **Production calls:** 6,748 in October up to the 16th, about 422 a day (the owner's read-only check).
+- **Setup:** `cloudflare-setup.ts --env production` made the Hyperdrive config `madar-db-production`
+  (`21d31839432b41a8b2ca3f808891e04c`) and set the CORS rule of `madar-files`. `worker.sh production` made `madar-server-production`
+  before the release, so `all.sh` only deploys it again. It stays unused (no Pages binding, the word stays `supabase`).
+- **The R2 key** of production (bucket `madar-files` only): put, get and remove pass; a write to `madar-files-test` gives 403.
+- **Moves:** the first copy and the copy right before the switch: 7 objects, 547,162 bytes, `"mismatched": []` both times.
+- **Switch:** `secrets/production.env` `MADAR_FILE_STORE=r2` and `MIN_CLIENT_BUILD=2026.10.16.1`, then
+  `echo production | VITE_MADAR_BUILD=2026.10.16.1 scripts/deploy/all.sh production` (the owner ran it: auto mode refused the lead,
+  as `scripts/deploy/CLAUDE.md` says). `checks.sh`: health from `supabase` with `"fileStore":"r2"`, database check ok, `POST /mcp`
+  with no token 401.
+- **After:** `--copy-only`: 0 of 7 missing. `verify-r2-keys`: 7 of 7 present (1 file record, 17 feedback screenshots), none missing.
+- **Live:** madar.vado.sa 200 with the title Madar, `/favicon.ico` 200, www 200, the live `index-C-wr3jRB.js` is the bundle of
+  `cf92a0d3.madar-46r.pages.dev`, and the CSP names the R2 host.
+- **Deploy suite on the test copy at ae63498** (the 13 spec files that failed on the Worker, on the Supabase host): 112 passed,
+  3 skipped, 18 failed. 12 were the Settings test, which found two headings that start with "Notifications" (fixed in e0f0457:
+  12 of 12 pass in the next run). 2 were single shell cases (no `h1` within 10 s; the language switch took more than 10 s). All 4
+  walks failed: the quick add of a task (Enter in "Add a task") gave no row in the database at least once in each walk, and later
+  steps failed after it. Open item in TASKS. The last full run of the suite before today was at 2bb11f5 (2026-10-06), so these
+  three faults may be older than this release.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
