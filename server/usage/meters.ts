@@ -1,6 +1,7 @@
 import { FREE_PLAN_LIMITS } from '../../src/api/contract/server';
 import { nowStamp } from '../../src/lib/dates';
-import type { Config, FileStoreKind, Query } from '../core/ports';
+import { CALL_LIMITS, type Config, type FileStoreKind, type Query } from '../core/ports';
+import type { ServerHost } from '../core/serverHost';
 import type { ServerCallOutput } from '../core/types';
 import { sentToday } from '../mail/quota';
 import type { UsageMeter } from '../mail/templates';
@@ -11,7 +12,8 @@ import type { UsageMeter } from '../mail/templates';
  * the meters: the effects that failed after a commit (never their payload: an unsent invitation holds a live token hash), the
  * change signals that were not sent in the last day, and the last run of the 15-minute job.
  *
- * - Calls and egress: the rows that the usage meter (meter.ts) writes for each request, in the UTC month.
+ * - Calls and egress: the rows that the usage meter (meter.ts) writes for each request, in the UTC month. The calls limit
+ *   follows the host that serves the copy (CALL_LIMITS: 500,000 on Supabase, 10 million on Workers Paid; owner, 2026-10-16).
  * - Database: pg_database_size. Backup copy: the last size that the backup job wrote (plan 5.7).
  * - Files, against the limit of the active store (1 GB on Supabase Storage, plan 2b point 1). On Supabase Storage the meter reads
  *   the real bucket total (madar_private.storage_bytes(), a platform migration): the bucket also holds the data of deleted files
@@ -83,14 +85,14 @@ async function storedBytes(q: Query, store: FileStoreKind, fromRecords: number):
   return num(total?.bytes);
 }
 
-export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'fileStore'>, now: Date): Promise<Meters> {
+export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'fileStore'> & Partial<Pick<Config, 'servingHost'>>, now: Date): Promise<Meters> {
   const month = utcMonth(now);
   const [row] = await q<MeterRow>(METERS_SQL, [month, `${month}-01`]);
   const today = await sentToday(q, { now });
   const files = await storedBytes(q, config.fileStore, num(row?.files_bytes));
   return {
     month,
-    calls: { used: num(row?.calls), limit: FREE_PLAN_LIMITS.calls },
+    calls: { used: num(row?.calls), limit: CALL_LIMITS[config.servingHost ?? 'supabase'] },
     database: { used: num(row?.database_bytes), limit: FREE_PLAN_LIMITS.databaseBytes },
     files: { used: files, limit: config.limits.filesTotalBytes },
     backupCopy: { used: num(row?.backup_bytes), limit: FREE_PLAN_LIMITS.backupCopyBytes },
@@ -100,7 +102,7 @@ export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'file
   };
 }
 
-export async function readUsage(q: Query, config: Pick<Config, 'limits' | 'fileStore'>, now: Date): Promise<Usage> {
+export async function readUsage(q: Query, config: Pick<Config, 'limits' | 'fileStore'> & Partial<Pick<Config, 'servingHost'>>, now: Date): Promise<Usage> {
   const meters = await readMeters(q, config, now);
   const failed = await q<{ id: string; kind: string; error: string | null; attempts: unknown; created_at: unknown }>(FAILED_EFFECTS_SQL);
   const failedEffects: FailedEffect[] = failed.map((row) => ({
@@ -126,11 +128,11 @@ export function overLimit(meter: Meter): boolean {
 
 /**
  * The meters of the 80% warning, by the names of the limitWarning mail (server/mail/templates). Files have their own name on
- * R2, where the next step is different (section 10, decision 2).
+ * R2, and calls on the Worker, where the next step is different (section 10, decision 2; owner, 2026-10-16).
  */
-export function warningMeters(meters: Meters, store: FileStoreKind): { meter: UsageMeter; value: Meter }[] {
+export function warningMeters(meters: Meters, store: FileStoreKind, host: ServerHost = 'supabase'): { meter: UsageMeter; value: Meter }[] {
   return [
-    { meter: 'calls', value: meters.calls },
+    { meter: host === 'workers' ? 'callsWorkers' : 'calls', value: meters.calls },
     { meter: 'database', value: meters.database },
     { meter: store === 'r2' ? 'filesR2' : 'files', value: meters.files },
     { meter: 'backup', value: meters.backupCopy },

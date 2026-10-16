@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requestHost } from '../core/after';
+import { needsHop } from '../mcp/forward';
 import type { Db } from '../core/ports';
 import { setEnvSource } from '../env';
 import type { AppMount } from './apps';
@@ -195,5 +196,108 @@ describe('the request database', () => {
     const { openDb } = workersDbs();
     const inside = await scope.run(openDb(), () => scope.db.statement<{ n: number }>('read', 'select 1'));
     expect(inside).toEqual([{ n: 1 }]);
+  });
+});
+
+describe('the host of each answer (owner, 2026-10-16)', () => {
+  /** A request as the Workers runtime gives it: request.cf.colo is the data center where it came in. */
+  const at = (url: string, colo?: unknown) => {
+    const request = new Request(url);
+    if (colo !== undefined) Object.defineProperty(request, 'cf', { value: { colo } });
+    return request;
+  };
+  const quiet = { warm: async () => undefined };
+
+  it('names the Worker and the data center on each answer, also on a 404', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const worker = workerEntry({ openDb, mounts: [PROBE], ...quiet });
+    const one = await worker.fetch(at('http://127.0.0.1/api/one', 'FRA'), LOCAL);
+    expect(one.status).toBe(200);
+    expect(one.headers.get('x-madar-server')).toBe('workers;colo=FRA');
+    const missing = await worker.fetch(at('http://127.0.0.1/elsewhere', 'MRS'), LOCAL);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get('x-madar-server')).toBe('workers;colo=MRS');
+  });
+
+  it('names the Worker on the 503 of a start that failed, and the answer keeps its body', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const worker = workerEntry({ openDb, mounts: [PROBE], ...quiet });
+    const response = await worker.fetch(at('http://127.0.0.1/api/one', 'ZRH'), { SUPABASE_URL: LOCAL.SUPABASE_URL });
+    expect(response.status).toBe(503);
+    expect(response.headers.get('x-madar-server')).toBe('workers;colo=ZRH');
+    expect(await response.json()).toMatchObject({ error: { details: { reason: 'not_configured' } } });
+  });
+
+  it('writes colo=unknown without request.cf, or for a value that is not a data center code', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const worker = workerEntry({ openDb, mounts: [PROBE], ...quiet });
+    for (const colo of [undefined, 'fra', 'FRA\r\nx-evil: 1', 'FRAN', 42]) {
+      const response = await worker.fetch(at('http://127.0.0.1/api/one', colo), LOCAL);
+      expect(response.headers.get('x-madar-server'), String(colo)).toBe('workers;colo=unknown');
+    }
+  });
+
+  it('names its region label, its host and its file store in the health answer, and the label starts no MCP hop', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const worker = workerEntry({ openDb, ...quiet });
+    const response = await worker.fetch(at('http://127.0.0.1/api/health', 'FRA'), { ...LOCAL, WORKER_REGION: 'workers-eu-central-1' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, region: 'workers-eu-central-1', host: 'workers', fileStore: 'supabase', calls: expect.any(Number) });
+    expect(needsHop({ region: 'workers-eu-central-1', forwardRegion: 'eu-central-1' })).toBe(false);
+  });
+
+  it('starts the warm-up once, with the first request after the build, and hands it to waitUntil', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    let warms = 0;
+    let release!: () => void;
+    const loading = new Promise<void>((resolve) => (release = resolve));
+    const worker = workerEntry({ openDb, mounts: [PROBE], warm: () => ((warms += 1), loading) });
+    const first = context();
+    const answer = await worker.fetch(at('http://127.0.0.1/api/one'), LOCAL, first.ctx);
+    expect(answer.status).toBe(200);
+    await answer.text();
+    expect(warms).toBe(1);
+    let settled = false;
+    void Promise.all(first.pending).then(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(settled).toBe(false);
+    release();
+    await Promise.all(first.pending);
+    const second = context();
+    await (await worker.fetch(at('http://127.0.0.1/api/one'), LOCAL, second.ctx)).text();
+    await Promise.all(second.pending);
+    expect(warms).toBe(1);
+  });
+
+  it('answers even when the warm-up fails', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { openDb } = workersDbs();
+    const worker = workerEntry({ openDb, mounts: [PROBE], warm: async () => { throw new Error('keys refused'); } });
+    const { pending, ctx } = context();
+    const answer = await worker.fetch(at('http://127.0.0.1/api/one'), LOCAL, ctx);
+    expect(answer.status).toBe(200);
+    await answer.text();
+    await expect(Promise.all(pending)).resolves.toBeDefined();
+  });
+
+  it('loads the key set of SUPABASE_URL by default, as the api function does on Supabase', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const fetchJwks = vi.fn(async () => Response.json({ keys: [] }));
+    vi.stubGlobal('fetch', fetchJwks);
+    try {
+      const { openDb } = workersDbs();
+      const worker = workerEntry({ openDb, mounts: [PROBE] });
+      const { pending, ctx } = context();
+      await (await worker.fetch(at('http://127.0.0.1/api/one'), { ...LOCAL, SUPABASE_URL: 'https://warm-worker.supabase.co' }, ctx)).text();
+      await Promise.all(pending);
+      expect(String((fetchJwks.mock.calls[0] as unknown[])[0])).toBe('https://warm-worker.supabase.co/auth/v1/.well-known/jwks.json');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -39,6 +39,15 @@ export type PgDbOptions = { callerClient?: PoolClient };
 
 const CONNECT_TIMEOUT_MS = 5000;
 const IDLE_TIMEOUT_MS = 120_000;
+/**
+ * The client limit of each query of a finished connection string: the Hyperdrive binding of the Worker (proof.md, "Hyperdrive
+ * probe on madar-test (2026-10-16)"). Hyperdrive can hold a transaction in its BEGIN until it has a free origin connection.
+ * Neither lock_timeout nor statement_timeout covers that wait, because the database does not have the statement yet. 12 s is
+ * above the statement_timeout of 10 s, so a statement that the database stops gives its own error first.
+ */
+const QUERY_TIMEOUT_MS = 12_000;
+/** The error of pg when query_timeout ends a query. The connection still runs that query, so a rollback on it would wait too. */
+const QUERY_READ_TIMEOUT = 'Query read timeout';
 const LOCK_TIMEOUT = "set local lock_timeout = '5s'";
 const STATEMENT_TIMEOUT = "set local statement_timeout = '10s'";
 const BEGIN = { read: 'begin isolation level repeatable read, read only', write: 'begin' } as const;
@@ -126,12 +135,12 @@ function hostOf(url: string): string {
 }
 
 /**
- * The pg settings of one pool. The finished connection string of the Workers entry keeps the pg defaults: that Db lives for one
- * request only.
+ * The pg settings of one pool. The finished connection string of the Workers entry keeps the pg defaults of idle time and
+ * keepalive (that Db lives for one request only), and gets the client limit of each query.
  */
 function poolConfig(database: DatabaseConfig, which: 'writeUrl' | 'readUrl'): pg.PoolConfig {
   const base = { max: 1, connectionTimeoutMillis: CONNECT_TIMEOUT_MS };
-  if ('connectionString' in database) return { ...base, connectionString: database.connectionString };
+  if ('connectionString' in database) return { ...base, query_timeout: QUERY_TIMEOUT_MS, connectionString: database.connectionString };
   const kept = { ...base, idleTimeoutMillis: IDLE_TIMEOUT_MS, keepAlive: true };
   const url = database[which];
   const host = hostOf(url);
@@ -209,6 +218,11 @@ export function pgDb(database: DatabaseConfig, o: PgDbOptions = {}): PgDb {
       return out;
     } catch (error) {
       state.ended = true;
+      if (!caller && error instanceof Error && error.message === QUERY_READ_TIMEOUT) {
+        // The query still runs on this connection. Throw the client away: its end stops the transaction on the database side.
+        broken = true;
+        throw error;
+      }
       try {
         if (caller) {
           await client.query('rollback to savepoint madar_tx');

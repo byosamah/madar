@@ -79,7 +79,12 @@ function UsageBody({ usage, checking, onCheck }: { usage: Usage; checking: boole
   if (over.length === 0 && failed.length === 0 && !jobLate) return <p className="text-body text-label-2">{t('usage.allWell')}</p>;
 
   // On R2 the files limit is 10 GB, above the 1 GB of Supabase Storage, and the next step is another one (plan 2b, point 1).
-  const nextOf = (name: MeterName) => (name === 'files' && usage.files.limit > FREE_PLAN_LIMITS.filesBytes ? 'filesR2' : name);
+  // On the Worker the calls limit is the 10 million of Workers Paid, above the 500,000 of Supabase (owner, 2026-10-16).
+  const nextOf = (name: MeterName) => {
+    if (name === 'files' && usage.files.limit > FREE_PLAN_LIMITS.filesBytes) return 'filesR2';
+    if (name === 'calls' && usage.calls.limit > FREE_PLAN_LIMITS.calls) return 'callsWorkers';
+    return name;
+  };
   const lineOf = (effect: FailedEffect) => effect.kind === SIGNAL_KIND
     ? t('usage.signals')
     : t('usage.failed', { what: t(`usage.effects.${EFFECT_WORDS[effect.kind] ?? 'other'}`), count: effect.attempts });

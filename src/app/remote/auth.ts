@@ -2,6 +2,7 @@ import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { PASSWORD_SET_MARK } from '../../api/contract/limits';
 import { AuthFailure, type AuthFailureReason } from '../../features/auth/authFailure';
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from '../../features/auth/sessionEnd';
+import { regionUrl } from '../../api/remote/region';
 import type { AuthPort, AuthStatus } from '../auth';
 
 /**
@@ -36,8 +37,9 @@ function fail(error: unknown, link = false): never {
 
 export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: string; fetch?: typeof fetch }): Promise<AuthPort> {
   const send = o.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
-  const forgotUrl = `${o.apiUrl.replace(/\/+$/, '')}/auth/forgot?forceFunctionRegion=eu-central-1`;
-  const renewUrl = `${o.apiUrl.replace(/\/+$/, '')}/auth/renew-invite?forceFunctionRegion=eu-central-1`;
+  // The region parameter goes only on a Supabase function URL; the page api of the Worker host takes none (owner, 2026-10-16).
+  const forgotUrl = regionUrl(`${o.apiUrl.replace(/\/+$/, '')}/auth/forgot`);
+  const renewUrl = regionUrl(`${o.apiUrl.replace(/\/+$/, '')}/auth/renew-invite`);
   const listeners = new Set<SessionListener>();
   const { data } = await supabase.auth.getSession();
   let status: AuthStatus = data.session ? 'signed_in' : 'signed_out';

@@ -2,10 +2,13 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVER_HOST_SETTING, screensApiUrl, type ServerHostSetting } from '../server/core/serverHost.ts';
 
 /**
  * The real screens: npm run build:remote -- <test|production>, or npm run dev:remote -- <test|production>.
  * The public values come from config/remote.<env>.env (only VITE_ names). Vite never reads a secret.
+ * VITE_API_URL comes from config/server-host.json (owner, 2026-10-16): the page's own /api when the copy runs on the Worker,
+ * the Supabase api function otherwise. The public file must not set it.
  */
 export type RemoteEnv = 'test' | 'production';
 
@@ -21,6 +24,19 @@ export function parsePublicEnv(text: string): Record<string, string> {
   }
   if (env.VITE_MADAR_API !== undefined && env.VITE_MADAR_API !== 'remote') throw new Error('VITE_MADAR_API must be remote in a remote file.');
   env.VITE_MADAR_API = 'remote';
+  return env;
+}
+
+/**
+ * The public values of one copy, with VITE_API_URL from the setting. The dev server (dev: true) always gets the api function:
+ * Vite runs no Pages Function, so the page api does not exist there.
+ */
+export function remotePublicEnv(target: RemoteEnv, text: string, o: { dev?: boolean; setting?: ServerHostSetting } = {}): Record<string, string> {
+  const env = parsePublicEnv(text);
+  if (env.VITE_API_URL !== undefined) {
+    throw new Error(`config/remote.${target}.env must not set VITE_API_URL: config/server-host.json decides it (scripts/build-remote.ts).`);
+  }
+  env.VITE_API_URL = screensApiUrl(target, o.dev ? 'supabase' : (o.setting ?? SERVER_HOST_SETTING)[target]);
   return env;
 }
 
@@ -54,7 +70,8 @@ if (isMain) {
     console.error(`${file} is missing. Track O writes it with the public values of the ${target} deployment.`);
     process.exit(1);
   }
-  const env = { ...process.env, ...parsePublicEnv(readFileSync(file, 'utf8')) };
+  const env = { ...process.env, ...remotePublicEnv(target, readFileSync(file, 'utf8'), { dev }) };
+  console.log(`> VITE_API_URL=${env.VITE_API_URL} (config/server-host.json)`);
   env.VITE_MADAR_BUILD ??= buildId(new Date());
   const steps = dev ? [['npx', 'vite', '--host', '127.0.0.1', '--mode', `remote-${target}`]] : remoteSteps(target);
   for (const [command, ...rest] of steps) {

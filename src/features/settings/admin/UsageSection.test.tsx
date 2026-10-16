@@ -105,6 +105,28 @@ describe('Admin, Usage (plan 5.8; task M1)', () => {
     expect(await within(section).findByText('Above 10 GB, R2 charges about $0.015 for each GB a month. No action is needed.')).toBeInTheDocument();
   });
 
+  it('names the Workers step when the calls limit is the 10 million of Workers Paid (owner, 2026-10-16)', async () => {
+    const { section } = await renderUsage(usage({ calls: { used: 8_500_000, limit: 10_000_000 } }));
+    expect(await within(section).findByRole('progressbar', { name: 'Server calls this month' })).toHaveAttribute('aria-valuenow', '85');
+    expect(within(section).getByText('Above 10 million calls in a month, Cloudflare Workers charges about $0.30 for each extra million. No action is needed.')).toBeInTheDocument();
+    expect(within(section).queryByText('Next step: move Madar to the paid database plan before the month ends.')).toBeNull();
+    expectCalm(section, { titleLevel: 2 });
+  });
+
+  it('names the Workers step in Arabic too, right to left', async () => {
+    const { section, t } = await renderUsage(usage({ calls: { used: 8_500_000, limit: 10_000_000 } }), { lang: 'ar' });
+    expect(section.closest('[dir]')).toHaveAttribute('dir', 'rtl');
+    expect(await within(section).findByText(t('usage.next.callsWorkers'))).toBeInTheDocument();
+    expect(t('usage.next.callsWorkers')).not.toBe(t('usage.next.calls'));
+    expect(within(section).queryByText(t('usage.next.calls'))).toBeNull();
+    expectCalm(section, { titleLevel: 2 });
+  });
+
+  it('keeps the database plan step for the calls on Supabase (500,000)', async () => {
+    const { section } = await renderUsage(usage({ calls: { used: 450_000, limit: 500_000 } }));
+    expect(await within(section).findByText('Next step: move Madar to the paid database plan before the month ends.')).toBeInTheDocument();
+  });
+
   it('shows a failed effect as one line with one Retry, which sends usage.retryEffect with the row id and loads the usage again', async () => {
     const failed = { id: '17', kind: 'auth.invite', error: 'Auth said no.', attempts: 5, createdAt: '2026-09-30T08:00:00.000+03:00' };
     const { section, asked, retried } = await renderUsage(usage({ failedEffects: [failed] }));

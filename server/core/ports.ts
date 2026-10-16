@@ -1,3 +1,4 @@
+import type { ServerHost } from './serverHost';
 import type { ChangeSignal } from './types';
 
 /**
@@ -36,6 +37,12 @@ export const FILE_STORE_LIMITS: Record<FileStoreKind, { maxFileBytes: number; to
   supabase: { maxFileBytes: 50 * 1024 * 1024, totalBytes: 1024 * 1024 * 1024 },
   r2: { maxFileBytes: 250 * 1024 * 1024, totalBytes: 10 * 1024 * 1024 * 1024 },
 };
+
+/**
+ * The calls of a month that the plan of each server host includes (owner, 2026-10-16): Supabase Free has 500,000 Edge
+ * Function invocations; Workers Paid has 10 million requests (the Pages Functions of /api and /mcp count there too).
+ */
+export const CALL_LIMITS: Record<ServerHost, number> = { supabase: 500_000, workers: 10_000_000 };
 
 export function fileStoreKind(value: string | undefined): FileStoreKind {
   if (value === undefined || value === '' || value === 'supabase') return 'supabase';
@@ -122,6 +129,12 @@ export type Config = {
   forwardRegion: string;
   fileStore: FileStoreKind;
   limits: Limits;
+  /**
+   * The host that serves the screens and agents of this copy (config/server-host.json, server/core/serverHost.ts), not always
+   * the running host: the 15-minute job stays on the Supabase jobs function. The calls limit of the Usage page follows it
+   * (CALL_LIMITS), so the job on Supabase and usage.get on the Worker give the same answer.
+   */
+  servingHost: ServerHost;
   /** The VAPID keys of browser push (server/push/vapid.ts). Left out when push is off: the push effect then skips and logs it. */
   push?: { publicKey: string; privateKey: string; subject: string };
 };

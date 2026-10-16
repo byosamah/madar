@@ -7,7 +7,8 @@ import type { Logger } from '../core/ports';
 /**
  * GET /api/health (plan, task E1), on every host.
  *
- * Without a secret it answers from memory: the region and the count of the shared calls. A caller who is not signed in can
+ * Without a secret it answers from memory: the region, the host and the file store (owner, 2026-10-16), and the count of the
+ * shared calls. A caller who is not signed in can
  * never start database work here, so a flood of health calls never holds a connection of the pooler (review of E).
  *
  * With the jobs secret in x-madar-jobs-secret it also runs one read-only transaction that holds an advisory lock. That check
@@ -25,8 +26,15 @@ export type HealthClient = {
 };
 
 type Check = 'ok' | 'failed';
-export type HealthBody = { ok: boolean; region: string; calls: number; checks: { database: Check; lock: Check; asyncContext: Check } };
-export type HealthOptions = { connect: () => Promise<HealthClient>; region: string; log?: Logger };
+/** host: the host that answers (workers or supabase); fileStore: supabase or r2 (owner, 2026-10-16). Neither is a secret. */
+export type HealthIdentity = { host?: string; fileStore?: string };
+export type HealthBody = { ok: boolean; region: string; calls: number; checks: { database: Check; lock: Check; asyncContext: Check } } & HealthIdentity;
+export type HealthOptions = { connect: () => Promise<HealthClient>; region: string; log?: Logger } & HealthIdentity;
+
+/** The host and the file store of the options, when the caller gave them. */
+function identityOf(o: HealthIdentity): HealthIdentity {
+  return { ...(o.host === undefined ? {} : { host: o.host }), ...(o.fileStore === undefined ? {} : { fileStore: o.fileStore }) };
+}
 
 const context = new AsyncLocalStorage<string>();
 
@@ -67,7 +75,7 @@ export async function checkHealth(o: HealthOptions): Promise<{ status: number; b
     }
   });
   const ok = checks.database === 'ok' && checks.lock === 'ok' && checks.asyncContext === 'ok';
-  return { status: ok ? 200 : 503, body: { ok, region: o.region, calls: Object.keys(sharedCalls).length, checks } };
+  return { status: ok ? 200 : 503, body: { ok, region: o.region, ...identityOf(o), calls: Object.keys(sharedCalls).length, checks } };
 }
 
 /** Compares two secrets in constant time: both go through SHA-256 first, so the length of the secret does not show either. */
@@ -82,7 +90,7 @@ async function sameSecret(given: string, secret: string): Promise<boolean> {
 /** The answer of GET /api/health. secret: JOBS_SECRET; without it, no caller can start the database check. */
 export async function healthAnswer(request: Request, o: HealthOptions & { secret?: string }): Promise<{ status: number; body: unknown }> {
   const given = request.headers.get(HEALTH_SECRET_HEADER);
-  if (given === null) return { status: 200, body: { ok: true, region: o.region, calls: Object.keys(sharedCalls).length } };
+  if (given === null) return { status: 200, body: { ok: true, region: o.region, ...identityOf(o), calls: Object.keys(sharedCalls).length } };
   if (o.secret === undefined || !(await sameSecret(given, o.secret))) {
     return { status: 401, body: { v: 1, error: { code: 'unauthenticated', message: 'The health secret is not right.' } } };
   }

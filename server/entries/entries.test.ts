@@ -5,6 +5,7 @@ import { warmApi } from './api';
 import denoApi from './deno-api';
 import denoJobs from './deno-jobs';
 import denoMcp from './deno-mcp';
+import { onSupabase, SERVER_HEADER, withServerHeader } from './serverHeader';
 import { lazyStart } from './start';
 import worker from './worker';
 
@@ -154,5 +155,36 @@ describe('a start with a missing value', () => {
     expect(await (await start(new Request('http://127.0.0.1/'))).text()).toBe('ok');
     expect(await (await start(new Request('http://127.0.0.1/'))).text()).toBe('ok');
     expect(builds).toBe(2);
+  });
+});
+
+describe('the host header of the Supabase functions (owner, 2026-10-16)', () => {
+  it('names supabase on each answer of the three functions, also on a 404', async () => {
+    setEnvSource(LOCAL);
+    const answers = [
+      await denoApi.fetch(preflight('http://127.0.0.1/api/batch')),
+      await denoApi.fetch(new Request('http://127.0.0.1/api/nothing', { method: 'POST' })),
+      await denoMcp.fetch(new Request('http://127.0.0.1/mcp', { method: 'POST' })),
+      await denoJobs.fetch(new Request('http://127.0.0.1/jobs/run', { method: 'POST' })),
+    ];
+    for (const response of answers) expect(response.headers.get(SERVER_HEADER)).toBe('supabase');
+  });
+
+  it('names supabase on the 503 of a start that failed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fetch = onSupabase(lazyStart('api', () => {
+      throw new MissingConfigError(['APP_URL']);
+    }));
+    const response = await fetch(new Request('http://127.0.0.1/api/batch', { method: 'POST' }));
+    expect(response.status).toBe(503);
+    expect(response.headers.get(SERVER_HEADER)).toBe('supabase');
+  });
+
+  it('copies an answer whose headers are fixed, and keeps its status and body', async () => {
+    const fixed = Response.redirect('https://madar.example/next', 302);
+    const tagged = withServerHeader(fixed, 'supabase');
+    expect(tagged.status).toBe(302);
+    expect(tagged.headers.get('location')).toBe('https://madar.example/next');
+    expect(tagged.headers.get(SERVER_HEADER)).toBe('supabase');
   });
 });

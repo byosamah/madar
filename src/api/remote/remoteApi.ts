@@ -6,7 +6,8 @@ import type { FreshReads } from './follow';
 import { fromEntry, fromStatus, noAnswer } from './errors';
 import { isRead, newKey } from './keys';
 import { StoryMap } from './stories';
-import { FUNCTION_REGION, isOverviewCall, type Adapter, type AdapterCtx, type ChangeSignal, type StoryRef, type WireEntry, type WireRequest } from './wire';
+import { regionUrl } from './region';
+import { isOverviewCall, type Adapter, type AdapterCtx, type ChangeSignal, type StoryRef, type WireEntry, type WireRequest } from './wire';
 
 /**
  * RemoteApi: the screens' api.call() and api.run() over the batch endpoint of the server (client map 2 to 5, plan 4.10).
@@ -17,7 +18,7 @@ import { FUNCTION_REGION, isOverviewCall, type Adapter, type AdapterCtx, type Ch
 export const REQUEST_TIMEOUT_MS = 20_000;
 
 export type RemoteApiOptions<M extends CallMap> = {
-  /** The api function, for example https://<ref>.supabase.co/functions/v1/api (VITE_API_URL). */
+  /** The api of the copy (VITE_API_URL): https://<ref>.supabase.co/functions/v1/api, or the page's own /api on the Worker host. */
   url: string;
   /** The build ID of the screens, sent as X-Madar-Build. The server answers 409 client_outdated to an old build. */
   build: string;
@@ -69,17 +70,8 @@ type Reply =
   | { kind: 'status'; status: number; body: unknown; retryAfter: string | null }
   | { kind: 'none'; cause: 'timeout' | 'network' };
 
-/** Adds the region parameter, so the function runs in Frankfurt (plan, change 5). Every request URL of the screens uses it. */
-export function regionUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (!parsed.searchParams.has('forceFunctionRegion')) parsed.searchParams.set('forceFunctionRegion', FUNCTION_REGION);
-    return parsed.toString();
-  } catch {
-    if (/[?&]forceFunctionRegion=/.test(url)) return url;
-    return `${url}${url.includes('?') ? '&' : '?'}forceFunctionRegion=${FUNCTION_REGION}`;
-  }
-}
+/** The region parameter on a Supabase function URL (src/api/remote/region.ts). Every request URL of the screens goes through it. */
+export { regionUrl };
 
 /** A story placeholder for an adapted call that came with none, so all its writes form one story. Same form as newStoryId(). */
 function placeholder(): string {

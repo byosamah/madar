@@ -5,6 +5,7 @@ import { invalid } from '../../src/api/errors';
 import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
 import { errorResponse, runErrorOf } from '../http/errors';
+import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reserve, sendCounted } from '../mail/quota';
 import { renderSigninMail, signinLink } from './mail';
 import { hashedKey, hitLimit } from './rateLimit';
@@ -47,6 +48,10 @@ import { hashedKey, hitLimit } from './rateLimit';
  *   Cloudflare refuses a request that sends its own (error code 1000). x-forwarded-for arrives as "client, client, proxy": its
  *   last entry is a rotating proxy address, so reading it puts many clients under one limit. true-client-ip passes through
  *   forged. So the route never reads either. No cf-connecting-ip (local runs only): 'unknown'.
+ * - On the Worker (owner, 2026-10-16) the address is x-madar-client-address. The Worker has no public address: only the Pages
+ *   Function of the page host reaches it, through a service binding, and that function always writes the header from its own
+ *   cf-connecting-ip (server/http/pagesApiProxy.ts). So on the Worker the header cannot come from a client, and
+ *   cf-connecting-ip there would be the address of the Pages Function. On every other host the header counts for nothing.
  */
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -61,9 +66,16 @@ export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth fro
 
 const Body = z.object({ email: z.email() });
 
-/** The network address of the sender: the value that Cloudflare writes in front of both hosts. None (local runs): 'unknown'. */
+/** The header of the client address that the Pages Function writes for the Worker (server/http/pagesApiProxy.ts). */
+export { CLIENT_ADDRESS_HEADER };
+
+/**
+ * The network address of the sender: on the Worker the value of the Pages Function, on Supabase the value that Cloudflare writes
+ * in front of the functions. None (local runs): 'unknown'.
+ */
 export function clientAddress(request: Request): string {
-  return request.headers.get('cf-connecting-ip')?.trim() || 'unknown';
+  const name = requestHost().host === 'workers' ? CLIENT_ADDRESS_HEADER : 'cf-connecting-ip';
+  return request.headers.get(name)?.trim() || 'unknown';
 }
 
 /** Sends the reset mail when the email belongs to an active person with a sign-in link. Otherwise nothing. */

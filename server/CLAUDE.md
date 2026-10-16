@@ -1,19 +1,23 @@
 # Server
 
-One Hono app in TypeScript. The same source runs on Supabase Edge Functions (Deno, pinned to eu-central-1) and on a
-Cloudflare Workers fallback (paid plan, local only today). Each area below has its own guide: `mcp/`, `auth/`, `data/`,
-`mail/`, `files/`, `push/`.
+One Hono app in TypeScript. The same source runs on Supabase Edge Functions (Deno, pinned to eu-central-1) and on one
+Cloudflare Worker for each copy (`wrangler.server.toml`: `madar-server-test`, `madar-server-production`, placed in
+aws:eu-central-1). `config/server-host.json` says which host serves each copy (owner, 2026-10-16; `core/serverHost.ts`).
+The other host stays deployed as the way back. Each area below has its own guide: `mcp/`, `auth/`, `data/`, `mail/`,
+`files/`, `push/`.
 
 ## Folders
 - `http/`: the batch route, CORS, the batch limits, the extra routes, health, the Pages forwarder of /mcp.
 - `core/`: `runCall`, the ports, `buildDeps`, the office lock, idempotency, stories, effects, the call map.
 - `calls/`: the server-only calls and the server hooks of 4 shared calls.
-- `entries/`: one mount for each function (`api`, `mcp`, `jobs`, `apps`), the Deno wrappers `deno-*.ts`, Workers `worker.ts`.
+- `entries/`: one mount for each function (`api`, `mcp`, `jobs`), the shared host builder `apps.ts`, the Deno wrappers
+  `deno-*.ts`, Workers `worker.ts`.
 - `jobs/` (the 15-minute job), `signal/` (change signals), `usage/` (meters and the Admin warning), `push/` (browser push).
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
 ## Request path
-- `POST /api/batch?forceFunctionRegion=eu-central-1` (`http/batch.ts`): at most 12 entries, 256 KB, 1 overview call
+- `POST /api/batch` (`http/batch.ts`; on a Supabase function URL with `?forceFunctionRegion=eu-central-1`, on the Worker
+  through the page's own `/api`): at most 12 entries, 256 KB, 1 overview call
   (`http/limits.ts`). An old `X-Madar-Build` gives 409 `client_outdated`. CORS allows only listed origins, never `*`.
 - Extra routes (`http/routes.ts`) sit under the api app: `POST /auth/forgot` answers at `/api/auth/forgot`.
 - The token check (`auth/verify.ts`): jose, ES256 only, issuer `${SUPABASE_URL}/auth/v1` (or `AUTH_ISSUER`). Never compare
@@ -25,7 +29,8 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
   query, see `data/CLAUDE.md`), the office lock, the idempotency check, the story, the loader, `executeParsed`, the diff
   save, the outbox rows, the signals, the commit.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
-  alive after the answer on both hosts.
+  alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
+  about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
 - The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`) run after
   the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
   entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
@@ -53,7 +58,15 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - Each Supabase function imports only its own mount. Deno needs the bundle (no extensionless imports), so
   `npm run build:server` writes `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
   Edit `server/`, never the bundles.
-- Workers (`entries/worker.ts`): one Db for each request, the database through the Hyperdrive binding `DB`.
+- Workers (`entries/worker.ts`): one Db for each request, the database through the Hyperdrive binding `DB`. The region
+  label is the public var `WORKER_REGION` (`workers-eu-central-1`): it is no AWS region name, so the MCP region hop never
+  starts there. The first request after a build starts the key set load (`warmKeySet`) and hands it to waitUntil. Never
+  `db.warm` there: the database belongs to one request.
+- Every answer carries `x-madar-server` (`entries/serverHeader.ts`): `supabase` on the three Deno entries,
+  `workers;colo=<request.cf.colo>` on the Worker, also on a 404 and on the 503 of a failed start. The colo is the data center
+  where the request came in; the run place shows in the `cf-placement` answer header.
+- `GET /api/health` names the region, the host (`workers` or `supabase`), the file store and the call count. With the jobs
+  secret it also runs the database check (`http/health.ts`).
 - `wrangler dev` uses esbuild with no `import.meta.glob`, so server code reads word files with plain JSON imports
   (`workerGraph.test.ts` checks it).
 - The bundles run on the real office, so they hold no sample office and no `settleFuture` (it moves every later stamp to
@@ -81,7 +94,9 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
 - Only `set local` on the pooler: `data/sql.ts` refuses a plain SET.
 - Database TLS fails closed: TLS with the Supabase root CA (`DATABASE_CA`) for every host except loopback and the local
   Docker hosts. No `sslmode` in a URL.
-- The client address is `cf-connecting-ip` only. Never read `x-forwarded-for` or `true-client-ip`.
+- The client address is `cf-connecting-ip` on Supabase, and `x-madar-client-address` on the Worker (`clientAddress`,
+  `auth/forgot.ts`): the Worker has no public address, and the Pages Function always writes that header. Never read
+  `x-forwarded-for` or `true-client-ip`.
 
 ## Realtime, jobs, usage
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and
@@ -91,9 +106,15 @@ Cloudflare Workers fallback (paid plan, local only today). Each area below has i
   helpers, before and after) and each active Admin. The office signal tells only the project part (`Diff.publicKinds`),
   with its names, and a save of office tasks alone sends none (review 2026-10-06). The Realtime rules need no change: the
   server sends on any `person:` topic, and each person reads only their own.
-- pg_cron calls `jobs/run` every 15 minutes, with the secret header `x-madar-jobs-secret`. Steps (`jobs/steps/`):
+- pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
+  secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
+  `project_url` do not change. Steps (`jobs/steps/`):
   heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
-- Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`.
+- Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
+  the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
+  Workers Paid (`CALL_LIMITS`, `core/ports.ts`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
+  screen picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
+  limit, because both read the setting, not the running host.
 
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.

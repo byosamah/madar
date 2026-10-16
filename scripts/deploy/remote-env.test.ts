@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parsePublicEnv } from '../build-remote.ts';
+import { SERVER_HOST_SETTING, screensApiUrl } from '../../server/core/serverHost';
+import { parsePublicEnv, remotePublicEnv } from '../build-remote.ts';
 
 /** config/remote.<env>.env (plan, section 3, rule 6; task O3): the public values of each deployment, and nothing else. */
 const read = (name: string) => readFileSync(new URL(`../../${name}`, import.meta.url), 'utf8');
@@ -15,19 +16,22 @@ describe('config/remote.<env>.env', () => {
     it(`${target}: names the project of accounts.md, and only that project`, () => {
       expect(accounts).toContain(ref);
       expect(env.VITE_SUPABASE_URL).toBe(`https://${ref}.supabase.co`);
-      expect(env.VITE_API_URL).toBe(`https://${ref}.supabase.co/functions/v1/api`);
       const other = target === 'test' ? REFS.production : REFS.test;
       expect(text).not.toContain(other);
     });
 
-    it(`${target}: keeps VITE_API_URL free of a query, so the screens can add forceFunctionRegion to every function URL`, () => {
-      expect(env.VITE_API_URL).not.toMatch(/[?#]/);
+    it(`${target}: has no VITE_API_URL, and the build takes it from config/server-host.json with no query (owner, 2026-10-16)`, () => {
+      expect(env.VITE_API_URL).toBeUndefined();
+      const built = remotePublicEnv(target as 'test' | 'production', text).VITE_API_URL;
+      expect(built).toBe(screensApiUrl(target as 'test' | 'production', SERVER_HOST_SETTING[target as 'test' | 'production']));
+      expect(built).not.toMatch(/[?#]/);
+      if (built !== '/api') expect(built).toBe(`https://${ref}.supabase.co/functions/v1/api`);
     });
 
     it(`${target}: holds a publishable key and no secret key`, () => {
       expect(env.VITE_SUPABASE_PUBLISHABLE_KEY).toMatch(/^sb_publishable_[A-Za-z0-9_-]+$/);
       expect(text).not.toMatch(/sb_secret_|service_role|eyJ[A-Za-z0-9_-]{10,}/);
-      expect(Object.keys(env).sort()).toEqual(['VITE_API_URL', 'VITE_MADAR_API', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL', 'VITE_VAPID_PUBLIC_KEY']);
+      expect(Object.keys(env).sort()).toEqual(['VITE_MADAR_API', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL', 'VITE_VAPID_PUBLIC_KEY']);
     });
 
     it(`${target}: holds the public VAPID key of browser push (87 base64url characters of a P-256 point), and no private key`, () => {

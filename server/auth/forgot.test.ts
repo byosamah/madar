@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
-import type { After, RequestHost } from '../core/after';
+import { runInHost, type After, type RequestHost } from '../core/after';
 import { LOCK_SQL } from '../core/lock';
 import type { Mail } from '../core/ports';
 import { AUTH_LINK_SQL } from '../data/officeCache';
@@ -182,6 +182,27 @@ describe('clientAddress (S1): only the value that Cloudflare writes', () => {
     expect(clientAddress(request({ 'x-forwarded-for': '1.1.1.1, 203.0.113.9, 13.248.1.1' }))).toBe('unknown');
     expect(clientAddress(request({ 'true-client-ip': '203.0.113.9' }))).toBe('unknown');
     expect(clientAddress(request({}))).toBe('unknown');
+  });
+});
+
+describe('clientAddress on the Worker (owner, 2026-10-16): the value of the Pages Function', () => {
+  const request = (headers: Record<string, string>) => new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers });
+
+  it('reads x-madar-client-address on the Worker, which only the Pages Function reaches, and never cf-connecting-ip there', () => {
+    runInHost({ host: 'workers' }, () => {
+      expect(clientAddress(request({ 'x-madar-client-address': ' 203.0.113.21 ', 'cf-connecting-ip': '198.51.100.9' }))).toBe('203.0.113.21');
+      expect(clientAddress(request({ 'cf-connecting-ip': '198.51.100.9' }))).toBe('unknown');
+      expect(clientAddress(request({ 'x-forwarded-for': '203.0.113.22', 'true-client-ip': '203.0.113.23' }))).toBe('unknown');
+    });
+  });
+
+  it('counts the header for nothing on Supabase and in local runs, where a client could send it', () => {
+    for (const host of [{ host: 'supabase' as const }, { host: 'other' as const }]) {
+      runInHost(host, () => {
+        expect(clientAddress(request({ 'x-madar-client-address': '203.0.113.21', 'cf-connecting-ip': '198.51.100.9' }))).toBe('198.51.100.9');
+        expect(clientAddress(request({ 'x-madar-client-address': '203.0.113.21' }))).toBe('unknown');
+      });
+    }
   });
 });
 

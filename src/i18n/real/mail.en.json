@@ -53,6 +53,7 @@
       "line": "{{meter}}: {{percent}}% of the free plan limit.",
       "meter": {
         "calls": "Server calls this month",
+        "callsWorkers": "Server calls this month",
         "database": "The database size",
         "files": "File storage",
         "filesR2": "File storage",
@@ -63,6 +64,7 @@
       },
       "next": {
         "calls": "Next step: move Madar to the paid database plan before the month ends.",
+        "callsWorkers": "Above 10 million calls in a month, Cloudflare Workers charges about $0.30 for each extra million. No action is needed.",
         "database": "Next step: remove old data that the office does not need, or move to the paid database plan.",
         "files": "Next step: move the files to Cloudflare R2, or remove old file versions.",
         "filesR2": "Above 10 GB, R2 charges about $0.015 for each GB a month. No action is needed.",

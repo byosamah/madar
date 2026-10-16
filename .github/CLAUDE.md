@@ -9,7 +9,9 @@ branch, and a push that changes only `docs/` runs nothing.
   The integration order is fixed: server bundles, the stack, `test:mcp`, `npx supabase db reset`, `test:it`. Never add a
   shared `supabase functions serve` step: it broke the conformance and integration suites.
 - `deploy.yml`, by hand only: migrations and functions of madar-test. Its first step is `scripts/deploy/token-scope.sh`.
-  Production, settings, secrets and screens never deploy from GitHub.
+  Production, settings, secrets and screens never deploy from GitHub. Nor does the Worker (owner, 2026-10-16): a Workers token
+  could change production too. After a switch of the test copy to the Worker, `deploy.yml` leaves the test Worker on older
+  code: use `scripts/deploy/all.sh test`.
 - `db-backup.yml`, nightly at 02:07 Riyadh: an age-encrypted database dump to a release of `byosamah/madar-backups`
   (kept 30 days). Needs `secrets.BACKUP_DB_URL`, `secrets.BACKUP_REPO_TOKEN` (fine-grained, contents write on madar-backups
   only) and `vars.BACKUP_AGE_RECIPIENT` (the owner's public key).

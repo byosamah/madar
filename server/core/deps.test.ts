@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildDeps, configFromEnv, consoleLogger, DEFAULT_LOCK_KEY, HEALTH_LOCK_KEY, MissingConfigError, serverEnvFrom } from './deps';
+import { serverHostOf } from './serverHost';
 
 /** A full environment of the hosted test project. Every value here is made up. */
 const FULL: Record<string, string> = {
@@ -74,6 +75,19 @@ describe('the real Deps from the environment', () => {
       forwardRegion: 'eu-west-2',
       lockKey: 42,
     });
+  });
+
+  it('takes the serving host of the copy from config/server-host.json by SUPABASE_URL, and supabase for a local stack', () => {
+    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'http://127.0.0.1:54321' })).servingHost).toBe('supabase');
+    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'https://qdgwpnesxppnqsaabqzd.supabase.co' })).servingHost).toBe(serverHostOf('test'));
+    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'https://oprkvdjudjxxhvodkzgs.supabase.co' })).servingHost).toBe(serverHostOf('production'));
+  });
+
+  it('names the Worker by WORKER_REGION when SB_REGION is absent; on Supabase SB_REGION wins (owner, 2026-10-16)', () => {
+    const { SB_REGION: _region, ...worker } = FULL as Record<string, string>;
+    expect(configFromEnv(reader({ ...worker, WORKER_REGION: 'workers-eu-central-1' })).region).toBe('workers-eu-central-1');
+    expect(configFromEnv(reader({ ...FULL, WORKER_REGION: 'workers-eu-central-1' })).region).toBe(FULL.SB_REGION);
+    expect(configFromEnv(reader(worker)).region).toBe('unknown');
   });
 
   it('refuses to start with a missing secret, and names each missing value', () => {

@@ -78,6 +78,13 @@ describe('httpOAuthPort: the OAuth calls of Supabase Auth and the Madar approval
     expect(sent(2)).toMatchObject({ method: 'POST', body: JSON.stringify({ action: 'deny' }) });
   });
 
+  it('records the approval on the page api when the build names /api (the Worker host), with no region parameter (owner, 2026-10-16)', async () => {
+    const own = vi.fn(async () => Response.json({ approved: true }));
+    const onPage = httpOAuthPort({ supabaseUrl: 'https://ref.supabase.co', publishableKey: 'pk', apiUrl: '/api', accessToken: async () => 'tok', fetch: own });
+    await onPage.recordApproval('a1');
+    expect((own.mock.calls as unknown as [string, RequestInit][])[0][0]).toBe('/api/agents/approve');
+  });
+
   it('turns a refusal of the api function into its ApiError, and of Auth into an Error with the status', async () => {
     answers.push(Response.json({ v: 1, error: { code: 'forbidden', message: 'No.', details: { reason: 'agent_token' } } }, { status: 403 }));
     const refused = await port.recordApproval('a1').then(() => null, (e: unknown) => e);

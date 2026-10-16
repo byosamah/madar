@@ -19,6 +19,7 @@ import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
 import { meterPort } from '../usage/meter';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
+import { copyOfSupabaseUrl, serverHostOf } from './serverHost';
 
 /**
  * The real Deps from the environment (plan 4.5, task E2), the same on Supabase Edge Functions and on Cloudflare Workers.
@@ -44,6 +45,8 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   MIN_CLIENT_BUILD       the oldest screen build the server accepts (default 0)
  *   ALLOWED_ORIGINS        the origins for CORS, separated by commas (default the origin of APP_URL)
  *   SB_REGION              the region of the running function (Supabase injects it)
+ *   WORKER_REGION          the region label of the Worker when SB_REGION is absent, a public var of wrangler.server.toml
+ *                          (workers-eu-central-1). It is no AWS region name, so the MCP region hop never starts there
  *   MCP_FORWARD_REGION     the region of every MCP request (default eu-central-1)
  *   MADAR_LOCK_KEY         the office lock key (default 7310001; never HEALTH_LOCK_KEY)
  *   JOBS_SECRET            the secret of the job runner (x-madar-jobs-secret); it also opens the database check of GET /api/health
@@ -162,10 +165,11 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     mailFrom,
     minClientBuild: read('MIN_CLIENT_BUILD') ?? '0',
     allowedOrigins: origins ? origins.split(',').map((o) => o.trim()).filter(Boolean) : [new URL(appUrl).origin],
-    region: read('SB_REGION') ?? 'unknown',
+    region: read('SB_REGION') ?? read('WORKER_REGION') ?? 'unknown',
     forwardRegion: read('MCP_FORWARD_REGION') ?? FUNCTION_REGION,
     fileStore,
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
+    servingHost: servingHostOf(supabaseUrl),
     ...(push ? { push } : {}),
   };
 
@@ -178,6 +182,12 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     mail: driver === 'resend' ? { driver, apiKey } : { driver },
     files: r2 ? { r2 } : { bucket: read('FILES_BUCKET') ?? 'madar-files', ...(read('FILES_PUBLIC_URL') ? { publicUrl: read('FILES_PUBLIC_URL') } : {}) },
   };
+}
+
+/** The host that serves the copy of SUPABASE_URL (config/server-host.json); supabase for a local stack or another URL. */
+function servingHostOf(supabaseUrl: string): Config['servingHost'] {
+  const copy = copyOfSupabaseUrl(supabaseUrl);
+  return copy ? serverHostOf(copy) : 'supabase';
 }
 
 export function configFromEnv(read: ReadEnv = env): Config {

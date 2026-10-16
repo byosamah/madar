@@ -53,6 +53,20 @@ describe('the request', () => {
     expect(regionUrl('https://x.supabase.co/api/batch?forceFunctionRegion=eu-central-1')).toBe('https://x.supabase.co/api/batch?forceFunctionRegion=eu-central-1');
   });
 
+  it('puts the region parameter only on a Supabase function host: the page api of the Worker and other hosts stay as they are (owner, 2026-10-16)', () => {
+    expect(regionUrl('/api/batch')).toBe('/api/batch');
+    expect(regionUrl('/api/auth/forgot?a=1')).toBe('/api/auth/forgot?a=1');
+    expect(regionUrl('https://madar.vado.sa/api/batch')).toBe('https://madar.vado.sa/api/batch');
+    expect(regionUrl('http://127.0.0.1:54321/functions/v1/api/batch')).toBe('http://127.0.0.1:54321/functions/v1/api/batch');
+    expect(regionUrl('https://x.supabase.co.evil.example/api/batch')).toBe('https://x.supabase.co.evil.example/api/batch');
+  });
+
+  it('posts the batch to the page api when the build names /api (the Worker host)', async () => {
+    const { sent, fetch } = stubFetch();
+    await remote(fetch, { url: '/api' }).call('projects.get', PROJECT);
+    expect(sent[0].url).toBe('/api/batch');
+  });
+
   it('sends nothing when the person is signed out: the call fails at once with the reason no_session (2026-10-05)', async () => {
     // A list that loads again after a sign-out must not reach the server: its late 401 opened "Your session ended" over the
     // next sign-in on the test copy. The session listener hears nothing, because the sign-in status already says signed out.

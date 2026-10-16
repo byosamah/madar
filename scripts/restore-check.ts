@@ -133,6 +133,7 @@ function readOnlyDeps(db: Deps['db']): Deps {
       forwardRegion: 'eu-central-1',
       fileStore: 'supabase',
       limits: { maxFileBytes: FILE_STORE_LIMITS.supabase.maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS.supabase.totalBytes },
+      servingHost: 'supabase',
     },
     log: quiet,
   };

@@ -345,6 +345,8 @@ describe('the helpers of the bundle check', () => {
     expect(originsOf({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: 'https://ref.supabase.co/functions/v1/api' })).toEqual(['https://ref.supabase.co']);
     expect(originsOf({ VITE_SUPABASE_URL: 'https://ref.supabase.co/', VITE_API_URL: 'https://api.example.test/api' })).toEqual(['https://ref.supabase.co', 'https://api.example.test']);
     expect(originsOf({ VITE_SUPABASE_URL: 'not a url' })).toEqual([]);
+    // The page api of the Worker host (owner, 2026-10-16) is the page itself: no preconnect, the Supabase origin stays for Auth and Realtime.
+    expect(originsOf({ VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_API_URL: '/api' })).toEqual(['https://ref.supabase.co']);
     expect(originsOf({})).toEqual([]);
   });
 });

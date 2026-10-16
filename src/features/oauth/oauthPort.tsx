@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { ApiError, type ApiErrorCode } from '../../api/errors';
+import { regionUrl } from '../../api/remote/region';
 import { REMOTE } from '../../app/mode';
 import { useAuth } from '../auth/useAuth';
 import { safeRedirect } from './knownHosts';
@@ -55,7 +56,8 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; apiUrl: string; accessToken: () => Promise<string | null>; fetch?: Fetch }): OAuthPort {
   const send: Fetch = o.fetch ?? ((input, init) => fetch(input, init));
   const authUrl = `${o.supabaseUrl.replace(/\/+$/, '')}/auth/v1`;
-  const approveUrl = `${o.apiUrl.replace(/\/+$/, '')}/agents/approve?forceFunctionRegion=eu-central-1`;
+  // The region parameter goes only on a Supabase function URL; the page api of the Worker host takes none (owner, 2026-10-16).
+  const approveUrl = regionUrl(`${o.apiUrl.replace(/\/+$/, '')}/agents/approve`);
 
   const token = async () => {
     const value = await o.accessToken();

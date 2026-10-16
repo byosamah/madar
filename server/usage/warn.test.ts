@@ -119,6 +119,16 @@ describe('checkLimits (plan 5.8)', () => {
     expect((await checkLimits(deps)).warned).toEqual(['emailsToday']);
   });
 
+  it('warns on the calls of a copy on the Worker at 80% of 10 million, with the Workers next step (owner, 2026-10-16)', async () => {
+    const quiet = setup({ meters: { calls: 450_000 }, people: [person('usr_001')], config: { servingHost: 'workers' } });
+    expect((await checkLimits(quiet.deps)).warned).toEqual([]);
+    const { deps } = setup({ meters: { calls: 8_500_000 }, people: [person('usr_001')], config: { servingHost: 'workers' } });
+    expect((await checkLimits(deps)).warned).toEqual(['callsWorkers']);
+    const step = renderMail('limitWarning', 'en', { meter: 'callsWorkers', percent: 85, link: 'https://madar.test/admin' }).text.split('\n').find((line) => line.includes('Cloudflare'))!;
+    expect(step).toContain('No action is needed.');
+    expect(deps.mail.sent[0].text).toContain(step);
+  });
+
   it('uses the R2 meter and its own next step when the files are on R2 (10 GB)', async () => {
     const { deps } = setup({ meters: { files_bytes: 9 * GB }, people: [person('usr_001')], config: { fileStore: 'r2', limits: { maxFileBytes: 250 * 1024 * 1024, filesTotalBytes: 10 * GB } } });
     expect((await checkLimits(deps)).warned).toEqual(['filesR2']);

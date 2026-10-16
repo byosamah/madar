@@ -27,12 +27,17 @@ any screen work.
 - The prototype uses `createHashRouter` (links `#/...`, base `./`, one script file). The remote build uses
   `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
 - The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
+- The API address (owner, 2026-10-16): `build:remote` sets `VITE_API_URL` from `config/server-host.json`
+  (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the copy runs on the Worker, the Supabase api
+  function otherwise. `config/remote.<env>.env` must not set it. `regionUrl` (`api/remote/region.ts`) adds
+  `forceFunctionRegion=eu-central-1` only to a `*.supabase.co` URL, and a relative `/api` stays relative (fetch resolves it
+  against the page). `dev:remote` always uses the api function: Vite runs no Pages Function.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
   and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
   a connection to each Supabase origin. The vendor and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
-  or `VITE_API_URL` set (`build:remote` sets them). A red "no zod schemas" line: a first-load file imports from
+  or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
   `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.

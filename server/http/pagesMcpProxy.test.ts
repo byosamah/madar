@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { ServerHostSetting } from '../core/serverHost';
 import { MCP_TARGETS, proxyMcp } from './pagesMcpProxy';
 
 /** A fetch that records the request it gets and answers with the given response. */
@@ -85,5 +87,82 @@ describe('the short MCP address on Cloudflare Pages (owner, 2026-10-05)', () => 
     await proxyMcp(new Request('https://madar.vado.sa/mcp/a/%2e/b'), fetcher);
     expect(new URL(seen[1].url).pathname).toBe('/functions/v1/mcp/a/b');
     expect((await proxyMcp(new Request('https://madar.vado.sa/mcp/%2E%2E/api'), fetcher)).status).toBe(404);
+  });
+});
+
+describe('the short MCP address on the Worker (owner, 2026-10-16)', () => {
+  const WORKERS: ServerHostSetting = { test: 'workers', production: 'workers' };
+  function bindings(answer = () => new Response('{"ok":true}', { status: 200, headers: { 'x-madar-server': 'workers;colo=FRA' } })) {
+    const seen: { name: string; request: Request }[] = [];
+    const binding = (name: string) => ({ fetch: async (request: Request) => (seen.push({ name, request }), answer()) });
+    return { seen, env: { MADAR_SERVER_TEST: binding('MADAR_SERVER_TEST'), MADAR_SERVER_PRODUCTION: binding('MADAR_SERVER_PRODUCTION') } };
+  }
+
+  it('hands the request to the Worker of its copy with /mcp, the rest of the path and the query, and sends no x-region', async () => {
+    const { seen: fetched, fetcher } = recorder();
+    const { seen, env } = bindings();
+    const lines: string[] = [];
+    const answer = await proxyMcp(new Request('https://madar.vado.sa/mcp/oauth-protected-resource?x=1', { headers: { Authorization: 'Bearer abc' } }), fetcher, env, { setting: WORKERS, log: (line) => void lines.push(line) });
+    expect(answer.status).toBe(200);
+    expect(answer.headers.get('x-madar-server')).toBe('workers;colo=FRA');
+    expect(seen.map((s) => [s.name, s.request.url])).toEqual([['MADAR_SERVER_PRODUCTION', 'https://madar-server.internal/mcp/oauth-protected-resource?x=1']]);
+    expect(seen[0].request.headers.get('authorization')).toBe('Bearer abc');
+    expect(seen[0].request.headers.has('x-region')).toBe(false);
+    expect(fetched).toEqual([]);
+    expect(lines).toEqual([]);
+
+    const body = '{"jsonrpc":"2.0","id":1,"method":"tools/list"}';
+    await proxyMcp(new Request('https://preview.madar-46r.pages.dev/mcp', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }), fetcher, env, { setting: WORKERS });
+    expect(seen[1].name).toBe('MADAR_SERVER_TEST');
+    expect(seen[1].request.url).toBe('https://madar-server.internal/mcp');
+    expect(await seen[1].request.text()).toBe(body);
+  });
+
+  it('drops the same headers on the way to the Worker, also a client address that the client sent', async () => {
+    const { fetcher } = recorder();
+    const { seen, env } = bindings();
+    await proxyMcp(new Request('https://madar.vado.sa/mcp', {
+      method: 'POST',
+      body: '{}',
+      headers: { 'cf-connecting-ip': '1.2.3.4', 'cf-ray': 'x', 'x-forwarded-for': '1.2.3.4', 'true-client-ip': '1.2.3.4', 'x-madar-hop': 'forged', 'x-madar-client-address': '9.9.9.9' },
+    }), fetcher, env, { setting: WORKERS });
+    for (const name of ['cf-connecting-ip', 'cf-ray', 'x-forwarded-for', 'true-client-ip', 'x-madar-hop', 'x-madar-client-address']) {
+      expect(seen[0].request.headers.has(name), name).toBe(false);
+    }
+  });
+
+  it('keeps every 404 rule on the Worker path, and calls nothing', async () => {
+    const { seen: fetched, fetcher } = recorder();
+    const { seen, env } = bindings();
+    for (const url of ['https://abc123.madar-46r.pages.dev/mcp', 'https://evil.example/mcp', 'https://madar.vado.sa/mcpx', 'https://madar.vado.sa/api/batch', 'https://madar.vado.sa/mcp/%2e%2e%2fapi%2fbatch', 'https://madar.vado.sa/mcp/x%5Cy']) {
+      expect((await proxyMcp(new Request(url, { method: 'POST', body: '{}' }), fetcher, env, { setting: WORKERS })).status, url).toBe(404);
+    }
+    expect([seen, fetched]).toEqual([[], []]);
+  });
+
+  it('never sends a production host to the test binding, also when the production binding is missing', async () => {
+    const { seen: fetched, fetcher } = recorder();
+    const { seen, env } = bindings();
+    const lines: string[] = [];
+    await proxyMcp(new Request('https://madar.vado.sa/mcp', { method: 'POST', body: '{}' }), fetcher, { MADAR_SERVER_TEST: env.MADAR_SERVER_TEST }, { setting: WORKERS, log: (line) => void lines.push(line) });
+    expect(seen).toEqual([]);
+    expect(fetched[0].url).toBe(PRODUCTION);
+    expect(fetched[0].headers.get('x-region')).toBe('eu-central-1');
+    expect(JSON.parse(lines[0])).toEqual({ level: 'warn', message: 'The MCP request went to the Supabase mcp function.', copy: 'production', reason: 'binding_missing' });
+  });
+
+  it('forwards to the Supabase mcp function as before when the setting says supabase, and logs it', async () => {
+    const { seen: fetched, fetcher } = recorder();
+    const { seen, env } = bindings();
+    const lines: string[] = [];
+    await proxyMcp(new Request('https://preview.madar-46r.pages.dev/mcp', { method: 'POST', body: '{}' }), fetcher, env, { setting: { test: 'supabase', production: 'workers' }, log: (line) => void lines.push(line) });
+    expect(seen).toEqual([]);
+    expect(fetched[0].url).toBe(TEST);
+    expect(JSON.parse(lines[0])).toMatchObject({ level: 'info', copy: 'test', reason: 'setting' });
+  });
+
+  it('runs from a one-line Pages wrapper that passes the env', () => {
+    const text = readFileSync(new URL('../../functions/mcp/[[path]].ts', import.meta.url), 'utf8');
+    expect(text).toMatch(/export const onRequest = \(\{ request, env \}[^\n]*=> proxyMcp\(request, fetch, env\);/);
   });
 });
