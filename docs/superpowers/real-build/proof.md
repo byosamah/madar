@@ -1078,3 +1078,28 @@ transaction pooler, statements hang. Production was not touched.
 `madar-probe-edge` (`npx wrangler deploy -c <file>`, sandbox off), then
 `PROBE_SECRET_FILE=<file> node --import tsx scripts/proof/hyperdrive/run.ts <step>`. Set `workers_dev = false` and deploy again
 after the run.
+
+## The test copy on the Worker (2026-10-16)
+Commit 59aa740 (`config/server-host.json`: test `workers`, production `supabase`), `all.sh test` on the Workers Free plan
+(owner: "free is enough for now"). The first two runs stopped and were fixed: `checks.sh` stopped with no message on an answer
+without `cf-placement` (221db29), and the Hyperdrive password PATCH got 2013 right after the new verifier (59aa740 tries again).
+One `db.sh` run gave `DbPushMissingLocalError` with both files in the folder; `db.sh` alone passed a minute later.
+- **Checks:** `preview.madar-46r.pages.dev/api/health` answers from `workers;colo=JED` with `cf-placement: remote-FRA` (the
+  entry in Jeddah, the run in Frankfurt next to the database). The database check (database, lock, asyncContext) is ok through
+  Hyperdrive, and `POST /mcp` with no token gives 401 from the Worker.
+- **Speed** (`scripts/proof/server-time.sh 20`, from the Mac, 15:23 UTC). Medians of the whole request, in ms:
+
+| Call | Supabase api function | Page api, then the Worker |
+|---|---|---|
+| CORS preflight (the screens pay it on Supabase only) | 305 | none |
+| `session.get`, no token (401) | 308 | 148 |
+| `session.get`, member (200) | 393 | 251 |
+| `GET /api/health` with the jobs secret | 317 | 203 |
+
+  The Worker is faster on each call (owner rule: it stays only if faster).
+- **CPU time** (`wrangler tail madar-server-test --format json`, 60 events, every outcome `ok`): median 14 ms, p90 66 ms, max
+  137 ms (a batch). Workers Free allows 10 ms for each request (error 1102 above it), so a median call is over the Free limit.
+  No call failed in this run, but production on Free cannot count on that.
+- **Statements** (`pg_stat_statements` of madar_server through the Management API, read only): 752 statements for 40 member
+  calls, 40 health checks and 40 refusals (both paths). That is about 15 statements for each call at most (Hyperdrive counts one query for
+  a joined start that Postgres counts as two or three statements).
