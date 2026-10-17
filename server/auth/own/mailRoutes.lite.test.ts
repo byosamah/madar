@@ -57,4 +57,21 @@ describe('the forgot and renew routes on SQLite (Supabase exit, wave 2)', () => 
     expect(answer.status).toBe(200);
     expect(t.deps.mail.sent).toHaveLength(0);
   });
+
+  it('hands the email and the key to a work of the host in place of its own, after the limits (the office path, exit waves 2 and 3)', async () => {
+    const t = await signinOffice();
+    await addSignIn(t, 'usr_002', { password: 'a good password' });
+    const given: string[] = [];
+    const work = async (value: string) => void given.push(value);
+    const forgot = createForgotRoute({ minMs: 0, host: () => ({ host: 'workers' }), work });
+    const renew = createRenewRoute({ minMs: 0, host: () => ({ host: 'workers' }), work });
+    const answers = [
+      await runInHost({ host: 'workers' }, () => forgot(post('/auth/forgot', { email: 'Someone@Madar.test' }), t.deps as unknown as Deps)),
+      await runInHost({ host: 'workers' }, () => renew(post('/auth/renew-invite', { key: 'a-key' }), t.deps as unknown as Deps)),
+    ];
+    expect(answers.map((answer) => answer.status)).toEqual([200, 200]);
+    expect(given).toEqual(['someone@madar.test', 'a-key']);
+    expect(t.deps.mail.sent).toHaveLength(0);
+    expect(t.raw.prepare('select count(*) as n from rate_limits').get()).toEqual({ n: 4 });
+  });
 });

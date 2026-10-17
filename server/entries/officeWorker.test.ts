@@ -4,13 +4,14 @@ import type { OfficeBatchInput } from '../office/batch';
 import type { NetApi } from '../office/net';
 import { recordingNet } from '../office/test/fakes';
 import { fakeDeps } from '../test/fakes/deps';
-import { LIVE_PATH, officeRoutes, type OfficeStub } from './officeWorker';
+import { clientAddress } from '../auth/forgot';
+import { LIVE_PATH, officeRoutes, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
 const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]}';
 
-function setup(o: { batch?: OfficeStub['batch'] } = {}) {
+function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[] } = {}) {
   const deps = fakeDeps();
   const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[] };
   const stub: OfficeStub = {
@@ -19,6 +20,8 @@ function setup(o: { batch?: OfficeStub['batch'] } = {}) {
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null }),
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
+    mailRoute: async () => ({ status: 200, body: '{"v":1,"ok":true}' }),
+    mailWork: async () => undefined,
     fetch: async (request) => (seen.fetches.push(request), { status: 101, webSocket: {} } as unknown as Response),
   };
   const net = recordingNet();
@@ -31,11 +34,12 @@ function setup(o: { batch?: OfficeStub['batch'] } = {}) {
     stub: () => stub,
     net: () => net,
     jobsSecret: () => 'jobs-secret',
+    ...(o.routes ? { routes: o.routes } : {}),
   });
   const post = (headers: Record<string, string>, body = BODY, ctx?: { waitUntil(work: Promise<unknown>): void }) =>
     routes.fetch(new Request('https://madar-server.internal/api/batch', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body }), {}, ctx);
   const get = (path: string, headers: Record<string, string> = {}) => routes.fetch(new Request(`https://madar-server.internal${path}`, { headers }), {});
-  return { deps, seen, routes, post, get, net };
+  return { deps, seen, routes, post, get, net, stub };
 }
 
 describe('the Worker routes of the office path (server/entries/officeWorker.ts)', () => {
@@ -124,5 +128,18 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const at = new Date('2026-10-04T05:00:00Z');
     expect(await routes.scheduled(at, {})).toMatchObject({ ok: true });
     expect(seen.cron).toEqual([{ at: at.toISOString(), worker: 2, net }]);
+  });
+
+  it('mounts each route of the routes option under /api, with the office object, the network port and the after of its request', async () => {
+    const got: { call: OfficeCall; address: string }[] = [];
+    const route: OfficeRoute = {
+      method: 'GET', path: '/auth/jwks', handler: async (request, call) => (got.push({ call, address: clientAddress(request) }), Response.json({ keys: [] })),
+    };
+    const { routes, net, stub, get } = setup({ routes: [route] });
+    const answer = await routes.fetch(new Request('https://madar-server.internal/api/auth/jwks', { headers: { 'x-madar-client-address': '203.0.113.7' } }), {}, { waitUntil: () => undefined });
+    expect(answer.status).toBe(200);
+    expect(got).toHaveLength(1);
+    expect([got[0].call.stub, got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
+    expect((await get('/auth/jwks')).status).toBe(404);
   });
 });

@@ -143,7 +143,12 @@ function tooMany(retryAfterMs: number): Response {
   return errorResponse({ code: 'conflict', message: 'Too many tries. Wait a few minutes, then try again.', details: { reason: 'too_many', retryAfterMs } });
 }
 
-export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost } = {}) {
+/**
+ * work: the mail work after the limits, in place of renewInvitation. The office path (exit waves 2 and 3) passes one that keeps the value:
+ * the object answers at once, and the Worker runs the work in a second object call after the answer (server/office/signinRoutes.ts).
+ */
+export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown> } = {}) {
+  const work = o.work ?? ((value: string, deps: Deps) => renewInvitation(value, deps));
   const minMs = o.minMs ?? RENEW_MIN_MS;
   const hostOf = o.host ?? requestHost;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -168,11 +173,11 @@ export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Pr
     const byKey = await hitLimit(q, { key: await hashedKey('renew:key', key), limit: RENEW_KEY_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byKey.ok) return tooMany(byKey.retryAfterMs);
 
-    const work = renewInvitation(key, deps).catch((error: unknown) => {
+    const done = work(key, deps).catch((error: unknown) => {
       deps.log.warn('A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
     });
-    if (after) after(work);
-    else await work;
+    if (after) after(done);
+    else await done;
     const spent = performance.now() - started;
     if (spent < minMs) await sleep(minMs - spent);
     return Response.json({ v: 1, ok: true });

@@ -9,7 +9,7 @@ import type { NetApi } from './net';
 import type { OpResult } from '../auth/own/office';
 import {
   officeParts, type OfficeCronInput, type OfficeCronReport, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts,
-  type OfficeSigninInput,
+  type OfficeMailAnswer, type OfficeMailInput, type OfficeMailWork, type OfficeSigninInput,
 } from './parts';
 import { principalOfWho, type OfficeWho } from './who';
 
@@ -72,6 +72,16 @@ export class Office extends DurableObject<Env> {
    */
   signin(body: OfficeSigninInput): Promise<OpResult<unknown>> {
     return this.parts.signin(body);
+  }
+
+  /** The shape check and the limits of the forgot or the renew route (exit wave 2), with the value of the mail work. */
+  mailRoute(input: OfficeMailInput, net: NetApi): Promise<OfficeMailAnswer> {
+    return this.parts.mailRoute(input, net);
+  }
+
+  /** The mail work of the forgot or the renew route, which the Worker runs after its answer. */
+  mailWork(input: OfficeMailWork, net: NetApi): Promise<void> {
+    return this.parts.mailWork(input, net);
   }
 
   health(): Promise<OfficeHealth> {

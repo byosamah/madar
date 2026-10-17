@@ -41,7 +41,7 @@ const keptLog = () => {
 };
 
 /** The office parts on node:sqlite with the sample office. The token of a batch is the user id itself, as in test:office. */
-async function office(edit: (seed: State) => void = () => undefined, o: { env?: Record<string, string>; log?: ReturnType<typeof keptLog> } = {}) {
+async function office(edit: (seed: State) => void = () => undefined, o: { env?: Record<string, string>; log?: ReturnType<typeof keptLog>; net?: ReturnType<typeof recordingNet> } = {}) {
   const values = { ...OFFICE_ENV, ...o.env };
   const raw = new DatabaseSync(':memory:');
   const host = Object.assign(nodeHost(raw), { totals: { rowsRead: 0, rowsWritten: 0 } });
@@ -58,7 +58,7 @@ async function office(edit: (seed: State) => void = () => undefined, o: { env?: 
   const seed = await buildSeed(TODAY, async () => undefined);
   edit(seed);
   await parts.db.tx('write', (q) => liteWriteState(q, seed));
-  const net = recordingNet();
+  const net = o.net ?? recordingNet();
   const batch = async (userId: string, calls: Omit<OfficeBatchInput['calls'][number], 'i'>[]) => {
     const out = await parts.batch({ who: { kind: 'browser', authUserId: userId }, calls: calls.map((c, i) => ({ i, ...c })), overviewCalls: 0, worker: 1 }, net);
     return out.ok ? { ...out, answer: JSON.parse(out.body) as WireResponse } : out;
@@ -194,18 +194,21 @@ describe('the office parts (server/office/parts.ts)', () => {
   });
 });
 
+/** A sign-in row with a password for a person of the sample office, linked to that person. */
+async function withPassword(parts: Awaited<ReturnType<typeof office>>['parts'], seed: State, userId: string): Promise<{ authId: string; email: string }> {
+  const authId = crypto.randomUUID();
+  const email = seed.users[userId].email.toLowerCase();
+  const hash = await hashPassword('a good password');
+  await parts.db.tx('write', async (q) => {
+    await q(AUTH_USER_INSERT, [authId, email, hash, 1, 1, NOW]);
+    await setLiteAuthLink(q, userId, authId);
+  });
+  return { authId, email };
+}
+
+const mailCalls = (net: { calls: string[] }) => net.calls.filter((call) => call.startsWith('mail '));
+
 describe('the sign-in steps in the office object (Office.signin)', () => {
-  /** A sign-in row with a password for a person of the sample office, linked to that person. */
-  async function withPassword(parts: Awaited<ReturnType<typeof office>>['parts'], seed: State, userId: string): Promise<{ authId: string; email: string }> {
-    const authId = crypto.randomUUID();
-    const email = seed.users[userId].email.toLowerCase();
-    const hash = await hashPassword('a good password');
-    await parts.db.tx('write', async (q) => {
-      await q(AUTH_USER_INSERT, [authId, email, hash, 1, 1, NOW]);
-      await setLiteAuthLink(q, userId, authId);
-    });
-    return { authId, email };
-  }
 
   it('signs a person in with the key of MADAR_AUTH_PRIVATE_JWK, and the token carries the own issuer', async () => {
     const jwk = await testPrivateJwk();
@@ -238,6 +241,57 @@ describe('the sign-in steps in the office object (Office.signin)', () => {
     const { parts } = await office(undefined, { log });
     expect(await parts.signin({ signin: 'auth.password', input: { email: 'x@madar.test', password: 'a good password', address: '203.0.113.7' } })).toMatchObject({ ok: false, error: { code: 'failed' } });
     expect(log.lines.map((line) => JSON.stringify(line)).join('\n')).toContain('MADAR_AUTH_PRIVATE_JWK');
+  });
+});
+
+describe('the forgot and renew routes in the office object (Office.mailRoute, Office.mailWork)', () => {
+  const ADDRESS = '203.0.113.7';
+
+  it('checks the limits and gives back the email; the work then sends the reset mail through the Worker port', async () => {
+    const { parts, seed, raw, net } = await office();
+    const { email } = await withPassword(parts, seed, 'usr_002');
+    const out = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: email.toUpperCase() }), address: ADDRESS }, net);
+    expect({ ...out, body: JSON.parse(out.body) }).toEqual({ status: 200, body: { v: 1, ok: true }, work: email });
+    expect(mailCalls(net)).toEqual([]);
+    await parts.mailWork({ route: 'forgot', value: out.work! }, net);
+    expect(mailCalls(net)).toHaveLength(1);
+    expect(raw.prepare('select type from auth_links where used_at is null').all()).toEqual([{ type: 'recovery' }]);
+  });
+
+  it('gives the same answer and a work for an unknown email, and the work sends nothing', async () => {
+    const { parts, net } = await office();
+    const out = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: 'nobody@madar.test' }), address: ADDRESS }, net);
+    expect([out.status, JSON.parse(out.body), out.work]).toEqual([200, { v: 1, ok: true }, 'nobody@madar.test']);
+    await parts.mailWork({ route: 'forgot', value: out.work! }, net);
+    expect(mailCalls(net)).toEqual([]);
+  });
+
+  it('refuses a body with no email and the fourth try for one email, with no work', async () => {
+    const { parts, net } = await office();
+    const shape = await parts.mailRoute({ route: 'forgot', body: '{}', address: ADDRESS }, net);
+    expect([shape.status, shape.work]).toEqual([400, undefined]);
+    const statuses: number[] = [];
+    let last: Awaited<ReturnType<typeof parts.mailRoute>> | undefined;
+    for (let i = 0; i < 4; i += 1) {
+      last = await parts.mailRoute({ route: 'forgot', body: JSON.stringify({ email: 'same@madar.test' }), address: ADDRESS }, net);
+      statuses.push(last.status);
+    }
+    expect(statuses).toEqual([200, 200, 200, 429]);
+    expect(last?.work).toBeUndefined();
+  });
+
+  it('renews an invitation with the key of its mail: the work sends a new invitation through the Worker port', async () => {
+    const mails: { html: string }[] = [];
+    const net = recordingNet({ sendMail: async (mail) => (mails.push(mail), { ok: true, value: { id: `mail_${mails.length}` } }) });
+    const { parts, raw, batch } = await office(undefined, { net });
+    ok(await batch('usr_001', [{ name: 'users.create', input: { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' } }]));
+    const href = /href="([^"]+)"/.exec(mails[0].html)![1].replace(/&amp;/g, '&');
+    const key = new URL(href).searchParams.get('renew')!;
+    const out = await parts.mailRoute({ route: 'renew', body: JSON.stringify({ key }), address: ADDRESS }, net);
+    expect([out.status, out.work]).toEqual([200, key]);
+    await parts.mailWork({ route: 'renew', value: key }, net);
+    expect(mails).toHaveLength(2);
+    expect(raw.prepare('select count(*) as n from auth_links where used_at is null').get()).toEqual({ n: 1 });
   });
 });
 

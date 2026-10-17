@@ -11,7 +11,11 @@ import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
-import type { OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth, OfficeSigninInput } from '../office/parts';
+import { runInHost } from '../core/after';
+import type {
+  OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth, OfficeMailAnswer, OfficeMailInput, OfficeMailWork,
+  OfficeSigninInput,
+} from '../office/parts';
 
 /**
  * The Worker side of the office path (exit wave 3). The Worker checks the build, the body and the token (the CPU-light part, 10 ms
@@ -33,9 +37,15 @@ export type OfficeStub = {
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
   cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
   signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
+  mailRoute(input: OfficeMailInput, net: NetApi): Promise<OfficeMailAnswer>;
+  mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
   health(): Promise<OfficeHealth>;
   fetch(request: Request): Promise<Response>;
 };
+
+/** What a route of the routes option gets for its request: the office object, a new network port, and the work after the answer. */
+export type OfficeCall = { stub: OfficeStub; net: () => NetApi; after?: After };
+export type OfficeRoute = { method: 'GET' | 'POST'; path: string; handler: (request: Request, call: OfficeCall) => Promise<Response> };
 
 export type OfficeRoutesOptions = {
   deps: Pick<Deps, 'config' | 'clock' | 'log'>;
@@ -43,6 +53,8 @@ export type OfficeRoutesOptions = {
   stub: (env: Env) => OfficeStub;
   net: () => NetApi;
   jobsSecret: () => string | undefined;
+  /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
+  routes?: OfficeRoute[];
 };
 
 const BUSY = new ApiError('failed', 'The office is busy. Try again in a moment.', { reason: 'busy' });
@@ -133,6 +145,12 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   app.use('*', cors(() => o.deps.config.allowedOrigins));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
+  for (const route of o.routes ?? []) {
+    app.on(route.method, `/api${route.path}`, (c) => {
+      const after = afterOf(c);
+      return route.handler(c.req.raw, { stub: o.stub(c.env), net: o.net, ...(after ? { after } : {}) });
+    });
+  }
   app.notFound(() => errorResponse({ code: 'not_found', message: 'This address does not exist.' }));
   app.onError((error) => {
     if (!(error instanceof ApiError)) log.error('A route failed.', { error: error instanceof Error ? error.message : String(error) });
@@ -143,7 +161,10 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     async fetch(request: Request, env: Env, ctx?: Ctx): Promise<Response> {
       seen += 1;
       if (new URL(request.url).pathname === LIVE_PATH) return live(request, env);
-      return app.fetch(request, env, ctx as Parameters<typeof app.fetch>[2]);
+      // The Workers host, as the Postgres Worker sets it (server/entries/worker.ts): clientAddress reads the address that the
+      // Pages Function wrote.
+      return runInHost({ host: 'workers', ...(ctx ? { after: (work: Promise<unknown>) => ctx.waitUntil(work) } : {}) }, () =>
+        app.fetch(request, env, ctx as Parameters<typeof app.fetch>[2]));
     },
 
     /** One Cron run: the whole job in one office object call. The report goes to the log, where wave 5 reads the day meters. */

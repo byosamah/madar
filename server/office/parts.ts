@@ -1,9 +1,12 @@
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../core/deps';
 import { processOutbox } from '../core/effects';
+import { CLIENT_ADDRESS_HEADER, createForgotRoute, FORGOT_PATH, sendReset } from '../auth/forgot';
 import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
 import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
 import { OWN_AUTH_SECRET } from '../auth/ownKeys';
+import { createRenewRoute, RENEW_PATH, renewInvitation } from '../auth/renew';
+import { runInHost } from '../core/after';
 import type { Clock, Deps, Logger } from '../core/ports';
 import { createRunCall } from '../core/runCall';
 import type { CallEntry } from '../core/serverCallMap';
@@ -40,6 +43,15 @@ export type OfficeCronInput = { at: string; worker: number };
 export type DayRow = { rows_read: number; rows_written: number; requests: number; calls: number; worker_requests: number };
 /** One step of the own sign-in (exit wave 2): its name in SIGNIN_STEPS (server/auth/own/office.ts) and its input. */
 export type OfficeSigninInput = { signin: string; input: unknown };
+/**
+ * The forgot and renew routes (exit wave 2) on the office path. mailRoute runs the shape check and the limits and answers at once,
+ * with the value of the mail work (the email or the renew key); mailWork runs that work in a second call, after the answer of the
+ * Worker, so the answer takes the same time for a known and an unknown email (server/office/signinRoutes.ts).
+ */
+export type OfficeMailRoute = 'forgot' | 'renew';
+export type OfficeMailInput = { route: OfficeMailRoute; body: string; address: string };
+export type OfficeMailAnswer = { status: number; body: string; work?: string };
+export type OfficeMailWork = { route: OfficeMailRoute; value: string };
 /** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
 export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null };
 
@@ -62,6 +74,8 @@ export type OfficeParts = {
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
   cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
   signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
+  mailRoute(input: OfficeMailInput, net: NetApi): Promise<OfficeMailAnswer>;
+  mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
   socket(request: Request): Promise<Response>;
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
@@ -171,6 +185,29 @@ export function officeParts(o: PartsInput): OfficeParts {
       }
       // runSigninOp answers a name that is not in SIGNIN_STEPS with not_found, so the cast gives no step that does not exist.
       return runSigninOp({ db, clock, log, config: values.config, keys }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
+    },
+    async mailRoute(input, net) {
+      meter.request();
+      let work: string | undefined;
+      const keep = async (value: string) => void (work = value);
+      // No after on this host: the route waits for keep, which only notes the value. The Worker pads the answer to the minimum time.
+      const host = () => ({ host: 'workers' as const });
+      const route = input.route === 'forgot' ? createForgotRoute({ minMs: 0, host, work: keep }) : createRenewRoute({ minMs: 0, host, work: keep });
+      const request = new Request(`https://office.internal/api${input.route === 'forgot' ? FORGOT_PATH : RENEW_PATH}`, {
+        method: 'POST', headers: { 'content-type': 'application/json', [CLIENT_ADDRESS_HEADER]: input.address }, body: input.body,
+      });
+      const response = await runInHost({ host: 'workers' }, () => route(request, depsFor(net)));
+      return { status: response.status, body: await response.text(), ...(work === undefined ? {} : { work }) };
+    },
+    async mailWork(input, net) {
+      meter.request();
+      const deps = depsFor(net);
+      try {
+        if (input.route === 'forgot') await sendReset(input.value, deps);
+        else await renewInvitation(input.value, deps);
+      } catch (error) {
+        log.warn(input.route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
+      }
     },
     async socket(request) {
       meter.request();

@@ -1,14 +1,17 @@
+import { OWN_AUTH_SECRET, ownPublicJwks } from '../auth/ownKeys';
 import { verifyBrowserToken } from '../auth/verify';
 import { depsFrom, serverEnvFrom } from '../core/deps';
 import { env as readEnv, setEnvSource } from '../env';
 import { refusingDb } from '../office/refusingDb';
 import { WorkerNet } from '../office/workerNet';
-import { officeRoutes, type OfficeStub } from './officeWorker';
+import { officeSigninRoutes } from './officeSignin';
+import { officeRoutes, type OfficeRoute, type OfficeStub } from './officeWorker';
 import { withServerHeader, workersServer } from './serverHeader';
 
 /**
  * The office path of the Worker (exit wave 3): the routes of server/entries/officeWorker.ts with the real token check, the
- * office object of the binding OFFICE, and a WorkerNet on the file and mail ports of the Worker. workerd only (WorkerNet).
+ * office object of the binding OFFICE, and a WorkerNet on the file and mail ports of the Worker. With MADAR_AUTH_PRIVATE_JWK it
+ * also serves the own sign-in under /api (server/entries/officeSignin.ts, exit waves 2 and 3). workerd only (WorkerNet).
  */
 
 type Env = Record<string, unknown>;
@@ -33,6 +36,16 @@ export function officeEntry() {
     if (routes) return routes;
     const values = serverEnvFrom(readEnv, { database: { writeUrl: '', readUrl: '' } });
     const deps = depsFrom(values, { db: refusingDb });
+    // The own sign-in (exit waves 2 and 3) needs the key MADAR_AUTH_PRIVATE_JWK. With no key, /api/auth/* answers not_found.
+    let own: OfficeRoute[] | undefined;
+    const secret = readEnv(OWN_AUTH_SECRET);
+    if (secret !== undefined) {
+      try {
+        own = officeSigninRoutes({ jwks: ownPublicJwks(secret), deps });
+      } catch (error) {
+        deps.log.error('The own sign-in routes are off: the key did not load.', { error: error instanceof Error ? error.message : String(error) });
+      }
+    }
     routes = officeRoutes({
       deps,
       verifyToken: verifyBrowserToken,
@@ -42,6 +55,7 @@ export function officeEntry() {
       },
       net: () => new WorkerNet({ files: deps.files, mail: deps.mail }),
       jobsSecret: () => values.jobsSecret,
+      ...(own ? { routes: own } : {}),
     });
     return routes;
   };

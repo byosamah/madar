@@ -61,6 +61,8 @@ export const FORGOT_EMAIL_PER_WINDOW = 3;
 export const FORGOT_EMAIL_WINDOW_MS = HOUR_MS;
 export const FORGOT_IP_PER_HOUR = 10;
 export const FORGOT_MIN_MS = 1500;
+/** The address of the route under the page api. */
+export const FORGOT_PATH = '/auth/forgot';
 
 /** The person with this email (the users.email column is lower case). */
 export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth from users where email = $1 and kind = 'human'";
@@ -125,7 +127,12 @@ function tooManyForEmail(retryAfterMs: number): Response {
   });
 }
 
-export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost } = {}) {
+/**
+ * work: the mail work after the limits, in place of sendReset. The office path (exit waves 2 and 3) passes one that keeps the value:
+ * the object answers at once, and the Worker runs the work in a second object call after the answer (server/office/signinRoutes.ts).
+ */
+export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => Promise<void>; host?: () => RequestHost; work?: (value: string, deps: Deps) => Promise<unknown> } = {}) {
+  const work = o.work ?? ((value: string, deps: Deps) => sendReset(value, deps));
   const minMs = o.minMs ?? FORGOT_MIN_MS;
   const hostOf = o.host ?? requestHost;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -150,11 +157,11 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     const byEmail = await hitLimit(q, { key: await hashedKey('forgot:email', email), limit: FORGOT_EMAIL_PER_WINDOW, windowMs: FORGOT_EMAIL_WINDOW_MS, now });
     if (!byEmail.ok) return tooManyForEmail(byEmail.retryAfterMs);
 
-    const work = sendReset(email, deps).catch((error: unknown) => {
+    const done = work(email, deps).catch((error: unknown) => {
       deps.log.warn('A reset mail did not go out.', { error: error instanceof Error ? error.message : String(error) });
     });
-    if (after) after(work);
-    else await work;
+    if (after) after(done);
+    else await done;
     const spent = performance.now() - started;
     if (spent < minMs) await sleep(minMs - spent);
     return Response.json({ v: 1, ok: true });
