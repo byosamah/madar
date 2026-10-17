@@ -52,7 +52,7 @@ describe('first-admin on the local stack', () => {
     setEnvSource({ SUPABASE_URL: stack.apiUrl });
     const signedIn = await auth.signIn(email);
     expect(signedIn.status).toBe(200);
-    await expect(verifyBrowserToken(`Bearer ${auth.tokenOf(signedIn)}`)).resolves.toEqual({ authUserId: made.authUserId });
+    await expect(verifyBrowserToken(`Bearer ${auth.tokenOf(signedIn)}`)).resolves.toEqual({ authUserId: made.authUserId, sessionId: expect.any(String) });
   });
 
   it('refuses a second run before any change: no second Auth user, no second person', async () => {

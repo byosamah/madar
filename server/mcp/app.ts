@@ -228,7 +228,7 @@ function toolCallsIn(body: unknown): { count: number; id: unknown } {
 
 export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
   const { config } = deps;
-  const issuer = o.issuer ?? authIssuerOf(config.supabaseUrl);
+  const issuer = o.issuer ?? authIssuerOf(config.supabaseUrl, config.mcpUrl);
   const checkToken = o.checkToken ?? agentTokenCheckerOf({ supabaseUrl: config.supabaseUrl, mcpUrl: config.mcpUrl, issuer });
   const agentOf = o.agentOf ?? sqlAgentOf;
   const officeOf = o.readOffice ?? ((d: Deps) => readOffice(d));

@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
+import { OWN_AUTH_SECRET, ownIssuer, ownKeySet } from '../auth/ownKeys';
 import { issuerOf } from '../auth/verify';
 import { env } from '../env';
 import { userIdOfAuth } from '../data/officeCache';
@@ -76,9 +77,12 @@ const checkers = new Map<string, AgentTokenChecker>();
 
 /**
  * The checker of a project: the JWKS of ${SUPABASE_URL}/auth/v1, the issuer AUTH_ISSUER or that address (a local function sees
- * SUPABASE_URL http://kong:8000, its tokens name http://127.0.0.1:54321/auth/v1), and the audience MCP_URL.
+ * SUPABASE_URL http://kong:8000, its tokens name http://127.0.0.1:54321/auth/v1), and the audience MCP_URL. With the secret
+ * MADAR_AUTH_PRIVATE_JWK (the own sign-in, Supabase exit wave 2), the own key and the own issuer (MCP_URL) in place of Supabase.
  */
 export function agentTokenCheckerOf(o: { supabaseUrl: string; mcpUrl: string; issuer?: string }): AgentTokenChecker {
+  const own = env(OWN_AUTH_SECRET);
+  if (own !== undefined) return agentTokenChecker({ issuer: ownIssuer(o.mcpUrl), audience: o.mcpUrl, jwks: ownKeySet(own) });
   const auth = issuerOf(o.supabaseUrl);
   const issuer = o.issuer ?? env('AUTH_ISSUER') ?? auth;
   const id = `${auth}|${issuer}|${o.mcpUrl}`;
@@ -90,8 +94,9 @@ export function agentTokenCheckerOf(o: { supabaseUrl: string; mcpUrl: string; is
   return checker;
 }
 
-/** The issuer that the metadata document names: AUTH_ISSUER, or ${SUPABASE_URL}/auth/v1. */
-export function authIssuerOf(supabaseUrl: string): string {
+/** The issuer that the metadata document names: the own issuer (MCP_URL) with the secret, else AUTH_ISSUER or ${SUPABASE_URL}/auth/v1. */
+export function authIssuerOf(supabaseUrl: string, mcpUrl?: string): string {
+  if (env(OWN_AUTH_SECRET) !== undefined && mcpUrl !== undefined) return ownIssuer(mcpUrl);
   return env('AUTH_ISSUER') ?? issuerOf(supabaseUrl);
 }
 
