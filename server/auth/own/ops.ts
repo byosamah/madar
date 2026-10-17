@@ -6,8 +6,8 @@ import { hashedKey } from '../rateLimit';
 import { randomToken, sha256Hex } from './crypto';
 import { SIGNIN_PER_ADDRESS, SIGNIN_PER_EMAIL, SIGNIN_WINDOW_MS } from './limits';
 import { hashPassword, verifyPassword } from './password';
-import { AUTH_USER_BY_EMAIL, AUTH_USER_BY_ID, AUTH_USER_SIGNED_IN, type AuthUserRow } from './rows';
-import { browserAnswer, countLimits, insertSession } from './sessions';
+import { AUTH_USER_BY_EMAIL, AUTH_USER_BY_ID, AUTH_USER_SIGNED_IN, SESSION_END_OWN, SESSIONS_END_OTHERS, type AuthUserRow } from './rows';
+import { browserAnswer, countLimits, insertSession, rotateSession } from './sessions';
 import type { SigninDeps, TokenAnswer } from './types';
 
 /**
@@ -52,4 +52,25 @@ export async function passwordSignIn(deps: SigninDeps, input: { email: string; p
     return insertSession(q, { authId: row.id, clientId: null, amr: 'password', refreshHash, linkUntil: null, now });
   });
   return browserAnswer(deps, { authId: found.id, sessionId, refresh });
+}
+
+/** POST /api/auth/token { grant_type: 'refresh_token' }: a browser session only (an agent refreshes at /mcp/oauth/token). */
+export async function refreshSignIn(deps: SigninDeps, input: { refreshToken: string }): Promise<TokenAnswer> {
+  const hash = await sha256Hex(input.refreshToken);
+  const next = randomToken();
+  const nextHash = await sha256Hex(next);
+  const row = await rotateSession(deps, { hash, nextHash, clientId: null });
+  return browserAnswer(deps, { authId: row.auth_id, sessionId: row.id, refresh: next });
+}
+
+/**
+ * POST /api/auth/logout. local: this session. others: every other session of the person, agents too, as Supabase signOut
+ * { scope: 'others' } did (Welcome and Reset call it after a new password).
+ */
+export async function signOutSessions(deps: SigninDeps, input: { authId: string; sessionId: string; scope: 'local' | 'others' }): Promise<{ ok: true }> {
+  const now = deps.clock.now().toISOString();
+  await deps.db.tx('write', (q) => input.scope === 'local'
+    ? q(SESSION_END_OWN, [input.sessionId, input.authId, now])
+    : q(SESSIONS_END_OTHERS, [input.authId, input.sessionId, now]));
+  return { ok: true };
 }

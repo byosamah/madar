@@ -46,3 +46,7 @@ export const SESSIONS_END_ALL = 'update auth_sessions set revoked_at = ?2 where 
 export const SESSIONS_END_OTHERS = 'update auth_sessions set revoked_at = ?3 where auth_id = ?1 and id <> ?2 and revoked_at is null';
 /** A link session may set a password once: after the save it is a plain session. */
 export const SESSION_LINK_DONE = 'update auth_sessions set link_until = null where id = ?1';
+/** The sign-out of one device: only a session of the same person ends. */
+export const SESSION_END_OWN = 'update auth_sessions set revoked_at = ?3 where id = ?1 and auth_id = ?2 and revoked_at is null';
+/** Whether the agent link of a client is removed (a refresh of an agent session needs a live link). */
+export const AGENT_LINK_STATE = 'select revoked_at from agent_links where client_id = ?1';
