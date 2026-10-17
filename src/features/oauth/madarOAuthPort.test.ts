@@ -15,6 +15,10 @@ function port(answers: Record<string, Response>, calls: { path: string; method: 
 }
 
 describe('the OAuth port over the own OAuth server (madarOAuthPort)', () => {
+  it('tells the consent screen that an agent token cannot use the account outside the screens (every own route refuses it)', () => {
+    expect(port({}).agentReachesAccount).toBe(false);
+  });
+
   it('gives the request to ask about, or the redirect of a known client', async () => {
     const ask = port({ 'GET /api/oauth/authorizations/req1': Response.json({ authorization_id: 'req1', client: { id: 'c1', name: ' Claude ' }, redirect_uri: 'https://claude.ai/cb' }) });
     expect(await ask.details('req1')).toEqual({ kind: 'ask', request: { authorizationId: 'req1', clientId: 'c1', clientName: 'Claude', redirectUri: 'https://claude.ai/cb' } });

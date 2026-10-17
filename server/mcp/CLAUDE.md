@@ -100,6 +100,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   rotation), the grants of Settings, Agents.
 - The approval: the consent gives a code only after `POST /api/agents/approve` with a browser token. Every own route refuses an
   agent token, so the open risk of Z7 (an agent token with the full rights of its person at Auth) does not exist on the own stack.
+  So the consent screen of the own stack leaves out the line "can also use your account outside the Madar screens"
+  (`agentReachesAccount: false` of `madarOAuthPort`, `src/features/oauth/oauthPort.tsx`).
 - A request belongs to the first person who opens it; for anyone else it reads as unknown, with no client name.
 - A remove in Settings, Agents (`oauth.revoke`) ends the agent sessions and the approval of that AI app, so its next connection
   shows the consent screen and needs the Madar approval again. The consent refuses an app whose link the person removed

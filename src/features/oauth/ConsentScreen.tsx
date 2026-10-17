@@ -22,7 +22,8 @@ import { OAuthFailure, useOAuth, type ConsentRequest } from './oauthPort';
  * - A client that the person approved before: Auth gives the redirect at once (platform facts 6.3), and the screen goes back to
  *   the AI app with no new approval in Madar. A client that Madar has no approval for still links nothing (server/mcp/approval.ts).
  * - Else: the name of the AI app, the host its answer goes to, and what it may do, in plain words (proof.md G1, mitigation 3:
- *   it can use the account outside the Madar screens). A host that is not loopback and not a known AI app gets a plain warning,
+ *   it can use the account outside the Madar screens; the own stack leaves this line out, because its sign-in refuses an agent
+ *   token: OAuthPort.agentReachesAccount). A host that is not loopback and not a known AI app gets a plain warning,
  *   and Approve is then not the main button.
  * - Approve: the approval is recorded in Madar first (the api function, the person's browser token), then Auth approves. When
  *   Madar refuses, Auth is never asked. Deny: Auth denies, and Madar records nothing.
@@ -149,7 +150,7 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
         <ul className="flex list-disc flex-col gap-1 ps-5 text-body text-ink-2">
           <li>{t('consent.rights')}</li>
           <li>{t('consent.history')}</li>
-          <li>{t('consent.account')}</li>
+          {port.agentReachesAccount !== false && <li>{t('consent.account')}</li>}
           <li>{t('consent.remove')}</li>
         </ul>
       </div>

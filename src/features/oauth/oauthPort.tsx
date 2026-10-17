@@ -23,6 +23,11 @@ export type ConsentDetails = { kind: 'ask'; request: ConsentRequest } | { kind: 
 export type Grant = { clientId: string; clientName: string; grantedAt: string | null };
 
 export interface OAuthPort {
+  /**
+   * False when the sign-in refuses an agent token on its own routes (the own stack), so the consent screen leaves out the line
+   * "can also use your account outside the Madar screens". Unset keeps the line: Supabase Auth takes an agent token (Z7 open risk).
+   */
+  readonly agentReachesAccount?: boolean;
   details(authorizationId: string): Promise<ConsentDetails>;
   /** POST /agents/approve on the api function, with the person's browser token. */
   recordApproval(authorizationId: string): Promise<void>;
@@ -170,6 +175,8 @@ export function madarOAuthPort(o: { apiUrl: string; accessToken: () => Promise<s
   }
   const consent = (id: string, action: 'approve' | 'deny') => call('POST', `/oauth/authorizations/${encodeURIComponent(id)}/consent`, { action }).then(redirectOf);
   return {
+    // Every own sign-in route refuses an agent token (server/mcp/CLAUDE.md), so the open risk of Z7 does not exist here.
+    agentReachesAccount: false,
     async details(authorizationId) {
       const data = (await call('GET', `/oauth/authorizations/${encodeURIComponent(authorizationId)}`)) as Record<string, unknown>;
       if (typeof data.redirect_url === 'string') return { kind: 'done', redirectUrl: data.redirect_url };

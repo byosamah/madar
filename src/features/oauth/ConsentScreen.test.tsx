@@ -166,6 +166,14 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     ]) expect(screen.getByText(line)).toBeInTheDocument();
   });
 
+  it('leaves out the line on the use of the account outside the screens when the sign-in refuses an agent token (the own stack)', async () => {
+    const t = tools();
+    await open({ tools: { ...t, port: { ...t.port, agentReachesAccount: false } } });
+    expect(await screen.findByText('acts with your rights, so it can see and change what you can')).toBeInTheDocument();
+    expect(screen.getByText('keeps this access until you remove it in Settings, Agents')).toBeInTheDocument();
+    expect(screen.queryByText(/outside the Madar screens/)).toBeNull();
+  });
+
   it('goes straight back for a client that the person approved before, with no new approval in Madar', async () => {
     const { steps, port } = await open({ tools: tools({ details: { kind: 'done', redirectUrl: 'http://127.0.0.1:33418/callback?code=again' } }) });
     await waitFor(() => expect(steps).toEqual(['details auth-1', 'leave http://127.0.0.1:33418/callback?code=again']));
