@@ -25,6 +25,9 @@ export async function startOffice() {
       readBack: send('readBack'),
       statTables: send('statTables'),
       dropIndex: send('dropIndex'),
+      signin: send('signin'),
+      importSignins: send('importSignins'),
+      peek: send('peek'),
     };
   };
   return {

@@ -1,9 +1,13 @@
 import { DurableObject } from 'cloudflare:workers';
 import { emptyState, type State } from '../../../src/api/store';
+import { importSigninRows, type SigninExportRow } from '../../auth/own/import';
+import { signingKeysOf } from '../../auth/own/keys';
+import { runSigninOp, type SigninOpName } from '../../auth/own/office';
 import { createRunCall } from '../../core/runCall';
 import type { RunResult } from '../../core/types';
 import { liteData } from '../../data/lite/callData';
 import { liteDb, type LiteDb } from '../../data/lite/db';
+import type { SqlRow } from '../../data/lite/host';
 import { hostChecks } from '../../data/lite/hostChecks';
 import { writeOfficeSnapshot, type OfficeLists } from '../../data/lite/office';
 import { insertRow } from '../../data/lite/save';
@@ -32,6 +36,9 @@ export interface PinOfficeApi {
   readBack(): Promise<State>;
   statTables(): Promise<number>;
   dropIndex(name: string): Promise<void>;
+  signin(name: string, input: unknown, privateJwk: string, now: string): Promise<unknown>;
+  importSignins(rows: SigninExportRow[], now: string): Promise<number>;
+  peek(text: string): Promise<SqlRow[]>;
 }
 
 type Parts = { host: DoHost; db: LiteDb; deps: FakeDeps };
@@ -119,6 +126,26 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     this.ctx.storage.sql.exec(`drop index if exists ${name}`);
   }
 
+  /** One own sign-in step on the SQLite of this object, with real crypto (PBKDF2, bcryptjs, ES256) on workerd (wave 2). */
+  async signin(name: string, input: unknown, privateJwk: string, now: string): Promise<unknown> {
+    const { db, deps } = await this.#ready();
+    deps.clock.set(new Date(now));
+    const keys = await signingKeysOf(privateJwk, deps.config.mcpUrl);
+    return runSigninOp({ db, clock: deps.clock, log: deps.log, config: deps.config, keys }, name as SigninOpName, input as never);
+  }
+
+  async importSignins(rows: SigninExportRow[], now: string): Promise<number> {
+    const { db } = await this.#ready();
+    return db.tx('write', (q) => importSigninRows(q, rows, new Date(now)));
+  }
+
+  /** A select for a test to read a row back. Any other statement throws. */
+  async peek(text: string): Promise<SqlRow[]> {
+    if (!/^\s*select\b/i.test(text)) throw new Error('peek runs a select only.');
+    const { host } = await this.#ready();
+    return host.exec(text, []).rows;
+  }
+
   /**
    * The cold wake test calls through fetch: an RPC stub that Node holds keeps the object awake (map of schema and tests), and
    * the proxy of miniflare frees a stub only after Node collects it. So the rows pins send every method of the year office
@@ -141,4 +168,6 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
   }
 }
 
-const FETCH_METHODS = new Set<string>(['hostChecks', 'writeState', 'load', 'finish', 'call', 'readBack', 'statTables', 'dropIndex'] satisfies (keyof PinOfficeApi)[]);
+const FETCH_METHODS = new Set<string>([
+  'hostChecks', 'writeState', 'load', 'finish', 'call', 'readBack', 'statTables', 'dropIndex', 'signin', 'importSignins', 'peek',
+] satisfies (keyof PinOfficeApi)[]);
