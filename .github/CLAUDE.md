@@ -4,8 +4,10 @@ Private repo `byosamah/madar`. The free plan gives 2,000 minutes a month, so eac
 branch, and a push that changes only `docs/` runs nothing.
 
 ## Workflows (`workflows/`)
-- `ci.yml`, every push: typecheck, unit, build, server tests, the builds, the migration secret check. No secret.
-- `ci-stack.yml`, pull requests and main: `db` (`test:db` on Postgres only) and `integration` (full local stack and MinIO).
+- `ci.yml`, every push: typecheck, unit, build, server tests, the builds, the migration secret check, and `lite` (`test:lite` on
+  node:sqlite, exit wave 4). No secret.
+- `ci-stack.yml`, pull requests and main: `db` (`test:db` on Postgres only), `integration` (full local stack and MinIO), and
+  `office` (`build:server`, `test:office` on local workerd and `smoke:office` on local wrangler dev; no Docker, exit wave 4).
   The integration order is fixed: server bundles, the stack, `test:mcp`, `npx supabase db reset`, `test:it`. Never add a
   shared `supabase functions serve` step: it broke the conformance and integration suites.
 - `deploy.yml`, by hand only: migrations and functions of madar-test. Its first step is `scripts/deploy/token-scope.sh`.

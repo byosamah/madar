@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * The CI workflows (plan 6.3, task O1; test map 6). actionlint checks the syntax; these tests check the rules of the plan,
  * and that every command the workflows run exists in this repository.
- * ci.yml holds unit and server (every push). ci-stack.yml holds db and integration (pull requests, main, by hand).
+ * ci.yml holds unit, server and lite (every push). ci-stack.yml holds db, integration and office (pull requests, main, by hand).
  * Two files, not one file with job-level if: conditions, because GitHub reports a job that an if: skips as Success,
  * and that skipped run could meet a required check while the real job fails.
  */
@@ -18,7 +18,7 @@ const both = Object.values(FILES).join('\n');
 const scripts = (JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as { scripts: Record<string, string> }).scripts;
 
 /** Which file holds each job. */
-const JOB_FILE: Record<string, keyof typeof FILES> = { unit: 'ci.yml', server: 'ci.yml', db: 'ci-stack.yml', integration: 'ci-stack.yml' };
+const JOB_FILE: Record<string, keyof typeof FILES> = { unit: 'ci.yml', server: 'ci.yml', lite: 'ci.yml', db: 'ci-stack.yml', integration: 'ci-stack.yml', office: 'ci-stack.yml' };
 const ALL_JOBS = Object.keys(JOB_FILE);
 
 /** The lines of one job, from its "  name:" line under jobs: to the next job. */
@@ -44,11 +44,11 @@ const at = (body: string, text: string) => body.indexOf(text);
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 describe('.github/workflows/ci.yml and ci-stack.yml', () => {
-  it('exist and hold the four jobs of the plan, each in its own file', () => {
+  it('exist and hold the six jobs of the plans, each in its own file', () => {
     for (const [name, text] of Object.entries(FILES)) expect(text, name).not.toBe('');
     for (const name of ALL_JOBS) expect(job(name), `job ${name}`).not.toBe('');
-    expect(FILES['ci.yml']).not.toMatch(/^ {2}(db|integration):$/m);
-    expect(FILES['ci-stack.yml']).not.toMatch(/^ {2}(unit|server):$/m);
+    expect(FILES['ci.yml']).not.toMatch(/^ {2}(db|integration|office):$/m);
+    expect(FILES['ci-stack.yml']).not.toMatch(/^ {2}(unit|server|lite):$/m);
   });
 
   it('runs unit and server on every push, and never on a pull request (the push run already shows them there)', () => {
@@ -167,6 +167,19 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     // between them gives the suites the fresh database they expect.
     expect(at(integration, 'npm run test:mcp')).toBeLessThan(at(integration, 'npx supabase db reset'));
     expect(at(integration, 'npx supabase db reset')).toBeLessThan(at(integration, 'npm run test:it'));
+  });
+
+  it('runs test:lite in the lite job and test:office with the bundle smoke in the office job, with no Docker (exit wave 4)', () => {
+    const lite = job('lite');
+    expect(lite).toContain('npm run test:lite');
+    const office = job('office');
+    expect(at(office, 'run: npm run build:server')).toBeGreaterThan(at(office, 'run: npm ci'));
+    expect(at(office, 'run: npm run build:server')).toBeLessThan(at(office, 'run: npm run test:office'));
+    expect(office).toContain('run: npm run smoke:office');
+    for (const body of [lite, office]) {
+      expect(body).not.toMatch(/supabase start|docker/i);
+      expect(body).toMatch(/^ {4}timeout-minutes: \d+$/m);
+    }
   });
 
   it('uses the Supabase CLI version that package.json pins', () => {

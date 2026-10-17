@@ -1,6 +1,6 @@
-# CI for Madar, part 2 of 2 (plan 6.3, task O1; test map, section 6): the db and integration jobs.
-# They need the local Supabase stack, so they run on pull requests, on main, and when someone starts the workflow by hand.
-# ci.yml holds unit and server. The jobs have no event conditions: GitHub reports a job that an if: skips as Success,
+# CI for Madar, part 2 of 2 (plan 6.3, task O1; test map, section 6): the db, integration and office jobs.
+# db and integration need the local Supabase stack, and office, which needs none but takes long (the year office runs), so they
+# run on pull requests, on main, and when someone starts the workflow by hand. ci.yml holds unit, server and lite. The jobs have no event conditions: GitHub reports a job that an if: skips as Success,
 # and that skipped run could meet a required check. No job uses a secret: the local stack has fixed demo keys.
 # Minutes: an older run of the same branch or pull request stops when a new one starts, and a change only to docs/ runs nothing.
 name: CI stack
@@ -110,3 +110,25 @@ jobs:
         run: npx supabase db reset
       - name: Integration tests
         run: npm run test:it
+
+  # The office object on local workerd (Supabase exit, waves 1 to 4): host parity, the rows pins, the live and Cron suites, the
+  # office ops and the year office round trip, then the real bundle on wrangler dev. No Docker; wrangler starts workerd itself.
+  office:
+    name: office
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Server bundles
+        run: npm run build:server
+      - name: The office object on local workerd
+        run: npm run test:office
+      - name: The real Workers bundle on local wrangler dev
+        run: npm run smoke:office
