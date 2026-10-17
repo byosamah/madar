@@ -1303,3 +1303,27 @@ row. Rows are sorted by calls.
 | select payload->>'userId' as user_id, max((payload->>'sentAt')::timestamptz) as  | 1 | 1 | server/calls/people.ts (users.invites) | wave 2 |
 | select client_id::text as client_id, agent_user_id, redirect_host, approved_at,  | 1 | 1 | server/calls/agents.ts (agents.list) | wave 2 |
 | select k as key from unnest($n::text[]) as k where exists (select 1 from files f | 1 | 1 | server/files/effects.ts | wave 1 (Task 13) |
+
+### Wave 1: test:lite (2026-10-17)
+Exit plan, wave 1 Tasks 14 and 15. `npm run test:lite` runs the rule tests of `src/api` and the shadow run on node:sqlite
+(Node 22.23.1), with the mirror backend of `server/test/liteHarness.ts`: a new in-memory office for each test, no Docker.
+Both runs at 5a58fba, load average about 4 on the Mac.
+- **test:lite:** 81 files passed; 1,141 passed, 25 skipped (the db-mode skip list). Speed line: `lite mode: 2755 calls, 1.5 ms
+  a call in runCall, the run took 6 s.`
+- **test:db** (under the Docker lock): 81 files passed; 1,141 passed, 25 skipped. Speed line: `db mode: 2755 calls, 15.1 ms a
+  call in runCall, the run took 30 s.` Postgres did not change, and both runs make the same calls.
+- **Fixes:** none. The first whole run was green: Tasks 9 to 13 had given every text that the rule tests send a SQLite form.
+- **The log of every call:** a run that was not committed wrote each warn and error line of the fakes to a file. All 37 lines
+  are names of `LATER_CALLS` and `LATER_KINDS`, each with the host refusal of a Postgres text: the kinds `auth.invite` (12),
+  `auth.ban` (9), `agents.revokeAll` (9), `auth.email` (3), `auth.unban` (2), and the calls `users.invites` (1) and
+  `agents.list` (1). No other text failed.
+- **The check can fail:** with the update of a task row taken out of `server/data/lite/save.ts` (not committed), test:lite
+  failed 181 tests in 23 files, each with the shadow message (`tasks.complete: the database saved another change than the
+  whole office in memory`).
+- **LATER_CALLS (wave 2 unless named):** `users.invites` and `users.resendInvite` (the invite texts of `server/calls/people.ts`
+  and `server/auth/invite.ts`), `agents.list` and `agents.remove` (the agent links of `server/calls/agents.ts`), `usage.get`
+  and `usage.retryEffect` (wave 3: the meters of `server/usage/meters.ts` and the outbox job on SQLite). Only `users.invites`
+  and `agents.list` ran in this suite, and both may answer an error (`src/api/handlers/pushLeaks.test.ts`).
+- **LATER_KINDS (wave 2):** `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` (the sign-in effects of
+  `server/auth/effects.ts` and `server/auth/invite.ts`) and `agents.revokeAll` (`server/mcp/revokeAll.ts`). Their outbox
+  rows fail and stay for the job, as in db mode. `auth.emailNotice` did not run in this suite.
