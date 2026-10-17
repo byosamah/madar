@@ -73,3 +73,24 @@ export function appOrigin(env: Env, baseURL: string | undefined): string {
 export function r2BucketTarget(env: Env): R2Values | null {
   return r2Values(env, 'test');
 }
+
+export type OfficeTarget = { apiUrl: string; mcpUrl: string; opsSecret: string };
+
+/**
+ * The office path of a run (exit wave 4): MADAR_E2E_OFFICE_URL names the host of the office routes, the local office
+ * (npm run dev:office) or the test copy. The specs then read mail_outbox and their checks through the peek route of that host
+ * (MADAR_E2E_OPS_SECRET), and the agent flow uses the own OAuth routes under /mcp. Production is refused.
+ */
+export function officeTarget(env: Env): OfficeTarget | null {
+  const url = env.MADAR_E2E_OFFICE_URL;
+  if (!url) return null;
+  const { hostname, origin } = new URL(url);
+  if (!LOCAL_HOSTS.has(hostname) && hostname !== TEST_MCP_HOST) {
+    throw new Error(`MADAR_E2E_OFFICE_URL must name the local office or the test copy (${TEST_MCP_HOST}), not ${hostname}.`);
+  }
+  const opsSecret = env.MADAR_E2E_OPS_SECRET;
+  if (!opsSecret) throw new Error('MADAR_E2E_OPS_SECRET is missing: the office path reads its checks through the peek route.');
+  const mcpUrl = env.MADAR_E2E_MCP_URL ?? `${origin}/mcp`;
+  if (new URL(mcpUrl).origin !== origin) throw new Error('MADAR_E2E_MCP_URL must be on the host of MADAR_E2E_OFFICE_URL.');
+  return { apiUrl: `${origin}/api`, mcpUrl, opsSecret };
+}

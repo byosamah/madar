@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { AFTER_G, asRole, expect, PERSON_OF, test, useLanguage } from './fixtures';
+import { DEPLOY_ACCOUNTS } from './accounts';
+import { AFTER_G, asRole, expect, passwordOf, PERSON_OF, test, useLanguage } from './fixtures';
 import { DEPLOYED, goto } from './goto';
 import { expectCalm, expectNoSeriousA11y, LANGS, runId, THEMES, WIDTHS } from './steps';
-import { supabaseTarget, type SupabaseTarget } from './targets';
+import { officeTarget, supabaseTarget, type SupabaseTarget } from './targets';
 
 /**
  * AI agents on the remote build (plan 5.6; task X2): the consent flow of an MCP client up to the Approve page, Settings, Agents,
@@ -19,6 +20,9 @@ import { supabaseTarget, type SupabaseTarget } from './targets';
  * Values: MADAR_E2E_SUPABASE_URL (the project URL; the local stack by default, and required on the test deployment),
  * MADAR_E2E_PUBLISHABLE_KEY (for case 3), and MADAR_E2E_MCP_URL (default <project URL>/functions/v1/mcp). targets.ts refuses
  * every project but madar-test and the local stack before the first call, so no run registers a client on another project.
+ *
+ * On the office path (exit wave 4, MADAR_E2E_OFFICE_URL) the flow uses the own OAuth routes under /mcp of that host, and case 3
+ * calls the own password route: no Supabase value is needed.
  */
 test.skip(!AFTER_G, 'The agents come with track G. The merge lead runs this spec after the merge of rb/G (MADAR_E2E_AFTER_G=1).');
 test.use(asRole('member'));
@@ -26,6 +30,11 @@ test.use(asRole('member'));
 let checkedTarget: SupabaseTarget | undefined;
 /** The project of this spec, checked at its first use: a skipped spec (no track G yet) needs no project values. */
 const target = (): SupabaseTarget => (checkedTarget ??= supabaseTarget(process.env));
+const office = officeTarget(process.env);
+/** The OAuth and MCP endpoints of the run: Supabase Auth today, the own routes under /mcp on the office path (exit wave 4). */
+const endpoints = () => (office
+  ? { register: `${office.mcpUrl}/oauth/register`, authorize: `${office.mcpUrl}/oauth/authorize`, token: `${office.mcpUrl}/oauth/token`, mcp: office.mcpUrl }
+  : { register: `${target().supabaseUrl}/auth/v1/oauth/clients/register`, authorize: `${target().supabaseUrl}/auth/v1/oauth/authorize`, token: `${target().supabaseUrl}/auth/v1/oauth/token`, mcp: target().mcpUrl });
 /** A loopback redirect, as a desktop MCP client uses: the consent screen shows no warning for it. */
 const REDIRECT_URI = 'http://127.0.0.1:33418/callback';
 
@@ -33,7 +42,7 @@ const base64url = (bytes: Buffer) => bytes.toString('base64url');
 
 /** Dynamic client registration, as an MCP client does it (RFC 7591). */
 async function registerClient(name: string): Promise<string> {
-  const response = await fetch(`${target().supabaseUrl}/auth/v1/oauth/clients/register`, {
+  const response = await fetch(endpoints().register, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_name: name, redirect_uris: [REDIRECT_URI], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }),
@@ -48,10 +57,10 @@ type Flow = { clientId: string; verifier: string; consentRoute: string };
 /** The authorize step with PKCE. Auth answers with the consent page of Madar; the spec opens it on the run's own host. */
 async function startFlow(clientId: string): Promise<Flow> {
   const verifier = base64url(randomBytes(32));
-  const authorize = new URL(`${target().supabaseUrl}/auth/v1/oauth/authorize`);
+  const authorize = new URL(endpoints().authorize);
   authorize.search = new URLSearchParams({
     response_type: 'code', client_id: clientId, redirect_uri: REDIRECT_URI, code_challenge: base64url(createHash('sha256').update(verifier).digest()),
-    code_challenge_method: 'S256', state: base64url(randomBytes(12)), resource: target().mcpUrl,
+    code_challenge_method: 'S256', state: base64url(randomBytes(12)), resource: endpoints().mcp,
   }).toString();
   const start = await fetch(authorize, { redirect: 'manual' });
   const consent = new URL(start.headers.get('location') ?? 'http://x/');
@@ -73,14 +82,31 @@ async function approve(page: Page): Promise<string> {
 }
 
 async function exchange(flow: Flow, code: string): Promise<string> {
-  const response = await fetch(`${target().supabaseUrl}/auth/v1/oauth/token`, {
+  const response = await fetch(endpoints().token, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: flow.clientId, code_verifier: flow.verifier, resource: target().mcpUrl }),
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: flow.clientId, code_verifier: flow.verifier, resource: endpoints().mcp }),
   });
   const body = (await response.json()) as { access_token?: string };
   if (!response.ok || !body.access_token) throw new Error(`The code exchange failed: ${response.status}`);
   return body.access_token;
+}
+
+/**
+ * Removes the grant of one client on the office path (exit wave 4), as Settings, Agents does: the own revoke route takes only a
+ * browser token, so the member signs in once through the own token route. The password goes only in the body of that request.
+ */
+async function revokeOwnGrant(apiUrl: string, clientId: string): Promise<void> {
+  const signin = await fetch(`${apiUrl}/auth/token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grant_type: 'password', email: DEPLOY_ACCOUNTS.member.email, password: passwordOf('member') }),
+  });
+  const { access_token: browser } = (await signin.json()) as { access_token?: string };
+  if (!signin.ok || !browser) throw new Error(`The member sign-in for the revoke answered ${signin.status}.`);
+  const revoked = await fetch(`${apiUrl}/oauth/grants/revoke`, {
+    method: 'POST', headers: { Authorization: `Bearer ${browser}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId }),
+  });
+  if (!revoked.ok) throw new Error(`The revoke of the grant answered ${revoked.status}.`);
 }
 
 // Plan 6.1, rule 8: the consent screen in both languages and both themes, at the 3 widths. One flow serves the 3 widths of a
@@ -118,7 +144,7 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
   const token = await exchange(flow, await approve(page));
   // The first MCP call makes the agent link (ensureAgentUser).
-  const listed = await fetch(target().mcpUrl, {
+  const listed = await fetch(endpoints().mcp, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
@@ -141,7 +167,7 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   const confirm = page.getByRole('dialog').locator('button.signature, button.text-late').last();
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
   await expect(page.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
-  const after = await fetch(target().mcpUrl, {
+  const after = await fetch(endpoints().mcp, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
@@ -150,7 +176,26 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
 });
 
 test('Z0a case 3: an agent token cannot set a new password without the current one', async ({ page }) => {
-  test.skip(!DEPLOYED, 'The local stack cannot turn on "require current password" (supabase/cli issue 5846); this case runs on the test deployment.');
+  test.skip(!DEPLOYED && !office, 'The local stack cannot turn on "require current password" (supabase/cli issue 5846); this case runs on the test deployment.');
+  if (office) {
+    // The own server (wave 2): an agent token on the password route gets 403 agent_token.
+    const flow = await startFlow(await registerClient(`X2 password check ${runId()}`));
+    await goto(page, flow.consentRoute);
+    const token = await exchange(flow, await approve(page));
+    try {
+      const answer = await fetch(`${office.apiUrl}/auth/password`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: `Agent-set-${runId()}-pass`, current: 'not the password' }),
+      });
+      const body = (await answer.json().catch(() => ({}))) as { error?: { details?: { reason?: string } } };
+      expect(answer.status).toBe(403);
+      expect(body.error?.details?.reason).toBe('agent_token');
+    } finally {
+      // The grant stays in the office object until the next seed: remove it as Settings, Agents does, with a browser token.
+      await revokeOwnGrant(office.apiUrl, flow.clientId).catch(() => undefined);
+    }
+    return;
+  }
   const publishable = process.env.MADAR_E2E_PUBLISHABLE_KEY;
   if (!publishable) throw new Error('MADAR_E2E_PUBLISHABLE_KEY is missing: set the publishable key of madar-test.');
   const flow = await startFlow(await registerClient(`X2 password check ${runId()}`));

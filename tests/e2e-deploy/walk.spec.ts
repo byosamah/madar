@@ -6,10 +6,11 @@ import { DEPLOY_ACCOUNTS } from './accounts';
 import { expect, passwordOf, PERSON_AR_OF, PERSON_OF, test } from './fixtures';
 import { goto, settle, urlPattern } from './goto';
 import { withClient } from './mail';
+import { OFFICE_SQL, officePeek } from './office';
 import { closeTo, shownColors, WALK_PICTURE } from './picture';
 import { batchAs, NO_SESSION, openMenu, runId, type Lang } from './steps';
 import { isSignedFileLink, storeOfUpload, type WalkStore } from './store';
-import { r2BucketTarget } from './targets';
+import { officeTarget, r2BucketTarget } from './targets';
 import { word } from './words';
 
 /**
@@ -43,7 +44,14 @@ const VARIANTS: { lang: Lang; width: number }[] = [
 ];
 const LANGUAGE_LABEL = { en: 'English', ar: 'العربية' } as const;
 
+/** One check of the walk: from Postgres, or on the office path (exit wave 4) through the peek route with the SQLite form. */
 async function q<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const office = officeTarget(process.env);
+  if (office) {
+    const lite = OFFICE_SQL[sql];
+    if (!lite) throw new Error(`This walk text has no office form in tests/e2e-deploy/office.ts: ${sql.slice(0, 80)}`);
+    return officePeek<T>(office, lite, params);
+  }
   return withClient(async (client) => (await client.query(sql, params)).rows as T[]);
 }
 
@@ -189,9 +197,10 @@ for (const { lang, width } of VARIANTS) {
         await page.locator('form button[type="submit"]').click();
         await expect(page).not.toHaveURL(/\/sign-in/);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        const row = await waitRow<{ at: Date }>('last sign-in', 'select last_sign_in_at as at from auth.users where lower(email) = lower($1) and last_sign_in_at >= $2', [DEPLOY_ACCOUNTS[role].email, started]);
+        const row = await waitRow<{ at: Date | string }>('last sign-in', 'select last_sign_in_at as at from auth.users where lower(email) = lower($1) and last_sign_in_at >= $2', [DEPLOY_ACCOUNTS[role].email, started]);
         await useLang(page);
-        return `auth.users.last_sign_in_at ${row.at.toISOString()}`;
+        // pg gives a Date, the peek route of the office path gives ISO text.
+        return `auth.users.last_sign_in_at ${new Date(row.at).toISOString()}`;
       });
     }
 

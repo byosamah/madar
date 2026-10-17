@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { databaseTarget } from './targets';
+import { OFFICE_MAIL_SQL, officePeek } from './office';
+import { databaseTarget, officeTarget } from './targets';
 
 /**
  * The mail of the test deployment (task X2). There the server runs with MAIL_DRIVER=outbox and writes each mail to the table
@@ -10,6 +11,9 @@ import { databaseTarget } from './targets';
  * MADAR_E2E_DATABASE_URL is the database to read: the session pooler of madar-test as postgres, for a run on the deployment.
  * Without it, the specs read the local database of the local stack; a run on the deployment without it stops. A hosted database
  * needs TLS with the Supabase root CA. targets.ts refuses every database but madar-test and the local stack.
+ *
+ * On the office path (exit wave 4, MADAR_E2E_OFFICE_URL) mail_outbox is a table of the office object: the specs read it through
+ * the peek route of that copy (office.ts), with no database URL.
  */
 const CA_FILE = join(import.meta.dirname, '..', '..', 'scripts', 'proof', 'supabase-root-2021-ca.crt');
 
@@ -47,18 +51,29 @@ export async function withClient<T>(work: (client: pg.Client) => Promise<T>): Pr
 
 /** The id of the newest mail now, so a spec waits only for the mail that its own step makes. */
 export async function lastMailId(): Promise<number> {
+  const office = officeTarget(process.env);
+  if (office) return Number((await officePeek<{ id: string | null }>(office, OFFICE_MAIL_SQL.last, []))[0]?.id ?? 0);
   return withClient(async (client) => Number((await client.query<{ id: string | null }>('select max(id)::text as id from mail_outbox')).rows[0].id ?? 0));
+}
+
+type MailRow = { id: string | number; to_email: string; tag: string; mail: { subject: string; text: string; html: string }; created_at: Date | string };
+
+/** The next mail after o.after: through the peek route on the office path, else from Postgres as before. */
+async function nextMail(o: { to: string; tag: string; after: number }): Promise<MailRow | undefined> {
+  const office = officeTarget(process.env);
+  if (office) return (await officePeek<MailRow>(office, OFFICE_MAIL_SQL.next, [o.after, o.to, o.tag]))[0];
+  return withClient(async (client) => (await client.query<MailRow>(
+    'select id::text, to_email, tag, mail, created_at from mail_outbox where id > $1 and lower(to_email) = lower($2) and tag = $3 order by id limit 1',
+    [o.after, o.to, o.tag],
+  )).rows[0]);
 }
 
 /** Waits for the first mail to `to` with this tag after the mail `after`. */
 export async function waitForMail(o: { to: string; tag: string; after: number; timeoutMs?: number }): Promise<OutboxMail> {
   const until = Date.now() + (o.timeoutMs ?? 30_000);
   while (Date.now() < until) {
-    const row = await withClient(async (client) => (await client.query<{ id: string; to_email: string; tag: string; mail: { subject: string; text: string; html: string }; created_at: Date }>(
-      'select id::text, to_email, tag, mail, created_at from mail_outbox where id > $1 and lower(to_email) = lower($2) and tag = $3 order by id limit 1',
-      [o.after, o.to, o.tag],
-    )).rows[0]);
-    if (row) return { id: Number(row.id), to: row.to_email, tag: row.tag, subject: row.mail.subject, text: row.mail.text, html: row.mail.html, createdAt: row.created_at.toISOString() };
+    const row = await nextMail(o);
+    if (row) return { id: Number(row.id), to: row.to_email, tag: row.tag, subject: row.mail.subject, text: row.mail.text, html: row.mail.html, createdAt: new Date(row.created_at).toISOString() };
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   throw new Error(`No ${o.tag} mail to ${o.to} reached mail_outbox in time.`);

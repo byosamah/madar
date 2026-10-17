@@ -23,6 +23,12 @@ the config, the heartbeat of one run stays and the next run fails.
   `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
   The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.
+- On the office path (exit wave 4): set `MADAR_E2E_OFFICE_URL` (the local office `http://127.0.0.1:8792`, or
+  `https://preview.madar-46r.pages.dev`) and `MADAR_E2E_OPS_SECRET` (the `MADAR_OPS_SECRET` of that copy). The specs then read
+  `mail_outbox` and the walk's checks through the peek route (`tests/e2e-deploy/office.ts`, the SQLite form of each walk text in
+  `OFFICE_SQL`), and `agents.spec.ts` uses the own OAuth routes under `/mcp`. Seed with
+  `npx tsx scripts/office/seed.ts --to <address>` before and after the run. A new SQL text in the walk needs its SQLite form in
+  `OFFICE_SQL`: `scripts/e2e-deploy-helpers.test.ts` fails without it, and prepares each form on the SQLite schema.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips
   itself without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). Its first case also checks that the tool list of the test copy holds
   the three chat tools (2026-10-12). One case alone: `-g "an approved agent shows in Settings"`.

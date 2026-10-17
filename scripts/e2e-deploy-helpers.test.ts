@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { routeUrl, urlPattern } from '../tests/e2e-deploy/goto';
 import { linkPath } from '../tests/e2e-deploy/mail';
-import { appOrigin, databaseTarget, r2BucketTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
+import { appOrigin, databaseTarget, officeTarget, r2BucketTarget, supabaseTarget } from '../tests/e2e-deploy/targets';
 import { isSignedFileLink, storeOfUpload } from '../tests/e2e-deploy/store';
 import { functionsEnvLines, localOnly } from '../tests/e2e-deploy/local';
 import { word } from '../tests/e2e-deploy/words';
 import { closeTo, pngOf, WALK_PICTURE } from '../tests/e2e-deploy/picture';
 import { inflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { nodeHost } from '../server/data/lite/host';
+import { applyLiteSchema } from '../server/data/lite/schema';
+import { OFFICE_MAIL_SQL, OFFICE_SQL, OFFICE_SQL_NOT_NEEDED, officePeek } from '../tests/e2e-deploy/office';
 
 /** The pure helpers of the browser checks on the test deployment (task X2). */
 
@@ -249,5 +254,69 @@ describe('the file store of the walk (owner, 2026-10-16)', () => {
     expect(r2BucketTarget(values)).toEqual({ accountId: ACCOUNT, accessKeyId: 'key-id-value-8', secretAccessKey: 'secret-value-8', bucket: 'madar-files-test' });
     expect(() => r2BucketTarget({ ...values, R2_BUCKET: 'madar-files' })).toThrow(/R2_BUCKET must be madar-files-test/);
     expect(() => r2BucketTarget({ R2_BUCKET: 'madar-files-test' })).toThrow(/R2 needs all of/);
+  });
+});
+
+describe('the deploy suite on the office path (exit wave 4)', () => {
+  it('takes the local office and the test copy, and refuses production and any other host', () => {
+    expect(officeTarget({})).toBeNull();
+    expect(officeTarget({ MADAR_E2E_OFFICE_URL: 'http://127.0.0.1:8792', MADAR_E2E_OPS_SECRET: 's' })).toEqual({ apiUrl: 'http://127.0.0.1:8792/api', mcpUrl: 'http://127.0.0.1:8792/mcp', opsSecret: 's' });
+    expect(officeTarget({ MADAR_E2E_OFFICE_URL: 'https://preview.madar-46r.pages.dev', MADAR_E2E_OPS_SECRET: 's' })?.apiUrl).toBe('https://preview.madar-46r.pages.dev/api');
+    expect(() => officeTarget({ MADAR_E2E_OFFICE_URL: 'https://madar.vado.sa', MADAR_E2E_OPS_SECRET: 's' })).toThrow('local office or the test copy');
+    expect(() => officeTarget({ MADAR_E2E_OFFICE_URL: 'http://127.0.0.1:8792' })).toThrow('MADAR_E2E_OPS_SECRET is missing');
+    expect(() => officeTarget({ MADAR_E2E_OFFICE_URL: 'http://127.0.0.1:8792', MADAR_E2E_OPS_SECRET: 's', MADAR_E2E_MCP_URL: 'https://madar.vado.sa/mcp' })).toThrow('host of MADAR_E2E_OFFICE_URL');
+  });
+
+  it('has an office form of every SQL text that the walk sends, with no Postgres form in it', () => {
+    const walk = readFileSync(new URL('../tests/e2e-deploy/walk.spec.ts', import.meta.url), 'utf8');
+    // Every string of the walk that starts with "select ": double-quoted ones may hold single quotes, single-quoted ones hold none.
+    const texts = [...walk.matchAll(/"(select [^"]*)"/g), ...walk.matchAll(/'(select [^']*)'/g)].map((m) => m[1]);
+    expect(texts.length).toBeGreaterThan(10);
+    for (const text of new Set(texts)) {
+      if (OFFICE_SQL_NOT_NEEDED.includes(text)) continue;
+      expect(OFFICE_SQL[text], text).toBeDefined();
+      expect(OFFICE_SQL[text], text).not.toMatch(/::|\$\d|->>|doc->/);
+    }
+  });
+
+  it('gives forms that the SQLite schema of the office object takes, the mail texts among them', async () => {
+    const raw = new DatabaseSync(':memory:');
+    await applyLiteSchema(nodeHost(raw));
+    for (const form of [...Object.values(OFFICE_SQL), ...Object.values(OFFICE_MAIL_SQL)]) {
+      expect(() => raw.prepare(form), form).not.toThrow();
+    }
+    raw.close();
+  });
+
+  it('reads a list of ids as JSON and gives a list back, in user order, only from the count asked', async () => {
+    const raw = new DatabaseSync(':memory:');
+    await applyLiteSchema(nodeHost(raw));
+    const add = raw.prepare('insert into notifications (id, doc, user_id, read, target_id) values (?, ?, ?, ?, ?)');
+    add.run('ntf_2', JSON.stringify({ trigger: 'feedback_sent' }), 'usr_009', 1, 'fbk_1');
+    add.run('ntf_1', JSON.stringify({ trigger: 'feedback_sent' }), 'usr_001', 0, 'fbk_1');
+    const notices = "select array_agg(id order by user_id) as ids, array_agg(user_id order by user_id) as users from notifications where target_id = $1 and doc->>'trigger' = 'feedback_sent' having count(*) >= $2";
+    expect(raw.prepare(OFFICE_SQL[notices]).all('fbk_1', 2)).toEqual([{ ids: '["ntf_1","ntf_2"]', users: '["usr_001","usr_009"]' }]);
+    expect(raw.prepare(OFFICE_SQL[notices]).all('fbk_1', 3)).toEqual([]);
+    const read = 'select 1 from notifications where id = any($1) and user_id = $2 and read';
+    expect(raw.prepare(OFFICE_SQL[read]).all(JSON.stringify(['ntf_1', 'ntf_2']), 'usr_009')).toHaveLength(1);
+    expect(raw.prepare(OFFICE_SQL[read]).all(JSON.stringify(['ntf_1']), 'usr_001')).toHaveLength(0);
+    raw.close();
+  });
+
+  it('peeks with the ops secret in the header only, sends a list as JSON and a time as ISO text, and reads the JSON columns back', async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const fetcher = (async (url: string, init: RequestInit) => {
+      seen.push({ url, init });
+      return Response.json([{ id: 'ntf_1', ids: '["a","b"]', users: '["usr_001"]', mail: '{"subject":"Hi"}', n: '2' }]);
+    }) as unknown as typeof fetch;
+    const target = { apiUrl: 'http://127.0.0.1:8792/api', mcpUrl: 'http://127.0.0.1:8792/mcp', opsSecret: 'ops-secret-value' };
+    const rows = await officePeek(target, 'select 1', [['a', 'b'], new Date('2026-10-04T06:00:00Z'), 3], fetcher);
+    expect(rows).toEqual([{ id: 'ntf_1', ids: ['a', 'b'], users: ['usr_001'], mail: { subject: 'Hi' }, n: '2' }]);
+    expect(seen[0].url).toBe('http://127.0.0.1:8792/api/office/peek');
+    expect(new Headers(seen[0].init.headers).get('x-madar-ops-secret')).toBe('ops-secret-value');
+    expect(JSON.parse(String(seen[0].init.body))).toEqual({ text: 'select 1', values: ['["a","b"]', '2026-10-04T06:00:00.000Z', 3] });
+    expect(String(seen[0].init.body)).not.toContain('ops-secret-value');
+    const refused = (async () => new Response('no', { status: 403 })) as unknown as typeof fetch;
+    await expect(officePeek(target, 'select 1', [], refused)).rejects.toThrow('The peek route answered 403.');
   });
 });

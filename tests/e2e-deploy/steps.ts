@@ -114,7 +114,8 @@ export type BatchCall = { name: string; input: unknown };
 export async function batchAs(page: Page, open: string, calls: BatchCall[]): Promise<{ ok: boolean; error?: { code: string } }[]> {
   // The first batch that gets an ANSWER: on the live copy the old page sent one more batch as the new load started, the load
   // cancelled it, and the headers of a cancelled request never come (deploy suite on the test copy, 2026-10-04).
-  const answered = page.waitForResponse((response) => /\/functions\/v1\/api\/batch/.test(response.url()) && response.request().method() === 'POST');
+  // The api function (/functions/v1/api/batch) or the page api of the office path (/api/batch, exit wave 4).
+  const answered = page.waitForResponse((response) => /\/api\/batch$/.test(new URL(response.url()).pathname) && response.request().method() === 'POST');
   await goto(page, open);
   const request = (await answered).request();
   const all = await request.allHeaders();
