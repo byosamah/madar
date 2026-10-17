@@ -1,4 +1,9 @@
+import type { Conversation } from '../../src/api/contract/entities';
 import { nowStamp } from '../../src/lib/dates';
+import type { OfficeSnapshot } from '../core/types';
+import { isLite } from '../data/dialect';
+import { liteDbOf } from '../data/lite/db';
+import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import type { OutboxRow } from '../core/effects';
 import type { Deps, Query } from '../core/ports';
@@ -70,6 +75,12 @@ where u.kind = 'human' and u.active
   and exists (select 1 from push_devices d where d.user_id = a.user_id)
 order by a.user_id`;
 
+// SQLite (exit wave 3). The new notices come from the save (SaveResult.noticeIds), the people of a chat from the office lists in
+// memory: the users, conversations, projects and members tables hold only id and doc. One bound list each (json_each).
+export const PUSH_NOTICE_PEOPLE_LITE = 'select distinct user_id from notifications where id in (select value from json_each(?1)) and read = 0';
+export const PUSH_DEVICE_PEOPLE_LITE = 'select distinct user_id from push_devices where user_id in (select value from json_each(?1))';
+export const MESSAGE_LITE = 'select conversation_id, doc from messages where id = ?1';
+
 /** $1 the person. The push addresses of an active human, oldest device first. */
 export const PUSH_DEVICES_SQL = `select d.endpoint
 from push_devices d join users u on u.id = d.user_id
@@ -85,7 +96,8 @@ export const PUSH_GONE_SQL = 'delete from push_devices where endpoint = any($1::
 type PersonRow = { user_id: string };
 
 /** The push.notify outbox rows of one save. Run inside the call's transaction, after the save. */
-export async function pushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people' | 'messageIds'>): Promise<OutboxRow[]> {
+export async function pushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people' | 'messageIds' | 'noticeIds'>): Promise<OutboxRow[]> {
+  if (isLite(q)) return litePushRows(q, saved);
   const people = new Set<string>();
   if (saved.kinds.has('notifications') && saved.people.size > 0) {
     for (const row of await q<PersonRow>(PUSH_NOTICE_PEOPLE_SQL, [[...saved.people].sort()])) people.add(row.user_id);
@@ -94,6 +106,42 @@ export async function pushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'peop
     for (const row of await q<PersonRow>(PUSH_MESSAGE_PEOPLE_SQL, [saved.messageIds])) people.add(row.user_id);
   }
   return [...people].sort().map((userId) => ({ kind: PUSH_EFFECT, payload: { userId } }));
+}
+
+/** The people who read a chat, as PUSH_MESSAGE_PEOPLE_SQL finds them: a direct chat's two members; a project's leader, team and Admins. */
+function chatAudience(lists: OfficeSnapshot['lists'], chat: Conversation): string[] {
+  if (chat.kind === 'direct') return [...chat.memberIds];
+  if (chat.projectId === null) return [];
+  const projectId = chat.projectId;
+  const out = Object.values(lists.members).filter((m) => m.projectId === projectId).map((m) => m.userId);
+  const leaderId = lists.projects[projectId]?.leaderId;
+  if (leaderId) out.push(leaderId);
+  for (const user of Object.values(lists.users)) if (user.kind === 'human' && user.active && user.systemRole === 'admin') out.push(user.id);
+  return out;
+}
+
+/** The push.notify rows of one save on SQLite (exit wave 3): the same people as the two Postgres texts. */
+async function litePushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people' | 'messageIds' | 'noticeIds'>): Promise<OutboxRow[]> {
+  const noticeIds = saved.kinds.has('notifications') && saved.people.size > 0 ? saved.noticeIds ?? [] : [];
+  const messageIds = saved.messageIds ?? [];
+  if (noticeIds.length === 0 && messageIds.length === 0) return [];
+  const { lists } = await readLiteOffice(liteDbOf(q), q);
+  const reads = (userId: string) => lists.users[userId]?.kind === 'human' && lists.users[userId]?.active === true;
+  const people = new Set<string>();
+  if (noticeIds.length > 0) {
+    for (const row of await q<PersonRow>(PUSH_NOTICE_PEOPLE_LITE, [noticeIds])) if (reads(row.user_id)) people.add(row.user_id);
+  }
+  for (const id of messageIds) {
+    const [message] = await q<{ conversation_id: string; doc: { authorId?: string; actingForId?: string | null } }>(MESSAGE_LITE, [id]);
+    const chat = message ? lists.conversations[message.conversation_id] : undefined;
+    if (!message || !chat) continue;
+    for (const userId of chatAudience(lists, chat)) {
+      if (userId !== message.doc.authorId && userId !== message.doc.actingForId && reads(userId)) people.add(userId);
+    }
+  }
+  if (people.size === 0) return [];
+  const withDevice = new Set((await q<PersonRow>(PUSH_DEVICE_PEOPLE_LITE, [[...people].sort()])).map((row) => row.user_id));
+  return [...people].filter((userId) => withDevice.has(userId)).sort().map((userId) => ({ kind: PUSH_EFFECT, payload: { userId } }));
 }
 
 /** The push.notify effect: one push to each device of one person. */

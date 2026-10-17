@@ -1,5 +1,8 @@
-import { isEmailTrigger, type Gender, type Preferences, type Trigger } from '../../src/api/contract/entities';
+import { isEmailTrigger, type Gender, type Notification, type Preferences, type Trigger } from '../../src/api/contract/entities';
 import { emailOn, inAppOn } from '../../src/api/notify';
+import { isLite } from '../data/dialect';
+import { liteDbOf } from '../data/lite/db';
+import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Deps, Mail, Query } from '../core/ports';
@@ -37,6 +40,12 @@ where n.user_id = any($1::text[]) and not n.read
   and n.xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296)
 order by n.ord`;
 
+/**
+ * SQLite (exit wave 3): one notice that the save inserted, if it is still unread. SQLite has no xmin: the save names its new
+ * notices (SaveResult.noticeIds). The person comes from the office lists in memory, as the users table holds only id and doc.
+ */
+export const NEW_NOTICE_LITE = 'select id, user_id, doc from notifications where id = ?1 and read = 0';
+
 /** $1 the notice. The notice and the person who gets it. */
 export const NOTICE_MAIL_SQL = `select n.id, n.doc->>'trigger' as trigger, u.id as user_id, u.kind, u.active, u.doc->>'email' as email,
   u.doc->'preferences' as preferences, u.doc->>'gender' as gender
@@ -72,12 +81,30 @@ export function appLink(appUrl: string, path: string): string {
 export const mailable = (person: Pick<PersonRow, 'kind' | 'active'>): boolean => person.kind === 'human' && person.active;
 
 /** The mail.notice outbox rows of one save. Run inside the call's transaction, after the save. */
-export async function noticeRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people'>): Promise<OutboxRow[]> {
+export async function noticeRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people' | 'noticeIds'>): Promise<OutboxRow[]> {
   if (!saved.kinds.has('notifications') || saved.people.size === 0) return [];
+  if (isLite(q)) return liteNoticeRows(q, saved.noticeIds ?? []);
   const found = await q<NewNotice>(NEW_NOTICES_SQL, [[...saved.people].sort()]);
   return found
     .filter((n) => mailable(n) && inAppOn(n.preferences, n.trigger) && emailOn(n.preferences, n.trigger))
     .map((n) => ({ kind: NOTICE_EFFECT, payload: { notificationId: n.id } }));
+}
+
+/** The mail rows of the new notices on SQLite, in the order of the save (the order of ord on Postgres). */
+async function liteNoticeRows(q: Query, ids: readonly string[]): Promise<OutboxRow[]> {
+  if (ids.length === 0) return [];
+  const { lists } = await readLiteOffice(liteDbOf(q), q);
+  const rows: OutboxRow[] = [];
+  for (const id of ids) {
+    const [notice] = await q<{ id: string; user_id: string; doc: Notification }>(NEW_NOTICE_LITE, [id]);
+    const person = notice ? lists.users[notice.user_id] : undefined;
+    if (!notice || !person) continue;
+    const trigger = notice.doc.trigger;
+    if (mailable(person) && inAppOn(person.preferences, trigger) && emailOn(person.preferences, trigger)) {
+      rows.push({ kind: NOTICE_EFFECT, payload: { notificationId: notice.id } });
+    }
+  }
+  return rows;
 }
 
 /** One rendered mail as the port takes it. */

@@ -47,6 +47,8 @@ export type Diff = {
   people: Set<string>;
   /** The messages that this change inserted, in the order of the State (the push producer reads them, server/push/notify.ts). */
   messageIds: string[];
+  /** The notices that the save inserted, in State order: the mail and push producers on SQLite (exit wave 3) read them. */
+  noticeIds: string[];
   /** True when a row of an office table changed: the office cache must load again (plan 4.7). */
   officeRows: boolean;
   /** True when every kind is personal (chatReads, notifications, preferences): no office signal. */
@@ -78,6 +80,8 @@ export type SaveResult = {
   people: Set<string>;
   /** The messages that the save inserted. The push producer reads them. Left out when there are none. */
   messageIds?: string[];
+  /** The notices that the save inserted. Left out when there are none. */
+  noticeIds?: string[];
   bytesWritten: number;
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
@@ -365,8 +369,9 @@ export function diffState(before: State, after: State): Diff {
 
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
+  const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
   return {
-    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, officeRows, personal, unresolvedComments,
+    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, noticeIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0,
     privatePeople,
@@ -401,7 +406,9 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
   const changed = diff.tables.length > 0 || Object.keys(diff.counters).length > 0;
   const result = (fields: Partial<SaveResult> = {}): SaveResult => ({
     changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [],
-    ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}), ...fields,
+    ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}),
+    ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
+    ...fields,
   });
   if (!changed) return result();
 

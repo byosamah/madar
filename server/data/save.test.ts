@@ -519,6 +519,20 @@ describe('the new messages of a save (the push producer reads them)', () => {
   });
 });
 
+describe('the new notices of a save (the mail and push producers on SQLite read them)', () => {
+  it('lists the ids of the notices that the save inserted, and leaves the list out when there are none', async () => {
+    const after = copy();
+    const notice = Object.values(after.notifications)[0];
+    after.notifications.ntf_901 = { ...notice, id: 'ntf_901', read: false };
+    after.notifications.ntf_902 = { ...notice, id: 'ntf_902', read: false };
+    expect((await save(recorder().q, seed, after)).noticeIds).toEqual(['ntf_901', 'ntf_902']);
+    const edited = copy();
+    Object.values(edited.notifications)[0].read = true;
+    expect((await save(recorder().q, seed, edited)).noticeIds).toBeUndefined();
+    expect(diffState(seed, edited).noticeIds).toEqual([]);
+  });
+});
+
 describe('writeDiff', () => {
   it('writes nothing and sends no signal for no change', async () => {
     const { q, sql } = recorder();
