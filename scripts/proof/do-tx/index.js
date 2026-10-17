@@ -1,5 +1,6 @@
 // The probe object of scripts/proof/do-tx (exit plan, wave 1 Task 1). Each route answers one open question of the plan.
 import { DurableObject } from 'cloudflare:workers';
+import { allowed } from './guard.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -103,6 +104,8 @@ export class Office extends DurableObject {
 
 export default {
   async fetch(request, env) {
+    // A deployed probe (wrangler.deployed.toml, exit wave 5 R8 (e)) answers only with its secret header.
+    if (!allowed(request, env)) return new Response('not found', { status: 404 });
     const url = new URL(request.url);
     const stub = env.OFFICE.get(env.OFFICE.idFromName(url.searchParams.get('o') ?? 'probe'));
     if (url.pathname === '/rollback') return Response.json(await stub.rollback());

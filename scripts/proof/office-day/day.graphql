@@ -1,0 +1,12 @@
+# The account-wide sums of one UTC day for one Worker and its objects (exit wave 5, R8 and R12). Send it with
+# node scripts/proof/do-socket/gql.mjs scripts/proof/office-day/day.graphql '{"acc":"d76d34779c63849f5acdf3d6af3751cd","from":"<day>T00:00:00Z","to":"<day>T23:59:59Z","script":"madar-server-test"}'
+query ($acc: String!, $from: Time!, $to: Time!, $script: String!) { viewer { accounts(filter: { accountTag: $acc }) {
+  per: durableObjectsPeriodicGroups(limit: 100, filter: { datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { namespaceId } sum { rowsRead rowsWritten cpuTime duration activeTime } }
+  inv: durableObjectsInvocationsAdaptiveGroups(limit: 100, filter: { datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { namespaceId scriptName type status } sum { requests errors } quantiles { cpuTimeP50 cpuTimeP99 } }
+  w: workersInvocationsAdaptive(limit: 100, filter: { scriptName: $script, datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { status } sum { requests errors subrequests } quantiles { cpuTimeP50 cpuTimeP90 cpuTimeP99 } }
+  all: workersInvocationsAdaptive(limit: 100, filter: { datetime_geq: $from, datetime_leq: $to }) {
+    dimensions { scriptName } sum { requests } }
+} } }

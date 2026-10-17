@@ -1,0 +1,16 @@
+# The do-tx probe on the deployed Workers Free (exit wave 5, R8 (e)): the race of wave 1 Task 1 on a real Durable Object. It has a
+# workers.dev address only for the minutes of the run, behind PROBE_SECRET; the main session deletes it after the run with the
+# owner's OK (npx wrangler delete -c scripts/proof/do-tx/wrangler.deployed.toml).
+name = "madar-do-tx-probe"
+main = "index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Office"]
