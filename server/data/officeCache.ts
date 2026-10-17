@@ -90,6 +90,11 @@ export function userIdOfAuth(snapshot: OfficeSnapshot, authUserId: string): stri
   return authOf.get(snapshot)?.get(authUserId);
 }
 
+/** Every sign-in link of a snapshot (auth id to Madar user id): the SQLite snapshot writes them, and the tests read them. */
+export function authLinksOf(snapshot: OfficeSnapshot): ReadonlyMap<string, string> {
+  return authOf.get(snapshot) ?? new Map();
+}
+
 /** A frozen snapshot of office lists, in the order they are given. Tests and the db-mode harness make one from a State. */
 export function snapshotOf(lists: Pick<State, OfficeCollection>, version: number, auth: ReadonlyMap<string, string> = new Map()): OfficeSnapshot {
   const copy = Object.fromEntries(OFFICE_COLLECTIONS.map((c) => [c, structuredClone(lists[c] ?? {})])) as OfficeSnapshot['lists'];
