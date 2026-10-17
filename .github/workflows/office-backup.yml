@@ -1,0 +1,147 @@
+# The nightly backup of an office object (Supabase exit, wave 4; spec section 2, "Backups" (2)). It runs at 02:07 Riyadh, off the
+# busy start of the hour and between two runs of the 15-minute Cron of the office object (02:00 and 02:15).
+#
+# scripts/backup/officeExport.ts asks the export route of the copy (vars.OFFICE_BACKUP_URL) for every row, with the secret header.
+# The office object refuses writes for at most 5 minutes meanwhile; reads and sign-ins go on. The script encrypts the folder with
+# age to the owner's public key, and the file goes to a release of the private repository madar-backups. Releases of the same copy
+# older than 30 days go. The run fails, so GitHub mails the owner, when the export fails twice or when the newest office backup
+# before this run was older than 26 hours. Until vars.OFFICE_BACKUP_URL is set (wave 5), every run ends at its first step.
+#
+# Values, by name only:
+#   secrets.OFFICE_EXPORT_SECRET  the MADAR_EXPORT_SECRET of the Worker of that copy (scripts/office/new-secret.ts --github)
+#   secrets.BACKUP_REPO_TOKEN     a fine-grained token with "contents: write" on madar-backups only (the DB backup uses it too)
+#   vars.OFFICE_BACKUP_URL        the page address of the copy, for example https://preview.madar-46r.pages.dev
+#   vars.OFFICE_BACKUP_COPY       test or production
+#   vars.BACKUP_AGE_RECIPIENT     the owner's age public key (age1...); not a secret
+name: Office backup
+
+on:
+  schedule:
+    - cron: '7 2 * * *'
+      timezone: 'Asia/Riyadh'
+  workflow_dispatch:
+
+concurrency:
+  group: office-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22.23.1'
+  BACKUP_REPO: byosamah/madar-backups
+  KEEP_DAYS: '30'
+  STALE_HOURS: '26'
+
+jobs:
+  backup:
+    name: backup
+    # A fork or a copy of the repository has no backup to make.
+    if: github.repository == 'byosamah/madar'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Is the office backup on
+        id: on
+        env:
+          URL: ${{ vars.OFFICE_BACKUP_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "The office backup is off: vars.OFFICE_BACKUP_URL is not set (wave 5 of the exit plan sets it)."
+            echo "on=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "on=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # No step uses git after the checkout, so the job token does not stay in .git/config for install scripts to read.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.on.outputs.on == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.on.outputs.on == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # npm ci runs before any step gets a secret, so no install script can read one.
+      - run: npm ci
+        if: steps.on.outputs.on == 'true'
+      - name: Install age
+        if: steps.on.outputs.on == 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q age
+
+      - name: Age of the newest office backup
+        id: fresh
+        if: steps.on.outputs.on == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          COPY: ${{ vars.OFFICE_BACKUP_COPY }}
+        run: |
+          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
+            --jq "[.[] | select(.tagName | startswith(\"madar-office-$COPY-\"))] | sort_by(.createdAt) | last | .createdAt // empty")"
+          if [ -z "$newest" ]; then
+            echo "No office backup yet."
+            echo "hours=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          hours=$(( ($(date -u +%s) - $(date -u -d "$newest" +%s)) / 3600 ))
+          echo "The newest office backup is $hours hours old."
+          echo "hours=$hours" >> "$GITHUB_OUTPUT"
+
+      - name: Export, count and encrypt
+        id: dump
+        if: steps.on.outputs.on == 'true'
+        env:
+          OFFICE_EXPORT_SECRET: ${{ secrets.OFFICE_EXPORT_SECRET }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          URL: ${{ vars.OFFICE_BACKUP_URL }}
+          COPY: ${{ vars.OFFICE_BACKUP_COPY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/backup"
+          # A write during the export (rare at 02:07) or a dropped connection fails one run: try once more after 2 minutes.
+          if ! npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup" > "$RUNNER_TEMP/backup.json"; then
+            sleep 120
+            npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup" > "$RUNNER_TEMP/backup.json"
+          fi
+          cat "$RUNNER_TEMP/backup.json"
+          echo "file=$(jq -r .file "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
+          echo "name=$(jq -r .name "$RUNNER_TEMP/backup.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to madar-backups
+        if: steps.on.outputs.on == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          FILE: ${{ steps.dump.outputs.file }}
+          NAME: ${{ steps.dump.outputs.name }}
+        run: |
+          gh release create "$NAME" "$FILE" --repo "$BACKUP_REPO" --title "$NAME" \
+            --notes "Nightly backup of an office object of Madar, encrypted with age to the owner's key. Check it with scripts/restore-check.ts."
+
+      # Only after a good upload, so a run of failures never removes the last good backups. The shell puts the copy into the
+      # jq text (startswith("madar-office-test-")), so a run of the test copy never removes a production backup.
+      - name: Remove office backups older than 30 days
+        if: steps.on.outputs.on == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          COPY: ${{ vars.OFFICE_BACKUP_COPY }}
+        run: |
+          cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
+          copy="$COPY"
+          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | select(.tagName | startswith(\"madar-office-${copy}-\")) | .tagName" |
+            while read -r tag; do
+              echo "Remove $tag"
+              gh release delete "$tag" --repo "$BACKUP_REPO" --yes --cleanup-tag
+            done
+
+      - name: Fail when the office backup before this one was older than 26 hours
+        # The || '0' keeps fromJSON off an empty text: the step of the age is skipped while the backup is off.
+        if: steps.on.outputs.on == 'true' && fromJSON(steps.fresh.outputs.hours || '0') > fromJSON(env.STALE_HOURS)
+        env:
+          HOURS: ${{ steps.fresh.outputs.hours }}
+        run: |
+          echo "::error::The newest office backup before this run was $HOURS hours old (the limit is $STALE_HOURS). A night had no backup."
+          exit 1

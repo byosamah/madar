@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The backup workflows (plan 5.7; task O2): db-backup.yml, files-backup.yml and restore-reminder.yml. They run only in GitHub, so
+ * The backup workflows (plan 5.7; task O2): db-backup.yml, files-backup.yml, restore-reminder.yml, and office-backup.yml (the
+ * nightly office export, exit wave 4). They run only in GitHub, so
  * these tests check the rules of the plan on the text, and that every script they run exists. scripts/restore-check.test.ts runs
  * the backup script and the restore check on the local stack [Docker].
  */
@@ -11,7 +12,7 @@ const read = (name: string) => {
   const path = new URL(`.github/workflows/${name}`, root);
   return existsSync(path) ? readFileSync(path, 'utf8') : '';
 };
-const FILES = { db: read('db-backup.yml'), files: read('files-backup.yml'), reminder: read('restore-reminder.yml') };
+const FILES = { db: read('db-backup.yml'), files: read('files-backup.yml'), reminder: read('restore-reminder.yml'), office: read('office-backup.yml') };
 const all = Object.values(FILES).join('\n');
 
 /** The lines of one step, from its "- name:" or "- uses:" line to the next step. */
@@ -41,6 +42,7 @@ describe('the backup workflows', () => {
     expect(FILES.db).toMatch(/- cron: '7 2 \* \* \*'\n\s+timezone: 'Asia\/Riyadh'/);
     expect(FILES.files).toMatch(/- cron: '7 3 \* \* 5'\n\s+timezone: 'Asia\/Riyadh'/);
     expect(FILES.reminder).toMatch(/- cron: '7 9 1 \* \*'\n\s+timezone: 'Asia\/Riyadh'/);
+    expect(FILES.office).toMatch(/- cron: '7 2 \* \* \*'\n\s+timezone: 'Asia\/Riyadh'/);
     for (const text of Object.values(FILES)) expect(text).toMatch(/^ {2}workflow_dispatch:/m);
   });
 
@@ -68,6 +70,7 @@ describe('the backup workflows', () => {
     expect(head(FILES.db)).toMatch(/permissions:\n {2}contents: read\n/);
     expect(head(FILES.files)).toMatch(/permissions:\n {2}contents: read\n/);
     expect(head(FILES.reminder)).toMatch(/permissions:\n {2}issues: write\n/);
+    expect(head(FILES.office)).toMatch(/permissions:\n {2}contents: read\n/);
   });
 
   it('pin every action to a full commit, and keep the job token out of .git/config', () => {
@@ -197,5 +200,58 @@ describe('restore-reminder.yml', () => {
     const open = step(FILES.reminder, 'Open the issue "Run the restore check"');
     expect(open).toContain('If a step failed, paste only its name and the first line of its detail');
     expect(open).not.toContain('paste the step and its detail');
+  });
+});
+
+describe('the office backup (exit wave 4)', () => {
+  const text = FILES.office;
+
+  it('ends at its first step with success while vars.OFFICE_BACKUP_URL is not set, and every later step waits for it', () => {
+    const first = step(text, 'Is the office backup on');
+    expect(first).toContain('URL: ${{ vars.OFFICE_BACKUP_URL }}');
+    expect(first).toContain('on=false');
+    const steps = text.split('\n').filter((line) => /^ {6}- (name|uses|run):/.test(line)).length;
+    const gated = (text.match(/^ {8}if: steps\.on\.outputs\.on == 'true'/gm) ?? []).length;
+    expect(steps).toBeGreaterThan(5);
+    expect(gated).toBe(steps - 1);
+  });
+
+  it('installs the packages before any step gets a secret', () => {
+    const lines = text.split('\n');
+    const firstSecret = lines.findIndex((line) => line.includes('${{ secrets.'));
+    expect(firstSecret).toBeGreaterThan(0);
+    expect(lines.findIndex((line) => line.includes('run: npm ci'))).toBeLessThan(firstSecret);
+    expect(lines.findIndex((line) => line.includes('apt-get install -y -q age'))).toBeLessThan(firstSecret);
+    expect(text).toMatch(/actions\/checkout@\S+.*\n\s+if: [^\n]+\n\s+with:\n\s+persist-credentials: false/);
+  });
+
+  it('runs the export script with the export secret in the step env only, and tries once more after 2 minutes', () => {
+    const exportStep = step(text, 'Export, count and encrypt');
+    expect(exportStep).toContain('OFFICE_EXPORT_SECRET: ${{ secrets.OFFICE_EXPORT_SECRET }}');
+    expect(exportStep).toContain('BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}');
+    expect(exportStep).toContain('npx tsx scripts/backup/officeExport.ts --url "$URL" --copy "$COPY" --out "$RUNNER_TEMP/backup"');
+    expect(exportStep).toContain('sleep 120');
+    expect(existsSync(new URL('scripts/backup/officeExport.ts', root))).toBe(true);
+  });
+
+  it('uploads the file as a release of madar-backups', () => {
+    expect(text).toContain('BACKUP_REPO: byosamah/madar-backups');
+    expect(step(text, 'Upload to madar-backups')).toMatch(/gh release create "\$NAME" "\$FILE" --repo "\$BACKUP_REPO"/);
+  });
+
+  it('removes only office releases of its own copy that are older than 30 days, and only after a good upload', () => {
+    expect(text).toContain("KEEP_DAYS: '30'");
+    const remove = step(text, 'Remove office backups older than 30 days');
+    expect(remove).toContain('startswith(\\"madar-office-${copy}-\\")');
+    expect(remove).not.toContain('madar-db-');
+    expect(text.indexOf('- name: Remove office backups')).toBeGreaterThan(text.indexOf('- name: Upload to madar-backups'));
+  });
+
+  it('fails when the newest office backup of its copy before this run was older than 26 hours, and reads no other release', () => {
+    expect(text).toContain("STALE_HOURS: '26'");
+    expect(step(text, 'Age of the newest office backup')).toContain('startswith(\\"madar-office-$COPY-\\")');
+    const stale = step(text, 'Fail when the office backup before this one was older than 26 hours');
+    expect(stale).toContain("if: steps.on.outputs.on == 'true' && fromJSON(steps.fresh.outputs.hours || '0') > fromJSON(env.STALE_HOURS)");
+    expect(stale).toContain('exit 1');
   });
 });

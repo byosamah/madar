@@ -563,7 +563,12 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `MADAR_SECRET_KEY`). After the switch, a Worker secret of Madar takes its place
 - [ ] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
   copies `SIGNIN_TABLES`; `scripts/deploy/secrets.ts` names `MADAR_AUTH_PRIVATE_JWK` (a script makes the key and writes it
-  straight to the Worker secret)
+  straight to the Worker secret). The restore check part is done (`rb/exit-ops` Task 8): the office export and its restore check
+  take every table of the schema, the sign-in tables too
+- [ ] Before wave 5 turns on `office-backup.yml` (found in exit wave 4, `rb/exit-ops` Task 9): the step "Age of the newest backup"
+  of `db-backup.yml` reads the newest release of any name (`gh release list --limit 1`). With a nightly `madar-office-*` release in
+  the same repository, a night with no database backup no longer fails that step. Proposal: select the `madar-db-` releases only,
+  as `office-backup.yml` does for its copy, and change the pin of that step in `scripts/backup/workflows.test.ts`
 - [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
   (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
