@@ -26,8 +26,8 @@ import type { WorkerStats } from './speed';
  * transaction, no worker schema and no leak guard. dbApi.ts, shadow.ts and invariants.ts stay as they are.
  */
 
-/** The server calls that wave 1 has no SQLite form for yet: they may fail in test:lite, and waves 2 and 3 empty this list. */
-export const LATER_CALLS: ReadonlySet<string> = new Set(['users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect']);
+/** The server calls that have no SQLite form yet: wave 3 gives usage.get and usage.retryEffect theirs, and empties this list. */
+export const LATER_CALLS: ReadonlySet<string> = new Set(['usage.get', 'usage.retryEffect']);
 /** The effect kinds that have no SQLite form yet. agents.revokeAll leaves in Task 10 of wave 2; then the set is empty. */
 export const LATER_KINDS: ReadonlySet<string> = new Set(['agents.revokeAll']);
 

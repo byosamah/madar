@@ -11,6 +11,7 @@ import { processOutbox, writeOutbox } from '../core/effects';
 import { digestOf, replay, sqlKeys, type StoredResult } from '../core/idempotency';
 import { takeOfficeLock } from '../core/lock';
 import type { Deps } from '../core/ports';
+import { sqlFor } from '../data/dialect';
 import { resolveStory, sqlStories } from '../core/story';
 import type { ServerCall, ServerCallCtx } from '../core/types';
 
@@ -30,6 +31,14 @@ export const INVITE_LINKS_SQL = "select id, auth_user_id::text as auth from user
 /** The last invitation mail of each person: the payloads that the invitation marked as sent (server/auth/invite.ts). */
 export const INVITE_SENT_SQL =
   "select payload->>'userId' as user_id, max((payload->>'sentAt')::timestamptz) as sent_at from outbox where kind in ('auth.invite', 'auth.email') and payload ? 'sentAt' group by 1";
+/**
+ * The SQLite forms (Supabase exit, wave 2). A person with no sign-in row has no row here, so the call says invited, as for a
+ * Postgres row with a null auth_user_id. sentAt is ISO text, so the max of the texts is the newest time.
+ */
+export const INVITE_LINKS_LITE = 'select user_id as id, id as auth from auth_users where user_id is not null';
+export const INVITE_SENT_LITE =
+  "select json_extract(payload, '$.userId') as user_id, max(json_extract(payload, '$.sentAt')) as sent_at from outbox " +
+  "where kind in ('auth.invite', 'auth.email') and json_type(payload, '$.sentAt') is not null group by 1";
 
 export const RESEND_PER_DAY = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,8 +58,8 @@ export const usersInvites: ServerCall<'users.invites'> = async (_input, ctx) => 
   const { deps } = ctx;
   const people = Object.values(ctx.office.lists.users).filter((user) => user.kind === 'human').sort((a, b) => a.id.localeCompare(b.id));
   const { links, sent } = await deps.db.tx('read', async (q) => ({
-    links: await q<{ id: string; auth: string | null }>(INVITE_LINKS_SQL),
-    sent: await q<{ user_id: string; sent_at: Date | string }>(INVITE_SENT_SQL),
+    links: await q<{ id: string; auth: string | null }>(sqlFor(q, INVITE_LINKS_SQL, INVITE_LINKS_LITE)),
+    sent: await q<{ user_id: string; sent_at: Date | string }>(sqlFor(q, INVITE_SENT_SQL, INVITE_SENT_LITE)),
   }));
   const linkOf = new Map(links.map((row) => [row.id, row.auth]));
   const sentOf = new Map(sent.map((row) => [row.user_id, new Date(row.sent_at)]));
