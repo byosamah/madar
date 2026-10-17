@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { FreshReads } from '../../api/remote/follow';
+import { liveSocketSource, liveUrl } from '../../api/remote/liveSocket';
 import { createRemoteApi } from '../../api/remote/remoteApi';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
@@ -131,6 +132,20 @@ export function personChangeSource(o: {
   };
 }
 
+/**
+ * The live updates of one person (exit wave 3): the socket of the office object when the build says VITE_MADAR_LIVE=socket, else
+ * Supabase Realtime (every build until a copy moves to its office object in wave 5). realtime is a function, so a build with no
+ * Supabase client can leave it out later.
+ */
+export function liveSourceOf(
+  kind: string | undefined,
+  o: { realtime: (me: string) => ChangeSource; ticket: () => Promise<{ ticket: string; expiresAt: string }>; apiUrl: string; page: string },
+): (me: string) => ChangeSource {
+  if (kind !== 'socket') return o.realtime;
+  const url = liveUrl(o.apiUrl, o.page);
+  return (me) => liveSocketSource({ me, ticket: o.ticket, url });
+}
+
 export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; mode: 'remote' };
 
 /**
@@ -172,7 +187,12 @@ export async function bootstrapRemote(o: {
   changes = personChangeSource({
     auth,
     person: async () => (await api.call('session.get', {})).user.id,
-    open: (me) => supabaseChangeSource(supabase, me),
+    open: liveSourceOf(import.meta.env.VITE_MADAR_LIVE, {
+      realtime: (me) => supabaseChangeSource(supabase, me),
+      ticket: () => api.call('live.ticket', {}),
+      apiUrl: config.apiUrl,
+      page: window.location.href,
+    }),
   });
   return { api, auth, changes, mode: 'remote' };
 }

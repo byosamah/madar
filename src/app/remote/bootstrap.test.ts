@@ -5,7 +5,7 @@ import { canFollow, type FollowApi } from '../../api/remote/remoteApi';
 import type { ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
-import { bootstrapRemote, firstLanguage, personChangeSource, remoteConfig } from './bootstrap';
+import { bootstrapRemote, firstLanguage, liveSourceOf, personChangeSource, remoteConfig } from './bootstrap';
 
 // The file adapters of track F (src/app/files.ts), replaced by markers so the test sees which adapters the bootstrap hands RemoteApi.
 const fileAdapters = vi.hoisted(() => ({
@@ -297,5 +297,29 @@ describe('the remote runtime (plan R2)', () => {
       void runtime.api.call('clients.list', {});
     }, tag);
     expect(seen).toContainEqual([['sig-1'], 'own', { tag, reads: [{ name: 'clients.list', input: {} }] }]);
+  });
+});
+
+describe('the live updates of the remote build (exit wave 3)', () => {
+  const quiet = () => ({ subscribe: () => () => undefined, status: () => 'closed' as const });
+
+  it('uses Supabase Realtime unless the build says socket', () => {
+    const realtime = vi.fn(quiet);
+    const ticket = vi.fn();
+    liveSourceOf(undefined, { realtime, ticket, apiUrl: '/api', page: 'https://madar.vado.sa/' })('usr_005');
+    liveSourceOf('realtime', { realtime, ticket, apiUrl: '/api', page: 'https://madar.vado.sa/' })('usr_005');
+    expect(realtime).toHaveBeenCalledTimes(2);
+    expect(ticket).not.toHaveBeenCalled();
+  });
+
+  it('opens the socket of the office object with a ticket when the build says socket', async () => {
+    const realtime = vi.fn(quiet);
+    const ticket = vi.fn(() => new Promise<never>(() => undefined));
+    const source = liveSourceOf('socket', { realtime, ticket, apiUrl: '/api', page: 'https://madar.vado.sa/' })('usr_005');
+    const stop = source.subscribe(() => undefined);
+    await Promise.resolve();
+    expect(ticket).toHaveBeenCalledTimes(1);
+    expect(realtime).not.toHaveBeenCalled();
+    stop();
   });
 });
