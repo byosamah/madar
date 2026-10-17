@@ -49,6 +49,12 @@ export const AUTHORIZATION_LITE = "select client_id from oauth_requests where id
 export const APPROVAL_INSERT_LITE = 'insert into agent_approvals (client_id, owner_user_id, approved_at) values (?1, ?2, ?3) on conflict (client_id, owner_user_id) do nothing';
 export const REMOVED_LINK_LITE = 'select 1 as removed from agent_links where client_id = ?1 and owner_user_id = ?2 and revoked_at is not null';
 export const APPROVAL_LITE = 'select 1 as approved from agent_approvals where client_id = ?1 and owner_user_id = ?2';
+/** A remove of the AI app in Settings, Agents ends its approval too, so the next connection asks the person again. */
+export const APPROVAL_DELETE_LITE = 'delete from agent_approvals where client_id = ?1 and owner_user_id = ?2';
+
+export function agentRemoved(): ApiError {
+  return new ApiError('forbidden', 'You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.', { reason: 'agent_removed' });
+}
 
 const Body = z.object({ authorizationId: z.string().trim().min(1).max(200) });
 
@@ -73,9 +79,7 @@ export async function recordApproval(q: Query, o: { authorizationId: string; aut
     throw invalid('authorizationId', 'This approval request ended. Start the connection again in your AI app.', 'authorization_ended');
   }
   const [removed] = await q(lite ? REMOVED_LINK_LITE : REMOVED_LINK_SQL, [clientId, o.ownerId]);
-  if (removed) {
-    throw new ApiError('forbidden', 'You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.', { reason: 'agent_removed' });
-  }
+  if (removed) throw agentRemoved();
   if (lite) await q(APPROVAL_INSERT_LITE, [clientId, o.ownerId, now]);
   else await q(APPROVAL_INSERT_SQL, [clientId, o.ownerId]);
   return { clientId };

@@ -99,6 +99,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - The approval: the consent gives a code only after `POST /api/agents/approve` with a browser token. Every own route refuses an
   agent token, so the open risk of Z7 (an agent token with the full rights of its person at Auth) does not exist on the own stack.
 - A request belongs to the first person who opens it; for anyone else it reads as unknown, with no client name.
+- A remove in Settings, Agents (`oauth.revoke`) ends the agent sessions and the approval of that AI app, so its next connection
+  shows the consent screen and needs the Madar approval again. The consent refuses an app whose link the person removed
+  (`agent_removed`), also when an old approval stays.
 - No Client ID Metadata Document: it is a fetch, and the office object does no network work.
 - MCP clients try `/.well-known/oauth-authorization-server/mcp` first. Wave 5 adds the Pages Function
   (`server/http/pagesWellKnown.ts`); until then a client finds `/mcp/.well-known/openid-configuration`.

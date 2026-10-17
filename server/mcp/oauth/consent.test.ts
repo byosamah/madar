@@ -65,6 +65,31 @@ describe('the consent with the Madar approval inside (server/mcp/oauth/ops.ts)',
     expect((await call(`/oauth/authorizations/${two}`, hala.token, { method: 'GET' })).body.redirect_url).toMatch(/^http:\/\/127\.0\.0\.1:33418\/callback\?code=/);
   });
 
+  it('asks again after the person removes the AI app in Settings, Agents: no code at once, and the Madar approval again', async () => {
+    const { w, person, call, request } = await world();
+    const hala = await person('usr_002');
+    const { clientId, id } = await request();
+    await call(`/oauth/authorizations/${id}`, hala.token, { method: 'GET' });
+    await call('/agents/approve', hala.token, { body: { authorizationId: id } });
+    await call(`/oauth/authorizations/${id}/consent`, hala.token, { body: { action: 'approve' } });
+    expect(await call('/oauth/grants/revoke', hala.token, { body: { client_id: clientId } })).toMatchObject({ status: 200, body: { ok: true } });
+    expect(w.t.raw.prepare('select count(*) as n from agent_approvals').get()).toEqual({ n: 0 });
+    const again = new URL((await w.root.request(`/mcp/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: CHALLENGE, code_challenge_method: 'S256' })}`)).headers.get('location')!).searchParams.get('authorization_id')!;
+    expect(await call(`/oauth/authorizations/${again}`, hala.token, { method: 'GET' })).toMatchObject({ status: 200, body: { authorization_id: again } });
+    expect(await call(`/oauth/authorizations/${again}/consent`, hala.token, { body: { action: 'approve' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_not_approved' } } } });
+  });
+
+  it('refuses the consent of an AI app that the person removed in Madar, also with an old approval', async () => {
+    const { w, person, call, request } = await world();
+    const hala = await person('usr_002');
+    const { clientId, id } = await request();
+    await call(`/oauth/authorizations/${id}`, hala.token, { method: 'GET' });
+    await call('/agents/approve', hala.token, { body: { authorizationId: id } });
+    w.t.raw.prepare("insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, revoked_at) values (?, 'usr_002', 'usr_901', 'Secret App Name', '127.0.0.1', '2026-10-17T06:00:00.000Z')").run(clientId);
+    expect(await call(`/oauth/authorizations/${id}/consent`, hala.token, { body: { action: 'approve' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'agent_removed' } } } });
+    expect(w.t.raw.prepare('select status from oauth_requests where id = ?').get(id)).toEqual({ status: 'pending' });
+  });
+
   it('denies with access_denied and the state, and records no approval', async () => {
     const { w, person, call, request } = await world();
     const hala = await person('usr_002');

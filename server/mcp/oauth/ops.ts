@@ -13,7 +13,7 @@ import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
 import { userIdOfAuth } from '../../data/officeCache';
 import { notApproved } from '../agentUser';
-import { APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
+import { agentRemoved, APPROVAL_DELETE_LITE, APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
 import { redirectAllowed, registrable, withQuery } from './redirects';
 import {
   CLIENT_BY_ID, CLIENT_INSERT, GRANT_REVOKE, GRANTS_LITE, REQUEST_APPROVE, REQUEST_BIND, REQUEST_BY_CODE, REQUEST_BY_ID, REQUEST_DENY,
@@ -155,6 +155,8 @@ export async function answerConsent(deps: SigninDeps, input: { authId: string; i
       return { redirect_url: withQuery(request.redirect_uri, { error: 'access_denied', state: request.state }) };
     }
     const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    // An old approval of an AI app that the person removed gives no code: the link can never link again.
+    if ((await q(REMOVED_LINK_LITE, [request.client_id, ownerId])).length > 0) throw agentRemoved();
     if ((await q(APPROVAL_LITE, [request.client_id, ownerId])).length === 0) throw notApproved();
     await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
     return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
@@ -167,9 +169,16 @@ export async function listGrants(deps: SigninDeps, input: { authId: string }): P
   return [...rows].sort((a, b) => a.granted_at.localeCompare(b.granted_at) || a.client_id.localeCompare(b.client_id));
 }
 
-/** POST /api/oauth/grants/revoke: ends the agent sessions of one AI app of this person. An app with none is done already. */
+/**
+ * POST /api/oauth/grants/revoke: ends the agent sessions and the approval of one AI app of this person, so its next connection shows
+ * the consent screen and asks for the Madar approval again (as Supabase asked again after a revoke). An app with none is done already.
+ */
 export async function revokeGrant(deps: SigninDeps, input: { authId: string; clientId: string }): Promise<{ ok: true }> {
-  await deps.db.tx('write', (q) => q(GRANT_REVOKE, [input.authId, input.clientId, deps.clock.now().toISOString()]));
+  await deps.db.tx('write', async (q) => {
+    await q(GRANT_REVOKE, [input.authId, input.clientId, deps.clock.now().toISOString()]);
+    const ownerId = userIdOfAuth(await readLiteOffice(deps.db as LiteDb, q), input.authId);
+    if (ownerId !== undefined) await q(APPROVAL_DELETE_LITE, [input.clientId, ownerId]);
+  });
   return { ok: true };
 }
 
