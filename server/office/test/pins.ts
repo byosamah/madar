@@ -44,3 +44,13 @@ export const WRITE_PINS: readonly WritePin[] = [
 export const COLD_EXTRA_ROWS = 4;
 /** The rows that the import writes for each record, at most (wave 0: 980,549 for 138,053 records, 7.1; wave 1: 6.90). */
 export const IMPORT_ROWS_PER_RECORD = 7.5;
+
+/**
+ * The rows that one Cron run reads on the year office, after a first run wrote its reminders (exit wave 3). quarter: a run at
+ * minute 15, with no usage step. hourly: the first run of an hour, which also reads the size of every file version. The first
+ * ceilings were 3,012 (wave 0 measured 2,738 rows for the trigger loader, the dedupe lookup, the outbox and the cleanup, plus 10%)
+ * and 10,000 (one row for each of the 6,000 files and the rest). Task 17 measured 1,486 and 14,695 and set each ceiling to the
+ * measured value plus 10%. The hourly value is above its first ceiling: FILES_BYTES_LITE (server/usage/meters.ts) reads 13,200
+ * rows, one for each file and one more for each of the 7,200 versions that json_each gives. The reason is in proof.md.
+ */
+export const CRON_PINS = { quarter: 1_635, hourly: 16_165 } as const;

@@ -6,7 +6,7 @@ import { rowOf } from '../data/rows';
 import { TABLES, rowsOf } from '../data/tables';
 import type { State } from '../../src/api/store';
 import { startOffice } from './test/harness';
-import { COLD_EXTRA_ROWS, IMPORT_ROWS_PER_RECORD, READ_PINS, WRITE_PINS } from './test/pins';
+import { COLD_EXTRA_ROWS, CRON_PINS, IMPORT_ROWS_PER_RECORD, READ_PINS, WRITE_PINS } from './test/pins';
 import { yearOffice } from './test/yearOffice';
 
 const TODAY = '2026-10-04';
@@ -66,6 +66,15 @@ describe('the rows pins on one year of data (server/office/test/pins.ts)', () =>
       if (rows.rowsWritten > pin.rowsWritten) over.push(`${pin.name}: ${rows.rowsWritten} > ${pin.rowsWritten}`);
     }
     expect(over).toEqual([]);
+  });
+
+  it('keeps one Cron run under its ceiling of rows read', async () => {
+    const office = started.officeByFetch('year');
+    await office.cron('2026-10-04T12:15:00.000Z');
+    const quarter = (await office.cron('2026-10-04T12:30:00.000Z')).rowsRead;
+    const hourly = (await office.cron('2026-10-04T13:00:00.000Z')).rowsRead;
+    if (MEASURE) console.info(`cron pin: quarter ${quarter} rows read (ceiling ${CRON_PINS.quarter}), hourly ${hourly} (ceiling ${CRON_PINS.hourly})`);
+    expect([quarter <= CRON_PINS.quarter, hourly <= CRON_PINS.hourly]).toEqual([true, true]);
   });
 
   it('reads at most a few more rows on the first call after the office object slept', async () => {

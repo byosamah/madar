@@ -25,6 +25,7 @@ export async function startOffice() {
       readBack: send('readBack'),
       statTables: send('statTables'),
       dropIndex: send('dropIndex'),
+      cron: send('cron'),
     };
   };
   return {

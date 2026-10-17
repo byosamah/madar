@@ -13,6 +13,7 @@ import type { Row } from '../../data/rows';
 import { TABLES } from '../../data/tables';
 import { fakeDeps, type FakeDeps } from '../../test/fakes/deps';
 import { doHost, type DoHost, type TraceLine } from '../doHost';
+import { runOfficeJobs } from '../jobs';
 
 /**
  * The office object of test:office (Supabase exit, wave 1). It runs the real runCall on the SQLite path with the fakes of the
@@ -32,6 +33,7 @@ export interface PinOfficeApi {
   readBack(): Promise<State>;
   statTables(): Promise<number>;
   dropIndex(name: string): Promise<void>;
+  cron(at: string): Promise<Rows>;
 }
 
 type Parts = { host: DoHost; db: LiteDb; deps: FakeDeps };
@@ -104,6 +106,14 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     return { result, rows, ...(trace ? { trace } : {}) };
   }
 
+  /** One Cron run of the office jobs (exit wave 3), with the rows that it read and wrote. */
+  async cron(at: string): Promise<Rows> {
+    return (await this.#measured(async ({ deps }) => {
+      deps.clock.set(new Date(at));
+      await runOfficeJobs(deps, new Date(at));
+    }))[1];
+  }
+
   async readBack(): Promise<State> {
     const { db } = await this.#ready();
     return db.tx('read', (q) => liteLoadWhole(q));
@@ -141,4 +151,4 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
   }
 }
 
-const FETCH_METHODS = new Set<string>(['hostChecks', 'writeState', 'load', 'finish', 'call', 'readBack', 'statTables', 'dropIndex'] satisfies (keyof PinOfficeApi)[]);
+const FETCH_METHODS = new Set<string>(['hostChecks', 'writeState', 'load', 'finish', 'call', 'readBack', 'statTables', 'dropIndex', 'cron'] satisfies (keyof PinOfficeApi)[]);
