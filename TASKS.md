@@ -504,6 +504,17 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   keeps no row, and no request runs inside an open transaction (proof.md "Wave 1: the transaction facts", 9ec27c4)
 - [x] Exit wave 1, Tasks 2 to 19: the SQLite path beside Postgres (`rb/cloudflare`): test:lite and test:office green, the rows
   pins on one year of data, the merge gate green (proof.md "Wave 1 of the Supabase exit: done")
+- [x] The plans of exit waves 2 and 3 (`docs/superpowers/plans/2026-10-17-madar-exit-wave2-signin-plan.md`, 22 tasks;
+  `docs/superpowers/plans/2026-10-17-madar-exit-wave3-live-plan.md`, 19 tasks; about 7 builder days each). The main session
+  settled the schema rule (Merge notes, item 1 of both) and accepted the four design choices of wave 3
+- [ ] Exit wave 2 build, Blocks A to D (`~/dev/madar-rb/exit-signin`, `rb/exit-signin`)
+- [ ] Exit wave 3 build, Blocks A to D (`~/dev/madar-rb/exit-live`, `rb/exit-live`)
+- [ ] The second merge of waves 2 and 3: the Merge notes of both plans, item 8 of the wave 3 plan (the sign-in parts on the
+  office object; MCP on the office path may move to wave 4), item 13 of the wave 2 plan (the sign-in specs on a local
+  `wrangler dev`, the screenshots of the Madar sign-in screens)
+- [ ] Before the first `all.sh test` after the wave 3 merge: count the Cron Triggers of the account (Free allows 5)
+- [ ] Wave 5: measure the bill of the callback from the office object into the Worker (wave 3 design choice 1), and one
+  deployed Cron run with many pushes against the 10 ms CPU of Free
 - [ ] Wave 2: `users.invites`, `users.resendInvite`, `agents.list` and `agents.remove` on SQLite (`LATER_CALLS` in
   `server/test/liteHarness.ts`: the invite texts of `server/calls/people.ts` and `server/auth/invite.ts`, the agent links of
   `server/calls/agents.ts`)
