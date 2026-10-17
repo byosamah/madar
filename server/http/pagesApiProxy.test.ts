@@ -107,6 +107,17 @@ describe('the page api on the Worker (owner, 2026-10-16)', () => {
     expect(answer.headers.has('content-length')).toBe(false);
     expect(await answer.text()).toBe('done');
   });
+
+  it('gives the socket answer of the Worker back as it is, with the upgrade header passed on (exit wave 3)', async () => {
+    const seen: Request[] = [];
+    const upgraded = { status: 101, webSocket: {}, headers: new Headers() } as unknown as Response;
+    const binding = { fetch: async (request: Request) => (seen.push(request), upgraded) };
+    const request = new Request(`https://preview.madar-46r.pages.dev/api/live?ticket=${'a'.repeat(64)}`, { headers: { upgrade: 'websocket' } });
+    const answer = await proxyApi(request, { MADAR_SERVER_TEST: binding }, { setting: { test: 'workers', production: 'supabase' } });
+    expect(answer).toBe(upgraded);
+    expect(seen[0].headers.get('upgrade')).toBe('websocket');
+    expect(new URL(seen[0].url).pathname).toBe('/api/live');
+  });
 });
 
 describe('the way back to the Supabase api function', () => {

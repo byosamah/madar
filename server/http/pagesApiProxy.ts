@@ -28,6 +28,7 @@ import {
  * - When the setting says supabase, or the binding is missing, it forwards to the Supabase api function of the copy, pinned to
  *   Frankfurt with forceFunctionRegion, and logs the case. That serves the tabs that a build for the Worker opened before a switch
  *   back. Supabase then sees the address of the Pages Function, not of the person (the forgot limit counts them together).
+ * - A 101 answer of the Worker (the live socket, exit wave 3) goes back as it is.
  */
 
 const PREFIX = '/api';
@@ -51,7 +52,9 @@ export async function proxyApi(request: Request, env: PagesEnv = {}, o: ProxyOpt
   if (binding) {
     const address = request.headers.get('cf-connecting-ip')?.trim();
     if (address) headers.set(CLIENT_ADDRESS_HEADER, address);
-    return answerOf(await binding.fetch(new Request(`${INTERNAL_ORIGIN}${PREFIX}${suffix}${url.search}`, forwardInit(request, headers))));
+    const answer = await binding.fetch(new Request(`${INTERNAL_ORIGIN}${PREFIX}${suffix}${url.search}`, forwardInit(request, headers)));
+    // A socket upgrade (GET /api/live, exit wave 3): the 101 answer carries the socket, and a copy of it would lose the socket.
+    return answer.status === 101 ? answer : answerOf(answer);
   }
 
   (o.log ?? defaultLog)(fallbackLine(FALLBACK, copy, onWorkers ? 'binding_missing' : 'setting'));
