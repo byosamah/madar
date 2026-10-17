@@ -17,6 +17,18 @@ workers_dev = false
 ip = "127.0.0.1"
 port = 8787
 
+# The office object (Supabase exit, wave 3): one SQLite Durable Object for each copy (server/office/office.ts). The Worker uses it
+# only with the var MADAR_DATA = "office" (server/entries/officeEntry.ts), and no env sets that var before wave 5. Bindings do not
+# inherit, so [env.test] repeats the binding. The migration inherits: [env.production] turns it off with an empty list until the
+# switch (wave 6), so no office object deploys to production before it (exit plan, Global Constraints).
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "office-v1"
+new_sqlite_classes = ["Office"]
+
 # The database (proof.md, Z0a item 7): the Workers socket cannot check the private Supabase root, so the Worker connects through
 # Hyperdrive, which checks it (verify-full) and gives the Worker a finished connection string (server/entries/worker.ts).
 # Local runs set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB to the local pooler, so no password is in this file. The id of
@@ -40,6 +52,11 @@ region = "aws:eu-central-1"
 binding = "DB"
 id = "1c4fc4b830234fad8956b6e80c52f4fc"
 
+# The office object of the test copy (wave 3). It holds nothing until wave 5 moves the test copy to it.
+[[env.test.durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
 # Public values. WORKER_REGION is the region label (server/core/deps.ts): no AWS region name, so no MCP region hop starts.
 [env.test.vars]
 SUPABASE_URL = "https://qdgwpnesxppnqsaabqzd.supabase.co"
@@ -53,6 +70,9 @@ enabled = true
 [env.production]
 workers_dev = false
 preview_urls = false
+# No office object in production before the switch (wave 6): no binding, and no migration from the top level. Wrangler prints one
+# warning on each production deploy ("durable_objects exists at the top level, but not on env.production"); it is expected.
+migrations = []
 
 [env.production.placement]
 region = "aws:eu-central-1"

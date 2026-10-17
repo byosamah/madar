@@ -1,0 +1,26 @@
+# The test Worker of the live suites of test:office (Supabase exit, wave 3): the office routes and the TestOffice class on local
+# workerd (wrangler createTestHarness). It never deploys. The harness (harness.ts) passes the values that look like keys as
+# secrets, made for each run: none of them is a real key.
+name = "madar-office-live-test"
+main = "entry.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+MADAR_DATA = "office"
+APP_URL = "http://127.0.0.1:5173"
+MAIL_FROM = "Madar <notices@madar.test>"
+MAIL_DRIVER = "resend"
+SUPABASE_URL = "http://127.0.0.1:54321"
+MADAR_FILE_STORE = "r2"
+R2_BUCKET = "madar-files-test"
+MADAR_LIVE_STALE_MS = "1500"
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "TestOffice"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TestOffice"]

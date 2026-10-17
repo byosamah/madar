@@ -44,9 +44,22 @@ describe('the Workers entry and esbuild', () => {
  * The prototype runtime gives the sample office to session.resetSampleData (src/data/sampleOffice.ts).
  */
 describe('the server entries and the sample office', () => {
-  it.each(['server/entries/deno-api.ts', 'server/entries/deno-mcp.ts', 'server/entries/deno-jobs.ts', 'server/entries/worker.ts'])('%s loads no sample office and no settleFuture', (entry) => {
+  it.each(['server/entries/deno-api.ts', 'server/entries/deno-mcp.ts', 'server/entries/deno-jobs.ts', 'server/entries/worker.ts', 'server/entries/workerMain.ts'])('%s loads no sample office and no settleFuture', (entry) => {
     const graph = staticGraph(entry);
     expect(graph).toContain('src/api/handlers/system.ts');
     expect([...graph].filter((file) => file.startsWith('src/data/'))).toEqual([]);
+  });
+});
+
+describe('the office object in the bundles (exit wave 3)', () => {
+  it('only the Workers bundle reaches the office object; no Supabase function does', () => {
+    expect(staticGraph('server/entries/workerMain.ts')).toContain('server/office/office.ts');
+    for (const entry of ['server/entries/deno-api.ts', 'server/entries/deno-mcp.ts', 'server/entries/deno-jobs.ts', 'server/entries/worker.ts']) {
+      expect([...staticGraph(entry)].filter((file) => file.startsWith('server/office/')), entry).toEqual([]);
+    }
+  });
+
+  it('the Workers bundle holds no test code', () => {
+    expect([...staticGraph('server/entries/workerMain.ts')].filter((file) => file.includes('/test/'))).toEqual([]);
   });
 });

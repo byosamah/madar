@@ -18,6 +18,11 @@ declare module 'cloudflare:workers' {
   export interface DurableObjectState {
     readonly storage: DurableObjectStorage;
     blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
+    acceptWebSocket(socket: WebSocket, tags?: string[]): void;
+    getWebSockets(tag?: string): WebSocket[];
+    setWebSocketAutoResponse(pair?: WebSocketRequestResponsePair): void;
+    getWebSocketAutoResponseTimestamp(socket: WebSocket): Date | null;
+    getTags(socket: WebSocket): string[];
   }
   /** A class whose methods a stub can call over Workers RPC (developers.cloudflare.com, Workers RPC). */
   export abstract class RpcTarget {
@@ -28,4 +33,13 @@ declare module 'cloudflare:workers' {
     protected readonly env: Env;
     constructor(ctx: DurableObjectState, env: Env);
   }
+}
+
+/** The WebSocket globals of workerd that the office object uses (developers.cloudflare.com, Durable Object State, 2026-10-17). */
+declare class WebSocketPair {
+  0: WebSocket;
+  1: WebSocket;
+}
+declare class WebSocketRequestResponsePair {
+  constructor(request: string, response: string);
 }

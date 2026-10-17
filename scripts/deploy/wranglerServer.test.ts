@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { unstable_readConfig } from 'wrangler';
 import { COPIES, COPY_HOSTS } from '../../server/core/serverHost';
 import { PLACEHOLDER_ID, hyperdriveIdOf, workerConfigOf } from './wranglerServer.ts';
 
@@ -90,5 +91,23 @@ describe('hyperdriveIdOf', () => {
     expect(run('test').stdout).toBe(hyperdriveIdOf(toml, 'test'));
     expect(run('production').stdout).toBe(hyperdriveIdOf(toml, 'production') ?? '');
     expect(run('staging').status).toBe(2);
+  });
+});
+
+describe('the office object in wrangler.server.toml (exit wave 3)', () => {
+  const file = fileURLToPath(new URL('../../wrangler.server.toml', import.meta.url));
+  const read = (env?: 'test' | 'production') => unstable_readConfig({ config: file, env }, { hideWarnings: true });
+
+  it('gives the office object to local runs and to the test Worker, and none to production', () => {
+    const office = [{ name: 'OFFICE', class_name: 'Office' }];
+    expect(read().durable_objects.bindings).toEqual(office);
+    expect(read('test').durable_objects.bindings).toEqual(office);
+    expect(read('production').durable_objects.bindings).toEqual([]);
+    expect(read('test').migrations).toEqual([{ tag: 'office-v1', new_sqlite_classes: ['Office'] }]);
+    expect(read('production').migrations).toEqual([]);
+  });
+
+  it('sets MADAR_DATA in no env, so no deployed Worker takes the office path in wave 3', () => {
+    for (const env of [undefined, 'test', 'production'] as const) expect(read(env).vars.MADAR_DATA).toBeUndefined();
   });
 });

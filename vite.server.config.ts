@@ -29,10 +29,10 @@ export function releaseVersion(countCommits: () => string = () => execFileSync('
 
 const EXTERNAL = ['pg', /^node:/];
 
-export function serverEntry(name: string, input: string, outDir: string, conditions: string[]): EnvironmentOptions {
+export function serverEntry(name: string, input: string, outDir: string, conditions: string[], more: string[] = []): EnvironmentOptions {
   return {
     consumer: 'server',
-    resolve: { conditions, externalConditions: conditions, noExternal: true, external: ['pg'] },
+    resolve: { conditions, externalConditions: conditions, noExternal: true, external: ['pg', ...more] },
     build: {
       outDir,
       emptyOutDir: false,
@@ -42,7 +42,7 @@ export function serverEntry(name: string, input: string, outDir: string, conditi
       copyPublicDir: false,
       rollupOptions: {
         input: { [name]: input },
-        external: EXTERNAL,
+        external: [...EXTERNAL, ...more],
         // keepNames: the error classes name themselves from their constructor, and check-bundles finds settleFuture by its name.
         output: { format: 'es', entryFileNames: `${name}.js`, codeSplitting: false, keepNames: true, comments: { legal: true, annotation: true, jsdoc: false } },
       },
@@ -61,7 +61,8 @@ export default defineConfig({
     api: serverEntry('api', 'server/entries/deno-api.ts', 'supabase/functions/_build', DENO),
     mcp: serverEntry('mcp', 'server/entries/deno-mcp.ts', 'supabase/functions/_build', DENO),
     jobs: serverEntry('jobs', 'server/entries/deno-jobs.ts', 'supabase/functions/_build', DENO),
-    worker: serverEntry('worker', 'server/entries/worker.ts', 'dist-server', WORKERD),
+    // The Workers bundle starts at workerMain.ts, which exports the office object (exit wave 3). workerd provides cloudflare:workers.
+    worker: serverEntry('worker', 'server/entries/workerMain.ts', 'dist-server', WORKERD, ['cloudflare:workers']),
   },
   builder: {
     async buildApp(builder) {
