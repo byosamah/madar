@@ -220,6 +220,34 @@ async function withPassword(parts: Awaited<ReturnType<typeof office>>['parts'], 
 
 const mailCalls = (net: { calls: string[] }) => net.calls.filter((call) => call.startsWith('mail '));
 
+describe('the effects of a turn-off in the office object (merge of exit waves 2 and 3)', () => {
+  it('runs every effect of the batch with no host refusal, bans the sign-in row and ends the agent links and sessions', async () => {
+    const log = keptLog();
+    const { parts, seed, raw, net, batch } = await office(undefined, { log });
+    const { authId } = await withPassword(parts, seed, 'usr_007');
+    const clientId = crypto.randomUUID();
+    await parts.db.tx('write', async (q) => {
+      await q('insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, approved_at) values (?1, ?2, ?3, ?4, ?5, ?6)', [clientId, 'usr_007', 'usr_090', 'Claude', 'claude.ai', NOW]);
+      await q('insert into agent_approvals (client_id, owner_user_id, approved_at) values (?1, ?2, ?3)', [clientId, 'usr_007', NOW]);
+      await q("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at, created_at) values ('agent-s', ?1, ?2, 'oauth', 'h-agent', '2026-11-04T06:00:00.000Z', ?3)", [authId, clientId, NOW]);
+      await q("insert into auth_sessions (id, auth_id, amr, refresh_hash, expires_at, created_at) values ('browser-s', ?1, 'password', 'h-browser', '2026-11-04T06:00:00.000Z', ?2)", [authId, NOW]);
+    });
+    const { answer, later } = ok(await batch('usr_001', [{ name: 'users.deactivate', input: { id: 'usr_007' } }]));
+    expect(answer.results[0].ok).toBe(true);
+    expect(await parts.runEffects({ ids: later, worker: 0 }, net)).toMatchObject({ failed: 0 });
+    // Every outbox row of the batch ran, and no statement met the refusal of the SQLite host.
+    const rows = raw.prepare('select kind, done_at, error from outbox').all() as { kind: string; done_at: string | null; error: string | null }[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect([row.kind, row.done_at !== null, row.error]).toEqual([row.kind, true, null]);
+    expect(log.lines.filter((line) => JSON.stringify(line).includes('Give the caller a SQLite form'))).toEqual([]);
+    expect(log.lines.filter((line) => line.level !== 'info')).toEqual([]);
+    expect(raw.prepare('select banned from auth_users where id = ?').get(authId)).toEqual({ banned: 1 });
+    expect(raw.prepare('select revoked_at is not null as ended from agent_links').all()).toEqual([{ ended: 1 }]);
+    expect(raw.prepare('select count(*) as n from agent_approvals').get()).toEqual({ n: 0 });
+    expect(raw.prepare('select id, revoked_at is not null as ended from auth_sessions order by id').all()).toEqual([{ id: 'agent-s', ended: 1 }, { id: 'browser-s', ended: 1 }]);
+  });
+});
+
 describe('the sign-in steps in the office object (Office.signin)', () => {
 
   it('signs a person in with the key of MADAR_AUTH_PRIVATE_JWK, and the token carries the own issuer', async () => {
