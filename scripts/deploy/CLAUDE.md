@@ -190,9 +190,20 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
 ## The server host (owner, 2026-10-16)
 `config/server-host.json` holds one word for each copy: `supabase` (the Supabase functions) or `workers` (the Worker of the
 copy). Exit wave 4 adds `office` (the office object of the Worker), for the test copy only: the setting refuses `production:
-office` until the switch (wave 6). The office branches of `all.sh`, `worker.sh` and `checks.sh` come with Task 20 of the wave 4
-plan; until then no copy takes the word. With `workers`, the database, Auth and Realtime stay on Supabase. Every `all.sh` run deploys both hosts with the same code, so the other
-host is always the way back. The file store does not follow the host (see the R2 runbook).
+office` until the switch (wave 6). With `workers`, the database, Auth and Realtime stay on Supabase. Every `all.sh` run of
+`supabase` or `workers` deploys both hosts with the same code, so the other host is always the way back. The file store does not
+follow the host (see the R2 runbook).
+- The word `office` (exit wave 4; the test copy only until wave 6): the copy runs on its office object. `all.sh` then runs
+  `secrets.ts --office` (the Worker secrets only: no Supabase token, no database password, no Hyperdrive; `MADAR_SECRET_KEY` and
+  `MADAR_AUTH_PRIVATE_JWK` stay as the Worker has them), `worker.sh` (it builds the bundle and deploys with `--var MADAR_DATA:office`),
+  `pages.sh` (the screens with `VITE_MADAR_AUTH=madar` and `VITE_MADAR_LIVE=socket`) and `checks.sh` (`office;colo=...` and the office
+  health). `db.sh`, `config.sh` and `functions.sh` stay out: the Supabase project keeps its last state as the way back.
+- The office ops (`/api/office/export|import|peek|drop`) reach the Worker of a copy through the Pages binding whatever the word says,
+  and need `MADAR_EXPORT_SECRET` or `MADAR_OPS_SECRET`. Both go into `secrets/<env>.env`, and `secrets.ts` gives them to the Worker
+  on every word (never to the Supabase functions). `npx tsx scripts/office/new-secret.ts test <NAME>` makes each one (the owner
+  runs it), `npx tsx scripts/office/auth-key.ts test` makes the sign-in key. `MADAR_AUTH_PRIVATE_JWK` never goes into a secrets
+  file: `secrets.ts` refuses a file that holds it. The first switch of the test copy: wave 5, Part 2 of
+  `docs/superpowers/plans/2026-10-17-madar-exit-wave4-ops-plan.md`.
 - What follows the word: the `VITE_API_URL` of the screens (`build:remote`: the page's own `/api`, or the api function); the
   Pages Functions of `/api` and `/mcp` (the Worker through the service binding, or the Supabase function); the calls limit of
   the Usage page (10 million or 500,000; the 10 million are the Paid month, see First setup step 1); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
@@ -204,7 +215,7 @@ host is always the way back. The file store does not follow the host (see the R2
   Hyperdrive configs `madar-db-test` and `madar-db-production` (the session pooler, port 5432: the transaction pooler hangs
   behind Hyperdrive, proof.md). Ids in `accounts.md`.
 - `secrets.ts` gives the Worker every function secret but `DATABASE_URL`, `DATABASE_READ_URL` and `DATABASE_CA` (Hyperdrive
-  replaces them), with `MADAR_SECRET_KEY` from the Management API and `MCP_URL` required. A name removed from the file goes as
+  replaces them), and the two office secrets, with `MADAR_SECRET_KEY` from the Management API and `MCP_URL` required. A name removed from the file goes as
   null, so the Worker loses it. The same run sets the Hyperdrive password from `DATABASE_URL`, so a new password never cuts the
   Worker off. A deploy resets the Worker vars (`SUPABASE_URL`, `WORKER_REGION`) to the file and keeps its secrets.
 

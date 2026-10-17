@@ -20,6 +20,9 @@ import { hyperdriveOrigin, type HyperdriveOrigin } from './cloudflare.ts';
  *      from DATABASE_URL, then its secrets with `wrangler secret bulk` (JSON on stdin), every function secret but the database
  *      values, with MADAR_SECRET_KEY from the Management API. A Worker that does not exist yet is skipped with a clear line.
  *
+ * With --office (exit wave 4; all.sh runs it for a copy whose host word is office) it runs only step 4 without Hyperdrive: the
+ * Worker secrets of the file and the office secrets, with no Supabase token and no database password (runOfficeSecrets).
+ *
  * It needs SUPABASE_ACCESS_TOKEN (the Madar account, never the Halulu sign-in of the CLI) and the postgres password of the project:
  * MADAR_TEST_DB_PASSWORD for test, MADAR_DB_PASSWORD for production. Production runs from the Mac only, after the typed word
  * production (plan, section 10, decision 9). It prints names, never a value.
@@ -49,6 +52,13 @@ export const FUNCTION_SECRETS = [
   'MIN_CLIENT_BUILD', 'ALLOWED_ORIGINS', 'MCP_FORWARD_REGION', 'MADAR_LOCK_KEY', 'JOBS_SECRET', 'MADAR_SECRET_KEY', 'AUTH_ISSUER',
   'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
 ] as const;
+/**
+ * The secrets of an office copy (exit wave 4): the export route (GitHub) and the ops routes (the Mac). They go to the Worker only,
+ * never to the Supabase functions, and on every word of the copy: the ops reach the Worker whenever the binding exists.
+ */
+export const OFFICE_WORKER_SECRETS = ['MADAR_EXPORT_SECRET', 'MADAR_OPS_SECRET'] as const;
+/** Never in a secrets file: scripts/office/auth-key.ts writes the sign-in key straight to the Worker (wave 2, Merge notes 14). */
+export const KEPT_ON_WORKER = ['MADAR_AUTH_PRIVATE_JWK'] as const;
 /** Browser push (owner, 2026-10-08): all three or none (server/core/deps.ts). scripts/push/make-vapid.ts writes them. */
 const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
@@ -72,8 +82,14 @@ export function r2Values(values: Record<string, string | undefined>, target: Tar
   return { accountId: values.R2_ACCOUNT_ID!, accessKeyId: values.R2_ACCESS_KEY_ID!, secretAccessKey: values.R2_SECRET_ACCESS_KEY!, bucket: values.R2_BUCKET! };
 }
 
-/** The KEY=VALUE lines of secrets/<env>.env. Errors name the line or the name, never a value. */
-export function parseSecretsFile(text: string): Record<string, string> {
+/** The names that a secrets file may hold: the function secrets and the Worker secrets of an office copy. */
+const FILE_NAMES: readonly string[] = [...FUNCTION_SECRETS, ...OFFICE_WORKER_SECRETS];
+
+/**
+ * The KEY=VALUE lines of secrets/<env>.env. Errors name the line or the name, never a value. file names the file in the refusal
+ * of the sign-in key.
+ */
+export function parseSecretsFile(text: string, o: { file?: string } = {}): Record<string, string> {
   const values: Record<string, string> = {};
   text.split('\n').forEach((raw, index) => {
     const line = raw.trim();
@@ -83,7 +99,8 @@ export function parseSecretsFile(text: string): Record<string, string> {
     if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error(`secrets file, line ${index + 1}: not a NAME=value line.`);
     if (name.startsWith('SUPABASE_')) throw new Error(`${name}: Supabase injects every SUPABASE_ name into the functions, and refuses your own.`);
     if (name === 'DATABASE_CA') throw new Error('DATABASE_CA: leave it out. secrets.ts sets the Supabase root certificate (config/supabase-root-2021-ca.crt).');
-    if (!(FUNCTION_SECRETS as readonly string[]).includes(name)) throw new Error(`${name}: the server reads no such value. Known names: ${FUNCTION_SECRETS.join(', ')}.`);
+    if ((KEPT_ON_WORKER as readonly string[]).includes(name)) throw new Error(`${name} must not be in ${o.file ?? 'a secrets file'}: scripts/office/auth-key.ts writes it to the Worker.`);
+    if (!FILE_NAMES.includes(name)) throw new Error(`${name}: the server reads no such value. Known names: ${FILE_NAMES.join(', ')}.`);
     if (name in values) throw new Error(`${name}: the file sets it twice.`);
     values[name] = line.slice(at + 1).trim().replace(/^(["'])(.*)\1$/, '$2');
   });
@@ -226,9 +243,11 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
   const ref = REFS[run.target];
   if (!ref) throw new Error('The target must be test or production.');
   await confirmProduction(run, ref);
-  const values = parseSecretsFile(run.text);
+  const values = parseSecretsFile(run.text, { file: `secrets/${run.target}.env` });
   const checked = checkSecrets(values, ref);
-  const secrets = [...Object.entries(values).map(([name, value]) => ({ name, value })), { name: 'DATABASE_CA', value: run.rootCa }];
+  // The office secrets go to the Worker only (pushWorker): the functions read no such value.
+  const functionValues = Object.entries(values).filter(([name]) => (FUNCTION_SECRETS as readonly string[]).includes(name));
+  const secrets = [...functionValues.map(([name, value]) => ({ name, value })), { name: 'DATABASE_CA', value: run.rootCa }];
   const projectUrl = `https://${ref}.supabase.co`;
   const names = secrets.map((secret) => secret.name).join(', ');
 
@@ -286,8 +305,14 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
 
 /** Hyperdrive replaces the database values on the Worker (the binding DB of wrangler.server.toml), so these never go there. */
 export const NOT_FOR_WORKER = ['DATABASE_URL', 'DATABASE_READ_URL', 'DATABASE_CA'] as const;
-/** The secret names of the Worker: every function secret but the database values. MADAR_SECRET_KEY comes from the Management API. */
-export const WORKER_SECRETS: readonly string[] = FUNCTION_SECRETS.filter((name) => !(NOT_FOR_WORKER as readonly string[]).includes(name));
+/**
+ * The secret names of the Worker: every function secret but the database values, and the office secrets (exit wave 4).
+ * MADAR_SECRET_KEY comes from the Management API.
+ */
+export const WORKER_SECRETS: readonly string[] = [
+  ...FUNCTION_SECRETS.filter((name) => !(NOT_FOR_WORKER as readonly string[]).includes(name)),
+  ...OFFICE_WORKER_SECRETS,
+];
 
 export type WorkerPort = {
   /** True when the Worker exists on the Cloudflare account. */
@@ -363,12 +388,53 @@ async function pushWorker(run: SecretsRun, ref: string, token: string, values: R
   if (removed.length > 0) run.log(`Removed from the Worker (not in the file): ${removed.join(', ')}.`);
 }
 
+/**
+ * The bulk JSON of an office copy (exit wave 4): every Worker secret of the file, or null to remove it. MADAR_SECRET_KEY stays
+ * out: the Worker keeps the key that the earlier runs gave it, so an office deploy needs no Supabase token.
+ */
+export function officeSecretsOf(values: Record<string, string>): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const name of WORKER_SECRETS) if (name !== 'MADAR_SECRET_KEY') out[name] = values[name] ?? null;
+  return out;
+}
+
+export type OfficeSecretsRun = {
+  target: Target; text: string; dryRun: boolean; log: (line: string) => void;
+  worker: Pick<WorkerPort, 'exists' | 'secretBulk'>;
+};
+
+/**
+ * secrets.ts <env> --office (exit wave 4): the Worker secrets of an office copy only. No Supabase token, no database password,
+ * no Hyperdrive and no function secret: the Supabase project keeps its last state as the way back. The test copy only until the
+ * switch of production (wave 6).
+ */
+export async function runOfficeSecrets(run: OfficeSecretsRun): Promise<void> {
+  if (run.target !== 'test') throw new Error('Only the test copy runs on its office object now; production comes with the switch (wave 6).');
+  const values = parseSecretsFile(run.text, { file: `secrets/${run.target}.env` });
+  if (!values.MCP_URL) throw new Error(`MCP_URL is missing in secrets/${run.target}.env: the own OAuth issuer comes from it.`);
+  const secrets = officeSecretsOf(values);
+  const set = Object.keys(secrets).filter((name) => secrets[name] !== null);
+  const removed = Object.keys(secrets).filter((name) => secrets[name] === null);
+  if (run.dryRun) {
+    run.log(`Dry run of the office copy ${run.target}. Worker secrets: ${set.join(', ')}. Removed: ${removed.join(', ') || 'none'}. Kept: MADAR_SECRET_KEY, ${KEPT_ON_WORKER.join(', ')}.`);
+    return;
+  }
+  const name = COPY_HOSTS[run.target].workers.name;
+  if (!(await run.worker.exists(name))) {
+    run.log(`Skip: ${name} does not exist yet. Run scripts/deploy/worker.sh ${run.target} first.`);
+    return;
+  }
+  await run.worker.secretBulk(run.target, JSON.stringify(secrets));
+  run.log(`Worker secrets of ${name}: ${set.join(', ')}. Kept as they are: MADAR_SECRET_KEY, ${KEPT_ON_WORKER.join(', ')}.`);
+  if (removed.length > 0) run.log(`Removed from the Worker (not in the file): ${removed.join(', ')}.`);
+}
+
 const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const args = process.argv.slice(2);
   const target = args.find((arg) => !arg.startsWith('--'));
   if (target !== 'test' && target !== 'production') {
-    console.error('Usage: npx tsx scripts/deploy/secrets.ts <test|production> [--dry-run]');
+    console.error('Usage: npx tsx scripts/deploy/secrets.ts <test|production> [--dry-run] [--office]');
     process.exit(2);
   }
   const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -377,7 +443,6 @@ if (isMain) {
     console.error(`${file} is missing. It holds the function secrets of ${target} (git ignores secrets/).`);
     process.exit(1);
   }
-  const { default: pg } = await import('pg');
   const cloudflare = await import('./cloudflare.ts');
   const wrangler = `${root}node_modules/.bin/wrangler`;
   const wranglerEnv = { ...process.env, CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID ?? cloudflare.ACCOUNT_ID };
@@ -391,6 +456,31 @@ if (isMain) {
     }
     return api;
   };
+  const exists = async (name: string): Promise<boolean> => {
+    const answer = await (await cf())(`/workers/scripts/${name}/settings`);
+    if (answer.status === 404) return false;
+    if (!answer.success) throw new Error(`The Cloudflare API refused the check of the Worker ${name}: ${cloudflare.codesOf(answer)}. Run npx wrangler whoami, then secrets.ts again.`);
+    return true;
+  };
+  const secretBulk = async (env: Target, json: string): Promise<void> => {
+    const values = Object.values(JSON.parse(json) as Record<string, string | null>).filter((value): value is string => typeof value === 'string');
+    // The values go on stdin only: never in an argument, never in a file.
+    const { code, output } = await cloudflare.runWithStdin(wrangler, ['secret', 'bulk', '-c', 'wrangler.server.toml', '--env', env], json, { cwd: root, env: wranglerEnv });
+    if (code !== 0) {
+      const tail = cloudflare.redact(output, values).trim().split('\n').slice(-6).join(' | ');
+      throw new Error(`wrangler secret bulk failed for ${env} (exit ${code}): ${tail}`);
+    }
+  };
+  const failed = (error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  };
+  if (args.includes('--office')) {
+    // An office copy (exit wave 4): the Worker secrets only. No pg, no Supabase token, no database password.
+    await runOfficeSecrets({ target, text: readFileSync(file, 'utf8'), dryRun: args.includes('--dry-run'), log: (line) => console.log(line), worker: { exists, secretBulk } }).catch(failed);
+    process.exit(0);
+  }
+  const { default: pg } = await import('pg');
   runSecrets({
     target,
     text: readFileSync(file, 'utf8'),
@@ -437,12 +527,7 @@ if (isMain) {
     },
     log: (line) => console.log(line),
     worker: {
-      exists: async (name) => {
-        const answer = await (await cf())(`/workers/scripts/${name}/settings`);
-        if (answer.status === 404) return false;
-        if (!answer.success) throw new Error(`The Cloudflare API refused the check of the Worker ${name}: ${cloudflare.codesOf(answer)}. Run npx wrangler whoami, then secrets.ts again.`);
-        return true;
-      },
+      exists,
       hyperdriveId: async (name) => {
         const answer = await (await cf())<{ id: string; name: string }[]>('/hyperdrive/configs');
         if (!answer.success) throw new Error(`The Cloudflare API refused the list of the Hyperdrive configs: ${cloudflare.codesOf(answer)}.`);
@@ -455,19 +540,8 @@ if (isMain) {
           throw answer.errors.some((e) => e.code === 2013) ? new HyperdriveCredentialsRefused(text) : new Error(text);
         }
       },
-      secretBulk: async (env, json) => {
-        const values = Object.values(JSON.parse(json) as Record<string, string | null>).filter((value): value is string => typeof value === 'string');
-        // The values go on stdin only: never in an argument, never in a file.
-        const { code, output } = await cloudflare.runWithStdin(wrangler, ['secret', 'bulk', '-c', 'wrangler.server.toml', '--env', env], json, { cwd: root, env: wranglerEnv });
-        if (code !== 0) {
-          const tail = cloudflare.redact(output, values).trim().split('\n').slice(-6).join(' | ');
-          throw new Error(`wrangler secret bulk failed for ${env} (exit ${code}): ${tail}`);
-        }
-      },
+      secretBulk,
     },
     secretKey: async (ref, token) => (await import('../first-admin.ts')).secretKeyFromApi(ref, token),
-  }).catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
-  });
+  }).catch(failed);
 }

@@ -33,6 +33,12 @@ else
 fi
 # The Madar Cloudflare account (accounts.md). Not a secret.
 export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-d76d34779c63849f5acdf3d6af3751cd}"
-"$BIN/wrangler" deploy -c wrangler.server.toml --env "$TARGET"
+# An office copy (config/server-host.json, exit wave 4): MADAR_DATA = office turns its office path on. wrangler.server.toml sets
+# the var for no env, so the word stays the one switch. Bash 3.2 with set -u needs the guarded form of an empty array.
+vars=()
+if [ "$(node scripts/deploy/serverHost.ts host "$TARGET")" = office ]; then
+  vars=(--var MADAR_DATA:office)
+fi
+"$BIN/wrangler" deploy -c wrangler.server.toml --env "$TARGET" ${vars[@]+"${vars[@]}"}
 "$BIN/wrangler" deployments list -c wrangler.server.toml --env "$TARGET"
 echo "$worker is deployed. secrets.ts sets its secrets (all.sh runs it before this step)."

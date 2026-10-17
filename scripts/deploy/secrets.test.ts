@@ -4,13 +4,17 @@ import { describe, expect, it } from 'vitest';
 import {
   HEALTH_LOCK_KEY,
   HyperdriveCredentialsRefused,
+  KEPT_ON_WORKER,
   NOT_FOR_WORKER,
+  OFFICE_WORKER_SECRETS,
   R2_BUCKETS,
   SIGN_IN_LIMIT_MS,
   SIGN_IN_WAIT_MS,
   WORKER_SECRETS,
   checkSecrets,
+  officeSecretsOf,
   parseSecretsFile,
+  runOfficeSecrets,
   runSecrets,
   scramSha256Verifier,
   serverRoleSql,
@@ -633,5 +637,66 @@ describe('the Worker of the copy (owner, 2026-10-16)', () => {
     const word = harness({ target: 'production', answer: 'yes', env: { SUPABASE_ACCESS_TOKEN: 't', MADAR_DB_PASSWORD: 'p' }, worker: true });
     await expect(runSecrets(word.run)).rejects.toThrow(/typed word/);
     expect([ci.workerCalls, word.workerCalls]).toEqual([[], []]);
+  });
+});
+
+describe('the Worker secrets of an office copy (exit wave 4)', () => {
+  const office = 'APP_URL=https://preview.madar-46r.pages.dev\nMCP_URL=https://preview.madar-46r.pages.dev/mcp\nMAIL_FROM=Madar <madar@vado.sa>\nMAIL_DRIVER=outbox\nJOBS_SECRET=j\nMADAR_OPS_SECRET=o\nMADAR_EXPORT_SECRET=e\n';
+  const worker = (sent: string[] = [], exists = true) => ({ exists: async () => exists, secretBulk: async (_t: string, json: string) => void sent.push(json) });
+
+  it('sends every Worker secret of the file, the office secrets too, and never MADAR_SECRET_KEY or the sign-in key', () => {
+    const out = officeSecretsOf(parseSecretsFile(office));
+    expect(out).toMatchObject({ MADAR_OPS_SECRET: 'o', MADAR_EXPORT_SECRET: 'e', JOBS_SECRET: 'j', RESEND_API_KEY: null });
+    expect(out).not.toHaveProperty('MADAR_SECRET_KEY');
+    expect(out).not.toHaveProperty('MADAR_AUTH_PRIVATE_JWK');
+    expect(OFFICE_WORKER_SECRETS.every((name) => WORKER_SECRETS.includes(name))).toBe(true);
+    expect(KEPT_ON_WORKER.some((name) => WORKER_SECRETS.includes(name))).toBe(false);
+  });
+
+  it('refuses a file that holds the sign-in key: scripts/office/auth-key.ts writes it to the Worker', async () => {
+    const run = { target: 'test' as const, text: `${office}MADAR_AUTH_PRIVATE_JWK={}\n`, dryRun: true, log: () => undefined, worker: worker() };
+    await expect(runOfficeSecrets(run)).rejects.toThrow('MADAR_AUTH_PRIVATE_JWK must not be in secrets/test.env');
+    expect(refusal(() => parseSecretsFile('MADAR_AUTH_PRIVATE_JWK={"d":"leaky-value-1"}'))).not.toContain('leaky-value-1');
+  });
+
+  it('sends the JSON to wrangler secret bulk once, and needs no Supabase token', async () => {
+    const sent: string[] = [];
+    const logs: string[] = [];
+    await runOfficeSecrets({ target: 'test', text: office, dryRun: false, log: (line) => logs.push(line), worker: worker(sent) });
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0])).toMatchObject({ MADAR_OPS_SECRET: 'o' });
+    for (const value of ['"o"', '"e"', '"j"']) expect(logs.join('\n')).not.toContain(value);
+    expect(logs.join('\n')).toContain('MADAR_OPS_SECRET');
+  });
+
+  it('skips a Worker that does not exist yet, sends nothing in a dry run, and needs MCP_URL', async () => {
+    const sent: string[] = [];
+    const logs: string[] = [];
+    await runOfficeSecrets({ target: 'test', text: office, dryRun: false, log: (line) => logs.push(line), worker: worker(sent, false) });
+    expect(logs.join('\n')).toContain('Skip: madar-server-test does not exist yet');
+    await runOfficeSecrets({ target: 'test', text: office, dryRun: true, log: (line) => logs.push(line), worker: worker(sent) });
+    expect(sent).toEqual([]);
+    expect(logs.at(-1)).toContain('Dry run of the office copy test');
+    await expect(runOfficeSecrets({ target: 'test', text: office.replace(/^MCP_URL=.*\n/m, ''), dryRun: true, log: () => undefined, worker: worker() })).rejects.toThrow('MCP_URL is missing');
+  });
+
+  it('takes no production copy before the switch of wave 6', async () => {
+    await expect(runOfficeSecrets({ target: 'production', text: office, dryRun: true, log: () => undefined, worker: worker() })).rejects.toThrow('wave 6');
+  });
+
+  it('gives the office secrets to the Worker on the Supabase path too, and never to the Supabase functions', async () => {
+    const h = harness({ text: file(TEST, 'MCP_URL=https://preview.madar-46r.pages.dev/mcp\nMADAR_OPS_SECRET=ops-secret-value-1\nMADAR_EXPORT_SECRET=export-secret-value-1'), worker: true });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    for (const name of OFFICE_WORKER_SECRETS) expect(body.map((secret) => secret.name)).not.toContain(name);
+    const call = h.workerCalls.find((c) => c.step === 'secretBulk')!;
+    expect(JSON.parse(String(call.args[1]))).toMatchObject({ MADAR_OPS_SECRET: 'ops-secret-value-1', MADAR_EXPORT_SECRET: 'export-secret-value-1' });
+    for (const value of ['ops-secret-value-1', 'export-secret-value-1']) expect(h.logs.join('\n')).not.toContain(value);
+  });
+
+  it('refuses the sign-in key on the Supabase path too, before any change', async () => {
+    const h = harness({ text: file(TEST, 'MADAR_AUTH_PRIVATE_JWK={}'), worker: true });
+    await expect(runSecrets(h.run)).rejects.toThrow('MADAR_AUTH_PRIVATE_JWK must not be in secrets/test.env');
+    expect([h.sql, h.requests]).toEqual([[], []]);
   });
 });

@@ -541,7 +541,7 @@ function productionHyperdrive(): void {
 }
 
 /** Sets the word of one copy in the copied config/server-host.json. */
-function setHost(copy: 'test' | 'production', word: 'supabase' | 'workers'): void {
+function setHost(copy: 'test' | 'production', word: 'supabase' | 'workers' | 'office'): void {
   const file = join(root, 'config/server-host.json');
   const setting = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
   writeFileSync(file, `${JSON.stringify({ ...setting, [copy]: word })}\n`);
@@ -712,5 +712,44 @@ describe('checks.sh (owner, 2026-10-16)', () => {
     const result = run('checks.sh', ['test'], { env: {} });
     expect(result.code).not.toBe(0);
     expect(result.calls).toEqual([]);
+  });
+});
+
+describe('all.sh, worker.sh and checks.sh on an office copy (exit wave 4)', () => {
+  const OFFICE_HEALTH = '{"ok":true,"host":"office","office":{"schema":3,"lastJob":null}}';
+
+  it('runs only the Worker secrets, the Worker with MADAR_DATA = office, the screens and the checks: no Supabase step', () => {
+    setHost('test', 'office');
+    mkdirSync(join(root, 'secrets'), { recursive: true });
+    writeFileSync(join(root, 'secrets/test.env'), 'APP_URL=https://x\nJOBS_SECRET=jobs-secret-value-9\n', { mode: 0o600 });
+    const result = run('all.sh', ['test'], { env: { STUB_SERVER: 'office;colo=FRA', STUB_CHECKS: OFFICE_HEALTH } });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain('The test copy runs on its office object: db.sh, config.sh and functions.sh stay out.');
+    expect(result.calls.filter((call) => call.startsWith('supabase '))).toEqual([]);
+    expect(result.calls).toContain('tsx ' + join(root, 'scripts/deploy/secrets.ts') + ' test --office');
+    expect(result.calls).toContain('npm run build:server');
+    expect(result.calls).toContain('wrangler deploy -c wrangler.server.toml --env test --var MADAR_DATA:office');
+    expect(result.out).toContain('Office check: the office object answers with its schema and its last job.');
+    expect(result.out).toContain('The quick checks of test passed on the host office.');
+  });
+
+  it('deploys a copy of another word with no MADAR_DATA var, as before', () => {
+    const result = run('worker.sh', ['test'], { env: TOKENS });
+    expect(result.code, result.out).toBe(0);
+    expect(result.calls).toContain('wrangler deploy -c wrangler.server.toml --env test');
+    expect(result.calls.join('\n')).not.toContain('MADAR_DATA');
+  });
+
+  it('refuses an office health answer that has no office object, and an answer from another host', () => {
+    setHost('test', 'office');
+    mkdirSync(join(root, 'secrets'), { recursive: true });
+    writeFileSync(join(root, 'secrets/test.env'), 'APP_URL=https://x\nJOBS_SECRET=jobs-secret-value-9\n', { mode: 0o600 });
+    const plain = run('checks.sh', ['test'], { env: { STUB_SERVER: 'office;colo=FRA' } });
+    expect(plain.code).toBe(1);
+    expect(plain.out).toContain('did not give the office object');
+    writeFileSync(log, '');
+    const other = run('checks.sh', ['test'], { env: { STUB_SERVER: 'workers;colo=FRA', STUB_CHECKS: OFFICE_HEALTH } });
+    expect(other.code).toBe(1);
+    expect(other.out).toContain('did not answer 200 from the host office');
   });
 });

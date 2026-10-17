@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # scripts/deploy/checks.sh <test|production>: the quick checks after a deploy (owner, 2026-10-16), through the page host of the
 # copy, the address that the screens and the agents use. They only read, so production needs no typed word here.
-#   1. GET <page>/api/health gives 200, and x-madar-server names the host of config/server-host.json: workers;colo=<data center>
-#      or supabase. Up to 6 tries, 10 s apart, while the new Pages deploy settles.
+#   1. GET <page>/api/health gives 200, and x-madar-server names the host of config/server-host.json: workers;colo=<data center>,
+#      office;colo=<data center> (exit wave 4) or supabase. Up to 6 tries, 10 s apart, while the new Pages deploy settles.
 #   2. With JOBS_SECRET in secrets/<env>.env: the same GET with x-madar-jobs-secret (curl reads it from stdin with -K -, never
 #      from an argument) gives database, lock and asyncContext ok: the database path, TLS, the transaction lock, AsyncLocalStorage.
+#      On an office copy it gives the schema and the last job of the office object instead.
 #   3. POST <page>/mcp with no token gives 401, with x-madar-server of the same host.
 . "$(dirname "$0")/lib.sh"
 deploy_target "${1:-}"
@@ -22,6 +23,7 @@ body_of() { printf '%s\n' "$1" | tr -d '\r' | sed '1,/^$/d'; }
 names_host() {
   case "$host:$1" in
     workers:workers\;colo=*) return 0 ;;
+    office:office\;colo=*) return 0 ;;
     supabase:supabase) return 0 ;;
   esac
   return 1
@@ -58,7 +60,12 @@ if [ -f "$file" ] && grep -q '^JOBS_SECRET=.' "$file"; then
     const value = /^JOBS_SECRET=(.*)$/m.exec(text)[1].trim().replace(/^(["\x27])(.*)\1$/, "$2");
     process.stdout.write(`header = "x-madar-jobs-secret: ${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"\n`);
   ' "$file" | curl -sS --max-time 20 -K - "$page/api/health" 2>/dev/null || true)"
-  case "$checked" in
+  case "$host:$checked" in
+    office:*'"office":{"schema":'*) echo "Office check: the office object answers with its schema and its last job." ;;
+    office:*)
+      echo "Stopped: the health check with the jobs secret did not give the office object of $page." >&2
+      exit 1
+      ;;
     *'"database":"ok"'*'"lock":"ok"'*'"asyncContext":"ok"'*) echo "Database check: database, lock and asyncContext ok." ;;
     *)
       echo "Stopped: the health check with the jobs secret did not give database, lock and asyncContext ok on $page." >&2
