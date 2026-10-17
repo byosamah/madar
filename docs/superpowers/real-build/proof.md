@@ -976,6 +976,23 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   database check ok, `POST /mcp` 401), madar.vado.sa 200 with the title Madar, `/favicon.ico` 200, www 200, the live bundle is the
   one of `9e1127b4.madar-46r.pages.dev`, and the production logs had 0 `EMAXCONN` and 0 failed batches after the deploy.
 
+### Test copy at b4eb2e6: exit waves 1 to 4 with the word supabase (2026-10-17, wave 5 R3)
+- **Before the deploy:** the owner ran `npm install` in `deploy-test` (it added `bcryptjs`). GitHub started no CI job (the billing
+  refusal of 13:08 UTC), so the gate ran on the Mac: `npm run typecheck` passed, `npm test` 5,393 passed and 6 skipped (532 files).
+  `test:db`, `test:it` and `test:mcp` did not run again: after the wave 4 gate, only screens, two workflow files and their test
+  changed.
+- **`all.sh test`, run by Claude.** It had no keyboard, so the config question took its default (yes): the known `api.enabled`
+  difference. No new migration. The functions api, mcp and jobs deployed; `api` answers in eu-central-1 with 117 calls.
+- **The Worker `madar-server-test`** (version `1d1ba199`): the binding `OFFICE` (the empty office object, migration `office-v1`),
+  `MADAR_TEST_TOOLS` on, `MADAR_DAY_CAP`, and the Cron `*/15 * * * *`. Its `scheduled()` returns at once while the word is
+  `supabase`. The account has 1 Cron Trigger of 5 (`madar-server-test` only; read-only count through the API).
+- **Not set yet:** `MADAR_EXPORT_SECRET` and `MADAR_OPS_SECRET` (wave 5 R2, the owner makes them). So the R3 check with the export
+  secret waits for R2.
+- **Checks:** `checks.sh` passed (health from `supabase`, `"fileStore":"r2"`, database check ok, `POST /mcp` with no token 401).
+  `POST /api/office/export` and `/api/office/import` with no secret, and export with a wrong secret: 401 each. The test page is 200
+  with the title Madar (`29694c3f.madar-46r.pages.dev`). Production did not change: madar.vado.sa 200, `x-madar-server: supabase`.
+- **Not run:** the deploy suite. Production does not take this commit now; wave 5 R7 runs the suite on the office path.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

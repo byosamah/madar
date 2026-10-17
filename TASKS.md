@@ -586,6 +586,12 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Owner: GitHub refuses to start every CI job of byosamah/madar since 2026-10-17 13:08 UTC ("recent account payments have
   failed or your spending limit needs to be increased"). The nightly backup at 01:15 UTC ran before that. If the refusal stays,
   the nightly database backup stops too. See github.com/settings/billing
+- [x] Wave 5 R3: the test copy at b4eb2e6 (exit waves 1 to 4, the word still `supabase`), `all.sh test` by Claude after the owner's
+  `npm install` (2026-10-17). The gate ran on the Mac (GitHub runs no CI): typecheck, `npm test` 5,393 passed. The test Worker has
+  its empty office object and the Cron (1 of 5 in the account); the office routes answer 401 with no secret. Production did not
+  change. Record: proof.md, "Test copy at b4eb2e6"
+- [ ] Wave 5 R2 (owner): `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET` for the test copy (`scripts/office/new-secret.ts`), then the
+  lead runs `auth-key.ts test`, `secrets.ts test` and the R3 export check with the secret
 - [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
   (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
