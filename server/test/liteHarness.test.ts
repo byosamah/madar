@@ -7,7 +7,7 @@ import { nodeHost } from '../data/lite/host';
 import { applyLiteSchema } from '../data/lite/schema';
 import { liteLoadWhole } from '../data/lite/whole';
 import { createGate } from './gate';
-import { LATER_KINDS, liteChecksum, liteWriteDown, LiteWorker } from './liteHarness';
+import { LATER_CALLS, LATER_KINDS, liteChecksum, liteWriteDown, LiteWorker } from './liteHarness';
 
 async function office() {
   const raw = new DatabaseSync(':memory:');
@@ -58,7 +58,8 @@ describe('the SQLite mirror backend (server/test/liteHarness.ts)', () => {
     worker.end();
   });
 
-  it('lists no sign-in kind of wave 2 as a kind with no SQLite form', () => {
-    expect([...LATER_KINDS].filter((kind) => kind.startsWith('auth.'))).toEqual([]);
+  it('lists no call and no kind of wave 2 as one with no SQLite form', () => {
+    expect([...LATER_CALLS]).toEqual(['usage.get', 'usage.retryEffect']);
+    expect([...LATER_KINDS]).toEqual([]);
   });
 });

@@ -5,11 +5,12 @@ import {
 import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
 import { can } from '../../src/api/permissions';
-import { RATE_SQL, type LimitResult } from '../auth/rateLimit';
+import { RATE_LITE, RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
 import { runCall as realRunCall, type RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal } from '../core/types';
+import { isLite } from '../data/dialect';
 import { readOffice } from '../data/officeCache';
 import { readBody } from '../http/limits';
 import { ensureAgentUser } from './agentUser';
@@ -95,10 +96,23 @@ export const MCP_LIMIT_SQL =
   "with seen as (update agent_links set last_used_at = now() where client_id = $3::uuid and (last_used_at is null or last_used_at < now() - interval '1 minute')) " +
   RATE_SQL;
 
+/** The SQLite form of the last use (Supabase exit, wave 2): ?1 client, ?2 now, ?3 one minute before now. */
+export const MCP_SEEN_LITE = 'update agent_links set last_used_at = ?2 where client_id = ?1 and (last_used_at is null or last_used_at < ?3)';
+
 export const sqlMcpLimit: McpLimit = async (deps, o) => {
   const start = Math.floor(o.now.getTime() / MINUTE_MS) * MINUTE_MS;
-  const [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [`mcp:${o.ownerId}`, new Date(start).toISOString(), o.clientId]);
-  const count = Number(row?.count ?? 0);
+  let count: number;
+  if (isLite(deps.db)) {
+    // SQLite has no update inside a with clause: two statements in one transaction.
+    count = await deps.db.tx('write', async (q) => {
+      await q(MCP_SEEN_LITE, [o.clientId, o.now.toISOString(), new Date(o.now.getTime() - MINUTE_MS).toISOString()]);
+      const [row] = await q<{ count: number }>(RATE_LITE, [`mcp:${o.ownerId}`, new Date(start).toISOString()]);
+      return Number(row?.count ?? 0);
+    });
+  } else {
+    const [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [`mcp:${o.ownerId}`, new Date(start).toISOString(), o.clientId]);
+    count = Number(row?.count ?? 0);
+  }
   return { ok: count <= TOOL_CALLS_PER_MINUTE, count, retryAfterMs: start + MINUTE_MS - o.now.getTime() };
 };
 

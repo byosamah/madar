@@ -3,6 +3,7 @@ import type { ServerCallName, ServerContracts } from '../../src/api/contract/ser
 import type { State } from '../../src/api/store';
 import type { ChangeSignal, RunError, StoryRef } from '../../src/api/remote/wire';
 import type { Deps } from './ports';
+import type { CallData } from './runCall';
 
 export type { ChangeSignal, Kind, RunError, StoryRef } from '../../src/api/remote/wire';
 
@@ -33,8 +34,11 @@ export type RunResult =
   | { ok: false; error: RunError };
 
 /** runCall checks story { id } for a server write (plan 4.9). story { ref } and key are not checked: a server write runs resolveStory and the KeyStore replay and put inside its own transaction. */
-/** What a server call (one of the 9) gets. It does its own permission checks with can() on the office snapshot. */
-export type ServerCallCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; batch: BatchScope; story?: StoryRef; key?: string; now: Date };
+/**
+ * What a server call (one of the 9) gets. It does its own permission checks with can() on the office snapshot.
+ * data: the CallData of the runCall that runs the call (sqlData or liteData), for a server write that saves (agents.remove).
+ */
+export type ServerCallCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; batch: BatchScope; story?: StoryRef; key?: string; now: Date; data?: CallData };
 
 export type ServerCallInput<N extends ServerCallName> = z.output<ServerContracts[N]['input']>;
 export type ServerCallOutput<N extends ServerCallName> = z.input<ServerContracts[N]['output']>;

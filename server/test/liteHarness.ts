@@ -28,8 +28,8 @@ import type { WorkerStats } from './speed';
 
 /** The server calls that have no SQLite form yet: wave 3 gives usage.get and usage.retryEffect theirs, and empties this list. */
 export const LATER_CALLS: ReadonlySet<string> = new Set(['usage.get', 'usage.retryEffect']);
-/** The effect kinds that have no SQLite form yet. agents.revokeAll leaves in Task 10 of wave 2; then the set is empty. */
-export const LATER_KINDS: ReadonlySet<string> = new Set(['agents.revokeAll']);
+/** The effect kinds that have no SQLite form yet: none since wave 2. A new kind with no SQLite form fails test:lite. */
+export const LATER_KINDS: ReadonlySet<string> = new Set();
 
 /** The words of the host refusal of a Postgres text (server/data/lite/host.ts): a caller with no SQLite form yet. */
 const NO_FORM = 'Give the caller a SQLite form';

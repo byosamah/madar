@@ -1,5 +1,6 @@
 import { registerEffect, registerOutbox, type OutboxRow } from '../core/effects';
-import type { Deps } from '../core/ports';
+import type { Deps, Query } from '../core/ports';
+import { isLite } from '../data/dialect';
 
 /**
  * agents.revokeAll (plan 4.12; task G3, the follow-up of P2): when a person or an agent is turned off, every agent link of that
@@ -17,6 +18,8 @@ import type { Deps } from '../core/ports';
  * - The producers: users.deactivate, and an Undo (events.undo, events.undoStory) whose event turns a user off.
  * - The handler never asks whether the user is still off: the outbox row exists only because a turn-off committed, so a retry by
  *   the job after the person is on again still removes the links.
+ * - On SQLite (the office object, Supabase exit wave 2) the producer runs REVOKE_ALL_LITE in the transaction of the turn-off itself
+ *   and writes no outbox row: the agent sessions (auth_sessions), the links and the approvals end with its commit.
  * - This module holds no MCP code, so the api and jobs bundles carry it. server/calls/agents.ts imports it, so every entry that
  *   builds the call map registers it.
  */
@@ -32,6 +35,22 @@ export const REVOKE_ALL_SQL =
   'with links as (update agent_links set revoked_at = now() where revoked_at is null and (owner_user_id = $1 or agent_user_id = $1) returning 1), ' +
   'approvals as (delete from agent_approvals where owner_user_id = $1 returning 1) ' +
   'select (select count(*) from links)::integer as links, (select count(*) from approvals)::integer as approvals';
+
+const STAMP = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+/**
+ * The SQLite forms (Supabase exit, wave 2). They run inside the transaction of the call that turns the user off: the agent sessions,
+ * the links and the approvals end with its commit, a rollback keeps them, and no outbox row waits for the job.
+ */
+export const REVOKE_ALL_LITE = [
+  `update auth_sessions set revoked_at = ${STAMP} where revoked_at is null and client_id in (select client_id from agent_links where owner_user_id = ?1 or agent_user_id = ?1)`,
+  `update agent_links set revoked_at = ${STAMP} where revoked_at is null and (owner_user_id = ?1 or agent_user_id = ?1)`,
+  'delete from agent_approvals where owner_user_id = ?1',
+] as const;
+
+/** Every agent session, link and approval of the user ends in the transaction of q (SQLite only). */
+export async function revokeAllIn(q: Query, userId: string): Promise<void> {
+  for (const text of REVOKE_ALL_LITE) await q(text, [userId]);
+}
 
 type Rec = Record<string, unknown>;
 type UserEvent = { targetType: string; targetId: string; after: unknown };
@@ -69,6 +88,11 @@ export async function runRevokeAll(payload: Rec, deps: Pick<Deps, 'db'>): Promis
 }
 
 for (const name of ['users.deactivate', 'events.undo', 'events.undoStory'] as const) {
-  registerOutbox(name, async (output) => revokeAllRowsOf(name, output));
+  registerOutbox(name, async (output, _saved, q) => {
+    const rows = revokeAllRowsOf(name, output);
+    if (!isLite(q)) return rows;
+    for (const row of rows) await revokeAllIn(q, String(row.payload.userId));
+    return [];
+  });
 }
 registerEffect(REVOKE_ALL_KIND, runRevokeAll);
