@@ -24,3 +24,7 @@ class_name = "TestOffice"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TestOffice"]
+
+# The 15-minute job of the office object, as in wrangler.server.toml. The Cron suite starts a run through the routes.
+[triggers]
+crons = ["*/15 * * * *"]

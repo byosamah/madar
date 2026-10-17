@@ -52,5 +52,10 @@ export function officeEntry() {
       // A 101 answer carries the socket: a copy with one more header would lose it.
       return response.status === 101 ? response : withServerHeader(response, workersServer(request).replace(/^workers/, 'office'));
     },
+    /** One Cron run of the office path (server/entries/workerMain.ts calls it only when onOffice is true). */
+    async scheduled(at: Date, env: Env): Promise<void> {
+      setEnvSource(env);
+      await start().scheduled(at, env);
+    },
   };
 }

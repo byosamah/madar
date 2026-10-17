@@ -12,11 +12,12 @@ const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]
 
 function setup(o: { batch?: OfficeStub['batch'] } = {}) {
   const deps = fakeDeps();
-  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0 };
+  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[] };
   const stub: OfficeStub = {
     batch: o.batch ?? (async (input, net) => (seen.batch.push({ input, net }), { ok: true, body: ANSWER, later: [] })),
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
+    cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null }),
     fetch: async (request) => (seen.fetches.push(request), { status: 101, webSocket: {} } as unknown as Response),
   };
   const net = recordingNet();
@@ -114,5 +115,13 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     const checked = await get('/api/health', { 'x-madar-jobs-secret': 'jobs-secret' });
     expect(((await checked.json()) as { office: unknown }).office).toEqual({ schema: 3, lastJob: null });
     expect(seen.health).toBe(1);
+  });
+
+  it('gives a Cron run to the office object with the requests it saw, and the network port', async () => {
+    const { seen, routes, get, net } = setup();
+    await get('/api/nothing');
+    const at = new Date('2026-10-04T05:00:00Z');
+    expect(await routes.scheduled(at, {})).toMatchObject({ ok: true });
+    expect(seen.cron).toEqual([{ at: at.toISOString(), worker: 2, net }]);
   });
 });

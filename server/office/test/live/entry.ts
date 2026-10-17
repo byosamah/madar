@@ -58,4 +58,8 @@ export default {
     }
     return routes.fetch(request, env, ctx);
   },
+  async scheduled(controller: { scheduledTime: number }, env: Env, ctx: Ctx): Promise<void> {
+    setEnvSource(env);
+    ctx.waitUntil(routes.scheduled(new Date(controller.scheduledTime), env));
+  },
 };

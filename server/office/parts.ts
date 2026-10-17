@@ -8,11 +8,14 @@ import { liteDb, type LiteDb } from '../data/lite/db';
 import type { SqlHost } from '../data/lite/host';
 import { readLiteOffice } from '../data/lite/office';
 import { LITE_SCHEMA_VERSION } from '../data/lite/schema';
+import type { JobReport } from '../jobs/run';
 import { outboxMailPort } from '../mail/outboxDriver';
+import { utcDay } from '../mail/quota';
 import { JOBS_LAST_RUN_SQL } from '../usage/meters';
 import { EffectLedger, officeData, runOfficeBatch, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
-import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, type LiveSocket, type Sockets } from './live';
-import { OfficeMeter } from './meter';
+import { runOfficeJobs } from './jobs';
+import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
+import { DAY_ROW_LITE, OfficeMeter } from './meter';
 import { netPorts, type NetApi } from './net';
 import type { OfficeWho } from './who';
 
@@ -26,6 +29,11 @@ export type OfficeHost = SqlHost & { readonly totals: { rowsRead: number; rowsWr
 export type OfficeEffectsInput = { ids: string[]; worker: number };
 export type OfficeEffectsReport = { done: number; failed: number };
 export type OfficeHealth = { schema: number; lastJob: string | null };
+/** One Cron run: its time (ISO text) and the Worker requests since the last report. */
+export type OfficeCronInput = { at: string; worker: number };
+export type DayRow = { rows_read: number; rows_written: number; requests: number; calls: number; worker_requests: number };
+/** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
+export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null };
 
 export type PartsInput = {
   host: OfficeHost;
@@ -44,6 +52,7 @@ export type OfficeParts = {
   depsFor(net: NetApi): Deps;
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
+  cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
   socket(request: Request): Promise<Response>;
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
@@ -114,6 +123,17 @@ export function officeParts(o: PartsInput): OfficeParts {
       meter.request({ worker: input.worker });
       const result = await processOutbox(depsFor(net), input.ids);
       return { done: result.done.length, failed: result.failed.length };
+    },
+    async cron(input, net) {
+      meter.request({ worker: input.worker });
+      const at = new Date(input.at);
+      // One Deps, so the whole run shares one network budget: one Cron run is one Worker invocation (50 subrequests on Free).
+      const deps = depsFor(net);
+      const report = await runOfficeJobs(deps, at);
+      await db.tx('write', (q) => meter.flush(q, at));
+      const closed = sweep(o.sockets, clock.now(), staleMs);
+      const [day] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(at)]);
+      return { ...report, closed, day: day ?? null };
     },
     async socket(request) {
       meter.request();

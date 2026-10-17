@@ -10,7 +10,7 @@ import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import type { NetApi } from '../office/net';
-import type { OfficeEffectsInput, OfficeEffectsReport, OfficeHealth } from '../office/parts';
+import type { OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth } from '../office/parts';
 
 /**
  * The Worker side of the office path (exit wave 3). The Worker checks the build, the body and the token (the CPU-light part, 10 ms
@@ -30,6 +30,7 @@ type Ctx = { waitUntil(work: Promise<unknown>): void; passThroughOnException?: (
 export type OfficeStub = {
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
+  cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
   health(): Promise<OfficeHealth>;
   fetch(request: Request): Promise<Response>;
 };
@@ -141,6 +142,19 @@ export function officeRoutes(o: OfficeRoutesOptions) {
       seen += 1;
       if (new URL(request.url).pathname === LIVE_PATH) return live(request, env);
       return app.fetch(request, env, ctx as Parameters<typeof app.fetch>[2]);
+    },
+
+    /** One Cron run: the whole job in one office object call. The report goes to the log, where wave 5 reads the day meters. */
+    async scheduled(at: Date, env: Env): Promise<OfficeCronReport | undefined> {
+      seen += 1;
+      try {
+        const report = await o.stub(env).cron({ at: at.toISOString(), worker: reported() }, o.net());
+        log.info('The office jobs ran.', { ok: report.ok, failed: report.steps.filter((step) => !step.ok).map((step) => step.name), closed: report.closed, day: report.day });
+        return report;
+      } catch (error) {
+        log.error('The office jobs did not run. The next run tries again.', { error: error instanceof Error ? error.message : String(error) });
+        return undefined;
+      }
     },
   };
 }

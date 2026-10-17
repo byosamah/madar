@@ -1,6 +1,11 @@
-import { morningSummaryOn } from '../../src/api/notify';
+import type { Task } from '../../src/api/contract/entities';
+import { morningSummaryOn, reviewersOfTask } from '../../src/api/notify';
+import type { State } from '../../src/api/store';
 import type { Deps, Query } from '../core/ports';
-import { USER_MAIL_SQL, appLink, mailOf, mailable, sendWarned, type PersonRow } from './notices';
+import { isLite } from '../data/dialect';
+import { liteDbOf } from '../data/lite/db';
+import { readLiteOffice } from '../data/lite/office';
+import { USER_MAIL_SQL, appLink, litePerson, mailOf, mailable, sendWarned, type PersonRow } from './notices';
 import { renderMail } from './templates';
 
 /**
@@ -41,14 +46,40 @@ order by ord`;
 
 export type Summary = { dueToday: number; reviewsWaiting: number };
 
+// SQLite forms (exit wave 3). The users and projects tables hold only id and doc: the people come from doc, and the counts are
+// worked out in JavaScript on the office lists in memory with the rules of the screens (reviewersOfTask), as SUMMARY_COUNTS_SQL does.
+export const SUMMARY_PEOPLE_LITE =
+  "select rowid as ord, id from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' "
+  + "and coalesce(json_type(doc, '$.preferences.morningSummary'), 'null') in ('true', 'null')";
+export const SUMMARY_DUE_LITE = "select doc, project_id from tasks where due_date = ?1 and status in ('todo', 'in_progress')";
+export const SUMMARY_REVIEW_LITE = "select doc from tasks where status = 'in_review'";
+
+async function liteSummary(q: Query, userId: string, today: string): Promise<Summary> {
+  const { lists } = await readLiteOffice(liteDbOf(q), q);
+  const active = (projectId: string | null) => projectId === null || lists.projects[projectId]?.status === 'active';
+  // reviewersOfTask reads only the users and projects of the State, and both are office lists.
+  const state = lists as unknown as State;
+  const due = await q<{ doc: Task; project_id: string | null }>(SUMMARY_DUE_LITE, [today]);
+  const review = await q<{ doc: Task }>(SUMMARY_REVIEW_LITE);
+  return {
+    dueToday: due.filter((row) => active(row.project_id) && (row.doc.ownerId === userId || (row.doc.helperIds ?? []).includes(userId))).length,
+    reviewsWaiting: review.filter((row) => active(row.doc.projectId) && reviewersOfTask(state, row.doc).includes(userId)).length,
+  };
+}
+
 /** The counts of one person and one day, or null when both are 0. */
 export async function buildSummary(q: Query, user: { id: string }, today: string): Promise<Summary | null> {
+  if (isLite(q)) {
+    const summary = await liteSummary(q, user.id, today);
+    return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
+  }
   const [row] = await q<{ due_today: number; reviews_waiting: number }>(SUMMARY_COUNTS_SQL, [user.id, today]);
   const summary = { dueToday: Number(row?.due_today ?? 0), reviewsWaiting: Number(row?.reviews_waiting ?? 0) };
   return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
 }
 
 export async function summaryPeople(q: Query): Promise<string[]> {
+  if (isLite(q)) return (await q<{ ord: number; id: string }>(SUMMARY_PEOPLE_LITE)).sort((a, b) => a.ord - b.ord).map((row) => row.id);
   return (await q<{ id: string }>(SUMMARY_PEOPLE_SQL)).map((row) => row.id);
 }
 
@@ -57,7 +88,7 @@ export type SummaryOutcome = 'sent' | 'over' | 'empty' | 'skipped';
 
 /** One summary mail. It throws when the send fails; the job tries again on its next run with the same key. */
 export async function sendSummary(deps: Deps, userId: string, today: string): Promise<SummaryOutcome> {
-  const [person] = await deps.db.statement<PersonRow>('read', USER_MAIL_SQL, [userId]);
+  const [person] = isLite(deps.db) ? await litePerson(deps.db, userId) : await deps.db.statement<PersonRow>('read', USER_MAIL_SQL, [userId]);
   if (!person || !mailable(person) || !morningSummaryOn(person.preferences)) return 'skipped';
   const summary = await deps.db.tx('read', (q) => buildSummary(q, { id: userId }, today));
   if (!summary) return 'empty';

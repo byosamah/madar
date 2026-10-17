@@ -29,6 +29,11 @@ class_name = "Office"
 tag = "office-v1"
 new_sqlite_classes = ["Office"]
 
+# The 15-minute job of the office object (wave 3), in UTC. scheduled() returns at once while MADAR_DATA is not "office", so on the
+# test Worker it does nothing before wave 5. It takes 1 of the 5 Cron Triggers of the account (Workers Free).
+[triggers]
+crons = ["*/15 * * * *"]
+
 # The database (proof.md, Z0a item 7): the Workers socket cannot check the private Supabase root, so the Worker connects through
 # Hyperdrive, which checks it (verify-full) and gives the Worker a finished connection string (server/entries/worker.ts).
 # Local runs set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB to the local pooler, so no password is in this file. The id of
@@ -73,6 +78,10 @@ preview_urls = false
 # No office object in production before the switch (wave 6): no binding, and no migration from the top level. Wrangler prints one
 # warning on each production deploy ("durable_objects exists at the top level, but not on env.production"); it is expected.
 migrations = []
+
+# No Cron on production before the switch (wave 6): the Supabase jobs function runs its job.
+[env.production.triggers]
+crons = []
 
 [env.production.placement]
 region = "aws:eu-central-1"

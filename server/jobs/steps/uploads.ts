@@ -1,4 +1,5 @@
 import type { Deps } from '../../core/ports';
+import { sqlFor } from '../../data/dialect';
 import { blobKeysInUse } from '../../files/effects';
 import { intentOf } from '../../files/intents';
 import { isObjectKey, isStagingKey } from '../../files/keys';
@@ -41,6 +42,13 @@ export const OLD_INTENTS_SQL =
 export const INTENTS_DELETE_SQL =
   'delete from upload_intents where id = any($1::text[]) and coalesce(used_at, created_at) < $2 returning id';
 
+// SQLite forms (exit wave 3). "order by id limit" pages on the key index of the text primary key: a cut order, no sort step.
+export const OLD_INTENTS_LITE =
+  'select id, actor_id, project_id, staging_key, key, thumb_key, size, mime_type, expires_at, used_at, created_at from upload_intents '
+  + 'where created_at <= ?1 and id > ?2 order by id limit ?3';
+export const INTENTS_DELETE_LITE =
+  'delete from upload_intents where id in (select value from json_each(?1)) and coalesce(used_at, created_at) < ?2 returning id';
+
 const dateOf = (value: unknown): Date => (value instanceof Date ? value : new Date(String(value)));
 
 type Counts = { intents: number; removed: number; deleted: number };
@@ -50,7 +58,7 @@ export async function uploads(deps: Pick<Deps, 'db' | 'files'>, at: Date): Promi
   const total: Counts = { intents: 0, removed: 0, deleted: 0 };
   let after = '';
   for (;;) {
-    const rows = await deps.db.statement('write', OLD_INTENTS_SQL, [stagingCutoff, after, UPLOADS_BATCH]);
+    const rows = await deps.db.statement('write', sqlFor(deps.db, OLD_INTENTS_SQL, OLD_INTENTS_LITE), [stagingCutoff, after, UPLOADS_BATCH]);
     if (rows.length === 0) break;
     const page = await uploadsPage(deps, at, rows);
     total.intents += page.intents;
@@ -76,6 +84,6 @@ async function uploadsPage(deps: Pick<Deps, 'db' | 'files'>, at: Date, rows: Rec
   if (keys.length > 0) await deps.files.remove(keys);
 
   const old = intents.filter((i) => (i.usedAt ?? i.createdAt).getTime() < keepCutoff.getTime()).map((i) => i.id);
-  const deleted = old.length > 0 ? (await deps.db.statement('write', INTENTS_DELETE_SQL, [old, keepCutoff])).length : 0;
+  const deleted = old.length > 0 ? (await deps.db.statement('write', sqlFor(deps.db, INTENTS_DELETE_SQL, INTENTS_DELETE_LITE), [old, keepCutoff])).length : 0;
   return { intents: intents.length, removed: keys.length, deleted };
 }

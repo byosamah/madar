@@ -3,6 +3,11 @@ import type { State } from '../../../src/api/store';
 import { processOutbox, writeOutbox } from '../../core/effects';
 import { logLockHold, takeOfficeLock } from '../../core/lock';
 import type { Deps, Query } from '../../core/ports';
+import { isLite, sqlFor } from '../../data/dialect';
+import { liteDbOf } from '../../data/lite/db';
+import { readLiteOffice } from '../../data/lite/office';
+import { liteSave } from '../../data/lite/save';
+import { liteSource } from '../../data/lite/source';
 import { loadJobs, sqlSource } from '../../data/loaders/index';
 import { readOffice } from '../../data/officeCache';
 import { save } from '../../data/save';
@@ -25,13 +30,15 @@ import { pushRows } from '../../push/notify';
 
 /** $1 the dedupe keys this run would use. The ones a notice already holds (the index notifications_dedupe). */
 export const USED_DEDUPE_SQL = 'select dedupe_key from notifications where dedupe_key = any($1::text[])';
+/** SQLite (exit wave 3): one bound list; "is not null" lets the partial index notifications_dedupe serve the read. */
+export const USED_DEDUPE_LITE = 'select dedupe_key from notifications where dedupe_key in (select value from json_each(?1)) and dedupe_key is not null';
 
 /** The dedupe keys of this run that the database already holds. The State stays untouched. */
 export async function usedDedupeKeys(q: Query, state: State, at: Date): Promise<Set<string>> {
   const asked = new Set<string>();
   runScheduledTriggers(structuredClone(state), at, { dedupeUsed: (key) => (asked.add(key), false) });
   if (asked.size === 0) return new Set();
-  const rows = await q<{ dedupe_key: string }>(USED_DEDUPE_SQL, [[...asked].sort()]);
+  const rows = await q<{ dedupe_key: string }>(sqlFor(q, USED_DEDUPE_SQL, USED_DEDUPE_LITE), [[...asked].sort()]);
   return new Set(rows.map((row) => row.dedupe_key));
 }
 
@@ -42,13 +49,14 @@ export async function triggers(deps: Deps, at: Date): Promise<{ notices: number;
     done = await deps.db.tx('write', async (q) => {
       await takeOfficeLock(q, deps.config.lockKey);
       lockedAt = performance.now();
-      const office = await readOffice(deps, q);
-      const state = await loadJobs({ src: sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }), office });
+      // The office object (exit wave 3): its office lists in memory and the SQLite source and save.
+      const office = isLite(q) ? await readLiteOffice(liteDbOf(q), q) : await readOffice(deps, q);
+      const state = await loadJobs({ src: isLite(q) ? liteSource(q) : sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }), office });
       const used = await usedDedupeKeys(q, state, at);
       const before = structuredClone(state);
       const notices = runScheduledTriggers(state, at, { dedupeUsed: (key) => used.has(key) });
       if (notices === 0) return { notices, ids: [] };
-      const saved = await save(q, before, state);
+      const saved = isLite(q) ? await liteSave(q, before, state) : await save(q, before, state);
       const ids = await writeOutbox(q, [...(await noticeRows(q, saved)), ...(await pushRows(q, saved))]);
       if (saved.signals.length > 0) await deps.signal.send(q, saved.signals);
       return { notices, ids };

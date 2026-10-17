@@ -1,6 +1,7 @@
 import { nowStamp } from '../../../src/lib/dates';
 import { isWorkingDay } from '../../../src/lib/workdays';
 import type { Deps } from '../../core/ports';
+import { sqlFor } from '../../data/dialect';
 import { MailSendError } from '../../mail/resend';
 import { sendSummary, summaryPeople, type SummaryOutcome } from '../../mail/summary';
 
@@ -24,6 +25,11 @@ export const SUMMARY_MARK_SQL = 'insert into job_runs (key, done_at) values ($1,
 /** $1 the refs (idempotency keys) of the summaries of the day. The ones that went out. */
 export const SUMMARY_SENT_SQL = 'select ref from mail_log where ref = any($1::text[]) and resend_id is not null';
 
+// SQLite forms (exit wave 3).
+export const SUMMARY_DONE_LITE = 'select done_at from job_runs where key = ?1';
+export const SUMMARY_MARK_LITE = 'insert into job_runs (key, done_at) values (?1, ?2) on conflict (key) do nothing';
+export const SUMMARY_SENT_LITE = 'select ref from mail_log where ref in (select value from json_each(?1)) and resend_id is not null';
+
 /** The Riyadh day whose summary is due at this time, or null before 07:30 and on Friday and Saturday. */
 export function summaryDay(at: Date): string | null {
   const stamp = nowStamp(at);
@@ -42,10 +48,10 @@ export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
   const day = summaryDay(at);
   if (day === null) return { due: false };
   const key = `summary:${day}`;
-  if ((await deps.db.statement('write', SUMMARY_DONE_SQL, [key])).length > 0) return { due: true, day, done: true };
+  if ((await deps.db.statement('write', sqlFor(deps.db, SUMMARY_DONE_SQL, SUMMARY_DONE_LITE), [key])).length > 0) return { due: true, day, done: true };
   const people = await deps.db.tx('read', (q) => summaryPeople(q));
   const sent = new Set(
-    (await deps.db.statement<{ ref: string }>('write', SUMMARY_SENT_SQL, [people.map((id) => refOf(day, id))])).map((row) => row.ref),
+    (await deps.db.statement<{ ref: string }>('write', sqlFor(deps.db, SUMMARY_SENT_SQL, SUMMARY_SENT_LITE), [people.map((id) => refOf(day, id))])).map((row) => row.ref),
   );
   const counts: Record<SummaryOutcome, number> = { sent: 0, empty: 0, over: 0, skipped: 0 };
   let already = 0;
@@ -69,6 +75,6 @@ export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
     }
   }
   if (failed > 0) throw new Error(`The morning summary did not reach ${failed} ${failed === 1 ? 'person' : 'people'}. The next run tries again.`);
-  await deps.db.statement('write', SUMMARY_MARK_SQL, [key, at]);
+  await deps.db.statement('write', sqlFor(deps.db, SUMMARY_MARK_SQL, SUMMARY_MARK_LITE), [key, at]);
   return { due: true, day, ...counts, refused, already };
 }

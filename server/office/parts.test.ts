@@ -10,7 +10,7 @@ import { liteSave } from '../data/lite/save';
 import { applyLiteSchema, LITE_SCHEMA_VERSION } from '../data/lite/schema';
 import { liteWriteState } from '../data/lite/whole';
 import { fixedClock } from '../test/fakes/clock';
-import { CLOSE_OFF } from './live';
+import { CLOSE_OFF, CLOSE_STALE } from './live';
 import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
 import { fakeSockets, openFor, recordingNet } from './test/fakes';
@@ -140,6 +140,17 @@ describe('the office parts (server/office/parts.ts)', () => {
     const answer = await parts.socket(new Request(`https://office.internal/live?ticket=${ticket}`, { headers: { upgrade: 'websocket' } }));
     expect(answer.status).toBe(101);
     expect(sockets.all.map((one) => one.tags)).toEqual([['office', 'person:usr_005']]);
+  });
+
+  it('runs the job steps on a Cron call, adds the meter counts, and closes a stale socket', async () => {
+    const { parts, sockets, raw, net } = await office();
+    const stale = openFor(sockets, 'usr_002', Date.parse(NOW) - 10 * 60_000);
+    const report = await parts.cron({ at: NOW, worker: 2 }, net);
+    expect(report.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
+    // The reminders of the run send signals, and each delivery sweeps first: that sweep or the one of the Cron closes the socket.
+    expect(stale.closed?.code).toBe(CLOSE_STALE);
+    expect(raw.prepare("select done_at from job_runs where key = 'heartbeat'").get()).toEqual({ done_at: NOW });
+    expect(report.day).toMatchObject({ requests: 1, worker_requests: 2 });
   });
 
   it('answers health with the schema version and the last job run', async () => {

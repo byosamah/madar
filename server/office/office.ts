@@ -6,7 +6,9 @@ import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
 import { doHost } from './doHost';
 import { LIVE_PING, LIVE_PONG, type LiveSocket, type Sockets } from './live';
 import type { NetApi } from './net';
-import { officeParts, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts } from './parts';
+import {
+  officeParts, type OfficeCronInput, type OfficeCronReport, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts,
+} from './parts';
 import { principalOfWho, type OfficeWho } from './who';
 
 /**
@@ -55,6 +57,11 @@ export class Office extends DurableObject<Env> {
 
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport> {
     return this.parts.runEffects(input, net);
+  }
+
+  /** One 15-minute run of the jobs (the Cron Trigger of the Worker), with the network port of that Worker invocation. */
+  cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport> {
+    return this.parts.cron(input, net);
   }
 
   health(): Promise<OfficeHealth> {

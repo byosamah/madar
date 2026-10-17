@@ -110,4 +110,10 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
   it('sets MADAR_DATA in no env, so no deployed Worker takes the office path in wave 3', () => {
     for (const env of [undefined, 'test', 'production'] as const) expect(read(env).vars.MADAR_DATA).toBeUndefined();
   });
+
+  it('runs the 15-minute Cron on local runs and on the test Worker, and none on production', () => {
+    expect(read().triggers.crons).toEqual(['*/15 * * * *']);
+    expect(read('test').triggers.crons).toEqual(['*/15 * * * *']);
+    expect(read('production').triggers.crons).toEqual([]);
+  });
 });

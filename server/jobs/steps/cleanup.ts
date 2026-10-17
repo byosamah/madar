@@ -1,4 +1,5 @@
 import type { Deps, Query } from '../../core/ports';
+import { isLite } from '../../data/dialect';
 import { OFFICE_DELETES_KEEP_DAYS } from '../../data/officeCache';
 
 /**
@@ -24,6 +25,12 @@ export const IDEMPOTENCY_CLEANUP_SQL = deleting('idempotency', 'created_at');
 export const OFFICE_DELETES_CLEANUP_SQL = deleting('office_deletes', 'created_at');
 export const RATE_LIMITS_CLEANUP_SQL = deleting('rate_limits', 'window_start');
 
+/** SQLite (exit wave 3): no data change inside a with clause, so the delete gives back its rows and the code counts them. */
+const deletingLite = (from: string, column: string) => `delete from ${from} where ${column} < ?1 returning 1 as n`;
+export const STORIES_CLEANUP_LITE = deletingLite('stories', 'created_at');
+export const IDEMPOTENCY_CLEANUP_LITE = deletingLite('idempotency', 'created_at');
+export const RATE_LIMITS_CLEANUP_LITE = deletingLite('rate_limits', 'window_start');
+
 export type CleanupResult = { stories: number; idempotency: number; officeDeletes: number; rateLimits: number };
 
 async function count(q: Query, text: string, before: Date): Promise<number> {
@@ -33,6 +40,15 @@ async function count(q: Query, text: string, before: Date): Promise<number> {
 
 export async function cleanup(deps: Pick<Deps, 'db'>, at: Date): Promise<CleanupResult> {
   const before = (ms: number) => new Date(at.getTime() - ms);
+  if (isLite(deps.db)) {
+    // The office object keeps no office_deletes: its office lists follow each commit in memory (wave 1).
+    return deps.db.tx('write', async (q) => ({
+      stories: (await q(STORIES_CLEANUP_LITE, [before(STORY_KEEP_MS)])).length,
+      idempotency: (await q(IDEMPOTENCY_CLEANUP_LITE, [before(IDEMPOTENCY_KEEP_MS)])).length,
+      officeDeletes: 0,
+      rateLimits: (await q(RATE_LIMITS_CLEANUP_LITE, [before(RATE_LIMIT_KEEP_MS)])).length,
+    }));
+  }
   return deps.db.tx('write', async (q) => ({
     stories: await count(q, STORIES_CLEANUP_SQL, before(STORY_KEEP_MS)),
     idempotency: await count(q, IDEMPOTENCY_CLEANUP_SQL, before(IDEMPOTENCY_KEEP_MS)),
