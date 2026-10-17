@@ -4,6 +4,7 @@ import { AuthFailure, type AuthFailureReason } from '../../features/auth/authFai
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from '../../features/auth/sessionEnd';
 import { regionUrl } from '../../api/remote/region';
 import type { AuthPort, AuthStatus } from '../auth';
+import { renewInviteAt, requestResetAt } from './authMail';
 
 /**
  * The sign-in port of the real screens, over Supabase Auth (plan 5.1, client map 7.2). Only the remote build imports this file:
@@ -133,29 +134,7 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
       if (CURRENT_PASSWORD_CODES.has(code)) throw new AuthFailure('wrong_credentials', error.message);
       fail(error);
     },
-    async requestReset(email) {
-      let response: Response;
-      try {
-        response = await send(forgotUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-      } catch (error) {
-        throw new AuthFailure('offline', error instanceof Error ? error.message : 'The request did not reach Madar.');
-      }
-      if (response.status === 429) {
-        // The limit of one email (server/auth/forgot.ts) has its own words: reset mails already went to it.
-        const body = (await response.json().catch(() => null)) as { error?: { details?: { reason?: unknown } } } | null;
-        throw new AuthFailure(body?.error?.details?.reason === 'too_many_resets_email' ? 'too_many_resets' : 'too_many');
-      }
-      if (!response.ok) throw new AuthFailure('failed', `The reset request failed with ${response.status}.`);
-    },
-    async renewInvite(key) {
-      let response: Response;
-      try {
-        response = await send(renewUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
-      } catch (error) {
-        throw new AuthFailure('offline', error instanceof Error ? error.message : 'The request did not reach Madar.');
-      }
-      if (response.status === 429) throw new AuthFailure('too_many');
-      if (!response.ok) throw new AuthFailure('failed', `The request for a new invitation link failed with ${response.status}.`);
-    },
+    requestReset: (email) => requestResetAt(send, forgotUrl, email),
+    renewInvite: (key) => renewInviteAt(send, renewUrl, key),
   };
 }

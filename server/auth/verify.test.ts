@@ -73,15 +73,15 @@ async function refusal(work: Promise<unknown>): Promise<ApiError> {
 
 describe('browserTokenChecker (plan 5.1)', () => {
   it('passes a good token after a password sign-in, where aud is an array', async () => {
-    await expect(check()(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(check()(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
   });
 
   it('passes a good token after a refresh, where aud is a string (proof.md Z0a item 2)', async () => {
-    await expect(check()(`Bearer ${await token(claims({ aud: 'authenticated' }))}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(check()(`Bearer ${await token(claims({ aud: 'authenticated' }))}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
   });
 
   it('accepts the scheme in any letter case', async () => {
-    await expect(check()(`bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(check()(`bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
   });
 
   it('refuses a token with the wrong issuer', async () => {
@@ -175,7 +175,7 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
   it('checks against the JWKS and the issuer of SUPABASE_URL', async () => {
     const fetchJwks = serveJwks();
     setEnvSource({ SUPABASE_URL: `${SUPABASE_URL}/` });
-    await expect(verifyBrowserToken(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(verifyBrowserToken(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
     expect(String(fetchJwks.mock.calls[0][0])).toBe(`${ISSUER}/.well-known/jwks.json`);
     const error = await refusal(verifyBrowserToken(`Bearer ${await token(claims(), { iss: 'http://127.0.0.1:54321/auth/v1' })}`));
     expect(error.code).toBe('unauthenticated');
@@ -184,7 +184,7 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
   it('takes the issuer from AUTH_ISSUER when set (a local function sees SUPABASE_URL http://kong:8000)', async () => {
     const fetchJwks = serveJwks();
     setEnvSource({ SUPABASE_URL: 'http://kong:8000', AUTH_ISSUER: 'http://127.0.0.1:54321/auth/v1' });
-    await expect(verifyBrowserToken(`Bearer ${await token(claims(), { iss: 'http://127.0.0.1:54321/auth/v1' })}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(verifyBrowserToken(`Bearer ${await token(claims(), { iss: 'http://127.0.0.1:54321/auth/v1' })}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
     expect(String(fetchJwks.mock.calls[0][0])).toBe('http://kong:8000/auth/v1/.well-known/jwks.json');
   });
 
@@ -200,7 +200,7 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
     expect(String(fetchJwks.mock.calls[0][0])).toBe('https://warm.supabase.co/auth/v1/.well-known/jwks.json');
     const check = verifyBrowserToken(`Bearer ${await token()}`);
     answer();
-    await expect(check).resolves.toEqual({ authUserId: SUB });
+    await expect(check).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
     await expect(warming).resolves.toBeUndefined();
     expect(fetchJwks).toHaveBeenCalledTimes(1);
   });
@@ -223,7 +223,7 @@ describe('verifyBrowserToken (the api function: the JWKS of SUPABASE_URL)', () =
     setEnvSource({ SUPABASE_URL: 'https://warm-fails.supabase.co', AUTH_ISSUER: ISSUER });
     warmKeySet();
     await new Promise((resolve) => setTimeout(resolve, 5));
-    await expect(verifyBrowserToken(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB });
+    await expect(verifyBrowserToken(`Bearer ${await token()}`)).resolves.toEqual({ authUserId: SUB, sessionId: 's1' });
     expect(calls).toBe(2);
   });
 

@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import type { State } from '../../src/api/store';
+import type { AuthAdmin } from '../auth/admin';
+import { liteAuthAdmin } from '../auth/own/liteAdmin';
 import type { RunCall } from '../core/runCall';
 import type { CallEntry } from '../core/serverCallMap';
 import { liteData } from '../data/lite/callData';
@@ -24,10 +26,10 @@ import type { WorkerStats } from './speed';
  * transaction, no worker schema and no leak guard. dbApi.ts, shadow.ts and invariants.ts stay as they are.
  */
 
-/** The server calls that have no SQLite form yet: they may fail in test:lite. Wave 2 empties this list (its sign-in calls). */
-export const LATER_CALLS: ReadonlySet<string> = new Set(['users.invites', 'users.resendInvite', 'agents.list', 'agents.remove']);
-/** The effect kinds that wave 1 has no SQLite form for yet (the sign-in of wave 2). Their outbox rows fail and stay for the job. */
-export const LATER_KINDS: ReadonlySet<string> = new Set(['auth.invite', 'auth.ban', 'auth.unban', 'auth.email', 'auth.emailNotice', 'agents.revokeAll']);
+/** The server calls that have no SQLite form yet: none since waves 2 and 3. A new server call with no SQLite form fails test:lite. */
+export const LATER_CALLS: ReadonlySet<string> = new Set();
+/** The effect kinds that have no SQLite form yet: none since wave 2. A new kind with no SQLite form fails test:lite. */
+export const LATER_KINDS: ReadonlySet<string> = new Set();
 
 /** The words of the host refusal of a Postgres text (server/data/lite/host.ts): a caller with no SQLite form yet. */
 const NO_FORM = 'Give the caller a SQLite form';
@@ -72,11 +74,14 @@ export async function liteWriteDown(db: LiteDb, before: State, after: State): Pr
   return true;
 }
 
+/** The fakes of a test office, with the Auth admin port over the sign-in rows of that office (Supabase exit, wave 2). */
+type LiteDeps = Omit<FakeDeps, 'authAdmin'> & { authAdmin: AuthAdmin };
+
 export class LiteWorker {
   readonly #stats: string | undefined;
   #raw?: DatabaseSync;
   #db?: LiteDb;
-  #deps?: FakeDeps;
+  #deps?: LiteDeps;
   #runs = new WeakMap<ReadonlyMap<string, CallEntry>, RunCall>();
   #calls: WorkerStats = { n: 0, ms: 0 };
   readonly backend: MirrorBackend;
@@ -113,7 +118,7 @@ export class LiteWorker {
     return this.#db;
   }
 
-  get deps(): FakeDeps {
+  get deps(): LiteDeps {
     if (!this.#deps) throw new Error('lite mode: the backend is used before its test office opened.');
     return this.#deps;
   }
@@ -154,7 +159,8 @@ export class LiteWorker {
     await applyLiteSchema(host);
     this.#raw = raw;
     this.#db = liteDb(host);
-    this.#deps = fakeDeps({ db: this.#db, config: { lockKey: 0, supabaseUrl: 'http://lite-mode' } });
+    const base = fakeDeps({ db: this.#db, config: { lockKey: 0, supabaseUrl: 'http://lite-mode' } });
+    this.#deps = { ...base, authAdmin: liteAuthAdmin({ db: this.#db, clock: base.clock }) };
   }
 
   async run(req: Parameters<MirrorBackend['run']>[0], calls: ReadonlyMap<string, CallEntry>) {

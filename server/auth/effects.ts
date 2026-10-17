@@ -7,7 +7,7 @@ import type { Deps } from '../core/ports';
 import { sqlFor } from '../data/dialect';
 import { QuotaFull, sendCounted } from '../mail/quota';
 import { authAdminOf } from './admin';
-import { INVITE_KIND, inviteRow, PAYLOAD_MERGE_SQL, sendInvitation, sqlInviteStore, type InviteStore } from './invite';
+import { INVITE_KIND, inviteRow, PAYLOAD_MERGE_LITE, PAYLOAD_MERGE_SQL, sendInvitation, sqlInviteStore, type InviteStore } from './invite';
 import { renderEmailChangedMail } from './mail';
 
 /**
@@ -141,7 +141,7 @@ export function sqlAuthStore(deps: Deps): AuthStore {
     async queueNotice(inviteId, rows) {
       return deps.db.tx('write', async (q) => {
         const ids = await writeOutbox(q, rows);
-        await q(PAYLOAD_MERGE_SQL, [inviteId, JSON.stringify({ noticeQueued: true })]);
+        await q(sqlFor(q, PAYLOAD_MERGE_SQL, PAYLOAD_MERGE_LITE), [inviteId, JSON.stringify({ noticeQueued: true })]);
         return ids;
       });
     },

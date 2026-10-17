@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
 import { env, requireEnv } from '../env';
+import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from './ownKeys';
 
 /**
  * The browser token check of the api function (plan 5.1; plan section 2, change 6; proof.md Z0a items 1 and 2).
@@ -19,7 +20,7 @@ import { env, requireEnv } from '../env';
  */
 
 export type TokenCheckOptions = { issuer: string; jwks: JWTVerifyGetKey };
-export type TokenChecker = (header: string | null) => Promise<{ authUserId: string }>;
+export type TokenChecker = (header: string | null) => Promise<{ authUserId: string; sessionId?: string }>;
 
 const AUDIENCE = 'authenticated';
 /** The tolerance for clock drift between Auth and the function, in seconds. */
@@ -68,7 +69,8 @@ export function browserTokenChecker(o: TokenCheckOptions): TokenChecker {
     }
     if (hasClientId(payload)) throw agentToken();
     if (payload.role !== AUDIENCE || typeof payload.sub !== 'string' || payload.sub === '') throw signIn();
-    return { authUserId: payload.sub };
+    const sessionId = typeof payload.session_id === 'string' && payload.session_id !== '' ? payload.session_id : undefined;
+    return sessionId === undefined ? { authUserId: payload.sub } : { authUserId: payload.sub, sessionId };
   };
 }
 
@@ -84,6 +86,19 @@ export function issuerOf(supabaseUrl: string): string {
 const checkers = new Map<string, { check: TokenChecker; keys: { reload(): Promise<void> } }>();
 
 function checkerFromEnv(): { check: TokenChecker; keys: { reload(): Promise<void> } } {
+  // The own sign-in (Supabase exit, wave 2): the Worker of the office object holds MADAR_AUTH_PRIVATE_JWK. No copy has it before wave 5.
+  const own = env(OWN_AUTH_SECRET);
+  if (own !== undefined) {
+    const issuer = ownIssuer(requireEnv('MCP_URL'));
+    // The kid is in the key of the cache: a new key (a key change) gets a new checker.
+    const id = `own|${issuer}|${String(ownPublicJwks(own).keys[0].kid)}`;
+    let checker = checkers.get(id);
+    if (!checker) {
+      checker = { check: browserTokenChecker({ issuer, jwks: ownKeySet(own) }), keys: { reload: async () => undefined } };
+      checkers.set(id, checker);
+    }
+    return checker;
+  }
   const auth = issuerOf(requireEnv('SUPABASE_URL'));
   const issuer = env('AUTH_ISSUER') ?? auth;
   const id = `${auth}|${issuer}`;
@@ -96,8 +111,8 @@ function checkerFromEnv(): { check: TokenChecker; keys: { reload(): Promise<void
   return checker;
 }
 
-/** The token check of the batch route (E3), from SUPABASE_URL and AUTH_ISSUER. */
-export function verifyBrowserToken(header: string | null): Promise<{ authUserId: string }> {
+/** The token check of the batch route (E3): the own key with MADAR_AUTH_PRIVATE_JWK, else SUPABASE_URL and AUTH_ISSUER. */
+export function verifyBrowserToken(header: string | null): ReturnType<TokenChecker> {
   try {
     return checkerFromEnv().check(header);
   } catch (error) {

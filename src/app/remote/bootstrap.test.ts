@@ -5,7 +5,7 @@ import { canFollow, type FollowApi } from '../../api/remote/remoteApi';
 import type { ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
-import { bootstrapRemote, firstLanguage, liveSourceOf, personChangeSource, remoteConfig } from './bootstrap';
+import { bootstrapRemote, firstLanguage, liveKindOf, liveSourceOf, personChangeSource, remoteConfig } from './bootstrap';
 
 // The file adapters of track F (src/app/files.ts), replaced by markers so the test sees which adapters the bootstrap hands RemoteApi.
 const fileAdapters = vi.hoisted(() => ({
@@ -67,7 +67,7 @@ afterEach(() => {
 describe('the settings of the real screens', () => {
   it('reads the public values, and names each missing one', () => {
     expect(remoteConfig({ VITE_SUPABASE_URL: 'https://ref.supabase.co/', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_x' })).toEqual({
-      supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '0',
+      supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '0', auth: 'supabase',
     });
     expect(remoteConfig({
       VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'k', VITE_API_URL: 'https://api.test/api', VITE_MADAR_BUILD: '2026.10.4',
@@ -196,7 +196,7 @@ describe('the remote runtime (plan R2)', () => {
   beforeEach(() => {
     vi.useRealTimers();
   });
-  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4' };
+  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4', auth: 'supabase' as const };
   const supabase = {
     realtime: { setAuth: vi.fn(async () => undefined) },
     channel: () => {
@@ -321,5 +321,12 @@ describe('the live updates of the remote build (exit wave 3)', () => {
     expect(ticket).toHaveBeenCalledTimes(1);
     expect(realtime).not.toHaveBeenCalled();
     stop();
+  });
+
+  it('opens the socket for the Madar sign-in, which has no Supabase client; the Supabase build keeps Realtime unless it says socket', () => {
+    expect(liveKindOf('madar', undefined)).toBe('socket');
+    expect(liveKindOf('madar', 'realtime')).toBe('socket');
+    expect(liveKindOf('supabase', undefined)).toBeUndefined();
+    expect(liveKindOf('supabase', 'socket')).toBe('socket');
   });
 });

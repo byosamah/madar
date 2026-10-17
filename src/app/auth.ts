@@ -14,6 +14,8 @@ export interface AuthPort {
   signOut(o?: { scope?: 'local' | 'others' }): Promise<void>;
   /** The access token for the API, refreshed when needed; null when signed out. */
   accessToken(): Promise<string | null>;
+  /** A refresh now (a 401 with a token that has not ended). The Madar port has it; the Supabase port refreshes through supabase-js. */
+  refresh?(): Promise<void>;
   /** The auth user id of the session at once, with no network; null when signed out. The prototype has none. */
   userId?(): string | null;
   /** The link of an invitation or a reset email (the Welcome and Reset screens). */

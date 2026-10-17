@@ -4,6 +4,7 @@ import { personName } from '../../src/lib/personName';
 import { invalid } from '../../src/api/errors';
 import { requestHost, type RequestHost } from '../core/after';
 import type { Deps, Query } from '../core/ports';
+import { sqlFor, statementQuery } from '../data/dialect';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { CLIENT_ADDRESS_HEADER } from '../http/pagesForward';
 import { reserve, sendCounted } from '../mail/quota';
@@ -63,6 +64,8 @@ export const FORGOT_MIN_MS = 1500;
 
 /** The person with this email (the users.email column is lower case). */
 export const FORGOT_PERSON_SQL = "select id, doc, auth_user_id::text as auth from users where email = $1 and kind = 'human'";
+/** The SQLite form (Supabase exit, wave 2): the sign-in row holds the email, so a person with no sign-in row gets nothing. */
+export const FORGOT_PERSON_LITE = 'select u.id as id, u.doc as doc, a.id as auth from auth_users a join users u on u.id = a.user_id where a.email = ?1';
 
 const Body = z.object({ email: z.email() });
 
@@ -80,7 +83,7 @@ export function clientAddress(request: Request): string {
 
 /** Sends the reset mail when the email belongs to an active person with a sign-in link. Otherwise nothing. */
 export async function sendReset(email: string, deps: Deps): Promise<'sent' | 'none'> {
-  const [row] = await deps.db.statement<{ id: string; doc: unknown; auth: string | null }>('read', FORGOT_PERSON_SQL, [email.toLowerCase()]);
+  const [row] = await deps.db.statement<{ id: string; doc: unknown; auth: string | null }>('read', sqlFor(deps.db, FORGOT_PERSON_SQL, FORGOT_PERSON_LITE), [email.toLowerCase()]);
   if (!row || row.auth === null) return 'none';
   const user = User.parse(row.doc);
   if (!user.active || user.kind !== 'human') return 'none';
@@ -140,7 +143,7 @@ export function createForgotRoute(o: { minMs?: number; sleep?: (ms: number) => P
     const email = parsed.data.email.trim().toLowerCase();
 
     const { after } = hostOf();
-    const q: Query = (text, values) => deps.db.statement('write', text, values);
+    const q: Query = statementQuery(deps.db, 'write');
     const now = deps.clock.now();
     const byAddress = await hitLimit(q, { key: await hashedKey('forgot:ip', clientAddress(request)), limit: FORGOT_IP_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);

@@ -43,3 +43,28 @@ mail itself, through Resend (see `server/mail/CLAUDE.md`).
 ## First Admin
 - `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.
 - With no terminal: `--password-stdin` reads the typed word `production` and the password from one stdin.
+
+## The own sign-in (Supabase exit, wave 2)
+- Files: `own/` (the office object side: passwords, keys, rows, sessions, steps, routes, the import) and `ownKeys.ts` (the
+  Worker side: the public key and the issuer). No Supabase entry loads `own/`: bcryptjs imports the bare module `crypto`, which
+  Deno may not load (`server/workerGraph.test.ts`). The hosts pass the routes in (`ownApiRoutes`, `mountOAuth`).
+- Rows: `auth_users` (the id of `auth.users` for an imported person), `auth_links`, `auth_sessions`, `oauth_clients`,
+  `oauth_requests` (SQLite schema version 3 since the merge of waves 2 and 3). The sign-in link is `auth_users.user_id`; the office snapshot carries the links, so
+  `principalOf` stays as it is. `setLiteAuthLink` is the one write of a link.
+- Passwords: PBKDF2 SHA-256, 100,000 rounds, never more (deployed Workers refuse more; local workerd does not show it). A copied
+  bcrypt hash (owner decision 4) works once, then the row holds PBKDF2. The hash work runs in the office object between two
+  transactions, never in the Worker (10 ms of CPU on Free).
+- Tokens: ES256, 900 s, issuer = MCP_URL, the secret `MADAR_AUTH_PRIVATE_JWK` (a P-256 private JWK with a kid). The public key
+  set is `GET /api/auth/jwks` and `GET /mcp/oauth/jwks`. With the secret set, `verifyBrowserToken` and `agentTokenCheckerOf` use
+  the own key; no copy has it before wave 5.
+- Sessions: refresh tokens rotate; a second use within 10 s rotates again, a later one ends the session. 30 days after the last
+  refresh. Sign-out others ends agents too. The API checks no session for a browser token (15 minutes at most, as today).
+- Links: 32 random bytes, sha256 in the table, 1 hour, one use; a new link ends the open links of the person. A link opens a link
+  session that may set a password once with no current password. An agent token never sets a password (403 `agent_token`).
+- Limits (`own/limits.ts`): 10 sign-ins for one email and 30 for one address in 15 minutes, 20 link opens and 10 OAuth
+  registrations for one address in an hour. The address is `clientAddress` (`forgot.ts`).
+- `liteAuthAdmin` is the Auth admin port over these rows, so `invite.ts`, `effects.ts`, `forgot.ts`, `renew.ts` and
+  `users.invites` keep their logic; each text of theirs has a `_LITE` twin.
+- Steps run through `SigninOffice` (`own/office.ts`); wave 3 connects it to the object method for one batch.
+- `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
+  wave 3 runs it once a day.

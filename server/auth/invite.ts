@@ -4,6 +4,8 @@ import { personName } from '../../src/lib/personName';
 import type { OutboxRow } from '../core/effects';
 import { takeOfficeLock } from '../core/lock';
 import type { AuthAdminPort, Deps } from '../core/ports';
+import { isLite, sqlFor, statementQuery } from '../data/dialect';
+import { setLiteAuthLink } from '../data/lite/office';
 import { setAuthUserId } from '../data/officeCache';
 import { QuotaFull, release, reserve, sendCounted } from '../mail/quota';
 import { isEmailExists } from './admin';
@@ -114,35 +116,55 @@ export const LATER_INVITE_SQL =
   "select 1 as found from outbox where kind = 'auth.invite' and payload->>'userId' = $1 and (done_at is null or payload ? 'sentAt') " +
   "and id > (select id from outbox where payload->>'inviteId' = $2 limit 1) limit 1";
 
+/**
+ * The SQLite forms (Supabase exit, wave 2). The sign-in link is auth_users.user_id. Each outbox text repeats SIGNIN_KINDS, the exact
+ * term of the partial index outbox_signin: with kind = 'auth.invite' alone SQLite scans the whole outbox (checked on node:sqlite).
+ * json_patch drops a key with a null value: no payload note sets one.
+ */
+export const SIGNIN_KINDS = "kind in ('auth.invite', 'auth.email')";
+export const PERSON_LITE = 'select u.doc as doc, a.id as auth from users u left join auth_users a on a.user_id = u.id where u.id = ?1';
+export const PAYLOAD_MERGE_LITE = `update outbox set payload = json_patch(payload, ?2) where ${SIGNIN_KINDS} and json_extract(payload, '$.inviteId') = ?1`;
+export const SENT_LITE = `update outbox set payload = json_patch(json_remove(payload, '$.tokenHash', '$.renewKey'), ?2) where ${SIGNIN_KINDS} and json_extract(payload, '$.inviteId') = ?1`;
+export const RENEW_KEY_LITE =
+  `update outbox set payload = json_set(payload, '$.renewKey', ?2, '$.renewKeys', json_insert(coalesce(payload -> '$.renewKeys', '[]'), '$[#]', ?3)) ` +
+  `where ${SIGNIN_KINDS} and json_extract(payload, '$.inviteId') = ?1 and not exists (select 1 from json_each(payload, '$.renewKeys') where value = ?3)`;
+const ROW_OF_INVITE = `(select id from outbox where ${SIGNIN_KINDS} and json_extract(payload, '$.inviteId') = ?2 limit 1)`;
+export const NEWER_LINK_LITE =
+  `select 1 as found from outbox where ${SIGNIN_KINDS} and json_extract(payload, '$.userId') = ?1 and json_type(payload, '$.linkType') is not null and id > ${ROW_OF_INVITE} limit 1`;
+export const LATER_INVITE_LITE =
+  `select 1 as found from outbox where ${SIGNIN_KINDS} and kind = 'auth.invite' and json_extract(payload, '$.userId') = ?1 ` +
+  `and (done_at is null or json_type(payload, '$.sentAt') is not null) and id > ${ROW_OF_INVITE} limit 1`;
+
 export function sqlInviteStore(deps: Pick<Deps, 'db' | 'config'>): InviteStore {
+  const text = (pg: string, lite: string) => sqlFor(deps.db, pg, lite);
   return {
     async person(userId) {
-      const [row] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', PERSON_SQL, [userId]);
+      const [row] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', text(PERSON_SQL, PERSON_LITE), [userId]);
       if (!row) return undefined;
-      return { user: User.parse(row.doc), authUserId: row.auth };
+      return { user: User.parse(row.doc), authUserId: row.auth ?? null };
     },
     async note(inviteId, fields) {
-      await deps.db.statement('write', PAYLOAD_MERGE_SQL, [inviteId, JSON.stringify(fields)]);
+      await deps.db.statement('write', text(PAYLOAD_MERGE_SQL, PAYLOAD_MERGE_LITE), [inviteId, JSON.stringify(fields)]);
     },
     async newerLink(userId, inviteId) {
-      return (await deps.db.statement('read', NEWER_LINK_SQL, [userId, inviteId])).length > 0;
+      return (await deps.db.statement('read', text(NEWER_LINK_SQL, NEWER_LINK_LITE), [userId, inviteId])).length > 0;
     },
     async laterInvite(userId, inviteId) {
-      return (await deps.db.statement('read', LATER_INVITE_SQL, [userId, inviteId])).length > 0;
+      return (await deps.db.statement('read', text(LATER_INVITE_SQL, LATER_INVITE_LITE), [userId, inviteId])).length > 0;
     },
     async keepLink(inviteId, userId, link, relink) {
       await deps.db.tx('write', async (q) => {
-        // The office lock orders this write with the saves of runCall, which also write users rows and office_meta.
+        // The office lock orders this write with the saves of runCall, which also write users rows and office_meta (none on SQLite).
         await takeOfficeLock(q, deps.config.lockKey);
-        await q(PAYLOAD_MERGE_SQL, [inviteId, JSON.stringify({ tokenHash: link.tokenHash, authUserId: link.authUserId, linkType: link.type })]);
-        if (relink) await setAuthUserId(q, userId, link.authUserId);
+        await q(sqlFor(q, PAYLOAD_MERGE_SQL, PAYLOAD_MERGE_LITE), [inviteId, JSON.stringify({ tokenHash: link.tokenHash, authUserId: link.authUserId, linkType: link.type })]);
+        if (relink) await (isLite(q) ? setLiteAuthLink(q, userId, link.authUserId) : setAuthUserId(q, userId, link.authUserId));
       });
     },
     async markSent(inviteId, at, mailId) {
-      await deps.db.statement('write', SENT_SQL, [inviteId, JSON.stringify({ sentAt: at.toISOString(), mailId })]);
+      await deps.db.statement('write', text(SENT_SQL, SENT_LITE), [inviteId, JSON.stringify({ sentAt: at.toISOString(), mailId })]);
     },
     async keepRenewKey(inviteId, key, hash) {
-      await deps.db.statement('write', RENEW_KEY_SQL, [inviteId, key, hash]);
+      await deps.db.statement('write', text(RENEW_KEY_SQL, RENEW_KEY_LITE), [inviteId, key, hash]);
     },
   };
 }
@@ -207,7 +229,7 @@ export async function sendInvitation(
   if (payload.sentAt) return 'already';
   /** A row that ends with no mail: with no stored link, no attempt sent a mail, so its place goes back to the day. */
   const skip = async (): Promise<'skipped'> => {
-    if (!payload.tokenHash) await release((text, values) => deps.db.statement('write', text, values), mailKey(payload.inviteId));
+    if (!payload.tokenHash) await release(statementQuery(deps.db, 'write'), mailKey(payload.inviteId));
     return 'skipped';
   };
   const person = await store.person(payload.userId);

@@ -63,3 +63,22 @@ describe('the office object in the bundles (exit wave 3)', () => {
     expect([...staticGraph('server/entries/workerMain.ts')].filter((file) => file.includes('/test/'))).toEqual([]);
   });
 });
+
+/**
+ * The own sign-in (Supabase exit, wave 2) runs in the office object. bcryptjs imports the bare module "crypto", which the
+ * Supabase functions on Deno may not load, so no Supabase entry loads a file of server/auth/own/ or server/mcp/oauth/. The hosts
+ * of wave 3 pass the own routes in (AppOptions.routes, McpAppOptions.oauth).
+ */
+describe('the Supabase entries and the own sign-in', () => {
+  // The anchor of each walk is a sign-in file that the entry loads and that wave 2 changes, so an empty walk cannot pass. The jobs
+  // entry checks no token, so it loads the auth effects and not verify.ts.
+  it.each([
+    ['server/entries/deno-api.ts', 'server/auth/verify.ts'],
+    ['server/entries/deno-mcp.ts', 'server/auth/verify.ts'],
+    ['server/entries/deno-jobs.ts', 'server/auth/effects.ts'],
+  ])('%s loads no file of the own sign-in', (entry, anchor) => {
+    const graph = staticGraph(entry);
+    expect(graph).toContain(anchor);
+    expect([...graph].filter((file) => file.startsWith('server/auth/own/') || file.startsWith('server/mcp/oauth/'))).toEqual([]);
+  });
+});

@@ -5,11 +5,12 @@ import {
 import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
 import { can } from '../../src/api/permissions';
-import { RATE_SQL, type LimitResult } from '../auth/rateLimit';
+import { RATE_LITE, RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
 import { runCall as realRunCall, type RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal } from '../core/types';
+import { isLite } from '../data/dialect';
 import { readOffice } from '../data/officeCache';
 import { readBody } from '../http/limits';
 import { ensureAgentUser } from './agentUser';
@@ -88,6 +89,8 @@ export type McpAppOptions = {
   stateKey?: Uint8Array | string;
   /** The issuer of Auth, when it differs from AUTH_ISSUER or ${SUPABASE_URL}/auth/v1. */
   issuer?: string;
+  /** The OAuth routes of the own sign-in (Supabase exit, wave 2): the host of the office object passes mountOAuth. No Supabase entry has them. */
+  oauth?: (app: Hono) => void;
 };
 
 /** The rate limit of tool calls, and the last use of the agent link, in one statement. */
@@ -95,10 +98,23 @@ export const MCP_LIMIT_SQL =
   "with seen as (update agent_links set last_used_at = now() where client_id = $3::uuid and (last_used_at is null or last_used_at < now() - interval '1 minute')) " +
   RATE_SQL;
 
+/** The SQLite form of the last use (Supabase exit, wave 2): ?1 client, ?2 now, ?3 one minute before now. */
+export const MCP_SEEN_LITE = 'update agent_links set last_used_at = ?2 where client_id = ?1 and (last_used_at is null or last_used_at < ?3)';
+
 export const sqlMcpLimit: McpLimit = async (deps, o) => {
   const start = Math.floor(o.now.getTime() / MINUTE_MS) * MINUTE_MS;
-  const [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [`mcp:${o.ownerId}`, new Date(start).toISOString(), o.clientId]);
-  const count = Number(row?.count ?? 0);
+  let count: number;
+  if (isLite(deps.db)) {
+    // SQLite has no update inside a with clause: two statements in one transaction.
+    count = await deps.db.tx('write', async (q) => {
+      await q(MCP_SEEN_LITE, [o.clientId, o.now.toISOString(), new Date(o.now.getTime() - MINUTE_MS).toISOString()]);
+      const [row] = await q<{ count: number }>(RATE_LITE, [`mcp:${o.ownerId}`, new Date(start).toISOString()]);
+      return Number(row?.count ?? 0);
+    });
+  } else {
+    const [row] = await deps.db.statement<{ count: number | string }>('write', MCP_LIMIT_SQL, [`mcp:${o.ownerId}`, new Date(start).toISOString(), o.clientId]);
+    count = Number(row?.count ?? 0);
+  }
   return { ok: count <= TOOL_CALLS_PER_MINUTE, count, retryAfterMs: start + MINUTE_MS - o.now.getTime() };
 };
 
@@ -228,7 +244,7 @@ function toolCallsIn(body: unknown): { count: number; id: unknown } {
 
 export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
   const { config } = deps;
-  const issuer = o.issuer ?? authIssuerOf(config.supabaseUrl);
+  const issuer = o.issuer ?? authIssuerOf(config.supabaseUrl, config.mcpUrl);
   const checkToken = o.checkToken ?? agentTokenCheckerOf({ supabaseUrl: config.supabaseUrl, mcpUrl: config.mcpUrl, issuer });
   const agentOf = o.agentOf ?? sqlAgentOf;
   const officeOf = o.readOffice ?? ((d: Deps) => readOffice(d));
@@ -268,6 +284,8 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     if (origin !== undefined && !config.allowedOrigins.includes(origin)) return jsonRpcError(403, 'This origin may not call Madar\'s MCP server.');
     await next();
   });
+
+  o.oauth?.(app);
 
   app.get(METADATA_PATH, () => metadataResponse({ mcpUrl: config.mcpUrl, issuer }));
 

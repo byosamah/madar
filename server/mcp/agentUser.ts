@@ -9,8 +9,9 @@ import { agentNamesOf } from '../../src/lib/agentName';
 import type { Deps } from '../core/ports';
 import { sqlData, type CallData } from '../core/runCall';
 import { resolveStory } from '../core/story';
+import { isLite } from '../data/dialect';
 import { loadFor } from '../data/loaders/index';
-import { APPROVAL_SQL } from './approval';
+import { APPROVAL_LITE, APPROVAL_SQL } from './approval';
 import { signInAgain } from './auth';
 
 /**
@@ -107,22 +108,38 @@ export const SAME_APP_SQL = [
 export const LINK_INSERT_SQL =
   'insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, approved_at) values ($1::uuid, $2, $3, $4, $5, now()) on conflict (client_id) do nothing';
 
+/** The SQLite forms (Supabase exit, wave 2): the client is a row of oauth_clients, its redirect addresses a JSON list. */
+export const LINK_LITE = 'select agent_user_id, revoked_at from agent_links where client_id = ?1';
+export const CLIENT_LITE = 'select name as client_name, redirect_uris from oauth_clients where id = ?1';
+export const SAME_APP_LITE =
+  'select l.agent_user_id as agent_user_id, l.approved_at as approved_at, c.redirect_uris as redirect_uris from agent_links l join oauth_clients c on c.id = l.client_id ' +
+  'where l.owner_user_id = ?1 and l.client_name = ?2 and l.redirect_host = ?3';
+export const LINK_INSERT_LITE =
+  'insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, approved_at) values (?1, ?2, ?3, ?4, ?5, ?6) on conflict (client_id) do nothing';
+
+/** The redirect addresses as one text with commas, as Supabase keeps them, for redirectHostOf and redirectSetOf. */
+function urisText(value: string, lite: boolean): string {
+  return lite ? (JSON.parse(value) as string[]).join(',') : value;
+}
+
 export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId: string; data?: CallData }): Promise<{ agentUserId: string; created: boolean }> {
   const data = o.data ?? sqlData(deps);
   return data.tx('write', async (t) => {
     await t.lock(deps.config.lockKey);
-    const [link] = await t.q<{ agent_user_id: string; revoked_at: Date | string | null }>(LINK_SQL, [o.clientId]);
+    const lite = isLite(t.q);
+    const [link] = await t.q<{ agent_user_id: string; revoked_at: Date | string | null }>(lite ? LINK_LITE : LINK_SQL, [o.clientId]);
     // Another request of the same approval made the link while this one waited for the lock. A removed link stays removed.
     if (link) return { agentUserId: link.agent_user_id, created: false };
     // Only a client that the person approved on the Madar consent screen links (task G4, approval.ts). An agent token can
     // approve a client of its own at Auth (proof.md G4), but the api function refuses it, so it cannot record an approval.
-    const [approval] = await t.q(APPROVAL_SQL, [o.clientId, o.ownerId]);
+    const [approval] = await t.q(lite ? APPROVAL_LITE : APPROVAL_SQL, [o.clientId, o.ownerId]);
     if (!approval) throw notApproved();
 
-    const [client] = await t.q<{ client_name: string | null; redirect_uris: string }>(CLIENT_SQL, [o.clientId]);
+    const [client] = await t.q<{ client_name: string | null; redirect_uris: string }>(lite ? CLIENT_LITE : CLIENT_SQL, [o.clientId]);
     if (!client) throw signInAgain('Madar does not know this AI app. Connect it again in your AI app.');
+    const uris = urisText(client.redirect_uris, lite);
     const name = agentNameOf(client.client_name);
-    const host = redirectHostOf(client.redirect_uris);
+    const host = redirectHostOf(uris);
 
     const office = await t.office();
     const owner = office.lists.users[o.ownerId];
@@ -130,9 +147,11 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
       throw new ApiError('unauthenticated', 'This account is turned off in Madar.', { reason: 'account_off' });
     }
 
-    const addresses = redirectSetOf(client.redirect_uris);
-    const earlier = await t.q<{ agent_user_id: string; redirect_uris: string }>(SAME_APP_SQL, [owner.id, name, host]);
-    let agentUserId = earlier.filter((row) => redirectSetOf(row.redirect_uris) === addresses).map((row) => row.agent_user_id).find((id) => {
+    const addresses = redirectSetOf(uris);
+    const found = await t.q<{ agent_user_id: string; redirect_uris: string; approved_at?: string }>(lite ? SAME_APP_LITE : SAME_APP_SQL, [owner.id, name, host]);
+    // The newest link first, in JavaScript on SQLite (wave 0 rule); Postgres gives that order already.
+    const earlier = lite ? [...found].sort((a, b) => String(b.approved_at).localeCompare(String(a.approved_at))) : found;
+    let agentUserId = earlier.filter((row) => redirectSetOf(urisText(row.redirect_uris, lite)) === addresses).map((row) => row.agent_user_id).find((id) => {
       const user = office.lists.users[id];
       return user !== undefined && user.kind === 'agent' && user.active && user.ownerId === owner.id;
     });
@@ -151,7 +170,8 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
       if (saved.signals.length > 0) await deps.signal.send(t.q, saved.signals);
       agentUserId = user.id;
     }
-    await t.q(LINK_INSERT_SQL, [o.clientId, owner.id, agentUserId, name, host]);
+    if (lite) await t.q(LINK_INSERT_LITE, [o.clientId, owner.id, agentUserId, name, host, deps.clock.now().toISOString()]);
+    else await t.q(LINK_INSERT_SQL, [o.clientId, owner.id, agentUserId, name, host]);
     return { agentUserId, created };
   });
 }

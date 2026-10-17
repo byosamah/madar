@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { ApiError, type ApiErrorCode } from '../../api/errors';
 import { regionUrl } from '../../api/remote/region';
 import { REMOTE } from '../../app/mode';
+import { authModeOf } from '../../app/remote/authMode';
 import { useAuth } from '../auth/useAuth';
 import { safeRedirect } from './knownHosts';
 
@@ -53,6 +54,25 @@ async function json(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
+const redirectOf = (data: unknown): string => {
+  const url = (data as { redirect_url?: unknown } | null)?.redirect_url;
+  if (typeof url !== 'string' || url === '') throw new OAuthFailure(500, undefined, 'Madar gave no redirect address.');
+  return url;
+};
+
+/** POST /agents/approve with the person's browser token. A refusal is a Madar refusal (ApiError), so the screen sees agent_removed. */
+async function recordApprovalAt(send: Fetch, approveUrl: string, token: string, authorizationId: string): Promise<void> {
+  const response = await send(approveUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ authorizationId }),
+  });
+  if (response.ok) return;
+  const error = ((await json(response)).error ?? {}) as { code?: string; message?: string; details?: Record<string, unknown> };
+  const code = API_CODES.includes(error.code as ApiErrorCode) ? (error.code as ApiErrorCode) : 'failed';
+  throw new ApiError(code, error.message ?? 'Something went wrong. Try again.', error.details ?? {});
+}
+
 export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; apiUrl: string; accessToken: () => Promise<string | null>; fetch?: Fetch }): OAuthPort {
   const send: Fetch = o.fetch ?? ((input, init) => fetch(input, init));
   const authUrl = `${o.supabaseUrl.replace(/\/+$/, '')}/auth/v1`;
@@ -80,11 +100,6 @@ export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; 
     return data;
   }
 
-  const redirectOf = (data: unknown): string => {
-    const url = (data as { redirect_url?: unknown } | null)?.redirect_url;
-    if (typeof url !== 'string' || url === '') throw new OAuthFailure(500, undefined, 'Auth gave no redirect address.');
-    return url;
-  };
   const consent = (id: string, action: 'approve' | 'deny') => auth('POST', `/oauth/authorizations/${encodeURIComponent(id)}/consent`, { action }).then(redirectOf);
 
   return {
@@ -102,17 +117,7 @@ export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; 
         },
       };
     },
-    async recordApproval(authorizationId) {
-      const response = await send(approveUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authorizationId }),
-      });
-      if (response.ok) return;
-      const error = ((await json(response)).error ?? {}) as { code?: string; message?: string; details?: Record<string, unknown> };
-      const code = API_CODES.includes(error.code as ApiErrorCode) ? (error.code as ApiErrorCode) : 'failed';
-      throw new ApiError(code, error.message ?? 'Something went wrong. Try again.', error.details ?? {});
-    },
+    recordApproval: async (authorizationId) => recordApprovalAt(send, approveUrl, await token(), authorizationId),
     approve: (authorizationId) => consent(authorizationId, 'approve'),
     deny: (authorizationId) => consent(authorizationId, 'deny'),
     async listGrants() {
@@ -132,6 +137,62 @@ export function httpOAuthPort(o: { supabaseUrl: string; publishableKey: string; 
         if (error instanceof OAuthFailure && error.status === 404 && error.code === 'oauth_consent_not_found') return;
         throw error;
       }
+    },
+  };
+}
+
+/**
+ * The OAuth steps over the own OAuth server of Madar (Supabase exit, wave 2), at the page's own /api. The order of the consent
+ * screen stays: details, recordApproval, approve; the server gives a code only after the approval. A refusal of a step other
+ * than the approval is an OAuthFailure with its status, so an ended request (404) shows the words of authorization_ended.
+ */
+export function madarOAuthPort(o: { apiUrl: string; accessToken: () => Promise<string | null>; fetch?: Fetch }): OAuthPort {
+  const send: Fetch = o.fetch ?? ((input, init) => fetch(input, init));
+  const base = o.apiUrl.replace(/\/+$/, '');
+  const at = (path: string) => regionUrl(`${base}${path}`);
+  const token = async () => {
+    const value = await o.accessToken();
+    if (!value) throw new ApiError('unauthenticated', 'Sign in to continue.');
+    return value;
+  };
+  async function call(method: 'GET' | 'POST', path: string, body?: unknown): Promise<unknown> {
+    const response = await send(at(path), {
+      method,
+      headers: { Authorization: `Bearer ${await token()}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const data = await json(response);
+    if (!response.ok) {
+      const error = (data.error ?? {}) as { code?: string; message?: string; details?: { reason?: unknown } };
+      throw new OAuthFailure(response.status, typeof error.details?.reason === 'string' ? error.details.reason : error.code, error.message ?? `Madar answered ${response.status}.`);
+    }
+    return data;
+  }
+  const consent = (id: string, action: 'approve' | 'deny') => call('POST', `/oauth/authorizations/${encodeURIComponent(id)}/consent`, { action }).then(redirectOf);
+  return {
+    async details(authorizationId) {
+      const data = (await call('GET', `/oauth/authorizations/${encodeURIComponent(authorizationId)}`)) as Record<string, unknown>;
+      if (typeof data.redirect_url === 'string') return { kind: 'done', redirectUrl: data.redirect_url };
+      const client = (data.client ?? {}) as { id?: unknown; name?: unknown };
+      return {
+        kind: 'ask',
+        request: {
+          authorizationId: String(data.authorization_id ?? authorizationId), clientId: String(client.id ?? ''),
+          clientName: typeof client.name === 'string' ? client.name.trim() : '', redirectUri: String(data.redirect_uri ?? ''),
+        },
+      };
+    },
+    recordApproval: async (authorizationId) => recordApprovalAt(send, at('/agents/approve'), await token(), authorizationId),
+    approve: (authorizationId) => consent(authorizationId, 'approve'),
+    deny: (authorizationId) => consent(authorizationId, 'deny'),
+    async listGrants() {
+      const data = await call('POST', '/oauth/grants', {});
+      return (Array.isArray(data) ? data : []).map((row: { client_id?: unknown; client_name?: unknown; granted_at?: unknown }) => ({
+        clientId: String(row.client_id ?? ''), clientName: typeof row.client_name === 'string' ? row.client_name : '', grantedAt: typeof row.granted_at === 'string' ? row.granted_at : null,
+      })).filter((grant) => grant.clientId !== '');
+    },
+    async revokeGrant(clientId) {
+      await call('POST', '/oauth/grants/revoke', { client_id: clientId });
     },
   };
 }
@@ -161,6 +222,10 @@ const text = (value: unknown) => (typeof value === 'string' && value.trim() !== 
 /** The port of the remote build from its public values (config/remote.<env>.env), as src/app/remote/bootstrap.ts reads them. */
 function remotePort(accessToken: () => Promise<string | null>): OAuthPort {
   const env = import.meta.env as Record<string, unknown>;
+  if (authModeOf({ VITE_MADAR_AUTH: text(env.VITE_MADAR_AUTH) }) === 'madar') {
+    const apiUrl = text(env.VITE_API_URL);
+    return apiUrl ? madarOAuthPort({ apiUrl, accessToken }) : NO_OAUTH;
+  }
   const supabaseUrl = text(env.VITE_SUPABASE_URL);
   const publishableKey = text(env.VITE_SUPABASE_PUBLISHABLE_KEY);
   if (!supabaseUrl || !publishableKey) return NO_OAUTH;

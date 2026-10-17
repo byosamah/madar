@@ -5,11 +5,12 @@ import { requestHost, type RequestHost } from '../core/after';
 import { processOutbox, writeOutbox } from '../core/effects';
 import { takeOfficeLock } from '../core/lock';
 import type { Deps, Query } from '../core/ports';
+import { sqlFor, statementQuery } from '../data/dialect';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { reserve } from '../mail/quota';
 import { authAdminOf } from './admin';
 import { clientAddress } from './forgot';
-import { mailKey, NEWER_LINK_SQL, PAYLOAD_MERGE_SQL, PERSON_SQL, renewRow } from './invite';
+import { mailKey, NEWER_LINK_LITE, NEWER_LINK_SQL, PAYLOAD_MERGE_LITE, PAYLOAD_MERGE_SQL, PERSON_LITE, PERSON_SQL, renewRow } from './invite';
 import { hashedKey, hitLimit } from './rateLimit';
 
 /**
@@ -62,31 +63,41 @@ export const RENEW_ROW_SQL =
   "select id::text as id, payload->>'userId' as user_id, payload->>'inviteId' as invite_id, payload ? 'sentAt' as sent, " +
   "payload ? 'renewedAt' as renewed from outbox " +
   "where kind in ('auth.invite', 'auth.email') and payload->'renewKeys' ? $1 order by id desc limit 1";
+/** The SQLite form (Supabase exit, wave 2). No order by: renewInvitation picks the newest row in JavaScript (wave 0 rule). */
+export const RENEW_ROW_LITE =
+  "select cast(id as text) as id, json_extract(payload, '$.userId') as user_id, json_extract(payload, '$.inviteId') as invite_id, " +
+  "json_type(payload, '$.sentAt') is not null as sent, json_type(payload, '$.renewedAt') is not null as renewed from outbox " +
+  "where kind in ('auth.invite', 'auth.email') and exists (select 1 from json_each(payload, '$.renewKeys') where value = ?1)";
 
 /** A limit or the quota refused the renewal: the transaction rolls back, and the key stays unused. */
 class Refused extends Error {}
 
 const Body = z.object({ key: z.string().trim().min(1).max(200) });
 
-type KeyRow = { id: string; user_id: string; invite_id: string; sent: boolean; renewed: boolean };
+type KeyRow = { id: string; user_id: string; invite_id: string; sent: boolean | number; renewed: boolean | number };
+
+/** The newest row of a key. SQLite gives sent and renewed as 1 or 0, Postgres as true or false. */
+function newestOf(rows: KeyRow[]): KeyRow | undefined {
+  return rows.reduce<KeyRow | undefined>((best, row) => (!best || Number(row.id) > Number(best.id) ? row : best), undefined);
+}
 
 /**
  * A key works only after its mail went out. Until then the row keeps the plain key next to the token hash (a retry mails the
  * same key), and the send drops it in the statement that writes sentAt (SENT_SQL), so a plain key that a reader of the outbox
  * finds never works (security fix 8).
  */
-const usable = (row: KeyRow | undefined): row is KeyRow => row !== undefined && row.sent && !row.renewed;
+const usable = (row: KeyRow | undefined): row is KeyRow => row !== undefined && Boolean(row.sent) && !row.renewed;
 
 /** Sends a new invitation when the key is good. Otherwise nothing. */
 export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?: (deps: Deps, ids: string[]) => Promise<unknown> } = {}): Promise<'sent' | 'none'> {
   const hash = await hashedKey('renew', key);
-  const [row] = await deps.db.statement<KeyRow>('read', RENEW_ROW_SQL, [hash]);
+  const row = newestOf(await deps.db.statement<KeyRow>('read', sqlFor(deps.db, RENEW_ROW_SQL, RENEW_ROW_LITE), [hash]));
   if (!usable(row)) return 'none';
-  const [person] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', PERSON_SQL, [row.user_id]);
+  const [person] = await deps.db.statement<{ doc: unknown; auth: string | null }>('read', sqlFor(deps.db, PERSON_SQL, PERSON_LITE), [row.user_id]);
   if (!person || person.auth === null) return 'none';
   const user = User.parse(person.doc);
   if (user.kind !== 'human' || !user.active) return 'none';
-  if ((await deps.db.statement('read', NEWER_LINK_SQL, [row.user_id, row.invite_id])).length > 0) return 'none';
+  if ((await deps.db.statement('read', sqlFor(deps.db, NEWER_LINK_SQL, NEWER_LINK_LITE), [row.user_id, row.invite_id])).length > 0) return 'none';
   const signIn = await authAdminOf(deps.authAdmin).getUser(person.auth);
   // Accepted means a confirmed email AND a saved password (PASSWORD_SET_MARK), as users.invites says. A person who opened the
   // link and left still gets a new link: a recovery link, because Auth refuses an invite link for a confirmed email.
@@ -102,7 +113,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
   try {
     ids = await deps.db.tx('write', async (t) => {
       await takeOfficeLock(t, deps.config.lockKey);
-      const [again] = await t<KeyRow>(RENEW_ROW_SQL, [hash]);
+      const again = newestOf(await t<KeyRow>(sqlFor(t, RENEW_ROW_SQL, RENEW_ROW_LITE), [hash]));
       if (!usable(again) || again.id !== row.id) return [] as string[];
       if (!(await hitLimit(t, { key: `renew:person:${user.id}`, limit: RENEW_PERSON_PER_DAY, windowMs: DAY_MS, now })).ok) {
         throw new Refused('A renewed invitation did not go out: the person asked too often today.');
@@ -110,7 +121,7 @@ export async function renewInvitation(key: string, deps: Deps, o: { afterCommit?
       if ((await reserve(t, 'signin', mailKey(String(next.payload.inviteId)), { now, userId: user.id })) === 'over') {
         throw new Refused('A renewed invitation did not go out: the daily mail quota is full.');
       }
-      await t(PAYLOAD_MERGE_SQL, [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);
+      await t(sqlFor(t, PAYLOAD_MERGE_SQL, PAYLOAD_MERGE_LITE), [row.invite_id, JSON.stringify({ renewedAt: now.toISOString() })]);
       return writeOutbox(t, [next]);
     });
   } catch (error) {
@@ -150,7 +161,7 @@ export function createRenewRoute(o: { minMs?: number; sleep?: (ms: number) => Pr
     const { key } = parsed.data;
 
     const { after } = hostOf();
-    const q: Query = (text, values) => deps.db.statement('write', text, values);
+    const q: Query = statementQuery(deps.db, 'write');
     const now = deps.clock.now();
     const byAddress = await hitLimit(q, { key: await hashedKey('renew:ip', clientAddress(request)), limit: RENEW_IP_PER_HOUR, windowMs: HOUR_MS, now });
     if (!byAddress.ok) return tooMany(byAddress.retryAfterMs);

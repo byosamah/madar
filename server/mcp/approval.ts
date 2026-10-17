@@ -4,6 +4,7 @@ import { principalOf as realPrincipalOf } from '../auth/principal';
 import { verifyBrowserToken } from '../auth/verify';
 import type { Deps, Query } from '../core/ports';
 import type { OfficeSnapshot, Principal } from '../core/types';
+import { isLite } from '../data/dialect';
 import { readOffice as realReadOffice } from '../data/officeCache';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { readBody } from '../http/limits';
@@ -43,6 +44,18 @@ export const REMOVED_LINK_SQL = 'select 1 as removed from agent_links where clie
 /** The approval that ensureAgentUser needs before it links a client to the person. */
 export const APPROVAL_SQL = 'select 1 as approved from agent_approvals where client_id = $1::uuid and owner_user_id = $2';
 
+/** The SQLite forms (Supabase exit, wave 2): the pending authorization is a row of oauth_requests, bound to the person who opened it. */
+export const AUTHORIZATION_LITE = "select client_id from oauth_requests where id = ?1 and auth_id = ?2 and status = 'pending' and expires_at > ?3";
+export const APPROVAL_INSERT_LITE = 'insert into agent_approvals (client_id, owner_user_id, approved_at) values (?1, ?2, ?3) on conflict (client_id, owner_user_id) do nothing';
+export const REMOVED_LINK_LITE = 'select 1 as removed from agent_links where client_id = ?1 and owner_user_id = ?2 and revoked_at is not null';
+export const APPROVAL_LITE = 'select 1 as approved from agent_approvals where client_id = ?1 and owner_user_id = ?2';
+/** A remove of the AI app in Settings, Agents ends its approval too, so the next connection asks the person again. */
+export const APPROVAL_DELETE_LITE = 'delete from agent_approvals where client_id = ?1 and owner_user_id = ?2';
+
+export function agentRemoved(): ApiError {
+  return new ApiError('forbidden', 'You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.', { reason: 'agent_removed' });
+}
+
 const Body = z.object({ authorizationId: z.string().trim().min(1).max(200) });
 
 export type ApproveOptions = {
@@ -51,18 +64,24 @@ export type ApproveOptions = {
   readOffice: (deps: Deps) => Promise<OfficeSnapshot>;
 };
 
-/** Records the approval of the client of one pending authorization for the signed-in person. */
-export async function recordApproval(q: Query, o: { authorizationId: string; authUserId: string; ownerId: string }): Promise<{ clientId: string }> {
-  const [row] = await q<{ client_id: string | null }>(AUTHORIZATION_SQL, [o.authorizationId, o.authUserId]);
+/**
+ * Records the approval of the client of one pending authorization for the signed-in person. now: the time of the check on SQLite
+ * (an oauth_requests row ends at expires_at); Postgres asks Auth, which checks it itself.
+ */
+export async function recordApproval(q: Query, o: { authorizationId: string; authUserId: string; ownerId: string; now?: Date }): Promise<{ clientId: string }> {
+  const lite = isLite(q);
+  const now = (o.now ?? new Date()).toISOString();
+  const [row] = lite
+    ? await q<{ client_id: string | null }>(AUTHORIZATION_LITE, [o.authorizationId, o.authUserId, now])
+    : await q<{ client_id: string | null }>(AUTHORIZATION_SQL, [o.authorizationId, o.authUserId]);
   const clientId = row?.client_id ?? null;
   if (clientId === null) {
     throw invalid('authorizationId', 'This approval request ended. Start the connection again in your AI app.', 'authorization_ended');
   }
-  const [removed] = await q(REMOVED_LINK_SQL, [clientId, o.ownerId]);
-  if (removed) {
-    throw new ApiError('forbidden', 'You removed this AI app in Madar. In the AI app, remove the Madar connection and add it again.', { reason: 'agent_removed' });
-  }
-  await q(APPROVAL_INSERT_SQL, [clientId, o.ownerId]);
+  const [removed] = await q(lite ? REMOVED_LINK_LITE : REMOVED_LINK_SQL, [clientId, o.ownerId]);
+  if (removed) throw agentRemoved();
+  if (lite) await q(APPROVAL_INSERT_LITE, [clientId, o.ownerId, now]);
+  else await q(APPROVAL_INSERT_SQL, [clientId, o.ownerId]);
   return { clientId };
 }
 

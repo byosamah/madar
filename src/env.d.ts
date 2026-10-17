@@ -10,6 +10,11 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** The build ID (scripts/build-remote.ts): the UTC day of the build, sent as X-Madar-Build. */
   readonly VITE_MADAR_BUILD?: string;
-  /** The live updates (exit wave 3): 'socket' for the office object, else Supabase Realtime. No build of wave 3 sets it. */
+  /**
+   * The live updates (exit wave 3): 'socket' for the office object, else Supabase Realtime. No build sets it yet. A build with
+   * VITE_MADAR_AUTH=madar opens the socket in any case (liveKindOf, src/app/remote/bootstrap.ts).
+   */
   readonly VITE_MADAR_LIVE?: 'socket' | 'realtime';
+  /** The sign-in of the remote build (src/app/remote/authMode.ts): supabase (unset) or madar. */
+  readonly VITE_MADAR_AUTH?: string;
 }

@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import { ApiError } from '../../src/api/errors';
+import { OWN_AUTH_SECRET, ownIssuer, ownKeySet } from '../auth/ownKeys';
 import { issuerOf } from '../auth/verify';
 import { env } from '../env';
 import { userIdOfAuth } from '../data/officeCache';
@@ -76,9 +77,12 @@ const checkers = new Map<string, AgentTokenChecker>();
 
 /**
  * The checker of a project: the JWKS of ${SUPABASE_URL}/auth/v1, the issuer AUTH_ISSUER or that address (a local function sees
- * SUPABASE_URL http://kong:8000, its tokens name http://127.0.0.1:54321/auth/v1), and the audience MCP_URL.
+ * SUPABASE_URL http://kong:8000, its tokens name http://127.0.0.1:54321/auth/v1), and the audience MCP_URL. With the secret
+ * MADAR_AUTH_PRIVATE_JWK (the own sign-in, Supabase exit wave 2), the own key and the own issuer (MCP_URL) in place of Supabase.
  */
 export function agentTokenCheckerOf(o: { supabaseUrl: string; mcpUrl: string; issuer?: string }): AgentTokenChecker {
+  const own = env(OWN_AUTH_SECRET);
+  if (own !== undefined) return agentTokenChecker({ issuer: ownIssuer(o.mcpUrl), audience: o.mcpUrl, jwks: ownKeySet(own) });
   const auth = issuerOf(o.supabaseUrl);
   const issuer = o.issuer ?? env('AUTH_ISSUER') ?? auth;
   const id = `${auth}|${issuer}|${o.mcpUrl}`;
@@ -90,8 +94,9 @@ export function agentTokenCheckerOf(o: { supabaseUrl: string; mcpUrl: string; is
   return checker;
 }
 
-/** The issuer that the metadata document names: AUTH_ISSUER, or ${SUPABASE_URL}/auth/v1. */
-export function authIssuerOf(supabaseUrl: string): string {
+/** The issuer that the metadata document names: the own issuer (MCP_URL) with the secret, else AUTH_ISSUER or ${SUPABASE_URL}/auth/v1. */
+export function authIssuerOf(supabaseUrl: string, mcpUrl?: string): string {
+  if (env(OWN_AUTH_SECRET) !== undefined && mcpUrl !== undefined) return ownIssuer(mcpUrl);
   return env('AUTH_ISSUER') ?? issuerOf(supabaseUrl);
 }
 
@@ -102,16 +107,31 @@ export const AGENT_SQL = [
   ' from (values (1)) as one(x) left join agent_links l on l.client_id = $2::uuid',
 ].join('');
 
-export type AgentRow = { agent_user_id: string | null; owner_user_id: string | null; revoked_at: Date | string | null; session_at: Date | string | null; ok: boolean };
+/**
+ * The SQLite form (Supabase exit, wave 2). The session is a row of auth_sessions: ok checks the session, its client, the ban and the
+ * person of the session; the resolver checks that the person and the agent are on, from the office in memory (no row read).
+ */
+export const AGENT_LITE = [
+  'select l.agent_user_id as agent_user_id, l.owner_user_id as owner_user_id, l.revoked_at as revoked_at,',
+  ' case when s.revoked_at is null and s.expires_at > ?3 then s.created_at end as session_at,',
+  ' case when s.revoked_at is null and s.expires_at > ?3 and s.client_id = ?2 and a.banned = 0 and a.user_id = l.owner_user_id and l.revoked_at is null then 1 else 0 end as ok',
+  ' from (select 1) as one left join auth_sessions s on s.id = ?1 left join auth_users a on a.id = s.auth_id left join agent_links l on l.client_id = ?2',
+].join('');
+
+export type AgentRow = { agent_user_id: string | null; owner_user_id: string | null; revoked_at: Date | string | null; session_at: Date | string | null; ok: boolean | number };
 export type AgentQuery = <R>(text: string, values?: unknown[]) => Promise<R[]>;
 export type EnsureAgent = (o: { ownerId: string; clientId: string }) => Promise<void>;
 export type AgentPrincipal = { principal: Principal; ownerId: string; linked: boolean };
 
-export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Promise<OfficeSnapshot>; ensure: EnsureAgent }) {
+/** lite: the SQLite path (AGENT_LITE), with the clock that ends a session at expires_at. */
+export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Promise<OfficeSnapshot>; ensure: EnsureAgent; lite?: { now: () => Date } }) {
   const read = async (token: AgentToken): Promise<AgentRow> => {
-    const [row] = await o.query<AgentRow>(AGENT_SQL, [token.sessionId, token.clientId]);
+    const [row] = o.lite
+      ? await o.query<AgentRow>(AGENT_LITE, [token.sessionId, token.clientId, o.lite.now().toISOString()])
+      : await o.query<AgentRow>(AGENT_SQL, [token.sessionId, token.clientId]);
     if (!row) throw new Error('The agent check gave no row.');
-    return row;
+    // SQLite gives ok as 1 or 0.
+    return { ...row, ok: Boolean(row.ok) };
   };
   const principalOf = (row: AgentRow, token: AgentToken, linked: boolean): AgentPrincipal => ({
     principal: { userId: row.agent_user_id!, agent: { clientId: token.clientId } }, ownerId: row.owner_user_id!, linked,
@@ -122,10 +142,13 @@ export function agentPrincipalResolver(o: { query: AgentQuery; office: () => Pro
     if (row.session_at === null) throw signInAgain('This sign-in ended. Connect Madar again in your AI app.');
     if (row.agent_user_id !== null) {
       if (row.revoked_at !== null) throw signInAgain('This agent was removed in Madar. Connect it again in your AI app.');
-      if (row.ok) return principalOf(row, token, false);
+      // Postgres: agent_session_ok checked that the person and the agent are on. The path of today stays as it is.
+      if (row.ok && !o.lite) return principalOf(row, token, false);
       const office = await o.office();
       const owner = office.lists.users[row.owner_user_id ?? ''];
       const agent = office.lists.users[row.agent_user_id ?? ''];
+      // SQLite checks it here, on the office in memory, with no row read.
+      if (row.ok && owner?.active && agent?.active) return principalOf(row, token, false);
       if (!owner?.active || !agent?.active) throw accountOff();
       throw signInAgain('This connection belongs to another Madar person.');
     }

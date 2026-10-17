@@ -91,3 +91,22 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - The runner serves its own mcp function. Never run a shared `supabase functions serve` next to it.
 - The runner leaves its agent in the public office. Run `npx supabase db reset` after it, before `test:it`.
 - The deploy suite (`tests/e2e-deploy/agents.spec.ts`) needs `MADAR_E2E_MCP_URL`. It removes its grant at the end.
+
+## The own OAuth server (Supabase exit, wave 2)
+- `oauth/`: the documents (issuer = MCP_URL; the same document at `/mcp/.well-known/oauth-authorization-server` and
+  `/mcp/.well-known/openid-configuration`), Dynamic Client Registration of public clients (PKCE S256, no secret), authorize (to
+  `/oauth/consent?authorization_id=`), the consent with the Madar approval inside, the token step (code once, 60 s; refresh
+  rotation), the grants of Settings, Agents.
+- The approval: the consent gives a code only after `POST /api/agents/approve` with a browser token. Every own route refuses an
+  agent token, so the open risk of Z7 (an agent token with the full rights of its person at Auth) does not exist on the own stack.
+- A request belongs to the first person who opens it; for anyone else it reads as unknown, with no client name.
+- A remove in Settings, Agents (`oauth.revoke`) ends the agent sessions and the approval of that AI app, so its next connection
+  shows the consent screen and needs the Madar approval again. The consent refuses an app whose link the person removed
+  (`agent_removed`), also when an old approval stays.
+- No Client ID Metadata Document: it is a fetch, and the office object does no network work.
+- MCP clients try `/.well-known/oauth-authorization-server/mcp` first. Wave 5 adds the Pages Function
+  (`server/http/pagesWellKnown.ts`); until then a client finds `/mcp/.well-known/openid-configuration`.
+- On SQLite, `agents.revokeAll` runs inside the transaction of the turn-off (no outbox row), and `agents.remove` ends the agent
+  sessions with the links. `liteAgentOf` (`oauth/agent.ts`) is the agent check of the office object.
+- No tool, `TOOL_DOCS` line or `INSTRUCTIONS` rule changed in wave 2: an agent never reads the connect flow; its AI app runs it.
+- `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.

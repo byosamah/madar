@@ -26,6 +26,9 @@ export async function startOffice() {
       statTables: send('statTables'),
       dropIndex: send('dropIndex'),
       cron: send('cron'),
+      signin: send('signin'),
+      importSignins: send('importSignins'),
+      peek: send('peek'),
     };
   };
   return {

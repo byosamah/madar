@@ -118,7 +118,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     // idempotency key stay with the server call, which runs resolveStory and the key replay in its own transaction.
     if (!entry.readOnly && req.story && 'id' in req.story) await checkStory(statementStories(deps.db), req.story.id, req.principal.userId, now);
     const result = await entry.call(parsed, {
-      deps, principal: req.principal, office, batch: req.batch, now, ...(req.story ? { story: req.story } : {}), ...(req.key ? { key: req.key } : {}),
+      deps, principal: req.principal, office, batch: req.batch, now, data, ...(req.story ? { story: req.story } : {}), ...(req.key ? { key: req.key } : {}),
     });
     const output = entry.output.safeParse(result.output);
     if (!output.success) throw new ApiError('failed', `The call ${entry.name} returned data in the wrong shape.`, { issues: output.error.issues.length });

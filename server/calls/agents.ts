@@ -12,6 +12,7 @@ import { takeOfficeLock } from '../core/lock';
 import type { CallData } from '../core/runCall';
 import type { Deps } from '../core/ports';
 import { resolveStory, sqlStories } from '../core/story';
+import { isLite, sqlFor } from '../data/dialect';
 import type { ChangeSignal, ServerCall, ServerCallCtx } from '../core/types';
 import { readOffice } from '../data/officeCache';
 import { loadFor, sqlSource } from '../data/loaders/index';
@@ -35,6 +36,11 @@ import '../mcp/revokeAll';
 export const AGENT_LINKS_SQL =
   'select client_id::text as client_id, agent_user_id, redirect_host, approved_at, last_used_at, revoked_at from agent_links where owner_user_id = $1 order by approved_at, client_id';
 export const REVOKE_AGENT_SQL = 'update agent_links set revoked_at = now() where agent_user_id = $1 and revoked_at is null';
+/** The SQLite forms (Supabase exit, wave 2). No order by: agentsList sorts in JavaScript. The agent sessions end with the links. */
+export const AGENT_LINKS_LITE = 'select client_id, agent_user_id, redirect_host, approved_at, last_used_at, revoked_at from agent_links where owner_user_id = ?1';
+export const REVOKE_AGENT_LITE = 'update agent_links set revoked_at = ?2 where agent_user_id = ?1 and revoked_at is null';
+export const END_AGENT_SESSIONS_LITE =
+  'update auth_sessions set revoked_at = ?2 where revoked_at is null and client_id in (select client_id from agent_links where agent_user_id = ?1)';
 
 type LinkRow = { client_id: string; agent_user_id: string; redirect_host: string; approved_at: Date | string; last_used_at: Date | string | null; revoked_at: Date | string | null };
 
@@ -51,7 +57,8 @@ export const agentsList: ServerCall<'agents.list'> = async (_input, ctx) => {
   const agents = Object.values(ctx.office.lists.users)
     .filter((user) => user.kind === 'agent' && user.ownerId === owner.id)
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-  const rows = agents.length === 0 ? [] : await ctx.deps.db.tx('read', (q) => q<LinkRow>(AGENT_LINKS_SQL, [owner.id]));
+  const rows = agents.length === 0 ? [] : (await ctx.deps.db.tx('read', (q) => q<LinkRow>(sqlFor(q, AGENT_LINKS_SQL, AGENT_LINKS_LITE), [owner.id])))
+    .sort((a, b) => time(a.approved_at) - time(b.approved_at) || a.client_id.localeCompare(b.client_id));
   const output = agents.map((agent) => {
     const live = rows.filter((row) => row.agent_user_id === agent.id && row.revoked_at === null);
     const newest = live.reduce<LinkRow | undefined>((best, row) => (!best || time(row.approved_at) >= time(best.approved_at) ? row : best), undefined);
@@ -104,7 +111,6 @@ export function sqlAgentsData(deps: Deps): CallData {
 }
 
 export function createAgentsRemove(o: { data?: (deps: Deps) => CallData } = {}): ServerCall<'agents.remove'> {
-  const dataOf = o.data ?? sqlAgentsData;
   return async (input, ctx) => {
     const owner = authorityOf(ctx);
     const agent = ctx.office.lists.users[input.agentId];
@@ -114,7 +120,9 @@ export function createAgentsRemove(o: { data?: (deps: Deps) => CallData } = {}):
     const { deps } = ctx;
     const actorId = ctx.principal.userId;
     const digest = ctx.key !== undefined ? await digestOf('agents.remove', input) : undefined;
-    const done = await dataOf(deps).tx('write', async (t) => {
+    // The data of the test, else the data of the runCall that runs the call (liteData on SQLite), else the database of deps.
+    const data = o.data ? o.data(deps) : ctx.data ?? sqlAgentsData(deps);
+    const done = await data.tx('write', async (t) => {
       await t.lock(deps.config.lockKey);
       const now = deps.clock.now();
       const ref = ctx.story && 'ref' in ctx.story && !ctx.batch.storyRefs.has(ctx.story.ref) ? ctx.story.ref : undefined;
@@ -123,7 +131,13 @@ export function createAgentsRemove(o: { data?: (deps: Deps) => CallData } = {}):
         if (stored) return { result: stored, ref, signals: [] as ChangeSignal[] };
       }
       const story = await resolveStory(t.stories, ctx.story, ctx.batch.storyRefs, actorId, now);
-      await t.q(REVOKE_AGENT_SQL, [agent.id]);
+      if (isLite(t.q)) {
+        // The sessions of the clients of the agent end with its links, so no refresh token of the agent works after the remove.
+        await t.q(END_AGENT_SESSIONS_LITE, [agent.id, now.toISOString()]);
+        await t.q(REVOKE_AGENT_LITE, [agent.id, now.toISOString()]);
+      } else {
+        await t.q(REVOKE_AGENT_SQL, [agent.id]);
+      }
 
       let signals: ChangeSignal[] = [];
       const office = await t.office();

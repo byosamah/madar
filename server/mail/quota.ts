@@ -48,10 +48,13 @@ export const RELEASE_SQL = `delete from mail_log where ref = $1 and resend_id is
 /** $1 day, $2 ref, $3 Resend id. */
 export const RECORD_SENT_SQL = 'update mail_log set resend_id = $3 where utc_day = $1::date and ref = $2';
 
-// SQLite forms (exit wave 3). The office object runs one request at a time, so the mail lock goes: one count, then one insert.
-// The day always comes from the caller's clock (UTC text): SQLite has no "now" of the database here.
-export const RESERVE_COUNT_LITE = `select count(*) filter (where ${SENDING}) as n, coalesce(max(ref = ?2), 0) as mine from mail_log where utc_day = ?1`;
-export const RESERVE_ADD_LITE = 'insert into mail_log (utc_day, kind, user_id, ref) values (?1, ?2, ?3, ?4)';
+/**
+ * The SQLite forms (Supabase exit, waves 2 and 3). The office object is the one writer and runs one request at a time, so there is
+ * no mail lock: one count, then one insert. The day always comes from the clock of the caller (UTC text): SQLite has no "now" of
+ * the database here. Wave 2 wrote reserve, release and the last statement of sendCounted; wave 3 wrote the first refusal and the meter.
+ */
+export const DAY_COUNT_LITE = `select coalesce(sum(case when ${SENDING} then 1 else 0 end), 0) as n, coalesce(max(ref = ?2), 0) as mine from mail_log where utc_day = ?1`;
+export const RESERVE_LITE = 'insert into mail_log (utc_day, kind, user_id, ref) values (?1, ?2, ?3, ?4) on conflict (utc_day, ref) do nothing';
 export const REFUSAL_MARK_LITE = "insert into mail_log (utc_day, kind, ref) values (?1, 'refused', 'quota-refused') on conflict (utc_day, ref) do nothing returning id";
 export const SENT_TODAY_LITE = `select count(*) as n from mail_log where utc_day = ?1 and ${SENDING}`;
 export const RELEASE_LITE = `delete from mail_log where ref = ?1 and resend_id is null and ${SENDING}`;
@@ -71,10 +74,10 @@ const liteDay = (o: DayOption): string => utcDay(o.now ?? new Date());
 export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOption & { userId?: string } = {}): Promise<'ok' | 'over'> {
   if (isLite(q)) {
     const day = liteDay(o);
-    const [row] = await q<{ n: number; mine: number }>(RESERVE_COUNT_LITE, [day, ref]);
+    const [row] = await q<{ n: number; mine: number }>(DAY_COUNT_LITE, [day, ref]);
     if (Number(row?.mine ?? 0) === 1) return 'ok';
     if (Number(row?.n ?? 0) >= QUOTA_LIMITS[kind]) return 'over';
-    await q(RESERVE_ADD_LITE, [day, kind, o.userId ?? null, ref]);
+    await q(RESERVE_LITE, [day, kind, o.userId ?? null, ref]);
     return 'ok';
   }
   await q(MAIL_LOCK_SQL, [...MAIL_LOCK_KEY]);

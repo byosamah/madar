@@ -106,7 +106,7 @@ describe('P1 on the local stack: sign-in tokens and invitations', () => {
     expect(welcome.status).toBe(200);
     expect(decodeJwt(tokenOf(welcome)).amr).toEqual([expect.objectContaining({ method: 'otp' })]);
     expect(await setPassword(tokenOf(welcome))).toBe(200);
-    await expect(verifyBrowserToken(`Bearer ${tokenOf(welcome)}`)).resolves.toEqual({ authUserId: invite.userId });
+    await expect(verifyBrowserToken(`Bearer ${tokenOf(welcome)}`)).resolves.toEqual({ authUserId: invite.userId, sessionId: expect.any(String) });
 
     // Sign-in, then a refresh: the server must accept aud as an array and as a string, whichever form Auth gives.
     const signedIn = await signIn(to);
@@ -114,10 +114,10 @@ describe('P1 on the local stack: sign-in tokens and invitations', () => {
     const claims = decodeJwt(tokenOf(signedIn));
     expect(claims).toMatchObject({ sub: invite.userId, role: 'authenticated', iss: `${stack.apiUrl}/auth/v1` });
     expect(claims.client_id).toBeUndefined();
-    await expect(verifyBrowserToken(`Bearer ${tokenOf(signedIn)}`)).resolves.toEqual({ authUserId: invite.userId });
+    await expect(verifyBrowserToken(`Bearer ${tokenOf(signedIn)}`)).resolves.toEqual({ authUserId: invite.userId, sessionId: expect.any(String) });
     const refreshed = await auth('POST', '/token?grant_type=refresh_token', { body: { refresh_token: signedIn.body.refresh_token } });
     expect(refreshed.status).toBe(200);
-    await expect(verifyBrowserToken(`Bearer ${tokenOf(refreshed)}`)).resolves.toEqual({ authUserId: invite.userId });
+    await expect(verifyBrowserToken(`Bearer ${tokenOf(refreshed)}`)).resolves.toEqual({ authUserId: invite.userId, sessionId: expect.any(String) });
     for (const token of [tokenOf(signedIn), tokenOf(refreshed)]) {
       const aud = decodeJwt(token).aud;
       expect(aud === 'authenticated' || (Array.isArray(aud) && aud.length === 1 && aud[0] === 'authenticated')).toBe(true);

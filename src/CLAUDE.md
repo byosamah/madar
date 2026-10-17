@@ -32,6 +32,8 @@ any screen work.
   function otherwise. `config/remote.<env>.env` must not set it. `regionUrl` (`api/remote/region.ts`) adds
   `forceFunctionRegion=eu-central-1` only to a `*.supabase.co` URL, and a relative `/api` stays relative (fetch resolves it
   against the page). `dev:remote` always uses the api function: Vite runs no Pages Function.
+- The sign-in of the remote build (`src/app/remote/authMode.ts`): `VITE_MADAR_AUTH` unset is the Supabase port of today;
+  `madar` is the Madar port (`madarAuth.ts`, `madarOAuthPort`) for the own stack. No copy sets it before wave 5.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
   and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
@@ -78,8 +80,8 @@ any screen work.
   still reloads at once.
 - The office build (exit wave 3, `VITE_MADAR_LIVE=socket`, set by no build before wave 5) gets its signals from one socket of the
   office object (`api/remote/liveSocket.ts`, picked by `liveSourceOf` in `app/remote/bootstrap.ts`): a ticket, a ping each 30 s,
-  a new socket and a reload of every list when no pong comes in 10 s. Every other build keeps Supabase Realtime
-  (`app/remote/channel.ts`).
+  a new socket and a reload of every list when no pong comes in 10 s. A build with `VITE_MADAR_AUTH=madar` has no Supabase
+  client, so it always opens the socket (`liveKindOf`). Every other build keeps Supabase Realtime (`app/remote/channel.ts`).
 - A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
 - Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
   (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.

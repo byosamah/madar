@@ -109,10 +109,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Key columns are plain columns that the save writes, from the column rules of `loaders/query.ts`. An office list has only `id`
   and `doc`. An update sets `doc` and only the key columns that changed.
 - Every write of an office table raises `office_meta.version` and calls `writeOfficeSnapshot` in the same transaction.
-- A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`, and each version above 1 has a step
-  in `LITE_STEPS`.
-- Schema version 3 (exit wave 3): the table `usage_day`; each version above 1 has a step in `LITE_STEPS`, and `applyLiteSchema`
-  runs the steps above the office version in one transaction. `LiteDb.isOpen()` tells the network port of the office object that
+- A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`, and each version above 3 has a step
+  in `LITE_STEPS` (the first real office comes in wave 5).
+- Schema version 3 (exit waves 2 and 3): the sign-in rows of wave 2 and the table `usage_day` of wave 3. `LITE_STEPS` is
+  `{ 3: [USAGE_DAY_SQL] }`: the sign-in tables have no step, because no office object below version 3 exists outside the tests.
+  `applyLiteSchema` runs the steps above the office version in one transaction. `LiteDb.isOpen()` tells the network port of the office object that
   a transaction is open. `SaveResult.noticeIds` names the notices of a save: the producers on SQLite read them in place of the
   `xmin` test. `DAY_ROW_LITE` (the day row of the meters) lives in `server/usage/meters.ts`, because the Supabase bundles load
   `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
@@ -121,3 +122,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   a rows pin that shows that no read needs it.
 - `test:lite` runs the rule tests and the shadow run on node:sqlite; `test:office` runs the host checks, the `everyCall`
   parity and the rows pins on local workerd. Keep both green when you change a loader read or the save.
+- The sign-in rows of wave 2 (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`, in version 3 since
+  the merge) and the partial index `outbox_signin`. An invitation text must repeat its exact term
+  `kind in ('auth.invite', 'auth.email')`: `kind = 'auth.invite'` alone scans the outbox.
+- The snapshot body is `{ lists, links }`: the sign-in links ride with the office lists, so a cold wake still reads 2 rows.
+  `writeOfficeSnapshot` reads the links from `auth_users` (one statement, only on an office write).
+- `statementQuery(db, mode)` (`dialect.ts`) keeps the dialect on a query of single statements (the forgot and renew routes).
+- `LATER_CALLS` and `LATER_KINDS` (`server/test/liteHarness.ts`) are empty since the merge of waves 2 and 3: a new server call or
+  effect kind with no SQLite form fails `test:lite`.

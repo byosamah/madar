@@ -9,7 +9,9 @@ import { remoteFileAdapters } from '../files';
 import type { Runtime } from '../runtime';
 import type { ChangeListener, ChangeSource } from '../signals';
 import { createSupabaseAuth } from './auth';
+import { authModeOf, type AuthMode } from './authMode';
 import { supabaseChangeSource } from './channel';
+import { createMadarAuth } from './madarAuth';
 import { createSupabase } from './supabase';
 
 /**
@@ -19,13 +21,21 @@ import { createSupabase } from './supabase';
  */
 
 /** The public values of the build (config/remote.<env>.env). None of them is a secret. */
-export type RemoteConfig = { supabaseUrl: string; publishableKey: string; apiUrl: string; build: string };
+export type RemoteConfig = { supabaseUrl: string; publishableKey: string; apiUrl: string; build: string; auth: AuthMode };
 
 export function remoteConfig(env: Record<string, string | boolean | undefined>): RemoteConfig {
   const text = (name: string) => {
     const value = env[name];
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
   };
+  const auth = authModeOf({ VITE_MADAR_AUTH: text('VITE_MADAR_AUTH') });
+  // The server answers 409 client_outdated to a build older than MIN_CLIENT_BUILD. '0' passes while that is 0.
+  const build = text('VITE_MADAR_BUILD') ?? '0';
+  if (auth === 'madar') {
+    const apiUrl = text('VITE_API_URL');
+    if (apiUrl === undefined) throw new Error('The remote build with VITE_MADAR_AUTH=madar needs VITE_API_URL (the page api of the Worker).');
+    return { supabaseUrl: '', publishableKey: '', apiUrl: apiUrl.replace(/\/+$/, ''), build, auth };
+  }
   const missing = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY'].filter((name) => text(name) === undefined);
   if (missing.length > 0) throw new Error(`The remote build needs ${missing.join(', ')} (config/remote.<env>.env).`);
   const supabaseUrl = text('VITE_SUPABASE_URL')!.replace(/\/+$/, '');
@@ -34,8 +44,8 @@ export function remoteConfig(env: Record<string, string | boolean | undefined>):
     publishableKey: text('VITE_SUPABASE_PUBLISHABLE_KEY')!,
     // The api function, or the page's own /api on the Worker host (owner, 2026-10-16): a relative address, which fetch resolves.
     apiUrl: (text('VITE_API_URL') ?? `${supabaseUrl}/functions/v1/api`).replace(/\/+$/, ''),
-    // The server answers 409 client_outdated to a build older than MIN_CLIENT_BUILD. '0' passes while that is 0.
-    build: text('VITE_MADAR_BUILD') ?? '0',
+    build,
+    auth,
   };
 }
 
@@ -146,6 +156,14 @@ export function liveSourceOf(
   return (me) => liveSocketSource({ me, ticket: o.ticket, url });
 }
 
+/**
+ * The kind of live updates of a build (after exit waves 2 and 3). The Madar sign-in has no Supabase client, so its build always
+ * opens the socket of the office object. The Supabase build keeps Realtime unless it says VITE_MADAR_LIVE=socket.
+ */
+export function liveKindOf(auth: AuthMode, flag: string | undefined): string | undefined {
+  return auth === 'madar' ? 'socket' : flag;
+}
+
 export type RemoteRuntime = Runtime & { api: MadarApi; auth: AuthPort; changes: PersonChangeSource; mode: 'remote' };
 
 /**
@@ -164,9 +182,12 @@ export async function bootstrapRemote(o: {
     VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     VITE_API_URL: import.meta.env.VITE_API_URL,
     VITE_MADAR_BUILD: import.meta.env.VITE_MADAR_BUILD,
+    VITE_MADAR_AUTH: import.meta.env.VITE_MADAR_AUTH,
   });
-  const supabase = o.supabase ?? createSupabase({ url: config.supabaseUrl, publishableKey: config.publishableKey });
-  const auth = o.auth ?? (await createSupabaseAuth(supabase, { apiUrl: config.apiUrl, fetch: o.fetch }));
+  const supabase = config.auth === 'supabase' ? (o.supabase ?? createSupabase({ url: config.supabaseUrl, publishableKey: config.publishableKey })) : undefined;
+  const auth = o.auth ?? (supabase
+    ? await createSupabaseAuth(supabase, { apiUrl: config.apiUrl, fetch: o.fetch })
+    : await createMadarAuth({ apiUrl: config.apiUrl, ...(o.fetch ? { fetch: o.fetch } : {}) }));
   const adapters: Partial<Record<CallName, Adapter>> = remoteFileAdapters();
   let changes: PersonChangeSource | undefined;
   const api = createRemoteApi<Calls>({
@@ -174,21 +195,25 @@ export async function bootstrapRemote(o: {
     build: config.build,
     token: () => auth.accessToken(),
     refresh: async () => {
-      // A 401 with a token that has not ended yet: ask Auth for a new one, then read it as usual.
-      await supabase.auth.refreshSession().catch(() => undefined);
+      // A 401 with a token that has not ended yet: ask for a new one, then read it as usual.
+      if (supabase) await supabase.auth.refreshSession().catch(() => undefined);
+      else await auth.refresh?.().catch(() => undefined);
       return auth.accessToken();
     },
     fetch: o.fetch,
     adapters,
-    // The Supabase gateway names the project by its public key.
-    headers: { apikey: config.publishableKey },
+    // The Supabase gateway names the project by its public key; the page api of the own stack needs none.
+    headers: config.publishableKey ? { apikey: config.publishableKey } : {},
     onSignals: (signals, fresh) => changes?.own(signals, fresh),
   });
   changes = personChangeSource({
     auth,
     person: async () => (await api.call('session.get', {})).user.id,
-    open: liveSourceOf(import.meta.env.VITE_MADAR_LIVE, {
-      realtime: (me) => supabaseChangeSource(supabase, me),
+    open: liveSourceOf(liveKindOf(config.auth, import.meta.env.VITE_MADAR_LIVE), {
+      realtime: (me) => {
+        if (!supabase) throw new Error('The Madar sign-in has no Supabase Realtime: its build opens the live socket (liveKindOf).');
+        return supabaseChangeSource(supabase, me);
+      },
       ticket: () => api.call('live.ticket', {}),
       apiUrl: config.apiUrl,
       page: window.location.href,

@@ -7,7 +7,7 @@ import { nodeHost } from '../data/lite/host';
 import { applyLiteSchema } from '../data/lite/schema';
 import { liteLoadWhole } from '../data/lite/whole';
 import { createGate } from './gate';
-import { liteChecksum, liteWriteDown, LiteWorker } from './liteHarness';
+import { LATER_CALLS, LATER_KINDS, liteChecksum, liteWriteDown, LiteWorker } from './liteHarness';
 
 async function office() {
   const raw = new DatabaseSync(':memory:');
@@ -56,5 +56,10 @@ describe('the SQLite mirror backend (server/test/liteHarness.ts)', () => {
     expect((await next.readBack()).tasks).toEqual({});
     await gate.end();
     worker.end();
+  });
+
+  it('lists no call and no kind as one with no SQLite form, after waves 2 and 3', () => {
+    expect([...LATER_CALLS]).toEqual([]);
+    expect([...LATER_KINDS]).toEqual([]);
   });
 });
