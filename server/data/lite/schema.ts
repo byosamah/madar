@@ -5,13 +5,13 @@ import type { SqlHost } from './host';
 /**
  * The one SQLite schema of the office object (Supabase exit, wave 1), in place of the 18 Postgres migrations. The entity tables
  * come from tables.ts and the loader columns of query.ts. The office object applies it at start, after it reads schema_version:
- * a schema statement writes rows, so the start of a current office runs none. Until the first office object deploys (wave 3), a
- * change bumps LITE_SCHEMA_VERSION with no step; after that, each new version needs a step of its own in applyLiteSchema.
+ * a schema statement writes rows, so the start of a current office runs none. A new office gets the whole schema at once. An
+ * older office runs the steps of LITE_STEPS above its version, in one transaction (exit wave 3): each new version needs a step.
  *
  * Rules (wave 0): plain key columns that the save writes; no foreign key; no ANALYZE; ascending indexes, so a backward scan gives
  * created_at desc, id desc and rowid desc with no sort step. Every time column holds ISO text in UTC (Date.toISOString).
  */
-export const LITE_SCHEMA_VERSION = 1;
+export const LITE_SCHEMA_VERSION = 3;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -48,6 +48,14 @@ export const LITE_INDEXES: readonly LiteIndex[] = [
 
 const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
 
+/**
+ * The day meters of the Free day limits (exit wave 3, server/office/meter.ts): one row for each UTC day, because each Free limit of
+ * Durable Objects ends at 00:00 UTC (03:00 Riyadh). requests: office object requests; worker_requests: Worker requests.
+ */
+const USAGE_DAY_SQL =
+  'create table usage_day (day text primary key, rows_read integer not null default 0, rows_written integer not null default 0, '
+  + 'requests integer not null default 0, calls integer not null default 0, worker_requests integer not null default 0)';
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -66,6 +74,7 @@ const SERVER_SQL: readonly string[] = [
   `create table usage_warnings (month text not null, metric text not null, sent_at text not null default (${NOW}), primary key (month, metric))`,
   'create table rate_limits (key text not null, window_start text not null, count integer not null default 0, primary key (key, window_start))',
   `create table job_runs (key text primary key, done_at text not null default (${NOW}))`,
+  USAGE_DAY_SQL,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
@@ -77,6 +86,15 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   { table: 'agent_links', name: 'agent_links_owner', columns: 'owner_user_id' },
   { table: 'agent_links', name: 'agent_links_agent', columns: 'agent_user_id' },
 ];
+
+/**
+ * The steps of an office with an older schema. The key is the version that the step makes, from the version before it. The texts
+ * of a step must leave the same schema as liteSchemaSql of that version, so a stepped office and a new office are equal.
+ * Version 2 is the step of wave 2 (the sign-in rows). Version 3 adds the day meters.
+ */
+export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
+  3: [USAGE_DAY_SQL],
+};
 
 /** The index that a read with atOrAfter names (indexed by), so no other index decides its plan (wave 0: 124,339 rows). */
 export const TIME_INDEX: Readonly<Record<string, string>> = { events: 'events_created_at' };
@@ -137,12 +155,24 @@ function versionOf(host: SqlHost): number | undefined {
   }
 }
 
-/** Makes the schema of a new office, or checks the version of an office that has one (each wake of the office object). */
-export async function applyLiteSchema(host: SqlHost): Promise<{ applied: boolean }> {
+/** Makes the schema of a new office, steps an older one up, or checks the version of a current one (each wake of the office object). */
+export async function applyLiteSchema(host: SqlHost): Promise<{ applied: boolean; steps?: number[] }> {
   const version = versionOf(host);
   if (version === LITE_SCHEMA_VERSION) return { applied: false };
+  if (version !== undefined && version > LITE_SCHEMA_VERSION) {
+    throw new Error(`The SQLite schema of this office is version ${version}, and this build knows version ${LITE_SCHEMA_VERSION}. Deploy the newer build.`);
+  }
   if (version !== undefined) {
-    throw new Error(`The SQLite schema of this office is version ${version}, and this build knows version ${LITE_SCHEMA_VERSION}. Add a schema step first (server/data/lite/schema.ts).`);
+    const steps: number[] = [];
+    for (let next = version + 1; next <= LITE_SCHEMA_VERSION; next += 1) {
+      if (!LITE_STEPS[next]) throw new Error(`This build has no schema step to version ${next} (server/data/lite/schema.ts, LITE_STEPS).`);
+      steps.push(next);
+    }
+    await host.transaction(async () => {
+      for (const next of steps) for (const text of LITE_STEPS[next]) host.exec(text, []);
+      host.exec('update schema_version set version = ? where id = 1', [LITE_SCHEMA_VERSION]);
+    });
+    return { applied: true, steps };
   }
   await host.transaction(async () => {
     for (const text of liteSchemaSql()) host.exec(text, []);
