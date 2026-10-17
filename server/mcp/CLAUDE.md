@@ -38,6 +38,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   shows late in a client, and tools/call always checks.
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
+  `live.ticket` (exit wave 3) is on it too: an agent opens no socket.
 - Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses

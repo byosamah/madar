@@ -33,6 +33,10 @@ after the commit of the call that asked for it.
 - A full day throws `QuotaFull`: the row waits until the next UTC midnight.
 - `release()` gives back the place of a row that never made a link.
 - The mail reserve takes only the mail lock, in its own transaction. Lock order: the office lock, then the mail lock.
+- On SQLite (the office object, exit wave 3) the quota has no mail lock, because the object runs one request at a time: one count
+  and one insert in the caller's transaction (`RESERVE_COUNT_LITE`, `RESERVE_ADD_LITE`), with the UTC day from the caller's
+  clock. A mail of the office object goes through the network port of the Worker; with `MAIL_DRIVER=outbox` it goes into
+  `mail_outbox` of the object.
 
 ## Content
 - Notice and summary mail carry no client data: no task, project or comment text.

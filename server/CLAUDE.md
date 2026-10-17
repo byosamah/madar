@@ -11,7 +11,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `core/`: `runCall`, the ports, `buildDeps`, the office lock, idempotency, stories, effects, the call map.
 - `calls/`: the server-only calls and the server hooks of 4 shared calls.
 - `entries/`: one mount for each function (`api`, `mcp`, `jobs`), the shared host builder `apps.ts`, the Deno wrappers
-  `deno-*.ts`, Workers `worker.ts`.
+  `deno-*.ts`, Workers `worker.ts` (the Postgres path) and `workerMain.ts` (the bundle entry, which also has the office path).
+- `office/`: the office object of the Supabase exit (wave 3), off on every deployed Worker. See "The office object" below.
 - `jobs/` (the 15-minute job), `signal/` (change signals), `usage/` (meters and the Admin warning), `push/` (browser push).
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
@@ -45,12 +46,14 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
-- 10 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
-  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `usage.get`, `usage.retryEffect`.
+- 11 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
+  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `usage.get`, `usage.retryEffect`, `live.ticket`.
 - Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`.
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
   runCall answers `not_found` for them.
-- `core/everyCall.ts` gives one input for every call. A test runs each call once on the sample office.
+- `core/everyCall.ts` gives one input for every call. A test runs each call once on the sample office. On a fresh sample
+  office some entries change nothing: `tasks.move` moves `tsk_007` to `in_progress`, which is its status already, so it sends
+  no signal. A test that needs a change uses the `tasks.update` entry (a new title).
 - `EXPECTED_REFUSALS` there lists the calls that must refuse in that run. A change to `can()` can make one
   pass: update the list.
 
@@ -120,6 +123,31 @@ The other host stays deployed as the way back. Each area below has its own guide
   Workers Paid (`CALL_LIMITS`, `core/ports.ts`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
   screen picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
   limit, because both read the setting, not the running host.
+- On the office object only, the 80% warning also covers the four Free day meters: rows read, rows written, object requests
+  and Worker requests (`DAY_LIMITS` and `checkDayLimits`, `usage/warn.ts`), one warning a UTC day for each meter.
+
+## The office object (Supabase exit, wave 3)
+- Off on every deployed Worker: the office path runs only with the binding `OFFICE` and the var `MADAR_DATA = "office"`
+  (`entries/officeEntry.ts`, `onOffice`). The bundle entry is `entries/workerMain.ts`; `entries/worker.ts` stays the Postgres path.
+- The Worker checks the build, the body and the token, then gives the whole batch to the object in one RPC call
+  (`entries/officeWorker.ts`). The object runs `runCall` on SQLite for each entry, one after the other, and answers JSON text. The
+  mails and pushes run after the answer in one more call (`runEffects`). An overloaded or reset object answers the reason `busy`.
+- The object does no network work. Each call gets a `WorkerNet` (`office/workerNet.ts`, an `RpcTarget`) and the object calls it
+  back for file links, R2, Resend and the push POST (`office/net.ts`). The port refuses a call inside a transaction and stops at 45
+  network calls for each object call (`NetBudgetSpent`: the outbox row waits a minute and keeps its attempt).
+- Signals go out on the object sockets after the commit (`office/live.ts`, tags `office` and `person:<id>`). The socket opens with
+  `live.ticket` (60 s, one use, in memory). Each delivery and each Cron run close a socket with no pong for 150 s; the commit that
+  turns a person off closes that person's sockets.
+- The Cron Trigger (`[triggers]`, every 15 minutes, UTC) gives the job steps to the object in one call (`office/jobs.ts`); the
+  usage step runs in the first run of each hour. A Worker without `MADAR_DATA` returns at once. After the steps, the same call adds
+  the meter counts, checks the day meters, sweeps the sockets and gives back the day row.
+- The office meter (`office/meter.ts`) keeps the day counts in memory and adds them in the next write (`usage_day`); the 80% mail
+  covers the four Free day meters (`usage/warn.ts`, `checkDayLimits`).
+- On the year office one Cron run reads about 1,500 rows, and the first run of an hour about 14,700: the file size sum
+  (`FILES_BYTES_LITE`, `usage/meters.ts`) reads one row for each file and one for each version. That is about 460,000 rows a
+  day of the 5 million of Free (`CRON_PINS`, `office/test/pins.ts`).
+- Tests: `office/{net,meter,live,parts}.test.ts` on node:sqlite; `office/{batch,socket,cron}.wd.test.ts` on local workerd with the
+  test Worker of `office/test/live/`; `npm run smoke:office` for the real bundle.
 
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.

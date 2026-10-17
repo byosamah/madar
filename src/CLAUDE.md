@@ -76,6 +76,10 @@ any screen work.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
   still reloads at once.
+- The office build (exit wave 3, `VITE_MADAR_LIVE=socket`, set by no build before wave 5) gets its signals from one socket of the
+  office object (`api/remote/liveSocket.ts`, picked by `liveSourceOf` in `app/remote/bootstrap.ts`): a ticket, a ping each 30 s,
+  a new socket and a reload of every list when no pong comes in 10 s. Every other build keeps Supabase Realtime
+  (`app/remote/channel.ts`).
 - A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
 - Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
   (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.

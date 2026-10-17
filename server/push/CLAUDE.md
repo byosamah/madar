@@ -45,6 +45,10 @@ Madar window, or opens `/`.
 5. The headers are `Authorization: vapid t=<jwt>, k=<public key>`, `TTL: 3600`, `Urgency: normal` and `Topic: madar`.
    The sender sets no `Content-Length`: a fetch POST with no body sends `Content-Length: 0` by itself. The token has `aud` = the origin of the endpoint, `exp` under 12 hours (11 hours) and `sub` = VAPID_SUBJECT.
    The fetch never follows a redirect.
+6. On the office object (exit wave 3), `sendPush` signs the VAPID token in the object and posts through `deps.pushFetch`, the
+   network port of the Worker. The Worker posts only to a push service (`postPush`, `server/office/net.ts`). The producer reads
+   the new notices from `SaveResult.noticeIds` in place of the `xmin` test, and the effect marks or removes the devices with one
+   statement for each endpoint (`PUSH_SENT_LITE`, `PUSH_GONE_LITE`).
 
 ## Rules
 - The effect is the one effect that writes a State table outside `runCall`: it deletes a gone device and sets `lastPushAt`.

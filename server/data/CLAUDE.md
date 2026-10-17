@@ -109,8 +109,13 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Key columns are plain columns that the save writes, from the column rules of `loaders/query.ts`. An office list has only `id`
   and `doc`. An update sets `doc` and only the key columns that changed.
 - Every write of an office table raises `office_meta.version` and calls `writeOfficeSnapshot` in the same transaction.
-- A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`. After the first office object
-  deploys (wave 3), each version also needs a step in `applyLiteSchema`.
+- A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`, and each version above 1 has a step
+  in `LITE_STEPS`.
+- Schema version 3 (exit wave 3): the table `usage_day`; each version above 1 has a step in `LITE_STEPS`, and `applyLiteSchema`
+  runs the steps above the office version in one transaction. `LiteDb.isOpen()` tells the network port of the office object that
+  a transaction is open. `SaveResult.noticeIds` names the notices of a save: the producers on SQLite read them in place of the
+  `xmin` test. `DAY_ROW_LITE` (the day row of the meters) lives in `server/usage/meters.ts`, because the Supabase bundles load
+  `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

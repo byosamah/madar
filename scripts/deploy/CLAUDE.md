@@ -144,6 +144,13 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
   subdomain is `vado-sa`, but no Madar Worker has a workers.dev address (`workers_dev` and `preview_urls` false). A Worker
   fetch of a workers.dev address of the same account fails with error 1042, so Pages reaches the Worker only through its
   service binding. Never touch the Worker `binhindi-massing` of the same account.
+- The next `all.sh test` after wave 3 deploys `madar-server-test` with a Durable Object namespace `Office` (no object, no
+  storage), the migration `office-v1`, and a Cron every 15 minutes whose `scheduled()` returns at once (no `MADAR_DATA`): 96 short
+  runs a day and 1 of the 5 Cron Triggers of the account. The test copy serves the same, because the Pages forwarder sends `/api`
+  to Supabase while `config/server-host.json` says supabase. `madar-server-production` gets no binding, no migration and no Cron
+  (`migrations = []`, `crons = []`); wrangler prints one warning about `durable_objects` on each production deploy, which is
+  expected until wave 6. Count the Cron Triggers of the account before that first test deploy (plan of exit wave 3, Task 19
+  Step 3): with 5 in use, the test Cron stays off until wave 5.
 
 ## Other scripts
 - First Admin: `npx tsx scripts/first-admin.ts --env test|production|local --email --name --language --gender`.

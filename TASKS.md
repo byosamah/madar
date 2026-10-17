@@ -520,12 +520,27 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `server/calls/agents.ts`)
 - [ ] Wave 2: the effect kinds `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` and `agents.revokeAll`
   on SQLite (`LATER_KINDS`), and the sign-in link of `server/data/officeCache.ts`
-- [ ] Wave 3: `usage.get` and `usage.retryEffect` on SQLite (the meters of `server/usage/meters.ts`, the outbox job), and the
-  mail quota of `server/mail/quota.ts`
-- [ ] Wave 3: the mail and push producers on SQLite, with the notice ids of the Diff (in wave 1 only `server/core/deps.ts`
-  imports them, so no test runs them on SQLite)
-- [ ] Wave 3: the day meter counts the rows of a rolled-back write too (proof.md "Wave 1: the transaction facts": the cursor
-  reports 2 rows written for a rolled-back insert; whether the bill counts them is unknown)
+- [x] Wave 3: `usage.get` and `usage.retryEffect` on SQLite (the meters of `server/usage/meters.ts`, the outbox job), and the
+  mail quota of `server/mail/quota.ts` (`rb/exit-live`, Tasks 12 and 14)
+- [x] Wave 3: the mail and push producers on SQLite, with the notice ids of the Diff (`SaveResult.noticeIds`, `rb/exit-live`, Task 2)
+- [x] Wave 3: the day meter counts the rows of a rolled-back write too (`server/office/meter.ts`, `rb/exit-live`, Task 4). Whether
+  the bill counts them stays unknown: the wave 5 item (c) below compares the meter with the Cloudflare day numbers
+- [ ] Exit wave 4: `config/server-host.json` value `office` sets `MADAR_DATA = "office"` in the env of the copy and
+      `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`).
+- [ ] Exit wave 2 or 4: MCP on the office path: a kind of `OfficeWho` for an agent, its branch in `principalOfWho`, and `/mcp` on
+      `officeRoutes` (wave 3 serves `/api` only).
+- [ ] Exit wave 5: show the four Free day meters on Admin, Usage (contract field of `usage.get`, words, screenshots EN and AR,
+      light and dark, 390 px). Wave 3 sends them only in the 80% mail.
+- [ ] Exit wave 5, on the deployed test copy: (a) the bill of a batch with mail (Worker requests and object requests; the network
+      callbacks should add none); (b) the CPU of a Cron run and of a batch with effects (`wrangler tail`, 10 ms on Free);
+      (c) the office meter against the Cloudflare day numbers (GraphQL, `scripts/proof/do-socket/gql.mjs`); (d) a socket through the
+      Pages forwarder and the service binding (a 101 answer); (e) the transaction race of wave 1 on the deployed object.
+- [ ] Exit wave 5: the deploy suite on the office path (needs the sign-in rows of wave 2 and the seed of wave 4).
+- [ ] Exit wave 5: if a socket often fails to open after a hibernation (the ticket lives in memory), move the ticket to a short
+      signed form with a Worker secret.
+- [ ] Proposal, not built: the hourly Cron run reads about 14,700 rows on the year office, 13,200 of them in the file size sum
+      (`FILES_BYTES_LITE`: one row for each file and one for each version). A stored total in `usage_month`, kept up to date by
+      the save of `files`, would cut it to 1 row. Today's cost is about 7% of the Free rows read of a day (proof.md, wave 3)
 - [ ] Wave 5: run the transaction race of Task 1 (`scripts/proof/do-tx/`) again on the deployed object of the test copy
 - [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
   event would write 9 rows, not 10. First check with a rows pin that `undoLinks` and `notUndone` still use the index

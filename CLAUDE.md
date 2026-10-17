@@ -100,7 +100,10 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   again at a low load before you call a test broken.
 - `npm run test:lite` - the `src/api` rule tests and the shadow run on node:sqlite, no Docker (Supabase exit, wave 1).
 - `npm run test:office` - the office object on local workerd (wrangler createTestHarness): host parity, everyCall parity, the
-  rows pins. Sandbox off when listen() fails with EPERM. Add `--silent=false` to see the lines of a test that passes.
+  rows pins, and the batch, socket and Cron suites of exit wave 3. Sandbox off when listen() fails with EPERM. Add
+  `--silent=false` to see the lines of a test that passes.
+- `npm run smoke:office` - the real Workers bundle on local wrangler dev with the office path on (after `build:server`, sandbox
+  off).
 - `test:db`, `test:it` and the `test:mcp` conformance runner need Docker Desktop and the local stack. The sandbox blocks
   `open -a Docker`; with the sandbox off it works, and Docker is up in about 10 s. The run that worked (2026-10-08):
   `docker-lock.sh acquire <holder>`, `npx supabase start -x edge-runtime`, `npx supabase db reset`, `npm run test:db`,
