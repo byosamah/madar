@@ -33,7 +33,7 @@ export type BatchOptions = {
 /** The server call that signs a download link. Its entries of one run go side by side. */
 const LINK_CALL = 'files.link';
 
-function entryOf(i: number, result: RunResult): WireEntry {
+export function entryOf(i: number, result: RunResult): WireEntry {
   if (!result.ok) return { i, ok: false, error: result.error };
   const entry: WireEntry = { i, ok: true, output: result.output };
   if (result.storyId !== undefined) entry.storyId = result.storyId;
