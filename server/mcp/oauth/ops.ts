@@ -1,12 +1,21 @@
 import { z } from 'zod';
-import { randomToken } from '../../auth/own/crypto';
+import { ApiError } from '../../../src/api/errors';
+import { randomToken, sha256Hex } from '../../auth/own/crypto';
 import { HOUR_MS, REGISTER_PER_ADDRESS } from '../../auth/own/limits';
 import { countLimits } from '../../auth/own/sessions';
 import { OAuthError, type SigninDeps } from '../../auth/own/types';
 import { ownIssuer } from '../../auth/ownKeys';
+import { principalOf } from '../../auth/principal';
 import { hashedKey } from '../../auth/rateLimit';
+import type { LiteDb } from '../../data/lite/db';
+import { readLiteOffice } from '../../data/lite/office';
+import { notApproved } from '../agentUser';
+import { APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
 import { redirectAllowed, registrable, withQuery } from './redirects';
-import { CLIENT_BY_ID, CLIENT_INSERT, REQUEST_INSERT, type ClientRow } from './rows';
+import {
+  CLIENT_BY_ID, CLIENT_INSERT, GRANT_REVOKE, GRANTS_LITE, REQUEST_APPROVE, REQUEST_BIND, REQUEST_BY_ID, REQUEST_DENY, REQUEST_INSERT,
+  type ClientRow, type RequestRow,
+} from './rows';
 
 /**
  * The OAuth 2.1 steps of the own sign-in for agents (Supabase exit, wave 2). They run in the office object, like the browser steps:
@@ -83,4 +92,80 @@ export async function startAuthorization(deps: SigninDeps, input: { query: Recor
     new Date(now.getTime() + REQUEST_LIFE_MS).toISOString(), now.toISOString(),
   ]));
   return { redirect: `${deps.config.appUrl.replace(/\/+$/, '')}/oauth/consent?authorization_id=${encodeURIComponent(id)}` };
+}
+
+export type DetailsAnswer = { redirect_url: string } | { authorization_id: string; client: { id: string; name: string }; redirect_uri: string };
+export type GrantRow = { client_id: string; client_name: string; granted_at: string };
+
+function ended(): ApiError {
+  return new ApiError('not_found', 'This approval request ended. Start the connection again in your AI app.', { reason: 'authorization_ended' });
+}
+
+const open = (request: RequestRow | undefined, authId: string, now: Date): request is RequestRow =>
+  request !== undefined && request.status === 'pending' && request.expires_at > now.toISOString() && (request.auth_id === null || request.auth_id === authId);
+
+/**
+ * GET /api/oauth/authorizations/:id (the consent screen). The first person who opens a request owns it; for anyone else it reads as
+ * an unknown request, with no client name. A client that this person approved before, whose link Madar did not remove, gets its
+ * code at once (as Supabase gave the redirect of a known client, proof.md G3).
+ */
+export async function authorizationDetails(deps: SigninDeps, input: { authId: string; id: string }): Promise<DetailsAnswer> {
+  const code = randomToken();
+  const codeHash = await sha256Hex(code);
+  const now = deps.clock.now();
+  return deps.db.tx('write', async (q) => {
+    const [request] = await q<RequestRow>(REQUEST_BY_ID, [input.id]);
+    if (!open(request, input.authId, now)) throw ended();
+    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    if (request.auth_id === null) await q(REQUEST_BIND, [request.id, input.authId]);
+    const [approved] = await q(APPROVAL_LITE, [request.client_id, ownerId]);
+    const [removed] = await q(REMOVED_LINK_LITE, [request.client_id, ownerId]);
+    if (approved && !removed) {
+      await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
+      return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
+    }
+    const [client] = await q<ClientRow>(CLIENT_BY_ID, [request.client_id]);
+    return { authorization_id: request.id, client: { id: request.client_id, name: client?.name?.trim() ?? '' }, redirect_uri: request.redirect_uri };
+  });
+}
+
+/** POST /api/agents/approve on the own stack: the Madar approval (recordApproval, approval.ts) of a request of this person. */
+export async function approveClient(deps: SigninDeps, input: { authId: string; id: string }): Promise<{ approved: true }> {
+  const now = deps.clock.now();
+  await deps.db.tx('write', async (q) => {
+    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    await recordApproval(q, { authorizationId: input.id, authUserId: input.authId, ownerId, now });
+  });
+  return { approved: true };
+}
+
+/** POST /api/oauth/authorizations/:id/consent. Approve gives a code only after the Madar approval; deny records nothing. */
+export async function answerConsent(deps: SigninDeps, input: { authId: string; id: string; action: 'approve' | 'deny' }): Promise<{ redirect_url: string }> {
+  const code = randomToken();
+  const codeHash = await sha256Hex(code);
+  const now = deps.clock.now();
+  return deps.db.tx('write', async (q) => {
+    const [request] = await q<RequestRow>(REQUEST_BY_ID, [input.id]);
+    if (!open(request, input.authId, now) || request.auth_id !== input.authId) throw ended();
+    if (input.action === 'deny') {
+      await q(REQUEST_DENY, [request.id]);
+      return { redirect_url: withQuery(request.redirect_uri, { error: 'access_denied', state: request.state }) };
+    }
+    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    if ((await q(APPROVAL_LITE, [request.client_id, ownerId])).length === 0) throw notApproved();
+    await q(REQUEST_APPROVE, [request.id, codeHash, new Date(now.getTime() + CODE_LIFE_MS).toISOString()]);
+    return { redirect_url: withQuery(request.redirect_uri, { code, state: request.state }) };
+  });
+}
+
+/** POST /api/oauth/grants (Settings, Agents): the AI apps with a live agent session of this person. */
+export async function listGrants(deps: SigninDeps, input: { authId: string }): Promise<GrantRow[]> {
+  const rows = await deps.db.statement<GrantRow>('read', GRANTS_LITE, [input.authId, deps.clock.now().toISOString()]);
+  return [...rows].sort((a, b) => a.granted_at.localeCompare(b.granted_at) || a.client_id.localeCompare(b.client_id));
+}
+
+/** POST /api/oauth/grants/revoke: ends the agent sessions of one AI app of this person. An app with none is done already. */
+export async function revokeGrant(deps: SigninDeps, input: { authId: string; clientId: string }): Promise<{ ok: true }> {
+  await deps.db.tx('write', (q) => q(GRANT_REVOKE, [input.authId, input.clientId, deps.clock.now().toISOString()]));
+  return { ok: true };
 }

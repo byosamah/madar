@@ -2,7 +2,8 @@ import type { JSONWebKeySet } from 'jose';
 import { ApiError, invalid } from '../../../src/api/errors';
 import { errorResponse, runErrorOf } from '../../http/errors';
 import { readBody } from '../../http/limits';
-import type { RouteDef } from '../../http/routes';
+import { ROUTES, type RouteDef } from '../../http/routes';
+import { APPROVE_PATH, withApproveRoute } from '../../mcp/approval';
 import { clientAddress } from '../forgot';
 import { verifyBrowserToken, type TokenChecker } from '../verify';
 import type { OpResult, SigninOffice } from './office';
@@ -32,6 +33,7 @@ export async function jsonOf(request: Request): Promise<Record<string, unknown>>
 }
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+const idOf = (request: Request): string => decodeURIComponent(/\/oauth\/authorizations\/([^/]+)/.exec(new URL(request.url).pathname)?.[1] ?? '');
 
 /** A route for a signed-in person: the browser token check first (an agent token gets 403 agent_token), then the work. */
 export function signedIn(check: TokenChecker, work: (request: Request, who: { authId: string; sessionId: string }) => Promise<Response>) {
@@ -78,5 +80,34 @@ export function ownAuthRoutes(office: SigninOffice, o: OwnRouteOptions): RouteDe
       }),
     },
     { method: 'GET', path: '/auth/jwks', handler: async () => Response.json(o.jwks, { headers: { 'Cache-Control': 'public, max-age=600' } }) },
+    {
+      method: 'GET', path: '/oauth/authorizations/:id', handler: signedIn(check, async (request, who) => answer(await office.run('oauth.details', { authId: who.authId, id: idOf(request) }))),
+    },
+    {
+      method: 'POST', path: '/oauth/authorizations/:id/consent', handler: signedIn(check, async (request, who) => {
+        const body = await jsonOf(request);
+        return answer(await office.run('oauth.consent', { authId: who.authId, id: idOf(request), action: body.action === 'approve' ? 'approve' : 'deny' }));
+      }),
+    },
+    {
+      method: 'POST', path: APPROVE_PATH, handler: signedIn(check, async (request, who) => {
+        const body = await jsonOf(request);
+        return answer(await office.run('oauth.approve', { authId: who.authId, id: text(body.authorizationId) }));
+      }),
+    },
+    { method: 'POST', path: '/oauth/grants', handler: signedIn(check, async (_request, who) => answer(await office.run('oauth.grants', { authId: who.authId }))) },
+    {
+      method: 'POST', path: '/oauth/grants/revoke', handler: signedIn(check, async (request, who) => {
+        const body = await jsonOf(request);
+        return answer(await office.run('oauth.revoke', { authId: who.authId, clientId: text(body.client_id) }));
+      }),
+    },
   ];
+}
+
+/** The routes of the api app of the own stack: the routes of today, with the own approve route in place of the Supabase one. */
+export function ownApiRoutes(office: SigninOffice, o: OwnRouteOptions): RouteDef[] {
+  const own = ownAuthRoutes(office, o);
+  const approve = own.find((route) => route.path === APPROVE_PATH)!;
+  return [...withApproveRoute(ROUTES, approve), ...own.filter((route) => route !== approve)];
 }
