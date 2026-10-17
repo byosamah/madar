@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 import type { PoolClient } from 'pg';
-import { afterAll, afterEach, beforeEach, inject, vi, type TestContext } from 'vitest';
+import { afterAll, afterEach, beforeEach, inject, vi } from 'vitest';
 import type { State } from '../../src/api/store';
 import { setNow } from '../../src/lib/dates';
 import { useDbTestApi } from '../../src/test/factories';
@@ -11,16 +11,21 @@ import type { RunCall } from '../core/runCall';
 import type { Db, Query } from '../core/ports';
 import type { CallEntry } from '../core/serverCallMap';
 import { clearOfficeCaches } from '../data/officeCache';
-import { COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, docOf, rowOf, rowsParam, upsertSql, type Row } from '../data/rows';
+import { COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, rowsParam, upsertSql } from '../data/rows';
 import { pgDb } from '../data/sql';
-import { TABLES, rowsOf, type TableSpec } from '../data/tables';
 import { loadWhole } from '../data/whole';
 import { localClient } from '../it/migrate';
 import { skipReason } from './db-mode.skip';
 import { createDbApi, type MirrorBackend } from './dbApi';
+import { downChanges } from './down';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
-import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb, type WorkerStats } from './global-setup';
+import { createGate, fullName, type Gate } from './gate';
+import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb } from './global-setup';
 import { SCHEMA_TABLES_SQL, checksumSql } from './invariants';
+import type { WorkerStats } from './speed';
+
+export { downChanges } from './down';
+export { createGate, type Gate } from './gate';
 
 /**
  * The setup file of the db project (plan 7.2; TM 3.3 and 5; task D1). It registers the mirror store of dbApi.ts with testApi(),
@@ -50,39 +55,6 @@ const AS_SERVER = 'set local role madar_server';
 const AS_SETUP = 'set local role none';
 /** The deferred foreign keys of each call are checked at its own end; the next call starts deferred again (TM R11). */
 const DEFERRED = 'set constraints all deferred';
-
-/** JSON with sorted keys and without undefined, so two records with the same fields in another order are the same. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((item) => canonical(item ?? null)).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const rec = value as Rec;
-    return `{${Object.keys(rec).filter((key) => rec[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonical(rec[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
-
-type DownChange = { spec: TableSpec; deleted: string[]; upserts: Row[]; touchesOld: boolean };
-
-/** The differences from before to after, by table, in the database form of each record (docOf). */
-export function downChanges(before: State, after: State): { tables: DownChange[]; counters: Record<string, number>; removedCounters: string[] } {
-  const tables: DownChange[] = [];
-  for (const spec of TABLES) {
-    const was = new Map((before[spec.collection] || spec.collection === 'settings' ? rowsOf(before, spec) : []).map((row) => [row.id, row.doc]));
-    const now = (after[spec.collection] || spec.collection === 'settings' ? rowsOf(after, spec) : []).filter((row) => row.doc !== undefined);
-    const keep = new Set(now.map((row) => row.id));
-    const deleted = [...was.keys()].filter((id) => !keep.has(id));
-    const upserts = now
-      .filter((row) => !was.has(row.id) || canonical(docOf(spec, was.get(row.id) as Rec)) !== canonical(docOf(spec, row.doc)))
-      .map((row) => rowOf(spec, row.doc, after));
-    if (deleted.length > 0 || upserts.length > 0) {
-      const touchesOld = spec.collection === 'events' && (deleted.length > 0 || upserts.some((row) => was.has(row.id)));
-      tables.push({ spec, deleted, upserts, touchesOld });
-    }
-  }
-  const counters = Object.fromEntries(Object.entries(after.counters ?? {}).filter(([prefix, n]) => before.counters?.[prefix] !== n));
-  const removedCounters = Object.keys(before.counters ?? {}).filter((prefix) => !(prefix in (after.counters ?? {})));
-  return { tables, counters, removedCounters };
-}
 
 /**
  * Writes the test's own edits as postgres, with no rule check, inside a savepoint. A deferred foreign key is checked at the end,
@@ -123,48 +95,6 @@ export async function writeDown(q: Query, before: State, after: State): Promise<
     throw new Error(`db mode: the test's own edits break a database rule, so they cannot go to the database: ${message}`);
   }
   return true;
-}
-
-/**
- * The test gate. A test that times out leaves its calls running; after the ROLLBACK they would run with no test transaction, so
- * they would commit for real and break the next test. So each backend binds to the test that first uses it, a call after that
- * test ended fails at once, and the end of a test waits for the database step that still runs before the ROLLBACK.
- */
-export type Gate = {
-  start(testId: string): void;
-  end(): Promise<void>;
-  /** A wrapper for the database steps of one backend. */
-  binding(): <T>(work: () => Promise<T>) => Promise<T>;
-};
-
-export function createGate(): Gate {
-  let current: string | undefined;
-  const inflight = new Set<Promise<unknown>>();
-  return {
-    start(testId) {
-      current = testId;
-    },
-    async end() {
-      current = undefined;
-      while (inflight.size > 0) await Promise.allSettled([...inflight]);
-    },
-    binding() {
-      let bound: string | undefined;
-      return async <T>(work: () => Promise<T>): Promise<T> => {
-        if (current === undefined || (bound !== undefined && bound !== current)) {
-          throw new Error('db mode: this call came after its test ended, so it does not touch the database.');
-        }
-        bound ??= current;
-        const running = work();
-        inflight.add(running);
-        try {
-          return await running;
-        } finally {
-          inflight.delete(running);
-        }
-      };
-    },
-  };
 }
 
 /** One open connection of a worker: the client on its schema, the Db of runCall on that client, and the fresh-schema checksum. */
@@ -375,13 +305,6 @@ export class Worker {
       if (this.provided?.stats) writeFileSync(join(this.provided.stats, `${this.schema}-${randomUUID()}.json`), JSON.stringify(stats));
     }
   }
-}
-
-/** The full name of a test as Vitest prints it: the describe names and the test name, joined by spaces. */
-function fullName(task: TestContext['task']): string {
-  const names = [task.name];
-  for (let suite = task.suite; suite && suite !== (task.file as unknown); suite = suite.suite) if (suite.name) names.unshift(suite.name);
-  return names.join(' ');
 }
 
 if (process.env.MADAR_DB === '1') {

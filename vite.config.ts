@@ -147,6 +147,23 @@ export default defineConfig(({ mode }) => ({
             },
           ]
         : []),
+      ...(process.env.MADAR_LITE === '1'
+        ? [
+            {
+              // The API tests again, on node:sqlite (Supabase exit, wave 1): the SQLite path of the office object, with no Docker.
+              extends: true,
+              test: {
+                name: 'lite',
+                environment: 'node',
+                include: ['src/api/**/*.test.ts'],
+                exclude: ['src/api/persist.test.ts'],
+                env: { MADAR_DB: '1', MADAR_LITE: '1' },
+                globalSetup: ['./server/test/lite-setup.ts'],
+                setupFiles: ['./server/test/lite.ts'],
+              },
+            },
+          ]
+        : []),
       ...(process.env.MADAR_IT === '1'
         ? [
             {
