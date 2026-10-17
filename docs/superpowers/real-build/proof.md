@@ -1593,3 +1593,41 @@ The merge gate ran once under the Docker lock `merge-gate`:
   expected failures."
 - Not run by the merge builder: the prototype smoke and every Playwright run (the main session), the sign-in specs of the deploy
   suite and the screenshots of the Madar port (moved to wave 4: they need the seed of wave 4).
+
+### Wave 4 of the Supabase exit: backups, import and deploy (2026-10-17)
+Exit wave 4 plan (`docs/superpowers/plans/2026-10-17-madar-exit-wave4-ops-plan.md`), on `rb/exit-ops`. Nothing deployed: both copies
+say `supabase`, no Worker got a secret, `office-backup.yml` is off (no `vars.OFFICE_BACKUP_URL`), and no Cloudflare or GitHub call ran.
+- Facts checked while planning (17 October): wrangler 4.147.0 `deploy --var KEY:VALUE` gives a plain-text binding; the forgot and
+  renew routes need the database; the summary job sends again without its `job_runs` row; the sample office holds 908 records.
+- The round trip of the year office (Task 15): 132,221 records, 912,996 rows written, 6.91 for each record; every table equal.
+- One seed of the sample office (Task 16, `server/office/ops.wd.test.ts`): 908 records, 6,216 rows written for a replace of an
+  earlier seed (its deletes and the new rows). Decision 6 used about 7,000 for each seed.
+- The local office stack (Task 22, `npm run dev:office`): the seed wrote 908 records and the 4 accounts; `POST /api/auth/token` as
+  the Admin answered 200 and `POST /mcp` with no token 401; the screens answered on 127.0.0.1:4174; every one of the 35 SQLite forms
+  of `tests/e2e-deploy/office.ts` ran through the peek route of the real bundle. The stop left no port, state folder or `run.env`.
+- Facts of the deploy suite on the office path (Task 17): the walk sends 36 SQL texts (the plan named 18); 35 have a SQLite form,
+  and the `storage.objects` count needs none (office copies keep their files on R2). The `users` table of the object holds only
+  `id` and `doc` (email, kind and active live in the doc), and the sign-in link is `auth_users.user_id`. SQLite has no array: a
+  list goes as JSON text into `json_each(?n)`, `json_group_array` gives one back, and a count goes as text (`cast(count(*) as
+  text)`), the type of the Postgres form. The batch answer is `results[i].output`.
+- `parseSecretsFile` (`scripts/deploy/secrets.ts`) takes `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET` (the Worker gets them on every
+  host word, the Supabase functions never) and refuses `MADAR_AUTH_PRIVATE_JWK` in a file.
+- The local do-tx race with the secret guard (Task 21): the same answers as "Wave 1: the transaction facts" (rollback rows `[]`;
+  the micro and timer races log `["A:start","A:end","B"]`).
+- The merge gate, each command once, under the Docker lock `wave4-gate` (no rebase on main: the main session merges):
+  - `npm run typecheck`: pass.
+  - `npm test` (load 3.5): 532 files, 1 failed: `scripts/playwright-deploy-config.test.ts` (a spec that calls `passwordOf` must turn
+    traces off; the grant cleanup of `agents.spec.ts` called it). The fix f1c6cd1 takes the browser token of the page instead. The
+    second run (load 8.6): 532 files; 5,389 passed, 6 skipped (125 s).
+  - `npm run build`: pass. `npm run build:server`: pass; `cloudflare:workers` once in `dist-server/worker.js` and never in
+    `supabase/functions/_build/{api,mcp,jobs}.js`. `npm run build:remote -- test` (sandbox off): pass, with the api function as
+    `VITE_API_URL` (the test copy still says `supabase`).
+  - `npm run test:lite`: 82 files; 1,149 passed, 26 skipped. `lite mode: 2755 calls, 1.5 ms a call in runCall, the run took 6 s.`
+  - `npm run test:office` (sandbox off, load 18 at the start): 9 files, 37 passed (90 s).
+  - `npm run smoke:office`: 10 of 10 ok.
+  - `npx supabase start -x edge-runtime` and `npx supabase db reset` from this worktree; `npm run test:db`: 82 files; 1,149 passed,
+    26 skipped (`db mode: 2755 calls, 11.6 ms a call in runCall, the run took 23 s.`); `MADAR_AGE=... npm run test:it`: 35 files,
+    279 passed (238 s); `npm run test:mcp`: 19 files, 176 passed, "conformance: 5 of 32 scenarios pass; 27 expected failures.";
+    `npx supabase stop`.
+- Not run by the builder: every Playwright run (Task 22 Step 6: the sign-in, account and agents specs on the local office stack and
+  the 20 screenshots of the Madar sign-in screens; the main session's delegated helper) and the prototype smoke (no screen changed).

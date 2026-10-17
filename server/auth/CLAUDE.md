@@ -71,3 +71,8 @@ mail itself, through Resend (see `server/mail/CLAUDE.md`).
   `createForgotRoute` and `createRenewRoute`).
 - `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
   the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`).
+- The sign-in key of an office copy is the Worker secret `MADAR_AUTH_PRIVATE_JWK`, made by `npx tsx scripts/office/auth-key.ts
+  test` straight into the Worker (never in a file: `scripts/deploy/secrets.ts` refuses a secrets file that holds it). A new key
+  signs every person and agent of that copy out once. The test seed (`scripts/office/seed.ts`) gives the 4 accounts fixed ids
+  (`SEED_AUTH_IDS`) and PBKDF2 hashes of their passwords. On the office path the day cap of the test Worker counts a sign-in
+  step as a read (`server/office/cap.ts`). `npm run dev:office` runs the own sign-in end to end on the Mac.

@@ -115,4 +115,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   batch path of the object (the who kind `agent`). No region hop runs in the object. No tool, `TOOL_DOCS` line or `INSTRUCTIONS`
   rule changed in the merge.
 - No tool, `TOOL_DOCS` line or `INSTRUCTIONS` rule changed in wave 2: an agent never reads the connect flow; its AI app runs it.
+- Exit wave 4: on the office path `/mcp` runs inside the office object, as above, and the deploy suite on the office path
+  (`agents.spec.ts`) uses the own OAuth routes under `/mcp` (register, authorize, token). The day cap of the test Worker counts a
+  request of `/mcp` itself as a write and the OAuth routes as reads (`server/office/cap.ts`). No tool, `TOOL_DOCS` line or
+  `INSTRUCTIONS` rule changed in wave 4.
 - `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.

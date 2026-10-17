@@ -178,7 +178,15 @@ The other host stays deployed as the way back. Each area below has its own guide
   the nightly GitHub export) for `export`, `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others; a copy with no
   secret answers 401. Then the name: `export` and `import` take `office` or a rehearsal name, `peek` only `office`, `drop` only a
   rehearsal name (403 else). The body goes on to the object as a stream, with the name in `x-madar-office-name`.
-- Tests: `office/{net,meter,live,parts,who,routes,ops,import}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
+- The test tools (`replace`, `peek`) need `MADAR_TEST_TOOLS = "on"` and refuse a production copy (`testToolsOn`); only
+  `[env.test.vars]` of `wrangler.server.toml` sets it. The test seed (`scripts/office/seed.ts`) replaces the office through them:
+  the sample office of today and the 4 accounts with PBKDF2 hashes, about 6,200 rows written for each seed (908 records).
+- The day cap of the test Worker (exit wave 4, `office/cap.ts`, `MADAR_DAY_CAP`, owner decision 6 form A: half of each Free day
+  limit, `[env.test.vars]` only): over the rows written a write batch and a request of `/mcp` itself get `busy`; over the rows
+  read or the requests every batch, sign-in step, forgot, renew and MCP request gets `busy` ("It works again at 03:00 Riyadh").
+  The object reads the day counts again at most once a minute (`DAY_CAP_TTL_MS`) and at each new UTC day. The Cron, the effects
+  and the ops are never capped.
+- Tests: `office/{net,meter,live,parts,who,routes,ops,import,cap}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
   key, and `route`, which sends one request through the real Worker routes into the object); `office/{batch,socket,cron,mcp,ops}.wd.test.ts` on local workerd
   with the test Worker of `office/test/live/`; `entries/{officeWorker,officeSignin}.test.ts`; `npm run smoke:office` for the real
   bundle (10 checks, with a key made for the run).

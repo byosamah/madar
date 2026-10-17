@@ -128,5 +128,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - The snapshot body is `{ lists, links }`: the sign-in links ride with the office lists, so a cold wake still reads 2 rows.
   `writeOfficeSnapshot` reads the links from `auth_users` (one statement, only on an office write).
 - `statementQuery(db, mode)` (`dialect.ts`) keeps the dialect on a query of single statements (the forgot and renew routes).
+- An export reads each table in rowid order with its rowid (`EXPORT_TABLES`, `ROWID_ALIAS` in `server/office/ops.ts`); a restore
+  writes the rowid back, so the History keeps its order. The import writes records with `insertRow` and the server rows in one
+  finish (`server/office/import.ts`); `office_meta.office_seq` is the number of the last office signal (the event numbers live
+  in `counters`). The deploy suite reads the office through the peek route with the SQLite form of each walk text
+  (`tests/e2e-deploy/office.ts`): a list goes as JSON text into `json_each(?n)`, and `json_group_array` gives one back.
 - `LATER_CALLS` and `LATER_KINDS` (`server/test/liteHarness.ts`) are empty since the merge of waves 2 and 3: a new server call or
   effect kind with no SQLite form fails `test:lite`.

@@ -528,10 +528,10 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [x] Wave 3: the mail and push producers on SQLite, with the notice ids of the Diff (`SaveResult.noticeIds`, `rb/exit-live`, Task 2)
 - [x] Wave 3: the day meter counts the rows of a rolled-back write too (`server/office/meter.ts`, `rb/exit-live`, Task 4). Whether
   the bill counts them stays unknown: the wave 5 item (c) below compares the meter with the Cloudflare day numbers
-- [ ] Exit wave 4: `config/server-host.json` value `office` sets `MADAR_DATA = "office"` in the env of the copy and
-      `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`). The screens build part is done
-      (`rb/exit-ops`, Task 2: the word gives `VITE_MADAR_AUTH=madar` and `VITE_MADAR_LIVE=socket`); `MADAR_DATA` waits for Task 20
-      (`worker.sh --var`).
+- [x] Exit wave 4: `config/server-host.json` value `office` sets `MADAR_DATA = "office"` in the env of the copy and
+      `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`). Done in `rb/exit-ops`: Task 2
+      (the word gives `VITE_MADAR_AUTH=madar` and `VITE_MADAR_LIVE=socket`) and Task 19 (`worker.sh` deploys with
+      `--var MADAR_DATA:office`, `all.sh` runs only the Worker steps for an office copy).
 - [x] Exit wave 2 or 4: MCP on the office path: a kind of `OfficeWho` for an agent, its branch in `principalOfWho`, and `/mcp` on
       `officeRoutes` (done in the merge of waves 2 and 3: the object runs the MCP app, `Office.mcp`).
 - [ ] Exit wave 5: show the four Free day meters on Admin, Usage (contract field of `usage.get`, words, screenshots EN and AR,
@@ -540,7 +540,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
       callbacks should add none); (b) the CPU of a Cron run and of a batch with effects (`wrangler tail`, 10 ms on Free);
       (c) the office meter against the Cloudflare day numbers (GraphQL, `scripts/proof/do-socket/gql.mjs`); (d) a socket through the
       Pages forwarder and the service binding (a 101 answer); (e) the transaction race of wave 1 on the deployed object.
-- [ ] Exit wave 5: the deploy suite on the office path (needs the sign-in rows of wave 2 and the seed of wave 4).
+- [ ] Exit wave 5: the deploy suite on the office path (needs the sign-in rows of wave 2 and the seed of wave 4). The code is
+      done in exit wave 4 (`rb/exit-ops` Tasks 16 and 17: `scripts/office/seed.ts`, the peek forms of `tests/e2e-deploy/office.ts`);
+      the run on the test copy is wave 5 R7.
 - [ ] Exit wave 5: if a socket often fails to open after a hibernation (the ticket lives in memory), move the ticket to a short
       signed form with a Worker secret.
 - [ ] Proposal, not built: the hourly Cron run reads about 14,700 rows on the year office, 13,200 of them in the file size sum
@@ -552,8 +554,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `signin` of `server/office/jobs.ts`)
 - [ ] Exit wave 4 (moved from the merge of waves 2 and 3, it needs the seed of wave 4): the deploy-suite sign-in specs
   (`account.spec.ts`, `signin.spec.ts`, `agents.spec.ts`) on a local `wrangler dev` with `VITE_MADAR_AUTH=madar`, and the
-  screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px).
-  `server/office/test/live/wrangler.bundle.toml` and `scripts/dev/office-smoke.ts` are the base of that run
+  screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px). The stack is
+  ready (`npm run dev:office`, `rb/exit-ops` Task 22: the own sign-in gave 200 and `/mcp` 401 on it); the Playwright run is
+  the step of a delegated helper of the main session (plan Task 22, Step 6)
 - [ ] Main session, after the merge of waves 2 and 3: the prototype smoke (the merge builder runs no Playwright)
 - [ ] Exit wave 5: a copy with `MADAR_AUTH_PRIVATE_JWK` also needs `MCP_URL` in its Worker env (the issuer of the own tokens).
   Without it the browser token check throws, and each batch answers a hidden 500 (found by `npm run smoke:office`)
@@ -561,10 +564,11 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   built for each request) and of a forgot or renew request (two object calls: `Office.mailRoute`, then `Office.mailWork`)
 - [ ] Exit wave 6: `serverEnvFrom` and the reason key of MCP read the Supabase secret key (`SUPABASE_SECRET_KEYS` or
   `MADAR_SECRET_KEY`). After the switch, a Worker secret of Madar takes its place
-- [ ] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
+- [x] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
   copies `SIGNIN_TABLES`; `scripts/deploy/secrets.ts` names `MADAR_AUTH_PRIVATE_JWK` (a script makes the key and writes it
-  straight to the Worker secret). The restore check part is done (`rb/exit-ops` Task 8): the office export and its restore check
-  take every table of the schema, the sign-in tables too
+  straight to the Worker secret). Done in `rb/exit-ops`: Task 8 (the restore check takes every table, the sign-in tables too),
+  Tasks 10 and 11 (`importSigninRows`, `SIGNIN_EXPORT_SQL` in `pgSource`), Task 19 (`KEPT_ON_WORKER` refuses the key in a
+  secrets file, `scripts/office/auth-key.ts` writes it to the Worker)
 - [ ] Before wave 5 turns on `office-backup.yml` (found in exit wave 4, `rb/exit-ops` Task 9): the step "Age of the newest backup"
   of `db-backup.yml` reads the newest release of any name (`gh release list --limit 1`). With a nightly `madar-office-*` release in
   the same repository, a night with no database backup no longer fails that step. Proposal: select the `madar-db-` releases only,
@@ -574,7 +578,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
   `VITE_MADAR_AUTH=madar`)
 - [ ] Later, only if an AI app needs it: Client ID Metadata Documents (a fetch in the Worker, not in the object)
-- [ ] Wave 5: run the transaction race of Task 1 (`scripts/proof/do-tx/`) again on the deployed object of the test copy
+- [ ] Wave 5: run the transaction race of Task 1 (`scripts/proof/do-tx/`) again on the deployed object of the test copy. The
+  probe is ready (`rb/exit-ops` Task 21: `wrangler.deployed.toml`, the `PROBE_SECRET` guard, `deployed.mjs`); its deploy and its
+  delete need the owner's OK (wave 5 R8 (e))
 - [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
   event would write 9 rows, not 10. First check with a rows pin that `undoLinks` and `notUndone` still use the index
 - [ ] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`)
@@ -583,6 +589,20 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Wave 3: rows pins for the two reads that keep `events_target_id` and `events_story` (notifications.list with a gone
   target, the story read of events.undoStory). The year office has neither shape, so a pin needs a write or a gone target
   first (proof.md "Wave 1: the rows pins")
+- [x] Exit wave 4 (`rb/exit-ops`): the office path whole (sign-in, OAuth, MCP in the object), the word office, the export, the
+      nightly workflow (off), the restore check on node:sqlite, the import and its check, the reverse export, the test seed, the
+      deploy suite on the office path, the day cap, the wrangler-only deploy, CI with no Docker (proof.md "Wave 4 of the Supabase exit")
+- [ ] Exit wave 5: the runbook of Part 2 of `docs/superpowers/plans/2026-10-17-madar-exit-wave4-ops-plan.md` (R1 to R14)
+- [ ] Exit wave 5 runbook: an import carries no agent links, agent approvals, OAuth rows or sessions (`scripts/office/source.ts`).
+      After the import of the test copy, each person signs in again and each AI app connects again: tell the owner before R4
+- [ ] Exit wave 5 runbook: the import, drop and reverse commands of the test copy need `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET`
+      in `secrets/test.env` (`new-secret.ts`, R2), and `secrets.ts test` gives both to the Worker on every host word (Task 19)
+- [ ] When Track R merges (`unread_counts`): the import carries the stored unread numbers too (`ServerRows.unreadCounts` in
+      `pgSource`, `exportSource` and `importFinish`), with a test that a badge after an import equals the badge before it
+      (wave 4 plan, Merge note 3)
+- [ ] Exit wave 6: production takes the word office (lift `OFFICE_COPIES_OPEN`), its binding, migration and Cron, `new-secret.ts`
+      and `auth-key.ts` for production, `secrets.ts --office` for production, `office-backup.yml` on production, the restore
+      reminder text for office backups
 - [ ] Owner decisions of later waves (spec section 7): the switch date, B2 or R2 alone, the account of the test copy, the
   Supabase delete date, the $5 safety valve (still open: no payment without a yes in words)
 - [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
