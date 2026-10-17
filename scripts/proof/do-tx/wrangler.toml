@@ -1,0 +1,14 @@
+# Probe of the exit plan, wave 1 Task 1: the transaction facts of a SQLite Durable Object. Local workerd only (wrangler
+# createTestHarness); it never deploys.
+name = "madar-do-tx-probe"
+main = "index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Office"]

@@ -1219,3 +1219,30 @@ Two probes of the exit plan, in `scripts/proof/do-rows/` (local `wrangler dev`, 
   front Worker 0.59 ms median, 1.13 ms p99. ES256 sign in the object under 1 ms.
 - **What it means:** sockets and crypto fit Workers Free. Rows read is the tight limit, and the chat badge decides it. The plan
   needs a stored unread number, sorts in JavaScript, no ANALYZE, and a test that pins the rows read of each heavy read.
+
+### Wave 1: the transaction facts of the office object (2026-10-17)
+Probe `scripts/proof/do-tx/` (exit plan, wave 1 Task 1), on local workerd through wrangler 4.147.0 `createTestHarness`. It
+never deploys. Run: `node scripts/proof/do-tx/run.mjs` (sandbox off).
+- **rollback**: `{"error":"stop","rows":[]}`. A `ctx.storage.transaction(async ...)` closure that writes, awaits, writes and
+  then throws keeps no row. The async transaction rolls back.
+- **microtask** and **timer**: the log of A is `["A:start","A:end"]`, and the log after the race is
+  `["A:start","A:end","B"]`. The second request (B) runs only after the open transaction ends, also when the closure waits on
+  20 timers. No request runs inside an open transaction.
+- **timerFail**: A throws after its timers. The log of A is `[]`, the log after is `["B"]`. B ran after the rollback and kept
+  its row: B never joins the transaction of A.
+- **rolledBackWritten**: 2. The cursor of a rolled-back insert reports 2 rows written (the row and its key). Whether the bill
+  counts them stays unknown; the meter of wave 3 counts them.
+- **foreignKeys**: `pragma foreign_keys` is 1 (on by default). The schema has no foreign key (plan, Global Constraints).
+- **subsec**: `unixepoch(x, 'subsec')` works (1792141200.5). **julian**: `julianday` compares with milliseconds (later = 1).
+- **numbered**: `?2` and `?1` bind in number order. **dollar**: `$1` with one value gives that value. The rule stays "never
+  `$1`": SQLite binds it as a named value in the order of first use, so two names in another order bind wrong.
+- **boolean**: the object binds a JS `true` as the text `'true'` (node:sqlite refuses it). The host converts a boolean to 1 or 0
+  before it binds (Task 4), so both hosts store the same value.
+- **values100** passes, **values101** fails with "too many SQL variables". **indexedBy** works. The `before update` trigger
+  refuses an update ("events only grow", `SQLITE_CONSTRAINT_TRIGGER`). **returning** gave the insert order here; the code
+  still never trusts it. **tableValuedPragma** works. **sqliteMaster** read 8 rows for one name. **missingTable** gives
+  "no such table: schema_version". **fullkey** gives `$.a[0]` and `$.a[1]`.
+- **Decision:** option B holds (an async `transaction()` closure with a synchronous `sql.exec` behind the async query). Wave 1
+  continues with Task 2. The rule "no await on the network, a timer or `crypto.subtle` inside a transaction" stays: the object
+  holds every other request while a transaction is open, so a slow await stops the whole office.
+- **Limit:** local workerd only. The deployed object runs the same runtime; wave 5 checks the race again on the test copy.
