@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { DEPLOY_ACCOUNTS } from './accounts';
-import { AFTER_G, asRole, expect, passwordOf, PERSON_OF, test, useLanguage } from './fixtures';
+import { AFTER_G, asRole, expect, PERSON_OF, test, useLanguage } from './fixtures';
 import { DEPLOYED, goto } from './goto';
 import { expectCalm, expectNoSeriousA11y, LANGS, runId, THEMES, WIDTHS } from './steps';
 import { officeTarget, supabaseTarget, type SupabaseTarget } from './targets';
@@ -93,18 +92,17 @@ async function exchange(flow: Flow, code: string): Promise<string> {
 }
 
 /**
- * Removes the grant of one client on the office path (exit wave 4), as Settings, Agents does: the own revoke route takes only a
- * browser token, so the member signs in once through the own token route. The password goes only in the body of that request.
+ * Removes the grant of one client on the office path (exit wave 4), as Settings, Agents does. The own revoke route takes only a
+ * browser token, so it takes the token of the signed-in page: the Authorization header of its next batch, as batchAs of steps.ts
+ * reads it. No password is typed or sent, so the spec keeps its traces.
  */
-async function revokeOwnGrant(apiUrl: string, clientId: string): Promise<void> {
-  const signin = await fetch(`${apiUrl}/auth/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ grant_type: 'password', email: DEPLOY_ACCOUNTS.member.email, password: passwordOf('member') }),
-  });
-  const { access_token: browser } = (await signin.json()) as { access_token?: string };
-  if (!signin.ok || !browser) throw new Error(`The member sign-in for the revoke answered ${signin.status}.`);
+async function revokeOwnGrant(page: Page, apiUrl: string, clientId: string): Promise<void> {
+  const answered = page.waitForResponse((response) => /\/api\/batch$/.test(new URL(response.url()).pathname) && response.request().method() === 'POST');
+  await goto(page, '/settings');
+  const authorization = (await (await answered).request().allHeaders()).authorization ?? '';
+  if (!authorization.startsWith('Bearer ')) throw new Error('The page sent no browser token.');
   const revoked = await fetch(`${apiUrl}/oauth/grants/revoke`, {
-    method: 'POST', headers: { Authorization: `Bearer ${browser}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId }),
+    method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId }),
   });
   if (!revoked.ok) throw new Error(`The revoke of the grant answered ${revoked.status}.`);
 }
@@ -192,7 +190,7 @@ test('Z0a case 3: an agent token cannot set a new password without the current o
       expect(body.error?.details?.reason).toBe('agent_token');
     } finally {
       // The grant stays in the office object until the next seed: remove it as Settings, Agents does, with a browser token.
-      await revokeOwnGrant(office.apiUrl, flow.clientId).catch(() => undefined);
+      await revokeOwnGrant(page, office.apiUrl, flow.clientId).catch(() => undefined);
     }
     return;
   }
