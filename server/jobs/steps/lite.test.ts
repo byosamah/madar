@@ -8,7 +8,7 @@ import { buildSeed } from '../../../src/data/seed';
 import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
 import { stagingKey, uploadKey } from '../../files/keys';
-import { officeSteps } from '../../office/jobs';
+import { officeSteps, runOfficeJobs } from '../../office/jobs';
 import { fakeDeps } from '../../test/fakes/deps';
 import { cleanup } from './cleanup';
 import { heartbeat } from './heartbeat';
@@ -103,5 +103,24 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
   it('runs the usage step in the first run of each hour only', () => {
     expect(officeSteps(new Date('2026-10-04T05:00:00Z')).map((s) => s.name)).toContain('usage');
     expect(officeSteps(new Date('2026-10-04T05:15:00Z')).map((s) => s.name)).not.toContain('usage');
+  });
+
+  it('runs the cleanup of the old sign-in rows in the first run after 00:00 UTC only (exit waves 2 and 3)', () => {
+    const names = (at: string) => officeSteps(new Date(at)).map((s) => s.name);
+    expect(names('2026-10-04T00:00:00Z')).toContain('signin');
+    expect(names('2026-10-04T00:14:59Z')).toContain('signin');
+    expect(names('2026-10-04T00:15:00Z')).not.toContain('signin');
+    expect(names('2026-10-04T05:00:00Z')).not.toContain('signin');
+    expect(names('2026-10-03T23:45:00Z')).not.toContain('signin');
+  });
+
+  it('deletes the sign-in rows that ended more than a day ago in that run, and keeps the others', async () => {
+    const { raw, deps } = await office();
+    const at = new Date('2026-10-04T00:00:00Z');
+    deps.clock.set(at);
+    raw.prepare("insert into auth_links (token_hash, auth_id, type, expires_at) values ('old', 'a1', 'invite', '2026-10-02T00:00:00.000Z'), ('new', 'a1', 'invite', '2026-10-03T12:00:00.000Z')").run();
+    const report = await runOfficeJobs(deps, at);
+    expect(report.steps.find((step) => step.name === 'signin')).toMatchObject({ ok: true });
+    expect(raw.prepare('select token_hash from auth_links').all()).toEqual([{ token_hash: 'new' }]);
   });
 });
