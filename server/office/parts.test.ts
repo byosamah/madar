@@ -14,12 +14,14 @@ import { fixedClock } from '../test/fakes/clock';
 import { SIGNIN_STEPS } from '../auth/own/office';
 import { hashPassword } from '../auth/own/password';
 import { AUTH_USER_INSERT } from '../auth/own/rows';
+import { signAgentToken, signingKeysOf } from '../auth/own/keys';
 import { testPrivateJwk } from '../auth/own/testKeys';
 import { ownIssuer, ownKeySet } from '../auth/ownKeys';
 import { setLiteAuthLink } from '../data/lite/office';
 import { CLOSE_OFF, CLOSE_STALE } from './live';
 import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
+import { principalOfWho } from './who';
 import { fakeSockets, openFor, recordingNet } from './test/fakes';
 
 const TODAY = '2026-10-04';
@@ -50,6 +52,8 @@ async function office(edit: (seed: State) => void = () => undefined, o: { env?: 
   const parts = officeParts({
     host, read: (name) => values[name], sockets, clock: fixedClock(NOW), log: o.log ?? silent,
     principal: (who, snapshot) => {
+      // The token of a browser batch is the user id itself; an agent goes through the real rule.
+      if (who.kind !== 'browser') return principalOfWho(who, snapshot);
       const principal = { userId: who.authUserId };
       resolveActor(snapshot, principal);
       return principal;
@@ -303,11 +307,95 @@ describe('the forgot and renew routes in the office object (Office.mailRoute, Of
   });
 });
 
+describe('MCP in the office object (Office.mcp)', () => {
+  const MCP_URL = 'https://madar.test/mcp';
+  type Rpc = { status: number; headers: Record<string, string>; body: Record<string, any> };
+
+  /** An AI app that the person approved in Madar, with a live session of its own, as the OAuth steps leave it; and its token. */
+  async function agentToken(parts: Awaited<ReturnType<typeof office>>['parts'], seed: State, jwk: string, ownerId: string): Promise<string> {
+    const { authId } = await withPassword(parts, seed, ownerId);
+    const clientId = crypto.randomUUID();
+    const sessionId = `s-${clientId}`;
+    await parts.db.tx('write', async (q) => {
+      await q('insert into oauth_clients (id, name, redirect_uris, created_at) values (?1, ?2, ?3, ?4)', [clientId, 'Claude', JSON.stringify(['https://claude.ai/api/mcp/auth_callback']), NOW]);
+      await q('insert into agent_approvals (client_id, owner_user_id, approved_at) values (?1, ?2, ?3)', [clientId, ownerId, NOW]);
+      await q("insert into auth_sessions (id, auth_id, client_id, amr, refresh_hash, expires_at, created_at) values (?1, ?2, ?3, 'oauth', ?4, '2026-11-17T06:00:00.000Z', ?5)", [sessionId, authId, clientId, `h-${clientId}`, NOW]);
+    });
+    // jose checks the time of the token with the real clock, so the token gets the real time.
+    return signAgentToken(await signingKeysOf(jwk, MCP_URL), { authId, sessionId, clientId, now: new Date() });
+  }
+
+  async function mcpOffice() {
+    const jwk = await testPrivateJwk();
+    const t = await office((seed) => {
+      const prefs = seed.users.usr_003.preferences;
+      seed.users.usr_003 = { ...seed.users.usr_003, preferences: { ...prefs, email: { ...prefs.email, task_assigned: true } } };
+    }, { env: { MADAR_AUTH_PRIVATE_JWK: jwk, MCP_URL } });
+    let id = 0;
+    const rpc = async (token: string | null, method: string, params: Record<string, unknown> = {}): Promise<Rpc & { later: string[] }> => {
+      const headers: [string, string][] = [['content-type', 'application/json'], ['accept', 'application/json, text/event-stream'], ['mcp-protocol-version', '2025-11-25']];
+      if (token) headers.push(['authorization', `Bearer ${token}`]);
+      const out = await t.parts.mcp({ url: MCP_URL, method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: (id += 1), method, params }), worker: 1 }, t.net);
+      // A 2025-era answer may come as one SSE event.
+      const json = out.body.startsWith('event:') ? out.body.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : out.body;
+      return { status: out.status, headers: Object.fromEntries(out.headers), body: json ? JSON.parse(json) : {}, later: out.later };
+    };
+    return { ...t, jwk, rpc };
+  }
+
+  it('gives an agent token the tools of its person and runs a tool call in the object', async () => {
+    const t = await mcpOffice();
+    const token = await agentToken(t.parts, t.seed, t.jwk, 'usr_002');
+    const list = await t.rpc(token, 'tools/list');
+    expect(list.status).toBe(200);
+    expect((list.body.result.tools as { name: string }[]).map((tool) => tool.name)).toContain('projects.list');
+    const call = await t.rpc(token, 'tools/call', { name: 'projects.list', arguments: {} });
+    expect([call.status, call.body.result.isError ?? false]).toEqual([200, false]);
+    expect(Array.isArray(call.body.result.structuredContent.output)).toBe(true);
+    // The first call linked the agent: a new agent user of usr_002 in the office lists.
+    expect(t.raw.prepare("select count(*) as n from users where json_extract(doc, '$.kind') = 'agent' and json_extract(doc, '$.ownerId') = 'usr_002'").get()).toEqual({ n: 1 });
+  });
+
+  it('runs a write tool through the batch path: the mail of the write waits for after the answer', async () => {
+    const t = await mcpOffice();
+    const token = await agentToken(t.parts, t.seed, t.jwk, 'usr_001');
+    const call = await t.rpc(token, 'tools/call', { name: 'tasks.create', arguments: { projectId: 'prj_001', title: 'Site photos', ownerId: 'usr_003', description: '', flagged: false } });
+    expect([call.status, call.body.result.isError ?? false]).toEqual([200, false]);
+    const kinds = call.later.map((row) => (t.raw.prepare('select kind, done_at from outbox where id = ?').get(Number(row)) as { kind: string; done_at: null }));
+    expect(kinds.some((row) => row.kind === 'mail.notice' && row.done_at === null)).toBe(true);
+  });
+
+  it('refuses the agent of a person whom an Admin turned off, and a request with no token', async () => {
+    const t = await mcpOffice();
+    const token = await agentToken(t.parts, t.seed, t.jwk, 'usr_002');
+    expect((await t.rpc(token, 'tools/list')).status).toBe(200);
+    ok(await t.batch('usr_001', [{ name: 'users.deactivate', input: { id: 'usr_002' } }]));
+    expect([401, 403]).toContain((await t.rpc(token, 'tools/list')).status);
+    const none = await t.rpc(null, 'tools/list');
+    expect([none.status, none.headers['www-authenticate']?.startsWith('Bearer')]).toEqual([401, true]);
+  });
+
+  it('answers the metadata of the own sign-in from the object, with no token', async () => {
+    const t = await mcpOffice();
+    const out = await t.parts.mcp({ url: `${MCP_URL}/.well-known/oauth-authorization-server`, method: 'GET', headers: [], body: null, worker: 0 }, t.net);
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body)).toMatchObject({ issuer: MCP_URL });
+  });
+
+  it('answers 503 with no key of the own sign-in, and runs nothing', async () => {
+    const t = await office();
+    const out = await t.parts.mcp({ url: MCP_URL, method: 'POST', headers: [['content-type', 'application/json']], body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', worker: 0 }, t.net);
+    expect([out.status, JSON.parse(out.body).error.code, out.later]).toEqual([503, -32603, []]);
+  });
+});
+
 describe('the effect ledger of a batch', () => {
   it('runs the other kinds before the answer and the mails and pushes after it, and drops a row that did not commit', () => {
     const ledger = new EffectLedger();
     ledger.wrote(['1', '2', '3', '4'], ['r2.delete', 'mail.notice', 'push.notify', 'mail.notice']);
     ledger.committed(['1', '2', '3']);
     expect(ledger.split()).toEqual({ now: ['1'], later: ['2', '3'] });
+    // A second split gives no row again: an MCP request may split more than once on the same deps.
+    expect(ledger.split()).toEqual({ now: [], later: [] });
   });
 });

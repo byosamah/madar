@@ -65,6 +65,9 @@ mail itself, through Resend (see `server/mail/CLAUDE.md`).
   registrations for one address in an hour. The address is `clientAddress` (`forgot.ts`).
 - `liteAuthAdmin` is the Auth admin port over these rows, so `invite.ts`, `effects.ts`, `forgot.ts`, `renew.ts` and
   `users.invites` keep their logic; each text of theirs has a `_LITE` twin.
-- Steps run through `SigninOffice` (`own/office.ts`); wave 3 connects it to the object method for one batch.
+- Steps run through `SigninOffice` (`own/office.ts`). On the office path, `objectSigninOffice` (`server/entries/officeSignin.ts`)
+  sends each step to `Office.signin`. The forgot and renew routes need the database, so they run in the object in two calls:
+  `Office.mailRoute` (the shape check and the limits) and, after the answer, `Office.mailWork` (the `work` option of
+  `createForgotRoute` and `createRenewRoute`).
 - `own/cleanup.ts` (`cleanupSignin`) deletes the links, OAuth requests and sessions that ended more than a day ago; the Cron of
-  wave 3 runs it once a day.
+  the office object runs it in its first run after 00:00 UTC (`server/office/jobs.ts`).

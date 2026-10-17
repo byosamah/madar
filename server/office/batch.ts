@@ -1,10 +1,10 @@
 import { ApiError } from '../../src/api/errors';
-import type { WireCall, WireEntry, WireResponse } from '../../src/api/remote/wire';
+import type { WireCall, WireResponse } from '../../src/api/remote/wire';
 import { nowStamp } from '../../src/lib/dates';
 import { AFTER_ANSWER_KINDS, processOutbox } from '../core/effects';
 import type { Deps } from '../core/ports';
 import type { CallData, CallTx, RunCall } from '../core/runCall';
-import type { BatchScope, OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
+import type { BatchScope, OfficeSnapshot, Principal, RunError, RunRequest, RunResult } from '../core/types';
 import { liteData } from '../data/lite/callData';
 import { entryOf } from '../http/batch';
 import { runErrorOf } from '../http/errors';
@@ -35,9 +35,11 @@ export class EffectLedger {
     this.#done.push(...ids);
   }
 
+  /** The committed rows since the last split, and then no more: a second split never gives a row again. */
   split(): { now: string[]; later: string[] } {
-    const later = this.#done.filter((id) => AFTER_ANSWER_KINDS.has(this.#kinds.get(id) ?? ''));
-    return { now: this.#done.filter((id) => !later.includes(id)), later };
+    const done = this.#done.splice(0);
+    const later = done.filter((id) => AFTER_ANSWER_KINDS.has(this.#kinds.get(id) ?? ''));
+    return { now: done.filter((id) => !later.includes(id)), later };
   }
 }
 
@@ -76,6 +78,45 @@ function logUnexpected(deps: Deps, message: string, error: unknown, fields: Reco
   deps.log.error(message, { ...fields, error: error instanceof Error ? error.message : String(error) });
 }
 
+/** One entry of a batch, as runCall takes it. */
+export type OfficeEntry = { name: string; input: unknown; story?: RunRequest['story']; key?: string };
+export type OfficeEntriesOutput = { results: RunResult[]; later: string[]; officeChanged: boolean };
+
+/**
+ * The entries of one batch for a person whom the caller found: runCall for each entry in the order sent, then the effects that
+ * run before the answer. The browser batch (runOfficeBatch) and each MCP tool call of the office object (parts.ts) run here.
+ */
+export async function runOfficeEntries(
+  deps: Deps,
+  o: { run: RunCall; ledger: EffectLedger; principal: Principal; batch: BatchScope; calls: readonly OfficeEntry[] },
+): Promise<OfficeEntriesOutput> {
+  const results: RunResult[] = [];
+  // A write that changes the office clears batch.office, and a later read of the same batch loads the office again and sets it.
+  // So the flag is set after each entry: the end state alone would hide the change, and the sockets of a person whom the batch
+  // turned off would stay open (security check of ebd74fe).
+  let officeChanged = false;
+  for (const call of o.calls) {
+    let result: RunResult;
+    try {
+      result = await o.run(deps, { principal: o.principal, name: call.name, input: call.input, story: call.story, key: call.key, batch: o.batch });
+    } catch (error) {
+      logUnexpected(deps, 'A call threw outside runCall.', error, { name: call.name });
+      result = { ok: false, error: runErrorOf(error) };
+    }
+    if (o.batch.office === undefined) officeChanged = true;
+    results.push(result);
+  }
+  const { now, later } = o.ledger.split();
+  if (now.length > 0) {
+    try {
+      await processOutbox(deps, now);
+    } catch (error) {
+      deps.log.warn('The effects after the commit did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { results, later, officeChanged };
+}
+
 export async function runOfficeBatch(
   deps: Deps,
   input: OfficeBatchInput,
@@ -91,30 +132,7 @@ export async function runOfficeBatch(
     logUnexpected(deps, 'The batch failed before its calls.', error);
     return { ok: false, error: runErrorOf(error) };
   }
-  const results: WireEntry[] = [];
-  // A write that changes the office clears batch.office, and a later read of the same batch loads the office again and sets it.
-  // So the flag is set after each entry: the end state alone would hide the change, and the sockets of a person whom the batch
-  // turned off would stay open (security check of ebd74fe).
-  let officeChanged = false;
-  for (const call of input.calls) {
-    let result: RunResult;
-    try {
-      result = await o.run(deps, { principal, name: call.name, input: call.input, story: call.story, key: call.key, batch });
-    } catch (error) {
-      logUnexpected(deps, 'A call threw outside runCall.', error, { name: call.name });
-      result = { ok: false, error: runErrorOf(error) };
-    }
-    if (batch.office === undefined) officeChanged = true;
-    results.push(entryOf(call.i, result));
-  }
-  const { now, later } = o.ledger.split();
-  if (now.length > 0) {
-    try {
-      await processOutbox(deps, now);
-    } catch (error) {
-      deps.log.warn('The effects after the commit did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-  const body: WireResponse = { v: 1, serverTime: nowStamp(deps.clock.now()), results };
-  return { ok: true, body: JSON.stringify(body), later, officeChanged };
+  const out = await runOfficeEntries(deps, { run: o.run, ledger: o.ledger, principal, batch, calls: input.calls });
+  const body: WireResponse = { v: 1, serverTime: nowStamp(deps.clock.now()), results: out.results.map((result, n) => entryOf(input.calls[n].i, result)) };
+  return { ok: true, body: JSON.stringify(body), later: out.later, officeChanged: out.officeChanged };
 }

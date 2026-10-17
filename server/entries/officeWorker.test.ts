@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { OfficeBatchInput } from '../office/batch';
 import type { NetApi } from '../office/net';
+import type { OfficeMcpInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
 import { fakeDeps } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
@@ -11,9 +12,9 @@ const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
 const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]}';
 
-function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[] } = {}) {
+function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[]; mcp?: OfficeStub['mcp'] } = {}) {
   const deps = fakeDeps();
-  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[] };
+  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[], mcps: [] as { input: OfficeMcpInput; net: NetApi }[] };
   const stub: OfficeStub = {
     batch: o.batch ?? (async (input, net) => (seen.batch.push({ input, net }), { ok: true, body: ANSWER, later: [] })),
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
@@ -22,6 +23,7 @@ function setup(o: { batch?: OfficeStub['batch']; routes?: OfficeRoute[] } = {}) 
     signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
     mailRoute: async () => ({ status: 200, body: '{"v":1,"ok":true}' }),
     mailWork: async () => undefined,
+    mcp: o.mcp ?? (async (input, net) => (seen.mcps.push({ input, net }), { status: 200, headers: [['content-type', 'application/json'], ['x-test', '1']], body: '{"jsonrpc":"2.0","id":1,"result":{}}', later: [] })),
     fetch: async (request) => (seen.fetches.push(request), { status: 101, webSocket: {} } as unknown as Response),
   };
   const net = recordingNet();
@@ -141,5 +143,41 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
     expect(got).toHaveLength(1);
     expect([got[0].call.stub, got[0].call.net(), typeof got[0].call.after, got[0].address]).toEqual([stub, net, 'function', '203.0.113.7']);
     expect((await get('/auth/jwks')).status).toBe(404);
+  });
+
+  describe('the MCP address on the office path (merge of exit waves 2 and 3)', () => {
+    const mcpPost = (routes: ReturnType<typeof setup>['routes'], path: string, body: string, ctx?: { waitUntil(work: Promise<unknown>): void }) =>
+      routes.fetch(new Request(`https://madar-server.internal${path}`, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer agent-token', origin: 'https://evil.test' }, body,
+      }), {}, ctx);
+
+    it('hands each /mcp request to the office object in one call, as it came, and answers its answer as it is', async () => {
+      const { seen, routes, net } = setup();
+      const answer = await mcpPost(routes, '/mcp', '{"jsonrpc":"2.0","id":1,"method":"tools/list"}');
+      expect([answer.status, answer.headers.get('x-test'), answer.headers.get('access-control-allow-origin'), await answer.text()]).toEqual([200, '1', null, '{"jsonrpc":"2.0","id":1,"result":{}}']);
+      expect(seen.mcps).toHaveLength(1);
+      const { input } = seen.mcps[0];
+      expect([input.url, input.method, input.body, input.worker, seen.mcps[0].net]).toEqual(['https://madar-server.internal/mcp', 'POST', '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 1, net]);
+      expect(Object.fromEntries(input.headers)).toMatchObject({ authorization: 'Bearer agent-token', origin: 'https://evil.test' });
+      expect(seen.batch).toEqual([]);
+    });
+
+    it('hands the OAuth routes under /mcp with no body for a GET, and runs the mails of a tool call after the answer', async () => {
+      const { seen, routes, net } = setup({ mcp: async (input, n) => (seen.mcps.push({ input, net: n }), { status: 200, headers: [], body: '{}', later: ['9'] }) });
+      const metadata = await routes.fetch(new Request('https://madar-server.internal/mcp/.well-known/oauth-authorization-server'), {});
+      expect([metadata.status, seen.mcps[0].input.method, seen.mcps[0].input.body]).toEqual([200, 'GET', null]);
+      const waits: Promise<unknown>[] = [];
+      await mcpPost(routes, '/mcp', '{"jsonrpc":"2.0","id":2,"method":"tools/call"}', { waitUntil: (work) => waits.push(work) });
+      expect(waits).toHaveLength(1);
+      await Promise.all(waits);
+      expect(seen.effects.map((e) => [e.ids, e.net])).toEqual([[['9'], net], [['9'], net]]);
+    });
+
+    it('answers a JSON-RPC refusal when the office object is busy, with no answer of the object', async () => {
+      const { routes } = setup({ mcp: async () => { throw Object.assign(new Error('Durable Object is overloaded.'), { overloaded: true }); } });
+      const answer = await mcpPost(routes, '/mcp', '{}');
+      expect(answer.status).toBe(503);
+      expect(await answer.json()).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: 503 } });
+    });
   });
 });

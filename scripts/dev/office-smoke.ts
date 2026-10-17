@@ -2,7 +2,8 @@
  * npm run smoke:office (Supabase exit, wave 3): the real Workers bundle on local wrangler dev with the office path on. It needs no
  * Docker and no sign-in, so it checks what comes before a person: the health route with and without the jobs secret, the token
  * refusal of the batch route, the socket refusal, one Cron run through /__scheduled (wrangler 4.147.0, --test-scheduled), and
- * the own sign-in of the merge of waves 2 and 3 with a key made for the run (the key set, and a password step in the object).
+ * the own sign-in of the merge of waves 2 and 3 with a key made for the run (the key set, a password step in the object, the OAuth
+ * metadata and the token refusal of /mcp, both from the object).
  * Run it after npm run build:server, with the sandbox off (wrangler dev binds a port). It changes nothing outside $TMPDIR: the
  * local state of wrangler dev (the office object storage) goes into the folder of the run (--persist-to), so each run starts with a
  * new office object. In the default folder (.wrangler/ beside the config) the heartbeat of one run stays, and the next run fails.
@@ -80,11 +81,19 @@ try {
   });
   const refused = (await signin.json()) as { error?: { details?: { reason?: string } } };
   checks.push(['a password sign-in runs its step in the office object and refuses a wrong password', signin.status === 401 && refused.error?.details?.reason === 'invalid_credentials']);
+  const metadata = await fetch(`${BASE}/mcp/.well-known/oauth-authorization-server`);
+  const issuer = metadata.ok ? ((await metadata.json()) as { issuer?: string }).issuer : undefined;
+  checks.push(['the OAuth metadata of the own sign-in answers from the office object', issuer === `${BASE}/mcp`]);
+  const mcp = await fetch(`${BASE}/mcp`, {
+    method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  });
+  checks.push(['the MCP address with no token gets 401 and the challenge from the office object', mcp.status === 401 && (mcp.headers.get('www-authenticate') ?? '').startsWith('Bearer')]);
 } finally {
   dev.kill('SIGINT');
   rmSync(dir, { recursive: true, force: true });
 }
 for (const [name, ok] of checks) console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
-const passed = checks.length === 8 && checks.every(([, ok]) => ok);
+const passed = checks.length === 10 && checks.every(([, ok]) => ok);
 if (!passed) console.log(output.split('\n').slice(-40).join('\n'));
 process.exit(passed ? 0 : 1);

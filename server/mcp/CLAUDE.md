@@ -108,5 +108,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (`server/http/pagesWellKnown.ts`); until then a client finds `/mcp/.well-known/openid-configuration`.
 - On SQLite, `agents.revokeAll` runs inside the transaction of the turn-off (no outbox row), and `agents.remove` ends the agent
   sessions with the links. `liteAgentOf` (`oauth/agent.ts`) is the agent check of the office object.
+- On the office path (the merge of exit waves 2 and 3), the object runs the whole MCP app for each request (`Office.mcp`,
+  `server/office/parts.ts`): the own issuer, the own agent token check, `liteAgentOf`, `mountOAuth`, and each tool call on the
+  batch path of the object (the who kind `agent`). No region hop runs in the object. No tool, `TOOL_DOCS` line or `INSTRUCTIONS`
+  rule changed in the merge.
 - No tool, `TOOL_DOCS` line or `INSTRUCTIONS` rule changed in wave 2: an agent never reads the connect flow; its AI app runs it.
 - `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.

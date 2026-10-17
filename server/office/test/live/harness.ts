@@ -2,6 +2,7 @@ import { createTestHarness } from 'wrangler';
 import type { RunError } from '../../../core/types';
 import type { WireResponse } from '../../../../src/api/remote/wire';
 import type { State } from '../../../../src/api/store';
+import { testPrivateJwk } from '../../../auth/own/testKeys';
 import { makeVapidKeys } from '../../../push/vapid';
 
 export type SocketClient = { ws: WebSocket; got: string[]; opened: Promise<void>; closed: Promise<{ code: number; reason: string }> };
@@ -30,6 +31,8 @@ export function openSocket(address: string): SocketClient {
  */
 export async function startLive() {
   const vapid = await makeVapidKeys();
+  // The key of the own sign-in for this run only (the MCP suite signs its agent tokens with it). It is never a real key.
+  const jwk = await testPrivateJwk();
   const server = createTestHarness({
     workers: [{
       configPath: new URL('./wrangler.toml', import.meta.url),
@@ -37,6 +40,7 @@ export async function startLive() {
         RESEND_API_KEY: 're_test_not_a_key', MADAR_SECRET_KEY: 'sb_secret_test_not_a_key', R2_ACCOUNT_ID: '0'.repeat(32),
         R2_ACCESS_KEY_ID: 'test-not-a-key', R2_SECRET_ACCESS_KEY: 'test-not-a-key',
         VAPID_PUBLIC_KEY: vapid.publicKey, VAPID_PRIVATE_KEY: vapid.privateKey, VAPID_SUBJECT: 'mailto:madar@vado.sa',
+        MADAR_AUTH_PRIVATE_JWK: jwk,
       },
     }],
   });
@@ -52,6 +56,7 @@ export async function startLive() {
   return {
     server,
     worker,
+    jwk,
     url: () => url,
     fresh: async (state: State) => {
       await server.reset();
@@ -65,6 +70,16 @@ export async function startLive() {
     batch: async (userId: string, calls: BatchCall[]) => {
       const response = await post('/api/batch', { v: 1, calls: calls.map((c, i) => ({ i, ...c })) }, { authorization: `Bearer ${userId}` });
       return { status: response.status, body: (await response.json()) as WireResponse & { error?: RunError } };
+    },
+    agent: async (ownerId: string) => read<{ authId: string; clientId: string; sessionId: string }>(await post('/test/agent', { ownerId })),
+    /** One 2025-era MCP request with an agent token (or none), and its JSON answer (one SSE event or plain JSON). */
+    mcp: async (token: string | null, method: string, params: Record<string, unknown> = {}) => {
+      const response = await post('/mcp', { jsonrpc: '2.0', id: 1, method, params }, {
+        accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25', ...(token ? { authorization: `Bearer ${token}` } : {}),
+      });
+      const text = await response.text();
+      const json = text.startsWith('event:') ? text.split('\n').find((line) => line.startsWith('data: '))!.slice(6) : text;
+      return { status: response.status, body: (json ? JSON.parse(json) : {}) as { result?: Record<string, any>; error?: { message: string } } };
     },
     open: (ticket: string) => openSocket(`${url.href.replace(/^http/, 'ws')}api/live?ticket=${ticket}`),
     evict: () => worker().evictDurableObject('OFFICE', { name: 'office', webSockets: 'hibernate' }),

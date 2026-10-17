@@ -14,7 +14,7 @@ import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
 import type {
   OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth, OfficeMailAnswer, OfficeMailInput, OfficeMailWork,
-  OfficeSigninInput,
+  OfficeMcpAnswer, OfficeMcpInput, OfficeSigninInput,
 } from '../office/parts';
 
 /**
@@ -22,6 +22,7 @@ import type {
  * on Free), then gives the whole batch to the office object in one RPC call with its network port (server/office/workerNet.ts),
  * and sends the JSON text of the answer on as it is. The mails and pushes of the batch run after the answer, in one more object
  * call with the same port. The socket route checks only the upgrade and the shape of the ticket; the object checks the ticket.
+ * /mcp goes to the object in one call too (the merge of exit waves 2 and 3), and the routes option adds the own sign-in under /api.
  * Every request counts on the meter: the count goes with the next object call (worker).
  */
 
@@ -39,6 +40,7 @@ export type OfficeStub = {
   signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
   mailRoute(input: OfficeMailInput, net: NetApi): Promise<OfficeMailAnswer>;
   mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
+  mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   health(): Promise<OfficeHealth>;
   fetch(request: Request): Promise<Response>;
 };
@@ -58,6 +60,14 @@ export type OfficeRoutesOptions = {
 };
 
 const BUSY = new ApiError('failed', 'The office is busy. Try again in a moment.', { reason: 'busy' });
+
+/** The headers that the Worker does not pass on to the office object: the object makes its own Request from the text body. */
+const NOT_PASSED = new Set(['host', 'content-length', 'connection', 'transfer-encoding']);
+
+/** A JSON-RPC refusal in the shape of the MCP app (server/mcp/app.ts). */
+function mcpError(status: number, message: string, reason?: string): Response {
+  return Response.json({ jsonrpc: '2.0', id: null, error: { code: status, message, ...(reason ? { data: { reason } } : {}) } }, { status });
+}
 
 /** The refusal of an office object call that threw: busy when Cloudflare marks the error overloaded or retryable. */
 export function officeErrorOf(error: unknown, log: Deps['log']): RunError {
@@ -108,6 +118,39 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     return new Response(out.body, { headers: { 'content-type': 'application/json' } });
   }
 
+  /**
+   * /mcp and every address under it (the merge of exit waves 2 and 3): the whole request goes to the office object in one call, which
+   * runs the MCP app with the own token check, the agent check and the OAuth routes there. Its answer goes on as it is; the mails
+   * and pushes of a tool call run after it, as for a batch.
+   */
+  async function mcp(request: Request, env: Env, after: After | undefined): Promise<Response> {
+    let body: string | null = null;
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      try {
+        body = await readBody(request);
+      } catch {
+        return mcpError(413, 'The request is too large.', 'too_large');
+      }
+    }
+    const headers = [...request.headers].filter(([name]) => !NOT_PASSED.has(name.toLowerCase()));
+    const net = o.net();
+    let out: OfficeMcpAnswer;
+    try {
+      out = await o.stub(env).mcp({ url: request.url, method: request.method, headers, body, worker: reported() }, net);
+    } catch (error) {
+      const refusal = officeErrorOf(error, log);
+      return refusal.details?.reason === 'busy' ? mcpError(503, refusal.message, 'busy') : mcpError(500, 'Something went wrong. Try again.');
+    }
+    if (out.later.length > 0) {
+      const work = o.stub(env).runEffects({ ids: out.later, worker: 0 }, net).catch((error: unknown) => {
+        log.warn('The effects after the answer did not run. The job tries them again.', { error: error instanceof Error ? error.message : String(error) });
+      });
+      if (after) after(work);
+      else await work;
+    }
+    return new Response(out.body, { status: out.status, headers: out.headers });
+  }
+
   async function live(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
     if (!TICKET_SHAPE.test(new URL(request.url).searchParams.get('ticket') ?? '')) return errorResponse(TICKET_REFUSED);
@@ -142,7 +185,10 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   };
 
   const app = new Hono<{ Bindings: Env }>();
-  app.use('*', cors(() => o.deps.config.allowedOrigins));
+  // CORS for the page api only. The MCP app checks the Origin itself, as on the Postgres path (server/mcp/app.ts).
+  app.use('/api/*', cors(() => o.deps.config.allowedOrigins));
+  app.all('/mcp', (c) => mcp(c.req.raw, c.env, afterOf(c)));
+  app.all('/mcp/*', (c) => mcp(c.req.raw, c.env, afterOf(c)));
   app.get('/api/health', (c) => health(c.req.raw, c.env));
   app.post('/api/batch', (c) => batch(c.req.raw, c.env, afterOf(c)));
   for (const route of o.routes ?? []) {

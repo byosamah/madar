@@ -1,16 +1,17 @@
+import { Hono } from 'hono';
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../core/deps';
 import { processOutbox } from '../core/effects';
 import { CLIENT_ADDRESS_HEADER, createForgotRoute, FORGOT_PATH, sendReset } from '../auth/forgot';
 import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
-import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
-import { OWN_AUTH_SECRET } from '../auth/ownKeys';
+import { localSigninOffice, runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
+import { OWN_AUTH_SECRET, ownIssuer, ownKeySet, ownPublicJwks } from '../auth/ownKeys';
 import { createRenewRoute, RENEW_PATH, renewInvitation } from '../auth/renew';
 import { runInHost } from '../core/after';
 import type { Clock, Deps, Logger } from '../core/ports';
-import { createRunCall } from '../core/runCall';
+import { createRunCall, type RunCall } from '../core/runCall';
 import type { CallEntry } from '../core/serverCallMap';
-import type { OfficeSnapshot, Principal } from '../core/types';
+import type { OfficeSnapshot, Principal, RunResult } from '../core/types';
 import { liteDb, type LiteDb } from '../data/lite/db';
 import type { SqlHost } from '../data/lite/host';
 import { readLiteOffice } from '../data/lite/office';
@@ -19,9 +20,14 @@ import { runErrorOf } from '../http/errors';
 import type { JobReport } from '../jobs/run';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { utcDay } from '../mail/quota';
+import { mcpApp } from '../mcp/app';
+import { agentTokenChecker } from '../mcp/auth';
+import { liteAgentOf } from '../mcp/oauth/agent';
+import { mountOAuth } from '../mcp/oauth/routes';
+import { stateKeyFrom } from '../mcp/reasons';
 import { JOBS_LAST_RUN_SQL } from '../usage/meters';
 import { checkDayLimits } from '../usage/warn';
-import { EffectLedger, officeData, runOfficeBatch, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
+import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
@@ -52,6 +58,13 @@ export type OfficeMailRoute = 'forgot' | 'renew';
 export type OfficeMailInput = { route: OfficeMailRoute; body: string; address: string };
 export type OfficeMailAnswer = { status: number; body: string; work?: string };
 export type OfficeMailWork = { route: OfficeMailRoute; value: string };
+/**
+ * One request of /mcp on the office path (the merge of exit waves 2 and 3), as plain data: the Worker sends it on as it came, and
+ * the object runs the MCP app (server/mcp/app.ts) with the own token check, the agent check on SQLite and each tool call through
+ * the batch path. later: the mails and pushes of a tool call, which the Worker runs after the answer (runEffects).
+ */
+export type OfficeMcpInput = { url: string; method: string; headers: [string, string][]; body: string | null; worker: number };
+export type OfficeMcpAnswer = { status: number; headers: [string, string][]; body: string; later: string[] };
 /** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
 export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null };
 
@@ -76,10 +89,28 @@ export type OfficeParts = {
   signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
   mailRoute(input: OfficeMailInput, net: NetApi): Promise<OfficeMailAnswer>;
   mailWork(input: OfficeMailWork, net: NetApi): Promise<void>;
+  mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer>;
   socket(request: Request): Promise<Response>;
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
   health(): Promise<OfficeHealth>;
+};
+
+/** The office object does no network work, so no region hop of the MCP app (server/mcp/forward.ts) may run here. */
+const NO_HOP = (() => Promise.reject(new Error('The office object does no network work: no MCP region hop runs here.'))) as unknown as typeof fetch;
+
+/** A JSON-RPC refusal of the MCP address, in the shape of the MCP app. */
+function mcpRefusal(status: number, message: string): OfficeMcpAnswer {
+  return { status, headers: [['content-type', 'application/json']], body: JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32603, message } }), later: [] };
+}
+
+const toolCallsIn = (body: string | null): number => {
+  try {
+    const value = JSON.parse(body ?? 'null') as unknown;
+    return (Array.isArray(value) ? value : [value]).filter((m) => m && typeof m === 'object' && (m as { method?: unknown }).method === 'tools/call').length;
+  } catch {
+    return 0;
+  }
 };
 
 /** The close codes that a server may not send back (1005, 1006, 1015): the object answers them with a normal close. */
@@ -121,6 +152,10 @@ export function officeParts(o: PartsInput): OfficeParts {
     }
     return held.keys;
   };
+
+  // The key of the reason questions of the MCP app (server/mcp/reasons.ts), from the server secret key, as on the Postgres path.
+  let stateKey: Promise<Uint8Array> | undefined;
+  const stateKeyOf = (): Promise<Uint8Array> => (stateKey ??= stateKeyFrom(values.secretKey));
 
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes });
@@ -208,6 +243,55 @@ export function officeParts(o: PartsInput): OfficeParts {
       } catch (error) {
         log.warn(input.route === 'forgot' ? 'A reset mail did not go out.' : 'A renewed invitation did not go out.', { error: error instanceof Error ? error.message : String(error) });
       }
+    },
+    async mcp(input, net) {
+      meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
+      const secret = o.read(OWN_AUTH_SECRET);
+      let keys: SigningKeys;
+      try {
+        if (secret === undefined) throw new Error(`${OWN_AUTH_SECRET} is not set: MCP on the office path needs the own sign-in.`);
+        keys = await keysOf();
+      } catch (error) {
+        log.error('The MCP address of the office object is off.', { error: error instanceof Error ? error.message : String(error) });
+        return mcpRefusal(503, 'The MCP server of this copy is not set up yet.');
+      }
+      const deps = depsFor(net);
+      const mcpUrl = values.config.mcpUrl;
+      const issuer = ownIssuer(mcpUrl);
+      const later: string[] = [];
+      let officeChanged = false;
+      // Each tool call is a batch of one entry on the batch path of the object: the agent who, its effects and the office flag.
+      const toolRun: RunCall = async (_deps, req): Promise<RunResult> => {
+        let principal: Principal;
+        try {
+          principal = o.principal({ kind: 'agent', agentUserId: req.principal.userId, clientId: req.principal.agent?.clientId ?? '' }, req.batch.office ?? await office());
+        } catch (error) {
+          return { ok: false, error: runErrorOf(error) };
+        }
+        const out = await runOfficeEntries(deps, {
+          run, ledger: ledgers.get(deps)!, principal, batch: req.batch, calls: [{ name: req.name, input: req.input, story: req.story, key: req.key }],
+        });
+        later.push(...out.later);
+        if (out.officeChanged) officeChanged = true;
+        return out.results[0];
+      };
+      const app = mcpApp(deps, {
+        issuer,
+        checkToken: agentTokenChecker({ issuer, audience: mcpUrl, jwks: ownKeySet(secret) }),
+        agentOf: liteAgentOf,
+        runCall: toolRun,
+        readOffice: () => office(),
+        stateKey: await stateKeyOf(),
+        fetch: NO_HOP,
+        oauth: (routes) => mountOAuth(routes, localSigninOffice({ db, clock, log, config: values.config, keys }), { mcpUrl, jwks: ownPublicJwks(secret) }),
+      });
+      const root = new Hono();
+      root.route('/mcp', app);
+      const request = new Request(input.url, { method: input.method, headers: input.headers, ...(input.body === null ? {} : { body: input.body }) });
+      // The Workers host: the OAuth routes read the address that the Pages Function wrote (clientAddress).
+      const response = await runInHost({ host: 'workers' }, () => root.fetch(request));
+      if (officeChanged) closeOff(o.sockets, await office());
+      return { status: response.status, headers: [...response.headers], body: await response.text(), later };
     },
     async socket(request) {
       meter.request();

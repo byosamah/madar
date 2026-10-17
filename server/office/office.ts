@@ -9,7 +9,7 @@ import type { NetApi } from './net';
 import type { OpResult } from '../auth/own/office';
 import {
   officeParts, type OfficeCronInput, type OfficeCronReport, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts,
-  type OfficeMailAnswer, type OfficeMailInput, type OfficeMailWork, type OfficeSigninInput,
+  type OfficeMailAnswer, type OfficeMailInput, type OfficeMailWork, type OfficeMcpAnswer, type OfficeMcpInput, type OfficeSigninInput,
 } from './parts';
 import { principalOfWho, type OfficeWho } from './who';
 
@@ -82,6 +82,11 @@ export class Office extends DurableObject<Env> {
   /** The mail work of the forgot or the renew route, which the Worker runs after its answer. */
   mailWork(input: OfficeMailWork, net: NetApi): Promise<void> {
     return this.parts.mailWork(input, net);
+  }
+
+  /** One request of /mcp (the merge of exit waves 2 and 3): the MCP app runs here, each tool call on the batch path. */
+  mcp(input: OfficeMcpInput, net: NetApi): Promise<OfficeMcpAnswer> {
+    return this.parts.mcp(input, net);
   }
 
   health(): Promise<OfficeHealth> {

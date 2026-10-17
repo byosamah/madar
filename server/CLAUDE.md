@@ -146,8 +146,20 @@ The other host stays deployed as the way back. Each area below has its own guide
 - On the year office one Cron run reads about 1,500 rows, and the first run of an hour about 14,700: the file size sum
   (`FILES_BYTES_LITE`, `usage/meters.ts`) reads one row for each file and one for each version. That is about 460,000 rows a
   day of the 5 million of Free (`CRON_PINS`, `office/test/pins.ts`).
-- Tests: `office/{net,meter,live,parts}.test.ts` on node:sqlite; `office/{batch,socket,cron}.wd.test.ts` on local workerd with the
-  test Worker of `office/test/live/`; `npm run smoke:office` for the real bundle.
+- The sign-in on the office object (the merge of exit waves 2 and 3): the object deps take `liteAuthAdmin`, so the invite and
+  auth effects run in the object and only their mail goes through the Worker. With `MADAR_AUTH_PRIVATE_JWK`, `officeEntry` mounts
+  the routes of `ownApiRoutes` under `/api` (`entries/officeSignin.ts`): each step is one call of `Office.signin`. The forgot and
+  renew routes run their limits in `Office.mailRoute` and their mail after the answer in `Office.mailWork`; the Worker pads the
+  answer to 1.5 s. A copy with the key also needs `MCP_URL`: it is the issuer of the own tokens. The Cron runs `cleanupSignin`
+  in its first run after 00:00 UTC (the step `signin`, `office/jobs.ts`).
+- `/mcp` on the office path: the Worker hands each request to `Office.mcp` in one call, and the object runs the MCP app there (the
+  own agent token check, `liteAgentOf`, `mountOAuth`). Each tool call runs on the batch path (`runOfficeEntries`, the who kind
+  `agent` of `office/who.ts`); its mails and pushes run after the answer (`runEffects`). With no key, `/mcp` answers 503.
+- A batch reports an office change when any entry cleared `batch.office` (`runOfficeEntries`), so a turn-off with a read after it
+  still closes the sockets of that person.
+- Tests: `office/{net,meter,live,parts,who}.test.ts` on node:sqlite; `office/{batch,socket,cron,mcp}.wd.test.ts` on local workerd
+  with the test Worker of `office/test/live/`; `entries/{officeWorker,officeSignin}.test.ts`; `npm run smoke:office` for the real
+  bundle (10 checks, with a key made for the run).
 
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.

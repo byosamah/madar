@@ -16,6 +16,8 @@ SUPABASE_URL = "http://127.0.0.1:54321"
 MADAR_FILE_STORE = "r2"
 R2_BUCKET = "madar-files-test"
 MADAR_LIVE_STALE_MS = "1500"
+# The MCP suite (the merge of exit waves 2 and 3): the issuer and the audience of the own tokens.
+MCP_URL = "https://madar.test/mcp"
 
 [[durable_objects.bindings]]
 name = "OFFICE"

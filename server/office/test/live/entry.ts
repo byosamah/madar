@@ -12,7 +12,7 @@ export { TestOffice };
 
 type Env = Record<string, unknown> & { OFFICE: { idFromName(name: string): unknown; get(id: unknown): unknown } };
 type Ctx = { waitUntil(work: Promise<unknown>): void };
-type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec'>;
+type Test = OfficeStub & Pick<TestOffice, 'seed' | 'readBack' | 'rows' | 'exec' | 'agent'>;
 
 // The network of the test Worker: files and mail in memory, and a push service that takes every push. /test/net shows them.
 const files = fakeFiles({ kind: 'r2' });
@@ -50,6 +50,10 @@ export default {
     if (pathname === '/test/rows') {
       const { text, values } = (await request.json()) as { text: string; values?: unknown[] };
       return Response.json(await stubOf(env).rows(text, values));
+    }
+    if (pathname === '/test/agent') {
+      const { ownerId } = (await request.json()) as { ownerId: string };
+      return Response.json(await stubOf(env).agent(ownerId));
     }
     if (pathname === '/test/exec') {
       const { text, values } = (await request.json()) as { text: string; values?: unknown[] };
