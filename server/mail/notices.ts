@@ -5,7 +5,7 @@ import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
-import type { Deps, Mail, Query } from '../core/ports';
+import type { Db, Deps, Mail, Query } from '../core/ports';
 import { QUOTA_LIMITS, sendCounted, utcDay, type QuotaKind, type SendCounted } from './quota';
 import { renderMail, type RenderedMail } from './templates';
 
@@ -68,9 +68,37 @@ export const ADMIN_MAIL_SQL = `select id as user_id, kind, active, doc->>'email'
   doc->>'systemRole' as system_role
 from users where id = $1`;
 
+// SQLite forms (exit wave 3): the users table holds id and doc only, so the person fields come from doc.
+export const NOTICE_MAIL_LITE = "select n.id as id, json_extract(n.doc, '$.trigger') as trigger, u.doc as doc from notifications n join users u on u.id = n.user_id where n.id = ?1";
+export const USER_DOC_LITE = 'select doc from users where id = ?1';
+export const ADMINS_LITE = "select rowid as ord, id from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' and json_extract(doc, '$.systemRole') = 'admin'";
+
 type NewNotice = { id: string; user_id: string; trigger: Trigger; kind: string; active: boolean; preferences: Preferences };
 export type PersonRow = { user_id: string; kind: string; active: boolean; email: string; preferences: Preferences; gender: Gender | null };
 type NoticeRow = PersonRow & { id: string; trigger: Trigger };
+type UserDoc = { id: string; kind: string; active?: boolean; email: string; preferences: Preferences; gender?: Gender | null; systemRole?: string };
+
+/** The row of USER_MAIL_SQL and ADMIN_MAIL_SQL, made from a users doc. */
+export function personOfDoc(doc: UserDoc): PersonRow & { system_role: string | null } {
+  return { user_id: doc.id, kind: doc.kind, active: doc.active === true, email: doc.email, preferences: doc.preferences, gender: doc.gender ?? null, system_role: doc.systemRole ?? null };
+}
+
+/** The person of one user id on SQLite, as at most one row: the shape of a statement answer. */
+export async function litePerson(db: Db, userId: string): Promise<(PersonRow & { system_role: string | null })[]> {
+  return (await db.statement<{ doc: UserDoc }>('read', USER_DOC_LITE, [userId])).map((row) => personOfDoc(row.doc));
+}
+
+/** Every active Admin, oldest first (ADMINS_SQL), on both databases. */
+export async function adminsOf(q: Query): Promise<{ id: string }[]> {
+  if (!isLite(q)) return q<{ id: string }>(ADMINS_SQL);
+  return (await q<{ ord: number; id: string }>(ADMINS_LITE)).sort((a, b) => a.ord - b.ord).map((row) => ({ id: row.id }));
+}
+
+/** The notice and its person on SQLite, as at most one row of NOTICE_MAIL_SQL. */
+async function liteNotice(db: Db, id: string): Promise<NoticeRow[]> {
+  const rows = await db.statement<{ id: string; trigger: Trigger; doc: UserDoc }>('read', NOTICE_MAIL_LITE, [id]);
+  return rows.map((row) => ({ ...personOfDoc(row.doc), id: row.id, trigger: row.trigger }));
+}
 
 /** The screens URL and a path, with one slash between them. */
 export function appLink(appUrl: string, path: string): string {
@@ -122,7 +150,7 @@ export async function sendWarned(deps: Deps, kind: QuotaKind, mail: Mail, userId
   const result = await sendCounted(deps, kind, mail, {
     userId,
     onFirstRefusal: async (q) => {
-      const admins = await q<{ id: string }>(ADMINS_SQL);
+      const admins = await adminsOf(q);
       warnings = await writeOutbox(q, admins.map((admin) => ({ kind: QUOTA_WARNING_EFFECT, payload: { userId: admin.id, day } })));
     },
   });
@@ -134,7 +162,7 @@ export async function sendWarned(deps: Deps, kind: QuotaKind, mail: Mail, userId
 export async function sendNoticeMail(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const id = String(payload.notificationId ?? '');
   // The primary, never a read copy: the effect runs right after the commit that wrote the notice.
-  const [notice] = await deps.db.statement<NoticeRow>('write', NOTICE_MAIL_SQL, [id]);
+  const [notice] = isLite(deps.db) ? await liteNotice(deps.db, id) : await deps.db.statement<NoticeRow>('write', NOTICE_MAIL_SQL, [id]);
   if (!notice || !mailable(notice)) return;
   const { preferences, trigger } = notice;
   // A notice that stays in the app has no mail (owner, 2026-10-07). emailOn says the same; the check also gives the mail its type.
@@ -147,7 +175,7 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
 export async function sendQuotaWarning(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const userId = String(payload.userId ?? '');
   const day = String(payload.day ?? utcDay(deps.clock.now()));
-  const [person] = await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
+  const [person] = isLite(deps.db) ? await litePerson(deps.db, userId) : await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
   if (!person || !mailable(person) || person.system_role !== 'admin') return;
   const rendered = renderMail('quotaWarning', person.preferences.language, { limit: QUOTA_LIMITS.notice, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendCounted(deps, 'warning', mailOf(person.email, rendered, 'quota-warning', `quota-warning-${day}-${userId}`), { userId });

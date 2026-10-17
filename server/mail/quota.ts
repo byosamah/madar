@@ -1,4 +1,5 @@
 import type { Clock, Db, Mail, MailPort, Query } from '../core/ports';
+import { isLite, sqlFor } from '../data/dialect';
 
 /**
  * The email quota (plan 2 change 9, 5.4; task N2.1). Resend's free plan sends 100 emails a UTC day (00:00 UTC is 03:00 Riyadh),
@@ -47,6 +48,15 @@ export const RELEASE_SQL = `delete from mail_log where ref = $1 and resend_id is
 /** $1 day, $2 ref, $3 Resend id. */
 export const RECORD_SENT_SQL = 'update mail_log set resend_id = $3 where utc_day = $1::date and ref = $2';
 
+// SQLite forms (exit wave 3). The office object runs one request at a time, so the mail lock goes: one count, then one insert.
+// The day always comes from the caller's clock (UTC text): SQLite has no "now" of the database here.
+export const RESERVE_COUNT_LITE = `select count(*) filter (where ${SENDING}) as n, coalesce(max(ref = ?2), 0) as mine from mail_log where utc_day = ?1`;
+export const RESERVE_ADD_LITE = 'insert into mail_log (utc_day, kind, user_id, ref) values (?1, ?2, ?3, ?4)';
+export const REFUSAL_MARK_LITE = "insert into mail_log (utc_day, kind, ref) values (?1, 'refused', 'quota-refused') on conflict (utc_day, ref) do nothing returning id";
+export const SENT_TODAY_LITE = `select count(*) as n from mail_log where utc_day = ?1 and ${SENDING}`;
+export const RELEASE_LITE = `delete from mail_log where ref = ?1 and resend_id is null and ${SENDING}`;
+export const RECORD_SENT_LITE = 'update mail_log set resend_id = ?3 where utc_day = ?1 and ref = ?2';
+
 /** The UTC day of a moment, as "YYYY-MM-DD". */
 export function utcDay(at: Date): string {
   return at.toISOString().slice(0, 10);
@@ -54,9 +64,19 @@ export function utcDay(at: Date): string {
 
 type DayOption = { now?: Date };
 const dayOf = (o: DayOption) => (o.now ? utcDay(o.now) : null);
+/** The UTC day of a SQLite statement: the one given, or the day of now. */
+const liteDay = (o: DayOption): string => utcDay(o.now ?? new Date());
 
 /** A place in today's quota for one mail. Run it in a short write transaction of its own: it holds the mail lock to the commit. */
 export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOption & { userId?: string } = {}): Promise<'ok' | 'over'> {
+  if (isLite(q)) {
+    const day = liteDay(o);
+    const [row] = await q<{ n: number; mine: number }>(RESERVE_COUNT_LITE, [day, ref]);
+    if (Number(row?.mine ?? 0) === 1) return 'ok';
+    if (Number(row?.n ?? 0) >= QUOTA_LIMITS[kind]) return 'over';
+    await q(RESERVE_ADD_LITE, [day, kind, o.userId ?? null, ref]);
+    return 'ok';
+  }
   await q(MAIL_LOCK_SQL, [...MAIL_LOCK_KEY]);
   const [row] = await q<{ ok: boolean }>(RESERVE_SQL, [dayOf(o), kind, o.userId ?? null, ref, QUOTA_LIMITS[kind]]);
   return row?.ok ? 'ok' : 'over';
@@ -67,16 +87,16 @@ export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOpti
  * that went out but whose Resend id is not recorded yet also has no Resend id, and its place must stay.
  */
 export async function release(q: Query, ref: string): Promise<void> {
-  await q(RELEASE_SQL, [ref]);
+  await q(sqlFor(q, RELEASE_SQL, RELEASE_LITE), [ref]);
 }
 
 /** True only for the first call of a day: the caller then sends the one quota warning to each Admin. */
 export async function markFirstRefusal(q: Query, o: DayOption = {}): Promise<boolean> {
-  return (await q(REFUSAL_MARK_SQL, [dayOf(o)])).length > 0;
+  return (await q(sqlFor(q, REFUSAL_MARK_SQL, REFUSAL_MARK_LITE), [isLite(q) ? liteDay(o) : dayOf(o)])).length > 0;
 }
 
 export async function sentToday(q: Query, o: DayOption = {}): Promise<number> {
-  const [row] = await q<{ n: number }>(SENT_TODAY_SQL, [dayOf(o)]);
+  const [row] = await q<{ n: number }>(sqlFor(q, SENT_TODAY_SQL, SENT_TODAY_LITE), [isLite(q) ? liteDay(o) : dayOf(o)]);
   return Number(row?.n ?? 0);
 }
 
@@ -113,7 +133,7 @@ export async function sendCounted(
   });
   if (!placed.ok) return { status: 'over', firstRefusal: placed.firstRefusal };
   const { id } = await deps.mail.send(mail);
-  await deps.db.statement('write', RECORD_SENT_SQL, [utcDay(now), ref, id]);
+  await deps.db.statement('write', sqlFor(deps.db, RECORD_SENT_SQL, RECORD_SENT_LITE), [utcDay(now), ref, id]);
   return { status: 'sent', id };
 }
 

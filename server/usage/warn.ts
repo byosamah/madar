@@ -1,6 +1,7 @@
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
-import { ADMIN_MAIL_SQL, ADMINS_SQL, appLink, mailOf, mailable, type PersonRow } from '../mail/notices';
+import { isLite } from '../data/dialect';
+import { ADMIN_MAIL_SQL, ADMINS_SQL, appLink, litePerson, mailOf, mailable, type PersonRow } from '../mail/notices';
 import { sendCounted } from '../mail/quota';
 import { USAGE_METERS, renderMail, type UsageMeter } from '../mail/templates';
 import { overLimit, readMeters, warningMeters } from './meters';
@@ -62,7 +63,7 @@ export async function sendLimitWarning(payload: Record<string, unknown>, deps: D
   const meter = payload.meter;
   if (!isMeter(meter)) throw new Error(`The limit warning names a meter that the mail does not know: ${String(meter)}.`);
   // The primary, never a read copy: the effect runs right after the commit that wrote its row.
-  const [person] = await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
+  const [person] = isLite(deps.db) ? await litePerson(deps.db, userId) : await deps.db.statement<PersonRow & { system_role: string | null }>('write', ADMIN_MAIL_SQL, [userId]);
   if (!person || !mailable(person) || person.system_role !== 'admin') return;
   const rendered = renderMail('limitWarning', person.preferences.language, { meter, percent, link: appLink(deps.config.appUrl, '/admin') }, { reader: person.gender ?? undefined }, { appUrl: deps.config.appUrl });
   const sent = await sendCounted(deps, 'warning', mailOf(person.email, rendered, 'limit-warning', `limit-warning-${month}-${meter}-${userId}`), { userId });

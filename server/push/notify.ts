@@ -93,6 +93,18 @@ export const PUSH_SENT_SQL = "update push_devices set doc = jsonb_set(doc, '{las
 /** $1 the endpoints that the push service calls gone. */
 export const PUSH_GONE_SQL = 'delete from push_devices where endpoint = any($1::text[])';
 
+// SQLite forms (exit wave 3). The person of a device is read from the users doc; a list of endpoints goes one statement each.
+export const PUSH_DEVICES_LITE = 'select d.rowid as ord, d.endpoint as endpoint, u.doc as doc from push_devices d join users u on u.id = d.user_id where d.user_id = ?1';
+export const PUSH_SENT_LITE = "update push_devices set doc = json_set(doc, '$.lastPushAt', ?2) where endpoint = ?1";
+export const PUSH_GONE_LITE = 'delete from push_devices where endpoint = ?1';
+
+/** The push addresses of an active human, oldest device first, on both databases. */
+async function devicesOf(deps: Deps, userId: string): Promise<{ endpoint: string }[]> {
+  if (!isLite(deps.db)) return deps.db.statement<{ endpoint: string }>('write', PUSH_DEVICES_SQL, [userId]);
+  const rows = await deps.db.statement<{ ord: number; endpoint: string; doc: { kind?: string; active?: boolean } }>('read', PUSH_DEVICES_LITE, [userId]);
+  return rows.filter((row) => row.doc.kind === 'human' && row.doc.active === true).sort((a, b) => a.ord - b.ord).map((row) => ({ endpoint: row.endpoint }));
+}
+
 type PersonRow = { user_id: string };
 
 /** The push.notify outbox rows of one save. Run inside the call's transaction, after the save. */
@@ -148,7 +160,7 @@ async function litePushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people'
 export async function sendPushNotify(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const userId = String(payload.userId ?? '');
   // The primary, never a read copy: the effect runs right after the commit that wrote the notice or the device.
-  const devices = await deps.db.statement<{ endpoint: string }>('write', PUSH_DEVICES_SQL, [userId]);
+  const devices = await devicesOf(deps, userId);
   if (devices.length === 0) return;
   const config = deps.config.push;
   const sent: string[] = [];
@@ -157,7 +169,8 @@ export async function sendPushNotify(payload: Record<string, unknown>, deps: Dep
   const off: PushConfigError[] = [];
   await Promise.all(devices.map(async ({ endpoint }) => {
     try {
-      const outcome = await sendPush(config, endpoint, { now: () => deps.clock.now() });
+      // deps.pushFetch: the office object posts through the network port of the Worker (server/office/net.ts).
+      const outcome = await sendPush(config, endpoint, { now: () => deps.clock.now(), ...(deps.pushFetch ? { fetch: deps.pushFetch } : {}) });
       if (outcome === 'sent') sent.push(endpoint);
       else if (outcome === 'gone') gone.push(endpoint);
       else deps.log.warn('A push service refused a push. Nothing is tried again.', { host: new URL(endpoint).hostname });
@@ -171,7 +184,13 @@ export async function sendPushNotify(payload: Record<string, unknown>, deps: Dep
     deps.log.warn('Push is off. Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT in the function secrets. No push was sent.');
     return;
   }
-  if (sent.length > 0) await deps.db.statement('write', PUSH_SENT_SQL, [sent.sort(), nowStamp(deps.clock.now())]);
-  if (gone.length > 0) await deps.db.statement('write', PUSH_GONE_SQL, [gone.sort()]);
+  if (sent.length > 0) {
+    if (isLite(deps.db)) for (const endpoint of sent.sort()) await deps.db.statement('write', PUSH_SENT_LITE, [endpoint, nowStamp(deps.clock.now())]);
+    else await deps.db.statement('write', PUSH_SENT_SQL, [sent.sort(), nowStamp(deps.clock.now())]);
+  }
+  if (gone.length > 0) {
+    if (isLite(deps.db)) for (const endpoint of gone.sort()) await deps.db.statement('write', PUSH_GONE_LITE, [endpoint]);
+    else await deps.db.statement('write', PUSH_GONE_SQL, [gone.sort()]);
+  }
   if (retries.length > 0) throw retries[0];
 }
