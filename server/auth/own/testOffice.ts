@@ -10,9 +10,12 @@ import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
 import { fakeDeps, type FakeDeps } from '../../test/fakes/deps';
 import type { AuthAdmin } from '../admin';
+import { signingKeysOf } from './keys';
 import { liteAuthAdmin } from './liteAdmin';
 import { hashPassword } from './password';
 import { AUTH_USER_INSERT } from './rows';
+import { testPrivateJwk } from './testKeys';
+import type { SigninDeps } from './types';
 
 /**
  * For tests only: the sample office on node:sqlite with the deps of the SQLite path (liteAuthAdmin in place of the Supabase fake),
@@ -61,4 +64,9 @@ export async function addSignIn(t: TestOffice, userId: string, o: { password?: s
     await setLiteAuthLink(q, userId, authId);
   });
   return authId;
+}
+
+/** The deps of the sign-in steps on the test office, with a new test key. */
+export async function signinDepsOf(t: TestOffice): Promise<SigninDeps> {
+  return { db: t.db, clock: t.deps.clock, log: t.deps.log, config: t.deps.config, keys: await signingKeysOf(await testPrivateJwk(), t.deps.config.mcpUrl) };
 }
