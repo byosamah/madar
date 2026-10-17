@@ -6,6 +6,11 @@ import { startLive } from './test/live/harness';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const seedOf = () => buildSeed(TODAY, async () => undefined);
+/**
+ * A write that changes the sample office: a new title for a task of prj_001. The tasks.move entry of everyCall moves its task to
+ * in_progress, and the seed task is in_progress already, so on a fresh seed that move changes nothing and sends no signal.
+ */
+const writeOf = (seed: State) => everyCall(seed).find((c) => c.name === 'tasks.update')!;
 const withMail = (seed: State): State => {
   const prefs = seed.users.usr_003.preferences;
   seed.users.usr_003 = { ...seed.users.usr_003, preferences: { ...prefs, email: { ...prefs.email, task_assigned: true } } };
@@ -36,10 +41,11 @@ describe('the batch call into the office object on local workerd', () => {
   it('runs the entries in the order sent, so a read after a write sees the write', async () => {
     const seed = await seedOf();
     await live.fresh(seed);
-    const move = everyCall(seed).find((c) => c.name === 'tasks.move')!;
-    const id = (move.input as { id: string }).id;
-    const { body } = await live.batch(move.actorId, [{ name: move.name, input: move.input }, { name: 'tasks.get', input: { id } }]);
-    expect((body.results[1] as { output: { task: { status: string } } }).output.task.status).toBe('in_progress');
+    const write = writeOf(seed);
+    const { id } = write.input as { id: string };
+    expect(seed.tasks[id].title).not.toBe('New title');
+    const { body } = await live.batch(write.actorId, [{ name: write.name, input: write.input }, { name: 'tasks.get', input: { id } }]);
+    expect((body.results[1] as { output: { task: { title: string } } }).output.task.title).toBe('New title');
   });
 
   it('sends the mail of a new task after the answer, through the network port of the Worker', async () => {
@@ -84,8 +90,8 @@ describe('the batch call into the office object on local workerd', () => {
   it('counts the rows, the requests and the calls of a write on the day row', async () => {
     const seed = await seedOf();
     await live.fresh(seed);
-    const move = everyCall(seed).find((c) => c.name === 'tasks.move')!;
-    await live.batch(move.actorId, [{ name: move.name, input: move.input }, { name: 'session.get', input: {} }]);
+    const write = writeOf(seed);
+    await live.batch(write.actorId, [{ name: write.name, input: write.input }, { name: 'session.get', input: {} }]);
     const [day] = await live.rows<{ rows_read: number; rows_written: number; requests: number; calls: number }>('select rows_read, rows_written, requests, calls from usage_day');
     expect(day.requests).toBeGreaterThanOrEqual(1);
     expect(day.calls).toBe(2);
