@@ -515,7 +515,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   (the sign-in parts on the office object, MCP on the office path included), and the security fix of the office flag of a batch
   (proof.md "The merge of exit waves 2 and 3"). Item 13 of the wave 2 plan (the sign-in specs on a local `wrangler dev`, the
   screenshots of the Madar sign-in screens) moved to wave 4: it needs the seed of wave 4
-- [ ] Before the first `all.sh test` after the wave 3 merge: count the Cron Triggers of the account (Free allows 5)
+- [x] Before the first `all.sh test` after the wave 3 merge: count the Cron Triggers of the account (Free allows 5). Counted
+  2026-10-17, read-only through the API (`GET /accounts/<id>/workers/scripts/<name>/schedules`): 5 Workers, 0 Cron Triggers. The
+  test Worker takes 1 at its next deploy, and production takes 1 at the switch (wave 6): 2 of 5
 - [ ] Wave 5: measure the bill of the callback from the office object into the Worker (wave 3 design choice 1), and one
   deployed Cron run with many pushes against the 10 ms CPU of Free
 - [x] Wave 2: `users.invites`, `users.resendInvite`, `agents.list` and `agents.remove` on SQLite (`LATER_CALLS` in
