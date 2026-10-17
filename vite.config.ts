@@ -120,12 +120,13 @@ export default defineConfig(({ mode }) => ({
       },
       {
         // Node tests of the server and of the build scripts. The integration tests in server/it and the Docker script tests need the local stack.
+        // The office object tests (*.wd.test.ts) need local workerd, so they run only in the office project (test:office).
         extends: true,
         test: {
           name: 'server',
           environment: 'node',
           include: ['server/**/*.test.ts', 'scripts/**/*.test.ts'],
-          exclude: ['server/it/**', ...DOCKER_SCRIPT_TESTS],
+          exclude: ['server/it/**', 'server/**/*.wd.test.ts', ...DOCKER_SCRIPT_TESTS],
         },
       },
       // The Docker projects join only when their script asks (test:db, test:it), so a bare run or a run by path stays unit + server.
@@ -160,6 +161,22 @@ export default defineConfig(({ mode }) => ({
                 env: { MADAR_DB: '1', MADAR_LITE: '1' },
                 globalSetup: ['./server/test/lite-setup.ts'],
                 setupFiles: ['./server/test/lite.ts'],
+              },
+            },
+          ]
+        : []),
+      ...(process.env.MADAR_OFFICE === '1'
+        ? [
+            {
+              // The office object on local workerd (Supabase exit, wave 1): host parity, everyCall parity, the rows pins.
+              extends: true,
+              test: {
+                name: 'office',
+                environment: 'node',
+                include: ['server/office/**/*.wd.test.ts'],
+                fileParallelism: false,
+                testTimeout: 300_000,
+                hookTimeout: 900_000,
               },
             },
           ]

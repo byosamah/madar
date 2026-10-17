@@ -1,0 +1,15 @@
+# The test Worker of test:office (Supabase exit, wave 1): the office object on local workerd through wrangler createTestHarness.
+# It never deploys: no route, no workers.dev address. wrangler bundles entry.ts with the server code.
+name = "madar-office-test"
+main = "entry.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "PinOffice"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PinOffice"]

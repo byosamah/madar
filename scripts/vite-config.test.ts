@@ -6,21 +6,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import config, { earlyLinks, workerOnlyInRemote } from '../vite.config.ts';
 
-type Project = { test: { name: string; include?: string[]; exclude?: string[]; globalSetup?: string[]; setupFiles?: string[]; fileParallelism?: boolean; testTimeout?: number } };
+type Project = { test: { name: string; include?: string[]; exclude?: string[]; env?: Record<string, string>; globalSetup?: string[]; setupFiles?: string[]; fileParallelism?: boolean; testTimeout?: number } };
 
-const saved = { db: process.env.MADAR_DB, it: process.env.MADAR_IT };
+const saved = { db: process.env.MADAR_DB, it: process.env.MADAR_IT, lite: process.env.MADAR_LITE, office: process.env.MADAR_OFFICE };
 
 afterEach(() => {
-  for (const [name, value] of [['MADAR_DB', saved.db], ['MADAR_IT', saved.it]] as const) {
+  for (const [name, value] of [['MADAR_DB', saved.db], ['MADAR_IT', saved.it], ['MADAR_LITE', saved.lite], ['MADAR_OFFICE', saved.office]] as const) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
 });
 
 /** The test projects that vite.config.ts gives for the environment of this moment. */
-function projects(env: { MADAR_DB?: string; MADAR_IT?: string } = {}): Project[] {
+function projects(env: { MADAR_DB?: string; MADAR_IT?: string; MADAR_LITE?: string; MADAR_OFFICE?: string } = {}): Project[] {
   delete process.env.MADAR_DB;
   delete process.env.MADAR_IT;
+  delete process.env.MADAR_LITE;
+  delete process.env.MADAR_OFFICE;
   Object.assign(process.env, env);
   const resolved = (config as unknown as (e: { mode: string; command: string }) => { test: { projects: Project[] } })({ mode: 'test', command: 'serve' });
   return resolved.test.projects;
@@ -60,12 +62,33 @@ describe('the Vitest projects', () => {
     const server = named(projects(), 'server');
     for (const file of DOCKER_SCRIPT_TESTS) expect(server?.test.exclude).toContain(file);
   });
+
+  it('add the lite project when MADAR_LITE=1: the API tests on node:sqlite with the SQLite setup, and no browser store test', () => {
+    const lite = named(projects({ MADAR_LITE: '1' }), 'lite');
+    expect(lite?.test.include).toEqual(['src/api/**/*.test.ts']);
+    expect(lite?.test.exclude).toContain('src/api/persist.test.ts');
+    expect(lite?.test.env).toEqual({ MADAR_DB: '1', MADAR_LITE: '1' });
+    expect(lite?.test.globalSetup).toEqual(['./server/test/lite-setup.ts']);
+    expect(lite?.test.setupFiles).toEqual(['./server/test/lite.ts']);
+  });
+
+  it('add the office project when MADAR_OFFICE=1: only the workerd tests, one file at a time', () => {
+    const office = named(projects({ MADAR_OFFICE: '1' }), 'office');
+    expect(office?.test.include).toEqual(['server/office/**/*.wd.test.ts']);
+    expect(office?.test.fileParallelism).toBe(false);
+  });
+
+  it('keep the workerd tests out of the server project, so npm test never starts workerd', () => {
+    expect(named(projects(), 'server')?.test.exclude).toContain('server/**/*.wd.test.ts');
+  });
 });
 
 describe('the test scripts', () => {
   it('turn on the project they run', () => {
     expect(scripts['test:db']).toBe('MADAR_DB=1 vitest run --project db');
     expect(scripts['test:it']).toBe('MADAR_IT=1 vitest run --project it --passWithNoTests');
+    expect(scripts['test:lite']).toBe('MADAR_LITE=1 vitest run --project lite');
+    expect(scripts['test:office']).toBe('MADAR_OFFICE=1 vitest run --project office');
   });
 
   it('run the MCP unit tests, then the conformance runner against the served function through server/mcp/conformance.ts (G3)', () => {
