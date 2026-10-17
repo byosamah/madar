@@ -118,7 +118,7 @@ describe('the short MCP address on the Worker (owner, 2026-10-16)', () => {
     expect(await seen[1].request.text()).toBe(body);
   });
 
-  it('drops the same headers on the way to the Worker, also a client address that the client sent', async () => {
+  it('drops the same headers on the way to the Worker, and writes the client address of Cloudflare, never one that the client sent', async () => {
     const { fetcher } = recorder();
     const { seen, env } = bindings();
     await proxyMcp(new Request('https://madar.vado.sa/mcp', {
@@ -126,9 +126,18 @@ describe('the short MCP address on the Worker (owner, 2026-10-16)', () => {
       body: '{}',
       headers: { 'cf-connecting-ip': '1.2.3.4', 'cf-ray': 'x', 'x-forwarded-for': '1.2.3.4', 'true-client-ip': '1.2.3.4', 'x-madar-hop': 'forged', 'x-madar-client-address': '9.9.9.9' },
     }), fetcher, env, { setting: WORKERS });
-    for (const name of ['cf-connecting-ip', 'cf-ray', 'x-forwarded-for', 'true-client-ip', 'x-madar-hop', 'x-madar-client-address']) {
+    for (const name of ['cf-connecting-ip', 'cf-ray', 'x-forwarded-for', 'true-client-ip', 'x-madar-hop']) {
       expect(seen[0].request.headers.has(name), name).toBe(false);
     }
+    // The limits of the OAuth routes count each address (clientAddress): with no address, every client would share one count.
+    expect(seen[0].request.headers.get('x-madar-client-address')).toBe('1.2.3.4');
+  });
+
+  it('writes no client address to the Worker when Cloudflare gives none, also when the client sent one', async () => {
+    const { fetcher } = recorder();
+    const { seen, env } = bindings();
+    await proxyMcp(new Request('https://madar.vado.sa/mcp', { method: 'POST', body: '{}', headers: { 'x-madar-client-address': '9.9.9.9' } }), fetcher, env, { setting: WORKERS });
+    expect(seen[0].request.headers.has('x-madar-client-address')).toBe(false);
   });
 
   it('keeps every 404 rule on the Worker path, and calls nothing', async () => {

@@ -12,7 +12,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
    Pages log gets one line (`reason` `setting`, or `binding_missing` as a warning).
 2. The proxy has a fixed host list (`PAGE_HOSTS` in `server/core/serverHost.ts`; `MCP_TARGETS` names the Supabase function of
    each host). Any other host, any path outside `/mcp`, and any encoded dot, encoded slash or backslash gets 404, on both
-   paths. A production host never reaches the test binding. It drops the `cf-*` headers and the client address headers.
+   paths. A production host never reaches the test binding. It drops the `cf-*` headers and the client address headers. On the Worker path it then writes
+   `x-madar-client-address` from `cf-connecting-ip`, so the limits of the OAuth routes count each client address.
 3. The mcp app (`entries/mcp.ts`, `app.ts`) on the host. A request that comes straight to a Supabase function gets one region
    hop first (`forward.ts`, `MCP_FORWARD_REGION`, default eu-central-1). The Worker never hops: its region label
    (`WORKER_REGION`, `workers-eu-central-1`) is no AWS region name. Every answer names its host in `x-madar-server`.

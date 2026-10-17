@@ -1,5 +1,5 @@
 import { COPY_HOSTS, PAGE_HOSTS, copyOfPageHost, serverHostOf, type ServerHostSetting } from '../core/serverHost';
-import { INTERNAL_ORIGIN, answerOf, bindingOf, defaultLog, fallbackLine, forwardHeaders, forwardInit, unsafeSuffix, type PagesEnv } from './pagesForward';
+import { CLIENT_ADDRESS_HEADER, INTERNAL_ORIGIN, answerOf, bindingOf, defaultLog, fallbackLine, forwardHeaders, forwardInit, unsafeSuffix, type PagesEnv } from './pagesForward';
 
 /**
  * The short MCP address (owner, 2026-10-05): https://madar.vado.sa/mcp. A Cloudflare Pages Function (functions/mcp/[[path]].ts)
@@ -16,6 +16,7 @@ import { INTERNAL_ORIGIN, answerOf, bindingOf, defaultLog, fallbackLine, forward
  *   production host never reaches the test binding.
  * - Headers of Cloudflare and of the client address go (server/http/pagesForward.ts): Supabase sits behind Cloudflare too and
  *   refuses a request that carries its own cf-connecting-ip (proof.md Z0b). x-madar-hop goes too: only the function sets it.
+ *   On the Worker path, this function then writes x-madar-client-address from cf-connecting-ip, as the /api forwarder does.
  * - The body goes on as a stream, and the answer comes back as a stream (MCP may answer with server-sent events).
  */
 
@@ -43,7 +44,13 @@ export async function proxyMcp(request: Request, fetcher: typeof fetch = fetch, 
   const headers = forwardHeaders(request);
   const onWorkers = serverHostOf(copy, o.setting) === 'workers';
   const binding = onWorkers ? bindingOf(env, COPY_HOSTS[copy].workers.binding) : undefined;
-  if (binding) return answerOf(await binding.fetch(new Request(`${INTERNAL_ORIGIN}${PREFIX}${suffix}${url.search}`, forwardInit(request, headers))));
+  if (binding) {
+    // The Worker has no public address, so the limits of the OAuth routes count the address that this function writes
+    // (clientAddress). Without it, every client would share one count, and one client could block the rest.
+    const address = request.headers.get('cf-connecting-ip')?.trim();
+    if (address) headers.set(CLIENT_ADDRESS_HEADER, address);
+    return answerOf(await binding.fetch(new Request(`${INTERNAL_ORIGIN}${PREFIX}${suffix}${url.search}`, forwardInit(request, headers))));
+  }
 
   (o.log ?? defaultLog)(fallbackLine(FALLBACK, copy, onWorkers ? 'binding_missing' : 'setting'));
   const base = new URL(COPY_HOSTS[copy].supabase.mcp);

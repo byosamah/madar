@@ -13,8 +13,9 @@ the setting reaches the functions only with a new Pages deploy (`pages.sh`).
 - Keep each file a one-line wrapper that passes `request` and `env`. The logic and its tests live in `server/http/`
   (`pagesForward.ts` holds the shared parts).
 - The rules of the MCP forwarder (host list, 404 cases, dropped headers) are in `server/mcp/CLAUDE.md`. The api forwarder has
-  the same host table, the same 404 cases and header drops, and one more rule: it always writes `x-madar-client-address`
-  from the incoming `cf-connecting-ip` for the Worker (the Worker trusts only that header for the client address).
+  the same host table, the same 404 cases and header drops. On the Worker path, both forwarders write `x-madar-client-address`
+  from the incoming `cf-connecting-ip` (the Worker trusts only that header for the client address, and the limits of the own
+  sign-in and OAuth routes count it).
 - A new function here runs on every Pages host, production too. It needs a fixed host list and tests, like the forwarders.
 - A same-host forwarder of `POST /api/batch` to the Supabase function was built and measured (2026-10-08, performance audit
   FET-10), then removed: it added 20 to 50 ms to every call. The api forwarder of 2026-10-16 is for the Worker host: the
