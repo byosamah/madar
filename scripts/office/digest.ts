@@ -24,6 +24,19 @@ export function digestOf(lines: readonly string[]): TableDigest {
   return { rows: lines.length, sha256: hash.digest('hex') };
 }
 
+/** The row digest one row at a time, so a client never holds a whole table (an export of the year office). */
+export function rowDigester(): { add(row: Record<string, unknown>): void; done(): TableDigest } {
+  const hash = createHash('sha256');
+  let rows = 0;
+  return {
+    add(row) {
+      hash.update(`${canonical(row)}\n`);
+      rows += 1;
+    },
+    done: () => ({ rows, sha256: hash.digest('hex') }),
+  };
+}
+
 /** The digest of the full rows, in the order given (the rowid order of an export). */
 export function rowDigest(rows: readonly Record<string, unknown>[]): TableDigest {
   return digestOf(rows.map(canonical));

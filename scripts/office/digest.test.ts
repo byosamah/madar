@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, compareDigests, digestOf, recordDigest, rowDigest } from './digest';
+import { canonical, compareDigests, digestOf, recordDigest, rowDigest, rowDigester } from './digest';
 
 describe('the digests of a table (scripts/office/digest.ts)', () => {
   it('writes an object with sorted keys at every depth, and leaves out an undefined value', () => {
@@ -19,6 +19,13 @@ describe('the digests of a table (scripts/office/digest.ts)', () => {
 
   it('keeps the order of the rows in a row digest (the rowid order of an export)', () => {
     expect(rowDigest([{ _rowid: 1 }, { _rowid: 2 }]).sha256).not.toBe(rowDigest([{ _rowid: 2 }, { _rowid: 1 }]).sha256);
+  });
+
+  it('gives the same row digest one row at a time as for the whole list', () => {
+    const rows = [{ _rowid: 1, doc: '{"a":1}' }, { _rowid: 2, doc: null }];
+    const digester = rowDigester();
+    for (const row of rows) digester.add(row);
+    expect(digester.done()).toEqual(rowDigest(rows));
   });
 
   it('gives the sha256 of the lines, each one with its newline, and the count of the lines', () => {
