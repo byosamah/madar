@@ -3,6 +3,7 @@ import { AuthFailure, type AuthFailureReason } from '../../features/auth/authFai
 import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type SessionListener } from '../../features/auth/sessionEnd';
 import type { AuthPort, AuthStatus } from '../auth';
 import { renewInviteAt, requestResetAt } from './authMail';
+import { SESSION_KEYS } from './authMode';
 
 /**
  * The sign-in port of the real screens over the own sign-in of Madar (Supabase exit, wave 2), the twin of the Supabase port of
@@ -15,7 +16,7 @@ import { renewInviteAt, requestResetAt } from './authMail';
  * - A token is refreshed 60 s before its end, when a call asks for it. A refused refresh ends the session in this browser.
  */
 
-export const SESSION_KEY = 'madar.session';
+export const SESSION_KEY = SESSION_KEYS.madar;
 const EARLY_MS = 60_000;
 
 type Kept = { accessToken: string; refreshToken: string; expiresAt: number; userId: string };

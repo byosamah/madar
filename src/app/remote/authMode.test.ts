@@ -1,10 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { authModeOf } from './authMode';
+import { authModeOf, hasStoredSession } from './authMode';
 import { bootstrapRemote, remoteConfig } from './bootstrap';
 import { SESSION_KEY } from './madarAuth';
 
 describe('the sign-in of the remote build (src/app/remote/authMode.ts)', () => {
+  it('finds the kept session of the sign-in of the build, so a signed-in person loads no Sign in screen first', () => {
+    const storage = (items: Record<string, string>) => () => ({ getItem: (key: string) => items[key] ?? null });
+    expect(hasStoredSession({ VITE_MADAR_AUTH: 'madar' }, storage({ [SESSION_KEY]: '{}' }))).toBe(true);
+    // The Madar build never reads the Supabase key, and the Supabase build never reads the Madar key.
+    expect(hasStoredSession({ VITE_MADAR_AUTH: 'madar' }, storage({ 'madar.auth': '{}' }))).toBe(false);
+    expect(hasStoredSession({}, storage({ 'madar.auth': '{}' }))).toBe(true);
+    expect(hasStoredSession({}, storage({ [SESSION_KEY]: '{}' }))).toBe(false);
+    // Blocked storage and a bad VITE_MADAR_AUTH keep none.
+    expect(hasStoredSession({}, () => { throw new Error('blocked'); })).toBe(false);
+    expect(hasStoredSession({ VITE_MADAR_AUTH: 'auth0' }, storage({ 'madar.auth': '{}' }))).toBe(false);
+  });
+
   it('is supabase unless the build says madar, and refuses another value', () => {
     expect(authModeOf({})).toBe('supabase');
     expect(authModeOf({ VITE_MADAR_AUTH: 'madar' })).toBe('madar');

@@ -14,6 +14,7 @@ import type { Language } from './api/contract/entities';
 import { AppearanceSync } from './app/AppearanceSync';
 import { canonicalUrl } from './app/canonicalHost';
 import { REMOTE } from './app/mode';
+import { hasStoredSession } from './app/remote/authMode';
 import { createAppRouter, screensAt } from './app/routes';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
@@ -40,13 +41,9 @@ async function start(): Promise<{ runtime: Runtime; language: Language }> {
   return { runtime, language: user?.preferences.language ?? 'en' };
 }
 
-/** True when this browser keeps a Supabase session (the storageKey of src/app/remote/supabase.ts). Blocked storage keeps none. */
+/** True when this browser keeps a session of the sign-in of this build (supabase or madar, VITE_MADAR_AUTH). Blocked storage keeps none. */
 function storedSession(): boolean {
-  try {
-    return window.localStorage.getItem('madar.auth') !== null;
-  } catch {
-    return false;
-  }
+  return hasStoredSession(import.meta.env, () => window.localStorage);
 }
 
 /**

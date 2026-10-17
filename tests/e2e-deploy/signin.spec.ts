@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
+import { SESSION_KEYS } from '../../src/app/remote/authMode';
 import { DEPLOY_ACCOUNTS, storageStateOf } from './accounts';
 import { expect, passwordOf, test, useLanguage } from './fixtures';
 import { goto, urlPattern } from './goto';
 import { expectCalm, expectNoSeriousA11y, LANGS, NO_SESSION, runId, signedOutLanguage, signedOutTheme, signIn, THEMES, WIDTHS } from './steps';
+import { officeTarget } from './targets';
 import { word } from './words';
 
 /**
@@ -15,6 +17,15 @@ import { word } from './words';
 test.use({ trace: 'off' });
 
 const admin = DEPLOY_ACCOUNTS.admin;
+
+/**
+ * The kept session of the sign-in of the run (src/app/remote/authMode.ts, SESSION_KEYS). On the office path (exit wave 4) the
+ * screens use the own sign-in: madar.session, with accessToken, refreshToken and expiresAt in milliseconds. Else Supabase:
+ * madar.auth, with access_token, refresh_token and expires_at in seconds. A time of 1 is in the past in both units.
+ */
+const KEPT = officeTarget(process.env)
+  ? { key: SESSION_KEYS.madar, access: 'accessToken', refresh: 'refreshToken', expires: 'expiresAt' }
+  : { key: SESSION_KEYS.supabase, access: 'access_token', refresh: 'refresh_token', expires: 'expires_at' };
 
 test.describe('with no session', () => {
   test.use({ storageState: NO_SESSION });
@@ -115,11 +126,11 @@ for (const lang of LANGS) {
       await goto(page, '/');
       await expect(page.getByRole('list', { name: word(lang, 'home.projects') }).getByRole('listitem').first()).toBeVisible();
       // The kept session ends: its access token is old and Auth refuses its refresh token. The real Auth answers the refresh.
-      await page.evaluate(() => {
-        const kept = JSON.parse(window.localStorage.getItem('madar.auth') ?? 'null') as Record<string, unknown> | null;
+      await page.evaluate((k) => {
+        const kept = JSON.parse(window.localStorage.getItem(k.key) ?? 'null') as Record<string, unknown> | null;
         if (!kept) throw new Error('No kept session in this browser.');
-        window.localStorage.setItem('madar.auth', JSON.stringify({ ...kept, expires_at: 1, refresh_token: 'x2-ended-refresh-token' }));
-      });
+        window.localStorage.setItem(k.key, JSON.stringify({ ...kept, [k.expires]: 1, [k.refresh]: 'x2-ended-refresh-token' }));
+      }, KEPT);
       await page.getByRole('navigation', { name: word(lang, 'nav.main') }).getByRole('link', { name: new RegExp(`^${escapeText(word(lang, 'nav.projects'))}`) }).click();
       const sheet = page.getByRole('dialog', { name: word(lang, 'auth.expired.title') });
       await expect(sheet).toBeVisible({ timeout: 20_000 });
@@ -149,9 +160,9 @@ test('the Auth of the target gives a browser token of 15 minutes or less (Z7, 20
   // in on the target, so the saved session holds a token of its Auth. The test reads only the times, never prints the token.
   type Saved = { origins: { localStorage: { name: string; value: string }[] }[] };
   const saved = (JSON.parse(readFileSync(storageStateOf(admin.role), 'utf8')) as Saved).origins
-    .flatMap((origin) => origin.localStorage).find((item) => item.name === 'madar.auth');
+    .flatMap((origin) => origin.localStorage).find((item) => item.name === KEPT.key);
   expect(saved, 'the Admin session of the setup project').toBeTruthy();
-  const token = (JSON.parse(saved!.value) as { access_token: string }).access_token;
+  const token = (JSON.parse(saved!.value) as Record<string, string>)[KEPT.access];
   const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as { iat: number; exp: number };
   expect(claims.exp - claims.iat).toBeLessThanOrEqual(900);
 });
