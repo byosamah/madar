@@ -508,7 +508,8 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `docs/superpowers/plans/2026-10-17-madar-exit-wave3-live-plan.md`, 19 tasks; about 7 builder days each). The main session
   settled the schema rule (Merge notes, item 1 of both) and accepted the four design choices of wave 3
 - [ ] Exit wave 2 build, Blocks A to D (`~/dev/madar-rb/exit-signin`, `rb/exit-signin`)
-- [ ] Exit wave 3 build, Blocks A to D (`~/dev/madar-rb/exit-live`, `rb/exit-live`)
+- [x] Exit wave 3 build, Blocks A to D (`~/dev/madar-rb/exit-live`, `rb/exit-live`): the gate green on 2026-10-17 (proof.md
+  "Wave 3 of the Supabase exit"). The merge, the prototype smoke and the Cron Trigger count wait for the main session
 - [ ] The second merge of waves 2 and 3: the Merge notes of both plans, item 8 of the wave 3 plan (the sign-in parts on the
   office object; MCP on the office path may move to wave 4), item 13 of the wave 2 plan (the sign-in specs on a local
   `wrangler dev`, the screenshots of the Madar sign-in screens)

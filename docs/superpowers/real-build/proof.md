@@ -1413,3 +1413,45 @@ Exit plan, wave 1 Task 19. The merge gate ran once on `rb/cloudflare` at d27f504
   wave 3, `usage.get` and `usage.retryEffect`, the mail quota, the mail and push producers with the notice ids of the Diff, a
   day meter that counts rolled-back writes, and the rows pins of the reads that keep `events_target_id` and `events_story`;
   Track R, the badge pins drop when the stored unread number merges; wave 5, the transaction race on the deployed object.
+
+### Wave 3 of the Supabase exit: the office object, live updates and jobs (2026-10-17)
+Exit wave 3 plan (`docs/superpowers/plans/2026-10-17-madar-exit-wave3-live-plan.md`). Nothing deployed. Built on `rb/exit-live`
+from main 1782ca9 in four blocks; the main session rebases and merges the branch.
+- Facts checked while planning (17 October): a Worker RpcTarget passed into an object method is callable from the object until the
+  method returns, also with a timer on the Worker side (local workerd probe); tags, attachments and the auto-pong time survive an
+  evict with `webSockets: 'hibernate'`, and a message wakes a new boot that still finds every socket; `worker.scheduled()` of the
+  harness runs `scheduled` and its `waitUntil`; wrangler 4.147.0 gives `[env.production]` no binding, no migration and no Cron with
+  `migrations = []` and `crons = []`, and inherits the top-level migration and Cron in `[env.test]`; calls on a stub inside one
+  RPC session are not billed as more Durable Object requests (pricing page); a DO error carries `overloaded` or `retryable`.
+- The merge gate ran once at 611cffc, with no rebase (the main session rebases at the merge). It held the Docker lock
+  (`wave3-gate`) from the first full suite to the last. Load average 65 during `npm test` (another wave ran beside it), 5 to 14
+  after it.
+  - `npm run typecheck`: pass.
+  - `npm test`: 492 files; 5,050 passed, 6 skipped, 5 failed. The 5 were 5 s timeouts at a load average of 65 in 2 files that
+    wave 3 did not change (`src/features/projects/TeamFilter.test.tsx`, `scripts/deploy/deploy.test.ts`). Both files alone
+    (`--no-file-parallelism --testTimeout=60000`): 55 of 55 passed. So 5,055 passed, 6 skipped (about 100 new tests in wave 3).
+  - `npm run build`: pass. `npm run build:server`: pass; `cloudflare:workers` once in `dist-server/worker.js`, never in
+    `supabase/functions/_build/{api,mcp,jobs}.js`. `npm run build:remote -- test`: pass (sandbox off).
+  - `npm run test:lite`: 82 files; 1,149 passed, 26 skipped. `lite mode: 2755 calls, 1.5 ms a call in runCall, the run took 6 s.`
+    The 26th skip is the fake test of `live.ticket` (`src/api/handlers/serverFakes.test.ts` skips each fake server call in lite
+    and db mode), not a lost test.
+  - `npm run test:office`: 5 files, 27 passed, 53 s (the host checks, `everyCall` parity and the rows pins of wave 1; the batch
+    suite 8, the socket suite 6, the Cron suite 4 and the Cron pin of wave 3). Sandbox off.
+  - `npm run smoke:office`: 6 of 6 ok (the real `dist-server/worker.js` on `wrangler dev` with the office path on).
+  - `npm run test:db` (after `npx supabase db reset` from this worktree): 82 files; 1,149 passed, 26 skipped. `db mode: 2755
+    calls, 12.7 ms a call in runCall, the run took 24 s.`
+  - `npm run test:it`: 33 files, 276 passed, 3 min 56 s. `npm run test:mcp`: 15 files, 148 passed; "conformance: 5 of 32
+    scenarios pass; 27 expected failures."
+  - Not run by the builder: the prototype smoke (the main session runs it, as the contract and `bootstrap.ts` changed).
+- The Cron rows pins (`CRON_PINS`, `server/office/test/pins.ts`), on the year office after a first run wrote its reminders:
+  quarter 1,486 rows read (first ceiling 3,012, now 1,635), hourly 14,695 (first ceiling 10,000, now 16,165). The hourly value is
+  above its first ceiling. The trace of the run: `FILES_BYTES_LITE` (`server/usage/meters.ts`) reads 13,200 rows, one for each of
+  the 6,000 files and one for each of their 7,200 versions (`json_each` counts each element it gives); the dedupe lookup of the
+  reminders reads 750, the trigger loader 708 in 54 statements, the rest under 25. The first ceiling counted one row for each file
+  only. A day: 72 quarter runs and 24 hourly runs, about 460,000 rows read of the 5 million of Free (about 9%).
+- The Cron Triggers of the account before the merge: not counted by the builder (no Cloudflare API call in the build). The main
+  session counts them before the first `all.sh test` (plan Task 19 Step 3).
+- Facts of the last block: the `tasks.move` entry of `everyCall` moves `tsk_007` to `in_progress`, which is its seed status, so
+  on a fresh sample office it changes nothing and sends no signal; the live suites use the `tasks.update` entry. `wrangler dev`
+  keeps the object storage in `.wrangler/` beside its config, so a smoke that checks "no job run yet" passes only once there; the
+  smoke keeps its state in its own temporary folder (`--persist-to`). The Cron suite passed at a load average of 65.
