@@ -10,8 +10,10 @@ import type { SqlHost } from './host';
  *
  * Rules (wave 0): plain key columns that the save writes; no foreign key; no ANALYZE; ascending indexes, so a backward scan gives
  * created_at desc, id desc and rowid desc with no sort step. Every time column holds ISO text in UTC (Date.toISOString).
+ *
+ * Version 2 (Supabase exit, wave 2): the sign-in rows.
  */
-export const LITE_SCHEMA_VERSION = 1;
+export const LITE_SCHEMA_VERSION = 2;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -66,6 +68,12 @@ const SERVER_SQL: readonly string[] = [
   `create table usage_warnings (month text not null, metric text not null, sent_at text not null default (${NOW}), primary key (month, metric))`,
   'create table rate_limits (key text not null, window_start text not null, count integer not null default 0, primary key (key, window_start))',
   `create table job_runs (key text primary key, done_at text not null default (${NOW}))`,
+  // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
+  `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
+  `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
+  `create table auth_sessions (id text primary key, auth_id text not null, client_id text, amr text not null, refresh_hash text not null, prev_hash text, rotated_at text, link_until text, expires_at text not null, last_used_at text, revoked_at text, created_at text not null default (${NOW}))`,
+  `create table oauth_clients (id text primary key, name text, redirect_uris text not null, created_at text not null default (${NOW}))`,
+  `create table oauth_requests (id text primary key, client_id text not null, redirect_uri text not null, state text, code_challenge text not null, scope text, resource text, auth_id text, status text not null default 'pending', code_hash text, code_until text, expires_at text not null, created_at text not null default (${NOW}))`,
   'create table schema_version (id integer primary key check (id = 1), version integer not null)',
 ];
 
@@ -76,7 +84,19 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   { table: 'upload_intents', name: 'upload_intents_open', columns: 'expires_at', where: 'used_at is null' },
   { table: 'agent_links', name: 'agent_links_owner', columns: 'owner_user_id' },
   { table: 'agent_links', name: 'agent_links_agent', columns: 'agent_user_id' },
+  { table: 'auth_users', name: 'auth_users_email', columns: 'email', unique: true },
+  { table: 'auth_users', name: 'auth_users_user', columns: 'user_id', unique: true, where: 'user_id is not null' },
+  { table: 'auth_links', name: 'auth_links_auth', columns: 'auth_id' },
+  { table: 'auth_sessions', name: 'auth_sessions_refresh', columns: 'refresh_hash', unique: true },
+  { table: 'auth_sessions', name: 'auth_sessions_prev', columns: 'prev_hash', where: 'prev_hash is not null' },
+  { table: 'auth_sessions', name: 'auth_sessions_auth', columns: 'auth_id' },
+  { table: 'oauth_requests', name: 'oauth_requests_code', columns: 'code_hash', unique: true, where: 'code_hash is not null' },
+  // The invitation texts of server/auth/invite.ts repeat this exact term, else SQLite scans the whole outbox (checked on node:sqlite).
+  { table: 'outbox', name: 'outbox_signin', columns: 'kind', where: "kind in ('auth.invite', 'auth.email')" },
 ];
+
+/** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */
+export const SIGNIN_TABLES: readonly string[] = ['auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests'];
 
 /** The index that a read with atOrAfter names (indexed by), so no other index decides its plan (wave 0: 124,339 rows). */
 export const TIME_INDEX: Readonly<Record<string, string>> = { events: 'events_created_at' };

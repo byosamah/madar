@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { columnNames } from '../loaders/query';
 import { COUNTERS_TABLE, SERVER_TABLES, TABLES } from '../tables';
 import { nodeHost } from './host';
-import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, applyLiteSchema, liteSchemaSql } from './schema';
+import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, liteSchemaSql } from './schema';
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = '6d2ff3542be6f63bc697f2a638e6c621bc970f358bc9953a01baffabcc0f8b61';
+const PINNED_SHA256 = 'c173c269a473e0a17b41c18c84d781cabd5bceb58734a16808bb2a55e6aded3b';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
@@ -23,11 +23,29 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     }
   });
 
-  it('keeps the server tables of Postgres, apart from office_deletes and platform_config, and adds three of its own', async () => {
+  it('keeps the server tables of Postgres, apart from office_deletes and platform_config, and adds its own', async () => {
     const { raw } = await freshLite();
     const kept = SERVER_TABLES.filter((table) => table !== 'office_deletes' && table !== 'platform_config');
-    const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...kept, 'agent_approvals', 'office_snapshot', 'schema_version'];
+    const expected = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...kept, 'agent_approvals', 'office_snapshot', 'schema_version', ...SIGNIN_TABLES];
     expect(tablesOf(raw)).toEqual(expected.sort());
+  });
+
+  it('holds the sign-in rows of wave 2 with their columns', async () => {
+    const { raw } = await freshLite();
+    expect(columnsOf(raw, 'auth_users')).toEqual(['id', 'user_id', 'email', 'password_hash', 'password_set', 'email_confirmed', 'banned', 'created_at', 'updated_at']);
+    expect(columnsOf(raw, 'auth_links')).toEqual(['token_hash', 'auth_id', 'type', 'expires_at', 'used_at', 'created_at']);
+    expect(columnsOf(raw, 'auth_sessions')).toEqual(['id', 'auth_id', 'client_id', 'amr', 'refresh_hash', 'prev_hash', 'rotated_at', 'link_until', 'expires_at', 'last_used_at', 'revoked_at', 'created_at']);
+    expect(columnsOf(raw, 'oauth_clients')).toEqual(['id', 'name', 'redirect_uris', 'created_at']);
+    expect(columnsOf(raw, 'oauth_requests')).toEqual(['id', 'client_id', 'redirect_uri', 'state', 'code_challenge', 'scope', 'resource', 'auth_id', 'status', 'code_hash', 'code_until', 'expires_at', 'created_at']);
+  });
+
+  it('keeps one email and one Madar person for each sign-in row', async () => {
+    const { raw } = await freshLite();
+    raw.exec("insert into auth_users (id, user_id, email) values ('a1', 'usr_001', 'hala@madar.test')");
+    expect(() => raw.exec("insert into auth_users (id, user_id, email) values ('a2', null, 'hala@madar.test')")).toThrow('UNIQUE');
+    expect(() => raw.exec("insert into auth_users (id, user_id, email) values ('a3', 'usr_001', 'other@madar.test')")).toThrow('UNIQUE');
+    raw.exec("insert into auth_users (id, user_id, email) values ('a4', null, 'four@madar.test')");
+    raw.exec("insert into auth_users (id, user_id, email) values ('a5', null, 'five@madar.test')");
   });
 
   it('has no foreign key: a broken deferred key resets the office object', async () => {
@@ -71,6 +89,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 1, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 2, sha256: PINNED_SHA256 });
   });
 });
