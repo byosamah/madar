@@ -83,5 +83,14 @@ export async function startLive() {
     },
     open: (ticket: string) => openSocket(`${url.href.replace(/^http/, 'ws')}api/live?ticket=${ticket}`),
     evict: () => worker().evictDurableObject('OFFICE', { name: 'office', webSockets: 'hibernate' }),
+    /** One office op through the Worker, with the secret of the test Worker (entry.ts); a status above 299 throws with it. */
+    ops: async (op: string, body: unknown, o: { office?: string } = {}) => {
+      const header = op === 'export' ? 'x-madar-export-secret' : 'x-madar-ops-secret';
+      const secret = op === 'export' ? 'test-export-secret' : 'test-ops-secret';
+      const query = o.office ? `?office=${o.office}` : '';
+      const response = await worker().fetch(`/api/office/${op}${query}`, { method: 'POST', headers: { 'content-type': 'application/json', [header]: secret }, body: JSON.stringify(body) });
+      if (!response.ok) throw new Error(`${op} answered ${response.status}: ${await response.text()}`);
+      return response.json();
+    },
   };
 }

@@ -5,7 +5,7 @@ import { env as readEnv, setEnvSource } from '../env';
 import { refusingDb } from '../office/refusingDb';
 import { WorkerNet } from '../office/workerNet';
 import { officeSigninRoutes } from './officeSignin';
-import { officeRoutes, type OfficeRoute, type OfficeStub } from './officeWorker';
+import { OFFICE_NAME, officeRoutes, type OfficeRoute, type OfficeStub } from './officeWorker';
 import { withServerHeader, workersServer } from './serverHeader';
 
 /**
@@ -18,8 +18,7 @@ type Env = Record<string, unknown>;
 type Ctx = { waitUntil(work: Promise<unknown>): void };
 type Namespace = { idFromName(name: string): unknown; get(id: unknown): unknown };
 
-/** The name of the one office object of a copy. */
-export const OFFICE_NAME = 'office';
+export { OFFICE_NAME };
 
 /**
  * True when this Worker serves its copy from the office object: the binding OFFICE and the var MADAR_DATA = "office". No env of
@@ -53,8 +52,15 @@ export function officeEntry() {
         const namespace = env.OFFICE as Namespace;
         return namespace.get(namespace.idFromName(OFFICE_NAME)) as OfficeStub;
       },
+      // The office ops (exit wave 4): an object by its name, the office of the copy or a spare object of the rehearsal.
+      stubOf: (env, name) => {
+        const namespace = env.OFFICE as Namespace;
+        return namespace.get(namespace.idFromName(name)) as OfficeStub;
+      },
       net: () => new WorkerNet({ files: deps.files, mail: deps.mail }),
       jobsSecret: () => values.jobsSecret,
+      exportSecret: () => readEnv('MADAR_EXPORT_SECRET'),
+      opsSecret: () => readEnv('MADAR_OPS_SECRET'),
       ...(own ? { routes: own } : {}),
     });
     return routes;

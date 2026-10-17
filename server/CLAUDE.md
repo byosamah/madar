@@ -168,8 +168,13 @@ The other host stays deployed as the way back. Each area below has its own guide
   Cron. `Office.fetch` sends `/office/*` to `parts.ops`: `export` (begin, pages of at most 1,000 rows in rowid order, end with
   the version and `office_seq` of the begin) and `peek` (one select, at most 200 rows, only with `testToolsOn`). `/office/drop`
   deletes the storage of a spare object named `rehearsal-YYYYMMDD` only; that object takes no request after it.
-- Tests: `office/{net,meter,live,parts,who,routes}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
-  key, and `route`, which sends one request through the real Worker routes into the object); `office/{batch,socket,cron,mcp}.wd.test.ts` on local workerd
+- The ops routes of the Worker (exit wave 4, `entries/officeWorker.ts`): `POST /api/office/export|import|peek|drop?office=<name>`,
+  before CORS and Hono. Each one checks its secret header with `sameSecret` first: `x-madar-export-secret` (`MADAR_EXPORT_SECRET`,
+  the nightly GitHub export) for `export`, `x-madar-ops-secret` (`MADAR_OPS_SECRET`, the Mac) for the others; a copy with no
+  secret answers 401. Then the name: `export` and `import` take `office` or a rehearsal name, `peek` only `office`, `drop` only a
+  rehearsal name (403 else). The body goes on to the object as a stream, with the name in `x-madar-office-name`.
+- Tests: `office/{net,meter,live,parts,who,routes,ops}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
+  key, and `route`, which sends one request through the real Worker routes into the object); `office/{batch,socket,cron,mcp,ops}.wd.test.ts` on local workerd
   with the test Worker of `office/test/live/`; `entries/{officeWorker,officeSignin}.test.ts`; `npm run smoke:office` for the real
   bundle (10 checks, with a key made for the run).
 

@@ -4,9 +4,9 @@ import type { OfficeBatchInput } from '../office/batch';
 import type { NetApi } from '../office/net';
 import type { OfficeMcpInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
-import { fakeDeps } from '../test/fakes/deps';
+import { fakeDeps, testConfig } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
-import { hasOfficeBinding, LIVE_PATH, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
+import { hasOfficeBinding, LIVE_PATH, OFFICE_NAME, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
@@ -197,5 +197,81 @@ describe('which path of the Worker serves a request (exit wave 4)', () => {
     expect(servesOffice({ MADAR_DATA: 'office' }, '/api/office/export')).toBe(false);
     expect(hasOfficeBinding({})).toBe(false);
     expect(hasOfficeBinding({ OFFICE: { idFromName: 'x' } })).toBe(false);
+  });
+});
+
+describe('the office ops behind their secrets (exit wave 4)', () => {
+  const quiet = { info: () => undefined, warn: () => undefined, error: () => undefined };
+  function opsRoutes() {
+    const seen: { name: string; path: string; header: string | null; body: string }[] = [];
+    const stubFor = (name: string) => ({
+      fetch: async (request: Request) => {
+        seen.push({ name, path: new URL(request.url).pathname, header: request.headers.get('x-madar-office-name'), body: await request.text() });
+        return Response.json({ ok: true });
+      },
+    });
+    const routes = officeRoutes({
+      deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
+      verifyToken: async () => ({ authUserId: 'x' }),
+      stub: () => stubFor('office') as never,
+      stubOf: (_env, name) => stubFor(name) as never,
+      net: () => ({}) as never,
+      jobsSecret: () => 'jobs',
+      exportSecret: () => 'export-secret-of-the-test',
+      opsSecret: () => 'ops-secret-of-the-test',
+    });
+    return { routes, seen };
+  }
+  const post = (path: string, headers: Record<string, string>) => new Request(`https://w.test${path}`, { method: 'POST', headers, body: '{"step":"begin"}' });
+
+  it('refuses an op with no secret, a wrong secret, or the secret of the other op', async () => {
+    const { routes, seen } = opsRoutes();
+    const tries: Record<string, string>[] = [{}, { 'x-madar-export-secret': 'no' }, { 'x-madar-ops-secret': 'export-secret-of-the-test' }];
+    for (const headers of tries) {
+      expect((await routes.fetch(post('/api/office/export', headers), {})).status).toBe(401);
+    }
+    expect((await routes.fetch(post('/api/office/import', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {})).status).toBe(401);
+    expect(seen).toEqual([]);
+  });
+
+  it('hands export to the named object with the export secret, and import with the ops secret, with the body as it came', async () => {
+    const { routes, seen } = opsRoutes();
+    expect((await routes.fetch(post('/api/office/export', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {})).status).toBe(200);
+    expect((await routes.fetch(post('/api/office/import?office=rehearsal-20261020', { 'x-madar-ops-secret': 'ops-secret-of-the-test' }), {})).status).toBe(200);
+    expect(seen).toEqual([
+      { name: 'office', path: '/office/export', header: 'office', body: '{"step":"begin"}' },
+      { name: 'rehearsal-20261020', path: '/office/import', header: 'rehearsal-20261020', body: '{"step":"begin"}' },
+    ]);
+  });
+
+  it('drops only a rehearsal object, and peeks only into the office of the copy', async () => {
+    const { routes, seen } = opsRoutes();
+    const ops = { 'x-madar-ops-secret': 'ops-secret-of-the-test' };
+    expect((await routes.fetch(post('/api/office/drop', ops), {})).status).toBe(403);
+    expect((await routes.fetch(post('/api/office/peek?office=rehearsal-20261020', ops), {})).status).toBe(403);
+    expect((await routes.fetch(post('/api/office/export?office=other', { 'x-madar-export-secret': 'export-secret-of-the-test' }), {})).status).toBe(403);
+    expect((await routes.fetch(post('/api/office/drop?office=rehearsal-20261020', ops), {})).status).toBe(200);
+    expect(seen.map((s) => s.path)).toEqual(['/office/drop']);
+  });
+
+  it('answers 404 for an op that does not exist and for a GET, with no object call', async () => {
+    const { routes, seen } = opsRoutes();
+    expect((await routes.fetch(post('/api/office/nothing', { 'x-madar-ops-secret': 'ops-secret-of-the-test' }), {})).status).toBe(404);
+    expect((await routes.fetch(new Request('https://w.test/api/office/export', { headers: { 'x-madar-export-secret': 'export-secret-of-the-test' } }), {})).status).toBe(404);
+    expect(seen).toEqual([]);
+  });
+
+  it('answers 401 when the copy has no secret for the op at all', async () => {
+    const routes = officeRoutes({
+      deps: { config: testConfig(), clock: { now: () => new Date() }, log: quiet },
+      verifyToken: async () => ({ authUserId: 'x' }), stub: () => ({}) as never, net: () => ({}) as never, jobsSecret: () => undefined,
+      exportSecret: () => undefined, opsSecret: () => undefined,
+    });
+    expect((await routes.fetch(post('/api/office/export', { 'x-madar-export-secret': '' }), {})).status).toBe(401);
+    expect((await routes.fetch(post('/api/office/import', { 'x-madar-ops-secret': '' }), {})).status).toBe(401);
+  });
+
+  it('names the office object of a copy office, from this file', () => {
+    expect(OFFICE_NAME).toBe('office');
   });
 });

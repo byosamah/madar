@@ -9,6 +9,7 @@ import { checkBuild, parseBatch, readBody } from '../http/limits';
 import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME } from '../office/ops';
 import type { NetApi } from '../office/net';
 import type { OpResult } from '../auth/own/office';
 import { runInHost } from '../core/after';
@@ -30,6 +31,29 @@ export const LIVE_PATH = '/api/live';
 
 /** The routes of the office ops (exit wave 4): export, import, peek and drop, each behind its secret header. */
 export const OFFICE_OPS_PREFIX = '/api/office/';
+
+/** The name of the one office object of a copy (server/entries/officeEntry.ts names its stub with it). */
+export const OFFICE_NAME = 'office';
+
+/** The secret header of the nightly export of GitHub (MADAR_EXPORT_SECRET) and of the other ops from the Mac (MADAR_OPS_SECRET). */
+export const EXPORT_SECRET_HEADER = 'x-madar-export-secret';
+export const OPS_SECRET_HEADER = 'x-madar-ops-secret';
+
+type OpRule = { secret: 'export' | 'ops'; names: 'any' | 'office' | 'rehearsal' };
+
+/** Each op, its secret and the object names it takes. export is the nightly GitHub job; the others run from the Mac. */
+const OPS: Readonly<Record<string, OpRule>> = {
+  export: { secret: 'export', names: 'any' },
+  import: { secret: 'ops', names: 'any' },
+  peek: { secret: 'ops', names: 'office' },
+  drop: { secret: 'ops', names: 'rehearsal' },
+};
+
+function nameAllowed(rule: OpRule['names'], name: string): boolean {
+  if (rule === 'office') return name === OFFICE_NAME;
+  if (rule === 'rehearsal') return REHEARSAL_NAME.test(name);
+  return name === OFFICE_NAME || REHEARSAL_NAME.test(name);
+}
 
 /** True when the env has the office binding OFFICE (the test Worker from wave 3; production from wave 6). */
 export function hasOfficeBinding(env: Record<string, unknown>): boolean {
@@ -75,6 +99,12 @@ export type OfficeRoutesOptions = {
   jobsSecret: () => string | undefined;
   /** More routes under /api (the own sign-in, server/entries/officeSignin.ts), as apiApp takes AppOptions.routes. */
   routes?: OfficeRoute[];
+  /** The object of an op by its name (the office of the copy, or a spare object of the rehearsal). Default: stub, for "office". */
+  stubOf?: (env: Env, name: string) => Pick<OfficeStub, 'fetch'>;
+  /** MADAR_EXPORT_SECRET: the nightly export of GitHub. */
+  exportSecret?: () => string | undefined;
+  /** MADAR_OPS_SECRET: the import, the peek and the drop from the Mac. */
+  opsSecret?: () => string | undefined;
 };
 
 const BUSY = new ApiError('failed', 'The office is busy. Try again in a moment.', { reason: 'busy' });
@@ -169,6 +199,30 @@ export function officeRoutes(o: OfficeRoutesOptions) {
     return new Response(out.body, { status: out.status, headers: out.headers });
   }
 
+  /**
+   * One office op (exit wave 4): the secret first, then the object name, then the body goes on to the object as a stream (no parse
+   * here, so a page of 4 MB costs the Worker no CPU). The ops are server to server: no CORS, and a browser token is not enough.
+   */
+  async function ops(request: Request, env: Env, op: string): Promise<Response> {
+    const rule = Object.hasOwn(OPS, op) ? OPS[op] : undefined;
+    if (!rule || request.method !== 'POST') return errorResponse({ code: 'not_found', message: 'This address does not exist.' });
+    const secret = rule.secret === 'export' ? o.exportSecret?.() : o.opsSecret?.();
+    const given = request.headers.get(rule.secret === 'export' ? EXPORT_SECRET_HEADER : OPS_SECRET_HEADER);
+    if (!secret || given === null || !(await sameSecret(given, secret))) {
+      return errorResponse({ code: 'unauthenticated', message: 'The secret of this address is not right.' });
+    }
+    const name = new URL(request.url).searchParams.get('office') ?? OFFICE_NAME;
+    if (!nameAllowed(rule.names, name)) return errorResponse({ code: 'forbidden', message: 'This office name is not allowed for this op.' });
+    const stub = o.stubOf ? o.stubOf(env, name) : o.stub(env);
+    try {
+      return await stub.fetch(new Request(`https://office.internal/office/${op}`, {
+        method: 'POST', headers: { 'content-type': 'application/json', [OFFICE_NAME_HEADER]: name }, body: request.body, duplex: 'half',
+      } as RequestInit));
+    } catch (error) {
+      return errorResponse(officeErrorOf(error, log));
+    }
+  }
+
   async function live(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('This address needs a WebSocket.', { status: 426 });
     if (!TICKET_SHAPE.test(new URL(request.url).searchParams.get('ticket') ?? '')) return errorResponse(TICKET_REFUSED);
@@ -224,7 +278,9 @@ export function officeRoutes(o: OfficeRoutesOptions) {
   return {
     async fetch(request: Request, env: Env, ctx?: Ctx): Promise<Response> {
       seen += 1;
-      if (new URL(request.url).pathname === LIVE_PATH) return live(request, env);
+      const path = new URL(request.url).pathname;
+      if (path === LIVE_PATH) return live(request, env);
+      if (path.startsWith(OFFICE_OPS_PREFIX)) return ops(request, env, path.slice(OFFICE_OPS_PREFIX.length));
       // The Workers host, as the Postgres Worker sets it (server/entries/worker.ts): clientAddress reads the address that the
       // Pages Function wrote.
       return runInHost({ host: 'workers', ...(ctx ? { after: (work: Promise<unknown>) => ctx.waitUntil(work) } : {}) }, () =>

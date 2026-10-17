@@ -18,6 +18,8 @@ R2_BUCKET = "madar-files-test"
 MADAR_LIVE_STALE_MS = "1500"
 # The MCP suite (the merge of exit waves 2 and 3): the issuer and the audience of the own tokens.
 MCP_URL = "https://madar.test/mcp"
+# The test tools of exit wave 4 (the peek route; the replace mode of the import). Never on production (server/office/ops.ts).
+MADAR_TEST_TOOLS = "on"
 
 [[durable_objects.bindings]]
 name = "OFFICE"

@@ -33,8 +33,12 @@ const routes = officeRoutes({
     return { authUserId: token };
   },
   stub: (env) => stubOf(env as Env),
+  // The office ops of exit wave 4: an object by its name, and the two secrets of this test Worker (harness.ts sends them).
+  stubOf: (env, name) => (env as Env).OFFICE.get((env as Env).OFFICE.idFromName(name)) as Test,
   net: () => new WorkerNet({ files, mail, fetch: pushFetch }),
   jobsSecret: () => 'test-jobs-secret',
+  exportSecret: () => 'test-export-secret',
+  opsSecret: () => 'test-ops-secret',
 });
 
 export default {
