@@ -9,9 +9,10 @@ import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } fr
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
 import { usageGet, usageRetryEffect } from './usage';
+import { liveTicket } from './live';
 
 /**
- * The registry of the 10 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
+ * The registry of the 11 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
  * never this list. The contracts are in src/api/contract/server.ts.
  */
 export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
@@ -25,6 +26,7 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
+  'live.ticket': liveTicket,
 };
 
 /**

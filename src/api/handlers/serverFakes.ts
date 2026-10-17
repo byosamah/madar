@@ -10,7 +10,7 @@ import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
- * Fake versions of the 9 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
+ * Fake versions of the 11 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
  * The prototype keeps files in this browser: files.upload and feedback.send take the blob itself, so the upload links here go nowhere.
  */
 
@@ -197,6 +197,12 @@ const usageRetryEffect = defineCall({
   },
 });
 
+/** The prototype has no server and no socket: its changes come from the store (src/app/signals.ts). This ticket opens nothing. */
+const liveTicket = defineCall({
+  ...c['live.ticket'],
+  run: (_input, ctx) => ({ ticket: '0'.repeat(64), expiresAt: later(ctx.now, 60_000) }),
+});
+
 export const serverFakes = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -208,4 +214,5 @@ export const serverFakes = {
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
+  'live.ticket': liveTicket,
 };

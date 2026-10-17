@@ -68,6 +68,8 @@ export const MCP_DENY = [
   'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
   // Browser push devices (owner, 2026-10-08): a device is the browser of a person. An agent has none and reads none.
   'push.register', 'push.remove', 'push.mine',
+  // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
+  'live.ticket',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

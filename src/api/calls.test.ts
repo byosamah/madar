@@ -57,18 +57,19 @@ const ORDER_CALLS = ['tasks.arrange'];
 const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete'];
 // Browser push devices (owner, 2026-10-08).
 const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
-// The 10 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1).
-const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect'];
+// The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
+// live.ticket from the exit, wave 3).
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
-const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get']);
+const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket']);
 
 describe('the call map', () => {
-  it('has every call from the spec plus the documented extras, and the 10 server calls', () => {
+  it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(131);
+    expect(Object.keys(calls)).toHaveLength(132);
   });
 
   it('marks exactly the read calls as read-only', () => {

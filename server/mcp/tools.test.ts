@@ -35,6 +35,11 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
   });
 
+  it('keeps live.ticket from every agent (exit wave 3): an agent opens no socket', () => {
+    expect(MCP_DENY).toContain('live.ticket');
+    for (const admin of [false, true]) expect(mcpTools({ admin }).map((tool) => tool.name)).not.toContain('live.ticket');
+  });
+
   // Owner, 2026-10-12: an agent may message the team, direct and in a project chat (task comments and project posts it has already).
   // It sends and finds a chat; it never reads one. A direct chat gives it no preview (run.ts).
   it('lets an agent message the team: the direct chat, the chat list and the send are tools, and reading a chat is not', () => {

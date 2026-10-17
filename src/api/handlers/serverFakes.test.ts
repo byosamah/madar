@@ -12,9 +12,9 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 10 server calls, and the fakes follow the same contracts', () => {
+  it('name the 11 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
-      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
+      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'live.ticket', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());
     for (const name of SERVER_CALL_NAMES) {
@@ -189,5 +189,11 @@ describe('the fake server calls', () => {
     await expect(t.api.call('usage.retryEffect', { id: 'x' })).rejects.toMatchObject({ code: 'invalid_input' });
     t.as('usr_002');
     await expect(t.api.call('usage.retryEffect', { id: '17' })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('live.ticket gives a ticket of 60 seconds that opens nothing: the prototype has no server and no socket (exit wave 3)', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_005');
+    expect(await t.api.call('live.ticket', {})).toEqual({ ticket: '0'.repeat(64), expiresAt: '2026-09-30T09:01:00.000+03:00' });
   });
 });

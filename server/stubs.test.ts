@@ -25,9 +25,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 10 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts; agents.list and agents.remove: server/calls/agents.test.ts)', async () => {
+  it('list the 11 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect', 'agents.list', 'agents.remove'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect', 'agents.list', 'agents.remove', 'live.ticket'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 

@@ -6,13 +6,14 @@ import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 export { MAX_SHOT_BYTES, PASSWORD_SET_MARK };
 
 /**
- * The 10 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12). They carry the work that State cannot hold: story IDs, file links,
- * invitations, agents and usage. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones.
- * The MCP tool list (track G) reads these contracts, not the server code.
+ * The 11 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12; live.ticket from the exit,
+ * wave 3). They carry the work that State cannot hold: story IDs, file links, invitations, agents, usage and the ticket of the live
+ * socket. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones. The MCP tool list
+ * (track G) reads these contracts, not the server code.
  */
 export const SERVER_CALL_NAMES = [
   'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get',
-  'usage.retryEffect',
+  'usage.retryEffect', 'live.ticket',
 ] as const;
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
@@ -157,6 +158,16 @@ const usageRetryEffect = {
   readOnly: false,
 };
 
+/**
+ * live.ticket (exit wave 3): a ticket of 60 seconds and one use for the live socket of the person (GET /api/live?ticket=). A browser
+ * socket cannot send the Authorization header, so it opens with this ticket. The office object makes it and keeps it in memory.
+ */
+const liveTicket = {
+  input: Empty,
+  output: z.object({ ticket: z.string().regex(/^[0-9a-f]{64}$/), expiresAt: z.string().min(1) }),
+  readOnly: true,
+};
+
 export const serverContracts = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -168,5 +179,6 @@ export const serverContracts = {
   'agents.remove': agentsRemove,
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
+  'live.ticket': liveTicket,
 } satisfies Record<ServerCallName, { input: z.ZodType; output: z.ZodType; readOnly: boolean }>;
 export type ServerContracts = typeof serverContracts;
