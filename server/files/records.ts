@@ -1,5 +1,6 @@
 import type { Feedback, FileRec, Task, User } from '../../src/api/contract/entities';
 import type { Db } from '../core/ports';
+import { sqlFor } from '../data/dialect';
 
 /**
  * The single read statements of the file calls and hooks (task F2). A server call and a hook before the lock read with one
@@ -12,29 +13,37 @@ export const TASK_PROJECT_SQL = 'select project_id from tasks where id = $1';
 export const TASK_DOC_SQL = 'select doc from tasks where id = $1';
 export const FEEDBACK_DOC_SQL = 'select doc from feedback where id = $1';
 
+// The SQLite forms (Supabase exit, wave 1). The users table is an office table of fewer than 100 rows: json_each is cheap here,
+// and wave 3 reads the users from the office snapshot.
+export const USERS_LITE = 'select doc from users where id in (select value from json_each(?1))';
+export const FILE_DOC_LITE = 'select doc from files where id = ?1';
+export const TASK_PROJECT_LITE = 'select project_id from tasks where id = ?1';
+export const TASK_DOC_LITE = 'select doc from tasks where id = ?1';
+export const FEEDBACK_DOC_LITE = 'select doc from feedback where id = ?1';
+
 export async function readUsers(db: Db, ids: string[]): Promise<Map<string, User>> {
-  const rows = await db.statement<{ doc: User }>('read', USERS_SQL, [ids]);
+  const rows = await db.statement<{ doc: User }>('read', sqlFor(db, USERS_SQL, USERS_LITE), [ids]);
   return new Map(rows.map((row) => [row.doc.id, row.doc]));
 }
 
 export async function readFile(db: Db, id: string): Promise<FileRec | undefined> {
-  const [row] = await db.statement<{ doc: FileRec }>('read', FILE_DOC_SQL, [id]);
+  const [row] = await db.statement<{ doc: FileRec }>('read', sqlFor(db, FILE_DOC_SQL, FILE_DOC_LITE), [id]);
   return row?.doc;
 }
 
 /** The project of a task, or undefined when the task does not exist. */
 export async function projectOfTask(db: Db, id: string): Promise<string | undefined> {
-  const [row] = await db.statement<{ project_id: string | null }>('read', TASK_PROJECT_SQL, [id]);
+  const [row] = await db.statement<{ project_id: string | null }>('read', sqlFor(db, TASK_PROJECT_SQL, TASK_PROJECT_LITE), [id]);
   return row?.project_id ?? undefined;
 }
 
 /** A task by id, for the rights on the files of an office task (owner, 2026-10-06). */
 export async function readTask(db: Db, id: string): Promise<Task | undefined> {
-  const [row] = await db.statement<{ doc: Task }>('read', TASK_DOC_SQL, [id]);
+  const [row] = await db.statement<{ doc: Task }>('read', sqlFor(db, TASK_DOC_SQL, TASK_DOC_LITE), [id]);
   return row?.doc;
 }
 
 export async function readFeedback(db: Db, id: string): Promise<Feedback | undefined> {
-  const [row] = await db.statement<{ doc: Feedback }>('read', FEEDBACK_DOC_SQL, [id]);
+  const [row] = await db.statement<{ doc: Feedback }>('read', sqlFor(db, FEEDBACK_DOC_SQL, FEEDBACK_DOC_LITE), [id]);
   return row?.doc;
 }

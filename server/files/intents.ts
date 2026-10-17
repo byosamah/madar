@@ -1,5 +1,6 @@
 import { ApiError, invalid, notFound } from '../../src/api/errors';
 import type { Db, FileStoreKind, Query } from '../core/ports';
+import { sqlFor } from '../data/dialect';
 import { officeUploadPrefix } from './keys';
 import { intentLifeSeconds } from './links';
 
@@ -34,6 +35,20 @@ export const INTENTS_SELECT_SQL =
   'select id, actor_id, project_id, staging_key, key, thumb_key, size, mime_type, expires_at, used_at from upload_intents where id = any($1::text[])';
 export const INTENTS_USE_SQL =
   'update upload_intents set used_at = $3 where id = any($1::text[]) and actor_id = $2 and used_at is null and expires_at > $3 returning id';
+
+/**
+ * The SQLite forms (Supabase exit, wave 1). The values stay the same: the SQLite Db binds the id list as JSON text. expires_at >
+ * ?3 compares ISO text in UTC, which is time order, because both sides come from toISOString.
+ */
+export const INTENT_INSERT_LITE =
+  'insert into upload_intents (id, actor_id, project_id, staging_key, key, thumb_key, size, mime_type, expires_at) '
+  + "select json_extract(value, '$.id'), json_extract(value, '$.actor_id'), json_extract(value, '$.project_id'), json_extract(value, '$.staging_key'), "
+  + "json_extract(value, '$.key'), json_extract(value, '$.thumb_key'), json_extract(value, '$.size'), json_extract(value, '$.mime_type'), "
+  + "json_extract(value, '$.expires_at') from json_each(?1)";
+export const INTENTS_SELECT_LITE =
+  'select id, actor_id, project_id, staging_key, key, thumb_key, size, mime_type, expires_at, used_at from upload_intents where id in (select value from json_each(?1))';
+export const INTENTS_USE_LITE =
+  'update upload_intents set used_at = ?3 where id in (select value from json_each(?1)) and actor_id = ?2 and used_at is null and expires_at > ?3 returning id';
 
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
@@ -78,11 +93,11 @@ export async function insertIntents(db: Db, intents: Intent[]): Promise<void> {
     id: i.id, actor_id: i.actorId, project_id: i.projectId, staging_key: i.stagingKey, key: i.key, thumb_key: i.thumbKey,
     size: i.size, mime_type: i.mimeType, expires_at: i.expiresAt.toISOString(),
   }));
-  await db.statement('write', INTENT_INSERT_SQL, [JSON.stringify(rows)]);
+  await db.statement('write', sqlFor(db, INTENT_INSERT_SQL, INTENT_INSERT_LITE), [JSON.stringify(rows)]);
 }
 
 export async function readIntents(db: Db, ids: string[]): Promise<Map<string, Intent>> {
-  const rows = await db.statement<IntentRow>('read', INTENTS_SELECT_SQL, [ids]);
+  const rows = await db.statement<IntentRow>('read', sqlFor(db, INTENTS_SELECT_SQL, INTENTS_SELECT_LITE), [ids]);
   return new Map(rows.map((row) => [String(row.id), intentOf(row)]));
 }
 
@@ -114,6 +129,6 @@ export function checkIntent(
 /** Inside the lock: marks the intents used, once. A used, expired or foreign intent gives conflict, and the call rolls back. */
 export async function useIntents(q: Query, ids: string[], actorId: string, now: Date): Promise<void> {
   if (ids.length === 0) return;
-  const rows = await q<{ id: string }>(INTENTS_USE_SQL, [ids, actorId, now.toISOString()]);
+  const rows = await q<{ id: string }>(sqlFor(q, INTENTS_USE_SQL, INTENTS_USE_LITE), [ids, actorId, now.toISOString()]);
   if (rows.length !== new Set(ids).size) throw new ApiError('conflict', 'This upload is already used, or it has ended. Upload the file again.');
 }

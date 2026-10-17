@@ -1,5 +1,6 @@
-import { OUTBOX_INSERT_SQL, registerEffect, registerOutbox, type OutboxProducer } from '../core/effects';
+import { OUTBOX_INSERT_SQL, OUTBOX_ROW_LITE, registerEffect, registerOutbox, type OutboxProducer } from '../core/effects';
 import type { Db, Deps, Query } from '../core/ports';
+import { isLite, sqlFor } from '../data/dialect';
 import { isObjectKey } from './keys';
 
 /**
@@ -27,9 +28,23 @@ export const PROJECT_KEYS_SQL =
   + "union all select doc->'before'->'versions' from events where project_id = $1 and target_type = 'file' "
   + "union all select doc->'after'->'versions' from events where project_id = $1 and target_type = 'file'";
 
+// The SQLite forms (Supabase exit, wave 1). A scan of the files and the reports: r2.delete runs only after a project delete or a
+// refused upload. Every JSON function reads the doc with a full path (the fullkey of json_each), as pathMatch of compile.ts does.
+export const KEYS_IN_USE_LITE =
+  'select k.value as key from json_each(?1) k where exists ('
+  + "select 1 from files f, json_each(f.doc, '$.versions') v where json_type(f.doc, '$.versions') = 'array' and v.type = 'object' "
+  + "and (json_extract(f.doc, v.fullkey || '.blobKey') = k.value or json_extract(f.doc, v.fullkey || '.thumbKey') = k.value)"
+  + ") or exists (select 1 from feedback b, json_each(b.doc, '$.screenshots') s where json_type(b.doc, '$.screenshots') = 'array' "
+  + "and s.type = 'object' and json_extract(b.doc, s.fullkey || '.blobKey') = k.value)";
+/** -> gives JSON text also for a string, so the Db can parse each value (json_extract gives a string as plain text). */
+export const PROJECT_KEYS_LITE =
+  "select doc -> '$.versions' as versions from files where project_id = ?1 "
+  + "union all select doc -> '$.before.versions' from events where project_id = ?1 and target_type = 'file' "
+  + "union all select doc -> '$.after.versions' from events where project_id = ?1 and target_type = 'file'";
+
 export async function blobKeysInUse(db: Db, keys: string[]): Promise<Set<string>> {
   if (keys.length === 0) return new Set();
-  const rows = await db.statement<{ key: string }>('read', KEYS_IN_USE_SQL, [keys]);
+  const rows = await db.statement<{ key: string }>('read', sqlFor(db, KEYS_IN_USE_SQL, KEYS_IN_USE_LITE), [keys]);
   return new Set(rows.map((row) => row.key));
 }
 
@@ -49,7 +64,8 @@ export async function removeNowOrLater(deps: Deps, keys: string[]): Promise<void
   } catch (error) {
     deps.log.warn('A refused upload was not removed. The job removes it later.', { error: error instanceof Error ? error.message : String(error) });
     try {
-      await deps.db.statement('write', OUTBOX_INSERT_SQL, [JSON.stringify([{ kind: 'r2.delete', payload: { keys } }])]);
+      if (isLite(deps.db)) await deps.db.statement('write', OUTBOX_ROW_LITE, ['r2.delete', JSON.stringify({ keys })]);
+      else await deps.db.statement('write', OUTBOX_INSERT_SQL, [JSON.stringify([{ kind: 'r2.delete', payload: { keys } }])]);
     } catch (again) {
       deps.log.error('A refused upload has no r2.delete row. The job deletes old staging objects.', { error: again instanceof Error ? again.message : String(again) });
     }
@@ -72,7 +88,7 @@ export function keysOfVersions(rows: Versions[]): string[] {
 }
 
 export async function projectBlobKeys(q: Query, projectId: string): Promise<string[]> {
-  return keysOfVersions(await q<Versions>(PROJECT_KEYS_SQL, [projectId]));
+  return keysOfVersions(await q<Versions>(sqlFor(q, PROJECT_KEYS_SQL, PROJECT_KEYS_LITE), [projectId]));
 }
 
 /**

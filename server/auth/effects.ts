@@ -4,6 +4,7 @@ import { personName } from '../../src/lib/personName';
 import type { SharedCallName } from '../../src/api/sharedCalls';
 import { processOutbox, registerEffect, registerOutbox, writeOutbox, type OutboxProducer, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
+import { sqlFor } from '../data/dialect';
 import { QuotaFull, sendCounted } from '../mail/quota';
 import { authAdminOf } from './admin';
 import { INVITE_KIND, inviteRow, PAYLOAD_MERGE_SQL, sendInvitation, sqlInviteStore, type InviteStore } from './invite';
@@ -50,6 +51,14 @@ export const AUTH_CALLS = ['users.create', 'users.update', 'users.deactivate', '
  */
 export const USER_EMAIL_CHANGED_SQL =
   "select (doc->'after') ? 'email' as changed, doc->>'actingForId' as actor from events where target_type = 'user' and target_id = $1 and verb = 'user.updated' order by ord desc limit 1";
+
+/**
+ * The SQLite form (Supabase exit, wave 1): 1 or 0 in place of true or false. order by seq desc limit 1 is a cut on events_target
+ * (target_type, target_id, seq). The seq order is the insertion order of events, so it gives the row of order by ord desc limit 1.
+ */
+export const USER_EMAIL_CHANGED_LITE =
+  "select case when json_type(doc, '$.after.email') is not null then 1 else 0 end as changed, json_extract(doc, '$.actingForId') as actor "
+  + "from events where target_type = 'user' and target_id = ?1 and verb = 'user.updated' order by seq desc limit 1";
 
 type Rec = Record<string, unknown>;
 type UserOut = { id: string; kind: string; active: boolean };
@@ -110,13 +119,14 @@ export function authRowsOf(name: string, output: unknown): OutboxRow[] {
 const emailProducer: OutboxProducer = async (output, saved, q) => {
   const rows = authRowsOf('users.update', output);
   if (rows.length === 0 || !saved.changed) return [];
-  let last: { changed: boolean; actor?: string | null } | undefined;
+  // Postgres gives true, false or null; SQLite gives 1 or 0. Both read the same through Boolean.
+  let last: { changed: boolean | number | null; actor?: string | null } | undefined;
   try {
-    [last] = await q<{ changed: boolean; actor?: string | null }>(USER_EMAIL_CHANGED_SQL, [(output as UserOut).id]);
+    [last] = await q<{ changed: boolean | number | null; actor?: string | null }>(sqlFor(q, USER_EMAIL_CHANGED_SQL, USER_EMAIL_CHANGED_LITE), [(output as UserOut).id]);
   } catch {
     return rows;
   }
-  return last?.changed === true ? [emailRow((output as UserOut).id, last.actor)] : [];
+  return last && Boolean(last.changed) ? [emailRow((output as UserOut).id, last.actor)] : [];
 };
 
 /** The users rows and the outbox payloads of the auth effects: the invitation store, plus the queue of the notice. */
