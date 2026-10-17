@@ -150,6 +150,14 @@ describe('the office parts (server/office/parts.ts)', () => {
     expect(socket.closed?.code).toBe(CLOSE_OFF);
   });
 
+  it('closes the sockets of a person whom the batch turned off, also when a read comes after the write in that batch', async () => {
+    const { sockets, batch } = await office();
+    const socket = openFor(sockets, 'usr_007', Date.parse(NOW));
+    const { answer } = ok(await batch('usr_001', [{ name: 'users.deactivate', input: { id: 'usr_007' } }, { name: 'users.list', input: {} }]));
+    expect(answer.results.map((result) => result.ok)).toEqual([true, true]);
+    expect(socket.closed?.code).toBe(CLOSE_OFF);
+  });
+
   it('runs the invitation of a new person in the object: the sign-in row, its link, and the mail through the Worker port', async () => {
     const { raw, net, batch } = await office();
     const { answer } = ok(await batch('usr_001', [{

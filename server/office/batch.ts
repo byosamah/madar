@@ -92,6 +92,10 @@ export async function runOfficeBatch(
     return { ok: false, error: runErrorOf(error) };
   }
   const results: WireEntry[] = [];
+  // A write that changes the office clears batch.office, and a later read of the same batch loads the office again and sets it.
+  // So the flag is set after each entry: the end state alone would hide the change, and the sockets of a person whom the batch
+  // turned off would stay open (security check of ebd74fe).
+  let officeChanged = false;
   for (const call of input.calls) {
     let result: RunResult;
     try {
@@ -100,6 +104,7 @@ export async function runOfficeBatch(
       logUnexpected(deps, 'A call threw outside runCall.', error, { name: call.name });
       result = { ok: false, error: runErrorOf(error) };
     }
+    if (batch.office === undefined) officeChanged = true;
     results.push(entryOf(call.i, result));
   }
   const { now, later } = o.ledger.split();
@@ -111,5 +116,5 @@ export async function runOfficeBatch(
     }
   }
   const body: WireResponse = { v: 1, serverTime: nowStamp(deps.clock.now()), results };
-  return { ok: true, body: JSON.stringify(body), later, officeChanged: batch.office === undefined };
+  return { ok: true, body: JSON.stringify(body), later, officeChanged };
 }
