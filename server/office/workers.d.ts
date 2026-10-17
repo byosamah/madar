@@ -14,6 +14,8 @@ declare module 'cloudflare:workers' {
     readonly sql: SqlStorage;
     transaction<T>(closure: () => Promise<T>): Promise<T>;
     transactionSync<T>(closure: () => T): T;
+    /** Removes every row and every key of the object (the drop of a spare object, exit wave 4). */
+    deleteAll(): Promise<void>;
   }
   export interface DurableObjectState {
     readonly storage: DurableObjectStorage;

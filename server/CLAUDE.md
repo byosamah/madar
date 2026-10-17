@@ -161,6 +161,13 @@ The other host stays deployed as the way back. Each area below has its own guide
   `agent` of `office/who.ts`); its mails and pushes run after the answer (`runEffects`). With no key, `/mcp` answers 503.
 - A batch reports an office change when any entry cleared `batch.office` (`runOfficeEntries`), so a turn-off with a read after it
   still closes the sockets of that person.
+- The hold (exit wave 4, `office/ops.ts`, `OfficeHold`, in memory): an export holds the office for at most 5 minutes, an import
+  for at most 30. An export refuses a batch with a write (reason `busy`, "Madar saves its nightly backup"), a request of `/mcp`
+  itself (503) and the Cron steps; reads, the sign-in steps, forgot, renew and the OAuth routes under `/mcp/` run, because their
+  rows are the drift tables (`DRIFT_TABLES`). An import refuses every call, step and mail route, and the effects wait for the
+  Cron. `Office.fetch` sends `/office/*` to `parts.ops`: `export` (begin, pages of at most 1,000 rows in rowid order, end with
+  the version and `office_seq` of the begin) and `peek` (one select, at most 200 rows, only with `testToolsOn`). `/office/drop`
+  deletes the storage of a spare object named `rehearsal-YYYYMMDD` only; that object takes no request after it.
 - Tests: `office/{net,meter,live,parts,who,routes}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
   key, and `route`, which sends one request through the real Worker routes into the object); `office/{batch,socket,cron,mcp}.wd.test.ts` on local workerd
   with the test Worker of `office/test/live/`; `entries/{officeWorker,officeSignin}.test.ts`; `npm run smoke:office` for the real

@@ -6,6 +6,7 @@ import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
 import { doHost } from './doHost';
 import { LIVE_PING, LIVE_PONG, type LiveSocket, type Sockets } from './live';
 import type { NetApi } from './net';
+import { OFFICE_NAME_HEADER, REHEARSAL_NAME } from './ops';
 import type { OpResult } from '../auth/own/office';
 import {
   officeParts, type OfficeCronInput, type OfficeCronReport, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts,
@@ -93,8 +94,24 @@ export class Office extends DurableObject<Env> {
     return this.parts.health();
   }
 
+  /** The socket of /api/live, and the office ops of exit wave 4 under /office/ (the Worker checks their secret first). */
   fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    if (pathname === '/office/drop') return this.drop(request);
+    if (pathname.startsWith('/office/')) return this.parts.ops(request);
     return this.parts.socket(request);
+  }
+
+  /**
+   * Drops the storage of a spare object (the production rehearsal of wave 5). The Worker names the object in a header; the office
+   * of a copy ("office") is never dropped here. The object must not take a request after it.
+   */
+  private async drop(request: Request): Promise<Response> {
+    if (!REHEARSAL_NAME.test(request.headers.get(OFFICE_NAME_HEADER) ?? '')) {
+      return Response.json({ v: 1, error: { code: 'forbidden', message: 'Only a spare object of the rehearsal can be dropped.' } }, { status: 403 });
+    }
+    await this.ctx.storage.deleteAll();
+    return Response.json({ ok: true });
   }
 
   webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): void {

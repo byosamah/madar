@@ -61,7 +61,8 @@ function stubOf(parts: OfficeParts): OfficeStub {
     mailWork: (input, net) => parts.mailWork(input, net),
     mcp: (input, net) => parts.mcp(input, net),
     health: () => parts.health(),
-    fetch: (request) => parts.socket(request),
+    // As Office.fetch: the office ops of exit wave 4 under /office/, else the socket. The drop of a spare object is workerd only.
+    fetch: (request) => (new URL(request.url).pathname.startsWith('/office/') ? parts.ops(request) : parts.socket(request)),
   };
 }
 
