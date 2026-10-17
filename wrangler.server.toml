@@ -66,6 +66,12 @@ class_name = "Office"
 [env.test.vars]
 SUPABASE_URL = "https://qdgwpnesxppnqsaabqzd.supabase.co"
 WORKER_REGION = "workers-eu-central-1"
+# The test tools of the office object (exit wave 4): the replace mode of the import (the seed) and the peek route of the deploy
+# suite, both behind MADAR_OPS_SECRET. Never on production: server/office/ops.ts refuses them on a production copy anyway.
+MADAR_TEST_TOOLS = "on"
+# The day cap of the test copy (owner decision 6, form A: the same account as production): 50% of each Free day limit, so a heavy
+# test day cannot stop production. It acts only on the office path (config/server-host.json test: office).
+MADAR_DAY_CAP = "rows_written=50000,rows_read=2500000,requests=50000"
 
 # The Worker logs (npx wrangler tail madar-server-test, or the dashboard).
 [env.test.observability]

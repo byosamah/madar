@@ -28,6 +28,7 @@ import { mountOAuth } from '../mcp/oauth/routes';
 import { stateKeyFrom } from '../mcp/reasons';
 import { JOBS_LAST_RUN_SQL } from '../usage/meters';
 import { checkDayLimits } from '../usage/warn';
+import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
@@ -142,6 +143,9 @@ export function officeParts(o: PartsInput): OfficeParts {
   const hold = new OfficeHold();
   // The test tools (the peek route; the replace mode of the import, Task 10): MADAR_TEST_TOOLS = "on", never on production.
   const tools = testToolsOn(o.read);
+  // The day cap of the test Worker (exit wave 4, server/office/cap.ts): MADAR_DAY_CAP, set for the test Worker only.
+  const cap = dayCapOf(o.read('MADAR_DAY_CAP'));
+  let dayHeld: { at: number; day: DayRow } | undefined;
   const staleMs = Number(o.read('MADAR_LIVE_STALE_MS') ?? LIVE_STALE_MS);
   const signals = liveSignals({ sockets: o.sockets, meter, log, now: () => clock.now(), staleMs });
   const ledgers = new WeakMap<Deps, EffectLedger>();
@@ -224,6 +228,17 @@ export function officeParts(o: PartsInput): OfficeParts {
     };
   }
 
+  /** The day counts for the cap, read again at most once a minute and at each new UTC day. */
+  async function capDay(now: Date): Promise<DayRow> {
+    if (!dayHeld || now.getTime() - dayHeld.at > DAY_CAP_TTL_MS || utcDay(new Date(dayHeld.at)) !== utcDay(now)) dayHeld = { at: now.getTime(), day: await dayCounts(now) };
+    return dayHeld.day;
+  }
+
+  /** The refusal of the day cap for one call, or undefined: always undefined on a copy with no cap. */
+  async function capped(writes: boolean): Promise<RunError | undefined> {
+    return cap ? capRefusal(await capDay(clock.now()), cap, writes) : undefined;
+  }
+
   /**
    * One step of an import (exit wave 4, server/office/import.ts): begin takes the hold of an import (every call waits), each part
    * and the finish check it, and the finish or an abort ends it. After the finish every socket closes, so each open screen
@@ -279,7 +294,7 @@ export function officeParts(o: PartsInput): OfficeParts {
     async batch(input, net) {
       meter.request({ calls: input.calls.length, worker: input.worker });
       // An export refuses a batch with a write and serves a read batch; an import refuses every batch.
-      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) });
+      const held = hold.refusal({ now: clock.now(), writes: writesIn(input.calls) }) ?? await capped(writesIn(input.calls));
       if (held) return { ok: false, error: held };
       const deps = depsFor(net);
       const out = await runOfficeBatch(deps, input, { run, data: data(deps), principal: o.principal, ledger: ledgers.get(deps)! });
@@ -315,8 +330,9 @@ export function officeParts(o: PartsInput): OfficeParts {
     },
     async signin(body) {
       meter.request();
-      // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them.
-      const held = hold.refusal({ now: clock.now(), writes: false });
+      // An export lets the sign-in steps run (their rows are drift tables of server/office/ops.ts); an import refuses them. The
+      // day cap counts a sign-in step as a read: it stops only over the rows read or the requests.
+      const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
       if (held) return { ok: false, error: held };
       let keys: SigningKeys;
       try {
@@ -331,7 +347,7 @@ export function officeParts(o: PartsInput): OfficeParts {
     async mailRoute(input, net) {
       meter.request();
       // The limits and the links of forgot and renew are drift tables: an export lets them run, an import refuses them.
-      const held = hold.refusal({ now: clock.now(), writes: false });
+      const held = hold.refusal({ now: clock.now(), writes: false }) ?? await capped(false);
       if (held) return mailRefusal(held);
       let work: string | undefined;
       const keep = async (value: string) => void (work = value);
@@ -362,7 +378,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       meter.request({ calls: toolCallsIn(input.body), worker: input.worker });
       // An export lets the OAuth routes under /mcp run (their rows are drift tables); a request of /mcp itself may write, so it waits.
       const path = new URL(input.url).pathname;
-      const held = hold.refusal({ now: clock.now(), writes: path === '/mcp' || path === '/mcp/' });
+      const writes = path === '/mcp' || path === '/mcp/';
+      const held = hold.refusal({ now: clock.now(), writes }) ?? await capped(writes);
       if (held) return mcpRefusal(503, held.message, 'busy');
       const secret = o.read(OWN_AUTH_SECRET);
       let keys: SigningKeys;

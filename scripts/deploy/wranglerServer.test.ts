@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
 import { COPIES, COPY_HOSTS } from '../../server/core/serverHost';
+import { dayCapOf } from '../../server/office/cap';
 import { PLACEHOLDER_ID, hyperdriveIdOf, workerConfigOf } from './wranglerServer.ts';
 
 /** wrangler.server.toml (owner, 2026-10-16): the local top level, and one Worker for each copy. */
@@ -46,8 +47,9 @@ describe('wrangler.server.toml', () => {
         expect(env.hyperdrive[0].id).toMatch(/^[0-9a-f]{32}$/);
       });
 
-      it('holds the public vars SUPABASE_URL of its own project and a region label that starts no MCP hop, and nothing else', () => {
-        expect(Object.keys(env.vars).sort()).toEqual(['SUPABASE_URL', 'WORKER_REGION']);
+      it('holds the public vars SUPABASE_URL of its own project and a region label that starts no MCP hop, the test tools and the day cap on the test Worker only, and nothing else', () => {
+        const office = copy === 'test' ? ['MADAR_DAY_CAP', 'MADAR_TEST_TOOLS'] : [];
+        expect(Object.keys(env.vars).sort()).toEqual([...office, 'SUPABASE_URL', 'WORKER_REGION']);
         expect(env.vars.SUPABASE_URL).toBe(COPY_HOSTS[copy].supabaseUrl);
         expect(env.vars.WORKER_REGION).toBe('workers-eu-central-1');
         expect(env.vars.WORKER_REGION).not.toMatch(AWS_REGION);
@@ -109,6 +111,17 @@ describe('the office object in wrangler.server.toml (exit wave 3)', () => {
 
   it('sets MADAR_DATA in no env, so no deployed Worker takes the office path in wave 3', () => {
     for (const env of [undefined, 'test', 'production'] as const) expect(read(env).vars.MADAR_DATA).toBeUndefined();
+  });
+
+  it('gives the test Worker the day cap and the test tools, and production and local runs neither (exit wave 4)', () => {
+    expect(read('test').vars.MADAR_TEST_TOOLS).toBe('on');
+    expect(read('test').vars.MADAR_DAY_CAP).toMatch(/^rows_written=\d+,rows_read=\d+,requests=\d+$/);
+    // Owner decision 6, form A: half of each Free day limit (100,000 rows written, 5 million rows read, 100,000 requests).
+    expect(dayCapOf(String(read('test').vars.MADAR_DAY_CAP))).toEqual({ rowsWritten: 50_000, rowsRead: 2_500_000, requests: 50_000 });
+    for (const env of [undefined, 'production'] as const) {
+      expect(read(env).vars.MADAR_TEST_TOOLS).toBeUndefined();
+      expect(read(env).vars.MADAR_DAY_CAP).toBeUndefined();
+    }
   });
 
   it('runs the 15-minute Cron on local runs and on the test Worker, and none on production', () => {
