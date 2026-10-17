@@ -98,6 +98,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run test:db` - the `src/api` rule tests again on the local Postgres (one schema per worker, as madar_server).
 - `test:db` tests also time out under a load average far above the core count: check `uptime`, and run the failed files
   again at a low load before you call a test broken.
+- `npm run test:lite` - the `src/api` rule tests and the shadow run on node:sqlite, no Docker (Supabase exit, wave 1).
+- `npm run test:office` - the office object on local workerd (wrangler createTestHarness): host parity, everyCall parity, the
+  rows pins. Sandbox off when listen() fails with EPERM. Add `--silent=false` to see the lines of a test that passes.
 - `test:db`, `test:it` and the `test:mcp` conformance runner need Docker Desktop and the local stack. The sandbox blocks
   `open -a Docker`; with the sandbox off it works, and Docker is up in about 10 s. The run that worked (2026-10-08):
   `docker-lock.sh acquire <holder>`, `npx supabase start -x edge-runtime`, `npx supabase db reset`, `npm run test:db`,
@@ -112,7 +115,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-12): unit+server 4,654 passed (457 files); test:db 1,139 (25 skipped); test:it 261; test:mcp 147; prototype smoke 87 of 87.
+- Last counts (2026-10-17): unit+server 4,954 passed (481 files); test:db 1,141 (25 skipped); test:lite 1,141 (25 skipped);
+  test:office 8; test:it 276. On 2026-10-12: test:mcp 147; prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -158,7 +162,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - No separate checker (owner, 2026-10-07): no reviewer, verifier or critic agent after a build. Run each suite once.
   Run it again only after a fix for a failure.
 - Merge gate: rebase on main, typecheck, `npm test`, `npm run build`, `build:server`, `build:remote -- test`,
-  `test:db`, `test:it`, and the prototype smoke at screen merges. No merge with a red check.
+  `test:lite`, `test:office` (from exit wave 1 on), `test:db`, `test:it`, and the prototype smoke at screen merges. No merge
+  with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
 - Agent tool worktrees live in `.claude/worktrees/agent-*` (Workflow agents: `wf_<run>-<n>`, branch `worktree-wf_<run>-<n>`)
   and may start on an old commit: brief each agent to run

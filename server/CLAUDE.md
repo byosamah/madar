@@ -123,6 +123,11 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Tests
 - `npm test` runs the `server` project with the fakes. `npm run test:db` runs the rule tests again on the local Postgres.
+- `npm run test:lite` runs the rule tests again on node:sqlite (the SQLite path of the office object, no Docker). `npm run
+  test:office` runs the office object on local workerd: the host checks, `everyCall` on the sample office, and the rows pins
+  on one year of data (`server/office/test/pins.ts`). workerd refuses to evict an object while Node holds a stub to it, and
+  the miniflare proxy frees a stub only after Node collects it: a test that evicts calls that object only through fetch
+  (`officeByFetch` in `server/office/test/harness.ts`).
 - The shadow run (`test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
 - `core/writeKinds.test.ts` pins a screen file, `src/app/writeKinds.ts`: it runs every write of `everyCall` on the sample
   office and the write sweep on the trap office (`data/loaders/sweep.ts`), in memory with `createRunCall`.

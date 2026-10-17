@@ -502,7 +502,22 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   Track R, wave 1 in 19 tasks
 - [x] Exit wave 1, Task 1: the transaction facts of the office object on local workerd. Option B holds: a failed transaction
   keeps no row, and no request runs inside an open transaction (proof.md "Wave 1: the transaction facts", 9ec27c4)
-- [ ] Exit wave 1, Tasks 2 to 19: the SQLite path beside Postgres (`rb/cloudflare`)
+- [x] Exit wave 1, Tasks 2 to 19: the SQLite path beside Postgres (`rb/cloudflare`): test:lite and test:office green, the rows
+  pins on one year of data, the merge gate green (proof.md "Wave 1 of the Supabase exit: done")
+- [ ] Wave 2: `users.invites`, `users.resendInvite`, `agents.list` and `agents.remove` on SQLite (`LATER_CALLS` in
+  `server/test/liteHarness.ts`: the invite texts of `server/calls/people.ts` and `server/auth/invite.ts`, the agent links of
+  `server/calls/agents.ts`)
+- [ ] Wave 2: the effect kinds `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` and `agents.revokeAll`
+  on SQLite (`LATER_KINDS`), and the sign-in link of `server/data/officeCache.ts`
+- [ ] Wave 3: `usage.get` and `usage.retryEffect` on SQLite (the meters of `server/usage/meters.ts`, the outbox job), and the
+  mail quota of `server/mail/quota.ts`
+- [ ] Wave 3: the mail and push producers on SQLite, with the notice ids of the Diff (in wave 1 only `server/core/deps.ts`
+  imports them, so no test runs them on SQLite)
+- [ ] Wave 3: the day meter counts the rows of a rolled-back write too (proof.md "Wave 1: the transaction facts": the cursor
+  reports 2 rows written for a rolled-back insert; whether the bill counts them is unknown)
+- [ ] Wave 5: run the transaction race of Task 1 (`scripts/proof/do-tx/`) again on the deployed object of the test copy
+- [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
+  event would write 9 rows, not 10. First check with a rows pin that `undoLinks` and `notUndone` still use the index
 - [ ] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`)
 - [ ] When Track R merges: lower the badge pins (`chats.unreadCount`, `chats.list`) in `server/office/test/pins.ts` from the
   ported read (15,449 rows read, ceiling 16,994) to the measured value of the stored unread number plus 10%

@@ -1392,3 +1392,24 @@ that passes only with `--silent=false`). Each ceiling is the measured value plus
   At 2.5 calls a request: 4,290,072 read (85.8%) and 45,700 written (45.7%). Wave 0, as ported: 65% and 145%.
 - The chat badge (`chats.unreadCount` and `chats.list`) is still 2,548 of the 3,169 rows of an average production call (80%).
   Track R (the stored unread number) still decides the budget. The badge pins keep the ported number until it merges.
+
+### Wave 1 of the Supabase exit: done (2026-10-17)
+Exit plan, wave 1 Task 19. The merge gate ran once on `rb/cloudflare` at d27f504 (the tip before this record), on top of
+`origin/main` 97bbf1c (the rebase changed nothing). The main session merges the branch. Load average about 2.5 to 3.
+- `npm run typecheck`: pass.
+- `npm test`: 481 files passed; 4,954 passed, 6 skipped (about 74 new tests in wave 1).
+- `npm run build`: pass (bundle check of the prototype). `npm run build:server`: pass; no `cloudflare:workers` import in
+  `supabase/functions/_build/{api,mcp,jobs}.js` or `dist-server/worker.js`. `npm run build:remote -- test`: pass (sandbox off).
+- `npm run test:lite`: 81 files passed; 1,141 passed, 25 skipped (the db-mode skips). `lite mode: 2755 calls, 1.4 ms a call in
+  runCall, the run took 6 s.`
+- `npm run test:office`: 2 files, 8 passed (the host checks, `everyCall` parity, two writes at one time, the five rows pins
+  tests). Sandbox off.
+- `npm run test:db` (under the Docker lock, after `npx supabase db reset` from this worktree): 81 files passed; 1,141 passed,
+  25 skipped, the same as at the start of the wave. `db mode: 2755 calls, 12.1 ms a call in runCall, the run took 25 s.`
+- `npm run test:it` (under the Docker lock): 33 files, 276 passed. Wave 1 changed no file in `server/it` or `src/api`.
+- No change of behaviour on either copy: no deploy, no change to `wrangler.server.toml` or `config/server-host.json`.
+- Open items for waves 2 and 3 (TASKS.md): wave 2, the calls of `LATER_CALLS` (`users.invites`, `users.resendInvite`,
+  `agents.list`, `agents.remove`) and the effect kinds of `LATER_KINDS` on SQLite, and the sign-in link of `officeCache.ts`;
+  wave 3, `usage.get` and `usage.retryEffect`, the mail quota, the mail and push producers with the notice ids of the Diff, a
+  day meter that counts rolled-back writes, and the rows pins of the reads that keep `events_target_id` and `events_story`;
+  Track R, the badge pins drop when the stored unread number merges; wave 5, the transaction race on the deployed object.

@@ -95,3 +95,24 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   harness `callerClient`, or when the pool already holds a client.
 - Never write `public.` in a table name.
 - Database TLS fails closed (see `server/CLAUDE.md`).
+
+## The SQLite path (Supabase exit, wave 1)
+- `lite/` holds the SQLite form of this layer, beside the Postgres form: `host.ts` (node:sqlite and the refusal guard),
+  `db.ts` (the Db port: one transaction at a time, no write in a read, `onCommit`), `schema.ts` (one schema with
+  `LITE_SCHEMA_VERSION`), `office.ts` (the snapshot rows and the office lists in the object memory), `save.ts`, `whole.ts`,
+  `compile.ts`, `source.ts`, `callData.ts` (`liteData`). The office object host is `server/office/doHost.ts`.
+- A module that sends its own SQL keeps its Postgres constant and adds a `_LITE` twin beside it, picked with `sqlFor`
+  (`dialect.ts`). The fakes match the Postgres text by exact string, so never change it for the SQLite path.
+- SQLite texts: `?` or `?1`, never `$1` (SQLite reads `$1` as a named value); no `::` cast; no outer `order by` (the source sorts
+  by rowid in JavaScript); `=` for one value; at most 100 bound values (the host refuses more); a long id list key by key; no
+  `ANALYZE`; no `insert or replace`; time columns hold `toISOString()` text.
+- Key columns are plain columns that the save writes, from the column rules of `loaders/query.ts`. An office list has only `id`
+  and `doc`. An update sets `doc` and only the key columns that changed.
+- Every write of an office table raises `office_meta.version` and calls `writeOfficeSnapshot` in the same transaction.
+- A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`. After the first office object
+  deploys (wave 3), each version also needs a step in `applyLiteSchema`.
+- Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
+  time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
+  a rows pin that shows that no read needs it.
+- `test:lite` runs the rule tests and the shadow run on node:sqlite; `test:office` runs the host checks, the `everyCall`
+  parity and the rows pins on local workerd. Keep both green when you change a loader read or the save.
