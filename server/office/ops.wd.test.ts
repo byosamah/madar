@@ -1,11 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildSeed } from '../../src/data/seed';
+import { importOffice } from '../../scripts/office/import';
+import { opsOf } from '../../scripts/office/ops';
+import { seedSource } from '../../scripts/office/seed';
+import { localPasswords } from '../../tests/e2e-deploy/local';
 import { startLive } from './test/live/harness';
 
 const TODAY = '2026-10-04';
 
+type Live = Awaited<ReturnType<typeof startLive>>;
+/** The init of the fetch of the test harness (the Workers form of RequestInit). */
+type WorkerInit = Parameters<ReturnType<Live['worker']>['fetch']>[1];
+
 describe('the office ops on local workerd (server/office/ops.wd.test.ts)', () => {
-  let live: Awaited<ReturnType<typeof startLive>>;
+  let live: Live;
 
   beforeAll(async () => {
     live = await startLive();
@@ -42,4 +50,20 @@ describe('the office ops on local workerd (server/office/ops.wd.test.ts)', () =>
     const response = await live.worker().fetch('/api/office/export', { method: 'POST', body: '{"step":"begin"}' });
     expect(response.status).toBe(401);
   });
+
+  it('writes about 7.5 rows for each record in a seed, plus one row for each row that the replace deletes', async () => {
+    const ops = opsOf({ base: 'http://office.test', header: 'x-madar-ops-secret', secret: 'test-ops-secret', fetch: ((url: string, init?: RequestInit) => {
+      const target = new URL(url);
+      return live.worker().fetch(`${target.pathname}${target.search}`, init as WorkerInit);
+    }) as unknown as typeof fetch });
+    const { source } = await seedSource({ now: new Date('2026-10-04T06:00:00Z'), passwords: localPasswords() });
+    await importOffice(ops, source, { mode: 'replace' });
+    const [before] = await live.rows<{ rows_written: number }>('select sum(rows_written) as rows_written from usage_day');
+    await importOffice(ops, source, { mode: 'replace' });
+    const [after] = await live.rows<{ rows_written: number }>('select sum(rows_written) as rows_written from usage_day');
+    const seed = Number(after.rows_written) - Number(before.rows_written);
+    console.info(`one seed: ${source.records} records, ${seed} rows written`);
+    expect(seed).toBeGreaterThan(source.records);
+    expect(seed).toBeLessThanOrEqual(Math.ceil(source.records * 7.5) * 2 + 2_000);
+  }, 300_000);
 });
