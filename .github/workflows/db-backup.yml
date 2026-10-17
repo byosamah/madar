@@ -68,8 +68,8 @@ jobs:
         # Only the madar-db-* releases count: office-backup.yml writes madar-office-* releases to the same repo, and a newer one
         # of those must never hide a missed database backup.
         run: |
-          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
-            --jq '[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.createdAt) | last | .createdAt // empty')"
+          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.publishedAt) | last | .publishedAt // empty')"
           if [ -z "$newest" ]; then
             echo "No backup yet."
             echo "hours=0" >> "$GITHUB_OUTPUT"
@@ -106,8 +106,8 @@ jobs:
           GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
         run: |
           cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
-          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
-            --jq ".[] | select(.createdAt < \"$cutoff\") | select(.tagName | startswith(\"madar-db-\")) | .tagName" |
+          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt \
+            --jq ".[] | select(.publishedAt < \"$cutoff\") | select(.tagName | startswith(\"madar-db-\")) | .tagName" |
             while read -r tag; do
               echo "Remove $tag"
               gh release delete "$tag" --repo "$BACKUP_REPO" --yes --cleanup-tag

@@ -578,6 +578,14 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   the same repository, a night with no database backup no longer fails that step. Proposal: select the `madar-db-` releases only,
   as `office-backup.yml` does for its copy, and change the pin of that step in `scripts/backup/workflows.test.ts` (done at the
   wave 4 merge: the step reads the `madar-db-` releases only, and the pin checks the filter)
+- [x] The backup workflows read the time of a release from `createdAt`, which is the date of the commit of its tag (2026-10-05 for
+  every backup). Found 2026-10-17: `db-backup.yml` failed every night from 2026-10-12 (a false "282 hours old"), and its remove
+  step would have removed all 13 backups from the night of 2026-11-04 (a read-only dry run of the old filter with that cutoff
+  picked 13 of 13; the new filter picks 1). Fixed: `publishedAt` in both age checks and both remove steps of `db-backup.yml`
+  and `office-backup.yml`, and a test refuses `createdAt` (`.github/CLAUDE.md`)
+- [ ] Owner: GitHub refuses to start every CI job of byosamah/madar since 2026-10-17 13:08 UTC ("recent account payments have
+  failed or your spending limit needs to be increased"). The nightly backup at 01:15 UTC ran before that. If the refusal stays,
+  the nightly database backup stops too. See github.com/settings/billing
 - [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
   (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives

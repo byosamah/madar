@@ -24,6 +24,10 @@ branch, and a push that changes only `docs/` runs nothing.
   The restore check of its file needs no Docker (`scripts/restore-check.ts` sees the name). Its age check reads only the
   `madar-office-<copy>-` releases, and the age check of `db-backup.yml` reads only the `madar-db-` releases, so a newer
   release of the other kind never hides a missed backup.
+- The time of a backup release is `publishedAt`, never `createdAt` (2026-10-17). GitHub gives a release the `createdAt` of the
+  commit that its tag points to, and every release of madar-backups points to the one commit of 2026-10-05. With `createdAt`,
+  the age check failed every night from 2026-10-12 (a false "282 hours old" mail), and the remove step would have removed every
+  backup, the new one too, from 2026-11-04. A test refuses `createdAt` in any backup workflow.
 - `files-backup.yml`, Friday 03:07 Riyadh: rclone sync of the file store to a Backblaze B2 crypt remote. PAUSED since
   2026-10-05 (`disabled_manually`): it waits for the owner's B2 account (`B2_KEY_ID`, `B2_APPLICATION_KEY`, the S3 key of
   the store, the crypt password and salt). After those secrets: `gh workflow enable "Files backup"`, then one run by hand.

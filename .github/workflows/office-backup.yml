@@ -80,8 +80,8 @@ jobs:
           GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
           COPY: ${{ vars.OFFICE_BACKUP_COPY }}
         run: |
-          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
-            --jq "[.[] | select(.tagName | startswith(\"madar-office-$COPY-\"))] | sort_by(.createdAt) | last | .createdAt // empty")"
+          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt \
+            --jq "[.[] | select(.tagName | startswith(\"madar-office-$COPY-\"))] | sort_by(.publishedAt) | last | .publishedAt // empty")"
           if [ -z "$newest" ]; then
             echo "No office backup yet."
             echo "hours=0" >> "$GITHUB_OUTPUT"
@@ -130,8 +130,8 @@ jobs:
         run: |
           cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
           copy="$COPY"
-          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
-            --jq ".[] | select(.createdAt < \"$cutoff\") | select(.tagName | startswith(\"madar-office-${copy}-\")) | .tagName" |
+          gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt \
+            --jq ".[] | select(.publishedAt < \"$cutoff\") | select(.tagName | startswith(\"madar-office-${copy}-\")) | .tagName" |
             while read -r tag; do
               echo "Remove $tag"
               gh release delete "$tag" --repo "$BACKUP_REPO" --yes --cleanup-tag

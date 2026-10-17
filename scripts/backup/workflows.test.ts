@@ -38,6 +38,21 @@ describe('the backup workflows', () => {
     for (const [name, text] of Object.entries(FILES)) expect(text, name).not.toBe('');
   });
 
+  // GitHub gives a release the createdAt of the commit that its tag points to. Every release of madar-backups points to the same
+  // commit (2026-10-05), so createdAt never changes. The age checks failed every night (282 hours), and from 2026-11-04 the remove
+  // steps would have removed every backup, the new one too. publishedAt is the time of the upload.
+  it('read the time of each backup from publishedAt, never createdAt, in each age check and each remove step', () => {
+    expect(all).not.toContain('createdAt');
+    for (const [text, fresh, remove] of [
+      [FILES.db, 'Age of the newest backup', 'Remove backups older than 30 days'],
+      [FILES.office, 'Age of the newest office backup', 'Remove office backups older than 30 days'],
+    ] as const) {
+      expect(step(text, fresh)).toContain('sort_by(.publishedAt) | last | .publishedAt // empty');
+      expect(step(text, remove)).toContain('--json tagName,publishedAt');
+      expect(step(text, remove)).toContain('select(.publishedAt < \\"$cutoff\\")');
+    }
+  });
+
   it('run on their schedule in Riyadh time, off the busy start of the hour, and by hand', () => {
     expect(FILES.db).toMatch(/- cron: '7 2 \* \* \*'\n\s+timezone: 'Asia\/Riyadh'/);
     expect(FILES.files).toMatch(/- cron: '7 3 \* \* 5'\n\s+timezone: 'Asia\/Riyadh'/);
@@ -128,8 +143,8 @@ describe('db-backup.yml', () => {
     expect(FILES.db).toContain("STALE_HOURS: '26'");
     // office-backup.yml writes madar-office-* releases to the same repo. A newer office release must never hide a missed database backup.
     const fresh = step(FILES.db, 'Age of the newest backup');
-    expect(fresh).toContain('gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt');
-    expect(fresh).toContain(`[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.createdAt) | last | .createdAt // empty`);
+    expect(fresh).toContain('gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,publishedAt');
+    expect(fresh).toContain(`[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.publishedAt) | last | .publishedAt // empty`);
     expect(fresh).not.toContain('--limit 1 ');
     const stale = step(FILES.db, 'Fail when the backup before this one was older than 26 hours');
     expect(stale).toContain('if: fromJSON(steps.fresh.outputs.hours) > fromJSON(env.STALE_HOURS)');
