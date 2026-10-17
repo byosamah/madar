@@ -153,6 +153,13 @@ describe('the office parts (server/office/parts.ts)', () => {
     expect(report.day).toMatchObject({ requests: 1, worker_requests: 2 });
   });
 
+  it('warns the Admins in a Cron run when a day meter reaches 80%', async () => {
+    const { parts, raw, net } = await office();
+    raw.prepare("insert into usage_day (day, rows_read) values ('2026-10-04', 4500000)").run();
+    await parts.cron({ at: NOW, worker: 0 }, net);
+    expect(net.calls).toContain('mail limit-warning-2026-10-04-rowsReadDay-usr_001');
+  });
+
   it('answers health with the schema version and the last job run', async () => {
     const { parts } = await office();
     expect(await parts.health()).toEqual({ schema: LITE_SCHEMA_VERSION, lastJob: null });

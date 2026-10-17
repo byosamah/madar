@@ -3,6 +3,7 @@ import { can } from '../../src/api/permissions';
 import { resolveActor } from '../core/actor';
 import { processOutbox } from '../core/effects';
 import type { ServerCall, ServerCallCtx } from '../core/types';
+import { isLite } from '../data/dialect';
 import { readUsage } from '../usage/meters';
 
 /**
@@ -30,6 +31,10 @@ export const usageGet: ServerCall<'usage.get'> = async (_input, ctx) => {
 export const RETRY_EFFECT_SQL =
   'update outbox set attempts = 0, error = null, claimed_until = null where id = $1 and done_at is null and error is not null returning id';
 
+/** SQLite (exit wave 3): the id is the integer rowid. */
+export const RETRY_EFFECT_LITE =
+  'update outbox set attempts = 0, error = null, claimed_until = null where id = ?1 and done_at is null and error is not null returning id';
+
 /**
  * usage.retryEffect (plan 4.12; task M1): the Retry of one failed effect in Admin, Usage. The job stops at 5 attempts, so without
  * it an invitation to a bad address would stay a failed line for good. The reset commits first, then the effect runs once, as
@@ -38,7 +43,9 @@ export const RETRY_EFFECT_SQL =
 export const usageRetryEffect: ServerCall<'usage.retryEffect'> = async (input, ctx) => {
   assertAdmin(ctx);
   const { deps } = ctx;
-  const rows = await deps.db.tx('write', (q) => q<{ id: string | number }>(RETRY_EFFECT_SQL, [input.id]));
+  const rows = await deps.db.tx('write', (q) => (isLite(q)
+    ? q<{ id: string | number }>(RETRY_EFFECT_LITE, [Number(input.id)])
+    : q<{ id: string | number }>(RETRY_EFFECT_SQL, [input.id])));
   if (rows.length === 0) throw notFound('Failed effect', input.id);
   const ids = rows.map((row) => String(row.id));
   try {

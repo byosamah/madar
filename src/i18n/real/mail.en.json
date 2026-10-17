@@ -60,7 +60,11 @@
         "backup": "The backup copy of the files",
         "emailsToday": "Emails today",
         "emailsMonth": "Emails this month",
-        "egress": "Data sent this month"
+        "egress": "Data sent this month",
+        "rowsReadDay": "Database rows read today",
+        "rowsWrittenDay": "Database rows written today",
+        "objectRequestsDay": "Requests to the office database today",
+        "workerRequestsDay": "Server requests today"
       },
       "next": {
         "calls": "Next step: move Madar to the paid database plan before the month ends.",
@@ -71,7 +75,11 @@
         "backup": "Next step: remove old copies from the backup storage, or pay for more space there.",
         "emailsToday": "Notice emails stop at the daily limit and stay in the app. No action is needed.",
         "emailsMonth": "Next step: ask people to turn off the email notices that they do not need.",
-        "egress": "Next step: move Madar to the paid database plan before the month ends."
+        "egress": "Next step: move Madar to the paid database plan before the month ends.",
+        "rowsReadDay": "This limit starts again at 03:00 Riyadh time. If Madar reaches it, the screens stop until then. Next step: run heavy work, such as test runs, after office hours.",
+        "rowsWrittenDay": "This limit starts again at 03:00 Riyadh time. If Madar reaches it, changes stop until then. Next step: run heavy work, such as test runs, after office hours.",
+        "objectRequestsDay": "This limit starts again at 03:00 Riyadh time. If Madar reaches it, Madar stops until then. Next step: run heavy work, such as test runs, after office hours.",
+        "workerRequestsDay": "This limit starts again at 03:00 Riyadh time. If Madar reaches it, Madar stops until then. Next step: run heavy work, such as test runs, after office hours."
       }
     },
     "quota": {

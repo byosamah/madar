@@ -3,6 +3,8 @@ import { nowStamp } from '../../src/lib/dates';
 import { CALL_LIMITS, type Config, type FileStoreKind, type Query } from '../core/ports';
 import type { ServerHost } from '../core/serverHost';
 import type { ServerCallOutput } from '../core/types';
+import { isLite } from '../data/dialect';
+import { liteDbOf } from '../data/lite/db';
 import { sentToday } from '../mail/quota';
 import type { UsageMeter } from '../mail/templates';
 
@@ -62,6 +64,22 @@ export const SIGNALS_SQL = 'select signals_failed, signals_failed_at from usage_
 /** The heartbeat that the 15-minute job writes first in each run (plan 5.5, step 0). */
 export const JOBS_LAST_RUN_SQL = "select done_at from job_runs where key = 'heartbeat'";
 
+// SQLite forms (exit wave 3). The size of the database is the size of the office object (sql.databaseSize). The files are on R2 on
+// the office path, so the meter counts the sizes of the versions in the file records, as on R2 today.
+export const USAGE_MONTH_LITE = 'select calls, bytes_read from usage_month where month = ?1';
+export const BACKUP_BYTES_LITE = 'select backup_bytes from usage_month where backup_bytes is not null order by month desc limit 1';
+export const FILES_BYTES_LITE =
+  "select coalesce(sum(json_extract(f.doc, v.fullkey || '.size')), 0) as n from files f, json_each(f.doc, '$.versions') v "
+  + "where json_type(f.doc, '$.versions') = 'array' and v.type = 'object'";
+export const EMAILS_MONTH_LITE = "select count(*) as n from mail_log where utc_day >= ?1 and utc_day < ?2 and kind in ('notice', 'summary', 'signin', 'warning')";
+/** ?1 now + 2 minutes. created_at desc, id desc: the backward scan of the partial index outbox_open, no sort step. */
+export const FAILED_EFFECTS_LITE =
+  'select cast(id as text) as id, kind, error, attempts, created_at from outbox where done_at is null and error is not null '
+  + 'and not coalesce(claimed_until > ?1, 0) order by created_at desc, id desc limit 20';
+export const SIGNALS_LITE = 'select signals_failed, signals_failed_at from usage_month where month = ?1 and signals_failed > 0 and signals_failed_at >= ?2';
+/** ?1 the UTC day. The day meters of the office object (server/office/meter.ts writes the row in its next write). */
+export const DAY_ROW_LITE = 'select rows_read, rows_written, requests, calls, worker_requests from usage_day where day = ?1';
+
 /** The kind of the failed effect line for the change signals. */
 export const SIGNAL_EFFECT_KIND = 'realtime.signal';
 
@@ -72,6 +90,31 @@ const dateOf = (value: unknown): Date => (value instanceof Date ? value : new Da
 /** The UTC month of a moment, "YYYY-MM". */
 export function utcMonth(at: Date): string {
   return at.toISOString().slice(0, 7);
+}
+
+/** The first day of the month after "YYYY-MM". */
+function nextMonth(month: string): string {
+  const [year, number] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10);
+}
+
+/** The meters on SQLite (exit wave 3): one short statement for each part, as SQLite has no pg_database_size. */
+async function readMetersLite(q: Query, config: Pick<Config, 'limits'> & Partial<Pick<Config, 'servingHost'>>, now: Date): Promise<Meters> {
+  const month = utcMonth(now);
+  const [usage] = await q<{ calls: unknown; bytes_read: unknown }>(USAGE_MONTH_LITE, [month]);
+  const [backup] = await q<{ backup_bytes: unknown }>(BACKUP_BYTES_LITE);
+  const [files] = await q<{ n: unknown }>(FILES_BYTES_LITE);
+  const [emails] = await q<{ n: unknown }>(EMAILS_MONTH_LITE, [`${month}-01`, nextMonth(month)]);
+  return {
+    month,
+    calls: { used: num(usage?.calls), limit: CALL_LIMITS[config.servingHost ?? 'supabase'] },
+    database: { used: liteDbOf(q).host.size(), limit: FREE_PLAN_LIMITS.databaseBytes },
+    files: { used: num(files?.n), limit: config.limits.filesTotalBytes },
+    backupCopy: { used: num(backup?.backup_bytes), limit: FREE_PLAN_LIMITS.backupCopyBytes },
+    emails: { used: await sentToday(q, { now }), limit: FREE_PLAN_LIMITS.emailsPerDay },
+    emailsMonth: { used: num(emails?.n), limit: FREE_PLAN_LIMITS.emailsPerMonth },
+    egress: { used: num(usage?.bytes_read), limit: FREE_PLAN_LIMITS.egressBytes },
+  };
 }
 
 type MeterRow = { calls: unknown; bytes_read: unknown; backup_bytes: unknown; database_bytes: unknown; files_bytes: unknown; emails_month: unknown };
@@ -86,6 +129,7 @@ async function storedBytes(q: Query, store: FileStoreKind, fromRecords: number):
 }
 
 export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'fileStore'> & Partial<Pick<Config, 'servingHost'>>, now: Date): Promise<Meters> {
+  if (isLite(q)) return readMetersLite(q, config, now);
   const month = utcMonth(now);
   const [row] = await q<MeterRow>(METERS_SQL, [month, `${month}-01`]);
   const today = await sentToday(q, { now });
@@ -104,7 +148,9 @@ export async function readMeters(q: Query, config: Pick<Config, 'limits' | 'file
 
 export async function readUsage(q: Query, config: Pick<Config, 'limits' | 'fileStore'> & Partial<Pick<Config, 'servingHost'>>, now: Date): Promise<Usage> {
   const meters = await readMeters(q, config, now);
-  const failed = await q<{ id: string; kind: string; error: string | null; attempts: unknown; created_at: unknown }>(FAILED_EFFECTS_SQL);
+  const failed = isLite(q)
+    ? await q<{ id: string; kind: string; error: string | null; attempts: unknown; created_at: unknown }>(FAILED_EFFECTS_LITE, [new Date(now.getTime() + 2 * 60_000).toISOString()])
+    : await q<{ id: string; kind: string; error: string | null; attempts: unknown; created_at: unknown }>(FAILED_EFFECTS_SQL);
   const failedEffects: FailedEffect[] = failed.map((row) => ({
     id: String(row.id),
     kind: row.kind,
@@ -112,7 +158,7 @@ export async function readUsage(q: Query, config: Pick<Config, 'limits' | 'fileS
     attempts: num(row.attempts),
     createdAt: nowStamp(dateOf(row.created_at)),
   }));
-  const [signals] = await q<{ signals_failed: unknown; signals_failed_at: unknown }>(SIGNALS_SQL, [meters.month, new Date(now.getTime() - DAY_MS).toISOString()]);
+  const [signals] = await q<{ signals_failed: unknown; signals_failed_at: unknown }>(isLite(q) ? SIGNALS_LITE : SIGNALS_SQL, [meters.month, new Date(now.getTime() - DAY_MS).toISOString()]);
   if (signals) {
     const count = num(signals.signals_failed);
     failedEffects.unshift({ kind: SIGNAL_EFFECT_KIND, error: `${count} change signals were not sent this month.`, attempts: count, createdAt: nowStamp(dateOf(signals.signals_failed_at)) });

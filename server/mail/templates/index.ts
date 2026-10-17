@@ -17,9 +17,13 @@ export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
 
 /**
  * The usage meters of the 80% warning (plan 5.8). filesR2: file storage after the move to R2 (section 10, decision 2).
- * callsWorkers: the calls of a copy that the Worker serves (owner, 2026-10-16).
+ * callsWorkers: the calls of a copy that the Worker serves (owner, 2026-10-16). The four *Day meters: the Free day limits of the
+ * office path (exit wave 3), each until 03:00 Riyadh.
  */
-export const USAGE_METERS = ['calls', 'callsWorkers', 'database', 'files', 'filesR2', 'backup', 'emailsToday', 'emailsMonth', 'egress'] as const;
+export const USAGE_METERS = [
+  'calls', 'callsWorkers', 'database', 'files', 'filesR2', 'backup', 'emailsToday', 'emailsMonth', 'egress',
+  'rowsReadDay', 'rowsWrittenDay', 'objectRequestsDay', 'workerRequestsDay',
+] as const;
 export type UsageMeter = (typeof USAGE_METERS)[number];
 
 export type MailData = {

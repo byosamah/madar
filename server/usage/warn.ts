@@ -1,10 +1,11 @@
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Deps } from '../core/ports';
-import { isLite } from '../data/dialect';
-import { ADMIN_MAIL_SQL, ADMINS_SQL, appLink, litePerson, mailOf, mailable, type PersonRow } from '../mail/notices';
-import { sendCounted } from '../mail/quota';
+import { isLite, sqlFor } from '../data/dialect';
+import { ADMIN_MAIL_SQL, adminsOf, appLink, litePerson, mailOf, mailable, type PersonRow } from '../mail/notices';
+import { sendCounted, utcDay } from '../mail/quota';
 import { USAGE_METERS, renderMail, type UsageMeter } from '../mail/templates';
-import { overLimit, readMeters, warningMeters } from './meters';
+import type { DayRow } from '../office/parts';
+import { DAY_ROW_LITE, overLimit, readMeters, warningMeters, type Meter } from './meters';
 
 /**
  * The 80% warning (plan 5.8; task M1). The 15-minute job (track N3) runs checkLimits after its other steps.
@@ -31,26 +32,56 @@ export const WARNING_QUOTA_FULL = 'The warning quota of today is full.';
 /** $1 the UTC month, $2 the meter. A row back means this run made the mark, and so it sends the warning. */
 export const WARNING_MARK_SQL = 'insert into usage_warnings (month, metric) values ($1, $2) on conflict (month, metric) do nothing returning metric';
 
-export async function checkLimits(deps: Deps): Promise<{ warned: UsageMeter[] }> {
-  const now = deps.clock.now();
-  const meters = await deps.db.tx('read', (q) => readMeters(q, deps.config, now));
-  const over = warningMeters(meters, deps.config.fileStore, deps.config.servingHost).filter((m) => overLimit(m.value));
+/** SQLite (exit wave 3). A day meter marks its UTC day in the month column, so it warns once a day. */
+export const WARNING_MARK_LITE = 'insert into usage_warnings (month, metric) values (?1, ?2) on conflict (month, metric) do nothing returning metric';
+
+/**
+ * The Free day limits of the office path (developers.cloudflare.com, the Durable Objects and Workers pricing pages, read
+ * 2026-10-17): rows read and written and requests of Durable Objects, and requests of Workers. Each ends at 00:00 UTC (03:00
+ * Riyadh). They are limits of the account: the office object counts its own share, and wave 5 compares it with Cloudflare.
+ */
+export const DAY_LIMITS = { rowsReadDay: 5_000_000, rowsWrittenDay: 100_000, objectRequestsDay: 100_000, workerRequestsDay: 100_000 } as const;
+
+/** One mark for each meter over 80% in its period, and the warning rows for each active Admin of the meters that this run marked. */
+async function warnAdmins(deps: Deps, period: string, over: { meter: UsageMeter; value: Meter }[]): Promise<{ warned: UsageMeter[] }> {
   if (over.length === 0) return { warned: [] };
   const { warned, ids } = await deps.db.tx('write', async (q) => {
     const marked: UsageMeter[] = [];
-    for (const m of over) if ((await q(WARNING_MARK_SQL, [meters.month, m.meter])).length > 0) marked.push(m.meter);
+    for (const m of over) if ((await q(sqlFor(q, WARNING_MARK_SQL, WARNING_MARK_LITE), [period, m.meter])).length > 0) marked.push(m.meter);
     if (marked.length === 0) return { warned: marked, ids: [] };
-    const admins = await q<{ id: string }>(ADMINS_SQL);
+    const admins = await adminsOf(q);
     const rows: OutboxRow[] = [];
     for (const meter of marked) {
       const value = over.find((m) => m.meter === meter)!.value;
       const percent = Math.floor((value.used / value.limit) * 100);
-      for (const admin of admins) rows.push({ kind: LIMIT_WARNING_EFFECT, payload: { userId: admin.id, meter, percent, month: meters.month } });
+      for (const admin of admins) rows.push({ kind: LIMIT_WARNING_EFFECT, payload: { userId: admin.id, meter, percent, month: period } });
     }
     return { warned: marked, ids: await writeOutbox(q, rows) };
   });
   if (ids.length > 0) await processOutbox(deps, ids);
   return { warned };
+}
+
+export async function checkLimits(deps: Deps): Promise<{ warned: UsageMeter[] }> {
+  const now = deps.clock.now();
+  const meters = await deps.db.tx('read', (q) => readMeters(q, deps.config, now));
+  const over = warningMeters(meters, deps.config.fileStore, deps.config.servingHost).filter((m) => overLimit(m.value));
+  return warnAdmins(deps, meters.month, over);
+}
+
+/** The 80% warning of the Free day limits, on the office object only (each Cron run; one row read). */
+export async function checkDayLimits(deps: Deps, at: Date): Promise<{ warned: UsageMeter[] }> {
+  if (!isLite(deps.db)) return { warned: [] };
+  const day = utcDay(at);
+  const [row] = await deps.db.statement<DayRow>('read', DAY_ROW_LITE, [day]);
+  if (!row) return { warned: [] };
+  const meters: { meter: UsageMeter; value: Meter }[] = [
+    { meter: 'rowsReadDay', value: { used: Number(row.rows_read), limit: DAY_LIMITS.rowsReadDay } },
+    { meter: 'rowsWrittenDay', value: { used: Number(row.rows_written), limit: DAY_LIMITS.rowsWrittenDay } },
+    { meter: 'objectRequestsDay', value: { used: Number(row.requests), limit: DAY_LIMITS.objectRequestsDay } },
+    { meter: 'workerRequestsDay', value: { used: Number(row.worker_requests), limit: DAY_LIMITS.workerRequestsDay } },
+  ];
+  return warnAdmins(deps, day, meters.filter((m) => overLimit(m.value)));
 }
 
 const isMeter = (value: unknown): value is UsageMeter => (USAGE_METERS as readonly unknown[]).includes(value);

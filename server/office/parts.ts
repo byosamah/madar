@@ -12,6 +12,7 @@ import type { JobReport } from '../jobs/run';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { utcDay } from '../mail/quota';
 import { JOBS_LAST_RUN_SQL } from '../usage/meters';
+import { checkDayLimits } from '../usage/warn';
 import { EffectLedger, officeData, runOfficeBatch, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
@@ -131,6 +132,9 @@ export function officeParts(o: PartsInput): OfficeParts {
       const deps = depsFor(net);
       const report = await runOfficeJobs(deps, at);
       await db.tx('write', (q) => meter.flush(q, at));
+      await checkDayLimits(deps, at).catch((error: unknown) => {
+        log.warn('The day meters were not checked. The next run checks them.', { error: error instanceof Error ? error.message : String(error) });
+      });
       const closed = sweep(o.sockets, clock.now(), staleMs);
       const [day] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(at)]);
       return { ...report, closed, day: day ?? null };

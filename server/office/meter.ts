@@ -4,6 +4,12 @@ import { utcDay } from '../mail/quota';
 import { utcMonth } from '../usage/meters';
 
 /**
+ * The day row text lives in server/usage/meters.ts: the 80% warning (server/usage/warn.ts) reads it, and the Supabase bundles load
+ * that module, so they never load a file of server/office/ (workerGraph.test.ts).
+ */
+export { DAY_ROW_LITE } from '../usage/meters';
+
+/**
  * The meter of the office object (exit wave 3; wave 0 change 6). The Free day limits of Durable Objects are rows read (5 million),
  * rows written (100,000) and requests (100,000), each until 00:00 UTC. The meter counts them, the calls inside them, and the Worker
  * requests that the Worker reports with each object call. It keeps every count in memory and adds it in the next write transaction
@@ -28,7 +34,6 @@ export const MONTH_FLUSH_LITE =
   + 'on conflict (month) do update set calls = usage_month.calls + excluded.calls, bytes_read = usage_month.bytes_read + excluded.bytes_read, '
   + 'signals_failed = usage_month.signals_failed + excluded.signals_failed, '
   + 'signals_failed_at = coalesce(excluded.signals_failed_at, usage_month.signals_failed_at)';
-export const DAY_ROW_LITE = 'select rows_read, rows_written, requests, calls, worker_requests from usage_day where day = ?1';
 
 const zero = (): DayCounts => ({ rowsRead: 0, rowsWritten: 0, requests: 0, calls: 0, workerRequests: 0 });
 const countOf = (n: number): number => (Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
