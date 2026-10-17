@@ -495,8 +495,17 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   while a plain Worker failed 1,309 of 1,797 (proof.md "Wave 0 of the Supabase exit")
 - [x] The rest of wave 0 (owner, 2026-10-16: "yes go ahead"): rows on one year of data, sockets, bcrypt and ES256 (proof.md
   "Wave 0, the rest"). Sockets and crypto fit Free; rows read is the tight limit (the chat badge is about 75% of it)
-- [ ] Owner: go or no-go for the build of the exit plan, with the six changes of wave 0 at the top of the spec
-- [ ] Owner: delete the throwaway probe Workers `madar-do-probe`, `madar-cpu-probe` and `madar-socket-probe` (all off, 404)
+- [x] Owner: go for the build of the exit plan (2026-10-17: "go based on ur recommendation"), with the six changes of wave 0
+  from day one and the switch soon while production is small
+- [x] The throwaway probe Workers `madar-do-probe`, `madar-cpu-probe` and `madar-socket-probe` are deleted (owner OK, 2026-10-17)
+- [x] The build plan: `docs/superpowers/plans/2026-10-17-madar-cloudflare-exit-plan.md` (97bbf1c): the roadmap of 6 waves and
+  Track R, wave 1 in 19 tasks
+- [x] Exit wave 1, Task 1: the transaction facts of the office object on local workerd. Option B holds: a failed transaction
+  keeps no row, and no request runs inside an open transaction (proof.md "Wave 1: the transaction facts", 9ec27c4)
+- [ ] Exit wave 1, Tasks 2 to 19: the SQLite path beside Postgres (`rb/cloudflare`)
+- [ ] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`)
+- [ ] Owner decisions of later waves (spec section 7): the switch date, B2 or R2 alone, the account of the test copy, the
+  Supabase delete date, the $5 safety valve (still open: no payment without a yes in words)
 - [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
   pooler connection now closes after 1 s idle (ff963e1). The 4 walks, acceptance, settings and shell: 38 passed, 0 failed
   (proof.md "The pooler client limit under load")
