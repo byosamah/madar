@@ -6,8 +6,10 @@ import type { OfficeBatchInput, OfficeBatchOutput } from './batch';
 import { doHost } from './doHost';
 import { LIVE_PING, LIVE_PONG, type LiveSocket, type Sockets } from './live';
 import type { NetApi } from './net';
+import type { OpResult } from '../auth/own/office';
 import {
   officeParts, type OfficeCronInput, type OfficeCronReport, type OfficeEffectsInput, type OfficeEffectsReport, type OfficeHealth, type OfficeParts,
+  type OfficeSigninInput,
 } from './parts';
 import { principalOfWho, type OfficeWho } from './who';
 
@@ -62,6 +64,14 @@ export class Office extends DurableObject<Env> {
   /** One 15-minute run of the jobs (the Cron Trigger of the Worker), with the network port of that Worker invocation. */
   cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport> {
     return this.parts.cron(input, net);
+  }
+
+  /**
+   * One step of the own sign-in (exit wave 2): the routes of the Worker call it through objectSigninOffice. The key of
+   * MADAR_AUTH_PRIVATE_JWK is imported before any transaction of the step; an unknown name answers not_found.
+   */
+  signin(body: OfficeSigninInput): Promise<OpResult<unknown>> {
+    return this.parts.signin(body);
   }
 
   health(): Promise<OfficeHealth> {

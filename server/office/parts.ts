@@ -1,6 +1,9 @@
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../core/deps';
 import { processOutbox } from '../core/effects';
+import { signingKeysOf, type SigningKeys } from '../auth/own/keys';
 import { liteAuthAdmin } from '../auth/own/liteAdmin';
+import { runSigninOp, type OpInput, type OpResult, type SigninOpName } from '../auth/own/office';
+import { OWN_AUTH_SECRET } from '../auth/ownKeys';
 import type { Clock, Deps, Logger } from '../core/ports';
 import { createRunCall } from '../core/runCall';
 import type { CallEntry } from '../core/serverCallMap';
@@ -9,6 +12,7 @@ import { liteDb, type LiteDb } from '../data/lite/db';
 import type { SqlHost } from '../data/lite/host';
 import { readLiteOffice } from '../data/lite/office';
 import { LITE_SCHEMA_VERSION } from '../data/lite/schema';
+import { runErrorOf } from '../http/errors';
 import type { JobReport } from '../jobs/run';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { utcDay } from '../mail/quota';
@@ -34,6 +38,8 @@ export type OfficeHealth = { schema: number; lastJob: string | null };
 /** One Cron run: its time (ISO text) and the Worker requests since the last report. */
 export type OfficeCronInput = { at: string; worker: number };
 export type DayRow = { rows_read: number; rows_written: number; requests: number; calls: number; worker_requests: number };
+/** One step of the own sign-in (exit wave 2): its name in SIGNIN_STEPS (server/auth/own/office.ts) and its input. */
+export type OfficeSigninInput = { signin: string; input: unknown };
 /** The report of the job, the sockets that the sweep closed, and the day row of the meters after the run. */
 export type OfficeCronReport = JobReport & { closed: number; day: DayRow | null };
 
@@ -55,6 +61,7 @@ export type OfficeParts = {
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
   cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
+  signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
   socket(request: Request): Promise<Response>;
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
@@ -86,6 +93,20 @@ export function officeParts(o: PartsInput): OfficeParts {
   // The sign-in rows live in the object (exit wave 2): the effects of server/auth/invite.ts and server/auth/effects.ts run here,
   // and only their mail goes through the network port of the Worker.
   const authAdmin = liteAuthAdmin({ db, clock });
+  // The keys of the own tokens, imported once for each value of the secret and always before a transaction of a step.
+  let held: { text: string; keys: Promise<SigningKeys> } | undefined;
+  const keysOf = (): Promise<SigningKeys> => {
+    const text = o.read(OWN_AUTH_SECRET);
+    if (text === undefined) return Promise.reject(new Error(`${OWN_AUTH_SECRET} is not set: the own sign-in of the office object needs it.`));
+    if (held?.text !== text) {
+      const keys = signingKeysOf(text, values.config.mcpUrl);
+      held = { text, keys };
+      keys.catch(() => {
+        if (held?.keys === keys) held = undefined;
+      });
+    }
+    return held.keys;
+  };
 
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes });
@@ -138,6 +159,18 @@ export function officeParts(o: PartsInput): OfficeParts {
       const closed = sweep(o.sockets, clock.now(), staleMs);
       const [day] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(at)]);
       return { ...report, closed, day: day ?? null };
+    },
+    async signin(body) {
+      meter.request();
+      let keys: SigningKeys;
+      try {
+        keys = await keysOf();
+      } catch (error) {
+        log.error('The sign-in keys of the office object did not load.', { error: error instanceof Error ? error.message : String(error) });
+        return { ok: false, error: runErrorOf(error) };
+      }
+      // runSigninOp answers a name that is not in SIGNIN_STEPS with not_found, so the cast gives no step that does not exist.
+      return runSigninOp({ db, clock, log, config: values.config, keys }, body.signin as SigninOpName, body.input as OpInput<SigninOpName>);
     },
     async socket(request) {
       meter.request();

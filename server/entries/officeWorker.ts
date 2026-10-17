@@ -10,7 +10,8 @@ import { JOBS_SECRET_HEADER, sameSecret } from '../jobs/app';
 import type { OfficeBatchInput, OfficeBatchOutput } from '../office/batch';
 import { TICKET_REFUSED, TICKET_SHAPE } from '../office/live';
 import type { NetApi } from '../office/net';
-import type { OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth } from '../office/parts';
+import type { OpResult } from '../auth/own/office';
+import type { OfficeCronInput, OfficeCronReport, OfficeEffectsInput, OfficeEffectsReport, OfficeHealth, OfficeSigninInput } from '../office/parts';
 
 /**
  * The Worker side of the office path (exit wave 3). The Worker checks the build, the body and the token (the CPU-light part, 10 ms
@@ -31,6 +32,7 @@ export type OfficeStub = {
   batch(input: OfficeBatchInput, net: NetApi): Promise<OfficeBatchOutput>;
   runEffects(input: OfficeEffectsInput, net: NetApi): Promise<OfficeEffectsReport>;
   cron(input: OfficeCronInput, net: NetApi): Promise<OfficeCronReport>;
+  signin(body: OfficeSigninInput): Promise<OpResult<unknown>>;
   health(): Promise<OfficeHealth>;
   fetch(request: Request): Promise<Response>;
 };

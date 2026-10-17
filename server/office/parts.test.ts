@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { jwtVerify } from 'jose';
 import { describe, expect, it } from 'vitest';
 import type { WireResponse } from '../../src/api/remote/wire';
 import type { State } from '../../src/api/store';
@@ -10,6 +11,12 @@ import { liteSave } from '../data/lite/save';
 import { applyLiteSchema, LITE_SCHEMA_VERSION } from '../data/lite/schema';
 import { liteWriteState } from '../data/lite/whole';
 import { fixedClock } from '../test/fakes/clock';
+import { SIGNIN_STEPS } from '../auth/own/office';
+import { hashPassword } from '../auth/own/password';
+import { AUTH_USER_INSERT } from '../auth/own/rows';
+import { testPrivateJwk } from '../auth/own/testKeys';
+import { ownIssuer, ownKeySet } from '../auth/ownKeys';
+import { setLiteAuthLink } from '../data/lite/office';
 import { CLOSE_OFF, CLOSE_STALE } from './live';
 import { EffectLedger, type OfficeBatchInput } from './batch';
 import { officeParts } from './parts';
@@ -25,14 +32,23 @@ export const OFFICE_ENV: Record<string, string> = {
 };
 const silent = { info: () => undefined, warn: () => undefined, error: () => undefined };
 
+type Line = { level: 'info' | 'warn' | 'error'; message: string; fields?: Record<string, unknown> };
+/** A log that keeps every line, for a test that reads what the object logged. */
+const keptLog = () => {
+  const lines: Line[] = [];
+  const keep = (level: Line['level']) => (message: string, fields?: Record<string, unknown>) => void lines.push({ level, message, ...(fields ? { fields } : {}) });
+  return { lines, info: keep('info'), warn: keep('warn'), error: keep('error') };
+};
+
 /** The office parts on node:sqlite with the sample office. The token of a batch is the user id itself, as in test:office. */
-async function office(edit: (seed: State) => void = () => undefined) {
+async function office(edit: (seed: State) => void = () => undefined, o: { env?: Record<string, string>; log?: ReturnType<typeof keptLog> } = {}) {
+  const values = { ...OFFICE_ENV, ...o.env };
   const raw = new DatabaseSync(':memory:');
   const host = Object.assign(nodeHost(raw), { totals: { rowsRead: 0, rowsWritten: 0 } });
   await applyLiteSchema(host);
   const sockets = fakeSockets();
   const parts = officeParts({
-    host, read: (name) => OFFICE_ENV[name], sockets, clock: fixedClock(NOW), log: silent,
+    host, read: (name) => values[name], sockets, clock: fixedClock(NOW), log: o.log ?? silent,
     principal: (who, snapshot) => {
       const principal = { userId: who.authUserId };
       resolveActor(snapshot, principal);
@@ -175,6 +191,53 @@ describe('the office parts (server/office/parts.ts)', () => {
   it('answers health with the schema version and the last job run', async () => {
     const { parts } = await office();
     expect(await parts.health()).toEqual({ schema: LITE_SCHEMA_VERSION, lastJob: null });
+  });
+});
+
+describe('the sign-in steps in the office object (Office.signin)', () => {
+  /** A sign-in row with a password for a person of the sample office, linked to that person. */
+  async function withPassword(parts: Awaited<ReturnType<typeof office>>['parts'], seed: State, userId: string): Promise<{ authId: string; email: string }> {
+    const authId = crypto.randomUUID();
+    const email = seed.users[userId].email.toLowerCase();
+    const hash = await hashPassword('a good password');
+    await parts.db.tx('write', async (q) => {
+      await q(AUTH_USER_INSERT, [authId, email, hash, 1, 1, NOW]);
+      await setLiteAuthLink(q, userId, authId);
+    });
+    return { authId, email };
+  }
+
+  it('signs a person in with the key of MADAR_AUTH_PRIVATE_JWK, and the token carries the own issuer', async () => {
+    const jwk = await testPrivateJwk();
+    const { parts, seed } = await office(undefined, { env: { MADAR_AUTH_PRIVATE_JWK: jwk } });
+    const { authId, email } = await withPassword(parts, seed, 'usr_002');
+    const result = await parts.signin({ signin: 'auth.password', input: { email, password: 'a good password', address: '203.0.113.7' } });
+    if (!result.ok) throw new Error(`The sign-in was refused: ${JSON.stringify(result)}`);
+    const answer = result.value as { access_token: string; user: { id: string } };
+    expect(answer.user.id).toBe(authId);
+    // The clock of the test is fixed, so the check of the 15-minute token runs at that time.
+    const { payload } = await jwtVerify(answer.access_token, ownKeySet(jwk), {
+      issuer: ownIssuer('http://127.0.0.1:54321/functions/v1/mcp'), audience: 'authenticated', algorithms: ['ES256'], currentDate: new Date(NOW),
+    });
+    expect(payload).toMatchObject({ sub: authId, role: 'authenticated' });
+  });
+
+  it('reaches the step of each of the 13 names of SIGNIN_STEPS, and refuses a name that is not one', async () => {
+    const { parts } = await office(undefined, { env: { MADAR_AUTH_PRIVATE_JWK: await testPrivateJwk() } });
+    const names = Object.keys(SIGNIN_STEPS);
+    expect(names).toHaveLength(13);
+    for (const name of names) {
+      const result = await parts.signin({ signin: name, input: {} });
+      expect(JSON.stringify(result), name).not.toContain('This sign-in step does not exist.');
+    }
+    expect(await parts.signin({ signin: 'auth.nothing', input: {} })).toMatchObject({ ok: false, error: { code: 'not_found', message: 'This sign-in step does not exist.' } });
+  });
+
+  it('answers failed with no key, and the log names the secret and never a value', async () => {
+    const log = keptLog();
+    const { parts } = await office(undefined, { log });
+    expect(await parts.signin({ signin: 'auth.password', input: { email: 'x@madar.test', password: 'a good password', address: '203.0.113.7' } })).toMatchObject({ ok: false, error: { code: 'failed' } });
+    expect(log.lines.map((line) => JSON.stringify(line)).join('\n')).toContain('MADAR_AUTH_PRIVATE_JWK');
   });
 });
 

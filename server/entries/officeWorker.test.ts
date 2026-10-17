@@ -12,12 +12,13 @@ const ANSWER = '{"v":1,"serverTime":"2026-10-04T09:00:00.000+03:00","results":[]
 
 function setup(o: { batch?: OfficeStub['batch'] } = {}) {
   const deps = fakeDeps();
-  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[] };
+  const seen = { batch: [] as { input: OfficeBatchInput; net: NetApi }[], effects: [] as { ids: string[]; worker: number; net: NetApi }[], fetches: [] as Request[], health: 0, cron: [] as unknown[], signins: [] as { signin: string; input: unknown }[] };
   const stub: OfficeStub = {
     batch: o.batch ?? (async (input, net) => (seen.batch.push({ input, net }), { ok: true, body: ANSWER, later: [] })),
     runEffects: async (input, net) => (seen.effects.push({ ...input, net }), { done: input.ids.length, failed: 0 }),
     health: async () => ((seen.health += 1), { schema: 3, lastJob: null }),
     cron: async (input, net) => (seen.cron.push({ ...input, net }), { ok: true, at: input.at, steps: [], closed: 0, day: null }),
+    signin: async (body) => (seen.signins.push(body), { ok: true, value: { echo: body.signin } }),
     fetch: async (request) => (seen.fetches.push(request), { status: 101, webSocket: {} } as unknown as Response),
   };
   const net = recordingNet();
