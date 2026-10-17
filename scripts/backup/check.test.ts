@@ -251,7 +251,15 @@ describe('stampOf', () => {
 describe('parseCheckArgs', () => {
   it('reads the backup file, the key, the file copy and the image', () => {
     const args = parseCheckArgs(['--file', 'b.age', '--key', 'k.txt', '--files-remote', 'madar-copy:current', '--image', 'img:1']);
-    expect(args).toEqual({ file: 'b.age', key: 'k.txt', filesRemote: 'madar-copy:current', image: 'img:1' });
+    expect(args).toEqual({ file: 'b.age', key: 'k.txt', filesRemote: 'madar-copy:current', image: 'img:1', filesLagDays: 8 });
+  });
+
+  it('takes --files-lag-days, with 8 days for the weekly copy by default and 0 for R2 alone (exit wave 4, decision 5)', () => {
+    expect(parseCheckArgs(['--file', 'f', '--key', 'k', '--files-remote', 'madar-copy:current']).filesLagDays).toBe(8);
+    expect(parseCheckArgs(['--file', 'f', '--key', 'k', '--files-remote', 'madar-r2:madar-files-test', '--files-lag-days', '0']).filesLagDays).toBe(0);
+    expect(() => parseCheckArgs(['--file', 'f', '--key', 'k', '--skip-files', '--files-lag-days', 'x'])).toThrow('--files-lag-days must be a whole number from 0.');
+    expect(() => parseCheckArgs(['--file', 'f', '--key', 'k', '--skip-files', '--files-lag-days', '-1'])).toThrow('--files-lag-days must be a whole number from 0.');
+    expect(() => parseCheckArgs(['--file', 'f', '--key', 'k', '--skip-files', '--files-lag-days', ''])).toThrow('--files-lag-days must be a whole number from 0.');
   });
 
   it('asks for the file copy, or for --skip-files on purpose', () => {

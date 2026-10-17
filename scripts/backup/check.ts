@@ -219,7 +219,11 @@ export function stampOf(at: Date): string {
 /** The Postgres image of the restore: the image of the local Supabase stack (CLI 2.119.0). --image takes another one. */
 export const DEFAULT_RESTORE_IMAGE = 'public.ecr.aws/supabase/postgres:17.11.0.002';
 
-export type CheckArgs = { file: string; key: string; filesRemote: string | null; image: string };
+/**
+ * filesLagDays: the file step samples only versions older than the backup minus this many days. 8 for the weekly copy (B2, Friday);
+ * 0 for R2 alone (exit wave 4, owner decision 5), where the live bucket holds every file.
+ */
+export type CheckArgs = { file: string; key: string; filesRemote: string | null; image: string; filesLagDays: number };
 
 export function parseCheckArgs(argv: string[]): CheckArgs {
   const values: Record<string, string> = {};
@@ -236,6 +240,9 @@ export function parseCheckArgs(argv: string[]): CheckArgs {
   if (!values['files-remote'] && !skipFiles) {
     problems.push('--files-remote <rclone path of the file copy, for example madar-copy:current> is missing. Use --skip-files only when no file copy exists yet.');
   }
+  const lagText = values['files-lag-days'];
+  const filesLagDays = lagText === undefined ? 8 : lagText.trim() === '' ? Number.NaN : Number(lagText);
+  if (!Number.isInteger(filesLagDays) || filesLagDays < 0) problems.push('--files-lag-days must be a whole number from 0.');
   if (problems.length > 0) throw new Error(problems.join('\n'));
-  return { file: values.file, key: values.key, filesRemote: skipFiles ? null : values['files-remote'], image: values.image || DEFAULT_RESTORE_IMAGE };
+  return { file: values.file, key: values.key, filesRemote: skipFiles ? null : values['files-remote'], image: values.image || DEFAULT_RESTORE_IMAGE, filesLagDays };
 }

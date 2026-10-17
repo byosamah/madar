@@ -50,5 +50,10 @@ branch, and a push that changes only `docs/` runs nothing.
 - To check one: the owner gives the key for the check, `age -d -i <owner key>` opens it, then delete the opened copy
   and the key file.
 - The monthly restore check runs on the Mac: `scripts/restore-check.ts` (it needs the owner's offline key).
+- An office backup (exit wave 4, `madar-office-<copy>-<stamp>.tar.gz.age`) goes to the same script: the name picks
+  `scripts/backup/officeRestore.ts`, which restores every table into node:sqlite with the schema of this build (no Docker) and
+  compares the rows and the sha256 of each table with the manifest. A backup of a newer schema fails with its version.
+- The file step takes `--files-lag-days`: 8 (the default) for the weekly B2 copy, 0 for the live R2 bucket. Owner decision 5
+  (R2 alone, open): `--files-remote madar-r2:madar-files-test --files-lag-days 0`, with an rclone remote on a read-only R2 token.
 - The check makes each role that the dumps name but do not make (`rolesToMake`, `scripts/backup/check.ts`). The CLI dump
   quotes every name, so a quoted name with a dot after it (`FROM "public"."events"` of CREATE STATISTICS) is a table, never a role.

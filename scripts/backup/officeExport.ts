@@ -73,7 +73,8 @@ export async function makeOfficeBackup(o: { ops: OfficeOps; copy: OfficeCopy; re
   try {
     const manifest = await exportOffice(o.ops, { copy: o.copy, folder: join(work, name), now });
     const archive = join(work, `${name}.tar.gz`);
-    await run('tar', 'tar', ['-C', work, '-czf', archive, name]);
+    // COPYFILE_DISABLE: the tar of macOS adds no ._ entry for the extended attributes, which the archive check refuses.
+    await run('tar', 'tar', ['-C', work, '-czf', archive, name], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
     const file = resolve(o.outDir, `${name}.tar.gz.age`);
     await run('age', o.age ?? process.env.MADAR_AGE ?? 'age', ['-r', o.recipient, '-o', file, archive]);
     const rows = Object.values(manifest.tables).reduce((sum, t) => sum + t.rows, 0);

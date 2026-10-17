@@ -6,7 +6,12 @@
 //
 // --files-remote is the rclone path of the weekly file copy, for example madar-copy:current (the crypt remote over the B2 bucket,
 // in the owner's rclone config). --skip-files only when no file copy exists yet. --image takes another Postgres image.
+// --files-lag-days (default 8) is the age of the newest file version that the copy must hold; 0 for the live R2 bucket (exit
+// wave 4, owner decision 5: R2 alone, for example --files-remote madar-r2:madar-files-test --files-lag-days 0).
 // Needs: Docker, age, tar, and rclone for the file step.
+//
+// A file named madar-office-<copy>-<stamp>.tar.gz.age (the nightly backup of an office object, exit wave 4) needs no Docker: it
+// restores into node:sqlite with the schema of this build (scripts/backup/officeRestore.ts).
 //
 // Steps: decrypt with the key, check the archive entries, unpack into a private temporary folder, start a Postgres container
 // (the Supabase image, on 127.0.0.1 only), restore the roles, the schema and the data of the Madar schemas, compare the row counts
@@ -20,7 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { runCall } from '../server/core/runCall';
@@ -58,13 +63,15 @@ export type CheckOptions = {
   age?: string;
   rclone?: string;
   docker?: string;
+  /** The file step samples only versions older than the backup minus this many days (default 8; 0 for R2 alone). */
+  filesLagDays?: number;
 };
 
 /** Stops the check at a step that the later steps need. */
 class Stop extends Error {}
 
 /** The weekly file copy runs every 7 days; one more day covers a late run. A version this much older than the backup is in it. */
-const COPY_LAG_MS = 8 * 24 * 3600_000;
+const COPY_LAG_DAYS = 8;
 
 /** What a running check must remove when the process gets SIGINT or SIGTERM: Node skips the finally blocks then. */
 const cleanups = new Set<() => void>();
@@ -90,8 +97,8 @@ function removeLeftovers(docker: string): void {
 /** The office lock key of the server; a read does not take it, but the config needs one. */
 const LOCK_KEY = 7_310_001;
 
-/** Ports that refuse: dashboard.get reads only, so it never reaches them. */
-function readOnlyDeps(db: Deps['db']): Deps {
+/** Ports that refuse: dashboard.get reads only, so it never reaches them. The office restore check uses them too. */
+export function readOnlyDeps(db: Deps['db']): Deps {
   const refuse = (what: string) => () => {
     throw new Error(`The restore check reads only; it does not ${what}.`);
   };
@@ -140,6 +147,46 @@ function readOnlyDeps(db: Deps['db']): Deps {
 }
 
 const quote = (name: string) => name.split('.').map((part) => `"${part}"`).join('.');
+
+/**
+ * Up to sample file keys of a restored office are in the file copy with the same size. Only versions older than the backup minus
+ * lagDays: the weekly copy (B2) cannot hold newer uploads yet; the live R2 bucket (R2 alone, lag 0) holds every one. The remote
+ * must answer first, so a wrong remote name or a missing rclone never looks like lost files.
+ */
+export async function checkFileCopy(o: {
+  versions: { key: string; size: number; at: string | null }[]; madeAt: Date; lagDays: number; remote: string; rclone: string; sample: number;
+  random: (below: number) => number;
+}): Promise<string> {
+  if (Number.isNaN(o.madeAt.getTime())) throw new Error('The manifest has no valid time, so the check cannot tell which files the copy holds.');
+  const remote = o.remote.replace(/\/$/, '');
+  const remoteRoot = remote.includes(':') ? remote.slice(0, remote.indexOf(':') + 1) : remote;
+  try {
+    await run('rclone lsf', o.rclone, ['lsf', '--max-depth', '1', remoteRoot]);
+  } catch (error) {
+    throw new Error(`The file copy cannot be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const cutoff = o.madeAt.getTime() - o.lagDays * 24 * 3600_000;
+  // A version with no upload time counts as old, as the Postgres form did (a null comparison is not "newer").
+  const old = o.versions.filter((v) => v.at === null || Date.parse(v.at) < cutoff);
+  const newer = o.versions.length - old.length;
+  const skipped = newer === 0 ? '' : ` ${newer} newer file versions were skipped: the weekly copy cannot hold them yet.`;
+  if (o.versions.length === 0) return 'The restored office has no file yet.';
+  const sizes = new Map(old.map((v) => [v.key, v.size]));
+  if (sizes.size === 0) return `No file version is old enough for the weekly copy yet.${skipped}`;
+  const picked = pickKeys([...sizes.keys()], o.sample, o.random);
+  const problems: string[] = [];
+  for (const key of picked) {
+    try {
+      const found = JSON.parse((await run('rclone lsjson', o.rclone, ['lsjson', '--stat', `${remote}/${key}`])).stdout) as { Size?: number };
+      if (found.Size !== sizes.get(key)) problems.push(`${key}: ${found.Size ?? 'no'} bytes in the copy, ${sizes.get(key)} in the office.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      problems.push(/not found|doesn't exist|no such file/i.test(message) ? `${key}: not in the copy.` : `${key}: rclone could not read it (${message}).`);
+    }
+  }
+  if (problems.length > 0) throw new Error(problems.join(' '));
+  return `${picked.length} of ${sizes.size} file keys are in the copy with their sizes.${skipped}`;
+}
 
 export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
   const steps: Step[] = [];
@@ -310,42 +357,17 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
       return 'dashboard.get ran on the restored data for an active Admin.';
     });
 
-    // 7. Five random file keys of the restored office are in the file copy, with the same size. Only versions that the last weekly
-    // copy can hold: older than the backup minus 8 days.
+    // 7. Five random file keys of the restored office are in the file copy, with the same size. Only versions that the copy can
+    // hold: older than the backup minus filesLagDays (8 for the weekly copy, 0 for the live R2 bucket).
     await attempt('files', async () => {
       if (o.filesRemote === null) return 'Skipped on purpose (--skip-files).';
-      if (Number.isNaN(madeAt.getTime())) throw new Error('The manifest has no valid time, so the check cannot tell which files the copy holds.');
-      // The remote must answer first, so a wrong remote name or a missing rclone never looks like lost files.
-      const remote = o.filesRemote.replace(/\/$/, '');
-      const remoteRoot = remote.includes(':') ? remote.slice(0, remote.indexOf(':') + 1) : remote;
-      try {
-        await run('rclone lsf', rclone, ['lsf', '--max-depth', '1', remoteRoot]);
-      } catch (error) {
-        throw new Error(`The file copy cannot be read: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      const cutoff = new Date(madeAt.getTime() - COPY_LAG_MS);
-      const versions = await sql<{ key: string; size: string; newer: boolean | null }>(
-        "select v->>'blobKey' as key, v->>'size' as size, (v->>'uploadedAt')::timestamptz >= $1 as newer from public.files f, jsonb_array_elements(f.doc->'versions') v where v->>'blobKey' is not null",
-        [cutoff.toISOString()],
+      const versions = await sql<{ key: string; size: string; uploaded_at: string | null }>(
+        "select v->>'blobKey' as key, v->>'size' as size, v->>'uploadedAt' as uploaded_at from public.files f, jsonb_array_elements(f.doc->'versions') v where v->>'blobKey' is not null",
       );
-      const newer = versions.filter((v) => v.newer === true).length;
-      const skipped = newer === 0 ? '' : ` ${newer} newer file versions were skipped: the weekly copy cannot hold them yet.`;
-      if (versions.length === 0) return 'The restored office has no file yet.';
-      const sizes = new Map(versions.filter((v) => v.newer !== true).map((v) => [v.key, Number(v.size)]));
-      if (sizes.size === 0) return `No file version is old enough for the weekly copy yet.${skipped}`;
-      const picked = pickKeys([...sizes.keys()], o.fileSample ?? 5, random);
-      const problems: string[] = [];
-      for (const key of picked) {
-        try {
-          const found = JSON.parse((await run('rclone lsjson', rclone, ['lsjson', '--stat', `${remote}/${key}`])).stdout) as { Size?: number };
-          if (found.Size !== sizes.get(key)) problems.push(`${key}: ${found.Size ?? 'no'} bytes in the copy, ${sizes.get(key)} in the office.`);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          problems.push(/not found|doesn't exist|no such file/i.test(message) ? `${key}: not in the copy.` : `${key}: rclone could not read it (${message}).`);
-        }
-      }
-      if (problems.length > 0) throw new Error(problems.join(' '));
-      return `${picked.length} of ${sizes.size} file keys are in the copy with their sizes.${skipped}`;
+      return checkFileCopy({
+        versions: versions.map((v) => ({ key: v.key, size: Number(v.size), at: v.uploaded_at })), madeAt, lagDays: o.filesLagDays ?? COPY_LAG_DAYS,
+        remote: o.filesRemote, rclone, sample: o.fileSample ?? 5, random,
+      });
     });
   } catch (error) {
     if (!(error instanceof Stop)) fail('check', error instanceof Error ? error.message : String(error));
@@ -360,6 +382,14 @@ export async function restoreCheck(o: CheckOptions): Promise<CheckReport> {
 
 async function main(argv: string[]): Promise<void> {
   const args = parseCheckArgs(argv);
+  // An office backup (exit wave 4) needs no Docker: it restores into node:sqlite with the schema of this build.
+  if (basename(args.file).startsWith('madar-office-')) {
+    const { officeRestoreCheck } = await import('./backup/officeRestore');
+    const report = await officeRestoreCheck(args);
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.ok) process.exit(1);
+    return;
+  }
   // Ctrl-C (130) or SIGTERM (143): remove the container and the plain dump before the process ends.
   for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
     process.once(signal, () => {
