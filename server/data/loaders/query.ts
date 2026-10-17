@@ -68,6 +68,11 @@ export function columnOfField(c: TableCollection, field: string): string | undef
   return Object.entries(COLUMNS[c] ?? {}).find(([, column]) => column.field === field)?.[0];
 }
 
+/** The names of the loader columns of one table, in the order of COLUMNS. The SQLite schema makes one plain column for each. */
+export function columnNames(c: TableCollection): string[] {
+  return Object.keys(COLUMNS[c] ?? {});
+}
+
 /** A JSON field of "doc" that has no column: a scan inside the database, never an index. Only names of plain fields. */
 const FIELD = /^[a-zA-Z]+$/;
 export function fieldName(name: string): string {
