@@ -134,6 +134,18 @@ describe('the office parts (server/office/parts.ts)', () => {
     expect(socket.closed?.code).toBe(CLOSE_OFF);
   });
 
+  it('runs the invitation of a new person in the object: the sign-in row, its link, and the mail through the Worker port', async () => {
+    const { raw, net, batch } = await office();
+    const { answer } = ok(await batch('usr_001', [{
+      name: 'users.create', input: { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' },
+    }]));
+    expect(answer.results[0].ok).toBe(true);
+    expect(raw.prepare("select count(*) as n from outbox where kind = 'auth.invite' and done_at is not null and error is null").get()).toEqual({ n: 1 });
+    expect(raw.prepare('select email, email_confirmed from auth_users').all()).toEqual([{ email: 'new.person@madar.test', email_confirmed: 0 }]);
+    expect(raw.prepare('select type from auth_links where used_at is null').all()).toEqual([{ type: 'invite' }]);
+    expect(net.calls.filter((call) => call.startsWith('mail '))).toHaveLength(1);
+  });
+
   it('opens a socket for a ticket that it made, with the tags of the person', async () => {
     const { parts, sockets } = await office();
     const { ticket } = parts.tickets.mint('usr_005', new Date(NOW));

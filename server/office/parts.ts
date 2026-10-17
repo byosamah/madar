@@ -1,6 +1,7 @@
 import { consoleLogger, serverEnvFrom, type ReadEnv } from '../core/deps';
 import { processOutbox } from '../core/effects';
-import type { AuthAdminPort, Clock, Deps, Logger } from '../core/ports';
+import { liteAuthAdmin } from '../auth/own/liteAdmin';
+import type { Clock, Deps, Logger } from '../core/ports';
 import { createRunCall } from '../core/runCall';
 import type { CallEntry } from '../core/serverCallMap';
 import type { OfficeSnapshot, Principal } from '../core/types';
@@ -60,10 +61,6 @@ export type OfficeParts = {
   health(): Promise<OfficeHealth>;
 };
 
-/** Supabase Auth is network work, so the office object has no Auth admin port. The sign-in rows come with wave 2. */
-const NO_AUTH = (): Promise<never> => Promise.reject(new Error('Sign-in changes on the office object come with wave 2 of the exit (server/auth).'));
-const SIGN_IN_LATER: AuthAdminPort = { generateLink: NO_AUTH, createUser: NO_AUTH, setBanned: NO_AUTH, updateEmail: NO_AUTH, listUsers: NO_AUTH, getUser: NO_AUTH };
-
 /** The close codes that a server may not send back (1005, 1006, 1015): the object answers them with a normal close. */
 const RESERVED_CLOSE = new Set([1005, 1006, 1015]);
 
@@ -86,6 +83,9 @@ export function officeParts(o: PartsInput): OfficeParts {
     afterCommit: async (deps, ids) => ledgers.get(deps)?.committed(ids),
   });
   const office = () => db.tx('read', (q) => readLiteOffice(db, q));
+  // The sign-in rows live in the object (exit wave 2): the effects of server/auth/invite.ts and server/auth/effects.ts run here,
+  // and only their mail goes through the network port of the Worker.
+  const authAdmin = liteAuthAdmin({ db, clock });
 
   function depsFor(net: NetApi): Deps {
     const ports = netPorts(net, { guard: { open: () => db.isOpen(), now: () => clock.now() }, kind: values.config.fileStore, maxFileBytes: values.config.limits.maxFileBytes });
@@ -96,7 +96,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       // MAIL_DRIVER=outbox (the test copy) writes the mail into mail_outbox of the object: no network, so no port.
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
       signal: signals,
-      authAdmin: SIGN_IN_LATER,
+      authAdmin,
       meter,
       config: values.config,
       log,
