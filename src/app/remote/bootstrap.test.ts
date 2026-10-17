@@ -67,7 +67,7 @@ afterEach(() => {
 describe('the settings of the real screens', () => {
   it('reads the public values, and names each missing one', () => {
     expect(remoteConfig({ VITE_SUPABASE_URL: 'https://ref.supabase.co/', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_x' })).toEqual({
-      supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '0',
+      supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '0', auth: 'supabase',
     });
     expect(remoteConfig({
       VITE_SUPABASE_URL: 'https://ref.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'k', VITE_API_URL: 'https://api.test/api', VITE_MADAR_BUILD: '2026.10.4',
@@ -196,7 +196,7 @@ describe('the remote runtime (plan R2)', () => {
   beforeEach(() => {
     vi.useRealTimers();
   });
-  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4' };
+  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4', auth: 'supabase' as const };
   const supabase = {
     realtime: { setAuth: vi.fn(async () => undefined) },
     channel: () => {

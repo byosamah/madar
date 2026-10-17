@@ -10,4 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** The build ID (scripts/build-remote.ts): the UTC day of the build, sent as X-Madar-Build. */
   readonly VITE_MADAR_BUILD?: string;
+  /** The sign-in of the remote build (src/app/remote/authMode.ts): supabase (unset) or madar. */
+  readonly VITE_MADAR_AUTH?: string;
 }
