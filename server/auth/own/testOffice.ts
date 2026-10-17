@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { buildSeed } from '../../../src/data/seed';
-import type { Deps } from '../../core/ports';
+import type { Config, Deps } from '../../core/ports';
 import { createRunCall } from '../../core/runCall';
 import type { RunResult } from '../../core/types';
 import { liteData } from '../../data/lite/callData';
@@ -29,12 +29,12 @@ export type TestOffice = {
   call(actorId: string, name: string, input: unknown): Promise<RunResult>;
 };
 
-export async function signinOffice(o: { at?: string } = {}): Promise<TestOffice> {
+export async function signinOffice(o: { at?: string; config?: Partial<Config> } = {}): Promise<TestOffice> {
   const at = o.at ?? '2026-10-17T06:00:00Z';
   const { raw, db } = await freshLite();
   const seed = await buildSeed(at.slice(0, 10), async () => undefined);
   await db.tx('write', (q) => liteWriteState(q, seed));
-  const base = fakeDeps({ db });
+  const base = fakeDeps({ db, ...(o.config ? { config: o.config } : {}) });
   base.clock.set(new Date(at));
   const deps: LiteFakeDeps = { ...base, authAdmin: liteAuthAdmin({ db, clock: base.clock }) };
   const run = createRunCall({ data: liteData });

@@ -89,6 +89,8 @@ export type McpAppOptions = {
   stateKey?: Uint8Array | string;
   /** The issuer of Auth, when it differs from AUTH_ISSUER or ${SUPABASE_URL}/auth/v1. */
   issuer?: string;
+  /** The OAuth routes of the own sign-in (Supabase exit, wave 2): the host of the office object passes mountOAuth. No Supabase entry has them. */
+  oauth?: (app: Hono) => void;
 };
 
 /** The rate limit of tool calls, and the last use of the agent link, in one statement. */
@@ -282,6 +284,8 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     if (origin !== undefined && !config.allowedOrigins.includes(origin)) return jsonRpcError(403, 'This origin may not call Madar\'s MCP server.');
     await next();
   });
+
+  o.oauth?.(app);
 
   app.get(METADATA_PATH, () => metadataResponse({ mcpUrl: config.mcpUrl, issuer }));
 
