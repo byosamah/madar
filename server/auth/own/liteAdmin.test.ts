@@ -70,6 +70,28 @@ describe('liteAuthAdmin (server/auth/own/liteAdmin.ts)', () => {
     await expect(admin.updateEmail(one.authUserId, 'two@madar.test')).rejects.toMatchObject({ status: 422, code: 'email_exists' });
   });
 
+  it('ends the open links of the person when the email changes, so a link at the old address stops working', async () => {
+    const { raw, admin, clock } = await setup();
+    const { authUserId } = await admin.generateLink('invite', 'old@madar.test');
+    raw.exec('update auth_users set email_confirmed = 1, password_set = 1');
+    await admin.generateLink('recovery', 'old@madar.test');
+    clock.advance(60_000);
+    await admin.updateEmail(authUserId, 'New@madar.test', { confirm: true });
+    expect(raw.prepare('select type, used_at from auth_links order by created_at, type').all()).toEqual([
+      { type: 'invite', used_at: '2026-10-17T06:00:00.000Z' },
+      { type: 'recovery', used_at: '2026-10-17T06:01:00.000Z' },
+    ]);
+  });
+
+  it('keeps the open links when the email stays the same, and when the new email is refused', async () => {
+    const { raw, admin } = await setup();
+    const one = await admin.generateLink('invite', 'one@madar.test');
+    await admin.generateLink('invite', 'two@madar.test');
+    await admin.updateEmail(one.authUserId, 'One@madar.test', { confirm: true });
+    await expect(admin.updateEmail(one.authUserId, 'two@madar.test')).rejects.toMatchObject({ code: 'email_exists' });
+    expect(raw.prepare('select count(*) as n from auth_links where used_at is null').get()).toEqual({ n: 2 });
+  });
+
   it('lists every sign-in row for users.invites, and gives null for an unknown id', async () => {
     const { admin } = await setup();
     const one = await admin.generateLink('invite', 'one@madar.test');

@@ -66,8 +66,15 @@ export function liteAuthAdmin(o: { db: Db; clock: Clock }): AuthAdmin {
       });
     },
     async updateEmail(authUserId: string, email: string, u: UpdateEmailOptions = {}) {
+      const address = email.trim().toLowerCase();
+      const now = o.clock.now().toISOString();
       try {
-        await o.db.statement('write', AUTH_USER_EMAIL, [authUserId, email.trim().toLowerCase(), u.confirm === true ? 1 : 0, o.clock.now().toISOString()]);
+        await o.db.tx('write', async (q) => {
+          const [row] = await q<AuthUserRow>(AUTH_USER_BY_ID, [authUserId]);
+          await q(AUTH_USER_EMAIL, [authUserId, address, u.confirm === true ? 1 : 0, now]);
+          // A link went to the old address. It ends with the change, so the holder of the old mailbox cannot use it.
+          if (row && row.email !== address) await q(LINKS_END, [authUserId, now]);
+        });
       } catch (error) {
         if (isUniqueError(error)) throw emailExists();
         throw error;
