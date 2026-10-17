@@ -3,29 +3,13 @@ import type { Mail } from '../core/ports';
 import { MailSendError } from '../mail/resend';
 import { PushSendError, sendPush } from '../push/send';
 import { makeVapidKeys } from '../push/vapid';
-import { NET_BUDGET, NET_IN_TRANSACTION, NetBudgetSpent, answerOf, failureOf, netPorts, postPush, type NetAnswer, type NetApi } from './net';
+import { NET_BUDGET, NET_IN_TRANSACTION, NetBudgetSpent, answerOf, failureOf, netPorts, postPush, type NetAnswer } from './net';
+import { recordingNet } from './test/fakes';
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 const PUSH = 'https://fcm.googleapis.com/fcm/send/abc';
 const MAIL: Mail = { to: 'a@madar.test', subject: 'S', html: '<p>H</p>', text: 'H', tag: 'notice', idempotencyKey: 'notice-ntf_001' };
 const ok = <T,>(value: T): Promise<NetAnswer<T>> => Promise.resolve({ ok: true, value });
-
-/** A network port that records each call and answers well, unless a test gives it another answer. */
-function recordingNet(over: Partial<NetApi> = {}): NetApi & { calls: string[] } {
-  const calls: string[] = [];
-  const net: NetApi & { calls: string[] } = {
-    calls,
-    presignPut: (key) => (calls.push(`presignPut ${key}`), ok({ url: `https://files.test/put/${key}`, headers: { 'Content-Type': 'image/png' }, expiresAt: '2099-01-01T00:00:00.000Z' })),
-    presignGet: (key) => (calls.push(`presignGet ${key}`), ok({ url: `https://files.test/get/${key}`, expiresAt: '2099-01-01T00:00:00.000Z' })),
-    head: (key) => (calls.push(`head ${key}`), ok({ size: 10, mimeType: 'image/png' })),
-    copy: (from, to) => (calls.push(`copy ${from}>${to}`), ok(null)),
-    remove: (keys) => (calls.push(`remove ${keys.join(',')}`), ok(null)),
-    sendMail: (mail) => (calls.push(`mail ${mail.idempotencyKey}`), ok({ id: 'mail_1' })),
-    pushPost: (endpoint) => (calls.push(`push ${endpoint}`), ok({ status: 201 })),
-    ...over,
-  };
-  return net;
-}
 
 const closed = { open: () => false, now: () => NOW };
 
