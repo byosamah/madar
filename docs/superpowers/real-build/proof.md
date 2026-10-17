@@ -1246,3 +1246,60 @@ never deploys. Run: `node scripts/proof/do-tx/run.mjs` (sandbox off).
   continues with Task 2. The rule "no await on the network, a timer or `crypto.subtle` inside a transaction" stays: the object
   holds every other request while a transaction is open, so a slow await stops the whole office.
 - **Limit:** local workerd only. The deployed object runs the same runtime; wave 5 checks the race again on the test copy.
+
+### Wave 1: the SQL texts of test:db (2026-10-17)
+Exit plan, wave 1 Task 2. A logger that was not committed wrapped `client.query` in `server/test/db.ts` and wrote each text and
+its test file to a file. Run: `MADAR_SQL_LOG=<file> npm run test:db` under the Docker lock, at 6119fdf.
+- **Result:** 81 files, 1,141 passed, 25 skipped (the same as CI at 4cbdc95). 2,755 calls, 17.6 ms a call in `runCall`.
+- **Texts:** 170,578 statements, 210 distinct texts (`$1`, `$2` read as `$n`, first 140 characters). 79 are the loader selects of
+  `sqlSource.ts`; 131 are hand texts or texts that a builder makes from a table name.
+- **No idempotency text ran:** test:db sends no statement of `server/core/idempotency.ts`. Task 12 ports its texts from the code.
+- **No story read ran:** only `insert into stories`. The other texts of `server/core/story.ts` also come from the code (Task 12).
+- **Postgres only:** the texts of `pgDb` (`savepoint madar_tx`, `set local statement_timeout`, `set local lock_timeout`) need no
+  SQLite form: the SQLite Db has no savepoint and the host gives its own transaction. `pg_advisory_xact_lock` (the office lock)
+  needs none in the office object, because the object runs one request at a time (Task 12).
+- **Out of wave 1:** `server/auth/invite.ts`, the sign-in link of `officeCache.ts`, `server/mcp/revokeAll.ts`,
+  `server/calls/people.ts` (`users.invites`) and `server/calls/agents.ts` (`agents.list`) are wave 2. `server/mail/quota.ts` is
+  wave 3. These are the names of `LATER_CALLS` and `LATER_KINDS` (Task 14).
+
+The table folds each text that a builder makes from a table name into one row. "Distinct" is the count of distinct texts in the
+row. Rows are sorted by calls.
+
+| Text (first 80 characters) | Calls | Distinct | Source file | Wave |
+|---|---|---|---|---|
+| select doc from <table> order by ord (24 tables) | 105264 | 24 | server/data/rows.ts selectDocsSql (loadWhole, the harness read-back) | wave 1 (Task 14, liteLoadWhole) |
+| savepoint / release / rollback to savepoint madar_tx; set local statement_timeout, lock_timeout | 11971 | 5 | server/data/sql.ts (pgDb) | none (Postgres only: liteDb has no savepoint) |
+| set local role; set constraints all deferred; savepoint madar_down; alter table events disable/enable trigger; select current_schema(); delete from counters | 10958 | 9 | server/test/db.ts | wave 1 (Task 14) |
+| insert into <table> (id, doc, ...) select r->>'id', r->'doc' ... from jsonb_array_elements($1::jsonb) with ordinality (the tables that the save writes) | 6854 | 25 | server/data/rows.ts upsertSql (save, harness write-down) | wave 1 (Task 8) |
+| select t.ord / x.ord / ord, doc / t.<col> as v / b.k as v (the loader selects) | 6224 | 79 | server/data/loaders/sqlSource.ts | wave 1 (Tasks 9 to 11) |
+| select prefix, n from counters | 6220 | 1 | server/data/rows.ts (sqlSource.ts, whole.ts) | wave 1 (Tasks 8, 10) |
+| select md5(string_agg(...)) (the leak checksum); select tablename from pg_tables | 5622 | 2 | server/test/invariants.ts | wave 1 (Task 14, liteChecksum) |
+| select version, now() as at, coalesce(xmin::text::bigint = (pg_current_xact_id_i | 2766 | 1 | server/data/officeCache.ts | wave 1 (Task 7, readLiteOffice) |
+| set constraints all immediate | 2164 | 1 | server/data/save.ts, server/test/db.ts | wave 1 (Task 8: none, no foreign key) |
+| insert into counters (prefix, n) select key, value::integer from jsonb_each_text | 2039 | 1 | server/data/rows.ts COUNTERS_UPSERT_SQL | wave 1 (Task 8) |
+| select pg_advisory_xact_lock($n::bigint) | 1848 | 1 | server/core/lock.ts | wave 1 (Task 12: none in the object) |
+| insert into stories (id, actor_id, created_at) values ($n, $n, $n) | 1822 | 1 | server/core/story.ts | wave 1 (Task 12) |
+| begin / rollback | 1460 | 2 | server/test/db.ts (one transaction for each test) | wave 1 (Task 14) |
+| select 'users' as c, id, ord, doc, auth_user_id::text as auth from users where c | 1163 | 1 | server/data/officeCache.ts | wave 1 (Task 7, readLiteOffice) |
+| update office_meta set version = version + $n, office_seq = office_seq + $n retu | 1080 | 1 | server/data/save.ts | wave 1 (Task 8) |
+| update office_meta set version = version + 1 returning version | 809 | 1 | server/test/db.ts (write-down) | wave 1 (Task 14) |
+| insert into person_seq (user_id, seq) select unnest($n::text[]), 1 on conflict ( | 457 | 1 | server/data/save.ts | wave 1 (Task 8) |
+| select id, undoes from events where undoes = any($n::text[]) | 455 | 1 | server/data/loaders/sqlSource.ts | wave 1 (Task 10) |
+| select tbl, id from office_deletes where chg > $n::bigint | 323 | 1 | server/data/officeCache.ts | wave 1 (Task 7: none) |
+| select <col> as v, count(*)::integer as n from <table> where <col> = any($1::text[]) group by <col> | 267 | 2 | server/data/loaders/sqlSource.ts | wave 1 (Task 10) |
+| delete from <table> where id = any($1::text[]) (21 tables) | 220 | 21 | server/data/rows.ts deleteSql | wave 1 (Task 8) |
+| insert into / select from / update upload_intents | 159 | 3 | server/files/intents.ts | wave 1 (Task 13) |
+| insert into outbox ...; update outbox set claimed_until / done_at / error | 99 | 4 | server/core/effects.ts | wave 1 (Task 12) |
+| select doc, auth_user_id ... from users; select 1 ... from outbox where kind = 'auth.invite'; update outbox set payload ... (5 texts) | 86 | 5 | server/auth/invite.ts | wave 2 |
+| pg_advisory_xact_lock(int, int); with today as (...) from mail_log; update mail_log set resend_id | 60 | 3 | server/mail/quota.ts | wave 3 |
+| insert into office_deletes (tbl, id, chg) select $n, unnest($n::text[]), $n::big | 53 | 1 | server/data/rows.ts OFFICE_DELETES_SQL | wave 1 (Task 8: none, no office_deletes) |
+| select doc from users / files / tasks / feedback where id ... | 51 | 4 | server/files/records.ts | wave 1 (Task 13) |
+| with mine as (select distinct target_id from comments where target_type = 'task' | 36 | 1 | server/data/loaders/sqlSource.ts | wave 1 (Task 10; the badge, Track R) |
+| select (doc->'after') ? 'email' as changed, doc->>'actingForId' as actor from ev | 14 | 1 | server/auth/effects.ts | wave 1 (Task 13) |
+| with v as (update office_meta set version = version + 1 returning version) updat | 12 | 1 | server/data/officeCache.ts (the sign-in link) | wave 2 |
+| with links as (update agent_links set revoked_at = now() where revoked_at is nul | 9 | 1 | server/mcp/revokeAll.ts | wave 2 |
+| select doc->'versions' as versions from files where project_id = $n union all se | 9 | 1 | server/files/effects.ts | wave 1 (Task 13) |
+| select id, auth_user_id::text as auth from users where kind = 'human' | 1 | 1 | server/calls/people.ts (users.invites) | wave 2 |
+| select payload->>'userId' as user_id, max((payload->>'sentAt')::timestamptz) as  | 1 | 1 | server/calls/people.ts (users.invites) | wave 2 |
+| select client_id::text as client_id, agent_user_id, redirect_host, approved_at,  | 1 | 1 | server/calls/agents.ts (agents.list) | wave 2 |
+| select k as key from unnest($n::text[]) as k where exists (select 1 from files f | 1 | 1 | server/files/effects.ts | wave 1 (Task 13) |
