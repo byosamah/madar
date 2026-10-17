@@ -972,6 +972,9 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   5 minutes): 0 `EMAXCONN` and 0 failed batches. The deploy suite (acceptance, settings, shell, the 4 walks): 38 passed, 1
   skipped (Preview as), 0 failed, 19 minutes. A probe of 10 quick adds outside the walk had passed 10 of 10 before the fix.
 - Not run for this change: `test:db` and `test:it` (the change is an entry and one pool setting; `npm test` 4,866 passed).
+- **Production at ff963e1** (the owner ran `all.sh production`): `checks.sh` passed (health from `supabase`, `"fileStore":"r2"`,
+  database check ok, `POST /mcp` 401), madar.vado.sa 200 with the title Madar, `/favicon.ico` 200, www 200, the live bundle is the
+  one of `9e1127b4.madar-46r.pages.dev`, and the production logs had 0 `EMAXCONN` and 0 failed batches after the deploy.
 
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.

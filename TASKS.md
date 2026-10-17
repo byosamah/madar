@@ -500,6 +500,6 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
   pooler connection now closes after 1 s idle (ff963e1). The 4 walks, acceptance, settings and shell: 38 passed, 0 failed
   (proof.md "The pooler client limit under load")
-- [ ] Production: deploy ff963e1 (the owner's `!` command; production had 0 EMAXCONN, so it is a guard, not a repair)
+- [x] Production at ff963e1 (2026-10-16 late, the owner ran it): checks pass, the live bundle matches `9e1127b4`, 0 EMAXCONN after it
 - [ ] The weekly file backup: its source is now R2 (both copies). It stays paused until the owner's Backblaze B2 (`.github/CLAUDE.md`)
 - [ ] Production: copy the files twice, switch, checks, release record
