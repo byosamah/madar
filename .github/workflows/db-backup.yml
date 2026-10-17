@@ -65,8 +65,11 @@ jobs:
         id: fresh
         env:
           GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        # Only the madar-db-* releases count: office-backup.yml writes madar-office-* releases to the same repo, and a newer one
+        # of those must never hide a missed database backup.
         run: |
-          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1 --json createdAt --jq '.[0].createdAt // empty')"
+          newest="$(gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.createdAt) | last | .createdAt // empty')"
           if [ -z "$newest" ]; then
             echo "No backup yet."
             echo "hours=0" >> "$GITHUB_OUTPUT"

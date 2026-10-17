@@ -22,7 +22,8 @@ branch, and a push that changes only `docs/` runs nothing.
   is set (wave 5: the test copy): every run then ends at its first step with success. Needs `secrets.OFFICE_EXPORT_SECRET` (the
   `MADAR_EXPORT_SECRET` of that Worker), `vars.OFFICE_BACKUP_COPY`, `secrets.BACKUP_REPO_TOKEN` and `vars.BACKUP_AGE_RECIPIENT`.
   The restore check of its file needs no Docker (`scripts/restore-check.ts` sees the name). Its age check reads only the
-  `madar-office-<copy>-` releases; the age check of `db-backup.yml` still reads the newest release of any name (see `TASKS.md`).
+  `madar-office-<copy>-` releases, and the age check of `db-backup.yml` reads only the `madar-db-` releases, so a newer
+  release of the other kind never hides a missed backup.
 - `files-backup.yml`, Friday 03:07 Riyadh: rclone sync of the file store to a Backblaze B2 crypt remote. PAUSED since
   2026-10-05 (`disabled_manually`): it waits for the owner's B2 account (`B2_KEY_ID`, `B2_APPLICATION_KEY`, the S3 key of
   the store, the crypt password and salt). After those secrets: `gh workflow enable "Files backup"`, then one run by hand.

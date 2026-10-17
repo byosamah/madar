@@ -126,7 +126,11 @@ describe('db-backup.yml', () => {
 
   it('fails, so GitHub mails the owner, when the backup before this run was older than 26 hours', () => {
     expect(FILES.db).toContain("STALE_HOURS: '26'");
-    expect(step(FILES.db, 'Age of the newest backup')).toContain('gh release list --repo "$BACKUP_REPO" --limit 1 --json createdAt');
+    // office-backup.yml writes madar-office-* releases to the same repo. A newer office release must never hide a missed database backup.
+    const fresh = step(FILES.db, 'Age of the newest backup');
+    expect(fresh).toContain('gh release list --repo "$BACKUP_REPO" --limit 1000 --json tagName,createdAt');
+    expect(fresh).toContain(`[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.createdAt) | last | .createdAt // empty`);
+    expect(fresh).not.toContain('--limit 1 ');
     const stale = step(FILES.db, 'Fail when the backup before this one was older than 26 hours');
     expect(stale).toContain('if: fromJSON(steps.fresh.outputs.hours) > fromJSON(env.STALE_HOURS)');
     expect(stale).toContain('exit 1');

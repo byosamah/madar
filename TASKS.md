@@ -569,10 +569,11 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   straight to the Worker secret). Done in `rb/exit-ops`: Task 8 (the restore check takes every table, the sign-in tables too),
   Tasks 10 and 11 (`importSigninRows`, `SIGNIN_EXPORT_SQL` in `pgSource`), Task 19 (`KEPT_ON_WORKER` refuses the key in a
   secrets file, `scripts/office/auth-key.ts` writes it to the Worker)
-- [ ] Before wave 5 turns on `office-backup.yml` (found in exit wave 4, `rb/exit-ops` Task 9): the step "Age of the newest backup"
+- [x] Before wave 5 turns on `office-backup.yml` (found in exit wave 4, `rb/exit-ops` Task 9): the step "Age of the newest backup"
   of `db-backup.yml` reads the newest release of any name (`gh release list --limit 1`). With a nightly `madar-office-*` release in
   the same repository, a night with no database backup no longer fails that step. Proposal: select the `madar-db-` releases only,
-  as `office-backup.yml` does for its copy, and change the pin of that step in `scripts/backup/workflows.test.ts`
+  as `office-backup.yml` does for its copy, and change the pin of that step in `scripts/backup/workflows.test.ts` (done at the
+  wave 4 merge: the step reads the `madar-db-` releases only, and the pin checks the filter)
 - [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
   (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
