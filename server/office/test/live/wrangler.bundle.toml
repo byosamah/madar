@@ -1,0 +1,29 @@
+# The real Workers bundle (dist-server/worker.js) on the office path, for npm run smoke:office (Supabase exit, wave 3). Local
+# wrangler dev only: it never deploys. scripts/dev/office-smoke.ts passes the values that look like keys in an env file that it
+# makes for each run and removes after it: none of them is a real key.
+name = "madar-office-smoke"
+main = "../../../../dist-server/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+MADAR_DATA = "office"
+APP_URL = "http://127.0.0.1:5173"
+MAIL_FROM = "Madar <notices@madar.test>"
+MAIL_DRIVER = "outbox"
+SUPABASE_URL = "http://127.0.0.1:54321"
+MADAR_FILE_STORE = "r2"
+R2_BUCKET = "madar-files-test"
+WORKER_REGION = "workers-local"
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "office-v1"
+new_sqlite_classes = ["Office"]
+
+[triggers]
+crons = ["*/15 * * * *"]
