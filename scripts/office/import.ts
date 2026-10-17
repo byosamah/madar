@@ -8,14 +8,17 @@
 // --from production reads production (only with the typed word production, and only into a rehearsal name). --to never takes
 // production before wave 6. The secrets come from secrets/test.env (the test copy) or from the environment (the local office); the
 // script never prints them.
-import { readFileSync, realpathSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { copyOfPageHost, type Copy } from '../../server/core/serverHost';
-import { OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
+import { EXPORT_SECRET_HEADER, OPS_SECRET_HEADER } from '../../server/entries/officeWorker';
 import { IMPORT_PART_ROWS, type ImportBegin, type ImportFinish, type ImportMode, type ImportPartAnswer } from '../../server/office/import';
 import { REHEARSAL_NAME } from '../../server/office/ops';
+import { exportOffice } from '../backup/officeExport';
 import { parseSecretsFile, POOLER_HOST, REFS } from '../deploy/secrets';
 import { opsOf, type OfficeOps } from './ops';
 import { exportSource, pgSource, type ImportTable, type OfficeSource } from './source';
@@ -199,6 +202,17 @@ async function main(argv: string[]): Promise<void> {
   const ops = opsOf({ base: target.base, secret: secrets.ops, header: OPS_SECRET_HEADER, ...(office ? { office } : {}) });
   const report = await importOffice(ops, source, { mode: mode as ImportMode, limit, usedToday, log: (line) => console.log(line) });
   console.log(JSON.stringify(report));
+  const folder = mkdtempSync(join(tmpdir(), `madar-office-check-${process.pid}-`));
+  try {
+    await exportOffice(opsOf({ base: target.base, secret: secrets.exportSecret, header: EXPORT_SECRET_HEADER, ...(office ? { office } : {}) }), { copy: target.copy, folder });
+    const { compareImport } = await import('./compare');
+    const { problems, notes } = compareImport(source, folder);
+    for (const note of notes) console.log(`Note: ${note}`);
+    if (problems.length > 0) throw new Error(`The office object differs from the source:\n${problems.join('\n')}`);
+    console.log('The count and the hash of each table match the source.');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 }
 
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
