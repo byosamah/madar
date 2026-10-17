@@ -22,6 +22,11 @@ export interface Db {
    * It reads nothing. A Db without pools leaves it out.
    */
   warm?(mode: 'read' | 'write'): Promise<void>;
+  /**
+   * 'sqlite' for the SQLite Db of the office object and of test:lite (server/data/lite/db.ts). Absent means Postgres. Code that
+   * sends its own SQL picks its text with sqlFor (server/data/dialect.ts).
+   */
+  readonly dialect?: 'sqlite';
 }
 
 export interface Clock {
