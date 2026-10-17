@@ -1631,3 +1631,16 @@ say `supabase`, no Worker got a secret, `office-backup.yml` is off (no `vars.OFF
     `npx supabase stop`.
 - Not run by the builder: every Playwright run (Task 22 Step 6: the sign-in, account and agents specs on the local office stack and
   the 20 screenshots of the Madar sign-in screens; the main session's delegated helper) and the prototype smoke (no screen changed).
+- Task 22 Step 6, the main session (2026-10-17, delegated helpers on `npm run dev:office`, one worker):
+  - First run: `account.spec.ts` 8 of 8, `agents.spec.ts` 6 of 6, `signin.spec.ts` 18 of 23. The 5 failures read the kept session
+    under `madar.auth`, the Supabase key; the own sign-in keeps it under `madar.session`, with other field names and the end in
+    milliseconds. The same fault was in the first load: `main.tsx` read only `madar.auth`, so a madar build loaded the Sign in
+    screen also for a signed-in person. Fix c50d0d0 (test first): `SESSION_KEYS` and `hasStoredSession` in
+    `src/app/remote/authMode.ts`; the spec picks the key and the fields from the target. Run again: `signin.spec.ts` 23 of 23.
+  - The consent screen showed "can also use your account outside the Madar screens" on the own stack, where every own route
+    refuses an agent token (the Z7 risk does not exist there). Fix 8f5eac5 (test first): `agentReachesAccount: false` of
+    `madarOAuthPort` leaves the line out; the Supabase build keeps it. Run again: `agents.spec.ts` 6 of 6, 3 lines in EN and AR.
+  - The screenshots (390 px, EN and AR, light and dark): sign-in, forgot, reset, welcome, the session sheet and consent. No cut
+    text, overlap or sideways scroll. The prototype smoke after c50d0d0: 87 of 87. `npm run build` and `build:remote -- test`
+    after 8f5eac5: both bundle checks pass (first load 1,131,652 B).
+  - The local sign-ins of one run stayed under the own limit (30 for one address in 15 minutes): no limit refusal.

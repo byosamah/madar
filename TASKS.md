@@ -554,12 +554,14 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `mountOAuth` in the hosts, `liteAgentOf` in the object, `liteAuthAdmin` as `deps.authAdmin` of the object, and run
   `cleanupSignin` once a day (done in the merge of waves 2 and 3: `Office.signin`, `server/entries/officeSignin.ts`, the step
   `signin` of `server/office/jobs.ts`)
-- [ ] Exit wave 4 (moved from the merge of waves 2 and 3, it needs the seed of wave 4): the deploy-suite sign-in specs
+- [x] Exit wave 4 (moved from the merge of waves 2 and 3, it needs the seed of wave 4): the deploy-suite sign-in specs
   (`account.spec.ts`, `signin.spec.ts`, `agents.spec.ts`) on a local `wrangler dev` with `VITE_MADAR_AUTH=madar`, and the
   screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px). The stack is
   ready (`npm run dev:office`, `rb/exit-ops` Task 22: the own sign-in gave 200 and `/mcp` 401 on it); the Playwright run is
-  the step of a delegated helper of the main session (plan Task 22, Step 6)
-- [ ] Main session, after the merge of waves 2 and 3: the prototype smoke (the merge builder runs no Playwright)
+  the step of a delegated helper of the main session (plan Task 22, Step 6). Done 2026-10-17: all 37 pass after two fixes
+  (the session key of the own sign-in, and the consent line of the Z7 risk); proof.md, wave 4 section
+- [x] Main session, after the merge of waves 2 and 3: the prototype smoke (the merge builder runs no Playwright): 87 of 87, and
+  again 87 of 87 at the wave 4 merge
 - [ ] Exit wave 5: a copy with `MADAR_AUTH_PRIVATE_JWK` also needs `MCP_URL` in its Worker env (the issuer of the own tokens).
   Without it the browser token check throws, and each batch answers a hidden 500 (found by `npm run smoke:office`)
 - [ ] Exit wave 5, on the deployed test copy: the CPU and the bill of one `/mcp` request in the office object (the MCP app is
