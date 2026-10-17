@@ -11,7 +11,7 @@ import type { SqlHost, SqlRow, SqlValue } from './host';
 /** The rows that the Db counted: the rows pins and the day meters (wave 0). node:sqlite counts 0. */
 export type RowMeter = { rowsRead: number; rowsWritten: number; statements: number };
 
-export type LiteDb = Db & { readonly dialect: 'sqlite'; readonly host: SqlHost; readonly meter: RowMeter };
+export type LiteDb = Db & { readonly dialect: 'sqlite'; readonly host: SqlHost; readonly meter: RowMeter; isOpen(): boolean };
 
 /** The columns that hold JSON text. A read gives them back as values, as pg gives a jsonb column. */
 export const JSON_COLUMNS: ReadonlySet<string> = new Set(['doc', 'payload', 'result', 'mail', 'versions']);
@@ -101,6 +101,8 @@ export function liteDb(host: SqlHost): LiteDb {
       }
     },
     savepoint: () => Promise.reject(new Error('The SQLite Db has no savepoint: no production code asks for one.')),
+    /** True while a transaction is open: the network port of the office object then refuses every call (server/office/net.ts). */
+    isOpen: () => open !== undefined,
     statement<R = Record<string, unknown>>(mode: 'read' | 'write', text: string, values?: unknown[]): Promise<R[]> {
       if (open) return Promise.reject(new Error('db.statement runs with no open transaction. Use the query of the transaction.'));
       return db.tx(mode, (q) => q<R>(text, values));

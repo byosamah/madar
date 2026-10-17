@@ -19,6 +19,10 @@ declare module 'cloudflare:workers' {
     readonly storage: DurableObjectStorage;
     blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
   }
+  /** A class whose methods a stub can call over Workers RPC (developers.cloudflare.com, Workers RPC). */
+  export abstract class RpcTarget {
+    constructor();
+  }
   export abstract class DurableObject<Env = unknown> {
     protected readonly ctx: DurableObjectState;
     protected readonly env: Env;

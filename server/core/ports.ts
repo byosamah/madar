@@ -145,6 +145,11 @@ export type Config = {
   push?: { publicKey: string; privateKey: string; subject: string };
 };
 
+/** The live socket tickets of the office object (exit wave 3): live.ticket mints one, the socket open takes it (server/office/live.ts). */
+export interface LivePort {
+  mint(userId: string, now: Date): { ticket: string; expiresAt: string };
+}
+
 export type Deps = {
   db: Db;
   clock: Clock;
@@ -155,4 +160,11 @@ export type Deps = {
   meter: MeterPort;
   config: Config;
   log: Logger;
+  /**
+   * The fetch of a push POST. The office object passes the one of its network port (server/office/net.ts), so the POST runs in the
+   * Worker. Left out on every other host: sendPush then uses the global fetch.
+   */
+  pushFetch?: typeof globalThis.fetch;
+  /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */
+  live?: LivePort;
 };
