@@ -66,3 +66,22 @@ describe('buildId', () => {
     expect(buildId(new Date('2026-10-04T21:30:00-03:00'))).toBe('2026.10.5');
   });
 });
+
+describe('the word office in the screens build (exit wave 4)', () => {
+  const text = 'VITE_SUPABASE_URL=https://qdgwpnesxppnqsaabqzd.supabase.co\nVITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_x\n';
+
+  it('builds the Madar sign-in and the live socket for an office copy, and the page api', () => {
+    const env = remotePublicEnv('test', text, { setting: { test: 'office', production: 'supabase' } });
+    expect([env.VITE_API_URL, env.VITE_MADAR_AUTH, env.VITE_MADAR_LIVE]).toEqual(['/api', 'madar', 'socket']);
+  });
+
+  it('keeps the Supabase sign-in and Realtime for a workers or supabase copy', () => {
+    const env = remotePublicEnv('test', text, { setting: { test: 'workers', production: 'supabase' } });
+    expect([env.VITE_MADAR_AUTH, env.VITE_MADAR_LIVE]).toEqual([undefined, undefined]);
+  });
+
+  it('refuses a public file that sets VITE_MADAR_AUTH or VITE_MADAR_LIVE: the host word decides them', () => {
+    expect(() => remotePublicEnv('test', `${text}VITE_MADAR_AUTH=madar\n`)).toThrow('must not set VITE_MADAR_AUTH');
+    expect(() => remotePublicEnv('test', `${text}VITE_MADAR_LIVE=socket\n`)).toThrow('must not set VITE_MADAR_LIVE');
+  });
+});

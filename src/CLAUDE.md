@@ -28,8 +28,9 @@ any screen work.
   `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
 - The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
 - The API address (owner, 2026-10-16): `build:remote` sets `VITE_API_URL` from `config/server-host.json`
-  (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the copy runs on the Worker, the Supabase api
-  function otherwise. `config/remote.<env>.env` must not set it. `regionUrl` (`api/remote/region.ts`) adds
+  (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the copy runs on the Worker (`workers` or `office`),
+  the Supabase api function otherwise. The word `office` (exit wave 4) also sets `VITE_MADAR_AUTH=madar` and
+  `VITE_MADAR_LIVE=socket`. `config/remote.<env>.env` must not set any of the three. `regionUrl` (`api/remote/region.ts`) adds
   `forceFunctionRegion=eu-central-1` only to a `*.supabase.co` URL, and a relative `/api` stays relative (fetch resolves it
   against the page). `dev:remote` always uses the api function: Vite runs no Pages Function.
 - The sign-in of the remote build (`src/app/remote/authMode.ts`): `VITE_MADAR_AUTH` unset is the Supabase port of today;

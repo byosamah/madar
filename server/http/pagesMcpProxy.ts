@@ -1,4 +1,4 @@
-import { COPY_HOSTS, PAGE_HOSTS, copyOfPageHost, serverHostOf, type ServerHostSetting } from '../core/serverHost';
+import { COPY_HOSTS, PAGE_HOSTS, copyOfPageHost, onWorker, serverHostOf, type ServerHostSetting } from '../core/serverHost';
 import { CLIENT_ADDRESS_HEADER, INTERNAL_ORIGIN, answerOf, bindingOf, defaultLog, fallbackLine, forwardHeaders, forwardInit, unsafeSuffix, type PagesEnv } from './pagesForward';
 
 /**
@@ -42,7 +42,8 @@ export async function proxyMcp(request: Request, fetcher: typeof fetch = fetch, 
   if (unsafeSuffix(suffix)) return new Response('Not found.', { status: 404 });
 
   const headers = forwardHeaders(request);
-  const onWorkers = serverHostOf(copy, o.setting) === 'workers';
+  // workers or office (exit wave 4): the Worker of the copy serves /mcp, from Postgres or from its office object.
+  const onWorkers = onWorker(serverHostOf(copy, o.setting));
   const binding = onWorkers ? bindingOf(env, COPY_HOSTS[copy].workers.binding) : undefined;
   if (binding) {
     // The Worker has no public address, so the limits of the OAuth routes count the address that this function writes

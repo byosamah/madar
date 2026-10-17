@@ -2,7 +2,8 @@
 
 One Hono app in TypeScript. The same source runs on Supabase Edge Functions (Deno, pinned to eu-central-1) and on one
 Cloudflare Worker for each copy (`wrangler.server.toml`: `madar-server-test`, `madar-server-production`, placed in
-aws:eu-central-1). `config/server-host.json` says which host serves each copy (owner, 2026-10-16; `core/serverHost.ts`).
+aws:eu-central-1). `config/server-host.json` says which host serves each copy (owner, 2026-10-16; `core/serverHost.ts`):
+`supabase`, `workers`, or `office` (the office object; exit wave 4, the test copy only until wave 6, `OFFICE_COPIES_OPEN`).
 The other host stays deployed as the way back. Each area below has its own guide: `mcp/`, `auth/`, `data/`, `mail/`,
 `files/`, `push/`.
 
@@ -120,7 +121,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
-  Workers Paid (`CALL_LIMITS`, `core/ports.ts`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
+  Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the
+  day meters below cover its Free limit (`warningMeters`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
   screen picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
   limit, because both read the setting, not the running host.
 - On the office object only, the 80% warning also covers the four Free day meters: rows read, rows written, object requests
@@ -129,6 +131,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 ## The office object (Supabase exit, wave 3)
 - Off on every deployed Worker: the office path runs only with the binding `OFFICE` and the var `MADAR_DATA = "office"`
   (`entries/officeEntry.ts`, `onOffice`). The bundle entry is `entries/workerMain.ts`; `entries/worker.ts` stays the Postgres path.
+  Exit wave 4: the office ops under `/api/office/` go to the office path whenever the binding exists (`servesOffice`,
+  `entries/officeWorker.ts`), so the import of wave 5 reaches the object before the word changes. The Cron still needs `onOffice`.
 - The Worker checks the build, the body and the token, then gives the whole batch to the object in one RPC call
   (`entries/officeWorker.ts`). The object runs `runCall` on SQLite for each entry, one after the other, and answers JSON text. The
   mails and pushes run after the answer in one more call (`runEffects`). An overloaded or reset object answers the reason `busy`.
@@ -157,7 +161,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   `agent` of `office/who.ts`); its mails and pushes run after the answer (`runEffects`). With no key, `/mcp` answers 503.
 - A batch reports an office change when any entry cleared `batch.office` (`runOfficeEntries`), so a turn-off with a read after it
   still closes the sockets of that person.
-- Tests: `office/{net,meter,live,parts,who}.test.ts` on node:sqlite; `office/{batch,socket,cron,mcp}.wd.test.ts` on local workerd
+- Tests: `office/{net,meter,live,parts,who,routes}.test.ts` on node:sqlite (`office/test/nodeOffice.ts`: the parts with a new own
+  key, and `route`, which sends one request through the real Worker routes into the object); `office/{batch,socket,cron,mcp}.wd.test.ts` on local workerd
   with the test Worker of `office/test/live/`; `entries/{officeWorker,officeSignin}.test.ts`; `npm run smoke:office` for the real
   bundle (10 checks, with a key made for the run).
 

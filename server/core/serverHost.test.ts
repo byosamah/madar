@@ -8,6 +8,7 @@ import {
   SERVER_HOST_SETTING,
   copyOfPageHost,
   copyOfSupabaseUrl,
+  onWorker,
   parseServerHostSetting,
   screensApiUrl,
   serverHostOf,
@@ -37,8 +38,8 @@ describe('parseServerHostSetting', () => {
   it('refuses another key, a missing copy, another word and a value that is not an object', () => {
     expect(() => parseServerHostSetting({ test: 'workers', production: 'supabase', staging: 'workers' })).toThrow(/staging/);
     expect(() => parseServerHostSetting({ test: 'workers' })).toThrow(/production/);
-    expect(() => parseServerHostSetting({ test: 'worker', production: 'supabase' })).toThrow(/test.*supabase or workers/);
-    expect(() => parseServerHostSetting({ test: 'Workers', production: 'supabase' })).toThrow(/supabase or workers/);
+    expect(() => parseServerHostSetting({ test: 'worker', production: 'supabase' })).toThrow(/test.*supabase, workers or office/);
+    expect(() => parseServerHostSetting({ test: 'Workers', production: 'supabase' })).toThrow(/supabase, workers or office/);
     for (const value of [null, 'workers', ['workers'], 1]) expect(() => parseServerHostSetting(value)).toThrow(/object/);
   });
 });
@@ -102,5 +103,21 @@ describe('the host of each copy', () => {
     expect(screensApiUrl('production', 'workers')).toBe('/api');
     expect(screensApiUrl('test', 'supabase')).toBe(`https://${TEST}.supabase.co/functions/v1/api`);
     expect(screensApiUrl('production', 'supabase')).toBe(`https://${PRODUCTION}.supabase.co/functions/v1/api`);
+  });
+});
+
+describe('the host word office (exit wave 4)', () => {
+  it('reads office for the test copy, and the screens of an office copy call the page api', () => {
+    expect(parseServerHostSetting({ test: 'office', production: 'supabase' })).toEqual({ test: 'office', production: 'supabase' });
+    expect(screensApiUrl('test', 'office')).toBe('/api');
+    expect([onWorker('supabase'), onWorker('workers'), onWorker('office')]).toEqual([false, true, true]);
+  });
+
+  it('refuses production: office until wave 6, with a message that names the wave', () => {
+    expect(() => parseServerHostSetting({ test: 'office', production: 'office' })).toThrow(/production.*wave 6/);
+  });
+
+  it('names the three words in the message of a wrong word', () => {
+    expect(() => parseServerHostSetting({ test: 'pages', production: 'supabase' })).toThrow('test must be supabase, workers or office.');
   });
 });

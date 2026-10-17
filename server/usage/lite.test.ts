@@ -7,6 +7,7 @@ import { snapshotOf } from '../data/officeCache';
 import { freshLite } from '../data/lite/testDb';
 import { liteWriteState } from '../data/lite/whole';
 import { fakeDeps } from '../test/fakes/deps';
+import { warningMeters, type Meters } from './meters';
 import { DAY_LIMITS, checkDayLimits, checkLimits } from './warn';
 
 const NOW = new Date('2026-10-04T06:00:00Z');
@@ -59,4 +60,12 @@ describe('the usage meters on SQLite (server/usage)', () => {
     await db.statement('write', "insert into usage_month (month, calls) values ('2026-10', ?1)", [500_000]);
     expect((await checkLimits(deps)).warned).toEqual(['calls']);
   });
+});
+
+it('sends no month calls warning on the office host: the four Free day meters cover it (exit wave 4)', () => {
+  const meters = { month: '2026-10', calls: { used: 9_000_000, limit: 3_000_000 }, database: { used: 0, limit: 1 }, files: { used: 0, limit: 1 },
+    backupCopy: { used: 0, limit: 1 }, emails: { used: 0, limit: 1 }, emailsMonth: { used: 0, limit: 1 }, egress: { used: 0, limit: 1 } } as unknown as Meters;
+  expect(warningMeters(meters, 'r2', 'office').map((m) => m.meter)).not.toContain('calls');
+  expect(warningMeters(meters, 'r2', 'office').map((m) => m.meter)).not.toContain('callsWorkers');
+  expect(warningMeters(meters, 'r2', 'workers').map((m) => m.meter)).toContain('callsWorkers');
 });

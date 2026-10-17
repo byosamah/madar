@@ -1,4 +1,4 @@
-import { COPY_HOSTS, copyOfPageHost, serverHostOf, type ServerHostSetting } from '../core/serverHost';
+import { COPY_HOSTS, copyOfPageHost, onWorker, serverHostOf, type ServerHostSetting } from '../core/serverHost';
 import {
   CLIENT_ADDRESS_HEADER,
   INTERNAL_ORIGIN,
@@ -29,6 +29,9 @@ import {
  *   Frankfurt with forceFunctionRegion, and logs the case. That serves the tabs that a build for the Worker opened before a switch
  *   back. Supabase then sees the address of the Pages Function, not of the person (the forgot limit counts them together).
  * - A 101 answer of the Worker (the live socket, exit wave 3) goes back as it is.
+ * - The word office (exit wave 4) also goes to the binding: the Worker of the copy serves it from its office object.
+ * - /api/office and every path under it (the office ops of exit wave 4: export, import, peek, drop) go to the binding whatever the
+ *   word says, and nowhere else. No Supabase function has them, so with no binding they answer 404 (production before wave 6).
  */
 
 const PREFIX = '/api';
@@ -47,7 +50,9 @@ export async function proxyApi(request: Request, env: PagesEnv = {}, o: ProxyOpt
 
   const headers = forwardHeaders(request);
   const hosts = COPY_HOSTS[copy];
-  const onWorkers = serverHostOf(copy, o.setting) === 'workers';
+  // The ops of the office object (exit wave 4) go to the Worker whatever the word says, and nowhere else.
+  const ops = suffix === '/office' || suffix.startsWith('/office/');
+  const onWorkers = ops || onWorker(serverHostOf(copy, o.setting));
   const binding = onWorkers ? bindingOf(env, hosts.workers.binding) : undefined;
   if (binding) {
     const address = request.headers.get('cf-connecting-ip')?.trim();
@@ -57,6 +62,7 @@ export async function proxyApi(request: Request, env: PagesEnv = {}, o: ProxyOpt
     return answer.status === 101 ? answer : answerOf(answer);
   }
 
+  if (ops) return new Response(NOT_FOUND, { status: 404 });
   (o.log ?? defaultLog)(fallbackLine(FALLBACK, copy, onWorkers ? 'binding_missing' : 'setting'));
   const base = new URL(hosts.supabase.api);
   const upstream = new URL(`${base.pathname}${suffix}${url.search}`, base);

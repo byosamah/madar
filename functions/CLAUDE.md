@@ -4,11 +4,12 @@
 - `mcp/[[path]].ts`: the short MCP address (https://madar.vado.sa/mcp), logic in `server/http/pagesMcpProxy.ts`.
 - `api/[[path]].ts`: the page's own `/api` (owner, 2026-10-16), logic in `server/http/pagesApiProxy.ts`.
 
-Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers`,
-each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the preview
-environment, `MADAR_SERVER_PRODUCTION` on production). With `supabase`, or when the binding is missing, it goes to the
+Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or
+`office` (exit wave 4), each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the
+preview environment, `MADAR_SERVER_PRODUCTION` on production). With `supabase`, or when the binding is missing, it goes to the
 Supabase function of that copy, and the Pages log gets one JSON line (`reason` `setting` or `binding_missing`). A change of
-the setting reaches the functions only with a new Pages deploy (`pages.sh`).
+the setting reaches the functions only with a new Pages deploy (`pages.sh`). `/api/office` and every path under it (the office
+ops of exit wave 4) go to the binding whatever the word says, and never to Supabase: with no binding they answer 404.
 
 - Keep each file a one-line wrapper that passes `request` and `env`. The logic and its tests live in `server/http/`
   (`pagesForward.ts` holds the shared parts).

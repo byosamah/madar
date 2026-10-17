@@ -28,6 +28,24 @@ import type {
 
 export const LIVE_PATH = '/api/live';
 
+/** The routes of the office ops (exit wave 4): export, import, peek and drop, each behind its secret header. */
+export const OFFICE_OPS_PREFIX = '/api/office/';
+
+/** True when the env has the office binding OFFICE (the test Worker from wave 3; production from wave 6). */
+export function hasOfficeBinding(env: Record<string, unknown>): boolean {
+  const namespace = env.OFFICE as { idFromName?: unknown; get?: unknown } | undefined;
+  return typeof namespace?.idFromName === 'function' && typeof namespace.get === 'function';
+}
+
+/**
+ * True when the office path serves this request: every path with MADAR_DATA = "office", and the office ops whenever the binding
+ * exists, so the import of wave 5 reaches the object before the word of the copy changes.
+ */
+export function servesOffice(env: Record<string, unknown>, pathname: string): boolean {
+  if (!hasOfficeBinding(env)) return false;
+  return env.MADAR_DATA === 'office' || pathname.startsWith(OFFICE_OPS_PREFIX);
+}
+
 type Env = Record<string, unknown>;
 type After = (work: Promise<unknown>) => void;
 type Ctx = { waitUntil(work: Promise<unknown>): void; passThroughOnException?: () => void };

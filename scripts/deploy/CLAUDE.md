@@ -189,7 +189,9 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
 
 ## The server host (owner, 2026-10-16)
 `config/server-host.json` holds one word for each copy: `supabase` (the Supabase functions) or `workers` (the Worker of the
-copy). The database, Auth and Realtime stay on Supabase. Every `all.sh` run deploys both hosts with the same code, so the other
+copy). Exit wave 4 adds `office` (the office object of the Worker), for the test copy only: the setting refuses `production:
+office` until the switch (wave 6). The office branches of `all.sh`, `worker.sh` and `checks.sh` come with Task 20 of the wave 4
+plan; until then no copy takes the word. With `workers`, the database, Auth and Realtime stay on Supabase. Every `all.sh` run deploys both hosts with the same code, so the other
 host is always the way back. The file store does not follow the host (see the R2 runbook).
 - What follows the word: the `VITE_API_URL` of the screens (`build:remote`: the page's own `/api`, or the api function); the
   Pages Functions of `/api` and `/mcp` (the Worker through the service binding, or the Supabase function); the calls limit of

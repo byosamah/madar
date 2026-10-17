@@ -188,3 +188,45 @@ describe('functions/api/[[path]].ts', () => {
     expect(text).toMatch(/export const onRequest = \(\{ request, env \}[^\n]*=> proxyApi\(request, env\);/);
   });
 });
+
+describe('the office ops and the word office (exit wave 4)', () => {
+  const binding = () => {
+    const seen: string[] = [];
+    return { seen, env: { MADAR_SERVER_TEST: { fetch: async (request: Request) => (seen.push(new URL(request.url).pathname), new Response('ok')) } } };
+  };
+  // A fetch that refuses, so a test that fails never reaches a real Supabase function.
+  const noFetch = (async () => {
+    throw new Error('This test sends nothing to a Supabase function.');
+  }) as unknown as typeof fetch;
+
+  it('sends /api to the Worker binding when the word is office', async () => {
+    const b = binding();
+    await proxyApi(new Request('https://preview.madar-46r.pages.dev/api/batch', { method: 'POST', body: '{}' }), b.env, { setting: { test: 'office', production: 'supabase' }, log: () => undefined, fetch: noFetch });
+    expect(b.seen).toEqual(['/api/batch']);
+  });
+
+  it('sends /api/office/* to the Worker binding also when the word is supabase', async () => {
+    const b = binding();
+    await proxyApi(new Request('https://preview.madar-46r.pages.dev/api/office/export', { method: 'POST', body: '{}' }), b.env, { setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: noFetch });
+    expect(b.seen).toEqual(['/api/office/export']);
+  });
+
+  it('answers 404 for /api/office/* with no binding, and never sends it to the Supabase function', async () => {
+    const calls: string[] = [];
+    const response = await proxyApi(new Request('https://madar.vado.sa/api/office/export', { method: 'POST', body: '{}' }), {}, {
+      setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: (async (url: string) => (calls.push(url), new Response('x'))) as typeof fetch,
+    });
+    expect(response.status).toBe(404);
+    expect(calls).toEqual([]);
+  });
+
+  it('keeps /api/officers and /api/office-x on the normal path: only /api/office and paths under it are ops', async () => {
+    const calls: string[] = [];
+    const fetcher = (async (url: string) => (calls.push(new URL(url).pathname), new Response('x'))) as typeof fetch;
+    for (const path of ['/api/officers', '/api/office-x']) {
+      const response = await proxyApi(new Request(`https://madar.vado.sa${path}`, { method: 'POST', body: '{}' }), {}, { setting: { test: 'supabase', production: 'supabase' }, log: () => undefined, fetch: fetcher });
+      expect(response.status).toBe(200);
+    }
+    expect(calls).toEqual(['/functions/v1/api/officers', '/functions/v1/api/office-x']);
+  });
+});

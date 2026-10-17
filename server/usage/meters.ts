@@ -174,11 +174,12 @@ export function overLimit(meter: Meter): boolean {
 
 /**
  * The meters of the 80% warning, by the names of the limitWarning mail (server/mail/templates). Files have their own name on
- * R2, and calls on the Worker, where the next step is different (section 10, decision 2; owner, 2026-10-16).
+ * R2, and calls on the Worker, where the next step is different (section 10, decision 2; owner, 2026-10-16). The office host
+ * (exit wave 4) has no month calls meter here: the Free limit is a day limit, and the day meters cover it (checkDayLimits).
  */
 export function warningMeters(meters: Meters, store: FileStoreKind, host: ServerHost = 'supabase'): { meter: UsageMeter; value: Meter }[] {
   return [
-    { meter: host === 'workers' ? 'callsWorkers' : 'calls', value: meters.calls },
+    ...(host === 'office' ? [] : [{ meter: host === 'workers' ? ('callsWorkers' as const) : ('calls' as const), value: meters.calls }]),
     { meter: 'database', value: meters.database },
     { meter: store === 'r2' ? 'filesR2' : 'files', value: meters.files },
     { meter: 'backup', value: meters.backupCopy },

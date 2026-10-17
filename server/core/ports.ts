@@ -47,8 +47,10 @@ export const FILE_STORE_LIMITS: Record<FileStoreKind, { maxFileBytes: number; to
 /**
  * The calls of a month that the plan of each server host includes (owner, 2026-10-16): Supabase Free has 500,000 Edge
  * Function invocations; Workers Paid has 10 million requests (the Pages Functions of /api and /mcp count there too).
+ * office (exit wave 4): Workers Free allows 100,000 requests a day for the account, about 3 million a month. The four day meters
+ * of the office object (exit wave 3) watch the real limits, so no month warning goes out for it (warningMeters).
  */
-export const CALL_LIMITS: Record<ServerHost, number> = { supabase: 500_000, workers: 10_000_000 };
+export const CALL_LIMITS: Record<ServerHost, number> = { supabase: 500_000, workers: 10_000_000, office: 3_000_000 };
 
 export function fileStoreKind(value: string | undefined): FileStoreKind {
   if (value === undefined || value === '' || value === 'supabase') return 'supabase';

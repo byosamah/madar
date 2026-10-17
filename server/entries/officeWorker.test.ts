@@ -6,7 +6,7 @@ import type { OfficeMcpInput } from '../office/parts';
 import { recordingNet } from '../office/test/fakes';
 import { fakeDeps } from '../test/fakes/deps';
 import { clientAddress } from '../auth/forgot';
-import { LIVE_PATH, officeRoutes, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
+import { hasOfficeBinding, LIVE_PATH, OFFICE_OPS_PREFIX, officeRoutes, servesOffice, type OfficeCall, type OfficeRoute, type OfficeStub } from './officeWorker';
 
 const TICKET = 'a'.repeat(64);
 const BODY = JSON.stringify({ v: 1, calls: [{ i: 0, name: 'session.get', input: {} }] });
@@ -179,5 +179,23 @@ describe('the Worker routes of the office path (server/entries/officeWorker.ts)'
       expect(answer.status).toBe(503);
       expect(await answer.json()).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: 503 } });
     });
+  });
+});
+
+describe('which path of the Worker serves a request (exit wave 4)', () => {
+  const OFFICE = { idFromName: () => 'id', get: () => ({}) };
+  it('serves every path from the office object with MADAR_DATA = office and the binding', () => {
+    expect(servesOffice({ MADAR_DATA: 'office', OFFICE }, '/api/batch')).toBe(true);
+  });
+  it('serves /api/office/* from the office object whenever the binding exists, and nothing else', () => {
+    expect(OFFICE_OPS_PREFIX).toBe('/api/office/');
+    expect(servesOffice({ OFFICE }, '/api/office/export')).toBe(true);
+    expect(servesOffice({ OFFICE }, '/api/batch')).toBe(false);
+    expect(servesOffice({ OFFICE }, '/api/officers')).toBe(false);
+  });
+  it('serves nothing from the office object with no binding (production before wave 6)', () => {
+    expect(servesOffice({ MADAR_DATA: 'office' }, '/api/office/export')).toBe(false);
+    expect(hasOfficeBinding({})).toBe(false);
+    expect(hasOfficeBinding({ OFFICE: { idFromName: 'x' } })).toBe(false);
   });
 });

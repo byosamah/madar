@@ -175,3 +175,14 @@ describe('the short MCP address on the Worker (owner, 2026-10-16)', () => {
     expect(text).toMatch(/export const onRequest = \(\{ request, env \}[^\n]*=> proxyMcp\(request, fetch, env\);/);
   });
 });
+
+it('sends /mcp to the Worker binding when the word is office (exit wave 4)', async () => {
+  const seen: string[] = [];
+  const env = { MADAR_SERVER_TEST: { fetch: async (request: Request) => (seen.push(new URL(request.url).pathname), new Response('ok')) } };
+  // A fetch that refuses, so a test that fails never reaches a real Supabase function.
+  const noFetch = (async () => {
+    throw new Error('This test sends nothing to a Supabase function.');
+  }) as unknown as typeof fetch;
+  await proxyMcp(new Request('https://preview.madar-46r.pages.dev/mcp', { method: 'POST', body: '{}' }), noFetch, env, { setting: { test: 'office', production: 'supabase' }, log: () => undefined });
+  expect(seen).toEqual(['/mcp']);
+});

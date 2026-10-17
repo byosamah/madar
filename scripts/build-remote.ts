@@ -29,14 +29,21 @@ export function parsePublicEnv(text: string): Record<string, string> {
 
 /**
  * The public values of one copy, with VITE_API_URL from the setting. The dev server (dev: true) always gets the api function:
- * Vite runs no Pages Function, so the page api does not exist there.
+ * Vite runs no Pages Function, so the page api does not exist there. The word office (exit wave 4) also gives VITE_MADAR_AUTH=madar
+ * and VITE_MADAR_LIVE=socket, so the public file sets none of the three.
  */
 export function remotePublicEnv(target: RemoteEnv, text: string, o: { dev?: boolean; setting?: ServerHostSetting } = {}): Record<string, string> {
   const env = parsePublicEnv(text);
-  if (env.VITE_API_URL !== undefined) {
-    throw new Error(`config/remote.${target}.env must not set VITE_API_URL: config/server-host.json decides it (scripts/build-remote.ts).`);
+  for (const name of ['VITE_API_URL', 'VITE_MADAR_AUTH', 'VITE_MADAR_LIVE'] as const) {
+    if (env[name] !== undefined) throw new Error(`config/remote.${target}.env must not set ${name}: config/server-host.json decides it (scripts/build-remote.ts).`);
   }
-  env.VITE_API_URL = screensApiUrl(target, o.dev ? 'supabase' : (o.setting ?? SERVER_HOST_SETTING)[target]);
+  const host = o.dev ? 'supabase' : (o.setting ?? SERVER_HOST_SETTING)[target];
+  env.VITE_API_URL = screensApiUrl(target, host);
+  // An office copy signs in with Madar and gets its live updates from the office object (exit waves 2 and 3).
+  if (host === 'office') {
+    env.VITE_MADAR_AUTH = 'madar';
+    env.VITE_MADAR_LIVE = 'socket';
+  }
   return env;
 }
 
