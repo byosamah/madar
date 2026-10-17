@@ -18,6 +18,7 @@
     "test:lite": "MADAR_LITE=1 vitest run --project lite",
     "test:office": "MADAR_OFFICE=1 vitest run --project office",
     "smoke:office": "node --import tsx scripts/dev/office-smoke.ts",
+    "dev:office": "node --import tsx scripts/dev/office-local.ts",
     "test:it": "MADAR_IT=1 vitest run --project it --passWithNoTests",
     "test:mcp": "vitest run --project server server/mcp && tsx server/mcp/conformance.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",

@@ -114,6 +114,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   suites need MinIO (`server/it/minio.ts`).
 - `npm run test:mcp` - MCP tests plus the conformance runner (it needs the local stack running; "conformance: 5 of 32
   scenarios pass; 27 expected failures" is the normal result). `npm run icons` - the app icons.
+- `npm run dev:office` - the local office stack (exit wave 4): the real bundle on wrangler dev with the own sign-in, the seeded
+  sample office and the Madar screens on 127.0.0.1:4174, with no Docker. It writes `test-results/office-local/run.env` for the
+  deploy suite on the office path (`tests/CLAUDE.md`), and removes it at the stop. Run it after `build:server`, sandbox off.
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.

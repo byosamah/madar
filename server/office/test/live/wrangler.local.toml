@@ -1,0 +1,33 @@
+# The real Workers bundle on the office path with the own sign-in, for npm run dev:office (Supabase exit, wave 4): the first
+# end-to-end run of the own sign-in and the deploy suite on the office path, on the Mac. Local wrangler dev only: it never deploys.
+# scripts/dev/office-local.ts passes the values that look like keys in an env file that it makes for each run and removes after it.
+name = "madar-office-local"
+main = "../../../../dist-server/worker.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[vars]
+MADAR_DATA = "office"
+APP_URL = "http://127.0.0.1:4174"
+ALLOWED_ORIGINS = "http://127.0.0.1:4174"
+API_URL = "http://127.0.0.1:8792/api"
+MCP_URL = "http://127.0.0.1:8792/mcp"
+MAIL_FROM = "Madar <notices@madar.test>"
+MAIL_DRIVER = "outbox"
+SUPABASE_URL = "http://127.0.0.1:54321"
+MADAR_FILE_STORE = "r2"
+R2_BUCKET = "madar-files-test"
+WORKER_REGION = "workers-local"
+MADAR_TEST_TOOLS = "on"
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "Office"
+
+[[migrations]]
+tag = "office-v1"
+new_sqlite_classes = ["Office"]
+
+[triggers]
+crons = ["*/15 * * * *"]
