@@ -32,6 +32,7 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
 import { EXPORT_TABLES, exportPage, exportStepOf, META_ROW_LITE, OfficeHold, peek, testToolsOn, writesIn, type ExportStep } from './ops';
 import type { OfficeWho } from './who';
@@ -98,8 +99,10 @@ export type OfficeParts = {
   message(socket: LiveSocket, message: string | ArrayBuffer): void;
   closed(socket: LiveSocket, code: number): void;
   health(): Promise<OfficeHealth>;
-  /** One office op of the Worker (exit wave 4): /office/export and /office/peek, as JSON in and out. */
+  /** One office op of the Worker (exit wave 4): /office/export, /office/import and /office/peek, as JSON in and out. */
   ops(request: Request): Promise<Response>;
+  /** The counts of the UTC day of now: the day row and the counts that the meter holds in memory still (exit wave 4). */
+  dayCounts(now: Date): Promise<DayRow>;
 };
 
 /** The office object does no network work, so no region hop of the MCP app (server/mcp/forward.ts) may run here. */
@@ -206,6 +209,53 @@ export function officeParts(o: PartsInput): OfficeParts {
     if (step.step === 'page') return exportPage(db, step.table, step.after);
     const out = await meta();
     hold.end(step.id);
+    return out;
+  }
+
+  async function dayCounts(now: Date): Promise<DayRow> {
+    const [row] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(now)]);
+    const pending = meter.pending();
+    return {
+      rows_read: Number(row?.rows_read ?? 0) + pending.rowsRead,
+      rows_written: Number(row?.rows_written ?? 0) + pending.rowsWritten,
+      requests: Number(row?.requests ?? 0) + pending.requests,
+      calls: Number(row?.calls ?? 0) + pending.calls,
+      worker_requests: Number(row?.worker_requests ?? 0) + pending.workerRequests,
+    };
+  }
+
+  /**
+   * One step of an import (exit wave 4, server/office/import.ts): begin takes the hold of an import (every call waits), each part
+   * and the finish check it, and the finish or an abort ends it. After the finish every socket closes, so each open screen
+   * reloads the new office.
+   */
+  async function importStep(step: ImportStep, now: Date) {
+    if (step.step === 'begin') {
+      if (step.mode === 'replace' && !tools) throw new ApiError('forbidden', 'The replace mode is a test tool, and it is off on this copy.');
+      const id = hold.begin('import', now);
+      try {
+        await importBegin(db, step.mode);
+      } catch (error) {
+        hold.end(id);
+        throw error;
+      }
+      return { id, schema: LITE_SCHEMA_VERSION, day: await dayCounts(now) };
+    }
+    hold.check(step.id, now);
+    if (step.step === 'abort') {
+      hold.end(step.id);
+      return { ok: true };
+    }
+    if (step.step === 'part') return importPart(db, step.table, step.rows);
+    const out = await importFinish(db, step.server, step.signin, now, (q) => meter.flush(q, now));
+    hold.end(step.id);
+    for (const socket of o.sockets.list('office')) {
+      try {
+        socket.close(1012, 'The office data changed.');
+      } catch {
+        // The socket is closed already.
+      }
+    }
     return out;
   }
 
@@ -387,6 +437,7 @@ export function officeParts(o: PartsInput): OfficeParts {
       try {
         const path = new URL(request.url).pathname;
         if (path === '/office/export') return Response.json(await exportStep(exportStepOf(await bodyOf(request)), now));
+        if (path === '/office/import') return Response.json(await importStep(importStepOf(await bodyOf(request)), now));
         if (path === '/office/peek') {
           if (!tools) throw new ApiError('forbidden', 'The test reads are off on this copy.');
           const body = await bodyOf(request);
@@ -398,5 +449,6 @@ export function officeParts(o: PartsInput): OfficeParts {
         return errorResponse(runErrorOf(error));
       }
     },
+    dayCounts,
   };
 }
