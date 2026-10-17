@@ -25,7 +25,7 @@ export type JobsAppOptions = {
 };
 
 /** Compares two secrets in constant time: both go through SHA-256 first, so the length of the secret does not show either. */
-async function sameSecret(given: string, secret: string): Promise<boolean> {
+export async function sameSecret(given: string, secret: string): Promise<boolean> {
   const digest = async (text: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
   const [a, b] = await Promise.all([digest(given), digest(secret)]);
   let diff = 0;
