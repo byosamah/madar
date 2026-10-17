@@ -67,12 +67,16 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     return (await this.#measured(({ db }) => db.tx('write', (q) => liteWriteState(q, state))))[1];
   }
 
-  /** Rows of one table as Task 17 makes them (doc and server columns), with no diff: the import of the year office. */
+  /**
+   * Rows of one table as Task 17 makes them (doc and server columns), with no diff: the import of the year office. The schema
+   * makes the settings row of a new office, so the import replaces that one row. Every other row is new.
+   */
   async load(table: string, rows: Row[]): Promise<Rows> {
     const spec = TABLES.find((one) => one.table === table);
     if (!spec) throw new Error(`No table ${table}.`);
+    const onConflict = spec.collection === 'settings' ? 'update' : 'fail';
     return (await this.#measured(({ db }) => db.tx('write', async (q) => {
-      for (const row of rows) await insertRow(q, spec, row, EMPTY, 'fail');
+      for (const row of rows) await insertRow(q, spec, row, EMPTY, onConflict);
     })))[1];
   }
 
@@ -115,9 +119,26 @@ export class PinOffice extends DurableObject implements PinOfficeApi {
     this.ctx.storage.sql.exec(`drop index if exists ${name}`);
   }
 
-  /** The cold wake test calls through fetch: an RPC stub that Node holds keeps the object awake (map of schema and tests). */
+  /**
+   * The cold wake test calls through fetch: an RPC stub that Node holds keeps the object awake (map of schema and tests), and
+   * the proxy of miniflare frees a stub only after Node collects it. So the rows pins send every method of the year office
+   * through /rpc ({ method, args }), and Node holds no stub to that object when it evicts it.
+   */
   async fetch(request: Request): Promise<Response> {
-    if (new URL(request.url).pathname === '/call' && request.method === 'POST') return Response.json(await this.call((await request.json()) as PinCall));
+    const path = new URL(request.url).pathname;
+    if (path === '/call' && request.method === 'POST') return Response.json(await this.call((await request.json()) as PinCall));
+    if (path === '/rpc' && request.method === 'POST') {
+      const { method, args } = (await request.json()) as { method: string; args: unknown[] };
+      if (!FETCH_METHODS.has(method)) return Response.json({ error: `No method ${method}.` }, { status: 404 });
+      try {
+        const work = this[method as keyof PinOfficeApi] as (...values: unknown[]) => Promise<unknown>;
+        return Response.json({ value: (await work.apply(this, args)) ?? null });
+      } catch (error) {
+        return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+      }
+    }
     return new Response('not found', { status: 404 });
   }
 }
+
+const FETCH_METHODS = new Set<string>(['hostChecks', 'writeState', 'load', 'finish', 'call', 'readBack', 'statTables', 'dropIndex'] satisfies (keyof PinOfficeApi)[]);

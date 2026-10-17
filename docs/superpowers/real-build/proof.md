@@ -1327,3 +1327,68 @@ Both runs at 5a58fba, load average about 4 on the Mac.
 - **LATER_KINDS (wave 2):** `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` (the sign-in effects of
   `server/auth/effects.ts` and `server/auth/invite.ts`) and `agents.revokeAll` (`server/mcp/revokeAll.ts`). Their outbox
   rows fail and stay for the job, as in db mode. `auth.emailNotice` did not run in this suite.
+
+### Wave 1: the rows pins on one year of data (2026-10-17)
+Exit plan, wave 1 Tasks 17 and 18. `server/office/pins.wd.test.ts` runs in `npm run test:office` on local workerd (wrangler
+4.147.0 `createTestHarness`, sandbox off). The year office of Task 17 (`server/office/test/yearOffice.ts`) grows the sample
+office to 132,221 records: 6 copies of the project work, 62,000 events, 26,000 notices, 20,000 messages, 12,000 comments,
+6,000 files, 2,600 posts and 1,500 Tracker entries, each record valid for its zod schema. Measure run:
+`MADAR_PINS_MEASURE=1 npm run test:office -- server/office/pins.wd.test.ts --silent=false` (vitest prints the lines of a test
+that passes only with `--silent=false`). Each ceiling is the measured value plus 10% (`Math.ceil`).
+
+| Read | Person | Wave 0 rows (first ceiling) | Wave 1 rows | Ceiling |
+|---|---|---|---|---|
+| chats.unreadCount | usr_005 (member) | 21,064 | 15,449 | 16,994 |
+| chats.unreadCount | usr_001 (Admin) | 56,258 | 15,425 | 16,968 |
+| chats.list | usr_001 | 56,516 | 15,445 | 16,990 |
+| notifications.count | usr_005 | 2,585 | 1 | 2 |
+| notifications.list | usr_005 | 4,934 | 107 | 118 |
+| tasks.list (mine) | usr_005 | 5,432 | 2,221 | 2,444 |
+| tasks.list (review_for_me) | usr_002 | 3,200 | 2,305 | 2,536 |
+| projects.list (all) | usr_001 | 5,094 | 1,843 | 2,028 |
+| dashboard.get | usr_001 | 6,015 | 4,100 | 4,510 |
+| search.query "plan" | usr_005 | 3,059 | 1,038 | 1,142 |
+| search.query "zqxv" (no match) | usr_005 | 8,074 | 7,034 | 7,738 |
+| events.list (limit 50) | usr_001 | 680 | 79 | 87 |
+| events.list (limit 500, the last hour) | usr_001 | 653 | 17 | 19 |
+| events.list (prj_001, limit 50), new | usr_001 | none | 62 | 69 |
+
+- **Writes** (the call of `everyCall` on the year office): `tasks.complete` 59 rows written (wave 0: 39; ceiling 65),
+  `tasks.update` 16 (36; 18), `comments.create` 21 (44; 24), `chats.send` 11 (22; 13).
+- **Why tasks.complete is over its wave 0 value:** the call completes tsk_007 as the Admin. It writes 4 events, 1 comment
+  (5 rows), 1 Tracker entry (3), 2 task updates, the project, the story (3), `office_meta`, 3 counters and 1 snapshot part. Each
+  event writes 10 rows: the row, its key and 8 indexes. The same call writes 59 rows on the sample office too, so the office
+  size does not change it. The wave 0 number came from the probe's own call on generated data. Step 5 found no event index that
+  no read needs, so the ceiling goes over the wave 0 value.
+- **Import:** 132,221 records, 912,969 rows written, 6.90 for each record (wave 0: 7.1; ceiling 7.5). The count includes the
+  schema of the first request.
+- **Cold wake:** the first call after an evict reads 2 more rows (the schema version and the snapshot part; ceiling 4).
+  workerd refuses an evict while a stub to the object is alive ("it still has active references"), and the miniflare proxy frees
+  a stub only after Node collects it. So the pins test sends every call of the year office through fetch (`/rpc` of the test
+  object, `officeByFetch` in `server/office/test/harness.ts`). The import also needs `load` to replace the settings row, because
+  the schema makes it.
+- **ANALYZE:** the year office has no `sqlite_stat` table after all the pins.
+- **The event indexes (Step 5):** one-off runs (not committed), one new year office for each index, with that index dropped:
+
+| Index | The read that needs it | Rows read with it | Rows read without it | Decision |
+|---|---|---|---|---|
+| events_project | events.list with projectId prj_001 | 62 | 12,815 | kept |
+| events_target_id | notifications.list of usr_002, with tsk_010 taken out before the import (919 notices with a gone target) | 4,189 | 65,842 | kept |
+| events_project_created | projects.list (all); projects.get; updates.list | 1,843; 29; 37 | 183,416; 17,670; 17,672 | kept |
+| events_story | events.list with the story of one new tasks.update | 4 | 62,003 | kept |
+
+- Only projects.list of the 13 wave 0 read pins moved when one index was dropped: no pin had a read with a project, a story
+  or a gone target. So the rule "keep it out when every read pin stays under its ceiling" alone would cut three indexes that a
+  read needs. Task 18 added the pin of events.list with a project. The reads of events_target_id and events_story need a gone
+  target and a new story, which the year office does not have (TASKS.md).
+- **Result:** no index is cut. `LITE_SCHEMA_VERSION` stays 1, and `PINNED_SHA256` stays. One dropped event index saves 1 row
+  for each event: `tasks.update` 18 to 17 and `tasks.complete` 57 to 53 in the cut runs.
+- The copies of the year office keep the story ids of the seed, so one seed story holds 5,460 events. events.list with that
+  story reads 10,926 rows with events_story and 1,749 without it. A real story holds a few events.
+- **A day of rows** (the mix of `scripts/proof/do-rows/day.mjs`, run as a copy outside the repo, so `day.json` did not change):
+  production on the year office with the wave 1 numbers where Task 18 measured them (one person each), and the wave 0 numbers
+  for the other calls, the jobs and the export; the test copy at the wave 0 numbers of the sample office; a cold wake reads 2
+  rows. If 422 and 2,000 are calls: 1,980,047 rows read (39.6% of the Free 5 million) and 20,333 written (20.3% of 100,000).
+  At 2.5 calls a request: 4,290,072 read (85.8%) and 45,700 written (45.7%). Wave 0, as ported: 65% and 145%.
+- The chat badge (`chats.unreadCount` and `chats.list`) is still 2,548 of the 3,169 rows of an average production call (80%).
+  Track R (the stored unread number) still decides the budget. The badge pins keep the ported number until it merges.

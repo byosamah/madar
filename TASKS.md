@@ -504,6 +504,11 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   keeps no row, and no request runs inside an open transaction (proof.md "Wave 1: the transaction facts", 9ec27c4)
 - [ ] Exit wave 1, Tasks 2 to 19: the SQLite path beside Postgres (`rb/cloudflare`)
 - [ ] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`)
+- [ ] When Track R merges: lower the badge pins (`chats.unreadCount`, `chats.list`) in `server/office/test/pins.ts` from the
+  ported read (15,449 rows read, ceiling 16,994) to the measured value of the stored unread number plus 10%
+- [ ] Wave 3: rows pins for the two reads that keep `events_target_id` and `events_story` (notifications.list with a gone
+  target, the story read of events.undoStory). The year office has neither shape, so a pin needs a write or a gone target
+  first (proof.md "Wave 1: the rows pins")
 - [ ] Owner decisions of later waves (spec section 7): the switch date, B2 or R2 alone, the account of the test copy, the
   Supabase delete date, the $5 safety valve (still open: no payment without a yes in words)
 - [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
