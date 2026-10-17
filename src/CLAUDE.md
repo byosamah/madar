@@ -32,6 +32,8 @@ any screen work.
   function otherwise. `config/remote.<env>.env` must not set it. `regionUrl` (`api/remote/region.ts`) adds
   `forceFunctionRegion=eu-central-1` only to a `*.supabase.co` URL, and a relative `/api` stays relative (fetch resolves it
   against the page). `dev:remote` always uses the api function: Vite runs no Pages Function.
+- The sign-in of the remote build (`src/app/remote/authMode.ts`): `VITE_MADAR_AUTH` unset is the Supabase port of today;
+  `madar` is the Madar port (`madarAuth.ts`, `madarOAuthPort`) for the own stack. No copy sets it before wave 5.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
   and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and

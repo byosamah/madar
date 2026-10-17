@@ -507,7 +507,8 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [x] The plans of exit waves 2 and 3 (`docs/superpowers/plans/2026-10-17-madar-exit-wave2-signin-plan.md`, 22 tasks;
   `docs/superpowers/plans/2026-10-17-madar-exit-wave3-live-plan.md`, 19 tasks; about 7 builder days each). The main session
   settled the schema rule (Merge notes, item 1 of both) and accepted the four design choices of wave 3
-- [ ] Exit wave 2 build, Blocks A to D (`~/dev/madar-rb/exit-signin`, `rb/exit-signin`)
+- [x] Exit wave 2 build, Blocks A to D (`~/dev/madar-rb/exit-signin`, `rb/exit-signin`): 22 tasks, the gate green once
+  (proof.md "Wave 2 of the Supabase exit"); the merge waits on the main session
 - [ ] Exit wave 3 build, Blocks A to D (`~/dev/madar-rb/exit-live`, `rb/exit-live`)
 - [ ] The second merge of waves 2 and 3: the Merge notes of both plans, item 8 of the wave 3 plan (the sign-in parts on the
   office object; MCP on the office path may move to wave 4), item 13 of the wave 2 plan (the sign-in specs on a local
@@ -515,11 +516,21 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Before the first `all.sh test` after the wave 3 merge: count the Cron Triggers of the account (Free allows 5)
 - [ ] Wave 5: measure the bill of the callback from the office object into the Worker (wave 3 design choice 1), and one
   deployed Cron run with many pushes against the 10 ms CPU of Free
-- [ ] Wave 2: `users.invites`, `users.resendInvite`, `agents.list` and `agents.remove` on SQLite (`LATER_CALLS` in
+- [x] Wave 2: `users.invites`, `users.resendInvite`, `agents.list` and `agents.remove` on SQLite (`LATER_CALLS` in
   `server/test/liteHarness.ts`: the invite texts of `server/calls/people.ts` and `server/auth/invite.ts`, the agent links of
   `server/calls/agents.ts`)
-- [ ] Wave 2: the effect kinds `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` and `agents.revokeAll`
+- [x] Wave 2: the effect kinds `auth.invite`, `auth.ban`, `auth.unban`, `auth.email`, `auth.emailNotice` and `agents.revokeAll`
   on SQLite (`LATER_KINDS`), and the sign-in link of `server/data/officeCache.ts`
+- [ ] Wave 3: connect `SigninOffice` to the object method for one batch (body `{ signin, input }`), pass `ownApiRoutes` and
+  `mountOAuth` in the hosts, `liteAgentOf` in the object, `liteAuthAdmin` as `deps.authAdmin` of the object, and run
+  `cleanupSignin` once a day (exit wave 2 plan, Merge notes)
+- [ ] The merge of waves 2 and 3: the deploy-suite sign-in specs on a local `wrangler dev` with `VITE_MADAR_AUTH=madar`, and the
+  screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px)
+- [ ] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
+  copies `SIGNIN_TABLES`; `scripts/deploy/secrets.ts` names `MADAR_AUTH_PRIVATE_JWK` (a script makes the key and writes it
+  straight to the Worker secret)
+- [ ] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
+- [ ] Later, only if an AI app needs it: Client ID Metadata Documents (a fetch in the Worker, not in the object)
 - [ ] Wave 3: `usage.get` and `usage.retryEffect` on SQLite (the meters of `server/usage/meters.ts`, the outbox job), and the
   mail quota of `server/mail/quota.ts`
 - [ ] Wave 3: the mail and push producers on SQLite, with the notice ids of the Diff (in wave 1 only `server/core/deps.ts`

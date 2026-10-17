@@ -1413,3 +1413,69 @@ Exit plan, wave 1 Task 19. The merge gate ran once on `rb/cloudflare` at d27f504
   wave 3, `usage.get` and `usage.retryEffect`, the mail quota, the mail and push producers with the notice ids of the Diff, a
   day meter that counts rolled-back writes, and the rows pins of the reads that keep `events_target_id` and `events_story`;
   Track R, the badge pins drop when the stored unread number merges; wave 5, the transaction race on the deployed object.
+
+### Wave 2 of the Supabase exit: sign-in and agents (2026-10-17)
+Exit wave 2 plan, Tasks 1 to 22 (`docs/superpowers/plans/2026-10-17-madar-exit-wave2-signin-plan.md`), on `rb/exit-signin`
+(46a1eff to 760d4c6). The own sign-in for people and AI agents on the SQLite path: schema version 2, PBKDF2 passwords, ES256
+tokens, links, sessions, the copied bcrypt hash (owner decision 4), OAuth 2.1 with the Madar approval inside, and the two screens
+ports. Nothing changed for production or the test copy: no deploy, `config/server-host.json` stays
+`{"test":"supabase","production":"supabase"}`, no `VITE_MADAR_AUTH` line, no file in `functions/`, no Worker secret.
+
+The facts of this wave, each with its source:
+- PBKDF2 on local workerd (wrangler 4.147.0 `createTestHarness`, in the object and in a plain Worker): 100,000, 100,001 and
+  600,000 rounds all pass. Deployed Workers Free refuse more than 100,000 (Cloudflare Community, 6 October 2026: "Pbkdf2 failed:
+  iteration counts above 100000 are not supported (requested 240000)"; workerd issue 1346). The code keeps 100,000, and
+  `server/auth/own/password.test.ts` pins it.
+- ES256 on local workerd: P-256 `generateKey`, `sign` (64 bytes) and `exportKey('jwk')` work in the object; a binding that the
+  config does not name is `undefined` in the object env (the wave 2 plan, facts checked on 17 October 2026).
+- jose 6.2.12 exports `SignJWT`, `importJWK`, `exportJWK`, `generateKeyPair`, `calculateJwkThumbprint`, `createLocalJWKSet`,
+  `jwtVerify` and `base64url` (the package exports).
+- bcryptjs 3.0.3 (April 2026, the latest) is an ES module and imports the bare module `crypto` (index.js line 32). It bundles and
+  runs in the office object on local workerd with `nodejs_compat`: `compareSync` of a cost 10 hash passes, and the row then holds
+  a `pbkdf2-sha256$100000$` hash (`server/office/signin.wd.test.ts`). It has no dependency of its own.
+- The MCP client discovery of `@modelcontextprotocol/sdk` 1.32.0 (`buildDiscoveryUrls`) for the issuer `https://madar.vado.sa/mcp`
+  tries `/.well-known/oauth-authorization-server/mcp`, then `/.well-known/openid-configuration/mcp`, then
+  `/mcp/.well-known/openid-configuration`. The OIDC form needs `jwks_uri`, `subject_types_supported` and
+  `id_token_signing_alg_values_supported` (SDK schema `OpenIdProviderMetadataSchema`). `server/mcp/oauth/sdk.test.ts` runs the
+  whole flow with the SDK on node:sqlite: discovery, registration, the code through the Madar approval, the PKCE exchange,
+  `tools/list` (41 tools), the refresh, and the refusal of a used code.
+- The MCP draft: a client uses a Client ID Metadata Document when the server says so, else Dynamic Client Registration (RFC 7591).
+  Madar keeps registration and does not say `client_id_metadata_document_supported` (that document is a fetch, and the office
+  object does no network work).
+- `npx wrangler pages functions build` accepts `functions/.well-known/oauth-authorization-server/[[path]].ts` and routes
+  `/.well-known/oauth-authorization-server/*` (checked in a scratch folder). Wave 5 adds that file; `server/http/pagesWellKnown.ts`
+  holds its logic.
+- `auth.users` of Supabase has `id`, `email`, `encrypted_password` (bcrypt `$2a$10$...`), `email_confirmed_at`, `banned_until`,
+  `raw_user_meta_data` and `deleted_at`. The local Supabase Auth stores `$2a$10$...`, and `SIGNIN_EXPORT_SQL` reads it
+  (`server/it/signinExport.it.test.ts`). The nightly backup dump holds `auth.users` (`scripts/backup/check.test.ts`).
+- node:sqlite: `json_set` with `json_insert(..., '$[#]', ...)` keeps a list and adds a key once; `json_patch` after `json_remove`
+  drops the token and the renew key. The partial index `outbox_signin` serves a query only when it repeats the exact term
+  `kind in ('auth.invite', 'auth.email')`; `kind = 'auth.invite'` alone scans the outbox.
+- The miniflare 5.20261001.0-alpha Node RPC proxy cannot carry a rejected Durable Object call ("The expression evaluated to a falsy
+  value: (typeHeader === \"Promise\")"). A refusal test goes through the `/rpc` fetch path of the harness (`officeByFetch`).
+
+The merge gate ran once, on `rb/exit-signin` at 760d4c6 with no rebase (the main session does the merge), under the Docker lock
+`wave2-gate` for the whole run. Load average 3 to 20 on 10 cores; no test failed.
+- `npm run typecheck`: pass.
+- `npm test`: 502 files passed; 5,092 passed, 6 skipped (wave 1 ended at 4,954: 138 new tests).
+- `npm run build`: pass (the prototype bundle check: no "supabase" in any case, one script file).
+- `npm run build:server`: pass. `grep -l 'pbkdf2-sha256' supabase/functions/_build/*.js dist-server/worker.js` printed only
+  "no own sign-in in the bundles".
+- `npm run build:remote -- test` (sandbox off): pass; the first-load scripts are 1,128,685 B of 1,350,000 B.
+- `npm run test:lite`: 81 files passed; 1,141 passed, 25 skipped. `lite mode: 2755 calls, 1.7 ms a call in runCall, the run took 7 s.`
+- `npm run test:office` (sandbox off): 3 files, 11 passed.
+- `npx supabase start -x edge-runtime` and `npx supabase db reset` from this worktree, then `npm run test:db`: 81 files passed;
+  1,141 passed, 25 skipped (Postgres did not change). `db mode: 2755 calls, 12.6 ms a call in runCall, the run took 24 s.`
+- `npm run test:it`: 34 files, 277 passed (with `server/it/signinExport.it.test.ts`).
+- `npm run test:mcp`: 19 files, 173 passed; "conformance: 5 of 32 scenarios pass; 27 expected failures" (the baseline of today).
+- The prototype smoke runs at the merge (main session).
+
+The sign-in specs of the deploy suite (`account.spec.ts`, `signin.spec.ts`, `agents.spec.ts`) and the screenshots of the Madar
+port run at the merge of waves 2 and 3 on a local `wrangler dev` (Merge notes, item 13): before wave 3, no Worker serves the
+office object.
+
+Open items (TASKS.md): wave 3 connects `SigninOffice` to the object method for one batch, passes `ownApiRoutes` and `mountOAuth`
+in the hosts, `liteAgentOf` and `liteAuthAdmin` in the object, and runs `cleanupSignin` once a day; the merge of waves 2 and 3 runs
+the sign-in specs and the screenshots; wave 4 reads `SIGNIN_EXPORT_SQL`, calls `importSigninRows` and copies `SIGNIN_TABLES` in
+the restore check, and names `MADAR_AUTH_PRIVATE_JWK` in `scripts/deploy/secrets.ts`; wave 5 adds the `.well-known` Pages
+Function and `VITE_MADAR_AUTH=madar` for the test copy; Client ID Metadata Documents only if an AI app needs them.

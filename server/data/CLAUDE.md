@@ -116,3 +116,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   a rows pin that shows that no read needs it.
 - `test:lite` runs the rule tests and the shadow run on node:sqlite; `test:office` runs the host checks, the `everyCall`
   parity and the rows pins on local workerd. Keep both green when you change a loader read or the save.
+- Schema version 2 (wave 2): the sign-in rows (`auth_users`, `auth_links`, `auth_sessions`, `oauth_clients`, `oauth_requests`)
+  and the partial index `outbox_signin`. An invitation text must repeat its exact term `kind in ('auth.invite', 'auth.email')`:
+  `kind = 'auth.invite'` alone scans the outbox. Wave 3 takes version 3.
+- The snapshot body is `{ lists, links }`: the sign-in links ride with the office lists, so a cold wake still reads 2 rows.
+  `writeOfficeSnapshot` reads the links from `auth_users` (one statement, only on an office write).
+- `statementQuery(db, mode)` (`dialect.ts`) keeps the dialect on a query of single statements (the forgot and renew routes).
+- `LATER_CALLS` holds `usage.get` and `usage.retryEffect` (wave 3); `LATER_KINDS` is empty.
