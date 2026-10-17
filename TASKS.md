@@ -511,9 +511,10 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   (proof.md "Wave 2 of the Supabase exit"); merged to main
 - [x] Exit wave 3 build, Blocks A to D (`~/dev/madar-rb/exit-live`, `rb/exit-live`): the gate green on 2026-10-17 (proof.md
   "Wave 3 of the Supabase exit"). The merge, the prototype smoke and the Cron Trigger count wait for the main session
-- [ ] The second merge of waves 2 and 3: the Merge notes of both plans, item 8 of the wave 3 plan (the sign-in parts on the
-  office object; MCP on the office path may move to wave 4), item 13 of the wave 2 plan (the sign-in specs on a local
-  `wrangler dev`, the screenshots of the Madar sign-in screens)
+- [x] The second merge of waves 2 and 3 (`rb/exit-live`, 2026-10-17): the Merge notes of both plans, item 8 of the wave 3 plan
+  (the sign-in parts on the office object, MCP on the office path included), and the security fix of the office flag of a batch
+  (proof.md "The merge of exit waves 2 and 3"). Item 13 of the wave 2 plan (the sign-in specs on a local `wrangler dev`, the
+  screenshots of the Madar sign-in screens) moved to wave 4: it needs the seed of wave 4
 - [ ] Before the first `all.sh test` after the wave 3 merge: count the Cron Triggers of the account (Free allows 5)
 - [ ] Wave 5: measure the bill of the callback from the office object into the Worker (wave 3 design choice 1), and one
   deployed Cron run with many pushes against the 10 ms CPU of Free
@@ -529,8 +530,8 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   the bill counts them stays unknown: the wave 5 item (c) below compares the meter with the Cloudflare day numbers
 - [ ] Exit wave 4: `config/server-host.json` value `office` sets `MADAR_DATA = "office"` in the env of the copy and
       `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`).
-- [ ] Exit wave 2 or 4: MCP on the office path: a kind of `OfficeWho` for an agent, its branch in `principalOfWho`, and `/mcp` on
-      `officeRoutes` (wave 3 serves `/api` only).
+- [x] Exit wave 2 or 4: MCP on the office path: a kind of `OfficeWho` for an agent, its branch in `principalOfWho`, and `/mcp` on
+      `officeRoutes` (done in the merge of waves 2 and 3: the object runs the MCP app, `Office.mcp`).
 - [ ] Exit wave 5: show the four Free day meters on Admin, Usage (contract field of `usage.get`, words, screenshots EN and AR,
       light and dark, 390 px). Wave 3 sends them only in the 80% mail.
 - [ ] Exit wave 5, on the deployed test copy: (a) the bill of a batch with mail (Worker requests and object requests; the network
@@ -543,11 +544,21 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Proposal, not built: the hourly Cron run reads about 14,700 rows on the year office, 13,200 of them in the file size sum
       (`FILES_BYTES_LITE`: one row for each file and one for each version). A stored total in `usage_month`, kept up to date by
       the save of `files`, would cut it to 1 row. Today's cost is about 7% of the Free rows read of a day (proof.md, wave 3)
-- [ ] Wave 3: connect `SigninOffice` to the object method for one batch (body `{ signin, input }`), pass `ownApiRoutes` and
+- [x] Wave 3: connect `SigninOffice` to the object method for one batch (body `{ signin, input }`), pass `ownApiRoutes` and
   `mountOAuth` in the hosts, `liteAgentOf` in the object, `liteAuthAdmin` as `deps.authAdmin` of the object, and run
-  `cleanupSignin` once a day (exit wave 2 plan, Merge notes)
-- [ ] The merge of waves 2 and 3: the deploy-suite sign-in specs on a local `wrangler dev` with `VITE_MADAR_AUTH=madar`, and the
-  screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px)
+  `cleanupSignin` once a day (done in the merge of waves 2 and 3: `Office.signin`, `server/entries/officeSignin.ts`, the step
+  `signin` of `server/office/jobs.ts`)
+- [ ] Exit wave 4 (moved from the merge of waves 2 and 3, it needs the seed of wave 4): the deploy-suite sign-in specs
+  (`account.spec.ts`, `signin.spec.ts`, `agents.spec.ts`) on a local `wrangler dev` with `VITE_MADAR_AUTH=madar`, and the
+  screenshots of sign-in, forgot, welcome, reset and consent on the Madar port (EN and AR, light and dark, 390 px).
+  `server/office/test/live/wrangler.bundle.toml` and `scripts/dev/office-smoke.ts` are the base of that run
+- [ ] Main session, after the merge of waves 2 and 3: the prototype smoke (the merge builder runs no Playwright)
+- [ ] Exit wave 5: a copy with `MADAR_AUTH_PRIVATE_JWK` also needs `MCP_URL` in its Worker env (the issuer of the own tokens).
+  Without it the browser token check throws, and each batch answers a hidden 500 (found by `npm run smoke:office`)
+- [ ] Exit wave 5, on the deployed test copy: the CPU and the bill of one `/mcp` request in the office object (the MCP app is
+  built for each request) and of a forgot or renew request (two object calls: `Office.mailRoute`, then `Office.mailWork`)
+- [ ] Exit wave 6: `serverEnvFrom` and the reason key of MCP read the Supabase secret key (`SUPABASE_SECRET_KEYS` or
+  `MADAR_SECRET_KEY`). After the switch, a Worker secret of Madar takes its place
 - [ ] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
   copies `SIGNIN_TABLES`; `scripts/deploy/secrets.ts` names `MADAR_AUTH_PRIVATE_JWK` (a script makes the key and writes it
   straight to the Worker secret)

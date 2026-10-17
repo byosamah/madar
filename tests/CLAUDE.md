@@ -3,10 +3,11 @@
 Two Playwright suites. Unit, server, db and integration tests sit next to their code (see Commands in the root
 CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the main context.
 
-`npm run test:office` also runs the live suites (`server/office/{batch,socket,cron}.wd.test.ts`) on the test Worker of
-`server/office/test/live/`. `npm run smoke:office` runs the real bundle on `wrangler dev` (sandbox off). The smoke keeps the
-local state of wrangler dev in its own temporary folder (`--persist-to`): in the default `.wrangler/` beside the config, the
-heartbeat of one run stays and the next run fails.
+`npm run test:office` also runs the live suites (`server/office/{batch,socket,cron,mcp}.wd.test.ts`) on the test Worker of
+`server/office/test/live/`; the harness makes a key of the own sign-in for each run (the MCP suite signs its agent tokens with
+it). `npm run smoke:office` runs the real bundle on `wrangler dev` (sandbox off), with a key and `MCP_URL` made for the run.
+The smoke keeps the local state of wrangler dev in its own temporary folder (`--persist-to`): in the default `.wrangler/` beside
+the config, the heartbeat of one run stays and the next run fails.
 
 ## The prototype smoke (`e2e/`)
 - `npx playwright test` (`playwright.config.ts`, port 4173). 87 of 87 must pass at each screen merge.
