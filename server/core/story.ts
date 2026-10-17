@@ -1,4 +1,5 @@
 import { ApiError } from '../../src/api/errors';
+import { sqlFor } from '../data/dialect';
 import type { Db, Query } from './ports';
 import type { StoryRef } from './types';
 
@@ -18,6 +19,8 @@ import type { StoryRef } from './types';
 export const STORY_LIFE_MS = 24 * 60 * 60 * 1000;
 export const STORY_INSERT_SQL = 'insert into stories (id, actor_id, created_at) values ($1, $2, $3)';
 export const STORY_SELECT_SQL = 'select actor_id, created_at from stories where id = $1';
+export const STORY_INSERT_LITE = 'insert into stories (id, actor_id, created_at) values (?1, ?2, ?3)';
+export const STORY_SELECT_LITE = 'select actor_id, created_at from stories where id = ?1';
 
 export type StoryRow = { actorId: string; createdAt: Date };
 export interface StoryStore {
@@ -26,10 +29,10 @@ export interface StoryStore {
 }
 
 /** The stories of one statement each, outside a call transaction: a server call checks a story { id } with it (plan 4.9). */
-export function statementStories(db: Pick<Db, 'statement'>): Pick<StoryStore, 'get'> {
+export function statementStories(db: Pick<Db, 'statement' | 'dialect'>): Pick<StoryStore, 'get'> {
   return {
     async get(id) {
-      const [row] = await db.statement<{ actor_id: string; created_at: Date | string }>('read', STORY_SELECT_SQL, [id]);
+      const [row] = await db.statement<{ actor_id: string; created_at: Date | string }>('read', sqlFor(db, STORY_SELECT_SQL, STORY_SELECT_LITE), [id]);
       return row ? { actorId: row.actor_id, createdAt: new Date(row.created_at) } : undefined;
     },
   };
@@ -38,10 +41,10 @@ export function statementStories(db: Pick<Db, 'statement'>): Pick<StoryStore, 'g
 export function sqlStories(q: Query): StoryStore {
   return {
     async insert(id, actorId, at) {
-      await q(STORY_INSERT_SQL, [id, actorId, at.toISOString()]);
+      await q(sqlFor(q, STORY_INSERT_SQL, STORY_INSERT_LITE), [id, actorId, at.toISOString()]);
     },
     async get(id) {
-      const [row] = await q<{ actor_id: string; created_at: Date | string }>(STORY_SELECT_SQL, [id]);
+      const [row] = await q<{ actor_id: string; created_at: Date | string }>(sqlFor(q, STORY_SELECT_SQL, STORY_SELECT_LITE), [id]);
       return row ? { actorId: row.actor_id, createdAt: new Date(row.created_at) } : undefined;
     },
   };

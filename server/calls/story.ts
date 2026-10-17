@@ -1,4 +1,5 @@
-import { STORY_INSERT_SQL, newStoryId } from '../core/story';
+import { STORY_INSERT_LITE, STORY_INSERT_SQL, newStoryId } from '../core/story';
+import { sqlFor } from '../data/dialect';
 import type { ServerCall } from '../core/types';
 
 /**
@@ -8,6 +9,6 @@ import type { ServerCall } from '../core/types';
  */
 export const storyStart: ServerCall<'story.start'> = async (_input, ctx) => {
   const storyId = newStoryId();
-  await ctx.deps.db.statement('write', STORY_INSERT_SQL, [storyId, ctx.principal.userId, ctx.now.toISOString()]);
+  await ctx.deps.db.statement('write', sqlFor(ctx.deps.db, STORY_INSERT_SQL, STORY_INSERT_LITE), [storyId, ctx.principal.userId, ctx.now.toISOString()]);
   return { output: { storyId }, storyId, changed: false };
 };

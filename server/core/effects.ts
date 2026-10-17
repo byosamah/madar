@@ -1,5 +1,6 @@
 import { SERVER_CALL_NAMES } from '../../src/api/contract/server';
 import type { SharedCallName } from '../../src/api/sharedCalls';
+import { isLite } from '../data/dialect';
 import type { SaveResult } from '../data/save';
 import type { Deps, Query } from './ports';
 
@@ -79,9 +80,28 @@ export const FAIL_SQL = 'update outbox set error = $2 where id = $1';
 /** $1 id, $2 error, $3 the time to try again. */
 export const WAIT_SQL = 'update outbox set error = $2, claimed_until = $3::timestamptz, attempts = greatest(attempts - 1, 0) where id = $1';
 
+/** The SQLite forms (Supabase exit, wave 1). The time comes from deps.clock, as every SQLite time column holds ISO text in UTC. */
+export const OUTBOX_ROW_LITE = 'insert into outbox (kind, payload) values (?1, ?2) returning id';
+export const CLAIM_LITE =
+  'update outbox set claimed_until = ?2, attempts = attempts + 1 where id = ?1 and done_at is null and (claimed_until is null or claimed_until < ?3) returning *';
+export const DONE_LITE = 'update outbox set done_at = ?2, error = null where id = ?1';
+export const FAIL_LITE = 'update outbox set error = ?2 where id = ?1';
+export const WAIT_LITE = 'update outbox set error = ?2, claimed_until = ?3, attempts = max(attempts - 1, 0) where id = ?1';
+/** How long a claim holds a row: the 2 minutes of CLAIM_SQL. */
+const CLAIM_MS = 2 * 60_000;
+
 /** Writes the rows inside the call's transaction. The ids come back in the order of the rows. */
 export async function writeOutbox(q: Query, rows: OutboxRow[]): Promise<string[]> {
   if (rows.length === 0) return [];
+  if (isLite(q)) {
+    // One statement for each row, so the ids come in the order of the rows: RETURNING gives rows in no fixed order.
+    const ids: string[] = [];
+    for (const row of rows) {
+      const [found] = await q<{ id: number }>(OUTBOX_ROW_LITE, [row.kind, JSON.stringify(row.payload)]);
+      ids.push(String(found.id));
+    }
+    return ids;
+  }
   const found = await q<{ id: string | number }>(OUTBOX_INSERT_SQL, [JSON.stringify(rows)]);
   return found.map((row) => String(row.id)).sort((a, b) => Number(a) - Number(b));
 }
@@ -103,23 +123,27 @@ function messageOf(error: unknown): string {
 export async function processOutbox(deps: Deps, ids: string[]): Promise<{ done: string[]; failed: string[] }> {
   const done: string[] = [];
   const failed: string[] = [];
+  const lite = isLite(deps.db);
   for (const id of ids) {
-    const [row] = await deps.db.statement<{ id: string | number; kind: string; payload: Record<string, unknown> }>('write', CLAIM_SQL, [id]);
+    const now = deps.clock.now();
+    const [row] = await deps.db.statement<{ id: string | number; kind: string; payload: Record<string, unknown> }>(
+      'write', lite ? CLAIM_LITE : CLAIM_SQL, lite ? [Number(id), new Date(now.getTime() + CLAIM_MS).toISOString(), now.toISOString()] : [id],
+    );
     if (!row) continue;
     const handler = HANDLERS.get(row.kind);
     try {
       if (!handler) throw new Error(`No effect handler is registered for ${row.kind}.`);
       await handler(row.payload ?? {}, deps);
-      await deps.db.statement('write', DONE_SQL, [id]);
+      await deps.db.statement('write', lite ? DONE_LITE : DONE_SQL, lite ? [Number(id), deps.clock.now().toISOString()] : [id]);
       done.push(id);
     } catch (error) {
       const message = messageOf(error);
       const retryAt = retryAtOf(error);
       if (retryAt) {
-        await deps.db.statement('write', WAIT_SQL, [id, message, retryAt.toISOString()]);
+        await deps.db.statement('write', lite ? WAIT_LITE : WAIT_SQL, [lite ? Number(id) : id, message, retryAt.toISOString()]);
         deps.log.warn('An effect after the commit waits. The job tries it again after the time it named.', { id, kind: row.kind, error: message, retryAt: retryAt.toISOString() });
       } else {
-        await deps.db.statement('write', FAIL_SQL, [id, message]);
+        await deps.db.statement('write', lite ? FAIL_LITE : FAIL_SQL, [lite ? Number(id) : id, message]);
         deps.log.warn('An effect after the commit failed. The job tries it again.', { id, kind: row.kind, error: message });
       }
       failed.push(id);

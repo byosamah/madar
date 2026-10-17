@@ -1,4 +1,5 @@
 import { ApiError } from '../../src/api/errors';
+import { isLite } from '../data/dialect';
 import type { Deps, Query } from './ports';
 
 /**
@@ -24,6 +25,8 @@ export function busyOf(error: unknown): ApiError | undefined {
 }
 
 export async function takeOfficeLock(q: Query, key: number): Promise<void> {
+  // The office object runs one transaction at a time, and its Db refuses a second one (server/data/lite/db.ts): no lock there.
+  if (isLite(q)) return;
   try {
     await q(LOCK_SQL, [key]);
   } catch (error) {

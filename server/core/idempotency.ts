@@ -1,4 +1,5 @@
 import { ApiError } from '../../src/api/errors';
+import { sqlFor } from '../data/dialect';
 import type { Query } from './ports';
 
 /**
@@ -15,6 +16,8 @@ import type { Query } from './ports';
 export const KEY_SELECT_SQL = 'select name, digest, result from idempotency where actor_id = $1 and key = $2';
 export const KEY_INSERT_SQL =
   'insert into idempotency (actor_id, key, name, digest, result, created_at) values ($1, $2, $3, $4, $5::jsonb, $6)';
+export const KEY_SELECT_LITE = 'select name, digest, result from idempotency where actor_id = ?1 and key = ?2';
+export const KEY_INSERT_LITE = 'insert into idempotency (actor_id, key, name, digest, result, created_at) values (?1, ?2, ?3, ?4, ?5, ?6)';
 
 /** What a replay gives back. The signals are not kept: the first run sent them. */
 export type StoredResult = { output: unknown; storyId?: string; changed: boolean };
@@ -28,11 +31,11 @@ export interface KeyStore {
 export function sqlKeys(q: Query): KeyStore {
   return {
     async get(actorId, key) {
-      const [row] = await q<KeyRow>(KEY_SELECT_SQL, [actorId, key]);
+      const [row] = await q<KeyRow>(sqlFor(q, KEY_SELECT_SQL, KEY_SELECT_LITE), [actorId, key]);
       return row;
     },
     async put(row) {
-      await q(KEY_INSERT_SQL, [row.actorId, row.key, row.name, row.digest, JSON.stringify(row.result), row.at.toISOString()]);
+      await q(sqlFor(q, KEY_INSERT_SQL, KEY_INSERT_LITE), [row.actorId, row.key, row.name, row.digest, JSON.stringify(row.result), row.at.toISOString()]);
     },
   };
 }
