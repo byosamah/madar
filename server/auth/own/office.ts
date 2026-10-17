@@ -1,6 +1,8 @@
 import { ApiError } from '../../../src/api/errors';
 import { runErrorOf } from '../../http/errors';
-import { answerConsent, approveClient, authorizationDetails, listGrants, registerClient, revokeGrant, startAuthorization } from '../../mcp/oauth/ops';
+import {
+  answerConsent, approveClient, authorizationDetails, exchangeToken, listGrants, registerClient, revokeGrant, startAuthorization,
+} from '../../mcp/oauth/ops';
 import { passwordSignIn, refreshSignIn, setSignInPassword, signOutSessions, verifySignInLink } from './ops';
 import { OAuthError, type SigninDeps } from './types';
 
@@ -22,6 +24,7 @@ export const SIGNIN_STEPS = {
   'oauth.consent': answerConsent,
   'oauth.grants': listGrants,
   'oauth.revoke': revokeGrant,
+  'oauth.token': exchangeToken,
 } as const;
 
 export type SigninSteps = typeof SIGNIN_STEPS;

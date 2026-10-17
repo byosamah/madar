@@ -30,4 +30,5 @@ export function mountOAuth(app: Hono, office: SigninOffice, o: { mcpUrl: string;
     const result = await office.run('oauth.authorize', { query: Object.fromEntries(new URL(c.req.url).searchParams) });
     return result.ok ? new Response(null, { status: 302, headers: { Location: result.value.redirect, 'Cache-Control': 'no-store' } }) : answer(result);
   });
+  app.post('/oauth/token', async (c) => answer(await office.run('oauth.token', { form: await formOf(c.req.raw) })));
 }

@@ -1,20 +1,23 @@
 import { z } from 'zod';
 import { ApiError } from '../../../src/api/errors';
-import { randomToken, sha256Hex } from '../../auth/own/crypto';
+import { equalText, pkceChallengeOf, randomToken, sha256Hex } from '../../auth/own/crypto';
+import { signAgentToken } from '../../auth/own/keys';
 import { HOUR_MS, REGISTER_PER_ADDRESS } from '../../auth/own/limits';
-import { countLimits } from '../../auth/own/sessions';
+import { AUTH_USER_BY_ID, type AuthUserRow } from '../../auth/own/rows';
+import { countLimits, insertSession, rotateSession } from '../../auth/own/sessions';
 import { OAuthError, type SigninDeps } from '../../auth/own/types';
-import { ownIssuer } from '../../auth/ownKeys';
+import { ACCESS_TTL_S, ownIssuer } from '../../auth/ownKeys';
 import { principalOf } from '../../auth/principal';
 import { hashedKey } from '../../auth/rateLimit';
 import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
+import { userIdOfAuth } from '../../data/officeCache';
 import { notApproved } from '../agentUser';
 import { APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
 import { redirectAllowed, registrable, withQuery } from './redirects';
 import {
-  CLIENT_BY_ID, CLIENT_INSERT, GRANT_REVOKE, GRANTS_LITE, REQUEST_APPROVE, REQUEST_BIND, REQUEST_BY_ID, REQUEST_DENY, REQUEST_INSERT,
-  type ClientRow, type RequestRow,
+  CLIENT_BY_ID, CLIENT_INSERT, GRANT_REVOKE, GRANTS_LITE, REQUEST_APPROVE, REQUEST_BIND, REQUEST_BY_CODE, REQUEST_BY_ID, REQUEST_DENY,
+  REQUEST_INSERT, REQUEST_USED, type ClientRow, type RequestRow,
 } from './rows';
 
 /**
@@ -168,4 +171,55 @@ export async function listGrants(deps: SigninDeps, input: { authId: string }): P
 export async function revokeGrant(deps: SigninDeps, input: { authId: string; clientId: string }): Promise<{ ok: true }> {
   await deps.db.tx('write', (q) => q(GRANT_REVOKE, [input.authId, input.clientId, deps.clock.now().toISOString()]));
   return { ok: true };
+}
+
+export type AgentTokenAnswer = { access_token: string; token_type: 'Bearer'; expires_in: number; refresh_token: string; scope: string };
+
+const invalidGrant = () => new OAuthError(400, 'invalid_grant', 'The code or the refresh token is not valid. Connect Madar again in the AI app.');
+
+async function agentAnswer(deps: SigninDeps, o: { authId: string; sessionId: string; clientId: string; refresh: string }): Promise<AgentTokenAnswer> {
+  const accessToken = await signAgentToken(deps.keys, { authId: o.authId, sessionId: o.sessionId, clientId: o.clientId, now: deps.clock.now() });
+  return { access_token: accessToken, token_type: 'Bearer', expires_in: ACCESS_TTL_S, refresh_token: o.refresh, scope: 'madar' };
+}
+
+/**
+ * POST /mcp/oauth/token (form body). authorization_code: the code of an approved request works once and for 60 s, for its own client
+ * and return address, with the PKCE verifier of its challenge, and opens an agent session. refresh_token: the rotation of
+ * sessions.ts with the client of the session. The first MCP call then links the agent (ensureAgentUser, on the Madar approval).
+ */
+export async function exchangeToken(deps: SigninDeps, input: { form: Record<string, string> }): Promise<AgentTokenAnswer> {
+  const f = input.form;
+  if (f.resource !== undefined && ownIssuer(f.resource) !== ownIssuer(deps.config.mcpUrl)) throw new OAuthError(400, 'invalid_target', 'This token is for Madar\'s MCP address only.');
+  const refresh = randomToken();
+  const refreshHash = await sha256Hex(refresh);
+  if (f.grant_type === 'refresh_token') {
+    if (!f.refresh_token || !f.client_id) throw new OAuthError(400, 'invalid_request', 'Send refresh_token and client_id.');
+    try {
+      const row = await rotateSession(deps, { hash: await sha256Hex(f.refresh_token), nextHash: refreshHash, clientId: f.client_id });
+      return agentAnswer(deps, { authId: row.auth_id, sessionId: row.id, clientId: f.client_id, refresh });
+    } catch (error) {
+      if (error instanceof ApiError) throw invalidGrant();
+      throw error;
+    }
+  }
+  if (f.grant_type !== 'authorization_code') throw new OAuthError(400, 'unsupported_grant_type', 'Madar takes authorization_code and refresh_token.');
+  if (!f.code || !f.code_verifier || !f.client_id || !f.redirect_uri) throw new OAuthError(400, 'invalid_request', 'Send code, code_verifier, client_id and redirect_uri.');
+  const codeHash = await sha256Hex(f.code);
+  const challenge = await pkceChallengeOf(f.code_verifier);
+  const now = deps.clock.now();
+  const opened = await deps.db.tx('write', async (q) => {
+    const [request] = await q<RequestRow>(REQUEST_BY_CODE, [codeHash]);
+    if (!request || request.status !== 'approved' || request.auth_id === null || request.code_until === null || request.code_until <= now.toISOString()) return null;
+    if (request.client_id !== f.client_id || request.redirect_uri !== f.redirect_uri || !equalText(challenge, request.code_challenge)) return null;
+    const [user] = await q<AuthUserRow>(AUTH_USER_BY_ID, [request.auth_id]);
+    if (!user || user.banned === 1) return null;
+    const office = await readLiteOffice(deps.db as LiteDb, q);
+    const ownerId = userIdOfAuth(office, request.auth_id);
+    if (ownerId === undefined || office.lists.users[ownerId]?.active !== true) return null;
+    await q(REQUEST_USED, [request.id]);
+    const sessionId = await insertSession(q, { authId: request.auth_id, clientId: request.client_id, amr: 'oauth', refreshHash, linkUntil: null, now });
+    return { authId: request.auth_id, clientId: request.client_id, sessionId };
+  });
+  if (!opened) throw invalidGrant();
+  return agentAnswer(deps, { ...opened, refresh });
 }
