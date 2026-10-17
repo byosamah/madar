@@ -1,8 +1,11 @@
 # Cloudflare Pages Functions
 
-`scripts/deploy/pages.sh` uploads this folder with the screens. It holds two functions:
+`scripts/deploy/pages.sh` uploads this folder with the screens. It holds four functions:
 - `mcp/[[path]].ts`: the short MCP address (https://madar.vado.sa/mcp), logic in `server/http/pagesMcpProxy.ts`.
 - `api/[[path]].ts`: the page's own `/api` (owner, 2026-10-16), logic in `server/http/pagesApiProxy.ts`.
+- `.well-known/oauth-authorization-server/[[path]].ts` and `.well-known/openid-configuration/[[path]].ts` (exit wave 4): the
+  discovery of the own OAuth server, only for a copy with the word office (`server/http/pagesWellKnown.ts`); every other copy
+  answers 404. Two narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes.
 
 Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or
 `office` (exit wave 4), each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the

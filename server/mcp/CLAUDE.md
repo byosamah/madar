@@ -105,8 +105,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   shows the consent screen and needs the Madar approval again. The consent refuses an app whose link the person removed
   (`agent_removed`), also when an old approval stays.
 - No Client ID Metadata Document: it is a fetch, and the office object does no network work.
-- MCP clients try `/.well-known/oauth-authorization-server/mcp` first. Wave 5 adds the Pages Function
-  (`server/http/pagesWellKnown.ts`); until then a client finds `/mcp/.well-known/openid-configuration`.
+- MCP clients try `/.well-known/oauth-authorization-server/mcp` first. Exit wave 4 adds the two Pages Functions
+  (`functions/.well-known/`, logic in `server/http/pagesWellKnown.ts`): they answer only for a copy with the word office, and
+  every other copy answers 404. A client of such a copy finds `/mcp/.well-known/openid-configuration`.
 - On SQLite, `agents.revokeAll` runs inside the transaction of the turn-off (no outbox row), and `agents.remove` ends the agent
   sessions with the links. `liteAgentOf` (`oauth/agent.ts`) is the agent check of the office object.
 - On the office path (the merge of exit waves 2 and 3), the object runs the whole MCP app for each request (`Office.mcp`,

@@ -529,7 +529,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [x] Wave 3: the day meter counts the rows of a rolled-back write too (`server/office/meter.ts`, `rb/exit-live`, Task 4). Whether
   the bill counts them stays unknown: the wave 5 item (c) below compares the meter with the Cloudflare day numbers
 - [ ] Exit wave 4: `config/server-host.json` value `office` sets `MADAR_DATA = "office"` in the env of the copy and
-      `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`).
+      `VITE_MADAR_LIVE=socket` in its screens build (`scripts/build-remote.ts`, `remotePublicEnv`). The screens build part is done
+      (`rb/exit-ops`, Task 2: the word gives `VITE_MADAR_AUTH=madar` and `VITE_MADAR_LIVE=socket`); `MADAR_DATA` waits for Task 20
+      (`worker.sh --var`).
 - [x] Exit wave 2 or 4: MCP on the office path: a kind of `OfficeWho` for an agent, its branch in `principalOfWho`, and `/mcp` on
       `officeRoutes` (done in the merge of waves 2 and 3: the object runs the MCP app, `Office.mcp`).
 - [ ] Exit wave 5: show the four Free day meters on Admin, Usage (contract field of `usage.get`, words, screenshots EN and AR,
@@ -562,7 +564,10 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Wave 4: the export runs `SIGNIN_EXPORT_SQL` with `BACKUP_DB_URL`; the import calls `importSigninRows`; the restore check
   copies `SIGNIN_TABLES`; `scripts/deploy/secrets.ts` names `MADAR_AUTH_PRIVATE_JWK` (a script makes the key and writes it
   straight to the Worker secret)
-- [ ] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
+- [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
+  (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
+  and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
+  `VITE_MADAR_AUTH=madar`)
 - [ ] Later, only if an AI app needs it: Client ID Metadata Documents (a fetch in the Worker, not in the object)
 - [ ] Wave 5: run the transaction race of Task 1 (`scripts/proof/do-tx/`) again on the deployed object of the test copy
 - [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
