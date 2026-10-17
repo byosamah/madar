@@ -1521,3 +1521,75 @@ from main 1782ca9 in four blocks; the main session rebases and merges the branch
   on a fresh sample office it changes nothing and sends no signal; the live suites use the `tasks.update` entry. `wrangler dev`
   keeps the object storage in `.wrangler/` beside its config, so a smoke that checks "no job run yet" passes only once there; the
   smoke keeps its state in its own temporary folder (`--persist-to`). The Cron suite passed at a load average of 65.
+
+### The merge of exit waves 2 and 3 (2026-10-17)
+`rb/exit-live` (wave 3, a39db27) took main (e8992a3: waves 1 and 2 and two wave 2 security fixes) with one merge commit
+(4580e70), then the sign-in parts on the office object (item 8 of the wave 3 Merge notes), one security fix and one check of the
+effects. Nothing deployed: no push, no account change, no Cloudflare API call, no `MADAR_DATA` in any deployed env.
+
+The conflicts and the rulings of the main session:
+- `server/data/lite/schema.ts`: `LITE_SCHEMA_VERSION = 3`; `SERVER_SQL` and `SERVER_INDEXES` hold the tables of both waves;
+  `LITE_STEPS = { 3: [USAGE_DAY_SQL] }` with no step for the sign-in tables; `SIGNIN_TABLES` stays. The new `PINNED_SHA256` is
+  `c49f6537d134306da01fa3de218c05d543bb4cc86453e27b5fe3424f71888137`. The step test (it drops only `usage_day`, from version 2)
+  passes unchanged.
+- `server/mail/quota.ts`: the two SQLite `reserve` forms did the same work (count the day, "ok" for a known ref, else add a row).
+  The merge keeps the forms of wave 2 (`DAY_COUNT_LITE`, `RESERVE_LITE`, whose insert also does nothing on a known ref, so it
+  cannot throw), `RELEASE_LITE` and `RECORD_SENT_LITE`, and the forms of wave 3 for `markFirstRefusal` and `sentToday`
+  (`REFUSAL_MARK_LITE`, `SENT_TODAY_LITE`). No other file named the removed `RESERVE_COUNT_LITE` and `RESERVE_ADD_LITE`. The quota
+  tests of both waves pass.
+- `server/test/liteHarness.ts`: `LATER_CALLS` and `LATER_KINDS` are empty; the harness keeps `liteAuthAdmin`.
+- `src/app/remote/bootstrap.ts`: `liveKindOf(auth, flag)`. The Madar build opens the live socket (it has no Supabase client), the
+  Supabase build keeps Realtime unless `VITE_MADAR_LIVE=socket`. `quietChangeSource` is gone.
+- `server/office/test/{pinOffice,harness}.ts`: `cron`, `signin`, `importSignins` and `peek` in every list.
+  `server/workerGraph.test.ts`: both describes.
+
+The sign-in parts on the office object:
+- (a) `officeParts` takes `liteAuthAdmin({ db, clock })`: the invite and auth effects run in the object, only the mail goes
+  through the Worker port.
+- (b) `Office.signin({ signin, input })` runs `runSigninOp` with the keys of `MADAR_AUTH_PRIVATE_JWK` (imported once for each
+  value of the secret, before any transaction). Each of the 13 names reaches its step; an unknown name answers not_found; no key
+  answers failed and logs the name of the secret.
+- (c) `officeRoutes` takes `routes` and mounts them under `/api` inside the Workers host (`runInHost`, so `clientAddress` reads
+  `x-madar-client-address`). `officeEntry` passes the routes of `ownApiRoutes` when the key is set
+  (`server/entries/officeSignin.ts`). Fact: `ROUTES` holds the forgot and renew routes, and they read the database, which the
+  Worker of the office path does not have (`refusingDb`). So each runs in two object calls: `Office.mailRoute` (the shape check
+  and the limits, answered at once with the value of the mail work) and, after the answer, `Office.mailWork` (the mail). The
+  Worker pads the answer to 1.5 s as the routes do. The routes take a `work` option for it.
+- (d) The step `signin` (`cleanupSignin`) runs in the first Cron run after 00:00 UTC (`server/office/jobs.ts`).
+- (e) `/mcp` on the office path: the Worker hands each request to `Office.mcp` in one call (plain data: url, method, headers,
+  text body). The object runs the MCP app with the own issuer, the own agent token check, `liteAgentOf`, `mountOAuth`, the server
+  secret key for the reason key, and a fetch that refuses (no region hop in the object). Each tool call runs on the batch path
+  (`runOfficeEntries`, the who kind `agent` through `principalOfWho`), so its effects run as for a batch and its mails and pushes
+  run after the answer (`runEffects`). With no key, `/mcp` answers 503. CORS of the office path covers `/api/*` only, as on the
+  Postgres path. Reason for the form: each step of the MCP app reads or writes the database (agent check, rate limit, office),
+  so in the Worker each request would need three or four object calls and a copy of the office snapshot.
+- Fact (smoke:office): with `MADAR_AUTH_PRIVATE_JWK` set, `verifyBrowserToken` needs `MCP_URL` (the issuer of the own tokens);
+  without it every batch answered a hidden 500. The smoke sets both for the run.
+
+The security fix (from the background check of ebd74fe): `runOfficeBatch` gave `officeChanged` from `batch.office` at the end
+of the batch. A later read entry loads the office again, so `[users.deactivate, users.list]` reported no change and the sockets
+of the turned-off person stayed open. The flag is now set after each entry (`runOfficeEntries`). The test failed before the fix.
+
+The check of the effects in the object: one `users.deactivate` batch through `officeParts` wrote one outbox row (`auth.ban`;
+`agents.revokeAll` runs inside the turn-off transaction on SQLite), ran it with no error and no host refusal, banned the sign-in
+row, and ended the agent link, the approval and both sessions. Nothing needed a fix.
+
+The merge gate ran once under the Docker lock `merge-gate`:
+- Load average 3 before `npm test`, 17 during `test:office`; no test failed and no suite ran twice.
+- `npm run typecheck`: pass.
+- `npm test`: 515 files; 5,228 passed, 6 skipped (wave 3 alone 5,055, wave 2 alone 5,092).
+- `npm run build`: pass. `npm run build:server`: pass; `cloudflare:workers` once in `dist-server/worker.js` and never in
+  `supabase/functions/_build/{api,mcp,jobs}.js`; `pbkdf2-sha256` once in `dist-server/worker.js` (the own sign-in of the office
+  path, allowed by Merge note 11 of wave 3) and never in the three Supabase bundles. `npm run build:remote -- test` (sandbox
+  off): pass.
+- `npm run test:lite`: 82 files; 1,149 passed, 26 skipped. `lite mode: 2755 calls, 1.5 ms a call in runCall, the run took 6 s.`
+- `npm run test:office` (sandbox off): 7 files, 32 passed (the suites of waves 1 to 3, `signin.wd.test.ts` of wave 2 and the new
+  `mcp.wd.test.ts`).
+- `npm run smoke:office`: 10 of 10 ok (the 6 of wave 3, the key set, a password step, the OAuth metadata and the token refusal of
+  `/mcp`).
+- `npx supabase start -x edge-runtime` and `npx supabase db reset` from this worktree, then `npm run test:db`: 82 files;
+  1,149 passed, 26 skipped. `db mode: 2755 calls, 12.6 ms a call in runCall, the run took 27 s.`
+- `npm run test:it`: 34 files, 277 passed. `npm run test:mcp`: 19 files, 176 passed; "conformance: 5 of 32 scenarios pass; 27
+  expected failures."
+- Not run by the merge builder: the prototype smoke and every Playwright run (the main session), the sign-in specs of the deploy
+  suite and the screenshots of the Madar port (moved to wave 4: they need the seed of wave 4).

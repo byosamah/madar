@@ -118,8 +118,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-17, exit wave 3 gate on `rb/exit-live`): unit+server 5,055 passed (492 files); test:db 1,149 (26 skipped);
-  test:lite 1,149 (26 skipped); test:office 27 (5 files); test:it 276; test:mcp 148. On 2026-10-12: prototype smoke 87 of 87.
+- Last counts (2026-10-17, the gate of the merge of exit waves 2 and 3 on `rb/exit-live`): unit+server 5,228 passed (515 files);
+  test:db 1,149 (26 skipped); test:lite 1,149 (26 skipped); test:office 32 (7 files); smoke:office 10 of 10; test:it 277;
+  test:mcp 176. On 2026-10-12: prototype smoke 87 of 87.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
