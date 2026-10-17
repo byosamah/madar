@@ -1,4 +1,5 @@
 import { base64url } from 'jose';
+import { isBcryptHash, verifyBcrypt } from './bcrypt';
 
 /**
  * The password hash of the own sign-in (Supabase exit, wave 2; spec section 2): PBKDF2 with SHA-256.
@@ -7,6 +8,7 @@ import { base64url } from 'jose';
  * - The CPU: 30 to 35 ms in the office object (wave 0). The Worker never hashes: Workers Free stops it at 10 ms under load.
  * - The form: pbkdf2-sha256$<rounds>$<salt, 16 bytes>$<hash, 32 bytes>, base64url.
  * - A stored text of another form (no password yet, an unknown email) runs one hash anyway, so the answer takes the same time.
+ * - A bcrypt hash copied from Supabase Auth (owner decision 4, bcrypt.ts) verifies once and asks for an upgrade.
  */
 
 export const PBKDF2_ROUNDS = 100_000;
@@ -36,6 +38,11 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, stored: string | null): Promise<PasswordCheck> {
+  // A bcrypt hash copied from Supabase Auth (owner decision 4): the right password asks for a PBKDF2 hash in its place.
+  if (stored !== null && isBcryptHash(stored)) {
+    const ok = verifyBcrypt(password, stored);
+    return { ok, upgrade: ok };
+  }
   const parts = (stored ?? '').split('$');
   if (parts.length !== 4 || parts[0] !== PREFIX) {
     await derive(password, new Uint8Array(SALT_BYTES), PBKDF2_ROUNDS);
