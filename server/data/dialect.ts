@@ -22,3 +22,12 @@ export function isLite(target: Query | Pick<Db, 'dialect'>): boolean {
 export function sqlFor(target: Query | Pick<Db, 'dialect'>, pg: string, lite: string): string {
   return isLite(target) ? lite : pg;
 }
+
+/**
+ * A query that runs each statement in a transaction of its own (Db.statement) and keeps the dialect of the Db, so sqlFor and the
+ * stores pick the right text on it (Supabase exit, wave 2). A route that sends single statements uses it.
+ */
+export function statementQuery(db: Db, mode: 'read' | 'write'): Query {
+  const q = (<R,>(text: string, values?: unknown[]) => db.statement<R>(mode, text, values)) as Query;
+  return isLite(db) ? markLite(q) : q;
+}

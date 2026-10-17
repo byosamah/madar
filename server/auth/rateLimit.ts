@@ -1,4 +1,5 @@
 import type { Query } from '../core/ports';
+import { sqlFor } from '../data/dialect';
 
 /**
  * Fixed-window rate limits in the rate_limits table (plan 4.2 and 5.1; task P2): the forgot route (3 an hour for each email,
@@ -9,13 +10,16 @@ import type { Query } from '../core/ports';
 
 export const RATE_SQL =
   'insert into rate_limits (key, window_start, count) values ($1, $2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 returning count';
+/** The SQLite form (Supabase exit, wave 2). */
+export const RATE_LITE =
+  'insert into rate_limits (key, window_start, count) values (?1, ?2, 1) on conflict (key, window_start) do update set count = rate_limits.count + 1 returning count';
 
 export type LimitResult = { ok: boolean; count: number; retryAfterMs: number };
 
 /** Counts one hit of "key" in the window that holds "now". ok is false from the hit after "limit" on. */
 export async function hitLimit(q: Query, o: { key: string; limit: number; windowMs: number; now: Date }): Promise<LimitResult> {
   const start = Math.floor(o.now.getTime() / o.windowMs) * o.windowMs;
-  const [row] = await q<{ count: number | string }>(RATE_SQL, [o.key, new Date(start).toISOString()]);
+  const [row] = await q<{ count: number | string }>(sqlFor(q, RATE_SQL, RATE_LITE), [o.key, new Date(start).toISOString()]);
   const count = Number(row?.count ?? 0);
   return { ok: count <= o.limit, count, retryAfterMs: start + o.windowMs - o.now.getTime() };
 }

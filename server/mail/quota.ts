@@ -1,4 +1,5 @@
 import type { Clock, Db, Mail, MailPort, Query } from '../core/ports';
+import { isLite, sqlFor } from '../data/dialect';
 
 /**
  * The email quota (plan 2 change 9, 5.4; task N2.1). Resend's free plan sends 100 emails a UTC day (00:00 UTC is 03:00 Riyadh),
@@ -47,6 +48,15 @@ export const RELEASE_SQL = `delete from mail_log where ref = $1 and resend_id is
 /** $1 day, $2 ref, $3 Resend id. */
 export const RECORD_SENT_SQL = 'update mail_log set resend_id = $3 where utc_day = $1::date and ref = $2';
 
+/**
+ * The SQLite forms for the sign-in mail (Supabase exit, wave 2). The office object is the one writer, so there is no mail lock, and
+ * the day is the UTC day of the clock of the caller. Wave 3 adds the forms of the notice kinds (the first refusal) and of the meter.
+ */
+export const DAY_COUNT_LITE = `select coalesce(sum(case when ${SENDING} then 1 else 0 end), 0) as n, coalesce(max(ref = ?2), 0) as mine from mail_log where utc_day = ?1`;
+export const RESERVE_LITE = 'insert into mail_log (utc_day, kind, user_id, ref) values (?1, ?2, ?3, ?4) on conflict (utc_day, ref) do nothing';
+export const RELEASE_LITE = `delete from mail_log where ref = ?1 and resend_id is null and ${SENDING}`;
+export const RECORD_SENT_LITE = 'update mail_log set resend_id = ?3 where utc_day = ?1 and ref = ?2';
+
 /** The UTC day of a moment, as "YYYY-MM-DD". */
 export function utcDay(at: Date): string {
   return at.toISOString().slice(0, 10);
@@ -57,6 +67,14 @@ const dayOf = (o: DayOption) => (o.now ? utcDay(o.now) : null);
 
 /** A place in today's quota for one mail. Run it in a short write transaction of its own: it holds the mail lock to the commit. */
 export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOption & { userId?: string } = {}): Promise<'ok' | 'over'> {
+  if (isLite(q)) {
+    const day = utcDay(o.now ?? new Date());
+    const [row] = await q<{ n: number; mine: number }>(DAY_COUNT_LITE, [day, ref]);
+    if (Number(row?.mine ?? 0) === 1) return 'ok';
+    if (Number(row?.n ?? 0) >= QUOTA_LIMITS[kind]) return 'over';
+    await q(RESERVE_LITE, [day, kind, o.userId ?? null, ref]);
+    return 'ok';
+  }
   await q(MAIL_LOCK_SQL, [...MAIL_LOCK_KEY]);
   const [row] = await q<{ ok: boolean }>(RESERVE_SQL, [dayOf(o), kind, o.userId ?? null, ref, QUOTA_LIMITS[kind]]);
   return row?.ok ? 'ok' : 'over';
@@ -67,7 +85,7 @@ export async function reserve(q: Query, kind: QuotaKind, ref: string, o: DayOpti
  * that went out but whose Resend id is not recorded yet also has no Resend id, and its place must stay.
  */
 export async function release(q: Query, ref: string): Promise<void> {
-  await q(RELEASE_SQL, [ref]);
+  await q(sqlFor(q, RELEASE_SQL, RELEASE_LITE), [ref]);
 }
 
 /** True only for the first call of a day: the caller then sends the one quota warning to each Admin. */
@@ -113,7 +131,7 @@ export async function sendCounted(
   });
   if (!placed.ok) return { status: 'over', firstRefusal: placed.firstRefusal };
   const { id } = await deps.mail.send(mail);
-  await deps.db.statement('write', RECORD_SENT_SQL, [utcDay(now), ref, id]);
+  await deps.db.statement('write', sqlFor(deps.db, RECORD_SENT_SQL, RECORD_SENT_LITE), [utcDay(now), ref, id]);
   return { status: 'sent', id };
 }
 
