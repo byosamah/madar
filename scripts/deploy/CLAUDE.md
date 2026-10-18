@@ -144,6 +144,12 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
   subdomain is `vado-sa`, but no Madar Worker has a workers.dev address (`workers_dev` and `preview_urls` false). A Worker
   fetch of a workers.dev address of the same account fails with error 1042, so Pages reaches the Worker only through its
   service binding. Never touch the Worker `binhindi-massing` of the same account.
+- Cloudflare mails "[Action required] Workers CPU limit exceeded" once a day while any Worker of the account (also a probe) hits
+  the Free CPU limit in the last 24 hours. To find the source, query `workersInvocationsAdaptive` and
+  `pagesFunctionsInvocationsAdaptiveGroups` (dimensions `scriptName`, `status`, `datetimeHour`) with
+  `scripts/proof/do-socket/gql.mjs`; a stop is the status `exceededResources`, and a deleted Worker shows as `__unknown__`. Run
+  `npx wrangler whoami` first when the query gives 401: it renews the OAuth token. The mail of 2026-10-17 came from the CPU probe
+  of 2026-10-16 (1,332 stops from 18:00 UTC, proof.md wave 0); the Pages Functions had none. Never take its "Upgrade" button.
 - The next `all.sh test` after wave 3 deploys `madar-server-test` with a Durable Object namespace `Office` (no object, no
   storage), the migration `office-v1`, and a Cron every 15 minutes whose `scheduled()` returns at once (no `MADAR_DATA`): 96 short
   runs a day and 1 of the 5 Cron Triggers of the account. The test copy serves the same, because the Pages forwarder sends `/api`
