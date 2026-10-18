@@ -22,7 +22,7 @@ import { assertCan } from './shared';
  * - A task is made on the day it was created. It is done on the day it was completed.
  * - A task is open at the end of a day when it was created on or before that day, and was not completed by then.
  * - A task is past due at the end when it is open at the end and its due date is before the end.
- * - Tasks, deadlines and payments count for the projects of the office. Office tasks stay out, because they are private.
+ * - Tasks, deadlines, payments and reviews count for the projects of the office. Office tasks stay out, because they are private.
  * - A deadline counts when its day is in the period and is not after today. It is missed when a task of its project, due on or
  *   before the deadline day, is open at the end of the period. Otherwise it is met.
  * - A Tracker entry is opened on its own day. It is closed on the day it was closed. A submission is an entry sent to the client.
@@ -76,7 +76,8 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
   const pausedIn = (projectId: string) => count(REPORT_KEYS.paused(projectId), () => eventsOf(REPORT_PAUSED_VERB)
     .filter((event) => event.projectId === projectId).length);
   const reviewVerbs: readonly string[] = REPORT_REVIEW_VERBS;
-  const reviewEvents = events.filter((event) => reviewVerbs.includes(event.verb) && inDays(dayOf(event.createdAt)));
+  const reviewEvents = events.filter((event) => reviewVerbs.includes(event.verb) && inDays(dayOf(event.createdAt))
+    && event.projectId !== null && state.projects[event.projectId] !== undefined);
   const reviewsOf = (userId: string) => reviewEvents.filter((event) => event.actingForId === userId).length;
 
   /** The deadlines of a project that are due in the period and no later than today, each met or missed. */

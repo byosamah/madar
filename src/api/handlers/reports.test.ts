@@ -201,6 +201,20 @@ describe('reports.office: the counts of the server and the reviews of a person',
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
     expect(report.people.find((row) => row.user.id === 'usr_003')?.reviewsDone).toBe(1);
   });
+
+  it('counts no review of an office task, which has no project, and counts a review of a project task', async () => {
+    const t = world();
+    // An office task has no project (projectId null). Its approval stays out of the report (owner, 2026-10-06).
+    t.store.state.events.evt_030 = event(30, {
+      verb: 'task.approved', projectId: null, targetType: 'task', targetId: 'tsk_005', officeTaskId: 'tsk_005', actingForId: 'usr_003',
+      actorId: 'usr_003', createdAt: at('2026-09-29'),
+    });
+    const officeOnly = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(officeOnly.people.find((row) => row.user.id === 'usr_003')?.reviewsDone).toBe(0);
+    t.store.state.events.evt_031 = event(31, { verb: 'task.approved', actingForId: 'usr_003', actorId: 'usr_003', createdAt: at('2026-09-29') });
+    const withProject = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(withProject.people.find((row) => row.user.id === 'usr_003')?.reviewsDone).toBe(1);
+  });
 });
 
 describe('reports.office: a project that ends or pauses in the period', () => {

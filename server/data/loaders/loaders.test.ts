@@ -856,4 +856,24 @@ describe('the office report (owner, 2026-10-18, fbk_016)', () => {
     expect((whole.outcome.output as { gaps: unknown }).gaps).toBeNull();
     expect(Object.keys(loaded.payments ?? {})).toEqual([]);
   });
+
+  it('counts the review of a project task and no review of an office task, on the scoped load as on the whole office', async () => {
+    const reviewsDone = (run: Run) => (run.outcome.output as { people: { user: { id: string }; reviewsDone: number }[] })
+      .people.find((row) => row.user.id === 'usr_002')?.reviewsDone;
+    const week = { period: 'week', start: '2026-10-04' };
+    const base = reviewsDone(await same(office(), 'reports.office', week, ADMIN));
+    const review = (n: number, projectId: string | null): Event => ({
+      id: `evt_${n}`, seq: n, projectId, actorId: 'usr_002', actorKind: 'human', actingForId: 'usr_002', correlationId: `cor_review_${n}`,
+      verb: 'task.approved', targetType: 'task', targetId: `tsk_${n}`, before: null, after: null, createdAt: '2026-10-04T10:00:00.000+03:00',
+      undoneBy: null, ...(projectId === null ? { officeTaskId: `tsk_${n}` } : {}),
+    });
+    const state = office((s) => {
+      // An office task, approved by usr_002: the report never counts it (owner, 2026-10-06).
+      s.events.evt_901 = review(901, null);
+      // A project task, approved by usr_002: the report counts it.
+      s.events.evt_902 = review(902, 'prj_001');
+    });
+    const run = await same(state, 'reports.office', week, ADMIN);
+    expect(reviewsDone(run)).toBe((base ?? 0) + 1);
+  });
 });

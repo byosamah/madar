@@ -100,7 +100,7 @@ describe('no other loader brings a device to a handler (owner, 2026-10-08)', () 
     expect(sweep.length).toBeGreaterThan(500);
     for (const [name, input, actorId] of sweep) {
       const parsed = sharedCalls[name].input.parse(input);
-      const state = await loadFor(name, parsed, { src: memorySource(seed), office: snapshotOf(seed, 1), actorId, write: !sharedCalls[name].readOnly });
+      const state = await loadFor(name, parsed, { src: memorySource(seed), office: snapshotOf(seed, 1), actorId, write: !sharedCalls[name].readOnly, now: NOW });
       const loaded = Object.values(state.pushDevices ?? {});
       // The push calls read the own devices of the person. Every other call reads none.
       if (name.startsWith('push.')) expect(loaded.every((d) => d.userId === actorId), `${name} as ${actorId}`).toBe(true);

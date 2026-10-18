@@ -3,7 +3,7 @@ import type { ReportDesign } from './contract/views';
 /**
  * The design guide of the office report (owner, 2026-10-18, fbk_016). reports.office gives it to every person who may ask, and the
  * agent builds the document from it. reportDesign.test.ts checks each color and size against src/design/tokens.css. The mark is a
- * copy of MADAR_DOORS (src/components/MadarMark.tsx), because src/api imports no component.
+ * copy of MADAR_DOORS (the logo file in src/components), because src/api imports no component.
  *
  * The brand font is Thmanyah Sans. Its licence allows no copy outside the built product, so a document uses the free fallback.
  */

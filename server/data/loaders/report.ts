@@ -18,8 +18,9 @@ type Input = { period: ReportPeriodKind; start?: string };
  * Office tasks stay out.
  *
  * Counts: the stage moves, completions and pauses of the period, counted in SQL, one count for each key (REPORT_KEYS). The reviews
- * of the period load as event rows (four fields each), and the handler counts them for each person through the person who acted
- * for (actingForId). One read for all people, never one count for each person.
+ * of the period load as event rows of the projects (five fields each), and the handler counts them for each person through the person
+ * who acted for (actingForId). One read for all people, never one count for each person. An office task has no project, so its
+ * reviews stay out.
  *
  * The period needs today. The loader gets it from LoadCtx.now, the same time as the handler. Without that time, it throws.
  */
@@ -42,6 +43,7 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
   }, ids, (projectId) => REPORT_KEYS.completed(projectId));
   await L.countWhere({ c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_PAUSED_VERB] }, ...time] }, ids, (projectId) => REPORT_KEYS.paused(projectId));
   await L.select({
-    c: 'events', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, ...time], pick: ['id', 'verb', 'actingForId', 'createdAt'],
+    c: 'events', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, { col: 'project_id', in: ids }, ...time],
+    pick: ['id', 'verb', 'actingForId', 'projectId', 'createdAt'],
   });
 }
