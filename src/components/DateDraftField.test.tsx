@@ -105,3 +105,47 @@ describe('DateDraftField as a quiet button (owner, 2026-10-05, item 8)', () => {
     expect(screen.getByText(formatDay('2027-02-03', 'en', 'shortYear'))).toBeInTheDocument();
   });
 });
+
+// fbk_009 (Faisal, 2026-10-18): on a computer, a press opens Madar's calendar, and a picked day saves once.
+describe('DateDraftField on a computer: Madar\'s calendar (fbk_009)', () => {
+  let matchMediaSpy: ReturnType<typeof vi.spyOn> | undefined;
+  const pointer = (fine: boolean) => {
+    matchMediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({ matches: fine && query === '(pointer: fine)', media: query }) as MediaQueryList,
+    );
+  };
+  afterEach(() => {
+    matchMediaSpy?.mockRestore();
+    matchMediaSpy = undefined;
+  });
+
+  it('a press opens the calendar, and a picked day saves at once, and the blur after it does not save again', async () => {
+    pointer(true);
+    const onCommit = vi.fn();
+    render(<><DateDraftField id="start" label="Start of Concept" value="2026-10-12" onCommit={onCommit} /><button type="button">Away</button></>);
+    await userEvent.click(screen.getByLabelText('Start of Concept'));
+    expect(screen.getByRole('dialog', { name: 'Pick a date' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: formatDay('2026-10-15', 'en', 'long') }));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith('2026-10-15');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(screen.getByText('Away'));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('with a coarse pointer (a phone), a press calls the browser picker as before', async () => {
+    pointer(false);
+    const showPicker = vi.fn();
+    const realPicker = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'showPicker');
+    Object.defineProperty(HTMLInputElement.prototype, 'showPicker', { value: showPicker, configurable: true, writable: true });
+    try {
+      render(<DateDraftField id="start" label="Start of Concept" value="2026-10-12" onCommit={() => undefined} />);
+      await userEvent.click(screen.getByLabelText('Start of Concept'));
+      expect(showPicker).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('dialog')).toBeNull();
+    } finally {
+      if (realPicker) Object.defineProperty(HTMLInputElement.prototype, 'showPicker', realPicker);
+      else delete (HTMLInputElement.prototype as { showPicker?: unknown }).showPicker;
+    }
+  });
+});

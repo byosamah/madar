@@ -173,3 +173,60 @@ describe('DateField: a date in a form that saves with its own button', () => {
     initI18n('en');
   });
 });
+
+// fbk_009 (Faisal, 2026-10-18): on a computer, a press opens Madar's calendar. A phone keeps the browser picker.
+describe('DateField on a computer: Madar\'s calendar (fbk_009)', () => {
+  let matchMediaSpy: ReturnType<typeof vi.spyOn> | undefined;
+  const pointer = (fine: boolean) => {
+    matchMediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({ matches: fine && query === '(pointer: fine)', media: query }) as MediaQueryList,
+    );
+  };
+  afterEach(() => {
+    matchMediaSpy?.mockRestore();
+    matchMediaSpy = undefined;
+  });
+
+  it('a press opens the calendar and does not open the browser picker', async () => {
+    pointer(true);
+    const showPicker = withPicker();
+    render(<Holder start="2026-10-12" />);
+    await userEvent.click(screen.getByLabelText('Start date'));
+    expect(screen.getByRole('dialog', { name: 'Pick a date' })).toBeInTheDocument();
+    expect(showPicker).not.toHaveBeenCalled();
+  });
+
+  it('a picked day goes to the form at once, closes the calendar and shows the quiet date', async () => {
+    pointer(true);
+    const onChange = vi.fn();
+    render(<Holder start="2026-10-12" onChange={onChange} />);
+    await userEvent.click(screen.getByLabelText('Start date'));
+    await userEvent.click(screen.getByRole('button', { name: formatDay('2026-10-14', 'en', 'long') }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith('2026-10-14');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(formatDay('2026-10-14', 'en'))).toBeInTheDocument();
+    expect(screen.getByLabelText('Start date')).not.toHaveClass('field');
+  });
+
+  it('Escape closes the calendar and gives the focus back to the field', async () => {
+    pointer(true);
+    const onChange = vi.fn();
+    render(<Holder start="2026-10-12" onChange={onChange} />);
+    await userEvent.click(screen.getByLabelText('Start date'));
+    expect(screen.getByRole('dialog', { name: 'Pick a date' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByLabelText('Start date')).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('with a coarse pointer (a phone), a press calls the browser picker as before', async () => {
+    pointer(false);
+    const showPicker = withPicker();
+    render(<Holder start="2026-10-12" />);
+    await userEvent.click(screen.getByLabelText('Start date'));
+    expect(showPicker).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});

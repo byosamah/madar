@@ -1,5 +1,10 @@
 {
   "profile": {
     "seeThroughHint": "A photo with a see-through background shows your glow behind it."
+  },
+  "calendar": {
+    "label": "Pick a date",
+    "previous": "Previous month",
+    "next": "Next month"
   }
 }

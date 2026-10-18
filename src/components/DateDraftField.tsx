@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../app/lang';
+import { isFinePointer } from '../lib/calendar';
+import { CalendarPopover } from './CalendarPopover';
 import { ClearDate, DATE_BOX, DateFace, dateInputClass, quietDay } from './DateField';
 
 type Props = {
@@ -37,6 +39,10 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
   const [typing, setTyping] = useState(false);
   // A pointer press comes before the focus it gives. A focus with no press came from the keyboard.
   const pressed = useRef(false);
+  // The box of the field. Madar's calendar opens under it on a computer (fbk_009).
+  const box = useRef<HTMLDivElement>(null);
+  // The box that the open calendar sits under, or null while no calendar is open.
+  const [calendarAnchor, setCalendarAnchor] = useState<HTMLElement | null>(null);
   // The draft sent last. Enter and the blur after it send the same draft once, so a reason sheet does not open twice (audit 2026-10-03, BRW-3).
   // A new visit to the field or a new draft forgets it, so a person can send a refused date again (review 2026-10-03).
   const sent = useRef<string | null>(null);
@@ -77,6 +83,11 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
   const openPicker = () => {
     const field = input.current;
     if (!field || typing || disabled) return;
+    // A computer shows Madar's calendar (fbk_009). A phone keeps the picker of the phone.
+    if (isFinePointer()) {
+      setCalendarAnchor(box.current);
+      return;
+    }
     try {
       if (typeof field.showPicker !== 'function') throw new Error('No date picker in this browser.');
       field.showPicker();
@@ -86,13 +97,30 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
     }
   };
 
+  // The focus returns to the field first. The focus clears the sent draft, so the save below sets it again, and the blur sends nothing.
+  const backToField = () => {
+    pressed.current = true;
+    input.current?.focus();
+    pressed.current = false;
+  };
+  const pickDay = (day: string) => {
+    setCalendarAnchor(null);
+    backToField();
+    setDraft(day);
+    commit(day);
+  };
+  const closeCalendar = () => {
+    setCalendarAnchor(null);
+    backToField();
+  };
+
   const shown = savable(draft) ? quietDay(draft, lang) : '';
   const canClear = Boolean(draft) && !disabled;
   const described = [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
       <label htmlFor={id} className={hideLabel ? 'sr-only' : 'field-label'}>{label}</label>
-      <div className={DATE_BOX}>
+      <div ref={box} className={DATE_BOX}>
         <input
           ref={input}
           id={id}
@@ -144,6 +172,7 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
           />
         )}
       </div>
+      {calendarAnchor && <CalendarPopover anchor={calendarAnchor} value={draft} onPick={pickDay} onClose={closeCalendar} />}
       {hint && <p id={`${id}-hint`} className="text-caption text-ink-2">{hint}</p>}
       {error && <p id={`${id}-error`} className="text-footnote text-late">{error}</p>}
     </div>

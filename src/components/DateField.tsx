@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../app/lang';
+import { isFinePointer } from '../lib/calendar';
 import { formatDay, todayISO, type Lang } from '../lib/dates';
+import { CalendarPopover } from './CalendarPopover';
 import { FieldShell, describedBy } from './Fields';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { XIcon } from './icons/animated/x';
@@ -99,10 +101,19 @@ export function DateField({
   const [typing, setTyping] = useState(false);
   // A pointer press comes before the focus it gives. A focus with no press came from the keyboard (or from the form, to an error).
   const pressed = useRef(false);
+  // The box of the field. Madar's calendar opens under it on a computer (fbk_009).
+  const box = useRef<HTMLDivElement>(null);
+  // The box that the open calendar sits under, or null while no calendar is open.
+  const [calendarAnchor, setCalendarAnchor] = useState<HTMLElement | null>(null);
 
   const openPicker = () => {
     const field = input.current;
     if (!field || typing || disabled) return;
+    // A computer shows Madar's calendar (fbk_009). A phone keeps the picker of the phone.
+    if (isFinePointer()) {
+      setCalendarAnchor(box.current);
+      return;
+    }
     try {
       if (typeof field.showPicker !== 'function') throw new Error('No date picker in this browser.');
       field.showPicker();
@@ -112,11 +123,27 @@ export function DateField({
     }
   };
 
+  // The focus returns to the field. The press flag keeps the full field from showing (a press comes before its focus).
+  const backToField = () => {
+    pressed.current = true;
+    input.current?.focus();
+    pressed.current = false;
+  };
+  const pickDay = (day: string) => {
+    setCalendarAnchor(null);
+    backToField();
+    onChange(day);
+  };
+  const closeCalendar = () => {
+    setCalendarAnchor(null);
+    backToField();
+  };
+
   const invalid = markedInvalid ?? (error ? true : undefined);
   const canClear = clearable && value !== '' && !disabled;
   return (
     <FieldShell id={id} label={label} error={error} hint={hint} className={className} required={required}>
-      <div className={DATE_BOX}>
+      <div ref={box} className={DATE_BOX}>
         <input
           ref={input}
           id={id}
@@ -152,6 +179,9 @@ export function DateField({
         {!typing && <DateFace shown={quietDay(value, lang)} roomForClear={canClear} invalid={Boolean(invalid)} />}
         {!typing && canClear && <ClearDate label={label} onClear={() => onChange('')} />}
       </div>
+      {calendarAnchor && (
+        <CalendarPopover anchor={calendarAnchor} value={value} min={min} max={max} onPick={pickDay} onClose={closeCalendar} />
+      )}
     </FieldShell>
   );
 }
