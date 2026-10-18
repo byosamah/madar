@@ -39,6 +39,12 @@ const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<
   ['content.editOwn', [true, true, true, false], own],
   ['event.undoAgent', [true, true, false, false], none],
   ['admin.manage', [true, false, false, false], none],
+  // The office rights (rights.ts). The Admin holds each of them; the other three columns hold none by default.
+  ['people.manage', [true, false, false, false], none],
+  ['payment.manage', [true, false, false, false], none],
+  ['clients.manage', [true, false, false, false], none],
+  ['templates.manageAll', [true, false, false, false], none],
+  ['report.office', [true, false, false, false], none],
 ];
 
 describe('permission table (spec 2.3)', () => {
@@ -49,6 +55,25 @@ describe('permission table (spec 2.3)', () => {
       });
     });
   }
+});
+
+describe('the default office rights of each system role (fbk_014)', () => {
+  const management = makeUser('usr_006', { systemRole: 'management' });
+  const accounting = makeUser('usr_007', { systemRole: 'accounting' });
+
+  it('lets management make people and see the office report, and never delete a project', () => {
+    expect(can(management, 'people.manage')).toBe(true);
+    expect(can(management, 'payment.manage')).toBe(true);
+    expect(can(management, 'report.office')).toBe(true);
+    expect(can(management, 'project.delete')).toBe(false);
+    expect(can(management, 'clients.manage')).toBe(false);
+  });
+
+  it('lets accounting see and change the payments only', () => {
+    expect(can(accounting, 'payment.manage')).toBe(true);
+    expect(can(accounting, 'people.manage')).toBe(false);
+    expect(can(accounting, 'report.office')).toBe(false);
+  });
 });
 
 describe('permission details', () => {

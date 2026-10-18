@@ -252,8 +252,10 @@ export const notificationsUpdateSettings = defineCall({
       : input.channel === 'email'
         ? { ...prefs, email: { ...prefs.email, [input.trigger!]: input.on! } }
         : { ...prefs, notifications: { ...prefs.notifications, [input.trigger!]: input.on! } };
-    applyPatch(ctx, ctx.authority, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
-    return ctx.authority;
+    // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
+    const me = ctx.state.users[ctx.authority.id];
+    applyPatch(ctx, me, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
+    return me;
   },
 });
 

@@ -30,6 +30,7 @@ export const PaymentId = id('pay');
 export const TeamId = id('tm');
 export const SubCompanyId = id('sub');
 export const PushDeviceId = id('pdv');
+export const RoleId = id('rol');
 
 export const Day = z.iso.date();
 export const Stamp = z.iso.datetime({ offset: true });
@@ -106,6 +107,34 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
+ * The office rights (owner, 2026-10-18, fbk_014). A right opens some actions for a person. The Admin holds every right.
+ * permissions.ts holds the same names as plain constants (OFFICE_RIGHTS), because it loads with the screens and takes no zod.
+ */
+export const OfficeRight = z.enum([
+  'people.manage', 'payment.manage', 'project.delete', 'project.editCode', 'clients.manage', 'templates.manageAll', 'report.office',
+]);
+export type OfficeRight = z.infer<typeof OfficeRight>;
+
+/** A role that the Admin makes. A person with the role holds the Member rights and the rights of the role. */
+export const CustomRole = z.object({
+  id: RoleId,
+  name: z.string().trim().min(1).max(40),
+  nameAr: z.string().trim().min(1).max(40),
+  rights: z.array(OfficeRight).max(20),
+});
+export type CustomRole = z.infer<typeof CustomRole>;
+
+/**
+ * The office roles (owner, 2026-10-18). rights replaces the default rights of a built-in role. A built-in role that has no entry keeps
+ * its default. custom lists the roles the Admin makes. Optional, so an office saved before roles reads the defaults.
+ */
+export const RoleSettings = z.object({
+  rights: z.partialRecord(z.enum(['management', 'accounting', 'member']), z.array(OfficeRight)).optional(),
+  custom: z.array(CustomRole).max(20).optional(),
+});
+export type RoleSettings = z.infer<typeof RoleSettings>;
+
+/**
  * The profile picture (owner item 10, 2026-10-05). The browser cuts it to a 128 px square and saves it as a data address,
  * so no file store holds it. A data address of a WebP, JPEG or PNG picture (PICTURE_DATA, limits.ts), up to 24,000 characters.
  */
@@ -144,6 +173,8 @@ export const User = z.object({
    * tasks, the comments and the messages keep the name. Optional, so people saved before it still read. Unset means not removed.
    */
   removed: z.boolean().optional(),
+  /** The custom role of a person (owner, 2026-10-18). Only a Member holds one: rightsOf (rights.ts) ignores it for the other roles. Unset means none. */
+  roleId: RoleId.nullable().optional(),
 });
 export type User = z.infer<typeof User>;
 
@@ -772,6 +803,8 @@ export const Settings = z.object({
   workloadLimit: z.number().int().min(1).max(100),
   /** A paused project turns stale after this many days (colleague comment 16). Optional, so older offices read DEFAULT_STALE_DAYS. */
   staleAfterDays: z.number().int().min(7).max(365).optional(),
+  /** The office roles and their rights (owner, 2026-10-18). Optional, so an office saved before roles reads the defaults. */
+  roles: RoleSettings.optional(),
 });
 export type Settings = z.infer<typeof Settings>;
 

@@ -1,6 +1,8 @@
 import type { User } from './contract/entities';
 import { ApiError } from './errors';
+import type { Actor } from './permissions';
 import type { AnyCall } from './registry';
+import { withOfficeRights } from './rights';
 import type { State } from './store';
 import { nowStamp, todayISO } from '../lib/dates';
 
@@ -9,8 +11,17 @@ import { nowStamp, todayISO } from '../lib/dates';
  * The server calls it inside its transaction on the records it loaded; the fake API calls it inside Store.run.
  */
 
-/** "actor" is who acts. "authority" is whose rights apply: the person, or the active person an agent acts for (spec 17). */
-export function resolveAuthority(state: State, actorId: string, def: AnyCall): { actor: User; authority: User } {
+/**
+ * "actor" is who acts. "authority" is whose rights apply: the person, or the active person an agent acts for (spec 17).
+ * Both carry the office rights of the office settings (rights.ts), so can() reads them.
+ */
+export function resolveAuthority(state: State, actorId: string, def: AnyCall): { actor: Actor; authority: Actor } {
+  const who = whoActs(state, actorId, def);
+  return { actor: withRightsOf(state, who.actor), authority: withRightsOf(state, who.authority) };
+}
+
+/** The person who acts, and the person whose rights apply, before the office rights are attached. */
+function whoActs(state: State, actorId: string, def: AnyCall): { actor: User; authority: User } {
   const actor = state.users[actorId];
   if (!actor) throw new ApiError('forbidden', 'There is no current user.');
   if (actor.kind !== 'agent') return { actor, authority: actor };
@@ -19,6 +30,11 @@ export function resolveAuthority(state: State, actorId: string, def: AnyCall): {
   // Prototype controls still run, so the viewer can always switch away from an agent that cannot act.
   if (def.prototypeOnly) return { actor, authority: actor };
   throw new ApiError('forbidden', 'This agent has no active person to act for.');
+}
+
+/** A person with the office rights of the office settings attached. A missing person stays missing. */
+function withRightsOf(state: State, user: User): Actor {
+  return user ? withOfficeRights(user, state.settings.roles) : user;
 }
 
 /**
@@ -32,7 +48,8 @@ export type ExecuteBase = {
 /** Runs a call on input that already passed its input check. The output is checked inside the change, so a wrong shape rolls it back. */
 export function executeParsed(def: AnyCall, name: string, parsed: unknown, state: State, base: ExecuteBase, prepared: unknown): unknown {
   const result = def.run(parsed, {
-    state, actor: state.users[base.actorId], authority: state.users[base.authorityId], correlationId: base.correlationId,
+    state, actor: withRightsOf(state, state.users[base.actorId]), authority: withRightsOf(state, state.users[base.authorityId]),
+    correlationId: base.correlationId,
     stamp: nowStamp(base.now), today: todayISO(base.now), now: base.now, persistent: base.persistent,
     ...(base.limits ? { limits: base.limits } : {}),
   }, prepared);

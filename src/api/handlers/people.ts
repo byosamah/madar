@@ -285,8 +285,10 @@ export const meUpdateProfile = defineCall({
   input: z.object({ name: Name.optional(), nameAr: NameArPatch.optional(), discipline: Discipline.optional(), avatarUrl: UserAvatarInput.optional() }),
   output: User,
   run(input, ctx) {
-    applyPatch(ctx, ctx.actor, input, { projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });
-    return ctx.actor;
+    // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
+    const me = ctx.state.users[ctx.actor.id];
+    applyPatch(ctx, me, input,{ projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });
+    return me;
   },
 });
 
@@ -303,8 +305,10 @@ export const meUpdatePreferences = defineCall({
       glass: input.glass ?? current.glass,
       ...(input.hatchOverlap !== undefined && { hatchOverlap: input.hatchOverlap }),
     };
-    applyPatch(ctx, ctx.actor, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
-    return ctx.actor;
+    // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
+    const me = ctx.state.users[ctx.actor.id];
+    applyPatch(ctx, me, { preferences: next },{ projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
+    return me;
   },
 });
 

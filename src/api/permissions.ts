@@ -1,4 +1,4 @@
-import type { Task, User } from './contract/entities';
+import type { OfficeRight, Task, User } from './contract/entities';
 import { memberKey } from './rowKeys';
 import type { State } from './store';
 
@@ -8,9 +8,36 @@ export type Action =
   | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
   | 'task.take'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
-  | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage';
+  | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
+
+/**
+ * The office rights, with the same names and order as OfficeRight (contract/entities.ts). A test checks that both lists agree.
+ * The Admin holds every one of them.
+ */
+export const OFFICE_RIGHTS: readonly OfficeRight[] = [
+  'people.manage', 'payment.manage', 'project.delete', 'project.editCode', 'clients.manage', 'templates.manageAll', 'report.office',
+];
+
+/**
+ * The rights of each built-in role when the office settings give none (owner, 2026-10-18). They match today's rights. The office report
+ * right is new, and management holds it by default.
+ */
+export const DEFAULT_RIGHTS: Readonly<Record<'management' | 'accounting' | 'member', readonly OfficeRight[]>> = {
+  management: ['people.manage', 'payment.manage', 'report.office'],
+  accounting: ['payment.manage'],
+  member: [],
+};
+
+/** A person as can() reads it: the user, plus the office rights that the office settings give the person (rights.ts). */
+export type Actor = User & { readonly officeRights?: readonly OfficeRight[] };
+
+/** The office rights of an actor. The Admin holds all of them. Without attached rights, the default rights of the role apply. */
+function heldRights(actor: Actor): readonly OfficeRight[] {
+  if (actor.systemRole === 'admin') return OFFICE_RIGHTS;
+  return actor.officeRights ?? DEFAULT_RIGHTS[actor.systemRole];
+}
 
 /**
  * ownerId is the lead of a task. Null: the task has no lead, so nobody holds the rights of its lead.
@@ -100,7 +127,7 @@ function canOnOfficeTask(actor: User, action: Action, resource: Resource): boole
 }
 
 /** The permission table from spec section 2.3. No screen checks permissions in another way. */
-export function can(actor: User, action: Action, resource: Resource = {}): boolean {
+export function can(actor: Actor, action: Action, resource: Resource = {}): boolean {
   // A project task reads like its project. An office task stays with its people.
   if (!actor.active) return action === 'project.view' || (action === 'task.view' && !resource.office);
   if (resource.office) return canOnOfficeTask(actor, action, resource);
@@ -129,17 +156,21 @@ export function can(actor: User, action: Action, resource: Resource = {}): boole
     case 'task.updateAny':
     case 'task.delete':
       return makes;
-    case 'project.delete':
-    // The code is fixed after create. Only the Admin corrects it (owner, 2026-10-05).
-    case 'project.editCode':
+    // The office settings stay with the Admin.
     case 'admin.manage':
       return admin;
-    // Management makes and changes people, but never an Admin: the calls add that rule. The office settings stay with the Admin.
+    // The office rights (rights.ts): the Admin holds all of them. A role holds the rights that the office gives it.
+    // Management makes and changes people, but never an Admin: the calls add that rule.
     case 'people.manage':
-      return admin || actor.systemRole === 'management';
-    // Payments are for the people who handle money. Every other person, a project leader too, never reads them.
+    // Payments are for the people who handle money. A project leader never reads them, unless the office gives the right.
     case 'payment.manage':
-      return admin || actor.systemRole === 'management' || actor.systemRole === 'accounting';
+    // The code is fixed after create. Only a person with the right corrects it (owner, 2026-10-05).
+    case 'project.delete':
+    case 'project.editCode':
+    case 'clients.manage':
+    case 'templates.manageAll':
+    case 'report.office':
+      return heldRights(actor).includes(action);
     // A team member adds a task for any team mate (owner, 2026-10-07). Only the leader and the Admin name a person outside the team.
     case 'task.createForAnyone':
     case 'task.createForSelf':
