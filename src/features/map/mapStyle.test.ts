@@ -53,4 +53,15 @@ describe('madarMapStyle (fbk_017)', () => {
     expect(arabic).toContain('name:ar');
     expect(english).not.toContain('name:ar');
   });
+
+  // The map uploads the glyph files of Noto Sans Regular only (proof.md, Map basemap probe). The Devanagari font sits inside
+  // a case on the script of a label. The Saudi extract holds no such label, so that font never draws.
+  it('asks the glyph route only for Noto Sans Regular and the Devanagari case, in both themes and languages', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const lang of ['en', 'ar'] as const) {
+        const names = [...JSON.stringify(madarMapStyle(theme, lang)).matchAll(/"Noto Sans[^"]*"/g)].map((match) => match[0].slice(1, -1));
+        expect([...new Set(names)].sort(), `${theme} ${lang}`).toEqual(['Noto Sans Devanagari Regular v1', 'Noto Sans Regular']);
+      }
+    }
+  });
 });

@@ -54,7 +54,10 @@ const KEYS_OF_ROLE: [Role, string[]][] = [
   ['halo', ['subplace_label_halo', 'city_label_halo', 'state_label_halo', 'address_label_halo', 'roads_label_minor_halo', 'roads_label_major_halo']],
 ];
 
-/** The Protomaps flavor of a theme, with every color set to a Madar color. The font names stay. */
+/**
+ * The Protomaps flavor of a theme, with every color set to a Madar color. Every text uses Noto Sans Regular, the one glyph
+ * stack that the map uploads (proof.md, Map basemap probe). The Medium and Italic names would ask for files the route refuses.
+ */
 function flavorOf(theme: MapTheme): Flavor {
   const base = theme === 'dark' ? DARK : LIGHT;
   const colors = MAP_COLORS[theme];
@@ -65,6 +68,9 @@ function flavorOf(theme: MapTheme): Flavor {
   return {
     ...base,
     ...roleColors,
+    regular: 'Noto Sans Regular',
+    bold: 'Noto Sans Regular',
+    italic: 'Noto Sans Regular',
     landcover: { barren: colors.land, farmland: colors.green, forest: colors.green, glacier: colors.land, grassland: colors.green, scrub: colors.green, urban_area: colors.building },
     pois: { blue: colors.label, green: colors.label, lapis: colors.label, pink: colors.label, red: colors.label, slategray: colors.label, tangerine: colors.label, turquoise: colors.label },
   };

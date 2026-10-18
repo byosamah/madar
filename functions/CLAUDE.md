@@ -8,7 +8,7 @@
   answers 404. Two narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes.
 - `map/[[path]].ts`: the same-origin street map of the Dashboard (fbk_017, probe of 2026-10-18), logic in `server/http/pagesMap.ts`.
   It reads the R2 bucket of the binding `MAP`. Without the binding, every request answers 404 `map_not_ready`. Only the map keys
-  pass: the PMTiles file, the RTL text plugin and the glyph files of two font stacks. It has no host list. The rule "A new function
+  pass: the PMTiles file, the RTL text plugin and the glyph files of Noto Sans Regular, which hold Arabic (the route also allows the name Noto Sans Arabic Regular, which no upload makes). It has no host list. The rule "A new function
   here runs on every Pages host" asks for one. This route reads one bucket and forwards nothing, so the owner decides the list. The binding waits for the owner OK (proof.md, Map basemap probe).
 
 Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or

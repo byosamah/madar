@@ -26,10 +26,11 @@ echo "Extracting Saudi Arabia to $OUT/sa.pmtiles."
 pmtiles extract "$PMTILES_SOURCE" "$OUT/sa.pmtiles" --bbox="$BBOX" --maxzoom=15
 
 # The glyph files (Noto Sans, OFL licence) come from the Protomaps basemaps assets.
+# The folder Noto Sans Regular holds the Arabic block too (range file 1536-1791). No folder Noto Sans Arabic Regular exists.
 if [ ! -d "$OUT/assets-src/.git" ]; then
   git clone --depth 1 https://github.com/protomaps/basemaps-assets.git "$OUT/assets-src"
 fi
-for stack in "Noto Sans Regular" "Noto Sans Arabic Regular"; do
+for stack in "Noto Sans Regular"; do
   src="$OUT/assets-src/fonts/$stack"
   [ -d "$src" ] || { echo "The glyph folder is missing: $src" >&2; exit 1; }
   mkdir -p "$OUT/fonts/$stack"

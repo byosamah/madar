@@ -35,6 +35,11 @@ describe('the keys of the map route (server/http/pagesMap.ts)', () => {
     expect(mapKey('fonts/Noto Sans Arabic Regular/256-511.pbf')).toBe('fonts/Noto Sans Arabic Regular/256-511.pbf');
   });
 
+  // Noto Sans Regular holds the Arabic glyphs too: its range file 1536-1791 is the Arabic block (110 KB, checked 2026-10-18).
+  it('allows the Arabic block of the Noto Sans Regular glyphs', () => {
+    expect(mapKey('fonts/Noto Sans Regular/1536-1791.pbf')).toBe('fonts/Noto Sans Regular/1536-1791.pbf');
+  });
+
   it('decodes the percent escapes of a font stack name', () => {
     expect(mapKey('fonts/Noto%20Sans%20Regular/0-255.pbf')).toBe('fonts/Noto Sans Regular/0-255.pbf');
   });
