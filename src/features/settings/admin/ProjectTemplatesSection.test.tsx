@@ -34,7 +34,9 @@ describe('the Admin section Project templates', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
     await userEvent.type(within(sheet).getByLabelText('Task'), 'Massing');
     await userEvent.selectOptions(within(sheet).getByLabelText('Role'), 'Architect');
-    const days = within(sheet).getByLabelText('Working days');
+    // The stage card has its own "Working days" field, so the query stays in the task row.
+    const taskRow = within(sheet).getByLabelText('Task').closest('li') as HTMLElement;
+    const days = within(taskRow).getByLabelText('Working days');
     await userEvent.clear(days);
     await userEvent.type(days, '8');
     await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Can stretch' }));
@@ -93,6 +95,43 @@ describe('the Admin section Project templates', () => {
       expect(saved.stages.map((stage) => stage.name).slice(0, 2)).toEqual(['Schematic Design', 'Concept']);
       expect(saved.tasks).toHaveLength(10);
     });
+  });
+
+  it('shows the start and length fields of a stage that has tasks', async () => {
+    await renderApp('/admin/project-templates');
+    await userEvent.click(await within(await region('Project templates')).findByRole('button', { name: /^Villa, full design/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
+    const card = within(sheet).getByLabelText('Name of stage 1').closest('li') as HTMLElement;
+    expect(card.querySelector<HTMLInputElement>('#tpl-s1-start')).toBeInTheDocument();
+    expect(card.querySelector<HTMLInputElement>('#tpl-s1-days')).toBeInTheDocument();
+  });
+
+  it('says where the tasks of a stage end when they run past the own days of the stage', async () => {
+    await renderApp('/admin/project-templates');
+    await userEvent.click(await within(await region('Project templates')).findByRole('button', { name: /^Villa, full design/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
+    const card = within(sheet).getByLabelText('Name of stage 1').closest('li') as HTMLElement;
+    const ownStart = card.querySelector<HTMLInputElement>('#tpl-s1-start')!;
+    const ownDays = card.querySelector<HTMLInputElement>('#tpl-s1-days')!;
+    await userEvent.type(ownStart, '0');
+    await userEvent.type(ownDays, '5');
+    // The last task of Concept ends on day 11, after the 5 days of the stage.
+    expect(within(card).getByText('The tasks end on day 11.')).toBeInTheDocument();
+    await userEvent.clear(ownDays);
+    await userEvent.type(ownDays, '20');
+    expect(within(card).queryByText('The tasks end on day 11.')).not.toBeInTheDocument();
+  });
+
+  it('names the problem of a stage with tasks and a start day but no working days, and keeps the field', async () => {
+    await renderApp('/admin/project-templates');
+    await userEvent.click(await within(await region('Project templates')).findByRole('button', { name: /^Villa, full design/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Villa, full design' });
+    const card = within(sheet).getByLabelText('Name of stage 1').closest('li') as HTMLElement;
+    await userEvent.type(card.querySelector<HTMLInputElement>('#tpl-s1-start')!, '0');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(within(sheet).getByRole('alert')).toHaveTextContent('A stage needs both a start day and working days, or neither.');
+    expect(card.querySelector<HTMLInputElement>('#tpl-s1-start')).toHaveValue('0');
+    expect(card.querySelector<HTMLInputElement>('#tpl-s1-days')).toHaveValue('');
   });
 
   it('deletes a template, with Undo', async () => {

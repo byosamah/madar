@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lockedIds, planProject, targetDays, type PlanTemplate } from './projectPlan';
+import { lockedIds, planProject, stageSpan, targetDays, type PlanTemplate } from './projectPlan';
 
 // 2026-10-04 is a Sunday. The office week is Sunday to Thursday.
 const TEMPLATE: PlanTemplate = {
@@ -104,5 +104,56 @@ describe('planProject', () => {
     const plan = planProject(TEMPLATE, { startDate: '2026-10-04', endDate: '2026-10-29', fixedIds: ['s3'] });
     if (!plan.ok) throw new Error('expected ok');
     expect(targetDays(plan.stages.s3!.startDate, plan.stages.s3!.endDate)).toBe(10);
+  });
+
+  it('gives a stage with its own numbers and tasks a span that covers both', () => {
+    // The own numbers run from day 0 to day 3. The tasks run from day 6 to day 7, and from day 8 to day 13.
+    const template: PlanTemplate = {
+      stages: [{ id: 's1', startOffset: 0, durationDays: 4 }],
+      tasks: [
+        { id: 't1', stageId: 's1', startOffset: 6, durationDays: 2, flexible: true },
+        { id: 't2', stageId: 's1', startOffset: 8, durationDays: 6, flexible: true },
+      ],
+    };
+    const plan = planProject(template, { startDate: '2026-10-04', fixedIds: [] });
+    if (!plan.ok) throw new Error('expected ok');
+    expect(plan.days).toBe(14);
+    expect(plan.stages.s1).toEqual({ startDate: '2026-10-04', endDate: '2026-10-21' });
+  });
+
+  it('runs the project as long as the own numbers of a stage when they reach past its tasks', () => {
+    // The own numbers run from day 0 to day 20. The tasks end on day 14.
+    const template: PlanTemplate = {
+      stages: [{ id: 's1', startOffset: 0, durationDays: 20 }],
+      tasks: [
+        { id: 't1', stageId: 's1', startOffset: 0, durationDays: 5, flexible: true },
+        { id: 't2', stageId: 's1', startOffset: 8, durationDays: 6, flexible: true },
+      ],
+    };
+    const plan = planProject(template, { startDate: '2026-10-04', fixedIds: [] });
+    if (!plan.ok) throw new Error('expected ok');
+    expect(plan.days).toBe(20);
+    expect(plan.endDate).toBe('2026-10-29');
+    expect(plan.stages.s1).toEqual({ startDate: '2026-10-04', endDate: '2026-10-29' });
+  });
+});
+
+describe('stageSpan', () => {
+  it('is null for a stage with no numbers and no tasks', () => {
+    expect(stageSpan({ startOffset: null, durationDays: null }, [])).toBeNull();
+  });
+
+  it('gives the own numbers of a stage with no tasks', () => {
+    expect(stageSpan({ startOffset: 20, durationDays: 10 }, [])).toEqual({ start: 20, end: 30 });
+  });
+
+  it('gives the tasks of a stage with no own numbers', () => {
+    const tasks = [{ startOffset: 0, durationDays: 10 }, { startOffset: 12, durationDays: 3 }];
+    expect(stageSpan({ startOffset: null, durationDays: null }, tasks)).toEqual({ start: 0, end: 15 });
+  });
+
+  it('covers the own numbers and the tasks together', () => {
+    const tasks = [{ startOffset: 12, durationDays: 3 }, { startOffset: 25, durationDays: 2 }];
+    expect(stageSpan({ startOffset: 20, durationDays: 10 }, tasks)).toEqual({ start: 12, end: 30 });
   });
 });

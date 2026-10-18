@@ -1,5 +1,5 @@
 import type { ProjectTemplate, TemplateRole, TemplateStage, TemplateTask } from '../../../api/contract/entities';
-import { templateDays, type PlanTemplate } from '../../../lib/projectPlan';
+import { stageSpan, templateDays, type PlanTemplate } from '../../../lib/projectPlan';
 
 /**
  * The project template editor works on a draft: the text of each field as the person types it. The numbers stay text until
@@ -100,6 +100,48 @@ export function moveStage(draft: TemplateDraft, stageId: string, delta: -1 | 1):
   const stages = [...draft.stages];
   [stages[from], stages[to]] = [stages[to], stages[from]];
   return { ...draft, stages };
+}
+
+const clampOffset = (n: number) => Math.min(OFFSET_MAX, Math.max(0, Math.round(n)));
+
+/**
+ * Moves a stage to a new start day, in working days from day 0. The own start of the stage becomes the new start, when it has
+ * one. Each task of the stage moves by the same number of days, and never before day 0. A stage with no own start moves by
+ * the earliest start of its tasks. A stage with neither has nothing to move.
+ */
+export function moveStageStart(draft: TemplateDraft, stageId: string, start: number): TemplateDraft {
+  const stage = draft.stages.find((part) => part.id === stageId);
+  if (!stage) return draft;
+  const own = wholeNumber(stage.start);
+  const taskStarts = draft.tasks.flatMap((task) => {
+    const n = task.stageId === stageId ? wholeNumber(task.start) : null;
+    return n === null ? [] : [n];
+  });
+  const from = own ?? (taskStarts.length > 0 ? Math.min(...taskStarts) : null);
+  if (from === null) return draft;
+  const to = clampOffset(start);
+  const shift = to - from;
+  return {
+    ...draft,
+    stages: draft.stages.map((part) => (part.id === stageId && own !== null ? { ...part, start: String(to) } : part)),
+    tasks: draft.tasks.map((task) => {
+      const n = task.stageId === stageId ? wholeNumber(task.start) : null;
+      return n === null ? task : { ...task, start: String(clampOffset(n + shift)) };
+    }),
+  };
+}
+
+/**
+ * The last working day of the tasks of a stage, as a day from day 0, when the tasks end after the own days of the stage.
+ * Null when the stage has no own days, or when its own days cover its tasks: then the editor shows no note.
+ */
+export function tasksEndDay(draft: TemplateDraft, stageId: string): number | null {
+  const plan = draftPlanTemplate(draft);
+  const stage = plan.stages.find((part) => part.id === stageId);
+  if (!stage || stage.startOffset === null || stage.durationDays === null) return null;
+  const span = stageSpan(stage, plan.tasks.filter((task) => task.stageId === stageId));
+  // The span end comes after the last working day, so the last day is one less.
+  return span && span.end > stage.startOffset + stage.durationDays ? span.end - 1 : null;
 }
 
 function twice(names: string[]): boolean {

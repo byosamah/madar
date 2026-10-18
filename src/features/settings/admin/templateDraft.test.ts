@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, emptyDraft, moveStage, removeRole, removeStage, type TemplateDraft,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, emptyDraft, moveStage, moveStageStart, removeRole, removeStage,
+  tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -86,5 +87,55 @@ describe('the template draft', () => {
     const plan = draftPlanTemplate({ ...draft, tasks: [draft.tasks[0], { ...draft.tasks[1], days: '' }] });
     expect(plan.tasks.map((task) => task.id)).toEqual(['t1']);
     expect(plan.stages[1]).toEqual({ id: 's2', startOffset: 20, durationDays: 10 });
+  });
+});
+
+/** SAVED, where stage 1 has its own start (day 10) and 12 working days. Its tasks start on day 2 and day 12. */
+function withOwnNumbers(): TemplateDraft {
+  const draft = draftOf(SAVED);
+  return {
+    ...draft,
+    stages: draft.stages.map((stage) => (stage.id === 's1' ? { ...stage, start: '10', days: '12' } : stage)),
+    tasks: draft.tasks.map((task) => ({ ...task, start: task.id === 't1' ? '2' : '12' })),
+  };
+}
+
+describe('moveStageStart', () => {
+  it('moves the own start and each task of the stage by the same days', () => {
+    const moved = moveStageStart(withOwnNumbers(), 's1', 15);
+    expect(moved.stages[0]).toEqual({ id: 's1', name: 'Concept', start: '15', days: '12' });
+    expect(moved.tasks.map((task) => task.start)).toEqual(['7', '17']);
+    expect(moved.stages[1]).toEqual(withOwnNumbers().stages[1]);
+  });
+
+  it('stops the tasks and the stage at day 0', () => {
+    const earlier = moveStageStart(withOwnNumbers(), 's1', 4);
+    expect(earlier.stages[0].start).toBe('4');
+    expect(earlier.tasks.map((task) => task.start)).toEqual(['0', '6']);
+    const below = moveStageStart(withOwnNumbers(), 's1', -3);
+    expect(below.stages[0].start).toBe('0');
+    expect(below.tasks.map((task) => task.start)).toEqual(['0', '2']);
+  });
+
+  it('moves the tasks by their earliest start when the stage has no own start', () => {
+    const moved = moveStageStart(draftOf(SAVED), 's1', 3);
+    expect(moved.stages[0].start).toBe('');
+    expect(moved.tasks.map((task) => task.start)).toEqual(['3', '13']);
+  });
+});
+
+describe('the end of the tasks of a stage', () => {
+  it('gives the day the tasks end on when that is after the own days of the stage', () => {
+    const draft = draftOf(SAVED);
+    const short = { ...draft, stages: draft.stages.map((stage) => (stage.id === 's1' ? { ...stage, start: '0', days: '8' } : stage)) };
+    // The tasks of stage 1 end on day 11: the second task starts on day 10 and lasts 2 days, so day 11 is its last day.
+    expect(tasksEndDay(short, 's1')).toBe(11);
+  });
+
+  it('gives nothing when the own days cover the tasks, or when the stage has no own days', () => {
+    const draft = draftOf(SAVED);
+    expect(tasksEndDay(draft, 's1')).toBeNull();
+    const long = { ...draft, stages: draft.stages.map((stage) => (stage.id === 's1' ? { ...stage, start: '0', days: '20' } : stage)) };
+    expect(tasksEndDay(long, 's1')).toBeNull();
   });
 });

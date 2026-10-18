@@ -6,9 +6,9 @@ import { firstWorkingDay } from './workdays';
  * both use this one function, so the screen shows the same dates that the server makes.
  *
  * A template counts in working days from day 0, the first working day on or after the project start. Each task is one item.
- * A stage with no tasks but with its own numbers is one item too. A stage with tasks spans its tasks. A stage with no tasks
- * and no numbers gets no dates. With an end date, the items stretch or shrink to it (warpItems): a locked item keeps its
- * length. Without an end date, the template keeps its length.
+ * A stage with its own numbers (a start and a length) is one item too, also when it has tasks. The span of a stage covers its
+ * own numbers and its tasks. A stage with no numbers and no tasks gets no dates. With an end date, the items stretch or shrink
+ * to it (warpItems): a locked item keeps its length. Without an end date, the template keeps its length.
  */
 
 export type PlanTemplate = {
@@ -52,16 +52,38 @@ export function lockedIds(template: Pick<PlanTemplate, 'tasks'>): string[] {
   return template.tasks.filter((task) => !task.flexible).map((task) => task.id);
 }
 
-/** The items of the plan: every task, and every stage that has no tasks but has its own numbers. */
+/** The items of the plan: every task, and every stage that has its own numbers (also a stage with tasks). */
 export function planItems(template: PlanTemplate, fixedIds: Iterable<string>): PlanItem[] {
   const fixed = new Set(fixedIds);
-  const withTasks = new Set(template.tasks.map((task) => task.stageId));
   const items: PlanItem[] = template.tasks.map((task) => ({ id: task.id, start: task.startOffset, days: task.durationDays, locked: fixed.has(task.id) }));
   for (const stage of template.stages) {
-    if (withTasks.has(stage.id) || stage.startOffset === null || stage.durationDays === null) continue;
+    if (stage.startOffset === null || stage.durationDays === null) continue;
     items.push({ id: stage.id, start: stage.startOffset, days: stage.durationDays, locked: fixed.has(stage.id) });
   }
   return items;
+}
+
+/**
+ * The span of a stage in working days from day 0: its own numbers and its tasks together. The end comes after the last
+ * working day, as in templateLength. Null when the stage has no numbers and no tasks.
+ */
+export function stageSpan(
+  stage: { startOffset: number | null; durationDays: number | null },
+  tasks: { startOffset: number; durationDays: number }[],
+): { start: number; end: number } | null {
+  const ranges = tasks.map((task) => ({ start: task.startOffset, end: task.startOffset + task.durationDays }));
+  if (stage.startOffset !== null && stage.durationDays !== null) ranges.push({ start: stage.startOffset, end: stage.startOffset + stage.durationDays });
+  if (ranges.length === 0) return null;
+  return { start: Math.min(...ranges.map((range) => range.start)), end: Math.max(...ranges.map((range) => range.end)) };
+}
+
+/** A stage span with one more range of dates: the earlier start and the later end. */
+function widen(span: DatedStage | null, startDate: string, endDate: string): DatedStage {
+  if (!span) return { startDate, endDate };
+  return {
+    startDate: startDate < span.startDate ? startDate : span.startDate,
+    endDate: endDate > span.endDate ? endDate : span.endDate,
+  };
 }
 
 /** The length of a template in working days: the last end of all its items. */
@@ -82,14 +104,11 @@ export function planProject(template: PlanTemplate, choice: PlanChoice): Project
   for (const task of template.tasks) {
     const { startDate, dueDate } = dated.get(task.id)!;
     tasks[task.id] = { startDate, dueDate };
-    const span = stages[task.stageId];
-    stages[task.stageId] = span
-      ? { startDate: startDate < span.startDate ? startDate : span.startDate, endDate: dueDate > span.endDate ? dueDate : span.endDate }
-      : { startDate, endDate: dueDate };
+    stages[task.stageId] = widen(stages[task.stageId], startDate, dueDate);
   }
   for (const stage of template.stages) {
     const own = dated.get(stage.id);
-    if (own) stages[stage.id] = { startDate: own.startDate, endDate: own.dueDate };
+    if (own) stages[stage.id] = widen(stages[stage.id], own.startDate, own.dueDate);
   }
   const endDate = [...dated.values()].reduce((last, item) => (item.dueDate > last ? item.dueDate : last), '');
   return { ok: true, templateDays: length, days: warped.length, endDate: endDate || null, tasks, stages };

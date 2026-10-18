@@ -13,7 +13,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage, tasksEndDay,
   type DraftRole, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
 import { TemplateTimeline } from './TemplateTimeline';
@@ -76,6 +76,7 @@ function StageCard({
 }: { stage: DraftStage; index: number; count: number; draft: TemplateDraft; setDraft: (draft: TemplateDraft) => void }) {
   const { t } = useTranslation();
   const tasks = draft.tasks.filter((task) => task.stageId === stage.id);
+  const tasksEnd = tasksEndDay(draft, stage.id);
   const n = index + 1;
   const setStage = (next: DraftStage) => setDraft({ ...draft, stages: draft.stages.map((s) => (s.id === stage.id ? next : s)) });
   const setTask = (next: DraftTask) => setDraft({ ...draft, tasks: draft.tasks.map((task) => (task.id === next.id ? next : task)) });
@@ -103,21 +104,20 @@ function StageCard({
           ]}
         />
       </div>
-      {tasks.length === 0 && (
-        <div className="flex flex-col gap-2 pt-2">
-          <p className="text-footnote text-ink-2">{t('projectTemplates.stageDaysHint')}</p>
-          <div className="grid max-w-56 grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <SmallLabel htmlFor={`${id}-start`}>{t('projectTemplates.startDay')}</SmallLabel>
-              <input id={`${id}-start`} className={NUMBER} inputMode="numeric" autoComplete="off" value={stage.start} onChange={(event) => setStage({ ...stage, start: event.target.value })} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <SmallLabel htmlFor={`${id}-days`}>{t('projectTemplates.days')}</SmallLabel>
-              <input id={`${id}-days`} className={NUMBER} inputMode="numeric" autoComplete="off" value={stage.days} onChange={(event) => setStage({ ...stage, days: event.target.value })} />
-            </div>
+      <div className="flex flex-col gap-2 pt-2">
+        <p className="text-footnote text-ink-2">{t('projectTemplates.stageDaysHint')}</p>
+        <div className="grid max-w-56 grid-cols-2 gap-2">
+          <div className="flex flex-col gap-1">
+            <SmallLabel htmlFor={`${id}-start`}>{t('projectTemplates.startDay')}</SmallLabel>
+            <input id={`${id}-start`} className={NUMBER} inputMode="numeric" autoComplete="off" value={stage.start} onChange={(event) => setStage({ ...stage, start: event.target.value })} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <SmallLabel htmlFor={`${id}-days`}>{t('projectTemplates.days')}</SmallLabel>
+            <input id={`${id}-days`} className={NUMBER} inputMode="numeric" autoComplete="off" value={stage.days} onChange={(event) => setStage({ ...stage, days: event.target.value })} />
           </div>
         </div>
-      )}
+        {tasksEnd !== null && <p className="text-footnote text-ink-2">{t('projectTemplates.tasksEnd', { day: tasksEnd })}</p>}
+      </div>
       {tasks.length > 0 && (
         <ul className="hairline flex flex-col">
           {tasks.map((task) => (

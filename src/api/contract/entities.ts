@@ -405,8 +405,8 @@ export const TemplateRole = z.object({
 export type TemplateRole = z.infer<typeof TemplateRole>;
 
 /**
- * A stage of a template. A stage with tasks takes its dates from its tasks. A stage with no tasks may have its own start
- * and length (both or none). A stage with no tasks and no numbers gets no dates.
+ * A stage of a template. A stage may have its own start and length (both or none), with or without tasks. Its span covers
+ * its own numbers and its tasks. A stage with no numbers and no tasks gets no dates.
  */
 export const TemplateStage = z.object({
   id: TemplatePartId,
