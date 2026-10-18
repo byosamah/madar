@@ -6,7 +6,7 @@ import {
 } from '../contract/entities';
 import { ProjectRef } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
+import { applyPatch, recordCreate, recordDelete } from '../events';
 import { hasCycle, watchStage } from '../flow';
 import { notifyIn } from '../notify';
 import { staleDaysOf } from '../pause';
@@ -412,14 +412,15 @@ const projectTemplatesSyncApply = defineCall({
       return person !== null && active(person) ? person : null;
     };
 
-    // Stages: the new names, then the new stages and the dropped stages that come back.
-    const stagesBefore = stagesOf(ctx.state, project.id).map((stage) => ({ ...stage }));
-    let stagesChanged = false;
+    // Stages: the new names, then the new stages and the dropped stages that come back. Each change is its own event, so an Undo
+    // of the story takes the stages back after their tasks (the Undo runs newest first).
     if (choices.stages) {
       for (const item of diff.stages) {
-        ctx.state.stages[item.itemId].name = stagePart.get(item.partId)!.name;
+        applyPatch(
+          ctx, ctx.state.stages[item.itemId], { name: stagePart.get(item.partId)!.name },
+          { projectId: project.id, verb: 'stage.renamed', targetType: 'stage', targetId: item.itemId },
+        );
         counts.stages += 1;
-        stagesChanged = true;
       }
     }
     const stageParts = [
@@ -431,19 +432,14 @@ const projectTemplatesSyncApply = defineCall({
       const id = nextId(ctx.state, 'stg');
       const dates = plan?.stages[part.partId];
       order += 1;
-      ctx.state.stages[id] = {
+      const stage: Stage = {
         id, projectId: project.id, name: part.title, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null,
         templatePartId: part.partId,
       };
+      ctx.state.stages[id] = stage;
+      recordCreate(ctx, { projectId: project.id, verb: 'stage.created', targetType: 'stage', targetId: id, entity: stage });
       counts[back ? 'broughtBack' : 'added'] += 1;
       if (back) restored.add(part.partId);
-      stagesChanged = true;
-    }
-    if (stagesChanged) {
-      writeEvent(ctx, {
-        projectId: project.id, verb: 'project.stages_changed', targetType: 'project', targetId: project.id,
-        before: { stages: stagesBefore }, after: { stages: stagesOf(ctx.state, project.id) },
-      });
     }
 
     // Removed tasks: only an open task that nobody started goes, and only when the Admin picks it.

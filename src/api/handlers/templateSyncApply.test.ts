@@ -246,4 +246,65 @@ describe('projectTemplates.syncApply: each choice does what it says and nothing 
       expect(linkOf(t, projectId).syncedAt).toBeNull();
     }
   });
+
+  it('stages: an Undo of the story takes back the stage names of two projects', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const beta = await madeFrom(t, templateId, 'Beta villa');
+    await t.api.call('projectTemplates.save', changed(templateId, { stages: [{ ...TEMPLATE.stages[0], name: 'Concept design' }, TEMPLATE.stages[1]] }));
+    for (const projectId of [alpha, beta]) {
+      await t.api.call('projectTemplates.syncApply', { templateId, projectId, choices: choose({ stages: true }) }, { correlationId: 'cor_rename' });
+    }
+    expect(stageByPart(t, alpha, 's1').name).toBe('Concept design');
+    expect(stageByPart(t, beta, 's1').name).toBe('Concept design');
+    await t.api.call('events.undoStory', { correlationId: 'cor_rename' });
+    expect(stageByPart(t, alpha, 's1').name).toBe('Concept');
+    expect(stageByPart(t, beta, 's1').name).toBe('Concept');
+  });
+
+  it('add: an Undo of the story takes back a new stage with its task, and the link is unsynced again', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const handover = { id: 's3', name: 'Handover', startOffset: 20, durationDays: 5 };
+    await t.api.call('projectTemplates.save', changed(templateId, { stages: [...TEMPLATE.stages, handover], tasks: [...TEMPLATE.tasks, extra('t3', 'Handover pack', 's3', 20)] }));
+    const counts = await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ add: true }) }, { correlationId: 'cor_stage' });
+    expect(counts).toMatchObject({ added: 2 });
+    expect(stageByPart(t, alpha, 's3')).toMatchObject({ name: 'Handover' });
+    expect(byPart(t, alpha, 't3')).toMatchObject({ stageId: stageByPart(t, alpha, 's3').id });
+    await t.api.call('events.undoStory', { correlationId: 'cor_stage' });
+    expect(Object.values(t.store.state.stages).some((stage) => stage.projectId === alpha && stage.templatePartId === 's3')).toBe(false);
+    expect(byPart(t, alpha, 't3')).toBeUndefined();
+    expect(linkOf(t, alpha).syncedAt).toBeNull();
+  });
+
+  it('bringBack: an Undo of the story puts a brought back stage and its task on the dropped list again', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const concept = stageByPart(t, alpha, 's1');
+    await t.api.call('tasks.delete', { id: byPart(t, alpha, 't2')!.id });
+    await t.api.call('stages.replace', { projectId: alpha, stages: [{ id: concept.id, name: concept.name, startDate: concept.startDate, endDate: concept.endDate }] });
+    expect(linkOf(t, alpha).droppedPartIds).toEqual(['t2', 's2']);
+    const counts = await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ bringBack: true }) }, { correlationId: 'cor_back' });
+    expect(counts).toMatchObject({ broughtBack: 2 });
+    expect(linkOf(t, alpha).droppedPartIds).toEqual([]);
+    await t.api.call('events.undoStory', { correlationId: 'cor_back' });
+    expect(Object.values(t.store.state.stages).some((stage) => stage.projectId === alpha && stage.templatePartId === 's2')).toBe(false);
+    expect(byPart(t, alpha, 't2')).toBeUndefined();
+    expect(linkOf(t, alpha).droppedPartIds).toEqual(['t2', 's2']);
+  });
+
+  it('the stage tag follows a new task that the update adds to an earlier stage (watchStage)', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const permits = stageByPart(t, alpha, 's2');
+    await t.api.call('tasks.complete', { id: byPart(t, alpha, 't1')!.id });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [...TEMPLATE.tasks, extra('t6', 'Extra concept check', 's1', 3)] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ add: true }) });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(stageByPart(t, alpha, 's1').id);
+  });
 });
