@@ -225,6 +225,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     lastActivityAt: newest && newest > project.updatedAt ? newest : project.updatedAt,
     viewerRole,
     viewerCan: viewerCanOf(viewer, viewerRole),
+    templateId: project.templateLink?.templateId ?? null,
   };
 }
 

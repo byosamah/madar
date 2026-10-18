@@ -182,3 +182,18 @@ describe('projectTemplates.link', () => {
       .rejects.toMatchObject({ code: 'forbidden' });
   });
 });
+
+describe('the template of a project in its summary (templateId)', () => {
+  it('gives the template id of a project made from a template, in the detail and in the list', async () => {
+    const { t, projectId } = await linkedProject();
+    const templateId = t.store.state.projects[projectId].templateLink!.templateId;
+    expect((await t.api.call('projects.get', { id: projectId })).templateId).toBe(templateId);
+    const listed = await t.api.call('projects.list', {});
+    expect(listed.find((row) => row.project.id === projectId)?.templateId).toBe(templateId);
+  });
+
+  it('gives null for a project made by hand', async () => {
+    const { t, projectId } = await handMadeProject();
+    expect((await t.api.call('projects.get', { id: projectId })).templateId).toBeNull();
+  });
+});

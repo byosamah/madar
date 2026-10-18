@@ -97,8 +97,8 @@ export const ProjectSummary = z.object({
   lastActivityAt: Stamp,
   viewerRole: z.enum(['leader', 'team', 'other']),
   viewerCan: ViewerCan,
-  /** The template the project came from, or null. Optional, so an answer without it still parses. */
-  templateId: ProjectTemplateId.nullable().optional(),
+  /** The template the project came from, or null. A project made by hand has null. */
+  templateId: ProjectTemplateId.nullable(),
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
 

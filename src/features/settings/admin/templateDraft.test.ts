@@ -251,9 +251,9 @@ describe('the waits on a removed part', () => {
     const cut = removeTask(waiting, 't2');
     expect(cut.tasks).toHaveLength(1);
     expect(cut.tasks[0]).not.toHaveProperty('prerequisiteIds');
-    // The next free id is t2 again, so the new task has the id that the old wait named.
+    // The next free id is t3. The id t2 is not given again, so the new task does not get the old wait.
     const next = addTask(cut, 's1');
-    expect(next.tasks.at(-1)?.id).toBe('t2');
+    expect(next.tasks.at(-1)?.id).toBe('t3');
     expect(next.tasks[0]).not.toHaveProperty('prerequisiteIds');
     expect(draftInput(next).tasks[0]).not.toHaveProperty('prerequisiteIds');
   });
@@ -268,7 +268,7 @@ describe('the waits on a removed part', () => {
     const draft = draftOf(SAVED);
     const waiting = { ...draft, stages: [{ ...draft.stages[0], prerequisiteIds: ['s2'] }, draft.stages[1]] };
     const next = addStage(removeStage(waiting, 's2'));
-    expect(next.stages.at(-1)?.id).toBe('s2');
+    expect(next.stages.at(-1)?.id).toBe('s3');
     expect(next.stages[0]).not.toHaveProperty('prerequisiteIds');
     expect(draftInput(next).stages[0]).not.toHaveProperty('prerequisiteIds');
   });
@@ -358,7 +358,7 @@ describe('part ids are never given twice (partSeq)', () => {
 
   it('keeps the highest part number of the template in the draft', () => {
     expect(draftOf(GAVE_THREE).partSeq).toBe(3);
-    expect(draftOf(SAVED).partSeq).toBeUndefined();
+    expect(draftOf(SAVED).partSeq).toBe(2);
   });
 
   it('gives the next task a new number after the highest task is removed, so the removed number is not given again', () => {
@@ -370,5 +370,18 @@ describe('part ids are never given twice (partSeq)', () => {
     const draft = importStages(removeTask(draftOf(GAVE_THREE), 't3'), SAVED, ['s1'], true);
     expect(draft.stages.at(-1)?.id).toBe('s4');
     expect(draft.tasks.slice(-2).map((task) => task.id)).toEqual(['t4', 't5']);
+  });
+
+  it('gives a new task a number above t2 when the template was saved before partSeq existed', () => {
+    // SAVED has no partSeq. Its highest part number is 2, so the removed t2 is not given again.
+    const draft = removeTask(draftOf(SAVED), 't2');
+    expect(addTask(draft, 's1').tasks.at(-1)?.id).toBe('t3');
+  });
+
+  it('gives an imported stage and task numbers above 2 when the template was saved before partSeq existed', () => {
+    // Stage s2 and task t2 are removed. The copies must not reuse s2 or t2.
+    const draft = importStages(removeTask(removeStage(draftOf(SAVED), 's2'), 't2'), OTHER, ['s1'], true);
+    expect(draft.stages.at(-1)?.id).toBe('s3');
+    expect(draft.tasks.at(-1)?.id).toBe('t3');
   });
 });

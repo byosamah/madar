@@ -49,6 +49,18 @@ function withoutWaits<T extends { prerequisiteIds?: string[] }>(part: T, gone: R
   return next as T;
 }
 
+/**
+ * The highest part number that the ids of a template give, such as r3, s2 or t14. A template saved before partSeq existed has
+ * no partSeq, so its ids give the floor. Zero when no id has a number.
+ */
+function highestPartNumber(template: ProjectTemplate): number {
+  const numbers = [...template.roles, ...template.stages, ...template.tasks].map((part) => {
+    const match = /^[a-z](\d+)$/.exec(part.id);
+    return match ? Number(match[1]) : 0;
+  });
+  return Math.max(0, ...numbers);
+}
+
 export function draftOf(template: ProjectTemplate): TemplateDraft {
   return {
     name: template.name,
@@ -61,7 +73,7 @@ export function draftOf(template: ProjectTemplate): TemplateDraft {
       flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
       ...waitsOf(task.prerequisiteIds),
     })),
-    ...(template.partSeq === undefined ? {} : { partSeq: template.partSeq }),
+    partSeq: Math.max(template.partSeq ?? 0, highestPartNumber(template)),
   };
 }
 
