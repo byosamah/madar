@@ -123,7 +123,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         </>
       )}
     >
-      <form id="new-project" noValidate onSubmit={submit} className="flex flex-col gap-4 pt-2">
+      <form id="new-project" noValidate autoComplete="off" onSubmit={submit} className="flex flex-col gap-4 pt-2">
         <ProjectFields form={form} mode="create" templates={templates.data ?? []} />
         <div className="flex flex-col gap-1">
           <label htmlFor="project-cover" className="text-footnote text-label-2">{t('projectForm.cover')}</label>

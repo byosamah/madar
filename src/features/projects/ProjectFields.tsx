@@ -115,6 +115,7 @@ export function StageList({
           <li key={i} className="flex items-center gap-2">
             <input
               aria-label={t('projectForm.stageName', { n: i + 1 })}
+              autoComplete="off"
               value={stage.name}
               dir="auto"
               onChange={(event) => onChange(stages.map((s, j) => (j === i ? { ...s, name: event.target.value } : s)))}
@@ -233,12 +234,14 @@ export function ProjectFields({
         hint={t('projectForm.locationHint')}
         value={values.location}
         dir="auto"
+        autoComplete="off"
         onChange={(event) => set('location', event.target.value)}
       />
       <TextField
         id="project-area"
         label={t('projectForm.area')}
         inputMode="decimal"
+        autoComplete="off"
         value={values.area}
         onChange={(event) => set('area', event.target.value)}
         onBlur={() => touch('area')}
@@ -281,9 +284,10 @@ export function ProjectFields({
         hint={t('projectForm.modelFolderHint')}
         value={values.modelFolderPath}
         dir="ltr"
+        autoComplete="off"
         onChange={(event) => set('modelFolderPath', event.target.value)}
       />
-      <TextArea id="project-description" label={t('projectForm.description')} value={values.description} dir="auto" onChange={(event) => set('description', event.target.value)} />
+      <TextArea id="project-description" label={t('projectForm.description')} autoComplete="off" value={values.description} dir="auto" onChange={(event) => set('description', event.target.value)} />
     </div>
   );
 }

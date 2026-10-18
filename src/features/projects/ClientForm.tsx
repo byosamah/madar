@@ -90,7 +90,7 @@ export function ClientForm({ form, idPrefix, clients, selfId = null, onEnter }: 
       </div>
       <div className="flex flex-col gap-1.5 sm:col-span-2">
         <TextField
-          id={`${idPrefix}-contact`} label={t('projectForm.contactName')} dir="auto" disabled={values.same}
+          id={`${idPrefix}-contact`} label={t('projectForm.contactName')} dir="auto" autoComplete="off" disabled={values.same}
           {...(values.same ? { value: named, onChange: () => undefined } : text('contactName'))}
         />
         <label className="flex min-h-11 items-center gap-3 self-start rounded-xl px-2 hover:bg-fill">
@@ -98,9 +98,9 @@ export function ClientForm({ form, idPrefix, clients, selfId = null, onEnter }: 
           <span className="text-subheadline text-ink">{t('projectForm.sameAsClient')}</span>
         </label>
       </div>
-      <TextField id={`${idPrefix}-phone`} type="tel" dir="ltr" label={t('projectForm.phone')} {...text('phone')} />
+      <TextField id={`${idPrefix}-phone`} type="tel" dir="ltr" autoComplete="off" label={t('projectForm.phone')} {...text('phone')} />
       <TextField
-        id={`${idPrefix}-email`} type="email" dir="ltr" label={t('projectForm.email')} {...text('email')}
+        id={`${idPrefix}-email`} type="email" dir="ltr" autoComplete="off" label={t('projectForm.email')} {...text('email')}
         onBlur={() => touch('email')} error={message('email')}
       />
     </div>

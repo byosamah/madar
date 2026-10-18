@@ -80,17 +80,18 @@ function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail
         </>
       )}
     >
-      <form className="flex flex-col gap-4 pt-1" onSubmit={(event) => { event.preventDefault(); if (url.trim()) submit(); }}>
+      <form className="flex flex-col gap-4 pt-1" autoComplete="off" onSubmit={(event) => { event.preventDefault(); if (url.trim()) submit(); }}>
         <SelectField id="link-kind" label={t('links.kind')} value={kind} onChange={(event) => setKind(event.target.value as LinkKind)}>
           {KINDS.map((value) => <option key={value} value={value}>{t(`links.kinds.${value}`)}</option>)}
         </SelectField>
-        <TextField id="link-label" label={t('links.name')} hint={t('links.nameHint', { example: 'Pinterest: facades' })} value={label} maxLength={80} dir="auto" onChange={(event) => setLabel(event.target.value)} />
+        <TextField id="link-label" label={t('links.name')} hint={t('links.nameHint', { example: 'Pinterest: facades' })} autoComplete="off" value={label} maxLength={80} dir="auto" onChange={(event) => setLabel(event.target.value)} />
         <TextField
           id="link-url"
           label={t('links.url')}
           value={url}
           dir="ltr"
           inputMode="url"
+          autoComplete="off"
           placeholder={kind === 'folder' ? '\\\\STUDIO\\Projects\\…' : 'https://…'}
           error={error}
           onChange={(event) => setUrl(event.target.value)}

@@ -109,7 +109,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
         </>
       )}
     >
-      <form id="edit-project" noValidate onSubmit={submit} className="pt-2">
+      <form id="edit-project" noValidate autoComplete="off" onSubmit={submit} className="pt-2">
         <ProjectFields form={form} mode="edit" editCode={editCode} />
       </form>
     </Sheet>

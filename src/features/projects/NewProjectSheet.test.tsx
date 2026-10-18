@@ -17,6 +17,7 @@ import { buildSeed } from '../../data/seed';
 import { initI18n } from '../../i18n';
 import { setNow } from '../../lib/dates';
 import { NOW, TODAY } from '../../test/factories';
+import { textFieldsOf } from '../../test/browserMemory';
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -244,5 +245,22 @@ describe('the New Project sheet: contract start date', () => {
     const box = await within(sheet).findByRole('group', { name: 'New client' });
     expect(box.className.split(' ')).toEqual(expect.arrayContaining(['border', 'border-separator']));
     expect(box.className.split(' ')).not.toContain('bg-fill');
+  });
+});
+
+describe('the New Project sheet: no browser memory (fbk_010)', () => {
+  it('turns off the browser memory on every text field of the project form and of the New client part', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'New client' }));
+    await within(sheet).findByRole('button', { name: 'Add client' });
+    await waitFor(() => expect(sheet.querySelector('input[aria-label="Stage 1"]')).not.toBeNull());
+    const fields = textFieldsOf(sheet);
+    expect(fields.map((field) => field.id || field.getAttribute('aria-label'))).toEqual(expect.arrayContaining([
+      'project-location', 'project-area', 'Stage 1', 'project-folder', 'project-description', 'client-contact', 'client-phone', 'client-email',
+    ]));
+    for (const field of fields) {
+      expect(field, field.id || field.getAttribute('aria-label') || 'a field').toHaveAttribute('autocomplete', 'off');
+    }
+    expect(sheet.querySelector('form')).toHaveAttribute('autocomplete', 'off');
   });
 });
