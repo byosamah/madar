@@ -72,6 +72,38 @@ describe('the Leader and Client filters reach the lists (owner, 2026-10-06)', ()
   });
 });
 
+/**
+ * The Map section (fbk_017). The prototype build has no street map: it shows the pinned projects as a list, with a note that the
+ * map works in the real Madar. The Leader filter reaches that list, so it holds the projects the filter counts.
+ */
+describe('the Map section of the Dashboard (fbk_017)', () => {
+  // Faisal (usr_002) leads the four pinned projects, so the Leader filter keeps all of them.
+  const pinFirstFour = (state: Parameters<NonNullable<Parameters<typeof renderApp>[1]>>[0]) => {
+    Object.values(state.projects).slice(0, 4).forEach((project, index) => {
+      project.geo = { lat: 26.2 + index * 0.01, lng: 50.2 };
+      project.leaderId = 'usr_002';
+    });
+  };
+
+  it('lists the pinned projects and says that the map works in the real Madar', async () => {
+    const { api } = await renderApp('/dashboard?view=map', pinFirstFour);
+    expect(await screen.findByRole('tab', { name: 'Map' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText('The map works in the real Madar.')).toBeInTheDocument();
+    const expected = (await api.call('projects.list', { status: 'active' })).filter((row) => row.geo !== null);
+    expect(expected.length).toBeGreaterThan(0);
+    const list = await screen.findByRole('list', { name: 'Projects on the map' });
+    await waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(expected.length));
+  });
+
+  it('keeps the Leader filter in the pinned list', async () => {
+    const { api } = await renderApp('/dashboard?view=map&leader=usr_002', pinFirstFour);
+    const expected = (await api.call('projects.list', { status: 'active', leaderId: 'usr_002' })).filter((row) => row.geo !== null);
+    expect(expected.length).toBeGreaterThan(0);
+    const list = await screen.findByRole('list', { name: 'Projects on the map' });
+    await waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(expected.length));
+  });
+});
+
 /** The area in design reads low when a project has no area, so the row says how many (owner, 2026-10-06, item 4). */
 describe('the Area in design row', () => {
   const noArea = (state: Parameters<NonNullable<Parameters<typeof renderApp>[1]>>[0]) => {

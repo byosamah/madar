@@ -1,0 +1,140 @@
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { GeoPoint } from '../../api/contract/entities';
+import type { State } from '../../api/store';
+import { projectKey } from '../../lib/projectCode';
+import { renderWithRuntime } from '../../test/render';
+import { DashboardMap } from './DashboardMap';
+
+// The real build loads the street map. These tests run the real-build branch, with the map itself replaced by a double.
+vi.hoisted(() => {
+  vi.stubEnv('VITE_MADAR_API', 'remote');
+});
+
+vi.mock('../map/MapCanvas', async () => {
+  const React = await import('react');
+  return {
+    default: (props: { pins: { id: string; label?: string }[]; onPinClick?: (id: string) => void }) => React.createElement(
+      'div',
+      { role: 'region', 'aria-label': 'Map' },
+      props.pins.map((pin) => React.createElement('button', {
+        key: pin.id,
+        type: 'button',
+        'aria-label': pin.label,
+        onClick: () => props.onPinClick?.(pin.id),
+      })),
+    ),
+  };
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
+
+type Api = Awaited<ReturnType<typeof renderWithRuntime>>['api'];
+
+const HEALTH_WORD = { on_track: 'On track', at_risk: 'At risk', late: 'Late' } as const;
+
+/** The first four projects of the office get a pin. The others have none. */
+function pinFirstFour(state: State) {
+  Object.values(state.projects).slice(0, 4).forEach((project, index) => {
+    const point: GeoPoint = { lat: 26.2 + index * 0.01, lng: 50.2 };
+    project.geo = point;
+  });
+}
+
+/** The active projects with a pin, as the list of the Dashboard map counts them. */
+async function pinned(api: Api, filter: { leaderId?: string } = {}) {
+  const rows = await api.call('projects.list', { status: 'active', sort: 'name', ...filter });
+  return rows.filter((row) => row.geo !== null);
+}
+
+const mapPins = () => within(screen.getByRole('region', { name: 'Map' })).queryAllByRole('button')
+  .map((pin) => pin.getAttribute('aria-label') ?? '')
+  .sort();
+
+describe('the Dashboard map (fbk_017)', () => {
+  it('puts one pin on the map for each active project with a pin', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const expected = (await pinned(api)).map((row) => row.project.name).sort();
+    expect(expected.length).toBeGreaterThan(0);
+    await waitFor(() => expect(mapPins()).toEqual(expected));
+  });
+
+  it('changes the pins with the Leader filter of the Dashboard', async () => {
+    const first = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const leaderId = (await pinned(first.api))[0].leader?.id;
+    expect(leaderId).toBeDefined();
+    await waitFor(() => expect(mapPins().length).toBeGreaterThan(0));
+    first.unmount();
+    const second = await renderWithRuntime(<DashboardMap filters={{ leaderId }} />, pinFirstFour, { path: '/dashboard' });
+    const expected = (await pinned(second.api, { leaderId })).map((row) => row.project.name).sort();
+    expect(expected.length).toBeGreaterThan(0);
+    await waitFor(() => expect(mapPins()).toEqual(expected));
+  });
+
+  it('opens the card of a project when its pin is pressed', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const target = (await pinned(api))[0];
+    await userEvent.click(await within(await screen.findByRole('region', { name: 'Map' })).findByRole('button', { name: target.project.name }));
+    const card = await screen.findByRole('region', { name: target.project.name });
+    expect(within(card).getByText(projectKey(target.project.code))).toBeInTheDocument();
+    expect(within(card).getByText(`Stage: ${target.currentStage.name}`)).toBeInTheDocument();
+    if (target.leader) expect(within(card).getByText(`Leader: ${target.leader.name}`)).toBeInTheDocument();
+    if (target.health) expect(within(card).getByText(HEALTH_WORD[target.health.value])).toBeInTheDocument();
+    expect(within(card).getByRole('link', { name: 'Open project' })).toHaveAttribute('href', `/projects/${target.project.id}`);
+  });
+
+  it('selects a pinned project from the list beside the map', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const target = (await pinned(api))[0];
+    const list = await screen.findByRole('list', { name: 'Projects on the map' });
+    const row = within(list).getByRole('button', { name: new RegExp(target.project.name) });
+    expect(row).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(row);
+    expect(row).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('region', { name: target.project.name })).toBeInTheDocument();
+  });
+
+  it('lists the projects with no pin, and offers Set pin to the people who may edit them', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    expect(unpinned.length).toBeGreaterThan(0);
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    for (const row of unpinned) {
+      expect(screen.getByText(row.project.name)).toBeInTheDocument();
+      const button = screen.queryByRole('button', { name: `Set pin for ${row.project.name}` });
+      if (row.viewerCan.edit) expect(button).toBeInTheDocument();
+      else expect(button).toBeNull();
+    }
+  });
+
+  it('shows no Set pin button to a member who may not edit a project', async () => {
+    const member = (state: State) => {
+      pinFirstFour(state);
+      const found = Object.values(state.users).find((user) => user.kind === 'human' && user.active && user.systemRole === 'member');
+      if (found) state.session.currentUserId = found.id;
+    };
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, member, { path: '/dashboard' });
+    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const editable = unpinned.filter((row) => row.viewerCan.edit);
+    expect(editable.length).toBeLessThan(unpinned.length);
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    expect(screen.queryAllByRole('button', { name: /^Set pin for / })).toHaveLength(editable.length);
+  });
+
+  it('saves a pin from the Set pin sheet', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const target = unpinned.find((row) => row.viewerCan.edit);
+    expect(target).toBeDefined();
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target!.project.name}` }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(dialog).getByLabelText(/Paste a Google Maps link/), { target: { value: 'https://www.google.com/maps/@26.2834,50.2105,17z' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save pin' }));
+    await waitFor(async () => expect((await api.call('projects.get', { id: target!.project.id })).geo).toEqual({ lat: 26.2834, lng: 50.2105 }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});

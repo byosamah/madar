@@ -23,6 +23,23 @@
       "label": "Map. Drag the pin to move it.",
       "pin": "Project pin",
       "attribution": "Map data © OpenStreetMap contributors"
+    },
+    "dashboard": {
+      "note": "The map works in the real Madar.",
+      "pinned": "Projects on the map",
+      "pinnedNone": "No project has a pin yet.",
+      "noPin": "No pin yet ({{n}})",
+      "setPinFor": "Set pin for {{name}}",
+      "save": "Save pin",
+      "none": "No active project matches the filters."
+    },
+    "card": {
+      "stage": "Stage: {{name}}"
+    }
+  },
+  "dashboard": {
+    "views": {
+      "map": "Map"
     }
   }
 }

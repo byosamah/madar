@@ -13,6 +13,7 @@ import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { oneOf, teamParam } from '../../lib/params';
 import { PerStage, Submissions } from './Charts';
+import { DashboardMap } from './DashboardMap';
 import { DataGaps } from './DataGaps';
 import { MoneyPanel } from './MoneyPanel';
 import { NumberRows, Numbers } from './Numbers';
@@ -27,7 +28,7 @@ import { clientName } from '../../lib/clientName';
 // Completed and Archived are not choices: every number counts active projects only, so they changed nothing a person reads.
 // A link that still carries one of them reads as Active (audit 2026-10-03, DSH-13).
 const STATUSES = ['active', 'on_hold', 'all'] as const;
-const VIEWS = ['projects', 'people', 'schedule'] as const;
+const VIEWS = ['projects', 'people', 'schedule', 'map'] as const;
 const USER_ID = /^usr_\d{3,}$/;
 const CLIENT_ID = /^cli_\d{3,}$/;
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
@@ -156,6 +157,7 @@ export function DashboardScreen() {
             )}
             {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}
             {section === 'schedule' && scheduled.data && <OfficeSchedule view={scheduled.data} />}
+            {section === 'map' && <DashboardMap filters={filters} />}
           </TabPanel>
         </>
       )}
