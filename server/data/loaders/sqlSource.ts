@@ -16,14 +16,16 @@ const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(row
 const HOUR = 3_600_000;
 
 /**
- * A text lower bound for a stamp at or after this time, so the index on created_at (collate "C") serves the read (performance
- * audit DB-1): the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time minus 36 hours. Every stored stamp is ISO text with an offset
- * between -12:00 and +14:00, so its text is at or after the UTC text of (its time minus 12 hours), and the bound never leaves out
- * a row that the time test keeps. Null for a time that does not parse: the time test alone decides.
+ * A text bound for a stamp next to this time, so the index on created_at (collate "C") serves the read at that end (performance
+ * audit DB-1): the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time moved by hours. A lower bound moves back 36 hours, an upper bound
+ * forward 36 hours. Every stored stamp is ISO text with an offset between -12:00 and +14:00. A stamp at or after the time has
+ * a text at or after the UTC text of (the time minus 12 hours), so minus 36 hours is safe as well. A stamp before the time has
+ * a text before the UTC text of (the time plus 14 hours), so plus 36 hours is safe as well. So the bounds never leave out a row
+ * that the time test keeps. Null for a time that does not parse: the time test alone decides.
  */
-function textBoundOf(time: string): string | null {
-  const back = new Date(Date.parse(time) - 36 * HOUR);
-  return Number.isNaN(back.getTime()) ? null : back.toISOString().slice(0, 19);
+function textBoundOf(time: string, hours: number): string | null {
+  const moved = new Date(Date.parse(time) + hours * HOUR);
+  return Number.isNaN(moved.getTime()) ? null : moved.toISOString().slice(0, 19);
 }
 
 /** The rows of a "bounds" condition, one for each key, as jsonb_to_recordset reads them. */
@@ -78,10 +80,14 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
     if ('contains' in one) return `strpos(${column}, ${param(one.contains, 'text')}) > 0`;
-    // An upper bound on the time has no text bound: a text test would miss the rows of another offset (reports.office, its period).
-    if ('atBefore' in one) return `(${column})::timestamptz < ${param(one.atBefore, 'timestamptz')}`;
+    // An upper bound gets the mirror of the lower one (36 hours later), so the index bounds the period at both ends (reports.office).
+    if ('atBefore' in one) {
+      const time = `(${column})::timestamptz < ${param(one.atBefore, 'timestamptz')}`;
+      const bound = textBoundOf(one.atBefore, 36);
+      return bound === null ? time : `(${time} and ${column} ${C} < ${param(bound, 'text')})`;
+    }
     const time = `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
-    const bound = textBoundOf(one.atOrAfter);
+    const bound = textBoundOf(one.atOrAfter, -36);
     return bound === null ? time : `(${time} and ${column} ${C} >= ${param(bound, 'text')})`;
   }
 

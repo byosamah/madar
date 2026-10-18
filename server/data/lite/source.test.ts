@@ -25,8 +25,9 @@ function office(): State {
   return s;
 }
 
-async function both() {
+async function both(edit?: (state: State) => void) {
   const state = office();
+  edit?.(state);
   const { db, log } = await freshLite();
   await db.tx('write', (q) => liteWriteState(q, state));
   log.length = 0;
@@ -96,6 +97,20 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
     const s = { c: 'events' as const, per: 'verb', where: [{ col: 'created_at', atOrAfter: at(15) }, { col: 'created_at', atBefore: at(35) }] };
     expect(await read((src) => src.countWhere(s))).toEqual(await memory.countWhere(s));
     expect(await memory.countWhere(s)).toEqual(new Map([['task.updated', 2]]));
+  });
+
+  it('keeps a row at another offset just before an upper bound (atBefore), so the text bound drops no row', async () => {
+    // The bound is 09:35 at +03:00, which is 06:35 UTC. Both new rows are before it in time, and their local text sorts after the
+    // local text of the bound, so a text bound on the local time would drop the +14:00 row.
+    const { read, memory } = await both((state) => {
+      Object.assign(state.events, {
+        evt_801: { id: 'evt_801', seq: 801, targetType: 'task', targetId: 'tsk_001', projectId: 'prj_001', verb: 'task.updated', createdAt: '2026-10-16T20:00:00.000+14:00', undoneBy: null },
+        evt_802: { id: 'evt_802', seq: 802, targetType: 'task', targetId: 'tsk_001', projectId: 'prj_001', verb: 'task.updated', createdAt: '2026-10-15T20:00:00.000-10:00', undoneBy: null },
+      });
+    });
+    const s = { c: 'events' as const, per: 'verb', where: [{ col: 'created_at', atOrAfter: '2026-10-15T00:00:00+03:00' }, { col: 'created_at', atBefore: at(35) }] };
+    expect(await memory.countWhere(s)).toEqual(new Map([['task.updated', 5]]));
+    expect(await read((src) => src.countWhere(s))).toEqual(await memory.countWhere(s));
   });
 
   it('finds the first row that holds an id at each kind of reference path', async () => {

@@ -80,5 +80,4 @@ export const REPORT_KEYS = {
   stageMoves: 'report:stageMoves',
   completed: (projectId: string) => `report:completed:${projectId}`,
   paused: (projectId: string) => `report:paused:${projectId}`,
-  review: (userId: string, verb: string) => `report:review:${userId}:${verb}`,
 };

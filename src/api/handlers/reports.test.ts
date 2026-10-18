@@ -180,13 +180,14 @@ describe('reports.office: the numbers of the week of 27 September', () => {
 });
 
 describe('reports.office: the counts of the server and the reviews of a person', () => {
-  it('reads the counts that a loader puts in State.counts, and not the events of the state', () => {
+  it('reads the stage moves that a loader puts in State.counts, and counts the reviews of a person from the events of the state', () => {
     const state = office();
-    state.counts = {
-      [REPORT_KEYS.stageMoves]: 7,
-      [REPORT_KEYS.review('usr_003', 'task.approved')]: 3,
-      [REPORT_KEYS.review('usr_003', 'task.sent_back')]: 1,
-    };
+    state.counts = { [REPORT_KEYS.stageMoves]: 7 };
+    // Three approvals and one send back of usr_003 in the week, and one approval after it. The loader reads the review events once.
+    for (const [n, verb, day] of [
+      [10, 'task.approved', '2026-09-28'], [11, 'task.approved', '2026-09-29'], [12, 'task.approved', '2026-09-30'],
+      [13, 'task.sent_back', '2026-10-01'], [14, 'task.approved', '2026-10-05'],
+    ] as const) state.events[`evt_0${n}`] = event(n, { verb, actingForId: 'usr_003', actorId: 'usr_003', createdAt: at(day) });
     // The handler runs without a prepared value, as the call has no prepare step.
     const report = reportsOffice.run({ period: 'week', start: '2026-09-28' }, contextOf(state, 'usr_001'), undefined);
     expect(report.totals.stageMoves).toBe(7);

@@ -28,8 +28,9 @@ import { assertCan } from './shared';
  * - A Tracker entry is opened on its own day. It is closed on the day it was closed. A submission is an entry sent to the client.
  * - A project's health is the health of today. The State keeps no history of it.
  * - The stage at the start and at the end is the stage whose dates hold that day.
- * - Stage moves, completions, pauses and reviews come from the events of the period. The loader counts them in SQL (State.counts,
+ * - Stage moves, completions and pauses come from the events of the period. The loader counts them in SQL (State.counts,
  *   REPORT_KEYS). Without those counts, the handler counts the events in its State (the prototype).
+ * - The reviews of a person come from the review events of the period in the State (REPORT_REVIEW_VERBS). The loader reads them once.
  */
 
 /** The office name of the report. The office has no name field yet, so the product name stands in. */
@@ -74,8 +75,9 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     .filter((event) => event.projectId === projectId && statusAfter(event) === 'completed').length);
   const pausedIn = (projectId: string) => count(REPORT_KEYS.paused(projectId), () => eventsOf(REPORT_PAUSED_VERB)
     .filter((event) => event.projectId === projectId).length);
-  const reviewsOf = (userId: string) => REPORT_REVIEW_VERBS.reduce((sum, verb) => sum + count(REPORT_KEYS.review(userId, verb), () => events
-    .filter((event) => event.verb === verb && event.actingForId === userId && inDays(dayOf(event.createdAt))).length), 0);
+  const reviewVerbs: readonly string[] = REPORT_REVIEW_VERBS;
+  const reviewEvents = events.filter((event) => reviewVerbs.includes(event.verb) && inDays(dayOf(event.createdAt)));
+  const reviewsOf = (userId: string) => reviewEvents.filter((event) => event.actingForId === userId).length;
 
   /** The deadlines of a project that are due in the period and no later than today, each met or missed. */
   const dueDeadlines = (projectId: string) => deadlines.filter((deadline) => deadline.projectId === projectId && inDays(deadline.date) && deadline.date <= today);

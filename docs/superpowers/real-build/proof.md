@@ -1707,10 +1707,20 @@ Open for the owner (Task 11, Steps 3 to 5):
 ### Wave 4 report data: reports.office (2026-10-18, Task 28, to measure)
 
 - The read `reports.office` gives one office report for a week, a month, a quarter or a year. Only the right `report.office` reads it.
-- The loader counts the events of the period in SQL: stage moves, completions, pauses and reviews, one count for each key. It loads
-  the tasks of the projects (a task has no date column), the Tracker entries and, for the payment right, the payments. No event row loads.
-- The new condition `atBefore` gives the exact end of a period. It is a timestamp test in SQL, in the memory source and in the SQLite compile.
+- The loader counts the stage moves, the completions and the pauses of the period in SQL, one count for each key. It reads the review
+  events of the period once, with four fields each, and the handler counts the reviews of each person from them. It loads the tasks
+  of the projects (a task has no date column), the Tracker entries and, for the payment right, the payments.
+- The condition `atBefore` gives the exact end of a period. It is a timestamp test in SQL, in the memory source and in the SQLite
+  compile. Its text bound (36 hours after the time, in UTC text) lets the created_at index stop at the end of the period. Before this fix
+  the upper end had no text bound, so each read ran from the start of the period to the end of all the data.
+- Rows read by `reports.office` (the office harness, rowsRead of the office object), on the year office of the pins (10 active people,
+  62,000 events, 864 tasks, 1,500 Tracker entries). Each period starts on a day of the period shown:
+  - Year (start 2026-01-01): 240,966 rows. Before this fix: 782,202 rows.
+  - Quarter (start 2026-07-01): 86,150 rows. Before this fix: 356,931 rows.
+  - Month (start 2026-09-01): 23,194 rows. Before this fix: 183,802 rows.
+  - Week (start 2026-09-28): 5,138 rows. Before this fix: 133,675 rows.
+- Rows pin: `reports.office` (year 2026, Admin) in `server/office/test/pins.ts` has a ceiling of 265,063 rows: the measured 240,966
+  rows plus 10%, rounded up. The ceiling is high on purpose. Each of the four event reads visits every event of the period, because
+  the events table has no index on the verb. A verb index would cut the rows, but it is a schema change, so it is not in this fix.
 - Server time of a year report on the test copy: to measure. The Supabase limit is 2 s of CPU for each request. The merge lead runs
   `npm run test:office` and `npm run test:lite`, then measures the year read on the test copy.
-- Rows pin: `reports.office` (year 2026, Admin) in `server/office/test/pins.ts` has a provisional ceiling of 2,000 rows. It is not measured.
-  The merge lead sets it to the measured rows plus 10%.

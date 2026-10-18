@@ -106,10 +106,19 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
       .toBe('select t.target_id as v, count(*)::integer as n from comments t where t.target_type = $1::text group by t.target_id');
   });
 
-  it('bounds a count of events from above on the time (atBefore), as a timestamp test and never as text', () => {
+  it('bounds a count of events from above on the time (atBefore), with a timestamp test and a text bound 36 hours later', () => {
     const { text, values } = countSql({ c: 'events', per: 'verb', where: [{ col: 'created_at', atBefore: '2026-10-04T00:00:00+03:00' }] });
+    expect(text).toBe(
+      'select t.verb as v, count(*)::integer as n from events t '
+      + 'where ((t.created_at)::timestamptz < $1::timestamptz and t.created_at collate "C" < $2::text) group by t.verb',
+    );
+    expect(values).toEqual(['2026-10-04T00:00:00+03:00', '2026-10-05T09:00:00']);
+  });
+
+  it('gives the time test alone for an upper bound that does not parse', () => {
+    const { text, values } = countSql({ c: 'events', per: 'verb', where: [{ col: 'created_at', atBefore: 'not a time' }] });
     expect(text).toBe('select t.verb as v, count(*)::integer as n from events t where (t.created_at)::timestamptz < $1::timestamptz group by t.verb');
-    expect(values).toEqual(['2026-10-04T00:00:00+03:00']);
+    expect(values).toEqual(['not a time']);
   });
 
   it('finds the candidate tasks of the threads first, then groups only their comments', async () => {

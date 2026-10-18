@@ -17,8 +17,9 @@ type Input = { period: ReportPeriodKind; start?: string };
  * projects. The payments of the projects, for the people with the payment right. The office lists come from the snapshot.
  * Office tasks stay out.
  *
- * Counts: the events of the period, counted in SQL, one count for each key (REPORT_KEYS). No event row loads. A review counts
- * for each active person, through the person who acted for (actingForId).
+ * Counts: the stage moves, completions and pauses of the period, counted in SQL, one count for each key (REPORT_KEYS). The reviews
+ * of the period load as event rows (four fields each), and the handler counts them for each person through the person who acted
+ * for (actingForId). One read for all people, never one count for each person.
  *
  * The period needs today. The loader gets it from LoadCtx.now, the same time as the handler. Without that time, it throws.
  */
@@ -40,10 +41,7 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
     c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_COMPLETED_VERB] }, { field: 'after', key: 'status', in: ['completed'] }, ...time],
   }, ids, (projectId) => REPORT_KEYS.completed(projectId));
   await L.countWhere({ c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_PAUSED_VERB] }, ...time] }, ids, (projectId) => REPORT_KEYS.paused(projectId));
-  for (const user of Object.values(L.office.users)) {
-    if (user.kind !== 'human' || !user.active) continue;
-    await L.countWhere({
-      c: 'events', per: 'verb', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, { field: 'actingForId', in: [user.id] }, ...time],
-    }, [...REPORT_REVIEW_VERBS], (verb) => REPORT_KEYS.review(user.id, verb));
-  }
+  await L.select({
+    c: 'events', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, ...time], pick: ['id', 'verb', 'actingForId', 'createdAt'],
+  });
 }

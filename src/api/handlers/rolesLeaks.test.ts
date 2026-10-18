@@ -8,6 +8,7 @@ import { notificationCalls } from './notifications';
 import { peopleCalls } from './people';
 import { projectCalls } from './projects';
 import { projectTemplateCalls } from './projectTemplates';
+import { reportsCalls } from './reports';
 import { trackerCalls } from './tracker';
 import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -16,7 +17,7 @@ beforeEach(() => setNow(NOW));
 
 const calls = {
   ...paymentCalls, ...contentCalls, ...historyCalls, ...insightCalls, ...notificationCalls, ...peopleCalls, ...projectCalls,
-  ...projectTemplateCalls, ...trackerCalls,
+  ...projectTemplateCalls, ...reportsCalls, ...trackerCalls,
 };
 
 /**
@@ -220,5 +221,53 @@ describe('custom roles and the office rights of clients and templates', () => {
     expect((await t.api.call('projectTemplates.save', draft({ id: saved.id, name: 'Villa two' }))).name).toBe('Villa two');
     t.as('usr_012');
     await expect(t.api.call('projectTemplates.save', draft({ id: saved.id, name: 'Villa three' }))).rejects.toMatchObject({ code: 'forbidden' });
+  });
+});
+
+describe('custom roles and the office report (fbk_016)', () => {
+  /** The world, with a Reporter (the report right only) and a Controller (the report right and the payment right). */
+  function reportWorld() {
+    const t = world();
+    const state = t.store.state;
+    state.settings.roles = {
+      custom: [
+        ...(ROLES.custom ?? []),
+        { id: 'rol_004', name: 'Reporter', nameAr: 'المراقب', rights: ['report.office'] },
+        { id: 'rol_005', name: 'Controller', nameAr: 'المدقق', rights: ['report.office', 'payment.manage'] },
+      ],
+    };
+    state.users.usr_016 = makeUser('usr_016', { name: 'Reporter Person', roleId: 'rol_004' });
+    state.users.usr_017 = makeUser('usr_017', { name: 'Controller Person', roleId: 'rol_005' });
+    return t;
+  }
+
+  it('gives a custom role with the report right only the figures, and no money and no gaps', async () => {
+    const t = reportWorld();
+    t.as('usr_011');
+    await t.api.call('payments.create', { ...NEW, amount: 345678, name: 'Zebra milestone' });
+    t.as('usr_016');
+    const year = await t.api.call('reports.office', { period: 'year', start: '2026-01-01' });
+    const week = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    for (const report of [year, week]) {
+      expect(report.money).toBeNull();
+      expect(report.gaps).toBeNull();
+      expect(JSON.stringify(report)).not.toMatch(/345678|Zebra/);
+    }
+  });
+
+  it('gives a custom role with the report and the payment rights the money, and still no gaps', async () => {
+    const t = reportWorld();
+    t.as('usr_011');
+    await t.api.call('payments.create', NEW);
+    t.as('usr_017');
+    const report = await t.api.call('reports.office', { period: 'year', start: '2026-01-01' });
+    expect(report.money).toEqual({ received: 0, dueInPeriod: 120000, pastDueAtEnd: 120000 });
+    expect(report.gaps).toBeNull();
+  });
+
+  it('refuses a custom role with the payment right only, because the report needs the report right', async () => {
+    const t = reportWorld();
+    t.as('usr_011');
+    await expect(t.api.call('reports.office', { period: 'week', start: '2026-09-28' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });
