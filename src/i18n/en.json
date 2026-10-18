@@ -132,7 +132,8 @@
       "stage_prerequisite_open": "The stage {{names}} still has open tasks.",
       "dependency_cycle": "These would wait for each other. Pick another one.",
       "duplicate_prerequisite": "The same one is in the list twice.",
-      "prerequisite_not_in_project": "It must be in the same project."
+      "prerequisite_not_in_project": "It must be in the same project.",
+      "prerequisite_not_in_template": "A part it waits for is not in this template."
     }
   },
   "taskTemplates": {

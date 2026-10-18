@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import { calls } from '../../../api/calls';
@@ -248,5 +248,36 @@ describe('Projects using this template', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Continue' }));
     expect(await screen.findByRole('dialog', { name: 'Choose each change' })).toBeInTheDocument();
     expect(screen.getByText('50 items in 50 projects')).toBeInTheDocument();
+  });
+
+  it('shows a paused project as stale when the pause is older than the office allows', async () => {
+    const ctx = await setUp();
+    // The pause began 40 days before the test day. The office allows 30 days.
+    const lake = ctx.store.state.projects[ctx.lake];
+    lake.status = 'on_hold';
+    lake.pause = { reason: 'Waiting for the client', resumeOn: null, by: 'usr_001', at: '2026-08-21T09:00:00.000+03:00' };
+    await openSheet(ctx);
+    expect(within(screen.getByRole('region', { name: 'Linked projects' })).getByText('Stale · paused 40 days')).toBeInTheDocument();
+  });
+
+  it('Cancel at the ask step and at the changes step sends nothing', async () => {
+    const ctx = await setUp();
+    await addSitePhotos(ctx);
+    const asked = await openSheet(ctx);
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update projects' }));
+    expect(await screen.findByRole('dialog', { name: 'Update 2 projects with the changes of this template?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(asked.onClose).toHaveBeenCalledTimes(1);
+    expect(sitePhotos(ctx)).toHaveLength(0);
+    cleanup();
+    const changes = await openSheet(ctx);
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update projects' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('dialog', { name: 'Choose each change' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(changes.onClose).toHaveBeenCalledTimes(1);
+    expect(sitePhotos(ctx)).toHaveLength(0);
   });
 });

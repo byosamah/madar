@@ -106,6 +106,7 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
         <LoadFailed query={project} />
         <LoadFailed query={tasks} />
         <LoadFailed query={match} />
+        <LoadFailed query={users} />
         <p className="text-subheadline text-ink-2">{t('projectTemplates.link.intro')}</p>
         <div className="hidden text-footnote text-ink-2 sm:flex">
           <span className="sm:w-1/2">{t('projectTemplates.link.partColumn')}</span>

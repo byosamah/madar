@@ -362,7 +362,7 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
           {phone ? t('projectTemplates.timelineNeedsWide') : t('projectTemplates.openTimeline')}
         </Button>
         {timeline && <TemplateGantt draft={draft} onChange={setDraft} onClose={() => setTimeline(false)} />}
-        {problem &&<p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
+        {problem && <p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
       </div>
     </Sheet>
   );

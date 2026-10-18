@@ -121,4 +121,16 @@ describe('Link an older project', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(ctx.store.state.projects[ctx.projectId].templateLink!.rolePeople[architect.id]).toBeNull();
   });
+
+  it('shows the failed load of the people, and keeps Save link off', async () => {
+    const ctx = await setUp();
+    const original = ctx.api.call.bind(ctx.api);
+    vi.spyOn(ctx.api, 'call').mockImplementation(async (...args: Parameters<typeof ctx.api.call>) => {
+      if (args[0] === 'users.list') throw new Error('The people did not load.');
+      return original(...args);
+    });
+    await openSheet(ctx);
+    expect(await screen.findByText('The data did not load.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save link' })).toBeDisabled();
+  });
 });

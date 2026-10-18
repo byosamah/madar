@@ -140,7 +140,8 @@
       "stage_prerequisite_open": "المرحلة {{names}} فيها مهام مفتوحة.",
       "dependency_cycle": "ستنتظر هذه العناصر بعضها بعضًا. اختر عنصرًا آخر.",
       "duplicate_prerequisite": "العنصر نفسه في القائمة مرتين.",
-      "prerequisite_not_in_project": "يجب أن يكون في المشروع نفسه."
+      "prerequisite_not_in_project": "يجب أن يكون في المشروع نفسه.",
+      "prerequisite_not_in_template": "الجزء الذي ينتظره هذا العنصر ليس في هذا القالب."
     }
   },
   "taskTemplates": {

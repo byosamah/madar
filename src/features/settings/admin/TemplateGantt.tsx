@@ -258,6 +258,7 @@ export function TemplateGantt({ draft, onChange, onClose }: {
           data-bar={row.kind}
           aria-label={t('projectTemplates.startOfPart', { name: row.label })}
           aria-valuenow={shown(bar).start}
+          aria-valuemin={0}
           {...handlers('move', bar)}
           className={`absolute inset-0 touch-none cursor-grab rounded-full ${color}`}
         />
@@ -267,6 +268,7 @@ export function TemplateGantt({ draft, onChange, onClose }: {
             tabIndex={0}
             aria-label={t('projectTemplates.endOfPart', { name: row.label })}
             aria-valuenow={shown(bar).length}
+            aria-valuemin={0}
             {...handlers('end', bar)}
             className="absolute inset-y-0 end-0 w-2 touch-none cursor-ew-resize rounded-full"
           />

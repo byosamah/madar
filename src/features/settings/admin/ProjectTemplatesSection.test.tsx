@@ -183,7 +183,7 @@ describe('the Admin section Project templates', () => {
     await userEvent.type(pack, 'Pack');
     const packRow = pack.closest('li') as HTMLElement;
     await userEvent.selectOptions(within(packRow).getByLabelText('Waits for'), 'Massing');
-    expect(within(packRow).getByRole('button', { name: 'Stop waiting for Massing' })).toBeInTheDocument();
+    expect(within(packRow).getByRole('button', { name: 'Remove the wait for Massing' })).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add a stage' }));
     await userEvent.type(within(sheet).getByLabelText('Name of stage 2'), 'Permits');
     const permitsCard = within(sheet).getByLabelText('Name of stage 2').closest('div.rounded-2xl') as HTMLElement;

@@ -74,7 +74,7 @@
     "removeTask": "احذف المهمة {{title}}",
     "waitsFor": "ينتظر",
     "chooseWait": "اختر واحدًا",
-    "stopWaiting": "لم يعد ينتظر {{name}}",
+    "stopWaiting": "أزل انتظار {{name}}",
     "timeline": "الجدول الزمني",
     "timelineEmpty": "أضف مهمة لها يوم بداية وأيام عمل لترى الجدول الزمني.",
     "openTimeline": "عدّل الجدول الزمني",
@@ -160,7 +160,7 @@
       "peopleCount_few": "{{count}} أشخاص",
       "peopleCount_many": "{{count}} شخصًا",
       "peopleCount_other": "{{count}} شخص",
-      "peopleLine": "{{people}} يتولون المهام المتغيرة أو يساعدون فيها.",
+      "peopleLine": "من يتولى المهام المتغيرة أو يساعد فيها: {{people}}.",
       "choice": {
         "yes": "أجرِ التغيير",
         "no": "تخطَّه",

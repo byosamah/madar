@@ -61,7 +61,7 @@
     "removeTask": "Remove the task {{title}}",
     "waitsFor": "Waits for",
     "chooseWait": "Choose one",
-    "stopWaiting": "Stop waiting for {{name}}",
+    "stopWaiting": "Remove the wait for {{name}}",
     "timeline": "Timeline",
     "timelineEmpty": "Add a task with a start day and working days to see the timeline.",
     "openTimeline": "Edit the timeline",
@@ -138,7 +138,7 @@
       "peopleCount": "{{n}} people",
       "peopleCount_one": "1 person",
       "peopleCount_other": "{{count}} people",
-      "peopleLine": "{{people}} lead or help the changed tasks.",
+      "peopleLine": "People who lead or help the changed tasks: {{people}}.",
       "choice": {
         "yes": "Make the change",
         "no": "Skip it",
