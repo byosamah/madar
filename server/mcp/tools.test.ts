@@ -5,7 +5,7 @@ import { SERVER_CALL_NAMES, serverContracts } from '../../src/api/contract/serve
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { recordSamples } from '../../scripts/record-samples';
 import { INSTRUCTIONS, TOOL_DOCS, readFirstAnswer } from './docs';
-import { MCP_ADMIN, MCP_ALLOW, MCP_DENY, READ_FIRST, mcpTools } from './tools';
+import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, MCP_DENY, READ_FIRST, mcpTools } from './tools';
 
 /** The recorded sample input of each tool (scripts/record-samples.ts writes it from runs on the sample office). */
 const samples = JSON.parse(readFileSync(new URL('./samples.json', import.meta.url), 'utf8')) as Record<string, Record<string, unknown>>;
@@ -25,7 +25,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   /** The tools of an agent whose person is not an Admin, and of an agent of an Admin (owner, 2026-10-07). */
   const tools = mcpTools();
   const adminTools = mcpTools({ admin: true });
-  const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN];
+  /** The tools that an office right opens (fbk_016): reports.office, for the people who hold the report right. */
+  const rightTools = Object.keys(MCP_BY_RIGHT);
+  const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN, ...rightTools];
 
   it('has the 44 tools of the allowlist, each once', () => {
     expect(MCP_ALLOW).toHaveLength(44);
@@ -61,16 +63,45 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 47 tools (owner, 2026-10-07)', () => {
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 48 tools (owner, 2026-10-07, fbk_016)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
     expect(tools).toHaveLength(44);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(47);
+    expect(adminTools).toHaveLength(48);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
-    // The default list is the Admin list without the 3 tools, in the same order.
-    expect(tools.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
+    // The default list is the Admin list without the 3 Admin tools and the right tools, in the same order.
+    const rest = adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name) && !rightTools.includes(name));
+    expect(tools.map((tool) => tool.name)).toEqual(rest);
     // A report comes in from the screens only: an agent never sends one or starts its upload.
     for (const name of ['feedback.send', 'feedback.uploadStart']) expect(MCP_DENY).toContain(name);
+  });
+
+  // Owner, 2026-10-18 (fbk_016): the office report is for the people who hold the report right (Admin and Management by default).
+  it('gives reports.office only to an agent whose person holds the report right, and explains the design guide', () => {
+    expect(rightTools).toEqual(['reports.office']);
+    expect(MCP_BY_RIGHT['reports.office']).toBe('report.office');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('reports.office');
+    expect(MCP_DENY as readonly string[]).not.toContain('reports.office');
+    expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
+    // Accounting holds only the payment right, so its agent gets the default list.
+    expect(mcpTools({ rights: ['payment.manage'] }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
+    // Management, with its default rights, gets one more tool: 42 in all.
+    const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
+    expect(management).toHaveLength(42);
+    expect(management.map((tool) => tool.name)).toContain('reports.office');
+    expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
+    expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
+    // The office report is read only, and its agent never gets a storage key or a write.
+    expect(adminTools.find((tool) => tool.name === 'reports.office')!.readOnly).toBe(true);
+    expect(adminTools.find((tool) => tool.name === 'reports.office')!.takesStory).toBe(false);
+    const doc = TOOL_DOCS['reports.office'].description;
+    for (const word of ['design', 'white page', 'payment right']) expect(doc, word).toContain(word);
+    expect(doc).not.toMatch(/[\u2013\u2014]/);
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Reports: '));
+    expect(line).toBeDefined();
+    expect(line).toContain('reports.office');
+    expect(line).toContain('design');
+    expect(line).not.toMatch(/[\u2013\u2014]/);
   });
 
   it('never offers a push device call to an agent: the three push calls are on the deny list (owner, 2026-10-08)', () => {
@@ -83,17 +114,20 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     }
   });
 
-  it('puts every call in exactly one of the allowlist, the Admin list and the deny list', () => {
+  it('puts every call in exactly one of the allowlist, the Admin list, the right list and the deny list', () => {
     const allow = new Set<string>(MCP_ALLOW);
     const admin = new Set<string>(MCP_ADMIN);
+    const right = new Set<string>(rightTools);
     const deny = new Set<string>(MCP_DENY);
-    expect(callNames.filter((name) => !allow.has(name) && !admin.has(name) && !deny.has(name))).toEqual([]);
-    expect([...allow].filter((name) => deny.has(name) || admin.has(name))).toEqual([]);
-    expect([...admin].filter((name) => deny.has(name))).toEqual([]);
+    expect(callNames.filter((name) => !allow.has(name) && !admin.has(name) && !right.has(name) && !deny.has(name))).toEqual([]);
+    expect([...allow].filter((name) => deny.has(name) || admin.has(name) || right.has(name))).toEqual([]);
+    expect([...admin].filter((name) => deny.has(name) || right.has(name))).toEqual([]);
+    expect([...right].filter((name) => deny.has(name))).toEqual([]);
     // Each listed name is a real call; the only tool with no call is madar.readFirst.
-    expect([...allow, ...admin, ...deny].filter((name) => name !== READ_FIRST && !callNames.includes(name))).toEqual([]);
+    expect([...allow, ...admin, ...right, ...deny].filter((name) => name !== READ_FIRST && !callNames.includes(name))).toEqual([]);
     expect(deny.size).toBe(MCP_DENY.length);
     expect(admin.size).toBe(3);
+    expect(right.size).toBe(1);
   });
 
   it('never allows a call that the server does not run', () => {
@@ -135,8 +169,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
     expect(tools.filter((tool) => tool.readOnly)).toHaveLength(19);
-    // feedback.list and feedback.screenshot are reads of an agent of an Admin.
-    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(21);
+    // feedback.list and feedback.screenshot are reads of an agent of an Admin, and reports.office is a read of the report right.
+    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(22);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
     expect(tools.find((tool) => tool.name === 'events.undo')!.annotations.destructiveHint).toBe(true);

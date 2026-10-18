@@ -5,6 +5,7 @@ import { Day, type Event, type Payment, type Project, type Task, type TrackerEnt
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
 import { can } from '../permissions';
+import { REPORT_DESIGN } from '../reportDesign';
 import {
   periodRange, REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, ReportPeriodKind, type DayRange,
 } from '../reportPeriod';
@@ -149,6 +150,7 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     tracker: trackerCounts(trackerRows, range),
     money,
     gaps,
+    design: REPORT_DESIGN,
   };
 }
 

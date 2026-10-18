@@ -225,7 +225,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `admin.manage` (null otherwise).
 - The handler reads the counts of stage moves, completions, pauses and reviews from `state.counts` (`REPORT_KEYS`, the loader counts
   them in SQL). Without them it counts `state.events` (the prototype). Both give the same numbers (`loaders.test.ts`).
-- Office tasks stay out of the report. The MCP tool stays on the deny list until the next task of fbk_016 gates it by the right.
+- Office tasks stay out of the report. The MCP tool is `reports.office`, on the right list `MCP_BY_RIGHT` (`server/mcp/tools.ts`): an agent
+  gets it only when its person holds `report.office`.
+- The answer carries `design`: the design guide `REPORT_DESIGN` (`reportDesign.ts`). Its colors and sizes copy `tokens.css`, and
+  `reportDesign.test.ts` checks them. The guide is the same for every person who may ask.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

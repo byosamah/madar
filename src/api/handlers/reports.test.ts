@@ -4,6 +4,7 @@ import { makeTask, makeUser, makeWorld, NOW, testApi } from '../../test/factorie
 import type { Event, Payment, Task, TrackerEntry } from '../contract/entities';
 import type { Ctx } from '../registry';
 import { withRights } from '../rights';
+import { REPORT_DESIGN } from '../reportDesign';
 import { REPORT_KEYS } from '../reportPeriod';
 import type { State } from '../store';
 import { reportsCalls, reportsOffice } from './reports';
@@ -119,6 +120,18 @@ describe('reports.office: who may ask', () => {
     const t = world();
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
     expect(report.gaps).toEqual(['Open tasks with no due date: 1', 'Open tasks with no lead: 1']);
+  });
+});
+
+describe('reports.office: the design guide goes with the data (fbk_016)', () => {
+  it('gives the same design guide to every person who may ask, so the agent builds the document from it', async () => {
+    const t = world();
+    t.as('usr_006');
+    const management = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(management.design).toEqual(REPORT_DESIGN);
+    t.as('usr_001');
+    const admin = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(admin.design).toEqual(REPORT_DESIGN);
   });
 });
 

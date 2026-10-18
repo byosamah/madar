@@ -5,6 +5,7 @@ import {
 import { Hono } from 'hono';
 import { ApiError } from '../../src/api/errors';
 import { can } from '../../src/api/permissions';
+import { withRights } from '../../src/api/rights';
 import { RATE_LITE, RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
@@ -20,7 +21,7 @@ import { forwardOnce, HOP_HEADER, hopKeyFrom, hopTagOk } from './forward';
 import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
 import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
-import { ADMIN_TOOLS, mcpTools, type ToolDef } from './tools';
+import { ADMIN_TOOLS, mcpTools, rightOf, type ToolDef } from './tools';
 
 /**
  * The MCP 2026-07-28 server (plan 5.6; task G3), on @modelcontextprotocol/server 2.3.0. The entries mount it at /mcp: the mcp
@@ -191,15 +192,21 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
 }
 
 /**
- * The tools of one request (owner, 2026-10-07). The Admin tools (tools.ts, MCP_ADMIN) go only to an agent whose person has
- * admin.manage in the office of this request. The check reads the person, never the agent user: an agent has the role member
- * (agentUser.ts). With no agent, the request gets the 37 tools. A role change shows on the next request; a client can keep its
- * tools/list for 5 minutes, and a tools/call of a tool that is not registered fails before runCall.
+ * The tools of one request (owner, 2026-10-07; rights, 2026-10-18). The Admin tools (tools.ts, MCP_ADMIN) go only to an agent whose
+ * person has admin.manage in the office of this request. A right tool (tools.ts, MCP_BY_RIGHT) goes only to an agent whose person
+ * holds its right. The check reads the person with the office rights, never the agent user: an agent has the role member
+ * (agentUser.ts), and the handler checks the same right. With no person, the request gets the 41 tools of the allowlist. A role change
+ * shows on the next request; a client can keep its tools/list for 5 minutes, and a tools/call of a tool that is not registered fails
+ * before runCall.
  */
 function toolsFor(all: ToolDef[], extra: RequestExtra | undefined): ToolDef[] {
   const person = extra ? extra.office.lists.users[extra.ownerId] : undefined;
-  const admin = person !== undefined && can(person, 'admin.manage');
-  return admin ? all : all.filter((tool) => !ADMIN_TOOLS.has(tool.name));
+  const actor = extra && person !== undefined ? withRights(extra.office.lists, person) : undefined;
+  return all.filter((tool) => {
+    if (ADMIN_TOOLS.has(tool.name)) return actor !== undefined && can(actor, 'admin.manage');
+    const right = rightOf(tool.name);
+    return right === undefined || (actor !== undefined && can(actor, right));
+  });
 }
 
 function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {

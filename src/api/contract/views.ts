@@ -318,6 +318,26 @@ export const ReportPerson = z.object({
 });
 export type ReportPerson = z.infer<typeof ReportPerson>;
 export const ReportMoney = z.object({ received: z.number().nonnegative(), dueInPeriod: z.number().nonnegative(), pastDueAtEnd: z.number().nonnegative() });
+/**
+ * The design guide of the office report (owner, 2026-10-18, fbk_016). An agent builds the document from it. The colors and sizes are
+ * the light values of tokens.css, the mark is the Madar logo, and the rules are short English instructions for the agent.
+ */
+export const ReportDesign = z.object({
+  brand: z.object({
+    name: z.literal('Madar'),
+    nameAr: z.literal('مدار'),
+    mark: z.object({ viewBox: z.literal('0 0 18 18'), path: z.string().max(400) }),
+  }),
+  page: z.object({ background: z.literal('#FFFFFF'), margin: z.string().max(20) }),
+  colors: z.record(z.string().max(40), z.string().max(12)),
+  type: z.object({
+    family: z.string().max(120),
+    fallback: z.string().max(160),
+    sizes: z.record(z.string().max(20), z.string().max(12)),
+  }),
+  rules: z.array(z.string().max(240)).max(12),
+});
+export type ReportDesign = z.infer<typeof ReportDesign>;
 export const OfficeReport = z.object({
   period: z.object({ kind: ReportPeriodKind, from: Day, to: Day }),
   generatedAt: Stamp,
@@ -335,5 +355,7 @@ export const OfficeReport = z.object({
   money: ReportMoney.nullable(),
   /** The data gaps for the Admin, one short line each (English). Empty when the office has none. */
   gaps: z.array(z.string().max(120)).max(4).nullable(),
+  /** The design guide for the agent that builds the document (reportDesign.ts). The same for every person who may ask. */
+  design: ReportDesign,
 });
 export type OfficeReport = z.infer<typeof OfficeReport>;

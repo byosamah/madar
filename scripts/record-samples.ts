@@ -6,7 +6,7 @@ import { memoryPersister } from '../src/api/persist';
 import { Store, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { addDays, setNow } from '../src/lib/dates';
-import { MCP_ADMIN, MCP_ALLOW, READ_FIRST } from '../server/mcp/tools';
+import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, READ_FIRST } from '../server/mcp/tools';
 
 /**
  * Records one sample input for each MCP tool (plan 5.6, task G2) into server/mcp/samples.json.
@@ -100,6 +100,8 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     // The reads of an agent of an Admin. feedback.list goes with no filter, so the sample does not need the status input.
     await run('feedback.list', {});
     await run('feedback.screenshot', { id: report.id, index: 0 });
+    // The office report of one month (fbk_016). The agent acts for the Admin, who holds the report right.
+    await run('reports.office', { period: 'month' });
 
     // The writes, all in one story, so the last sample takes the whole story back.
     const { storyId } = (await run('story.start', {})) as { storyId: string };
@@ -156,7 +158,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
 
     await run('events.undoStory', { correlationId: storyId });
 
-    const missing = [...MCP_ALLOW, ...MCP_ADMIN].filter((name) => !(name in samples));
+    const missing = [...MCP_ALLOW, ...MCP_ADMIN, ...Object.keys(MCP_BY_RIGHT)].filter((name) => !(name in samples));
     if (missing.length > 0) throw new Error(`No sample for: ${missing.join(', ')}`);
     return Object.fromEntries(Object.keys(samples).sort().map((name) => [name, samples[name]]));
   } finally {

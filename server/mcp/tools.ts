@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
+import type { OfficeRight } from '../../src/api/contract/entities';
 import { serverContracts, type ServerCallName } from '../../src/api/contract/server';
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
@@ -7,9 +8,10 @@ import { TOOL_DOCS } from './docs';
 /**
  * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 44 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 47. Every other call stays on
- * the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the other Admin calls. VS
- * Code allows at most 128 tools in one request across all
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 47. The right list adds
+ * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 48. Every
+ * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
+ * other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  */
 
@@ -37,7 +39,19 @@ export const MCP_ALLOW = [
 export const MCP_ADMIN = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'] as const satisfies readonly SharedCallName[];
 export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
 
-export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number];
+/**
+ * The tools that an office right opens (owner, 2026-10-18, fbk_016). app.ts gives one to an agent only when its person holds the
+ * right (rights.ts). The handler checks the same right, so a call without it fails too.
+ */
+export const MCP_BY_RIGHT = { 'reports.office': 'report.office' } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
+const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
+
+/** The office right that a tool needs, or undefined for a tool that no right opens. */
+export function rightOf(name: string): OfficeRight | undefined {
+  return (MCP_BY_RIGHT as Readonly<Record<string, OfficeRight>>)[name];
+}
+
+export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number] | keyof typeof MCP_BY_RIGHT;
 type CallToolName = Exclude<McpToolName, typeof READ_FIRST>;
 
 export const MCP_DENY = [
@@ -50,8 +64,6 @@ export const MCP_DENY = [
   'settings.get', 'settings.update',
   // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
   'roles.create', 'roles.update', 'roles.delete',
-  // The office report data (fbk_016). The agent tool opens in the next task, for the people who hold the report right.
-  'reports.office',
   // Project set-up, members, stages, links, health and deletes.
   'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',
@@ -110,7 +122,7 @@ export type ToolDef = {
 };
 
 const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?: { input?: z.ZodType } }> = Object.fromEntries(
-  [...MCP_ALLOW, ...MCP_ADMIN].filter((name) => name !== READ_FIRST).map((name) => {
+  [...MCP_ALLOW, ...MCP_ADMIN, ...RIGHT_TOOLS].filter((name) => name !== READ_FIRST).map((name) => {
     const def = (sharedCalls as Record<string, unknown>)[name] ?? (serverContracts as Record<string, unknown>)[name];
     return [name, def];
   }),
@@ -164,14 +176,19 @@ function build(name: McpToolName): ToolDef {
   };
 }
 
-/** All 47 tools in their fixed order, built once (44 of every agent, 3 more for an Admin). */
+/** All the tools in their fixed order (an Admin's list), built once. */
 let cache: ToolDef[] | null = null;
 
 /**
- * The tools in their fixed order: the 44 of the allowlist, or with admin the 47 of an agent of an Admin. It reads sharedCalls and
+ * The tools in their fixed order. The list has the 44 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
+ * every right tool. Each right tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
  * the server contracts, never the server code of a call.
  */
-export function mcpTools({ admin = false }: { admin?: boolean } = {}): ToolDef[] {
-  cache ??= [...MCP_ALLOW, ...MCP_ADMIN].sort(order).map(build);
-  return admin ? [...cache] : cache.filter((tool) => !ADMIN_TOOLS.has(tool.name));
+export function mcpTools({ admin = false, rights = [] }: { admin?: boolean; rights?: readonly OfficeRight[] } = {}): ToolDef[] {
+  cache ??= [...MCP_ALLOW, ...MCP_ADMIN, ...RIGHT_TOOLS].sort(order).map(build);
+  return cache.filter((tool) => {
+    if (ADMIN_TOOLS.has(tool.name)) return admin;
+    const right = rightOf(tool.name);
+    return right === undefined || admin || rights.includes(right);
+  });
 }
