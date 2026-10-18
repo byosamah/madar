@@ -6,8 +6,8 @@ import { useCall } from './runtime';
 export const SubCompaniesContext = createContext<ReadonlyMap<string, SubCompany>>(new Map());
 
 /**
- * The sub-companies of the office with their logos (fbk_007). A project shows the logo and the name of its sub-company, so this
- * reads subCompanies.list once (the same pattern as app/pictures.tsx) and gives each lookup its sub-company.
+ * The sub-companies of the office with their logos (fbk_007). A project shows the logo and the name of its sub-company.
+ * This code reads subCompanies.list once (the same pattern as app/pictures.tsx) and gives each lookup its sub-company.
  */
 export function SubCompaniesProvider({ children }: { children: ReactNode }) {
   const list = useCall('subCompanies.list', {});

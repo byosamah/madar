@@ -263,6 +263,21 @@ describe('suite 12: the MCP server in process', () => {
     }
   });
 
+  it('lists the sub-companies without their logo data, so the agent context stays small (fbk_007)', async () => {
+    const before = seed.subCompanies;
+    seed.subCompanies = {
+      sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: `data:image/webp;base64,${'A'.repeat(8_000)}`, createdBy: 'usr_001', createdAt: '2026-10-04T06:00:00Z' },
+    };
+    try {
+      const { body } = await call(world(), 'subCompanies.list');
+      const rows = body.result.structuredContent.output as { id: string; logo: string | null }[];
+      expect(rows[0]).toMatchObject({ id: 'sub_001', name: 'Vado', logo: null });
+      expect(body.result.content[0].text).not.toContain('data:image');
+    } finally {
+      seed.subCompanies = before;
+    }
+  });
+
   it('gives madar.readFirst the rules and the person the agent acts for', async () => {
     const { body } = await call(w, 'madar.readFirst');
     const text = body.result.content[0].text as string;

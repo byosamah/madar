@@ -111,12 +111,14 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Every write of an office table raises `office_meta.version` and calls `writeOfficeSnapshot` in the same transaction.
 - A schema change bumps `LITE_SCHEMA_VERSION` and `PINNED_SHA256` in `lite/schema.test.ts`, and each version above 3 has a step
   in `LITE_STEPS` (the first real office comes in wave 5).
-- Schema version 3 (exit waves 2 and 3): the sign-in rows of wave 2 and the table `usage_day` of wave 3. `LITE_STEPS` is
-  `{ 3: [USAGE_DAY_SQL] }`: the sign-in tables have no step, because no office object below version 3 exists outside the tests.
+- Schema version 3 (exit waves 2 and 3): the sign-in rows of wave 2 and the table `usage_day` of wave 3. Its step is
+  `USAGE_DAY_SQL` in `LITE_STEPS`. The sign-in tables have no step, because no office object below version 3 exists outside the tests.
   `applyLiteSchema` runs the steps above the office version in one transaction. `LiteDb.isOpen()` tells the network port of the office object that
   a transaction is open. `SaveResult.noticeIds` names the notices of a save: the producers on SQLite read them in place of the
   `xmin` test. `DAY_ROW_LITE` (the day row of the meters) lives in `server/usage/meters.ts`, because the Supabase bundles load
   `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
+- Schema version 4 (fbk_007) adds the office list `sub_companies`, with only `id` and `doc`. `LITE_STEPS` is
+  `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

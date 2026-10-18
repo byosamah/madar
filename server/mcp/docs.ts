@@ -1,7 +1,7 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
- * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 44 tools its title and description:
- * the 41 of every agent and the 3 of an agent of an Admin (tools.ts).
+ * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 45 tools its title and description:
+ * the 42 of every agent and the 3 of an agent of an Admin (tools.ts).
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */

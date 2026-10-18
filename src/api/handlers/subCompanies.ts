@@ -64,8 +64,7 @@ const subCompaniesDelete = defineCall({
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const sub = requireSubCompany(ctx, input.id);
-    // A project names its sub-company in subCompanyId. The record is read by its key, so no project field needs a type here.
-    const naming = Object.values(ctx.state.projects).filter((project) => (project as Record<string, unknown>).subCompanyId === sub.id).length;
+    const naming = Object.values(ctx.state.projects).filter((project) => project.subCompanyId === sub.id).length;
     if (naming > 0) throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: naming });
     delete subCompaniesOf(ctx.state)[sub.id];
     recordDelete(ctx, { projectId: null, verb: 'subCompany.deleted', targetType: 'subCompany', targetId: sub.id, entity: sub });
