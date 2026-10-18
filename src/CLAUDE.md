@@ -76,6 +76,7 @@ any screen work.
   imports bundled). `check-bundles.ts` fails a prototype dist or a first load that holds the `maplibregl-` marker.
 - The map style follows the theme and the language of the screens. Its colors are tokens (`MAP_COLORS`, checked by `mapStyle.test.ts`).
 - A short Google Maps link holds no place: the paste field says so, and no pin is set.
+- The Dashboard has a Map tab (`src/features/dashboard/DashboardMap.tsx`, `MapPinCard.tsx`). It reads `projects.list` with the Leader, Client and Team filters, and folds the flag itself as `PinPicker.tsx` does. In the prototype it shows the pinned list and the note "The map works in the real Madar.", and no map.
 
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.

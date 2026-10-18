@@ -21,6 +21,7 @@
     },
     "canvas": {
       "label": "Map. Drag the pin to move it.",
+      "labelView": "Map of the projects",
       "pin": "Project pin",
       "attribution": "Map data © OpenStreetMap contributors"
     },

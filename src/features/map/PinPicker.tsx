@@ -5,7 +5,7 @@ import { TextField } from '../../components/Fields';
 import { parseMapLink } from '../../lib/geo';
 
 // The map loads in the real build only, in a chunk of its own. The flag itself, not REMOTE from mode.ts: the bundler folds this
-// comparison and drops the branch, so the prototype build keeps the paste field alone and no map code (fbk_017).
+// comparison. It drops the branch, so the prototype build keeps the paste field alone and no map code (fbk_017).
 const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('./MapCanvas')) : null;
 
 type Note = 'found' | 'short' | 'none';

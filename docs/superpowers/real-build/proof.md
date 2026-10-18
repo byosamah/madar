@@ -1692,7 +1692,7 @@ binding, no bucket and no wrangler setting.
 - Built in the repo: `server/http/pagesMap.ts` (the key rule, the range rule, the content types and the route), its test
   `server/http/pagesMap.test.ts` (21 tests), and the Pages Function `functions/map/[[path]].ts`.
 - Until a binding named `MAP` exists, every request under `/map` answers 404 with `map_not_ready`, on every host.
-- Written, not run: `scripts/map/build-basemap.sh`. It builds `sa.pmtiles` (Saudi Arabia, up to zoom 15), the glyph files of
+- Written, not run: `scripts/map/build-basemap.sh`. It builds `sa.pmtiles` (Saudi Arabia, up to zoom 15), the
   glyph files of Noto Sans Regular (they hold the Arabic block too), and `rtl-text.js`. Without `--upload`, it uploads nothing.
 - Checks for this section: `server/http/pagesMap.test.ts`, 21 of 21 pass. `npm run typecheck` passes.
 

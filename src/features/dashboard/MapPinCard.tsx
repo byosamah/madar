@@ -6,7 +6,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { projectKey } from '../../lib/projectCode';
 
 /**
- * The card of one pin on the Dashboard map (owner, 2026-10-18, fbk_017): the tile, the name, the code, the stage, the leader,
+ * The card of one pin on the Dashboard map (owner, 2026-10-18, fbk_017). It shows the tile, the name, the code, the stage, the leader,
  * the health word and the way to the project. The stage and leader lines reuse the words of the meeting view.
  */
 export function MapPinCard({ summary }: { summary: ProjectSummary }) {

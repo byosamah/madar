@@ -136,7 +136,7 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
 
   return (
     <div className="flex flex-col gap-2">
-      <div ref={box} data-vaul-no-drag role="region" aria-label={t('map.canvas.label')} className="h-80 w-full overflow-hidden rounded-card" />
+      <div ref={box} data-vaul-no-drag role="region" aria-label={t(draggablePin ? 'map.canvas.label' : 'map.canvas.labelView')} className="h-80 w-full overflow-hidden rounded-card" />
       <p className="text-footnote text-ink-2">{t('map.canvas.attribution')}</p>
     </div>
   );
