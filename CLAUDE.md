@@ -83,7 +83,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 4,650 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 5,400 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
@@ -122,9 +122,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-17, the gate of the merge of exit waves 2 and 3 on `rb/exit-live`): unit+server 5,228 passed (515 files);
-  test:db 1,149 (26 skipped); test:lite 1,149 (26 skipped); test:office 32 (7 files); smoke:office 10 of 10; test:it 277;
-  test:mcp 176. On 2026-10-12: prototype smoke 87 of 87.
+- Last counts (2026-10-18, main 5378e48 and the exit wave 4 gate): unit+server 5,393 passed (532 files); test:db 1,149;
+  test:lite 1,149; test:office 37; smoke:office 10 of 10; test:it 279; test:mcp 176; prototype smoke 87 of 87.
+- `grep -c` that counts 0 exits 1, so it stops a `&&` chain: end the count with `; true` or check its number apart.
 
 ## Run the real product locally
 1. `scripts/dev/docker-lock.sh acquire <holder>`, `npx supabase db reset`, `npm run build:server`.
@@ -143,7 +143,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   the same handler.
 - Server (`server/`): one Hono app on Supabase Edge Functions (Deno, Frankfurt) or on one Cloudflare Worker for each copy;
   `config/server-host.json` picks the host of each copy, and the other host stays deployed as the way back.
-- Data: Supabase Postgres, Auth, Realtime and Storage (Free plans). Email: Resend. Browser push: Web Push, free (`server/push/`).
+- Data: Supabase Postgres, Auth and Realtime (Free plans); files on Cloudflare R2 (since 2026-10-16). Email: Resend. Browser push: Web Push, free (`server/push/`).
   AI agents: MCP at /mcp.
 - A screen calls `api.call(name, input)`. The remote build sends it to `POST /api/batch`. The server runs it in `runCall`
   under the office lock, saves the difference, and sends a change signal on Realtime.
@@ -164,7 +164,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   (owner, 2026-10-07).
 
 ## Build process
-- One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked). Each wave: build,
+- One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked to `deploy-test/node_modules`,
+  never to the main folder, which can lack a new package). Each wave: build,
   merge lead (in plan order, with the merge lead patches), then a whole-product check on the
   local stack (`db reset`, remote build, functions, seed, the walk in 4 variants, the deploy suite).
 - No separate checker (owner, 2026-10-07): no reviewer, verifier or critic agent after a build. Run each suite once.
@@ -245,3 +246,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - 2026-10-16: move the files from Supabase Storage to R2, and the server from Supabase Edge Functions to one Cloudflare Worker
   for each copy (the test copy first); the database, Auth and Realtime stay; the functions stay as the way back; the Worker
   stays only if it measures faster.
+- 2026-10-17: GO for the full exit from Supabase to Cloudflare Free (one office object for each copy, the own sign-in, live
+  sockets, Cron, backups by export); no paid plan.
+- 2026-10-18: R2 alone for the files (no Backblaze B2); the test copy on the same Cloudflare account with a 50% day cap; the
+  GitHub tests start only by hand, so the free minutes go to the backups; the database backup runs from the Mac until GitHub
+  runs it again; the exit pauses after wave 5 R5 for a feature of the team (`docs/superpowers/real-build/exit-handoff.md`).
