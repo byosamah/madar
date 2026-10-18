@@ -21,6 +21,8 @@ function routeTable(remote: boolean): Entry[] {
   const screens: Entry[] = [
     // The meeting view fills the whole screen, so it sits outside the shell with its tabs.
     { path: '/dashboard/meeting', screen: 'meeting', errorElement: <RouteError framed /> },
+    // The Open space map also fills the screen, so it sits outside the shell as well (feedback fbk_015).
+    { path: '/dashboard/space', screen: 'space', errorElement: <RouteError framed /> },
     {
       path: '/',
       element: <AppShell />,

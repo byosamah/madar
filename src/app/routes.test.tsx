@@ -25,6 +25,7 @@ function shape(route: RouteObject): Shape {
 /** The route table of the prototype, and of the part inside the sign-in gate of the remote build (2026-10-07). */
 const SCREENS: Shape[] = [
   { path: '/dashboard/meeting', screen: 'MeetingView', error: 'framed' },
+  { path: '/dashboard/space', screen: 'OpenSpaceScreen', error: 'framed' },
   {
     path: '/',
     screen: 'AppShell',
@@ -67,7 +68,7 @@ describe('the routes before the screens load (performance audit BND-1)', () => {
     for (const remote of [false, true]) {
       const routes = every(appRoutes(remote));
       const lazy = routes.filter((route) => route.lazy);
-      expect(lazy.length).toBe(remote ? 18 : 13);
+      expect(lazy.length).toBe(remote ? 19 : 14);
       for (const route of lazy) expect(route.Component).toBeUndefined();
       expect(routes.filter((route) => route.element).map((route) => (route.element as ReactElement).type)).toHaveLength(remote ? 4 : 3);
       for (const route of routes) expect(route.errorElement !== undefined || route.path === undefined).toBe(true);
@@ -78,6 +79,7 @@ describe('the routes before the screens load (performance audit BND-1)', () => {
     expect(screensAt('/projects/prj_001', true)).toEqual({ screens: ['project'], gated: true });
     expect(screensAt('/', true)).toEqual({ screens: [], gated: true });
     expect(screensAt('/dashboard/meeting', true)).toEqual({ screens: ['meeting'], gated: true });
+    expect(screensAt('/dashboard/space', true)).toEqual({ screens: ['space'], gated: true });
     expect(screensAt('/admin/people', true)).toEqual({ screens: ['admin'], gated: true });
     expect(screensAt('/no/such/page', true)).toEqual({ screens: [], gated: true });
     expect(screensAt('/sign-in', true)).toEqual({ screens: ['signIn'], gated: false });
@@ -103,7 +105,7 @@ describe('the routes of both builds (plan U2)', () => {
     for (const remote of [false, true]) {
       const routes = every(appRoutes(remote));
       expect(routes.filter((route) => route.lazy)).toEqual([]);
-      expect(routes.filter((route) => route.Component)).toHaveLength(remote ? 18 : 13);
+      expect(routes.filter((route) => route.Component)).toHaveLength(remote ? 19 : 14);
     }
   });
 
@@ -125,13 +127,13 @@ describe('the routes of both builds (plan U2)', () => {
     await router.navigate('/projects');
     expect(window.location.hash).toBe('#/projects');
     router.dispose();
-    expect(paths(appRoutes(false))).toEqual(['/dashboard/meeting', '/']);
+    expect(paths(appRoutes(false))).toEqual(['/dashboard/meeting', '/dashboard/space', '/']);
   });
 
   it('puts the meeting view and the shell inside the gate in the remote build, beside the public screens', () => {
     const routes = appRoutes(true);
     expect(paths(routes)).toEqual(['/sign-in', '/welcome', '/forgot', '/reset', '/oauth/consent', '(layout)']);
-    expect(paths(routes.at(-1)?.children ?? [])).toEqual(['/dashboard/meeting', '/']);
+    expect(paths(routes.at(-1)?.children ?? [])).toEqual(['/dashboard/meeting', '/dashboard/space', '/']);
   });
 
   it('keeps every path, screen, order, nesting and error page of the route table (performance audit BND-1)', () => {

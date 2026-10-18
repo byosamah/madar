@@ -17,6 +17,7 @@ export const LOADERS = {
   tasks: () => import('../features/tasklist/TaskListScreen').then((m) => m.TaskListScreen),
   dashboard: () => import('../features/dashboard/DashboardScreen').then((m) => m.DashboardScreen),
   meeting: () => import('../features/dashboard/MeetingView').then((m) => m.MeetingView),
+  space: () => import('../features/space/OpenSpaceScreen').then((m) => m.OpenSpaceScreen),
   settings: () => import('../features/settings/SettingsScreen').then((m) => m.SettingsScreen),
   whatsNew: () => import('../features/whatsNew/WhatsNewScreen').then((m) => m.WhatsNewScreen),
   admin: () => import('../features/settings/admin/AdminScreen').then((m) => m.AdminScreen),

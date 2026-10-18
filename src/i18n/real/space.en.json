@@ -1,0 +1,18 @@
+{
+  "space": {
+    "openButton": "Open space",
+    "title": "Open space",
+    "intro": "Read only. Press a project or a stage to open the next level.",
+    "office": "The office",
+    "openAll": "Open all",
+    "closeAll": "Close all",
+    "fit": "Fit to screen",
+    "focus": "Focus on a person",
+    "focusAnyone": "Everyone",
+    "openProject": "Open project",
+    "currentStage": "Current stage",
+    "dates": "From {{start}} to {{end}}",
+    "noDate": "No date",
+    "noProjects": "No open projects."
+  }
+}

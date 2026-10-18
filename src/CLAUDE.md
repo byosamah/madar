@@ -138,7 +138,7 @@ any screen work.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
-  files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/inbox`, `/notifications`, `/search`,
+  files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,
   `/settings`, `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A desk opens the first section at `/admin`; a

@@ -113,6 +113,7 @@ export function DashboardScreen() {
           </label>
         </FilterButton>
         <Button variant="primary" onClick={() => navigate({ pathname: '/dashboard/meeting', search: meetingSearch })}>{t('dashboard.meetingButton')}</Button>
+        <Button onClick={() => navigate({ pathname: '/dashboard/space' })}>{t('space.openButton')}</Button>
       </div>
       {dashboard.error && (
         <EmptyState title={t('screens.dashboard')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />

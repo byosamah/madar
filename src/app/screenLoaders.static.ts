@@ -6,6 +6,7 @@ import { WelcomeScreen } from '../features/auth/WelcomeScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { MeetingView } from '../features/dashboard/MeetingView';
 import { InboxScreen } from '../features/inbox/InboxScreen';
+import { OpenSpaceScreen } from '../features/space/OpenSpaceScreen';
 import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
 import { ConsentScreen } from '../features/oauth/ConsentScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
@@ -33,6 +34,7 @@ export const LOADERS = {
   tasks: () => Promise.resolve(TaskListScreen),
   dashboard: () => Promise.resolve(DashboardScreen),
   meeting: () => Promise.resolve(MeetingView),
+  space: () => Promise.resolve(OpenSpaceScreen),
   settings: () => Promise.resolve(SettingsScreen),
   whatsNew: () => Promise.resolve(WhatsNewScreen),
   admin: () => Promise.resolve(AdminScreen),
