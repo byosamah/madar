@@ -85,9 +85,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
     // Accounting holds only the payment right, so its agent gets the default list.
     expect(mcpTools({ rights: ['payment.manage'] }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
-    // Management, with its default rights, gets one more tool: 42 in all.
+    // Management, with its default rights, gets one more tool: 45 in all.
     const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
-    expect(management).toHaveLength(42);
+    expect(management).toHaveLength(45);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
     expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
