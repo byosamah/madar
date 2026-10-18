@@ -14,6 +14,9 @@ const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => impor
 type Note = 'found' | 'short' | 'none';
 const NOTE_KEYS = { found: 'map.paste.found', short: 'map.paste.short', none: 'map.paste.none' } as const;
 
+/** The least time between the starts of two searches, as the OpenStreetMap policy asks. */
+const SEARCH_GAP_MS = 1000;
+
 /** What the last place search showed. */
 type Outcome = { kind: 'idle' } | { kind: 'none' } | { kind: 'failed' } | { kind: 'hits'; hits: PlaceHit[] };
 
@@ -24,7 +27,8 @@ export function coordinatesOf(point: GeoPoint): { latitude: number; longitude: n
 
 /**
  * The place search of the pin picker (Task 12b, fbk_017). It asks OpenStreetMap only when the person presses Search or Enter.
- * It never asks while the person types, and one search runs at a time.
+ * It never asks while the person types, and one search runs at a time. The OpenStreetMap policy allows one request each second,
+ * so the next search waits until a second has passed since the start of the last one.
  */
 function PlaceSearch({ onPick }: { onPick: (point: GeoPoint) => void }) {
   const { t } = useTranslation();
@@ -39,6 +43,7 @@ function PlaceSearch({ onPick }: { onPick: (point: GeoPoint) => void }) {
     if (text === '' || running.current) return;
     running.current = true;
     setBusy(true);
+    const started = Date.now();
     try {
       const response = await fetch(searchUrl(text, lang));
       if (!response.ok) throw new Error(String(response.status));
@@ -47,8 +52,10 @@ function PlaceSearch({ onPick }: { onPick: (point: GeoPoint) => void }) {
     } catch {
       setOutcome({ kind: 'failed' });
     } finally {
-      running.current = false;
-      setBusy(false);
+      setTimeout(() => {
+        running.current = false;
+        setBusy(false);
+      }, Math.max(0, SEARCH_GAP_MS - (Date.now() - started)));
     }
   }
 

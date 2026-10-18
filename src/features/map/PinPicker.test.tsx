@@ -153,6 +153,20 @@ describe('PinPicker place search (Task 12b, fbk_017)', () => {
     await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     finish(answer([]));
-    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false), { timeout: 3000 });
+  });
+
+  it('waits one second between two searches, as the OpenStreetMap policy asks', async () => {
+    fetchMock.mockResolvedValue(answer([]));
+    await renderWithRuntime(<PinPicker value={null} onChange={vi.fn()} />);
+    typeSearch('Al Khobar Corniche');
+    const box = screen.getByLabelText('Search a place');
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await screen.findByText('No place found for this search.');
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Search' }).hasAttribute('disabled')).toBe(false), { timeout: 3000 });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
