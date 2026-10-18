@@ -1,5 +1,5 @@
-import type { KeyboardEvent } from 'react';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import type { FocusEvent, KeyboardEvent } from 'react';
+import { Handle, Position, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -33,6 +33,11 @@ export type SpaceFlowNode = Node<SpaceCardData, 'space'>;
 // The handles are not drawn: the lines of the tree join the cards at their edges.
 const HIDDEN_HANDLE = { opacity: 0 } as const;
 const CARD = 'surface rounded-card w-60 p-3 text-start transition-opacity duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link';
+// A card is 240 px wide (w-60). Its middle sits 120 px along and about 40 px down from its start corner.
+const CARD_CENTER = { x: 120, y: 40 } as const;
+
+/** The two parts of the map that a card uses to move the view. */
+type MapView = Pick<ReturnType<typeof useReactFlow>, 'setCenter' | 'getZoom'>;
 
 /** The word of a project's sign: its health while it is active, else its state (the same words as the Projects list). */
 function signWord(state: SignState, staleDays: number | null, t: TFunction): string {
@@ -66,6 +71,21 @@ function clickToggles(data: SpaceCardData) {
   return () => {
     if (data.expandable) data.onToggle(data.id);
   };
+}
+
+/**
+ * A keyboard user focuses a card outside the map. The map then moves to show the card. A mouse click does not move the map.
+ */
+function revealFocused(event: FocusEvent<HTMLDivElement>, card: { x: number; y: number }, view: MapView) {
+  const target = event.target as HTMLElement;
+  if (!target.matches(':focus-visible')) return;
+  const map = event.currentTarget.closest('.react-flow');
+  if (!map) return;
+  const mapBox = map.getBoundingClientRect();
+  const box = target.getBoundingClientRect();
+  const inside = box.left >= mapBox.left && box.right <= mapBox.right && box.top >= mapBox.top && box.bottom <= mapBox.bottom;
+  if (inside) return;
+  void view.setCenter(card.x + CARD_CENTER.x, card.y + CARD_CENTER.y, { zoom: view.getZoom(), duration: 0 });
 }
 
 /** The attributes that make a stage or a task a button when it has a next level, and that carry its state. */
@@ -167,8 +187,9 @@ function OfficeCard() {
 }
 
 /** The card of one node of the map. React Flow calls it with the node's data and the sides of its handles. */
-export function SpaceCard({ data, sourcePosition, targetPosition }: NodeProps<SpaceFlowNode>) {
+export function SpaceCard({ data, sourcePosition, targetPosition, positionAbsoluteX, positionAbsoluteY }: NodeProps<SpaceFlowNode>) {
   const lang = useLang();
+  const view = useReactFlow();
   const body = data.kind === 'office'
     ? <OfficeCard />
     : data.kind === 'project'
@@ -180,7 +201,7 @@ export function SpaceCard({ data, sourcePosition, targetPosition }: NodeProps<Sp
     <>
       <Handle type="target" position={targetPosition ?? Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
       {/* React Flow sets the map to left to right, so the card sets its own direction from the language. */}
-      <div dir={lang === 'ar' ? 'rtl' : 'ltr'}>{body}</div>
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} onFocus={(event) => revealFocused(event, { x: positionAbsoluteX, y: positionAbsoluteY }, view)}>{body}</div>
       <Handle type="source" position={sourcePosition ?? Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
     </>
   );
