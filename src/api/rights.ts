@@ -48,8 +48,8 @@ export function opensAdminPage(actor: Actor): boolean {
 }
 
 /**
- * The person with the office rights of one state attached. Every loader, server call and handler takes the person this way, so no
- * check reads the default rights of a role by mistake (owner, 2026-10-18, fbk_014).
+ * The person with the office rights of one state attached. Every loader, server call and handler takes the person this way.
+ * No check then reads the default rights of a role by mistake (owner, 2026-10-18, fbk_014).
  */
 export function withRights(state: Pick<State, 'settings'>, user: User): Actor {
   return withOfficeRights(user, state.settings.roles);

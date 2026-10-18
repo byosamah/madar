@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setNow } from '../../lib/dates';
 import { makeTask, makeUser, makeWorld, NOW, testApi } from '../../test/factories';
 import type { Event, Payment, Task, TrackerEntry } from '../contract/entities';
+import { ReportTotals } from '../contract/views';
 import type { Ctx } from '../registry';
 import { withRights } from '../rights';
 import { REPORT_DESIGN } from '../reportDesign';
@@ -148,6 +149,13 @@ describe('reports.office: the numbers of the week of 27 September', () => {
       stageMoves: 2,
     });
     expect(report.tracker).toEqual({ opened: 1, closed: 1, waitingOnClientAtEnd: 1 });
+  });
+
+  it('gives the totals the shape that ReportTotals names', async () => {
+    const t = world();
+    const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    const totals: ReportTotals = ReportTotals.parse(report.totals);
+    expect(totals).toEqual(report.totals);
   });
 
   it('counts the people: the tasks done, the open tasks and the past-due tasks at the end of the week', async () => {

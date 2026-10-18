@@ -143,7 +143,7 @@ export function isRoleEvent(event: Event): boolean {
 }
 
 /**
- * Takes one role change back, under the rules of events.ts: a later change of the same role that stands blocks the Undo, and a
+ * Takes one role change back, under the rules of events.ts. A later change of the same role that stands blocks the Undo. A
  * value that names another role (a name in use, a role that a person holds) blocks it too.
  */
 export function undoRoleChange(ctx: Ctx, event: Event): Event {

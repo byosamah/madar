@@ -877,3 +877,26 @@ describe('the office report (owner, 2026-10-18, fbk_016)', () => {
     expect(reviewsDone(run)).toBe((base ?? 0) + 1);
   });
 });
+
+describe('the money of the Dashboard follows the office rights of a custom role (fbk_014)', () => {
+  it('loads no payment for a role with the people right, and the payments not yet received for a role with the payment right', async () => {
+    const state = office((s) => {
+      s.settings.roles = {
+        custom: [
+          { id: 'rol_001', name: 'Planner', nameAr: 'مخطط', rights: ['people.manage'] },
+          { id: 'rol_002', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] },
+        ],
+      };
+      s.users.usr_003.roleId = 'rol_001';
+      s.users.usr_004.roleId = 'rol_002';
+    });
+    const open = Object.values(state.payments ?? {}).filter((payment) => payment.receivedOn === null).map((payment) => payment.id).sort();
+    expect(open.length).toBeGreaterThan(0);
+    const planner = await runBoth(state, 'dashboard.get', {}, 'usr_003', { now: NOW, correlationId: 'cor_test' });
+    expect(planner.scoped).toEqual(planner.whole);
+    expect(Object.keys(planner.loaded.payments ?? {})).toEqual([]);
+    const cashier = await runBoth(state, 'dashboard.get', {}, 'usr_004', { now: NOW, correlationId: 'cor_test' });
+    expect(cashier.scoped).toEqual(cashier.whole);
+    expect(Object.keys(cashier.loaded.payments ?? {}).sort()).toEqual(open);
+  });
+});

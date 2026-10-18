@@ -35,8 +35,8 @@ function yearRange(year: number): DayRange {
 }
 
 /**
- * The days of one period. With a start, the period that holds the start day. Without one, the last full period before today:
- * the week before the week of today, the month before this one, the quarter before this one, the year before this one.
+ * The days of one period. With a start, the period that holds the start day. Without one, the last full period before today.
+ * It is the week before the week of today, the month before this one, the quarter before this one, or the year before this one.
  */
 export function periodRange(period: ReportPeriodKind, start: string | undefined, today: string): DayRange {
   if (period === 'week') {
@@ -59,8 +59,9 @@ export function periodRange(period: ReportPeriodKind, start: string | undefined,
 }
 
 /**
- * The stamps that bound a day range on the Riyadh offset (+03:00, the office day of stampDay): the first instant of the first day,
- * and the first instant of the day after the last. The loader counts the events between the two, so an event counts once.
+ * The stamps that bound a day range on the Riyadh offset (+03:00, the office day of stampDay). The first stamp is the first instant
+ * of the first day. The second stamp is the first instant of the day after the last day. The loader counts the events between the
+ * two, so an event counts once.
  */
 export function periodStamps(range: DayRange): { from: string; until: string } {
   return { from: `${range.from}T00:00:00+03:00`, until: `${addDays(range.to, 1)}T00:00:00+03:00` };

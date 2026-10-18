@@ -16,11 +16,11 @@ const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(row
 const HOUR = 3_600_000;
 
 /**
- * A text bound for a stamp next to this time, so the index on created_at (collate "C") serves the read at that end (performance
- * audit DB-1): the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time moved by hours. A lower bound moves back 36 hours, an upper bound
- * forward 36 hours. Every stored stamp is ISO text with an offset between -12:00 and +14:00. A stamp at or after the time has
- * a text at or after the UTC text of (the time minus 12 hours), so minus 36 hours is safe as well. A stamp before the time has
- * a text before the UTC text of (the time plus 14 hours), so plus 36 hours is safe as well. So the bounds never leave out a row
+ * A text bound for a stamp next to this time. The index on created_at (collate "C") then serves the read at that end (performance
+ * audit DB-1). The bound is the UTC text 'YYYY-MM-DDTHH:MM:SS' of the time moved by hours. A lower bound moves back 36 hours, an upper
+ * bound forward 36 hours. Every stored stamp is ISO text with an offset between -12:00 and +14:00. A stamp at or after the time has
+ * a text at or after the UTC text of (the time minus 12 hours). Minus 36 hours is safe as well. A stamp before the time has
+ * a text before the UTC text of (the time plus 14 hours). Plus 36 hours is safe as well. The bounds never leave out a row
  * that the time test keeps. Null for a time that does not parse: the time test alone decides.
  */
 function textBoundOf(time: string, hours: number): string | null {

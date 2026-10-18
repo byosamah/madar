@@ -335,7 +335,7 @@ export const meUpdateProfile = defineCall({
   run(input, ctx) {
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.actor.id];
-    applyPatch(ctx, me, input,{ projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });
+    applyPatch(ctx, me, input, { projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });
     return me;
   },
 });
@@ -355,7 +355,7 @@ export const meUpdatePreferences = defineCall({
     };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.actor.id];
-    applyPatch(ctx, me, { preferences: next },{ projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
+    applyPatch(ctx, me, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
     return me;
   },
 });

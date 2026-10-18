@@ -18,7 +18,7 @@ type Input = { period: ReportPeriodKind; start?: string };
  * Office tasks stay out.
  *
  * Counts: the stage moves, completions and pauses of the period, counted in SQL, one count for each key (REPORT_KEYS). The reviews
- * of the period load as event rows of the projects (five fields each), and the handler counts them for each person through the person
+ * of the period load as event rows of the projects (five fields each). The handler counts them for each person through the person
  * who acted for (actingForId). One read for all people, never one count for each person. An office task has no project, so its
  * reviews stay out.
  *

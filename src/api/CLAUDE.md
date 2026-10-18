@@ -210,7 +210,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## Office rights and roles (owner, 2026-10-18, fbk_014)
 - The seven office rights are in `OfficeRight` (`contract/entities.ts`). The Admin holds all seven.
 - `Settings.roles` holds the rights of Management, Accounting and Member, and the custom roles. `rightsOf` (`rights.ts`) reads them.
-- A check of an office right reads the person with `withRights(state, user)`. Each loader, server call and handler does this.
+- A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`). A loader
+  (`Load.authority`) and a server call use `withRights(state, user)`.
 - Only the Admin changes a role: `systemRole` or `roleId`. The reason is `admin_only`. A save with the same value is no change.
 - The undo of a role change follows the same rule (`handlers/history.ts`).
 - `admin.manage` reads only the Admin role, so it needs no office right.
@@ -223,8 +224,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`
   (`reportPeriod.ts`) picks the period that holds `start`; with no start it gives the last full period before today.
 - The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `admin.manage` (null otherwise).
-- The handler reads the counts of stage moves, completions, pauses and reviews from `state.counts` (`REPORT_KEYS`, the loader counts
-  them in SQL). Without them it counts `state.events` (the prototype). Both give the same numbers (`loaders.test.ts`).
+- The stage moves, completions and pauses come from `state.counts` (`REPORT_KEYS`, the loader counts them in SQL). The reviews come from
+  the review events that the loader reads once (`state.events`). The handler counts them for each person by `actingForId`. Without
+  `state.counts` it counts `state.events` for the other three too (the prototype). Both give the same numbers (`loaders.test.ts`).
 - Office tasks stay out of the report. The MCP tool is `reports.office`, on the right list `MCP_BY_RIGHT` (`server/mcp/tools.ts`): an agent
   gets it only when its person holds `report.office`.
 - The answer carries `design`: the design guide `REPORT_DESIGN` (`reportDesign.ts`). Its colors and sizes copy `tokens.css`, and

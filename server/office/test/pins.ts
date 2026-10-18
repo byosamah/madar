@@ -27,8 +27,8 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'events.list', input: { limit: 500 }, actorId: 'usr_001', rowsRead: 19, sinceHours: 1 },
   // reports.office (fbk_016, Task 28): 240,966 rows read for the year, measured on the year office (week 5,138, month 23,194, quarter
   // 86,150), plus 10%. The read holds the tasks of the projects (no date column), the Tracker entries, the payments and the review
-  // events. Four event reads (stage moves, completions, pauses, reviews) each scan the events of the period on created_at, because
-  // the events have no index on the verb. The reason and the test copy time are in proof.md, Wave 4 report data.
+  // events. Four event reads (stage moves, completions, pauses, reviews) each scan the events of the period on created_at.
+  // The events have no index on the verb. The reason and the test copy time are in proof.md, Wave 4 report data.
   { name: 'reports.office', input: { period: 'year', start: '2026-01-01' }, actorId: 'usr_001', rowsRead: 265_063 },
   // The read that keeps events_project (Task 18 Step 5: 62 rows with it, 12,815 without it). Wave 0 had no pin for it.
   { name: 'events.list', input: { projectId: 'prj_001', limit: 50 }, actorId: 'usr_001', rowsRead: 69 },

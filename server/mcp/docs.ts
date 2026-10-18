@@ -1,7 +1,8 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
- * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of the 48 tools its title and description:
- * the 44 of every agent, the 3 of an agent of an Admin, and reports.office for a person with the report right (tools.ts).
+ * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
+ * the 48 tools its title and description. Every agent gets 44 of them. An agent of an Admin gets 3 more. An agent of a person with
+ * the report right gets reports.office (tools.ts).
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
@@ -54,8 +55,8 @@ export const INSTRUCTIONS = [
 const ROLE_NAMES: Record<SystemRole, string> = { admin: 'Admin', management: 'Management', accounting: 'Accounting', member: 'Member' };
 
 /**
- * The role name that the Madar screens show for a person: the name of the custom role of a Member, or the name of the built-in role
- * (owner, 2026-10-18, fbk_014). A custom role that the office no longer has shows the built-in name.
+ * The role name that the Madar screens show for a person (owner, 2026-10-18, fbk_014). It is the name of the custom role of a Member,
+ * or the name of the built-in role. A custom role that the office no longer has shows the built-in name.
  */
 export function roleNameOf(person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | undefined): string {
   const custom = person.systemRole === 'member' && person.roleId ? roles?.custom?.find((role) => role.id === person.roleId) : undefined;

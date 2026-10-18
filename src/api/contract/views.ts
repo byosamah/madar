@@ -320,7 +320,7 @@ export type ReportPerson = z.infer<typeof ReportPerson>;
 export const ReportMoney = z.object({ received: z.number().nonnegative(), dueInPeriod: z.number().nonnegative(), pastDueAtEnd: z.number().nonnegative() });
 /**
  * The design guide of the office report (owner, 2026-10-18, fbk_016). An agent builds the document from it. The colors and sizes are
- * the light values of tokens.css, the mark is the Madar logo, and the rules are short English instructions for the agent.
+ * the light values of tokens.css. The mark is the Madar logo. The rules are short English instructions for the agent.
  */
 export const ReportDesign = z.object({
   brand: z.object({
@@ -338,17 +338,19 @@ export const ReportDesign = z.object({
   rules: z.array(z.string().max(240)).max(12),
 });
 export type ReportDesign = z.infer<typeof ReportDesign>;
+export const ReportTotals = z.object({
+  projects: z.object({ active: ReportCount, started: ReportCount, completed: ReportCount, paused: ReportCount }),
+  tasks: z.object({ done: ReportCount, made: ReportCount, pastDueAtEnd: ReportCount }),
+  deadlines: ReportDeadlines,
+  submissions: ReportCount,
+  stageMoves: ReportCount,
+});
+export type ReportTotals = z.infer<typeof ReportTotals>;
 export const OfficeReport = z.object({
   period: z.object({ kind: ReportPeriodKind, from: Day, to: Day }),
   generatedAt: Stamp,
   office: z.object({ name: z.string() }),
-  totals: z.object({
-    projects: z.object({ active: ReportCount, started: ReportCount, completed: ReportCount, paused: ReportCount }),
-    tasks: z.object({ done: ReportCount, made: ReportCount, pastDueAtEnd: ReportCount }),
-    deadlines: ReportDeadlines,
-    submissions: ReportCount,
-    stageMoves: ReportCount,
-  }),
+  totals: ReportTotals,
   projects: z.array(ReportProject).max(200),
   people: z.array(ReportPerson),
   tracker: z.object({ opened: ReportCount, closed: ReportCount, waitingOnClientAtEnd: ReportCount }),

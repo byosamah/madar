@@ -100,8 +100,8 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
   });
 
   it('keeps a row at another offset just before an upper bound (atBefore), so the text bound drops no row', async () => {
-    // The bound is 09:35 at +03:00, which is 06:35 UTC. Both new rows are before it in time, and their local text sorts after the
-    // local text of the bound, so a text bound on the local time would drop the +14:00 row.
+    // The bound is 09:35 at +03:00, which is 06:35 UTC. Both new rows are before it in time.
+    // Their local text sorts after the local text of the bound. A text bound on the local time would drop the +14:00 row.
     const { read, memory } = await both((state) => {
       Object.assign(state.events, {
         evt_801: { id: 'evt_801', seq: 801, targetType: 'task', targetId: 'tsk_001', projectId: 'prj_001', verb: 'task.updated', createdAt: '2026-10-16T20:00:00.000+14:00', undoneBy: null },

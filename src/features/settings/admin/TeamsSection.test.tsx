@@ -81,7 +81,7 @@ describe('the Teams section', () => {
     expect(screen.queryByRole('region', { name: 'Office settings' })).toBeNull();
     first.unmount();
     await renderApp('/admin/teams', as('usr_005'));
-    expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
+    expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Teams' })).toBeNull();
   });
 });

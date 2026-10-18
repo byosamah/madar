@@ -1091,7 +1091,7 @@
     },
     "title": "Admin",
     "subtitle": "People and office settings.",
-    "onlyAdmin": "Only the Admin and Management can open this page.",
+    "onlyAdmin": "You have no right that opens a part of this page.",
     "staleAfter": "Days until a paused project is stale",
     "staleAfterHint": "A paused project turns stale after this many days. Use 7 to 365."
   },

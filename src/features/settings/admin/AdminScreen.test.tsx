@@ -25,7 +25,7 @@ describe('the Admin page', () => {
     await renderApp('/admin', (state: State) => {
       state.session.currentUserId = 'usr_005';
     });
-    expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
+    expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
   });
 
@@ -275,7 +275,7 @@ describe('the Admin side list', () => {
   it('shows Accounting and a member the calm note at a section link too, with no list', async () => {
     for (const user of ['usr_011', 'usr_005']) {
       const view = await renderApp('/admin/people', as(user));
-      expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
+      expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
       expect(screen.queryByRole('navigation', { name: 'Admin sections' })).toBeNull();
       expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
       view.unmount();
@@ -405,7 +405,7 @@ describe('the Admin page for Management and Accounting', () => {
     expect(within(await sectionList()).getAllByRole('link').map((link) => link.textContent)).toEqual(['People', 'Teams']);
     expect(screen.queryByRole('region', { name: 'Office settings' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Project templates' })).toBeNull();
-    expect(screen.queryByText('Only the Admin and Management can open this page.')).toBeNull();
+    expect(screen.queryByText('You have no right that opens a part of this page.')).toBeNull();
     await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     // Only the Admin changes a role, so Management reads the role of the new person as text (owner, 2026-10-18, fbk_014).
@@ -461,7 +461,7 @@ describe('the Admin page for Management and Accounting', () => {
   it('tells Accounting and a member the page is not theirs', async () => {
     for (const user of ['usr_011', 'usr_005']) {
       const view = await renderApp('/admin', as(user));
-      expect(await screen.findByText('Only the Admin and Management can open this page.')).toBeInTheDocument();
+      expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
       expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
       view.unmount();
     }
