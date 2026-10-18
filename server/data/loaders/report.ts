@@ -42,8 +42,9 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
     c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_COMPLETED_VERB] }, { field: 'after', key: 'status', in: ['completed'] }, ...time],
   }, ids, (projectId) => REPORT_KEYS.completed(projectId));
   await L.countWhere({ c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_PAUSED_VERB] }, ...time] }, ids, (projectId) => REPORT_KEYS.paused(projectId));
+  // No project filter here: a long list of projects makes SQLite scan the period once for each project. The handler drops the events of other projects.
   await L.select({
-    c: 'events', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, { col: 'project_id', in: ids }, ...time],
+    c: 'events', where: [{ col: 'verb', in: [...REPORT_REVIEW_VERBS] }, ...time],
     pick: ['id', 'verb', 'actingForId', 'projectId', 'createdAt'],
   });
 }
