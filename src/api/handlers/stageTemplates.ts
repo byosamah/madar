@@ -5,6 +5,7 @@ import { forbidden, invalid, notFound } from '../errors';
 import { recordCreate, recordDelete } from '../events';
 import { nextId, stageTemplatesOf } from '../store';
 import { namesUnder } from '../views';
+import { can } from '../permissions';
 import { assertCan } from './shared';
 
 const TemplateName = z.string().trim().min(1).max(60);
@@ -18,7 +19,7 @@ export const StageTemplateRow = StageTemplate.extend({
 });
 
 function mayDelete(ctx: Ctx, template: StageTemplate): boolean {
-  return ctx.authority.active && (ctx.authority.systemRole === 'admin' || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
 }
 
 const stageTemplatesList = defineCall({
@@ -63,7 +64,7 @@ const stageTemplatesDelete = defineCall({
     const templates = stageTemplatesOf(ctx.state);
     const template = templates[input.id];
     if (!template) throw notFound('Stage template', input.id);
-    if (!mayDelete(ctx, template)) throw forbidden('Only the person who saved this template or the Admin can delete it.');
+    if (!mayDelete(ctx, template)) throw forbidden('Only the person who saved this template, or a person with the template right, can delete it.');
     delete templates[input.id];
     recordDelete(ctx, { projectId: null, verb: 'stageTemplate.deleted', targetType: 'stageTemplate', targetId: input.id, entity: template });
     return { ok: true as const };

@@ -72,6 +72,20 @@ describe('who may use the payment calls', () => {
     }
   });
 
+  it('lets a custom role with the payment right use every payment call, and a Member with another custom role none (fbk_014)', async () => {
+    const t = world();
+    t.store.state.settings.roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }] };
+    t.store.state.users.usr_011 = makeUser('usr_011', { name: 'Cashier Person', roleId: 'rol_001' });
+    t.store.state.users.usr_012 = makeUser('usr_012', { name: 'Other Person', roleId: 'rol_002' });
+    t.as('usr_011');
+    const row = await t.api.call('payments.create', NEW);
+    expect(await t.api.call('payments.list', { projectId: 'prj_001' })).toHaveLength(1);
+    expect((await t.api.call('payments.markReceived', { id: row.payment.id })).status).toBe('received');
+    t.as('usr_012');
+    await expect(t.api.call('payments.list', { projectId: 'prj_001' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('payments.create', NEW)).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
   it('refuses an inactive person with the right', async () => {
     const t = world();
     t.store.state.users.usr_007.active = false;

@@ -45,7 +45,11 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
     for (const word of ['no_area', 'stage_no_end']) expect(TOOL_DOCS['projects.list'].description).toContain(word);
   });
 
-  it('say that the money is for the Admin, Management and Accounting only, else null', () => {
-    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/money[^.]*Admin, Management, Accounting[^.]*null/);
+  it('say that the money is for people with the payment right, else null (fbk_014)', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/money[^.]*payment right[^.]*null/);
+  });
+
+  it('say in the instructions that the Admin decides what each role may do (fbk_014)', () => {
+    expect(INSTRUCTIONS).toContain('The Admin decides what each role may do. A call that the role of your person may not make fails for you too.');
   });
 });

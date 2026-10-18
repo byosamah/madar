@@ -1,6 +1,7 @@
 import type { User } from '../../src/api/contract/entities';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
-import { can } from '../../src/api/permissions';
+import { type Actor, can } from '../../src/api/permissions';
+import { withRights } from '../../src/api/rights';
 import { nowStamp } from '../../src/lib/dates';
 import { authAdminOf } from '../auth/admin';
 import '../auth/effects';
@@ -43,10 +44,13 @@ export const INVITE_SENT_LITE =
 export const RESEND_PER_DAY = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The person whose rights the call uses: the actor, or for an agent the person it acts for. */
-function authorityOf(ctx: ServerCallCtx): User {
+/**
+ * The person whose rights the call uses: the actor, or for an agent the person it acts for. The office rights of the office settings
+ * are attached, so the people right reads the role of that person (fbk_014).
+ */
+function authorityOf(ctx: ServerCallCtx): Actor {
   const actor = resolveActor(ctx.office, ctx.principal);
-  return actor.kind === 'agent' ? ctx.office.lists.users[actor.ownerId!] : actor;
+  return withRights(ctx.office.lists, actor.kind === 'agent' ? ctx.office.lists.users[actor.ownerId!] : actor);
 }
 
 function assertManagesPeople(authority: User): void {

@@ -31,9 +31,9 @@ export const ProjectTemplateRow = ProjectTemplate.extend({
 });
 export type ProjectTemplateRow = z.infer<typeof ProjectTemplateRow>;
 
-/** The person who saved a template, or the Admin, changes and deletes it (as stage templates, 2026-10-01). */
+/** The person who saved a template, or a person with the template right, changes and deletes it (owner, 2026-10-18). */
 function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
-  return ctx.authority.active && (ctx.authority.systemRole === 'admin' || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
 }
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
@@ -149,7 +149,7 @@ const projectTemplatesSave = defineCall({
     if (givenId !== undefined) {
       const template = templates[givenId];
       if (!template) throw notFound('Project template', givenId);
-      if (!mayChange(ctx, template)) throw forbidden('Only the person who saved this template or the Admin can change it.');
+      if (!mayChange(ctx, template)) throw forbidden('Only the person who saved this template, or a person with the template right, can change it.');
       assertParts(ctx, parts, template.id);
       const same = JSON.stringify(Parts.parse({ name: template.name, roles: template.roles, stages: template.stages, tasks: template.tasks })) === JSON.stringify(parts);
       if (!same) {
@@ -173,7 +173,7 @@ const projectTemplatesDelete = defineCall({
     const templates = projectTemplatesOf(ctx.state);
     const template = templates[input.id];
     if (!template) throw notFound('Project template', input.id);
-    if (!mayChange(ctx, template)) throw forbidden('Only the person who saved this template or the Admin can delete it.');
+    if (!mayChange(ctx, template)) throw forbidden('Only the person who saved this template, or a person with the template right, can delete it.');
     delete templates[input.id];
     recordDelete(ctx, { projectId: null, verb: 'projectTemplate.deleted', targetType: 'projectTemplate', targetId: input.id, entity: template });
     return { ok: true as const };

@@ -172,23 +172,40 @@ function roleWorld() {
 const PERSON = { name: 'New Person', email: 'new@madar.test', discipline: 'MEP' };
 
 describe('Management and people', () => {
-  it('lets Management add a person with any role except Admin', async () => {
+  it('lets Management add a Member, and only the Admin adds a person with another role (fbk_014)', async () => {
     const t = roleWorld();
     t.as('usr_006');
-    for (const systemRole of ['member', 'management', 'accounting'] as const) {
-      const created = await t.api.call('users.create', { ...PERSON, email: `${systemRole}@madar.test`, systemRole });
-      expect(created.systemRole).toBe(systemRole);
+    const created = await t.api.call('users.create', { ...PERSON, email: 'member@madar.test', systemRole: 'member' });
+    expect(created.systemRole).toBe('member');
+    for (const systemRole of ['management', 'accounting'] as const) {
+      await expect(t.api.call('users.create', { ...PERSON, email: `${systemRole}@madar.test`, systemRole })).rejects.toMatchObject({
+        code: 'forbidden', details: { reason: 'admin_only' },
+      });
     }
     await expect(t.api.call('users.create', { ...PERSON, systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
     expect(Object.values(t.store.state.users).filter((u) => u.systemRole === 'admin')).toHaveLength(1);
   });
 
-  it('lets Management change a role among member, management and accounting, and turn a person off', async () => {
+  it('lets Management keep a role as it is and turn a person off, but never change a role (fbk_014)', async () => {
     const t = roleWorld();
     t.as('usr_006');
-    expect((await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } })).systemRole).toBe('accounting');
-    expect((await t.api.call('users.update', { id: 'usr_007', patch: { systemRole: 'member' } })).systemRole).toBe('member');
+    expect((await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'member' } })).systemRole).toBe('member');
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } })).rejects.toMatchObject({
+      code: 'forbidden', details: { reason: 'admin_only' },
+    });
+    await expect(t.api.call('users.update', { id: 'usr_007', patch: { systemRole: 'member' } })).rejects.toMatchObject({
+      code: 'forbidden', details: { reason: 'admin_only' },
+    });
     expect((await t.api.call('users.deactivate', { id: 'usr_004' })).active).toBe(false);
+  });
+
+  it('refuses a custom role on an agent, because an agent has no role of its own (fbk_014)', async () => {
+    const t = roleWorld();
+    t.store.state.settings.roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }] };
+    t.as('usr_001');
+    await expect(t.api.call('users.update', { id: 'usr_009', patch: { roleId: 'rol_001' } })).rejects.toMatchObject({
+      code: 'invalid_input', details: { reason: 'agent_role' },
+    });
   });
 
   it('never lets Management make an Admin, change an Admin, or change an Admin through another path', async () => {
@@ -277,7 +294,10 @@ describe('Management and people', () => {
     const t = roleWorld();
     t.store.state.users.usr_009.ownerId = 'usr_006';
     t.as('usr_009');
-    expect((await t.api.call('users.create', { ...PERSON, systemRole: 'accounting' })).systemRole).toBe('accounting');
+    expect((await t.api.call('users.create', { ...PERSON, systemRole: 'member' })).systemRole).toBe('member');
+    await expect(t.api.call('users.create', { ...PERSON, email: 'y@madar.test', systemRole: 'accounting' })).rejects.toMatchObject({
+      code: 'forbidden', details: { reason: 'admin_only' },
+    });
     await expect(t.api.call('users.create', { ...PERSON, email: 'z@madar.test', systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(t.api.call('users.update', { id: 'usr_001', patch: { name: 'x' } })).rejects.toMatchObject({ code: 'forbidden' });
   });
@@ -303,10 +323,10 @@ describe('Management and people', () => {
   it('undoes its own change to a person, and refuses an undo that touches an Admin', async () => {
     const t = roleWorld();
     t.as('usr_006');
-    await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } }, { correlationId: 'story_role' });
-    await t.api.call('events.undoStory', { correlationId: 'story_role' });
-    expect(t.store.state.users.usr_003.systemRole).toBe('member');
-    await t.api.call('users.update', { id: 'usr_004', patch: { systemRole: 'accounting' } }, { correlationId: 'story_two' });
+    await t.api.call('users.update', { id: 'usr_003', patch: { name: 'Sara Renamed' } }, { correlationId: 'story_name' });
+    await t.api.call('events.undoStory', { correlationId: 'story_name' });
+    expect(t.store.state.users.usr_003.name).toBe('Sara Team');
+    await t.api.call('users.update', { id: 'usr_004', patch: { name: 'Omar Renamed' } }, { correlationId: 'story_two' });
     // An Admin made that person an Admin since. Management cannot undo its change to a person who is now an Admin.
     t.store.state.users.usr_004.systemRole = 'admin';
     await expect(t.api.call('events.undoStory', { correlationId: 'story_two' })).rejects.toMatchObject({ code: 'forbidden' });

@@ -6,7 +6,7 @@
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
 
-import type { SystemRole, User } from '../../src/api/contract/entities';
+import type { RoleSettings, SystemRole, User } from '../../src/api/contract/entities';
 
 export const INSTRUCTIONS = [
   'Madar is the project tool of an architecture office: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
@@ -41,6 +41,8 @@ export const INSTRUCTIONS = [
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
+  'The Admin decides what each role may do. A call that the role of your person may not make fails for you too.',
+  '',
   'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
   '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names. projects.list takes subCompanyId, the sub-company of a project.',
@@ -50,11 +52,20 @@ export const INSTRUCTIONS = [
 const ROLE_NAMES: Record<SystemRole, string> = { admin: 'Admin', management: 'Management', accounting: 'Accounting', member: 'Member' };
 
 /**
- * The answer of madar.readFirst: INSTRUCTIONS plus one line that names the person the agent acts for and that person's role
- * (spec 1, section 17, rule 7). run.ts (G3) passes the users row of the agent principal's owner.
+ * The role name that the Madar screens show for a person: the name of the custom role of a Member, or the name of the built-in role
+ * (owner, 2026-10-18, fbk_014). A custom role that the office no longer has shows the built-in name.
  */
-export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole'>): string {
-  return `${INSTRUCTIONS}\n\nYou act for ${person.name}, whose role in Madar is ${ROLE_NAMES[person.systemRole]}.`;
+export function roleNameOf(person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | undefined): string {
+  const custom = person.systemRole === 'member' && person.roleId ? roles?.custom?.find((role) => role.id === person.roleId) : undefined;
+  return custom ? custom.name : ROLE_NAMES[person.systemRole];
+}
+
+/**
+ * The answer of madar.readFirst: INSTRUCTIONS plus one line that names the person the agent acts for and that person's role
+ * (spec 1, section 17, rule 7). run.ts (G3) passes the users row of the agent principal's owner and the office roles.
+ */
+export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings): string {
+  return `${INSTRUCTIONS}\n\nYou act for ${person.name}, whose role in Madar is ${roleNameOf(person, roles)}.`;
 }
 
 export const TOOL_DOCS: Record<string, { title: string; description: string }> = {
@@ -88,7 +99,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews), waitingForUs (client items waiting for our reply), inReview (by reviewer), schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea; Admin only) and money (payments due; Admin, Management, Accounting only) are null for anyone else.',
+    description: 'Office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews), waitingForUs (client items waiting for our reply), inReview (by reviewer), schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea; Admin only) and money (payments due) needs the payment right (default Admin, Management, Accounting); else null.',
   },
 
   'deadlines.create': {
@@ -233,7 +244,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'users.list': {
     title: 'List people',
-    description: 'Lists the people of the office: the English name (name), the Arabic name (nameAr, when the person has one), discipline, role and whether each is active. Use the name that fits the language of your person. Set includeInactive to see people who are turned off. Agents are in the list too, with their owner. Profile pictures are left out.',
+    description: 'Lists the people of the office: the English name (name), the Arabic name (nameAr, when the person has one), discipline, role, roleId (the custom role of a Member, null when none) and whether each is active. Use the name that fits the language of your person. Set includeInactive to see people who are turned off. Agents are in the list too, with their owner. Profile pictures are left out.',
   },
   'subCompanies.list': {
     title: 'List sub-companies',

@@ -229,6 +229,13 @@ describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
     expect(readFirstAnswer({ name: 'Omar', systemRole: 'admin' })).toContain('Admin');
   });
 
+  it('names the custom role of a Member with the name of that role, and the built-in role otherwise (fbk_014)', () => {
+    const roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage' as const] }] };
+    expect(readFirstAnswer({ name: 'Ali Cash', systemRole: 'member', roleId: 'rol_001' }, roles)).toContain('whose role in Madar is Cashier.');
+    expect(readFirstAnswer({ name: 'Ali Cash', systemRole: 'member', roleId: 'rol_999' }, roles)).toContain('whose role in Madar is Member.');
+    expect(readFirstAnswer({ name: 'Ali Cash', systemRole: 'member', roleId: 'rol_001' })).toContain('whose role in Madar is Member.');
+  });
+
   it('names the person in English, also when the person has an Arabic name (owner item 12)', () => {
     const person = { name: 'Sara Ali', nameAr: 'سارة علي', systemRole: 'member' as const };
     const answer = readFirstAnswer(person);

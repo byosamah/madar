@@ -65,7 +65,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `ProjectTemplate` (`ptp_`): roles (a name and a default person), stages, and tasks with a start day and a length in working
   days (Sunday to Thursday, day 0 is the project start) and `flexible`. Ids inside a template (`r1`, `s1`, `t1`) are unique in it.
 - `projectTemplates.list`, `.save` (no `id` makes one, an `id` changes one) and `.delete`. Saving needs `project.create`; a change
-  or a delete needs the person who saved it or the Admin. MCP: deny list.
+  or a delete needs the person who saved it or the template right (`templates.manageAll`). MCP: deny list.
 - `projects.create` takes `template: { templateId, startDate, endDate?, roles, fixedTaskIds }`, never with `stages`, `startDate`
   or `targetEndDate`. The plan comes from `lib/projectPlan.ts`, the same function as the screen. Locked tasks that do not fit
   refuse with reason `template_too_short` (`names` holds the days they need). A role person joins the team; a role with no
@@ -206,6 +206,15 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `Project.geo` is an optional `GeoPoint` (`lat` -90 to 90, `lng` -180 to 180). `ProjectSummary.geo` is that point or null (`summaryOf`).
 - `projects.create` takes `geo` (default null). `projects.update` takes `patch.geo` (null removes the pin). Both refuse a value out of range.
 - MCP: `TOOL_DOCS` of `projects.update`, `projects.get` and `projects.list` name `geo`. `samples.json` holds inputs only, so it did not change.
+
+## Office rights and roles (owner, 2026-10-18, fbk_014)
+- The seven office rights are in `OfficeRight` (`contract/entities.ts`). The Admin holds all seven.
+- `Settings.roles` holds the rights of Management, Accounting and Member, and the custom roles. `rightsOf` (`rights.ts`) reads them.
+- A check of an office right reads the person with `withRights(state, user)`. Each loader, server call and handler does this.
+- Only the Admin changes a role: `systemRole` or `roleId`. The reason is `admin_only`. A save with the same value is no change.
+- The undo of a role change follows the same rule (`handlers/history.ts`).
+- `admin.manage` reads only the Admin role, so it needs no office right.
+- `session.get` returns the authority with its `officeRights`, so a screen reads the same rights.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

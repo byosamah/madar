@@ -14,6 +14,23 @@ import { assertCan, roleIn, touch } from './shared';
 type Fields = Record<string, unknown>;
 const fieldsOf = (value: unknown): Fields => (value !== null && typeof value === 'object' ? (value as Fields) : {});
 
+/** A template change is taken back by the person who saved the template, or by a person with the template right (owner, 2026-10-18). */
+const mayUndoTemplate = (ctx: Ctx, createdBy: string | undefined): boolean =>
+  can(ctx.authority, 'templates.manageAll') || createdBy === ctx.authority.id;
+
+/**
+ * True when a change to a person sets a role: a systemRole or a custom role that the change moves (owner, 2026-10-18). A new person
+ * with the Member role and no custom role sets no role.
+ */
+function changesRole(event: Event): boolean {
+  if (event.verb === 'user.created') {
+    const made = fieldsOf(event.after);
+    return (made.systemRole ?? 'member') !== 'member' || Boolean(made.roleId);
+  }
+  const after = fieldsOf(event.after);
+  return 'systemRole' in after || 'roleId' in after;
+}
+
 /**
  * The rights of a change of an office task, of its comments or of its files: the people of that task (owner, 2026-10-06). A list
  * reads the live task only, so the changes of a deleted office task show to the Admin alone. An Undo also reads the last copy of
@@ -194,28 +211,28 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'team':
       return need('people.manage');
     case 'stageTemplate': {
-      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
+      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the template right.
       if (event.verb === 'stageTemplate.created') need('project.create');
       const saved = (event.before ?? event.after) as { createdBy?: string } | null;
-      if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'taskTemplate': {
-      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the Admin.
+      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the template right.
       const saved = (event.before ?? event.after) as { createdBy?: string } | null;
-      if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'projectTemplate': {
-      // Every undo of a project template follows the rule of a change: the person who saved it, or the Admin. A change keeps
+      // Every undo of a project template follows the rule of a change: the person who saved it, or the template right. A change keeps
       // no author in its event, so the template itself names the author (owner, 2026-10-05, item 6a).
       need('project.create');
       const saved = (ctx.state.projectTemplates?.[event.targetId] ?? event.before ?? event.after) as { createdBy?: string } | null;
-      if (ctx.authority.systemRole !== 'admin' && saved?.createdBy !== ctx.authority.id) throw forbidden('Only the person who saved it or the Admin can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'client':
-      return need(event.verb === 'client.created' ? 'project.create' : 'admin.manage');
+      return need(event.verb === 'client.created' ? 'project.create' : 'clients.manage');
     case 'user':
       if (event.verb === 'user.profile_changed' || event.verb === 'user.preferences_changed') {
         if (principalOf(ctx.state, event.targetId) !== ctx.authority.id) throw forbidden('You can undo changes to your own profile only.');
@@ -228,8 +245,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // An agent may not change, turn on or re-role a person (MCP deny list, users.update), so it may not undo such a change
       // either: an undo of an email change gives the sign-in email back to the old mailbox (security scan 2026-10-07, F1).
       if (ctx.actor.kind === 'agent') throw forbidden('Only a person undoes a change to people, in the Madar screens.');
-      // Management may undo its own changes to people, but never a change that makes or touches an Admin.
+      // Management may undo its own changes to people, but never a change that makes or touches an Admin, and never a change of a role.
       need('people.manage');
+      if (ctx.authority.systemRole !== 'admin' && changesRole(event)) {
+        throw forbidden('Only an Admin changes the role of a person.', { action: 'people.manage', reason: 'admin_only' });
+      }
       if (ctx.authority.systemRole !== 'admin' && (record.systemRole === 'admin' || holdsAdminRights(ctx.state, ctx.state.users[event.targetId]))) {
         throw forbidden('Only an Admin can change an Admin or the agent of an Admin.');
       }

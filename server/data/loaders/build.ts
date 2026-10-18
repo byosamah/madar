@@ -1,4 +1,5 @@
-import type { User } from '../../../src/api/contract/entities';
+import type { Actor } from '../../../src/api/permissions';
+import { withRights } from '../../../src/api/rights';
 import { emptyState, type State } from '../../../src/api/store';
 import { OFFICE_COLLECTIONS, type OfficeSnapshot } from '../../core/types';
 import { pairEventFields } from '../rows';
@@ -35,8 +36,11 @@ const OFFICE = new Set<string>(OFFICE_COLLECTIONS);
 export class Load {
   readonly write: boolean;
   readonly office: OfficeSnapshot['lists'];
-  /** The person whose rights apply, as execute.ts resolves it. Undefined when the actor is not in the office. */
-  readonly authority: User | undefined;
+  /**
+   * The person whose rights apply, as execute.ts resolves it, with the office rights of the office settings (rights.ts).
+   * Undefined when the actor is not in the office.
+   */
+  readonly authority: Actor | undefined;
   readonly #src: Source;
   readonly #actorId: string;
   readonly #rows = new Map<TableCollection, Map<string, Row>>();
@@ -49,7 +53,8 @@ export class Load {
     this.office = lx.office.lists;
     const actor = this.office.users[lx.actorId];
     const owner = actor?.kind === 'agent' && actor.ownerId ? this.office.users[actor.ownerId] : undefined;
-    this.authority = owner && owner.kind === 'human' && owner.active ? owner : actor;
+    const who = owner && owner.kind === 'human' && owner.active ? owner : actor;
+    this.authority = who ? withRights(this.office, who) : undefined;
   }
 
   get src(): Source {

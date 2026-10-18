@@ -24,7 +24,7 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     const agent = ctx.office.lists.users[ctx.principal.userId];
     const person = agent?.ownerId ? ctx.office.lists.users[agent.ownerId] : undefined;
     if (!person) return { ok: false, error: { code: 'unauthenticated', message: 'This agent has no active person to act for.', details: { reason: 'account_off' } } };
-    return { ok: true, output: readFirstAnswer(person), changed: false };
+    return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles), changed: false };
   }
   const { storyId, ...input } = args;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;

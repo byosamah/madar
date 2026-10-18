@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { Client } from '../../../api/contract/entities';
+import { can } from '../../../api/permissions';
 import type { ProjectSummary } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { useAction, useCall } from '../../../app/runtime';
@@ -85,7 +86,8 @@ export function ClientsSection() {
   const projects = useCall('projects.list', { status: 'all' });
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
-  if (session.data?.authority.systemRole !== 'admin') return null;
+  // The clients of the office are for the people with the client right (fbk_014). The Admin holds it.
+  if (!session.data || !can(session.data.authority, 'clients.manage')) return null;
 
   const all = clients.data ?? [];
   const byClient = new Map<string, ProjectSummary[]>();

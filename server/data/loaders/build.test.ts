@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { can } from '../../../src/api/permissions';
 import type { State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { OFFICE_COLLECTIONS } from '../../core/types';
@@ -51,6 +52,22 @@ describe('Load.state()', () => {
     expect(state.users).not.toBe(office.lists.users);
     expect(state.users).toEqual(office.lists.users);
     expect(Object.isFrozen(state.users.usr_001)).toBe(false);
+  });
+});
+
+describe('the authority of a load holds the office rights of its person (fbk_014)', () => {
+  it('gives a custom role its right, and an agent of that person the same right', () => {
+    const state = structuredClone(seed) as State;
+    state.settings.roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }] };
+    state.users.usr_050 = { ...state.users.usr_003, id: 'usr_050', email: 'cashier@madar.test', roleId: 'rol_001' };
+    state.users.usr_052 = { ...state.users.usr_003, id: 'usr_052', email: 'agent@madar.test', kind: 'agent', ownerId: 'usr_050' };
+    const office = officeOf(state);
+    const own = new Load({ src: memorySource(structuredClone(state)), office, actorId: 'usr_050', write: false });
+    expect(can(own.authority!, 'payment.manage')).toBe(true);
+    expect(can(own.authority!, 'people.manage')).toBe(false);
+    const agent = new Load({ src: memorySource(structuredClone(state)), office, actorId: 'usr_052', write: false });
+    expect(agent.authority?.id).toBe('usr_050');
+    expect(can(agent.authority!, 'payment.manage')).toBe(true);
   });
 });
 

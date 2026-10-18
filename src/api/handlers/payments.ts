@@ -13,8 +13,9 @@ const Amount = Payment.shape.amount;
 const Note = z.string().max(500);
 
 /**
- * Payments are for the Admin, Management and Accounting only. No payment call works for anyone else, a project leader and
- * an agent of a member included. None of these calls marks the project as updated, so a member never sees a sign of a change.
+ * Payments are for the people with the payment right (fbk_014): by default the Admin, Management and Accounting.
+ * No payment call works for anyone else, a project leader and an agent of a member included. None of these calls marks the project
+ * as updated, so a member never sees a sign of a change.
  */
 function requireRight(ctx: Ctx): void {
   assertCan(ctx, 'payment.manage');

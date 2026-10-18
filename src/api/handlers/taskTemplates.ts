@@ -6,6 +6,7 @@ import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, taskTemplatesOf } from '../store';
 import { namesUnder } from '../views';
+import { can } from '../permissions';
 import { assertCan, requireTask, roleIn } from './shared';
 
 const Title = z.string().trim().min(1).max(200);
@@ -21,7 +22,7 @@ export const TaskTemplateRow = TaskTemplate.extend({
 export type TaskTemplateRow = z.infer<typeof TaskTemplateRow>;
 
 function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
-  return ctx.authority.active && (ctx.authority.systemRole === 'admin' || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
 }
 
 const rowOf = (ctx: Ctx, template: TaskTemplate) => ({
@@ -33,10 +34,10 @@ function assertNameFree(ctx: Ctx, name: string, stageName: string, exceptId: str
   if (taken) throw invalid('name', 'A template with this name exists for this stage. Use another name.', 'duplicate_name');
 }
 
-/** Anyone who leads a project, and the Admin, saves templates from the project's tasks or by hand. */
+/** Anyone who leads a project, and a person with the template right, saves templates from the project's tasks or by hand. */
 function assertMayLeadSomething(ctx: Ctx): void {
-  const leads = ctx.authority.systemRole === 'admin' || Object.values(ctx.state.projects).some((p) => p.leaderId === ctx.authority.id);
-  if (!ctx.authority.active || !leads) throw forbidden('Only a project leader or the Admin can save a task template.');
+  const leads = can(ctx.authority, 'templates.manageAll') || Object.values(ctx.state.projects).some((p) => p.leaderId === ctx.authority.id);
+  if (!ctx.authority.active || !leads) throw forbidden('Only a project leader, or a person with the template right, can save a task template.');
 }
 
 const taskTemplatesList = defineCall({
@@ -106,7 +107,7 @@ const taskTemplatesRename = defineCall({
   output: TaskTemplateRow,
   run(input, ctx) {
     const template = requireTemplate(ctx, input.id);
-    if (!mayEdit(ctx, template)) throw forbidden('Only the person who saved this template or the Admin can rename it.');
+    if (!mayEdit(ctx, template)) throw forbidden('Only the person who saved this template, or a person with the template right, can rename it.');
     assertNameFree(ctx, input.name, template.stageName, template.id);
     applyPatch(ctx, template, { name: input.name }, { projectId: null, verb: 'taskTemplate.renamed', targetType: 'taskTemplate', targetId: template.id });
     return rowOf(ctx, template);
@@ -118,7 +119,7 @@ const taskTemplatesDelete = defineCall({
   output: z.object({ ok: z.literal(true) }),
   run(input, ctx) {
     const template = requireTemplate(ctx, input.id);
-    if (!mayEdit(ctx, template)) throw forbidden('Only the person who saved this template or the Admin can delete it.');
+    if (!mayEdit(ctx, template)) throw forbidden('Only the person who saved this template, or a person with the template right, can delete it.');
     delete taskTemplatesOf(ctx.state)[template.id];
     recordDelete(ctx, { projectId: null, verb: 'taskTemplate.deleted', targetType: 'taskTemplate', targetId: template.id, entity: template });
     return { ok: true as const };

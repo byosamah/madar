@@ -184,7 +184,7 @@ any screen work.
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
   `dashboard.get` sends them (the server decides by role).
 - Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
-  Everyone sees all projects. Payments only for Admin, Management, Accounting. Agents never join a team. The person who adds a
+  Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
 - Home (`features/home/`): the Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home

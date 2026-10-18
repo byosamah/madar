@@ -1,5 +1,6 @@
 import type { OfficeRight, RoleSettings, User } from './contract/entities';
 import { type Actor, DEFAULT_RIGHTS, OFFICE_RIGHTS } from './permissions';
+import type { State } from './store';
 
 /**
  * The office rights of each person (owner, 2026-10-18, fbk_014). The Admin holds every right. Management, Accounting and Member hold the
@@ -25,4 +26,12 @@ export function rightsOf(user: User, roles: RoleSettings | undefined): readonly 
 /** The person with the office rights of the office settings attached. can() reads these rights. */
 export function withOfficeRights(user: User, roles: RoleSettings | undefined): Actor {
   return { ...user, officeRights: rightsOf(user, roles) };
+}
+
+/**
+ * The person with the office rights of one state attached. Every loader, server call and handler takes the person this way, so no
+ * check reads the default rights of a role by mistake (owner, 2026-10-18, fbk_014).
+ */
+export function withRights(state: Pick<State, 'settings'>, user: User): Actor {
+  return withOfficeRights(user, state.settings.roles);
 }

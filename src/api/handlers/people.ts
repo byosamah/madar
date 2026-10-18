@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   Gender,
-  Client, ClientId, ClientInitials, Glass, Language, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, defaultPreferences, type Preferences,
+  Client, ClientId, ClientInitials, Glass, Language, OfficeRight, RoleId, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, defaultPreferences,
+  type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
@@ -39,7 +40,10 @@ const PreviewUser = UserCard.extend({
 export const sessionGet = defineCall({
   input: Empty,
   output: z.object({
-    user: User, authority: User, actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
+    user: User,
+    /** The office rights of the authority, so the screens check a right the way the server does (fbk_014). */
+    authority: User.extend({ officeRights: z.array(OfficeRight).optional() }),
+    actingFor: UserCard.nullable(), previewUsers: z.array(PreviewUser), persistent: z.boolean(), simulateErrors: z.boolean(),
     /** The real build: the file limit of the active file store, so the screens check before an upload (plan 2b, point 1). */
     limits: z.object({ maxFileBytes: z.number().int().positive() }).optional(),
   }),
@@ -138,6 +142,29 @@ function assertMayTouch(ctx: Ctx, target: User | null, newRole: SystemRole | und
   if (holdsAdminRights(ctx.state, target)) throw forbidden('Only an Admin can change an Admin or the agent of an Admin.', { action: 'people.manage' });
 }
 
+/**
+ * Only the Admin changes the role of a person: its systemRole and its custom role (owner, 2026-10-18). A value that stays the same is
+ * no change, so a plain save of Management still goes through. A new person has the Member role and no custom role.
+ */
+function assertMayChangeRole(ctx: Ctx, target: User | null, next: { systemRole?: SystemRole; roleId?: string | null }): void {
+  if (ctx.authority.systemRole === 'admin') return;
+  const systemRoleChanged = next.systemRole !== undefined && next.systemRole !== (target?.systemRole ?? 'member');
+  const roleIdChanged = next.roleId !== undefined && next.roleId !== (target?.roleId ?? null);
+  if (systemRoleChanged || roleIdChanged) throw forbidden('Only an Admin changes the role of a person.', { action: 'people.manage', reason: 'admin_only' });
+}
+
+/** A custom role names a role of the office, and only a Member holds one (owner, 2026-10-18). */
+function assertCustomRole(ctx: Ctx, systemRole: SystemRole, roleId: string | null | undefined): void {
+  if (!roleId) return;
+  if (systemRole !== 'member') throw invalid('roleId', 'Only a Member holds a custom role.', 'role_not_member');
+  if (!ctx.state.settings.roles?.custom?.some((role) => role.id === roleId)) throw invalid('roleId', 'This role does not exist.', 'role_missing');
+}
+
+/** An agent has no role of its own, so it holds no custom role either (spec 17.1). */
+function assertAgentNoCustomRole(roleId: string | null | undefined): void {
+  if (roleId) throw invalid('roleId', 'An agent has no role of its own. It has the rights of the person it acts for.', 'agent_role');
+}
+
 export const usersCreate = defineCall({
   input: z.object({
     name: Name,
@@ -151,13 +178,20 @@ export const usersCreate = defineCall({
     gender: Gender.optional(),
     /** The language of the person's screens and emails. Missing: the language of the person who creates them (plan 4.13, A8). */
     language: Language.optional(),
+    /** The custom role of a Member (fbk_014). Only the Admin gives one. */
+    roleId: RoleId.optional(),
   }),
   output: User,
   run(input, ctx) {
     assertCan(ctx, 'people.manage');
     assertMayTouch(ctx, null, input.systemRole, input.kind === 'agent');
+    assertMayChangeRole(ctx, null, { systemRole: input.systemRole, roleId: input.roleId });
+    assertCustomRole(ctx, input.systemRole, input.roleId);
     assertEmailFree(ctx, input.email, null);
-    if (input.kind === 'agent') assertAgentRole(input.systemRole);
+    if (input.kind === 'agent') {
+      assertAgentRole(input.systemRole);
+      assertAgentNoCustomRole(input.roleId);
+    }
     let ownerId: string | null = null;
     if (input.kind === 'agent') {
       const owner = input.ownerId ? ctx.state.users[input.ownerId] : undefined;
@@ -171,6 +205,7 @@ export const usersCreate = defineCall({
       id, name: input.name, ...(input.nameAr ? { nameAr: input.nameAr } : {}), email: input.email, systemRole: input.systemRole, kind: input.kind,
       discipline: input.discipline, ownerId, avatarUrl: null, active: true, gender: input.gender,
       preferences: { ...defaultPreferences(), language: input.language ?? ctx.authority.preferences.language },
+      ...(input.roleId ? { roleId: input.roleId } : {}),
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
@@ -189,6 +224,8 @@ export const usersUpdate = defineCall({
       discipline: Discipline.optional(),
       avatarUrl: UserAvatarInput.optional(),
       gender: Gender.optional(),
+      /** The custom role of a Member. null takes it off. Only the Admin changes it (fbk_014). */
+      roleId: RoleId.nullable().optional(),
     }).strict(), // A person never becomes an agent, or back: that would break the owner rule of spec 17.
   }),
   output: User,
@@ -197,6 +234,7 @@ export const usersUpdate = defineCall({
     const user = requireUser(ctx, input.id);
     assertNotRemoved(user);
     assertMayTouch(ctx, user, input.patch.systemRole);
+    assertMayChangeRole(ctx, user, { systemRole: input.patch.systemRole, roleId: input.patch.roleId });
     if (input.patch.email !== undefined && input.patch.email.toLowerCase() !== user.email.toLowerCase()) {
       // The sign-in email is the key to the account: Auth takes the new email as confirmed, and "Forgot password" goes there.
       // So only an Admin changes it, and never through an agent (security review of P2, 2026-10-04).
@@ -205,13 +243,21 @@ export const usersUpdate = defineCall({
       }
       assertEmailFree(ctx, input.patch.email, user.id);
     }
-    if (user.kind === 'agent') assertAgentRole(input.patch.systemRole);
+    if (user.kind === 'agent') {
+      assertAgentRole(input.patch.systemRole);
+      assertAgentNoCustomRole(input.patch.roleId);
+    }
     if (input.patch.systemRole !== undefined && input.patch.systemRole !== 'admin' && user.systemRole === 'admin') {
       // Only people count: an agent acts with its person's rights, so an agent can never keep the office's Admin work going.
       const admins = Object.values(ctx.state.users).filter((u) => u.kind === 'human' && u.systemRole === 'admin' && u.active);
       if (admins.length <= 1) throw invalid('systemRole', 'The office needs at least one Admin.', 'last_admin');
     }
-    applyPatch(ctx, user, input.patch, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
+    // A person who stops being a Member loses the custom role. Only a Member holds one.
+    const nextRole = input.patch.systemRole ?? user.systemRole;
+    const roleId = input.patch.roleId !== undefined ? input.patch.roleId : nextRole !== 'member' && user.roleId ? null : undefined;
+    assertCustomRole(ctx, nextRole, roleId);
+    const changes = { ...input.patch, ...(roleId !== undefined ? { roleId } : {}) };
+    applyPatch(ctx, user, changes, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
     return user;
   },
 });
@@ -352,7 +398,8 @@ export const clientsUpdate = defineCall({
   }),
   output: Client,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    // A client change needs the client right (fbk_014). The Admin holds it. The office can give it to a role.
+    assertCan(ctx, 'clients.manage');
     const client = ctx.state.clients[input.id];
     if (!client) throw notFound('Client', input.id);
     assertClientNamed({ ...client, ...input.patch });
