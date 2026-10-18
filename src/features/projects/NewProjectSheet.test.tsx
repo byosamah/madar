@@ -266,8 +266,8 @@ describe('the New Project sheet: no browser memory (fbk_010)', () => {
   });
 });
 
-// fbk_009 on a computer: Madar's calendar opens from the start date inside the sheet. The calendar sits on the page body, and
-// a sheet that blocks the page turns the pointer off there, so the calendar needs its own pointer events (Popover).
+// fbk_009 on a computer: Madar's calendar opens from the start date inside the sheet. The calendar sits on the page body.
+// A sheet that blocks the page turns the pointer off there. So the calendar needs its own pointer events (Popover).
 describe("the New Project sheet: Madar's calendar on a computer (fbk_009)", () => {
   it('picks a start date from the calendar that opens inside the sheet', async () => {
     const real = window.matchMedia;

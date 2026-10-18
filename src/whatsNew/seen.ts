@@ -9,7 +9,7 @@ export function hasNew(entries: readonly WhatsNewEntry[], seenId: string | null)
 }
 
 /**
- * The entry that the person has seen last, or null when none is stored. A blocked storage gives the newest entry, so the
+ * The entry that the person has seen last, or null when the browser stores none. A blocked storage gives the newest entry, so the
  * bold item never shows on a device that keeps no mark.
  */
 export function readSeen(userId: string): string | null {

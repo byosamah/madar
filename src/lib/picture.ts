@@ -3,7 +3,7 @@ import { PICTURE_DATA } from '../api/contract/limits';
 /**
  * The profile picture (owner item 10, 2026-10-05): the browser cuts the centre square, makes it 128 px, and saves it as WebP
  * (JPEG where the browser cannot make WebP), at most 16 KB, as a data address in avatarUrl. No file store holds it.
- * A picture with see-through parts keeps them (owner, fbk_019, 2026-10-18): it gets no white ground, and it is saved as WebP,
+ * A picture with see-through parts keeps them (owner, fbk_019, 2026-10-18). It gets no white ground. The browser saves it as WebP,
  * or as PNG where the browser cannot make WebP. The glow of the person shows through those parts (Avatar.tsx).
  */
 export const PICTURE_SIDE = 128;
@@ -134,7 +134,7 @@ function contextOf(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return context;
 }
 
-/** A square canvas of one side with the picture drawn on it. A white ground is painted first only when asked. */
+/** A square canvas of one side, with the picture on it. The code paints a white ground first only when asked. */
 function squareOf(source: CanvasImageSource, width: number, height: number, side: number, fit: PictureFit, whiteGround: boolean): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = side;
@@ -171,7 +171,7 @@ export async function pictureOf(file: File, options: PictureOptions = {}): Promi
   try {
     if (image.width === 0 || image.height === 0) throw new PictureError('unreadable');
     const { source, width, height } = image;
-    // The picture is drawn on a clear canvas first. Its alpha values show the see-through parts. "contain" adds see-through space.
+    // The code draws the picture on a clear canvas first. Its alpha values show the see-through parts. "contain" adds see-through space.
     const clear = squareOf(source, width, height, PICTURE_SIDE, fit, false);
     const seeThrough = hasSeeThrough(contextOf(clear).getImageData(0, 0, PICTURE_SIDE, PICTURE_SIDE).data);
     // A picture with no see-through parts gets a white ground, so it can become JPEG.

@@ -40,7 +40,7 @@ const WHEEL_PIXELS_PER_STEP = 100;
 /**
  * One wheel event gives at most one month step, and never a fast run. A line or a page event (a mouse notch) gives one step when
  * 150 ms passed since the last step. A pixel event (a trackpad) adds its pixels to `acc`, and at 100 px gives one step when
- * 150 ms passed. A pixel event inside the 150 ms gap is dropped. A turn to the other way drops the old pixels. After a step,
+ * 150 ms passed. The function drops a pixel event inside the 150 ms gap. A turn to the other way drops the old pixels. After a step,
  * the rest stays under one step.
  */
 export function wheelStep(
@@ -54,14 +54,14 @@ export function wheelStep(
     return { steps: direction, state: { acc: state.acc, lastStepAt: event.timeStamp } };
   }
   if (event.deltaY === 0) return { steps: 0, state };
-  // A pixel event inside the gap is dropped, so it never adds up into a late step.
+  // The function drops a pixel event inside the gap, so it never adds up into a late step.
   if (!ready) return { steps: 0, state };
   // A turn to the other way drops the pixels of the old way.
   const base = Math.sign(state.acc) === Math.sign(event.deltaY) ? state.acc : 0;
   const acc = base + event.deltaY;
   if (Math.abs(acc) < WHEEL_PIXELS_PER_STEP) return { steps: 0, state: { acc, lastStepAt: state.lastStepAt } };
   const steps = acc > 0 ? 1 : -1;
-  // The rest is capped at 99 px, so one large event never leaves a whole step for later.
+  // The code caps the rest at 99 px, so one large event never leaves a whole step for later.
   const rest = Math.max(-99, Math.min(99, acc - steps * WHEEL_PIXELS_PER_STEP));
   return { steps, state: { acc: rest, lastStepAt: event.timeStamp } };
 }

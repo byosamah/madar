@@ -86,7 +86,7 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
             </Link>
-            {/* Bold while the newest What's new entry is not seen yet (fbk_018). The page marks it seen when the person opens it. */}
+            {/* The item is bold until the person sees the newest What's new entry (fbk_018). The page marks the entry seen when the person opens it. */}
             <Link to="/whats-new" onClick={close} className={hasNew(WHATS_NEW, readSeen(user.id)) ? `${row} font-bold` : row}>
               <AnimatedIcon icon={SparklesIcon} size={18} className="text-ink-2" aria-hidden />
               {t('whatsNew.menu')}
