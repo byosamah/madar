@@ -4,8 +4,9 @@ import { planItems, templateDays } from '../../../lib/projectPlan';
 import { draftPlanTemplate, type TemplateDraft } from './templateDraft';
 
 /**
- * A small timeline under the template editor: one row for each stage, one bar for each task (or for a stage with its own days).
- * Grey bars can stretch, dark bars keep their length. The bars use logical sides, so the Arabic timeline runs from the right.
+ * A small timeline under the template editor: one row for each stage, one bar for each task. A stage with its own days shows one
+ * quiet bar under the bars of its tasks. Grey bars can stretch, dark bars keep their length. The bars use logical sides, so the
+ * Arabic timeline runs from the right.
  */
 export function TemplateTimeline({ draft }: { draft: TemplateDraft }) {
   const { t } = useTranslation();
@@ -23,7 +24,10 @@ export function TemplateTimeline({ draft }: { draft: TemplateDraft }) {
         <>
           <ul aria-hidden className="flex flex-col gap-1.5">
             {draft.stages.map((stage, index) => {
-              const bars = [...items.values()].filter((item) => (stageOf.get(item.id) ?? item.id) === stage.id);
+              // The stage bar comes first in the row, so the task bars paint on top of it.
+              const bars = [...items.values()]
+                .filter((item) => (stageOf.get(item.id) ?? item.id) === stage.id)
+                .sort((a, b) => Number(b.id === stage.id) - Number(a.id === stage.id));
               return (
                 <li key={stage.id} className="flex items-center gap-2">
                   <bdi className="w-24 shrink-0 truncate text-caption text-ink-2 sm:w-36">{stage.name || String(index + 1)}</bdi>
@@ -32,7 +36,7 @@ export function TemplateTimeline({ draft }: { draft: TemplateDraft }) {
                       <span
                         key={bar.id}
                         style={{ insetInlineStart: `${(bar.start / length) * 100}%`, width: `max(4px, ${(bar.days / length) * 100}%)` }}
-                        className={`absolute inset-y-0.5 rounded-full ${bar.locked ? 'bg-ink' : 'bg-chart-muted'}`}
+                        className={`absolute inset-y-0.5 rounded-full ${bar.locked ? 'bg-ink' : 'bg-chart-muted'}${bar.id === stage.id ? ' opacity-40' : ''}`}
                       />
                     ))}
                   </span>

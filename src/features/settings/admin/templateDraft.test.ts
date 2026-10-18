@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
   addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
-  removeStage, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
+  removeStage, removeTask, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -241,5 +241,43 @@ describe('duplicateDraft', () => {
     expect(copy.roles[0].defaultUserId).toBe('');
     expect(draftInput(copy).roles[0].defaultUserId).toBeNull();
     expect(draftError(copy)).toBeNull();
+  });
+});
+
+describe('the waits on a removed part', () => {
+  it('takes the removed task out of the waits of the other tasks, so a new task does not inherit them', () => {
+    const draft = draftOf(SAVED);
+    const waiting = { ...draft, tasks: [{ ...draft.tasks[0], prerequisiteIds: ['t2'] }, draft.tasks[1]] };
+    const cut = removeTask(waiting, 't2');
+    expect(cut.tasks).toHaveLength(1);
+    expect(cut.tasks[0]).not.toHaveProperty('prerequisiteIds');
+    // The next free id is t2 again, so the new task has the id that the old wait named.
+    const next = addTask(cut, 's1');
+    expect(next.tasks.at(-1)?.id).toBe('t2');
+    expect(next.tasks[0]).not.toHaveProperty('prerequisiteIds');
+    expect(draftInput(next).tasks[0]).not.toHaveProperty('prerequisiteIds');
+  });
+
+  it('keeps the other waits of a task when only one of them is removed', () => {
+    const draft = addTask(draftOf(SAVED), 's1');
+    const waiting = { ...draft, tasks: draft.tasks.map((task) => (task.id === 't1' ? { ...task, prerequisiteIds: ['t2', 't3'] } : task)) };
+    expect(removeTask(waiting, 't2').tasks[0].prerequisiteIds).toEqual(['t3']);
+  });
+
+  it('takes the removed stage out of the waits of the other stages, so a new stage does not inherit them', () => {
+    const draft = draftOf(SAVED);
+    const waiting = { ...draft, stages: [{ ...draft.stages[0], prerequisiteIds: ['s2'] }, draft.stages[1]] };
+    const next = addStage(removeStage(waiting, 's2'));
+    expect(next.stages.at(-1)?.id).toBe('s2');
+    expect(next.stages[0]).not.toHaveProperty('prerequisiteIds');
+    expect(draftInput(next).stages[0]).not.toHaveProperty('prerequisiteIds');
+  });
+
+  it('clears the waits of the other tasks on the tasks of a removed stage', () => {
+    const draft = addTask(draftOf(SAVED), 's2');
+    const waiting = { ...draft, tasks: draft.tasks.map((task) => (task.id === 't3' ? { ...task, prerequisiteIds: ['t1'] } : task)) };
+    const cut = removeStage(waiting, 's1');
+    expect(cut.tasks.map((task) => task.id)).toEqual(['t3']);
+    expect(cut.tasks[0]).not.toHaveProperty('prerequisiteIds');
   });
 });

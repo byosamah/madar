@@ -34,6 +34,17 @@ const text = (n: number | null) => (n === null ? '' : String(n));
 /** The waits of a part as the draft and the input keep them. The key is there only when the part waits for something. */
 const waitsOf = (ids: readonly string[] | undefined): { prerequisiteIds?: string[] } => (ids && ids.length > 0 ? { prerequisiteIds: [...ids] } : {});
 
+/** The part without the waits in `gone`. The key goes when no wait is left, as waitsOf leaves it out. */
+function withoutWaits<T extends { prerequisiteIds?: string[] }>(part: T, gone: ReadonlySet<string>): T {
+  const waits = part.prerequisiteIds;
+  if (!waits || !waits.some((id) => gone.has(id))) return part;
+  const rest = waits.filter((id) => !gone.has(id));
+  const next: { prerequisiteIds?: string[] } = { ...part };
+  delete next.prerequisiteIds;
+  if (rest.length > 0) next.prerequisiteIds = rest;
+  return next as T;
+}
+
 export function draftOf(template: ProjectTemplate): TemplateDraft {
   return {
     name: template.name,
@@ -124,8 +135,24 @@ export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
   return { ...draft, tasks };
 }
 
+/** Removes a task. The other tasks no longer wait for it, so a new task with the same id does not inherit the wait. */
+export function removeTask(draft: TemplateDraft, taskId: string): TemplateDraft {
+  const gone = new Set([taskId]);
+  return { ...draft, tasks: draft.tasks.filter((task) => task.id !== taskId).map((task) => withoutWaits(task, gone)) };
+}
+
+/**
+ * Removes a stage with its tasks. The other stages and tasks no longer wait for the removed parts, so a new part with the same id
+ * does not inherit a wait.
+ */
 export function removeStage(draft: TemplateDraft, stageId: string): TemplateDraft {
-  return { ...draft, stages: draft.stages.filter((stage) => stage.id !== stageId), tasks: draft.tasks.filter((task) => task.stageId !== stageId) };
+  const goneTasks = new Set(draft.tasks.filter((task) => task.stageId === stageId).map((task) => task.id));
+  const goneStages = new Set([stageId]);
+  return {
+    ...draft,
+    stages: draft.stages.filter((stage) => stage.id !== stageId).map((stage) => withoutWaits(stage, goneStages)),
+    tasks: draft.tasks.filter((task) => task.stageId !== stageId).map((task) => withoutWaits(task, goneTasks)),
+  };
 }
 
 export function removeRole(draft: TemplateDraft, roleId: string): TemplateDraft {

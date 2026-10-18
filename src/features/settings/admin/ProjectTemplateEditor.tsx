@@ -14,7 +14,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage, removeTask,
   startsBeforeStageAbove, tasksEndDay, type DraftRole, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
 import { SortableStages, type StageDrag } from './SortableStages';
@@ -192,7 +192,7 @@ function StageCard({
               task={task}
               draft={draft}
               onChange={setTask}
-              onRemove={() => setDraft({ ...draft, tasks: draft.tasks.filter((other) => other.id !== task.id) })}
+              onRemove={() => setDraft(removeTask(draft, task.id))}
             />
           ))}
         </ul>
