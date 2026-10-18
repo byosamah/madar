@@ -590,7 +590,8 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   backup runs from the Mac until the minutes come back (`.github/CLAUDE.md`)
 - [ ] The database backup from the Mac, each evening after 17:00 Riyadh until GitHub runs `db-backup.yml` again (end of October):
   `brew install postgresql@17` (owner OK, 2026-10-18), then `scripts/backup/dump.ts` and the upload to madar-backups as the
-  workflow does. The newest backup before it: `madar-db-20261017-011632Z`
+  workflow does. The newest backup before it: `madar-db-20261017-011632Z`. Done: 2026-10-18 `madar-db-20261018-143030Z`
+  (41 tables, 1,508 rows; `scripts/backup/mac-backup.sh --check` of the repo copy passed after it). Next: 2026-10-19 17:30 Riyadh
 - [x] Wave 5 R3: the test copy at b4eb2e6 (exit waves 1 to 4, the word still `supabase`), `all.sh test` by Claude after the owner's
   `npm install` (2026-10-17). The gate ran on the Mac (GitHub runs no CI): typecheck, `npm test` 5,393 passed. The test Worker has
   its empty office object and the Cron (1 of 5 in the account); the office routes answer 401 with no secret. Production did not
