@@ -109,6 +109,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   An undo event takes the `officeTaskId` of the event it undoes; a comment of a deleted office task reads `lastTaskCopy`.
 - A hidden office record answers exactly as a missing one: `not_found` Task, Comment, File or Story, and `file_missing` in
   the attach rules (`attach.ts`). Never a `forbidden` that tells that it exists.
+- A message view (`messageViewOf`, `handlers/chats.ts`) drops the file row, and the file id in `message.fileIds`, of a file that
+  the reader may not view (`mayViewFile`). A member of a group reads the old messages of other people, so this holds for a late
+  member too. Every project file is open to every person, so its row stays. The chat rules keep an office file out of a message;
+  the rule is a guard for data that gets in by another way. The loader `chats.messages` brings the office task of each file
+  (`attachedFiles`), so the scoped load gives the same rows.
 - Review: only when the maker is not the lead; `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins when the maker left.
 - Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get`, only
   with no people filter. They never count in a project number.

@@ -4,7 +4,7 @@ import { can } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
 import type { Bound } from './query';
-import { namedFiles, newestMessages, officeState, pickedByKey } from './steps';
+import { attachedFiles, newestMessages, officeState, pickedByKey } from './steps';
 
 /**
  * The chat loader (plan 4.6): the chats and the task threads of the person U.
@@ -151,8 +151,10 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
     where: [{ col: 'conversation_id', in: [id] }, ...(before ? [{ before: { at: before.createdAt, id: before.id } }] : [])],
     order: { col: 'created_at', desc: true, id: true }, limit,
   })) as Message[];
-  // The page and the newest message: the files that the message views name.
-  await namedFiles(L, [...page, ...L.list<Message>('messages').filter((m) => m.conversationId === id)]);
+  // The page and the newest message: the files that the message views name, and the office task of each office file. A message view
+  // shows a file row only when the viewer may view the file (messageViewOf), and that rule reads the task of an office file.
+  const shown = [...page, ...L.list<Message>('messages').filter((m) => m.conversationId === id)];
+  await attachedFiles(L, shown.flatMap((message) => message.fileIds ?? []));
 }
 
 /**

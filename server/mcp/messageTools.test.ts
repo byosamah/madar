@@ -3,6 +3,7 @@ import type { Message } from '../../src/api/contract/entities';
 import type { ChatRow } from '../../src/api/contract/views';
 import { addDirectConversation, addGroupConversation } from '../../src/api/chatState';
 import { nextId, type State } from '../../src/api/store';
+import { makeTask } from '../../src/test/factories';
 import { buildSeed } from '../../src/data/seed';
 import { memoryData, type MemoryData } from '../core/memoryData';
 import { createRunCall } from '../core/runCall';
@@ -60,13 +61,21 @@ beforeAll(async () => {
 
 type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData };
 
-function world(): World {
+/** The agent of the tests: usr_009 acts for the Admin. A test may name another agent (made by agentOf below) for another person. */
+type Acting = { agentId: string; personId: string };
+const ADMIN_AGENT: Acting = { agentId: 'usr_009', personId: 'usr_001' };
+
+function world(acting: Acting = ADMIN_AGENT): World {
   const mem = memoryData(seed);
+  if (acting.agentId !== ADMIN_AGENT.agentId) {
+    mem.tables.state.users[acting.agentId] = { ...mem.tables.state.users.usr_009, id: acting.agentId, email: `${acting.agentId}@madar.test`, ownerId: acting.personId };
+    mem.tables.version += 1;
+  }
   const deps = fakeDeps({ db: mem.db, config: { mcpUrl: MCP_URL } });
   deps.clock.set(new Date('2026-10-04T06:00:00Z'));
   const app = mcpApp(deps, {
     checkToken: async () => TOKEN,
-    agentOf: async (): Promise<AgentPrincipal> => ({ principal: { userId: 'usr_009', agent: { clientId: TOKEN.clientId } }, ownerId: 'usr_001', linked: false }),
+    agentOf: async (): Promise<AgentPrincipal> => ({ principal: { userId: acting.agentId, agent: { clientId: TOKEN.clientId } }, ownerId: acting.personId, linked: false }),
     runCall: createRunCall({ data: () => mem.data() }),
     readOffice: async (): Promise<OfficeSnapshot> => mem.data().office(),
     limit: async () => ({ ok: true, count: 1, retryAfterMs: 0 }),
@@ -204,5 +213,75 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(rows.find((row) => row.id === hala3)).toMatchObject({ kind: 'direct', from: { id: 'usr_003' }, body: SECRET });
     expect(rows.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: GROUP_SECRET });
     expect(rows.some((row) => row.id === outsiderRoom)).toBe(false);
+  });
+});
+
+/**
+ * The reads of an agent after a removal and for the file rows of a message (fbk_011, security review 2026-10-18). An agent acts with
+ * the rights of its person, so it gets the answers of its person: not_found for a group that its person left, and a file row only
+ * for a file that its person may view.
+ */
+const OFFICE_FILE_NAME = 'Licence-scan.pdf';
+
+describe('the agent of a person who left a group', () => {
+  it('reads nothing of the group, sends nothing into it, and the answers are those of a missing chat', async () => {
+    const w = world();
+    const room = w.mem.tables.state.conversations[groupRoom];
+    w.mem.tables.state.conversations[groupRoom] = { ...room, memberIds: room.memberIds.filter((id) => id !== 'usr_001') };
+    w.mem.tables.version += 1;
+    const stored = Object.keys(w.mem.tables.state.messages).length;
+    const read = await call(w, 'chats.messages', { conversationId: groupRoom });
+    expect(read.result.isError).toBe(true);
+    expect(read.result.structuredContent.error).toMatchObject({ code: 'not_found', message: `Conversation ${groupRoom} does not exist.` });
+    expect(read.text).not.toContain(GROUP_SECRET);
+    for (const fileIds of [[], ['fil_001']]) {
+      const sent = await call(w, 'chats.send', { conversationId: groupRoom, body: 'Still here?', fileIds });
+      expect(sent.result.isError, JSON.stringify(fileIds)).toBe(true);
+      expect(sent.result.structuredContent.error, JSON.stringify(fileIds)).toMatchObject({ code: 'not_found', message: `Conversation ${groupRoom} does not exist.` });
+    }
+    expect(Object.keys(w.mem.tables.state.messages)).toHaveLength(stored);
+    for (const name of ['chats.list', 'chats.waiting']) {
+      const answer = await call(w, name, {});
+      expect(answer.text, name).not.toContain(GROUP_SECRET);
+      expect((answer.result.structuredContent.output as { id: string }[]).some((row) => row.id === groupRoom), name).toBe(false);
+    }
+  });
+});
+
+describe('the agent of a member of a group and the file rows of a message', () => {
+  /** Reem (usr_003) leads an office task and posts its file in the group of Reem, the Admin and Turki. The chat rules keep this out, so the test plants it. */
+  function plant(w: World): void {
+    const state = w.mem.tables.state;
+    const version = { letter: 'A', blobKey: 'blob_990', mimeType: 'application/pdf', size: 10, uploadedBy: 'usr_003', uploadedAt: STAMP };
+    state.tasks.tsk_990 = makeTask({ id: 'tsk_990', projectId: null, stageId: null, title: 'Private licence', ownerId: 'usr_003', createdBy: 'usr_003', needsReview: false, helperIds: [] });
+    state.files.fil_990 = { id: 'fil_990', projectId: null, stageId: null, taskId: 'tsk_990', name: OFFICE_FILE_NAME, versions: [version] };
+    state.messages.msg_990 = { id: 'msg_990', conversationId: groupRoom, authorId: 'usr_003', actingForId: 'usr_003', body: 'The scan.', mentions: [], fileIds: ['fil_990'], createdAt: STAMP, editedAt: null };
+    w.mem.tables.version += 1;
+  }
+
+  async function rowOf(acting: Acting) {
+    const w = world(acting);
+    plant(w);
+    const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    const messages = result.structuredContent.output.messages as { message: Message; files: { id: string; name: string | null }[] }[];
+    return { text, view: messages.find((m) => m.message.id === 'msg_990')! };
+  }
+
+  it('shows the file row to the agent of the person who leads the task, and to the agent of the Admin', async () => {
+    for (const acting of [{ agentId: 'usr_096', personId: 'usr_003' }, ADMIN_AGENT]) {
+      const { view } = await rowOf(acting);
+      expect(view.files, acting.agentId).toEqual([{ id: 'fil_990', name: OFFICE_FILE_NAME }]);
+      expect(view.message.fileIds, acting.agentId).toEqual(['fil_990']);
+    }
+  });
+
+  it('shows no file row to the agent of a member who may not view the file, and keeps the text of the message', async () => {
+    const { text, view } = await rowOf({ agentId: 'usr_097', personId: 'usr_010' });
+    expect(view.message.body).toBe('The scan.');
+    expect(view.files).toEqual([]);
+    expect(view.message.fileIds).toEqual([]);
+    expect(text).not.toContain('fil_990');
+    expect(text).not.toContain(OFFICE_FILE_NAME);
   });
 });

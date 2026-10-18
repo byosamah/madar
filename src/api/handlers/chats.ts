@@ -7,7 +7,7 @@ import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
-import { attachmentsOf, cardOf } from '../views';
+import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { mentionedUserIds, plainText } from '../../lib/text';
 import { markOf } from '../../lib/projectMark';
@@ -143,13 +143,27 @@ function taskRows(state: State, viewer: User): ChatRow[] {
   });
 }
 
-function messageViewOf(state: State, message: Message, viewerId: string): MessageView {
+/**
+ * The file ids of a message that the viewer may see. A file that is gone stays, as a row with no name. A file that the viewer may
+ * not view leaves the view with its name and id: a person who joins a group later, or a member who is not on a task, reads the
+ * messages of other people (security review 2026-10-18, fbk_011). Every project file is open to every person; a file of an
+ * office task shows only to the people of that task.
+ */
+function viewableFileIds(state: State, message: Message, viewer: User): string[] {
+  return (message.fileIds ?? []).filter((id) => {
+    const file = state.files[id];
+    return file === undefined || mayViewFile(state, viewer, file);
+  });
+}
+
+function messageViewOf(state: State, message: Message, viewer: User): MessageView {
+  const fileIds = viewableFileIds(state, message, viewer);
   return {
-    message,
+    message: message.fileIds === undefined ? message : { ...message, fileIds },
     author: cardOf(state, message.authorId),
     actingFor: message.actingForId !== message.authorId ? cardOf(state, message.actingForId) : null,
-    mine: isMine(state, message, viewerId),
-    files: attachmentsOf(state, message.fileIds),
+    mine: isMine(state, message, viewer.id),
+    files: attachmentsOf(state, fileIds),
   };
 }
 
@@ -206,7 +220,7 @@ export const chatsMessages = defineCall({
     return {
       chat: { ...rowOf(ctx.state, conversation, ctx.authority), id: conversation.id },
       people,
-      messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority.id)),
+      messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority)),
     };
   },
 });
@@ -236,7 +250,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
   ctx.state.messages[id] = message;
   notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
   markReadNow(ctx, conversation);
-  return messageViewOf(ctx.state, message, ctx.authority.id);
+  return messageViewOf(ctx.state, message, ctx.authority);
 }
 
 export const chatsSend = defineCall({

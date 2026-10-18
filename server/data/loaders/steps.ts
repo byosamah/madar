@@ -51,8 +51,8 @@ export async function officeTasks(L: Load, more: readonly Cond[] = [], o: { pick
 }
 
 /**
- * The files by id that a write attaches, and the office task of each file with no project: the attach rules read its view rule
- * (attach.ts, owner 2026-10-06).
+ * The files by id that a write attaches or a message view names, and the office task of each file with no project: the attach rules
+ * and the file rows of a message read its view rule (attach.ts, owner 2026-10-06; chats.ts, fbk_011).
  */
 export async function attachedFiles(L: Load, fileIds: readonly (string | null | undefined)[]): Promise<void> {
   await L.byKey('files', fileIds);

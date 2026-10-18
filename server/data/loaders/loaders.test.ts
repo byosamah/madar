@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { emptyReactions, type Event, type Notification, type Task } from '../../../src/api/contract/entities';
+import { addGroupConversation } from '../../../src/api/chatState';
 import { runScheduledTriggers } from '../../../src/api/notify';
 import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
@@ -627,6 +628,30 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
     runScheduledTriggers(again, NOW, { dedupeUsed });
     expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
+  });
+});
+
+describe('the file rows of a group message (fbk_011, security review 2026-10-18)', () => {
+  it('chats.messages: the scoped load brings the office task of a file, so its people keep the row and every other reader loses it', async () => {
+    const traps = trapOffice(seed);
+    const task = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId !== null)!;
+    const lead = task.ownerId as string;
+    const version = { letter: 'A', blobKey: 'blob_990', mimeType: 'application/pdf', size: 10, uploadedBy: lead, uploadedAt: '2026-10-03T12:00:00.000+03:00' };
+    traps.files.fil_990 = { id: 'fil_990', projectId: null, stageId: null, taskId: task.id, name: 'Licence-scan.pdf', versions: [version] };
+    const group = addGroupConversation(traps, 'Licence team', ADMIN, [ADMIN, lead, 'usr_003'], '2026-10-03T09:00:00.000+03:00');
+    // The chat rules keep an office file out of a message, so the test plants the message.
+    traps.messages.msg_990 = {
+      id: 'msg_990', conversationId: group.id, authorId: lead, actingForId: lead, body: 'The scan.', mentions: [], fileIds: ['fil_990'],
+      createdAt: '2026-10-03T12:00:00.000+03:00', editedAt: null,
+    };
+    const rows = async (actor: string) => {
+      const run = await same(traps, 'chats.messages', { conversationId: group.id }, actor);
+      return (run.outcome.output as { messages: { message: { id: string; fileIds: string[] }; files: unknown[] }[] }).messages.find((m) => m.message.id === 'msg_990')!;
+    };
+    for (const actor of [lead, ADMIN]) expect((await rows(actor)).files, actor).toEqual([{ id: 'fil_990', name: 'Licence-scan.pdf' }]);
+    const hidden = await rows('usr_003');
+    expect(hidden.files).toEqual([]);
+    expect(hidden.message.fileIds).toEqual([]);
   });
 });
 
