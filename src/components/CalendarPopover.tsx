@@ -62,7 +62,7 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
     cursorButton.current?.focus();
   }, [cursor]);
 
-  // The wheel listener is not passive, so it can stop the page from scrolling under the calendar.
+  // The wheel listener is not passive, so the page does not scroll under the calendar.
   useEffect(() => {
     const element = root.current;
     if (!element) return undefined;

@@ -15,7 +15,8 @@ import { RuntimeProvider, createQueryClient } from '../../app/runtime';
 import { ToastProvider } from '../../app/toasts';
 import { buildSeed } from '../../data/seed';
 import { initI18n } from '../../i18n';
-import { setNow } from '../../lib/dates';
+import { formatDay, setNow, todayISO } from '../../lib/dates';
+import { monthGrid } from '../../lib/calendar';
 import { NOW, TODAY } from '../../test/factories';
 import { textFieldsOf } from '../../test/browserMemory';
 
@@ -262,5 +263,32 @@ describe('the New Project sheet: no browser memory (fbk_010)', () => {
       expect(field, field.id || field.getAttribute('aria-label') || 'a field').toHaveAttribute('autocomplete', 'off');
     }
     expect(sheet.querySelector('form')).toHaveAttribute('autocomplete', 'off');
+  });
+});
+
+// fbk_009 on a computer: Madar's calendar opens from the start date inside the sheet. The calendar sits on the page body, and
+// a sheet that blocks the page turns the pointer off there, so the calendar needs its own pointer events (Popover).
+describe("the New Project sheet: Madar's calendar on a computer (fbk_009)", () => {
+  it('picks a start date from the calendar that opens inside the sheet', async () => {
+    const real = window.matchMedia;
+    window.matchMedia = (query: string) => {
+      const base = real(query);
+      return query === '(pointer: fine)' ? ({ ...base, matches: true } as MediaQueryList) : base;
+    };
+    try {
+      const { sheet } = await openSheet();
+      await userEvent.click(within(sheet).getByLabelText('Start date'));
+      const calendar = await screen.findByRole('dialog', { name: 'Pick a date' });
+      const firstDay = within(calendar)
+        .getAllByRole('button')
+        .find((button) => /^\d+$/.test(button.textContent ?? '') && !(button as HTMLButtonElement).disabled)!;
+      const picked = monthGrid(todayISO().slice(0, 7)).find((day) => formatDay(day, 'en', 'long') === firstDay.getAttribute('aria-label'))!;
+      await userEvent.click(firstDay);
+      expect(within(sheet).getByLabelText('Start date')).toHaveValue(picked);
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pick a date' })).toBeNull());
+      expect(screen.getByRole('dialog', { name: 'New Project' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = real;
+    }
   });
 });

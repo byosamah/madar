@@ -55,9 +55,11 @@ export function Popover({ anchor, label, onClose, fit = false, children }: { anc
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={spring.standard}
+      // A sheet that blocks the page sets pointer events to none on the body. The panel sets its own value, so it stays
+      // clickable. The unit tests load no Tailwind classes, so the value is inline as well as in the class below.
       // The class keeps the usual limit (80% of the screen, 36 rem); a "fit" panel also stops at the room it has.
-      style={{ position: 'fixed', ...place, ...(maxHeight === undefined ? {} : { maxHeight: `min(${maxHeight}px, 80dvh, 36rem)` }) }}
-      className="float z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4"
+      style={{ position: 'fixed', pointerEvents: 'auto', ...place, ...(maxHeight === undefined ? {} : { maxHeight: `min(${maxHeight}px, 80dvh, 36rem)` }) }}
+      className="float pointer-events-auto z-50 flex max-h-[min(80dvh,36rem)] flex-col gap-3 overflow-y-auto rounded-3xl p-4"
     >
       {children}
     </motion.div>,

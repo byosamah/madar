@@ -50,7 +50,7 @@ describe('CalendarPopover', () => {
     expect(dayButton('2026-10-19')).not.toHaveAttribute('aria-current');
   });
 
-  it('shows the next month and its grid after one wheel step down, and keeps the page from scrolling', () => {
+  it('shows the next month and its grid after one wheel step down, and does not scroll the page', () => {
     setup();
     const notPrevented = fireEvent.wheel(dayButton('2026-10-18'), { deltaY: 1, deltaMode: 1 });
     expect(notPrevented).toBe(false);

@@ -19,8 +19,8 @@ function groupByDay(entries: readonly WhatsNewEntry[]): { day: string; entries: 
 }
 
 /**
- * What's new (fbk_018): the changes of each release, in plain words for the team. Opening the page marks the newest entry as
- * seen for the person, so the person menu shows its item in normal weight. The page has no button.
+ * What's new (fbk_018): the changes of each release, in plain words for the team. The page marks the newest entry as seen when
+ * the person opens it, so the person menu shows its item in normal weight. The page has no button.
  */
 export function WhatsNewScreen() {
   const { t } = useTranslation();

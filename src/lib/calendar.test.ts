@@ -64,13 +64,33 @@ describe('wheelStep', () => {
     expect(state.acc).toBe(20);
   });
 
-  it('keeps the px that come within 150 ms of a step, and gives them as a step later', () => {
+  it('drops the px that come within 150 ms of a step', () => {
     const afterStep = wheelStep(WHEEL_START, pixel(120, 1000));
     expect(afterStep.steps).toBe(1);
+    expect(afterStep.state.acc).toBe(20);
     const soon = wheelStep(afterStep.state, pixel(90, 1100));
     expect(soon.steps).toBe(0);
-    expect(soon.state.acc).toBe(110);
-    expect(wheelStep(soon.state, pixel(0, 1300)).steps).toBe(1);
+    expect(soon.state.acc).toBe(20);
+    expect(wheelStep(soon.state, pixel(0, 1300)).steps).toBe(0);
+  });
+
+  it('after a fast run of mouse notches, one reverse event gives one step back', () => {
+    let state: WheelState = WHEEL_START;
+    for (let i = 0; i < 10; i += 1) state = wheelStep(state, pixel(100, 1000 + i * 30)).state;
+    expect(wheelStep(state, pixel(-100, 4000)).steps).toBe(-1);
+  });
+
+  it('after a trackpad flick, ten short reverse events give no step and never a step forward', () => {
+    let state: WheelState = WHEEL_START;
+    for (let i = 0; i < 60; i += 1) state = wheelStep(state, pixel(30, 16 * i)).state;
+    const steps: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const result = wheelStep(state, pixel(-5, 4000 + i * 16));
+      steps.push(result.steps);
+      state = result.state;
+    }
+    expect(steps.reduce((sum, step) => sum + step, 0)).toBe(0);
+    expect(steps).not.toContain(1);
   });
 
   it('gives -1 for a negative delta', () => {

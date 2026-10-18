@@ -39,8 +39,9 @@ const WHEEL_PIXELS_PER_STEP = 100;
 
 /**
  * One wheel event gives at most one month step, and never a fast run. A line or a page event (a mouse notch) gives one step when
- * 150 ms passed since the last step. Pixel events (a trackpad) add up, and at 100 px give one step when 150 ms passed; the rest
- * stays for the next step.
+ * 150 ms passed since the last step. A pixel event (a trackpad) adds its pixels to `acc`, and at 100 px gives one step when
+ * 150 ms passed. A pixel event inside the 150 ms gap is dropped. A turn to the other way drops the old pixels. After a step,
+ * the rest stays under one step.
  */
 export function wheelStep(
   state: WheelState,
@@ -52,12 +53,17 @@ export function wheelStep(
     if (!ready || direction === 0) return { steps: 0, state };
     return { steps: direction, state: { acc: state.acc, lastStepAt: event.timeStamp } };
   }
-  const acc = state.acc + event.deltaY;
-  if (ready && Math.abs(acc) >= WHEEL_PIXELS_PER_STEP) {
-    const steps = acc > 0 ? 1 : -1;
-    return { steps, state: { acc: acc - steps * WHEEL_PIXELS_PER_STEP, lastStepAt: event.timeStamp } };
-  }
-  return { steps: 0, state: { acc, lastStepAt: state.lastStepAt } };
+  if (event.deltaY === 0) return { steps: 0, state };
+  // A pixel event inside the gap is dropped, so it never adds up into a late step.
+  if (!ready) return { steps: 0, state };
+  // A turn to the other way drops the pixels of the old way.
+  const base = Math.sign(state.acc) === Math.sign(event.deltaY) ? state.acc : 0;
+  const acc = base + event.deltaY;
+  if (Math.abs(acc) < WHEEL_PIXELS_PER_STEP) return { steps: 0, state: { acc, lastStepAt: state.lastStepAt } };
+  const steps = acc > 0 ? 1 : -1;
+  // The rest is capped at 99 px, so one large event never leaves a whole step for later.
+  const rest = Math.max(-99, Math.min(99, acc - steps * WHEEL_PIXELS_PER_STEP));
+  return { steps, state: { acc: rest, lastStepAt: event.timeStamp } };
 }
 
 /** True on a computer: its main pointer is a mouse or a trackpad. A phone or a tablet is coarse. False where matchMedia is absent. */

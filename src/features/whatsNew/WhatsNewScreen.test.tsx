@@ -8,8 +8,8 @@ describe("What's new screen", () => {
   it('shows the title, the entry title and the entry text in English', async () => {
     await renderApp('/whats-new');
     expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'New in Madar' })).toBeInTheDocument();
-    expect(screen.getByText(/Now you can archive a chat/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'The project list' })).toBeInTheDocument();
+    expect(screen.getByText('Now you can archive a chat. A new message brings it back.')).toBeInTheDocument();
   });
 
   it('shows the Arabic title and the Arabic entry in Arabic', async () => {
@@ -17,7 +17,7 @@ describe("What's new screen", () => {
       state.users.usr_001.preferences.language = 'ar';
     });
     expect(await screen.findByRole('heading', { level: 1, name: 'ما الجديد' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'الجديد في مدار' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'قائمة المشاريع' })).toBeInTheDocument();
   });
 
   it('marks the newest entry seen when the page opens', async () => {
@@ -29,6 +29,6 @@ describe("What's new screen", () => {
   it('opens in the real build too', async () => {
     await renderRemoteApp('/whats-new');
     expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
-    expect(screen.getByText(/Now you can archive a chat/)).toBeInTheDocument();
+    expect(screen.getByText('Now you can archive a chat. A new message brings it back.')).toBeInTheDocument();
   });
 });

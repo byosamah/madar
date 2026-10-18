@@ -123,7 +123,7 @@ export function DateField({
     }
   };
 
-  // The focus returns to the field. The press flag keeps the full field from showing (a press comes before its focus).
+  // The focus returns to the field. The press flag keeps the full field hidden (a press comes before its focus).
   const backToField = () => {
     pressed.current = true;
     input.current?.focus();

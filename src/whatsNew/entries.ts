@@ -5,4 +5,9 @@
  */
 export type WhatsNewEntry = { id: string; day: string };
 
-export const WHATS_NEW: readonly WhatsNewEntry[] = [{ id: '2026-10-23-1', day: '2026-10-23' }];
+export const WHATS_NEW: readonly WhatsNewEntry[] = [
+  { id: '2026-10-23-1', day: '2026-10-23' },
+  { id: '2026-10-23-2', day: '2026-10-23' },
+  { id: '2026-10-23-3', day: '2026-10-23' },
+  { id: '2026-10-23-4', day: '2026-10-23' },
+];
