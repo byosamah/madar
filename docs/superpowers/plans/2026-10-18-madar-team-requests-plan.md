@@ -216,7 +216,9 @@ can move a track to another wave, because the tracks of different waves share no
   `pictureType(canWebp: boolean, seeThrough: boolean): 'webp' | 'png' | 'jpeg'` (WebP when the browser makes it; else PNG for a
   picture with see-through parts, JPEG for one without),
   `pictureOf(file: File, options?: { fit?: 'cover' | 'contain' }): Promise<string>` (`cover` is today's centre square;
-  `contain` fits the whole picture inside the square with see-through space around it).
+  `contain` fits the whole picture inside the square with see-through space around it),
+  `containSquare(width: number, height: number): { dx: number; dy: number; w: number; h: number }` (the box in which `contain`
+  draws the whole picture inside the square of `PICTURE_SIDE`).
 
 - [ ] **Step 1: Write the failing tests** in `picture.test.ts`:
   `hasSeeThrough`: `[255,255,255,255]` gives false; `[0,0,0,0, 255,255,255,255]` gives true.
@@ -230,8 +232,9 @@ can move a track to another wave, because the tracks of different waves share no
   Expected: FAIL.
 - [ ] **Step 3: Write the helpers and change `pictureOf`.** Read the canvas data after `drawImage` on a clear canvas. With
   see-through parts: no white ground; WebP when the browser makes it, else `encodePngSmallest` (draw again at each side). Without
-  see-through parts: today's path (white ground, WebP or JPEG). Keep `PictureError('too_big')` when nothing fits. Update the
-  file's comments: the white ground is only for a picture with no see-through parts.
+  see-through parts: today's path (white ground, WebP or JPEG). Keep `PictureError('too_big')` when nothing fits. Build the
+  `fit: 'contain'` form too, with the pure helper `containSquare` (test it). Update the file's comments: the white ground is only
+  for a picture with no see-through parts.
 - [ ] **Step 4: Change `Avatar`**: the picture branch returns a `span` with the box, `rounded-full`, `overflow-hidden`,
   `background: glowOf(user.id)`, and the `img` inside it. A photo with no see-through parts looks the same as today.
 - [ ] **Step 5: Add the hint** under the photo field: "A photo with a see-through background shows your glow behind it." /
