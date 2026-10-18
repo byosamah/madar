@@ -13,6 +13,9 @@ type FlowProps = {
   nodesConnectable?: boolean;
   elementsSelectable?: boolean;
   fitView?: boolean;
+  fitViewOptions?: { minZoom?: number };
+  panOnScroll?: boolean;
+  zoomOnScroll?: boolean;
 };
 
 // React Flow measures the page in a browser, which jsdom has not. The mock draws each node with its own node component,
@@ -199,6 +202,27 @@ describe('the Open space screen', () => {
     await screen.findByRole('button', { name: /Corniche Office Tower/ });
     await userEvent.click(screen.getAllByRole('button', { name: 'Open project' })[0]!);
     await waitFor(() => expect(window.location.hash).toMatch(/#\/projects\/prj_/));
+  });
+
+  it('asks for a readable first view, and the wheel moves the map instead of zooming it', async () => {
+    await renderApp('/dashboard/space');
+    await screen.findByRole('button', { name: /Corniche Office Tower/ });
+    expect(flow.props).toMatchObject({ fitViewOptions: { minZoom: 0.7 }, panOnScroll: true, zoomOnScroll: false });
+  });
+
+  it('moves the view again after Open all and after Close all', async () => {
+    await renderApp('/dashboard/space');
+    await userEvent.click(await screen.findByRole('button', { name: 'Open all' }));
+    await waitFor(() => expect(flow.fitView).toHaveBeenCalledTimes(1));
+    expect(flow.fitView).toHaveBeenLastCalledWith(expect.objectContaining({ minZoom: 0.7 }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close all' }));
+    await waitFor(() => expect(flow.fitView).toHaveBeenCalledTimes(2));
+  });
+
+  it('lets a card take a mouse press, which React Flow leaves out of a read-only map', async () => {
+    await renderApp('/dashboard/space');
+    const card = (await screen.findByRole('button', { name: /Corniche Office Tower/ })).closest('[data-kind="project"]') ?? screen.getByRole('button', { name: /Corniche Office Tower/ });
+    expect(card.className).toContain('pointer-events-auto');
   });
 
   it('fits the map to the screen with Fit to screen', async () => {

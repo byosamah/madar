@@ -32,7 +32,8 @@ export type SpaceFlowNode = Node<SpaceCardData, 'space'>;
 
 // The handles are not drawn: the lines of the tree join the cards at their edges.
 const HIDDEN_HANDLE = { opacity: 0 } as const;
-const CARD = 'surface rounded-card w-60 p-3 text-start transition-opacity duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link';
+// React Flow gives a node of a read-only map no pointer events, so a card asks for them again: a mouse press or a tap must open it.
+const CARD = 'pointer-events-auto surface rounded-card w-60 p-3 text-start transition-opacity duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link';
 // A card is 240 px wide (w-60). Its middle sits 120 px along and about 40 px down from its start corner.
 const CARD_CENTER = { x: 120, y: 40 } as const;
 

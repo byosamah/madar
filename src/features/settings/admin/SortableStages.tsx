@@ -24,7 +24,7 @@ function SortableStage({ stage, index, render }: {
       {...attributes}
       {...listeners}
       aria-label={t('projectTemplates.stageGrip', { n: index + 1 })}
-      className="grid h-11 w-8 shrink-0 cursor-grab touch-none place-items-center rounded-full text-label-3 hover:bg-fill active:cursor-grabbing"
+      className="grid h-11 w-11 shrink-0 cursor-grab touch-none place-items-center rounded-full text-label-3 hover:bg-fill active:cursor-grabbing"
     >
       <AnimatedIcon icon={GripVerticalIcon} size={16} aria-hidden />
     </button>

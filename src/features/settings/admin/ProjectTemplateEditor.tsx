@@ -358,9 +358,9 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
           />
         )}
         <TemplateTimeline draft={draft} />
-        <Button variant="plain" className="self-start" disabled={phone} onClick={() => setTimeline(true)}>
-          {phone ? t('projectTemplates.timelineNeedsWide') : t('projectTemplates.openTimeline')}
-        </Button>
+        {phone
+          ? <p className="text-footnote text-ink-2">{t('projectTemplates.timelineNeedsWide')}</p>
+          : <Button variant="plain" className="self-start" onClick={() => setTimeline(true)}>{t('projectTemplates.openTimeline')}</Button>}
         {timeline && <TemplateGantt draft={draft} onChange={setDraft} onClose={() => setTimeline(false)} />}
         {problem && <p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
       </div>

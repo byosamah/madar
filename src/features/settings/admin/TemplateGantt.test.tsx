@@ -189,7 +189,8 @@ describe('the timeline button of the template editor', () => {
     const section = await screen.findByRole('region', { name: 'Project templates' });
     await userEvent.click(within(section).getByRole('button', { name: 'New template' }));
     const editor = await screen.findByRole('dialog', { name: 'New project template' });
-    expect(within(editor).getByRole('button', { name: 'The timeline needs a wider screen.' })).toBeDisabled();
+    expect(within(editor).getByText('The timeline needs a wider screen.')).toBeInTheDocument();
+    expect(within(editor).queryByRole('button', { name: 'Edit the timeline' })).toBeNull();
   });
 });
 

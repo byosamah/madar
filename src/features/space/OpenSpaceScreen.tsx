@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Position, ReactFlow, type Edge, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +28,11 @@ const FLOW_CLASS = '[&_.react-flow__attribution]:m-2 [&_.react-flow__attribution
 const FLOW_STYLE = { '--xy-attribution-background-color': 'var(--c-fill)' } as CSSProperties;
 
 /** The part of the React Flow instance that the screen uses. */
-type FlowHandle = { fitView: (options?: { padding?: number }) => unknown };
+type FlowHandle = { fitView: (options?: { padding?: number; minZoom?: number; maxZoom?: number }) => unknown };
+
+// The first view and the view after Open all or Close all keep the cards readable: a tree with many projects shows its middle, and the
+// person moves along with the wheel or a drag. Fit to screen is the way to see the whole tree.
+const READABLE_VIEW = { padding: 0.15, minZoom: 0.7, maxZoom: 1 } as const;
 
 /**
  * The Open space (feedback fbk_015, 2026-10-18): a read-only mind map of the office, for the managers who want the whole office
@@ -52,6 +56,8 @@ function SpaceScreen() {
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
   const [focusPersonId, setFocusPersonId] = useState<string | null>(null);
   const flow = useRef<FlowHandle | null>(null);
+  // Counts the presses of Open all and Close all. Each press moves the view to the new tree once it has drawn.
+  const [refit, setRefit] = useState(0);
 
   const summaries = useMemo(() => projects.data ?? [], [projects.data]);
   const rows = useMemo(() => tasks.data ?? [], [tasks.data]);
@@ -125,11 +131,21 @@ function SpaceScreen() {
     style: { stroke: 'var(--c-ink-2)', strokeOpacity: 0.5 },
   }));
 
+  useEffect(() => {
+    if (refit === 0) return;
+    const frame = requestAnimationFrame(() => void flow.current?.fitView(READABLE_VIEW));
+    return () => cancelAnimationFrame(frame);
+  }, [refit]);
+
   const openEverything = () => {
     const ids = summaries.filter(isOpenProject).flatMap((summary) => [summary.project.id, ...summary.stages.map((stage) => stage.id)]);
     setOpened(new Set(ids));
+    setRefit((count) => count + 1);
   };
-  const openNone = () => setOpened(new Set());
+  const openNone = () => {
+    setOpened(new Set());
+    setRefit((count) => count + 1);
+  };
   const kept = summaries.filter(isOpenProject);
 
   return (
@@ -173,6 +189,9 @@ function SpaceScreen() {
               flow.current = instance;
             }}
             fitView
+            fitViewOptions={READABLE_VIEW}
+            panOnScroll
+            zoomOnScroll={false}
             minZoom={0.2}
             maxZoom={1.5}
             nodesDraggable={false}
