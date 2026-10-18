@@ -70,6 +70,26 @@ function reaches(start: string[], target: string, next: (id: string) => string[]
   return false;
 }
 
+/**
+ * True when a chain of waits leads back to the part it starts from. "edges" maps a part to the parts it waits for, as the
+ * template editor sends them. A part that waits for itself is a cycle too. A part read once is never read again.
+ */
+export function hasCycle(edges: ReadonlyMap<string, readonly string[]>): boolean {
+  const done = new Set<string>();
+  const onChain = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (onChain.has(id)) return true;
+    if (done.has(id)) return false;
+    onChain.add(id);
+    for (const next of edges.get(id) ?? []) if (visit(next)) return true;
+    onChain.delete(id);
+    done.add(id);
+    return false;
+  };
+  for (const id of edges.keys()) if (visit(id)) return true;
+  return false;
+}
+
 /** The prerequisites of a task must be other tasks of its project, none twice, and no task may need itself through a chain. */
 export function assertTaskPrerequisites(state: State, task: Pick<Task, 'id' | 'projectId'>, ids: string[]): void {
   if (task.projectId === null) throw invalid('prerequisiteIds', 'An office task waits for no other task.', 'office_no_prerequisites');

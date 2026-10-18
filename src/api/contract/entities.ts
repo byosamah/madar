@@ -413,10 +413,15 @@ export const TemplateStage = z.object({
   name: StageName,
   startOffset: TemplateOffset.nullable(),
   durationDays: DurationDays.nullable(),
+  /** The stages of this template that must be done first (fbk_008). Optional, so a template saved before waits still loads. */
+  prerequisiteIds: z.array(TemplatePartId).max(MAX_PREREQUISITES).optional(),
 });
 export type TemplateStage = z.infer<typeof TemplateStage>;
 
-/** A task of a template. Its start and length are working days. "flexible" is the first state of its "Can stretch" tick. */
+/**
+ * A task of a template. Its start and length are working days. "flexible" is the first state of its "Can stretch" tick.
+ * A task with waits becomes a dynamic task in a new project: it moves when a task it waits for moves.
+ */
 export const TemplateTask = z.object({
   id: TemplatePartId,
   stageId: TemplatePartId,
@@ -430,6 +435,8 @@ export const TemplateTask = z.object({
   startOffset: TemplateOffset,
   durationDays: DurationDays,
   flexible: z.boolean(),
+  /** The tasks of this template that must be done first (fbk_008). Optional, so a template saved before waits still loads. */
+  prerequisiteIds: z.array(TemplatePartId).max(MAX_PREREQUISITES).optional(),
 });
 export type TemplateTask = z.infer<typeof TemplateTask>;
 

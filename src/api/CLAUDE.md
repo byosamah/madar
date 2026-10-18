@@ -70,6 +70,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   or `targetEndDate`. The plan comes from `lib/projectPlan.ts`, the same function as the screen. Locked tasks that do not fit
   refuse with reason `template_too_short` (`names` holds the days they need). A role person joins the team; a role with no
   person gives tasks with no lead. The tasks send no notice: their people had the one notice of their place on the team.
+- Template tasks and stages can wait for other parts of their own template (`prerequisiteIds`, fbk_008). `projectTemplates.save`
+  refuses a wait on a missing part (`prerequisite_not_in_template`), a repeated wait and a loop (`dependency_cycle`, `hasCycle`
+  in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 

@@ -154,4 +154,63 @@ describe('project templates', () => {
     const saved = await t.api.call('projectTemplates.save', draft());
     expect(saved.createdBy).toBe('usr_003');
   });
+
+  it('saves the waits of tasks and stages, and lists them', async () => {
+    const t = world();
+    const base = draft();
+    const waits = {
+      ...base,
+      stages: [base.stages[0], { ...base.stages[1], prerequisiteIds: ['s1'] }],
+      tasks: [base.tasks[0], { ...base.tasks[1], prerequisiteIds: ['t1'] }],
+    };
+    const saved = await t.api.call('projectTemplates.save', waits);
+    expect(saved.stages[1]).toMatchObject({ prerequisiteIds: ['s1'] });
+    expect(saved.tasks[1]).toMatchObject({ prerequisiteIds: ['t1'] });
+    expect(saved.tasks[0]).not.toHaveProperty('prerequisiteIds');
+  });
+
+  it('refuses a task that waits for a task that is not in the template', async () => {
+    const t = world();
+    const base = draft();
+    const missing = { ...base, tasks: [{ ...base.tasks[0], prerequisiteIds: ['t9'] }, base.tasks[1]] };
+    await expect(t.api.call('projectTemplates.save', missing)).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['tasks'], reason: 'prerequisite_not_in_template' },
+    });
+  });
+
+  it('refuses a stage that waits for a stage that is not in the template', async () => {
+    const t = world();
+    const base = draft();
+    const missing = { ...base, stages: [base.stages[0], { ...base.stages[1], prerequisiteIds: ['s9'] }] };
+    await expect(t.api.call('projectTemplates.save', missing)).rejects.toMatchObject({
+      code: 'invalid_input', details: { fields: ['stages'], reason: 'prerequisite_not_in_template' },
+    });
+  });
+
+  it('refuses a task that waits for itself, and two tasks that wait for each other', async () => {
+    const t = world();
+    const base = draft();
+    const self = { ...base, tasks: [{ ...base.tasks[0], prerequisiteIds: ['t1'] }, base.tasks[1]] };
+    await expect(t.api.call('projectTemplates.save', self)).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'dependency_cycle' } });
+    const pair = { ...base, tasks: [{ ...base.tasks[0], prerequisiteIds: ['t2'] }, { ...base.tasks[1], prerequisiteIds: ['t1'] }] };
+    await expect(t.api.call('projectTemplates.save', pair)).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'dependency_cycle' } });
+  });
+
+  it('refuses two stages that wait for each other', async () => {
+    const t = world();
+    const base = draft();
+    const pair = {
+      ...base,
+      stages: [{ ...base.stages[0], prerequisiteIds: ['s2'] }, { ...base.stages[1], prerequisiteIds: ['s1'] }],
+      tasks: [],
+    };
+    await expect(t.api.call('projectTemplates.save', pair)).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['stages'], reason: 'dependency_cycle' } });
+  });
+
+  it('refuses a part that is listed twice in its waits', async () => {
+    const t = world();
+    const base = draft();
+    const twice = { ...base, tasks: [base.tasks[0], { ...base.tasks[1], prerequisiteIds: ['t1', 't1'] }] };
+    await expect(t.api.call('projectTemplates.save', twice)).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'duplicate_prerequisite' } });
+  });
 });

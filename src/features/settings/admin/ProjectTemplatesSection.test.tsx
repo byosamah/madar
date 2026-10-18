@@ -143,4 +143,30 @@ describe('the Admin section Project templates', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(savedNamed(store, 'Competition entry')).toBeDefined());
   });
+
+  it('makes a task and a stage wait for other parts of the template, and saves the waits', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    await userEvent.click(within(await region('Project templates')).getByRole('button', { name: 'New template' }));
+    const sheet = await screen.findByRole('dialog', { name: 'New project template' });
+    await userEvent.type(within(sheet).getByLabelText('Template name'), 'Waits');
+    await userEvent.type(within(sheet).getByLabelText('Name of stage 1'), 'Concept');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+    await userEvent.type(within(sheet).getByLabelText('Task'), 'Massing');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+    const pack = within(sheet).getAllByLabelText('Task')[1];
+    await userEvent.type(pack, 'Pack');
+    const packRow = pack.closest('li') as HTMLElement;
+    await userEvent.selectOptions(within(packRow).getByLabelText('Waits for'), 'Massing');
+    expect(within(packRow).getByRole('button', { name: 'Stop waiting for Massing' })).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a stage' }));
+    await userEvent.type(within(sheet).getByLabelText('Name of stage 2'), 'Permits');
+    const permitsCard = within(sheet).getByLabelText('Name of stage 2').closest('div.rounded-2xl') as HTMLElement;
+    await userEvent.selectOptions(within(permitsCard).getByLabelText('Waits for'), 'Concept');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+    const saved = savedNamed(store, 'Waits') as unknown as { stages: { prerequisiteIds?: string[] }[]; tasks: { prerequisiteIds?: string[] }[] };
+    expect(saved.stages[1].prerequisiteIds).toEqual(['s1']);
+    expect(saved.tasks[1].prerequisiteIds).toEqual(['t1']);
+    expect(saved.tasks[0].prerequisiteIds).toBeUndefined();
+  });
 });

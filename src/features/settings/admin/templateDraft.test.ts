@@ -180,3 +180,36 @@ describe('startsBeforeStageAbove', () => {
     expect(startsBeforeStageAbove(reorderStages(withoutConcept, 0, 1), 1)).toBe(false);
   });
 });
+
+describe('the waits of a template part', () => {
+  const LINKED: ProjectTemplate = {
+    ...SAVED,
+    stages: [SAVED.stages[0], { ...SAVED.stages[1], prerequisiteIds: ['s1'] }],
+    tasks: [SAVED.tasks[0], { ...SAVED.tasks[1], prerequisiteIds: ['t1'] }],
+  };
+
+  it('keeps the waits of a saved task and stage in the draft and in the input', () => {
+    const draft = draftOf(LINKED);
+    expect(draft.tasks[1].prerequisiteIds).toEqual(['t1']);
+    expect(draft.stages[1].prerequisiteIds).toEqual(['s1']);
+    const input = draftInput(draft);
+    expect(input.tasks[1]).toMatchObject({ prerequisiteIds: ['t1'] });
+    expect(input.stages[1]).toMatchObject({ prerequisiteIds: ['s1'] });
+  });
+
+  it('leaves the key out of a part that waits for nothing', () => {
+    const input = draftInput(draftOf(LINKED));
+    expect(input.tasks[0]).not.toHaveProperty('prerequisiteIds');
+    expect(input.stages[0]).not.toHaveProperty('prerequisiteIds');
+  });
+
+  it('drops a wait on a part that the draft no longer has', () => {
+    const draft = draftOf(LINKED);
+    expect(draft.tasks[1].prerequisiteIds).toEqual(['t1']);
+    expect(draft.stages[1].prerequisiteIds).toEqual(['s1']);
+    const withoutMassing = { ...draft, tasks: draft.tasks.filter((task) => task.id !== 't1') };
+    expect(draftInput(withoutMassing).tasks[0]).not.toHaveProperty('prerequisiteIds');
+    const withoutConcept = { ...draft, stages: draft.stages.filter((stage) => stage.id !== 's1'), tasks: [] };
+    expect(draftInput(withoutConcept).stages[0]).not.toHaveProperty('prerequisiteIds');
+  });
+});

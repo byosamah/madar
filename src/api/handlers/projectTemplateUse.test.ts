@@ -4,6 +4,7 @@ import { projectTemplateCalls } from './projectTemplates';
 import { memberKey } from '../store';
 import { NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { dueFromDuration } from '../../lib/workdays';
 
 beforeEach(() => setNow(NOW));
 
@@ -148,5 +149,33 @@ describe('projects.create from a project template', () => {
     const { project } = await t.api.call('projects.create', { name: 'X', template: { templateId: id, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
     expect(project).toMatchObject({ startDate: '2026-10-04', targetEndDate: null });
     expect(stagesOf(t, project.id).map((s) => s.name)).toEqual(['Brief']);
+  });
+
+  it('makes a task that waits for another task dynamic, and links the new tasks and stages', async () => {
+    const t = world();
+    const linked = {
+      ...TEMPLATE,
+      stages: [TEMPLATE.stages[0], TEMPLATE.stages[1], { ...TEMPLATE.stages[2], prerequisiteIds: ['s1'] }],
+      tasks: [TEMPLATE.tasks[0], { ...TEMPLATE.tasks[1], prerequisiteIds: ['t1'] }],
+    };
+    const { id } = await t.api.call('projectTemplates.save', linked);
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId: id, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
+    const [massing, pack] = tasksOf(t, project.id);
+    expect(massing.schedule).toBe('static');
+    expect(massing.prerequisiteIds).toBeUndefined();
+    expect(pack).toMatchObject({ schedule: 'dynamic', durationDays: 5, startDate: '2026-10-18', dueDate: '2026-10-22', prerequisiteIds: [massing.id] });
+    const stages = stagesOf(t, project.id);
+    expect(stages[2].prerequisiteIds).toEqual([stages[0].id]);
+    expect(stages[1].prerequisiteIds).toBeUndefined();
+  });
+
+  it('keeps the due date of a dynamic task from its start and its length, also when the plan stretches the task', async () => {
+    const t = world();
+    const linked = { ...TEMPLATE, tasks: [TEMPLATE.tasks[0], { ...TEMPLATE.tasks[1], flexible: true, prerequisiteIds: ['t1'] }] };
+    const { id } = await t.api.call('projectTemplates.save', linked);
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId: id, startDate: '2026-10-04', endDate: '2026-10-08', roles: {}, fixedTaskIds: [] } });
+    const pack = tasksOf(t, project.id)[1];
+    expect(pack.schedule).toBe('dynamic');
+    expect(dueFromDuration(pack.startDate!, pack.durationDays!)).toBe(pack.dueDate);
   });
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectTemplate } from '../../../api/contract/entities';
+import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -22,6 +23,53 @@ import { TemplateTimeline } from './TemplateTimeline';
 /** A small field with its label above, for the numbers and the role of a task. The label is the accessible name. */
 function SmallLabel({ htmlFor, children }: { htmlFor: string; children: string }) {
   return <label htmlFor={htmlFor} className="text-caption text-ink-2">{children}</label>;
+}
+
+/** One part that a task or a stage can wait for: its id, and the name the editor shows. */
+type WaitChoice = { id: string; name: string };
+
+/**
+ * "Waits for": the parts of this template that must be done first. The picker offers the other parts of the same kind, and it
+ * stops at the limit of the server. The server refuses a cycle, and a wait on a part that is gone is dropped on save.
+ */
+function WaitsFor({ id, choices, chosen, onChange }: { id: string; choices: WaitChoice[]; chosen: string[]; onChange: (ids: string[]) => void }) {
+  const { t } = useTranslation();
+  const named = choices.filter((choice) => chosen.includes(choice.id));
+  const rest = choices.filter((choice) => !chosen.includes(choice.id));
+  const canAdd = rest.length > 0 && chosen.length < MAX_PREREQUISITES;
+  if (!canAdd && named.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      {canAdd
+        ? <SmallLabel htmlFor={`${id}-waits`}>{t('projectTemplates.waitsFor')}</SmallLabel>
+        : <span className="text-caption text-ink-2">{t('projectTemplates.waitsFor')}</span>}
+      {named.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {named.map((part) => (
+            <li key={part.id} className="flex items-center gap-1 rounded-full bg-fill ps-3 pe-1">
+              <bdi className="min-w-0 text-footnote">{part.name}</bdi>
+              <IconButton label={t('projectTemplates.stopWaiting', { name: part.name })} onClick={() => onChange(chosen.filter((other) => other !== part.id))}>
+                <AnimatedIcon icon={XIcon} size={14} aria-hidden />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      {canAdd && (
+        <select
+          id={`${id}-waits`}
+          className="field min-h-11"
+          value=""
+          onChange={(event) => {
+            if (event.target.value) onChange([...chosen, event.target.value]);
+          }}
+        >
+          <option value="">{t('projectTemplates.chooseWait')}</option>
+          {rest.map((part) => <option key={part.id} value={part.id}>{part.name}</option>)}
+        </select>
+      )}
+    </div>
+  );
 }
 
 /** The number fields take Arabic digits too, so they are text fields with a number keyboard. */
@@ -68,6 +116,12 @@ function TaskRow({ task, draft, onChange, onRemove }: { task: DraftTask; draft: 
         />
         <span className="text-subheadline">{t('projectTemplates.canStretch')}</span>
       </label>
+      <WaitsFor
+        id={id}
+        choices={draft.tasks.flatMap((other, index) => (other.id === task.id ? [] : [{ id: other.id, name: other.title.trim() || String(index + 1) }]))}
+        chosen={task.prerequisiteIds ?? []}
+        onChange={(prerequisiteIds) => onChange({ ...task, prerequisiteIds })}
+      />
     </li>
   );
 }
@@ -123,6 +177,12 @@ function StageCard({
         </div>
         {tasksEnd !== null && <p className="text-footnote text-ink-2">{t('projectTemplates.tasksEnd', { day: tasksEnd })}</p>}
         {startsBefore && <p className="text-footnote text-ink-2">{t('projectTemplates.startsBeforeAbove')}</p>}
+        <WaitsFor
+          id={id}
+          choices={draft.stages.flatMap((other, index) => (other.id === stage.id ? [] : [{ id: other.id, name: other.name.trim() || String(index + 1) }]))}
+          chosen={stage.prerequisiteIds ?? []}
+          onChange={(prerequisiteIds) => setStage({ ...stage, prerequisiteIds })}
+        />
       </div>
       {tasks.length > 0 && (
         <ul className="hairline flex flex-col">

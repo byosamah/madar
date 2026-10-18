@@ -6,11 +6,17 @@ import { stageSpan, templateDays, type PlanTemplate } from '../../../lib/project
  * the save, so a half-typed number never jumps. An empty person or role is ''.
  */
 export type DraftRole = { id: string; name: string; defaultUserId: string };
-export type DraftStage = { id: string; name: string; start: string; days: string };
+export type DraftStage = {
+  id: string; name: string; start: string; days: string;
+  /** The stages that this stage waits for. Missing means none, so a stage without waits keeps its old shape. */
+  prerequisiteIds?: string[];
+};
 export type DraftTask = {
   id: string; stageId: string; title: string; roleId: string; start: string; days: string; flexible: boolean;
   /** Kept as saved: the editor shows only the fields of the owner's list (title, role, start, length, can stretch). */
   description: string; checklist: string[]; needsReview: boolean;
+  /** The tasks that this task waits for. Missing means none. */
+  prerequisiteIds?: string[];
 };
 export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftStage[]; tasks: DraftTask[] };
 export type TemplateParts = { name: string; roles: TemplateRole[]; stages: TemplateStage[]; tasks: TemplateTask[] };
@@ -25,14 +31,20 @@ export function emptyDraft(): TemplateDraft {
 
 const text = (n: number | null) => (n === null ? '' : String(n));
 
+/** The waits of a part as the draft and the input keep them. The key is there only when the part waits for something. */
+const waitsOf = (ids: readonly string[] | undefined): { prerequisiteIds?: string[] } => (ids && ids.length > 0 ? { prerequisiteIds: [...ids] } : {});
+
 export function draftOf(template: ProjectTemplate): TemplateDraft {
   return {
     name: template.name,
     roles: template.roles.map((role) => ({ id: role.id, name: role.name, defaultUserId: role.defaultUserId ?? '' })),
-    stages: template.stages.map((stage) => ({ id: stage.id, name: stage.name, start: text(stage.startOffset), days: text(stage.durationDays) })),
+    stages: template.stages.map((stage) => ({
+      id: stage.id, name: stage.name, start: text(stage.startOffset), days: text(stage.durationDays), ...waitsOf(stage.prerequisiteIds),
+    })),
     tasks: template.tasks.map((task) => ({
       id: task.id, stageId: task.stageId, title: task.title, roleId: task.roleId ?? '', start: String(task.startOffset), days: String(task.durationDays),
       flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
+      ...waitsOf(task.prerequisiteIds),
     })),
   };
 }
@@ -202,18 +214,25 @@ export function draftError(draft: TemplateDraft): string | null {
   return null;
 }
 
-/** The input of projectTemplates.save. Call it only when draftError gives null. */
+/**
+ * The input of projectTemplates.save. Call it only when draftError gives null. A wait on a part that the draft no longer has
+ * (a removed task or stage) is dropped here, so the server never sees a wait on a missing part.
+ */
 export function draftInput(draft: TemplateDraft): TemplateParts {
   const stageIds = new Set(draft.stages.map((stage) => stage.id));
+  const tasks = draft.tasks.filter((task) => stageIds.has(task.stageId));
+  const taskIds = new Set(tasks.map((task) => task.id));
   return {
     name: draft.name.trim(),
     roles: draft.roles.map((role) => ({ id: role.id, name: role.name.trim(), defaultUserId: role.defaultUserId || null })),
     stages: draft.stages.map((stage) => ({
       id: stage.id, name: stage.name.trim(), startOffset: stage.start.trim() ? wholeNumber(stage.start) : null, durationDays: stage.days.trim() ? wholeNumber(stage.days) : null,
+      ...waitsOf((stage.prerequisiteIds ?? []).filter((id) => stageIds.has(id))),
     })),
-    tasks: draft.tasks.filter((task) => stageIds.has(task.stageId)).map((task) => ({
+    tasks: tasks.map((task) => ({
       id: task.id, stageId: task.stageId, title: task.title.trim(), description: task.description, checklist: task.checklist, needsReview: task.needsReview,
       roleId: task.roleId || null, startOffset: wholeNumber(task.start)!, durationDays: wholeNumber(task.days)!, flexible: task.flexible,
+      ...waitsOf((task.prerequisiteIds ?? []).filter((id) => taskIds.has(id))),
     })),
   };
 }

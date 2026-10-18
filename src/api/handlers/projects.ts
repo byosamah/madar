@@ -20,6 +20,7 @@ import {
   TYPE_PATTERN,
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
+import { workingDaysInclusive } from '../../lib/templatePlan';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
@@ -179,23 +180,29 @@ function templateMadeOf(ctx: Ctx, input: { template?: TemplateUse; stages?: stri
 }
 
 /**
- * The tasks of a template in the new project: static dates from the plan, the person of the role as the lead, and the
- * checklist with every item unticked. "No review" holds only for a person who may set it in this project (as task templates).
+ * The tasks of a template in the new project: dates from the plan, the person of the role as the lead, and the checklist with
+ * every item unticked. "No review" holds only for a person who may set it in this project (as task templates).
  * The people of the roles had the one notice of their place on the team, so the tasks send no notice of their own.
+ * A task that waits for other tasks is dynamic (fbk_008): its length is the working days of its plan, and its waits name the new ids.
  */
 function addTemplateTasks(ctx: Ctx, projectId: string, stageIdOf: Map<string, string>, made: TemplateMade): void {
   const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, projectId) });
+  // The ids come first, so a task can wait for a task that comes later in the template.
+  const taskIdOf = new Map<string, string>(made.template.tasks.map((part): [string, string] => [part.id, nextId(ctx.state, 'tsk')]));
   for (const part of made.template.tasks) {
-    const id = nextId(ctx.state, 'tsk');
+    const id = taskIdOf.get(part.id)!;
     const dates = made.plan.tasks[part.id];
+    const waits = (part.prerequisiteIds ?? []).flatMap((partId) => taskIdOf.get(partId) ?? []);
     const task: Task = {
       id, projectId, stageId: stageIdOf.get(part.stageId)!, title: part.title, description: part.description,
       ownerId: part.roleId === null ? null : made.people[part.roleId] ?? null, status: 'todo',
-      startDate: dates.startDate, schedule: 'static', durationDays: null, dueDate: dates.dueDate,
+      startDate: dates.startDate, schedule: waits.length > 0 ? 'dynamic' : 'static',
+      durationDays: waits.length > 0 ? workingDaysInclusive(dates.startDate, dates.dueDate) : null, dueDate: dates.dueDate,
       flagged: false, needsReview: part.needsReview || !maySkipReview,
       checklist: part.checklist.map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
       createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
     };
+    if (waits.length > 0) task.prerequisiteIds = waits;
     ctx.state.tasks[id] = task;
     recordCreate(ctx, { projectId, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
   }
@@ -348,6 +355,11 @@ export const projectsCreate = defineCall({
       stageIdOf.set(partId, stageId);
       return stageId;
     });
+    // The waits of the template stages, on the new stage ids. A stage may wait for a later stage, so every stage exists first.
+    for (const stage of made?.template.stages ?? []) {
+      const waits = (stage.prerequisiteIds ?? []).flatMap((partId) => stageIdOf.get(partId) ?? []);
+      if (waits.length > 0) state.stages[stageIdOf.get(stage.id)!].prerequisiteIds = waits;
+    }
     // From a template: the start of the template part, and its end date, else the last due day of the plan (when it comes after the start).
     const planEnd = made?.plan.endDate && made.plan.endDate > made.use.startDate ? made.plan.endDate : null;
     const startDate = made ? made.use.startDate : input.startDate;

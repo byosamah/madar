@@ -5,6 +5,7 @@ import {
 } from '../contract/entities';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
+import { hasCycle } from '../flow';
 import { nextId, projectTemplatesOf } from '../store';
 import { namesUnder } from '../views';
 import { assertCan } from './shared';
@@ -77,6 +78,26 @@ function assertParts(ctx: Ctx, parts: Parts, selfId: string | null): void {
     if (!stageIds.has(task.stageId)) throw invalid('tasks', `The task "${task.title}" names a stage that is not in the template.`);
     if (task.roleId !== null && !roleIds.has(task.roleId)) throw invalid('tasks', `The task "${task.title}" names a role that is not in the template.`);
   }
+  assertWaits('stages', parts.stages);
+  assertWaits('tasks', parts.tasks);
+}
+
+/**
+ * The waits of the stages, or of the tasks, of one template. A wait names a part of the same list, once. No chain of waits may
+ * loop back to its part, and a part that waits for itself is refused too.
+ */
+function assertWaits(field: 'stages' | 'tasks', parts: { id: string; prerequisiteIds?: string[] }[]): void {
+  const ids = new Set(parts.map((part) => part.id));
+  const edges = new Map<string, string[]>();
+  for (const part of parts) {
+    const waits = part.prerequisiteIds ?? [];
+    if (new Set(waits).size !== waits.length) throw invalid(field, 'A part is in its list of waits twice.', 'duplicate_prerequisite');
+    for (const id of waits) {
+      if (!ids.has(id)) throw invalid(field, `The part "${id}" that it waits for is not in the template.`, 'prerequisite_not_in_template');
+    }
+    edges.set(part.id, waits);
+  }
+  if (hasCycle(edges)) throw invalid(field, 'These parts would wait for each other.', 'dependency_cycle');
 }
 
 const projectTemplatesList = defineCall({
