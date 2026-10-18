@@ -31,7 +31,7 @@ type CalendarPopoverProps = {
  * Madar's calendar on a computer (fbk_009). It is a dialog (the WAI-ARIA date picker pattern): the month with its two buttons,
  * the week row and the 6-week grid. One day has the focus (the cursor). The arrow keys move the cursor by a day and the up and
  * down keys by a week; in Arabic the sides swap. The page keys and a wheel step move a month. Enter picks the focused day, and
- * Escape closes the dialog (the popover does that). A day outside the range is disabled, and the cursor stops at the range edge.
+ * Escape closes the calendar only, not the sheet around it. A day outside the range is disabled, and the cursor stops at the range edge.
  */
 export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: CalendarPopoverProps) {
   const { t } = useTranslation();
@@ -82,6 +82,18 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
   }, [min, max]);
+
+  // A sheet that blocks the page keeps the focus in the date field. So the calendar listens at the window, before the sheet
+  // does. Escape closes only the calendar.
+  useEffect(() => {
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onEscape, true);
+    return () => window.removeEventListener('keydown', onEscape, true);
+  }, [onClose]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // In Arabic the days run from the right, so the left arrow gives the next day.

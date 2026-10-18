@@ -291,4 +291,23 @@ describe("the New Project sheet: Madar's calendar on a computer (fbk_009)", () =
       window.matchMedia = real;
     }
   });
+
+  // A sheet that blocks the page keeps the focus in the date field. Escape closes the calendar only, not the sheet.
+  it('closes only the calendar with Escape, and keeps the New Project sheet open', async () => {
+    const real = window.matchMedia;
+    window.matchMedia = (query: string) => {
+      const base = real(query);
+      return query === '(pointer: fine)' ? ({ ...base, matches: true } as MediaQueryList) : base;
+    };
+    try {
+      const { sheet } = await openSheet();
+      await userEvent.click(within(sheet).getByLabelText('Start date'));
+      await screen.findByRole('dialog', { name: 'Pick a date' });
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pick a date' })).toBeNull());
+      expect(screen.getByRole('dialog', { name: 'New Project' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = real;
+    }
+  });
 });
