@@ -5,6 +5,7 @@ import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
@@ -20,6 +21,7 @@ import {
 import { AddStagesSheet } from './AddStagesSheet';
 import { SortableStages, type StageDrag } from './SortableStages';
 import { TemplateTimeline } from './TemplateTimeline';
+import { TemplateGantt } from './TemplateGantt';
 
 /** A small field with its label above, for the numbers and the role of a task. The label is the accessible name. */
 function SmallLabel({ htmlFor, children }: { htmlFor: string; children: string }) {
@@ -260,6 +262,9 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
   const [problem, setProblem] = useState<string | null>(null);
   // The sheet that takes stages from another saved template (fbk_008 item 7).
   const [adding, setAdding] = useState(false);
+  // The timeline sheet edits the same draft (fbk_008 item 6). A phone has no room for it, so its button shows why.
+  const [timeline, setTimeline] = useState(false);
+  const phone = useIsPhone();
   const save = useAction('projectTemplates.save', {
     onSuccess: () => {
       toast.show({ message: t('projectTemplates.saved') });
@@ -353,7 +358,11 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
           />
         )}
         <TemplateTimeline draft={draft} />
-        {problem && <p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
+        <Button variant="plain" className="self-start" disabled={phone} onClick={() => setTimeline(true)}>
+          {phone ? t('projectTemplates.timelineNeedsWide') : t('projectTemplates.openTimeline')}
+        </Button>
+        {timeline && <TemplateGantt draft={draft} onChange={setDraft} onClose={() => setTimeline(false)} />}
+        {problem &&<p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
       </div>
     </Sheet>
   );
