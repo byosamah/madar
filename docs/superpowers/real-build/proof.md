@@ -1704,7 +1704,7 @@ Open for the owner (Task 11, Steps 3 to 5):
   results go here after the run.
 - The fallback (free OpenFreeMap tiles, same style) when the probe fails.
 
-### Wave 4 report data: reports.office (2026-10-18, Task 28, to measure)
+### Wave 4 report data: reports.office (2026-10-18, Task 28)
 
 - The read `reports.office` gives one office report for a week, a month, a quarter or a year. Only the right `report.office` reads it.
 - The loader counts the stage moves, the completions and the pauses of the period in SQL, one count for each key. It reads the review
@@ -1722,5 +1722,27 @@ Open for the owner (Task 11, Steps 3 to 5):
 - Rows pin: `reports.office` (year 2026, Admin) in `server/office/test/pins.ts` has a ceiling of 265,063 rows: the measured 240,966
   rows plus 10%, rounded up. The ceiling is high on purpose. Each of the four event reads visits every event of the period, because
   the events table has no index on the verb. A verb index would cut the rows, but it is a schema change, so it is not in this fix.
-- Server time of a year report on the test copy: to measure. The Supabase limit is 2 s of CPU for each request. The merge lead runs
-  `npm run test:office` and `npm run test:lite`, then measures the year read on the test copy.
+- Server time of a year report on the test copy (2026-10-18, commit 7183347, sample office with 11 projects, as the Admin, from the
+  Mac in Al Khobar, 7 samples for each read, 500 ms between samples, script `report-time.mts` of the merge lead):
+  - First run: median 0.43 s for the year read.
+  - Second run (load average 3.6 on the Mac): `session.get` median 659 ms (an empty call, the reference), `reports.office` week
+    median 703 ms, year median 696 ms. The slowest year sample was 1,590 ms.
+  - The year read costs about 40 ms more than the empty call. Most of the time is the trip from the Mac to Cloudflare and to
+    Supabase, not the report. The whole request stays under 2 s in every sample but one outlier of the empty call (2,508 ms), so the
+    Supabase limit of 2 s of CPU for each request is not near.
+  - The sample office is small. The row pin above (240,966 rows for the year office of the pins) is the guard for a large office.
+
+### The team requests on the test copy: the deploy suite (2026-10-18, 7183347)
+
+- The test copy runs commit 7183347 (all 13 requests). Health: host supabase, 134 shared calls, file store r2.
+- First run of the deploy suite from deploy-test, 55.6 minutes, 168 tests: 163 passed, 2 failed, 3 skipped, 0 flaky.
+  - The 3 skipped tests call `skipPreviewAs()`: they skip by design on the preview host.
+  - Failure 1, "New message starts a direct chat" (`tests/e2e-deploy/owner.spec.ts`): the test clicked the first button of the
+    "Pick a person" sheet. That button is now "Make a group" (fbk_011), so the page stayed on /inbox. The product was right and the
+    test was stale. Fix: the test skips the "Make a group" button, as the prototype smoke test does since the wave 2 to 4 gates.
+  - Failure 2, "walk en-1440" (`tests/e2e-deploy/walk.spec.ts`): the Admin sign-in step failed with `EAUTHQUERY auth_query secret
+    check timed out`, an error of the database pooler on a sign-in. The other three walks (ar-1440, en-390, ar-390) passed with
+    the same sign-in, and so did the Management and Member sign-ins of this walk.
+- Second run, after the fix, each of the two specs alone, once: both passed (the chat test 4.5 s, the walk 3.8 min).
+- Result: 165 passed, 3 skipped, 0 failed. The seed ran before and after each run and exited 0.
+- No `.playwright-mcp` folder and no new file appeared in either folder.

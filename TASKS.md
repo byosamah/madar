@@ -665,7 +665,6 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] Wave 1, track `inbox` (merged to main 2026-10-18)
   - [x] Task 6: archive a chat (fbk_012)
 - [x] Wave 1 gates on the Mac (2026-10-18): typecheck, npm test 5,480, builds, test:lite 1,162, test:office 37, test:db 1,162, test:it 279, test:mcp 176, prototype smoke 87 of 87 (one spec failed once under load and passed alone)
-- [ ] Wave 1 release: test deploy, screenshots checked, owner says the release is live (then `feedback.setStatus` done for fbk_013, fbk_010, fbk_019, fbk_009, fbk_018, fbk_012)
 - [x] Wave 2, track `chats` (Tasks 7, 8): group chats, and agents read chats and list what waits for a reply (fbk_011)
 - [x] Wave 2, track `subcompanies` (Tasks 9, 10): sub-companies with a logo, one for each project, an MCP filter (fbk_007)
 - [x] Wave 2, track `map` (Tasks 11 to 13, 12b): the pin in the project settings, the Dashboard Map tab, the place search with OpenStreetMap (fbk_017). Task 11 steps 3 to 5 (the Saudi map file on R2) wait for the owner OK, see "Open for the owner" below
@@ -674,7 +673,8 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] Wave 4, track `roles` (Tasks 25 to 29): custom roles with rights (fbk_014), the office report by MCP (fbk_016)
 - [x] Waves 2 to 4 joined on `rb/wave24` (2026-10-18): the six tracks, 39 builder commits, the merge fixes, the What's new entries 5 to 12, and the fixes from the screenshots (Open space click, first view and Open all view, the check mark in the group picker, the sub-company badge on the Open space card and the map pin card, the sub-company in the office report)
 - [x] Waves 2 to 4 gates on the Mac (2026-10-18): typecheck, npm test 6,043 (581 files; 4 deploy-script tests timed out under load and passed alone), builds, test:lite 1,439, test:office 37, test:db 1,439, test:it 283, test:mcp 192 and the conformance run (5 of 32, as expected), prototype smoke 87 of 87 (one spec clicked the new Make a group button: the test is fixed)
-- [ ] Waves 2 to 4 release: test deploy, the year-report time on the test copy (Task 28, write it in proof.md), the deploy suite, the screenshots on the test copy, owner says the release is live (then `feedback.setStatus` done for fbk_011, fbk_007, fbk_015, fbk_008, fbk_014, fbk_016; fbk_017 only after the map file is live)
+- [x] Waves 2 to 4 on the test copy (2026-10-18, 7183347): the year-report time (median 0.70 s from the Mac, about 40 ms over an empty call) and the deploy suite (165 passed, 3 skipped by design, 0 failed after two reruns of a stale chat test and a pooler sign-in timeout) are in proof.md
+- [ ] Waves 1 to 4 release: production from Friday 2026-10-23 by the owner (`! echo production | scripts/deploy/all.sh production` from deploy-test), then the owner says the release is live (then `feedback.setStatus` done for fbk_013, fbk_010, fbk_019, fbk_009, fbk_018, fbk_012, fbk_011, fbk_007, fbk_015, fbk_008, fbk_014, fbk_016; fbk_017 only after the map file is live)
 - [ ] Open for the owner (2026-10-18), none of them blocks the test deploy:
   - The map file (Task 11 steps 3 to 5): A) own file on R2, free, needs the owner OK for the upload and a bucket; or B) free OpenFreeMap tiles, no upload, less control. Until then the real map shows no street tiles.
   - Group chats: "New message" keeps one tap for a direct chat, and a "Make a group" button starts a group. A group keeps at least 2 people besides the maker. Confirm both.
