@@ -14,9 +14,10 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage, removeTask,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, importStages, moveStage, removeRole, removeStage, removeTask,
   startsBeforeStageAbove, tasksEndDay, type DraftRole, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
+import { AddStagesSheet } from './AddStagesSheet';
 import { SortableStages, type StageDrag } from './SortableStages';
 import { TemplateTimeline } from './TemplateTimeline';
 
@@ -257,6 +258,8 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
     .map((user) => ({ id: user.id, label: nameOf(user) }));
   const [draft, setDraft] = useState<TemplateDraft>(() => (template ? draftOf(template) : (copy ?? emptyDraft())));
   const [problem, setProblem] = useState<string | null>(null);
+  // The sheet that takes stages from another saved template (fbk_008 item 7).
+  const [adding, setAdding] = useState(false);
   const save = useAction('projectTemplates.save', {
     onSuccess: () => {
       toast.show({ message: t('projectTemplates.saved') });
@@ -330,12 +333,25 @@ export function ProjectTemplateEditor({ template, copy, onClose }: {
               <StageCard stage={stage} index={index} count={draft.stages.length} draft={draft} setDraft={setDraft} drag={drag} />
             )}
           />
-          <Button className="self-start" onClick={() => setDraft(addStage(draft))}>
-            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-            {t('projectTemplates.addStage')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="self-start" onClick={() => setDraft(addStage(draft))}>
+              <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+              {t('projectTemplates.addStage')}
+            </Button>
+            <Button variant="plain" onClick={() => setAdding(true)}>{t('projectTemplates.addStagesFrom')}</Button>
+          </div>
         </section>
 
+        {adding && (
+          <AddStagesSheet
+            exclude={template?.id ?? null}
+            onClose={() => setAdding(false)}
+            onAdd={(source, stageIds, withTasks) => {
+              setDraft(importStages(draft, source, stageIds, withTasks));
+              setAdding(false);
+            }}
+          />
+        )}
         <TemplateTimeline draft={draft} />
         {problem && <p id="template-problem" role="alert" className="text-footnote text-late">{t(problem)}</p>}
       </div>

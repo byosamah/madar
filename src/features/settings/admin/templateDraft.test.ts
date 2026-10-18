@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
   addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
-  removeStage, removeTask, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
+  importStages, removeStage, removeTask, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -279,5 +279,71 @@ describe('the waits on a removed part', () => {
     const cut = removeStage(waiting, 's1');
     expect(cut.tasks.map((task) => task.id)).toEqual(['t3']);
     expect(cut.tasks[0]).not.toHaveProperty('prerequisiteIds');
+  });
+});
+
+/** Another template: two stages that wait in turn, and tasks that wait for each other. The role name differs in case. */
+const OTHER: ProjectTemplate = {
+  id: 'ptp_004', name: 'Tower', createdBy: 'usr_001', createdAt: '2026-09-21T09:00:00.000+03:00', updatedAt: '2026-09-21T09:00:00.000+03:00',
+  roles: [{ id: 'r1', name: 'architect', defaultUserId: 'usr_003' }, { id: 'r2', name: 'Engineer', defaultUserId: null }],
+  stages: [
+    { id: 's1', name: 'Concept', startOffset: 0, durationDays: 10 },
+    { id: 's2', name: 'Design', startOffset: null, durationDays: null, prerequisiteIds: ['s1'] },
+    { id: 's3', name: 'Permits', startOffset: 30, durationDays: 5, prerequisiteIds: ['s2'] },
+  ],
+  tasks: [
+    { id: 't1', stageId: 's1', title: 'Massing', description: '', checklist: [], needsReview: false, roleId: 'r1', startOffset: 0, durationDays: 5, flexible: true },
+    { id: 't2', stageId: 's2', title: 'Plans', description: '', checklist: ['Ground floor'], needsReview: true, roleId: 'r2', startOffset: 5, durationDays: 5, flexible: false, prerequisiteIds: ['t1'] },
+    { id: 't3', stageId: 's3', title: 'Submit', description: '', checklist: [], needsReview: true, roleId: null, startOffset: 30, durationDays: 2, flexible: false, prerequisiteIds: ['t2'] },
+  ],
+};
+
+describe('importStages', () => {
+  it('copies two stages with their tasks under new ids, and keeps their links', () => {
+    const draft = importStages(draftOf(SAVED), OTHER, ['s1', 's2'], true);
+    // "Concept" is in use, so the copy gets " 2". Design keeps its name and its wait on the copy of Concept.
+    expect(draft.stages.slice(2)).toEqual([
+      { id: 's3', name: 'Concept 2', start: '0', days: '10' },
+      { id: 's4', name: 'Design', start: '', days: '', prerequisiteIds: ['s3'] },
+    ]);
+    // Architect matches the role Architect of the draft by name. Engineer is new, so it gets the next free role id.
+    expect(draft.tasks.slice(2)).toEqual([
+      { id: 't3', stageId: 's3', title: 'Massing', roleId: 'r1', start: '0', days: '5', flexible: true, description: '', checklist: [], needsReview: false },
+      { id: 't4', stageId: 's4', title: 'Plans', roleId: 'r3', start: '5', days: '5', flexible: false, description: '', checklist: ['Ground floor'], needsReview: true, prerequisiteIds: ['t3'] },
+    ]);
+    expect(draft.roles).toEqual([...draftOf(SAVED).roles, { id: 'r3', name: 'Engineer', defaultUserId: '' }]);
+    expect(draftError(draft)).toBeNull();
+  });
+
+  it('copies only the stages when the tasks stay behind', () => {
+    const before = draftOf(SAVED);
+    const draft = importStages(before, OTHER, ['s1', 's2'], false);
+    expect(draft.tasks).toEqual(before.tasks);
+    expect(draft.roles).toEqual(before.roles);
+    expect(draft.stages.slice(2)).toEqual([
+      { id: 's3', name: 'Concept 2', start: '0', days: '10' },
+      { id: 's4', name: 'Design', start: '', days: '', prerequisiteIds: ['s3'] },
+    ]);
+  });
+
+  it('drops a link to a stage or a task that was not copied', () => {
+    const draft = importStages(draftOf(SAVED), OTHER, ['s2'], true);
+    // Design waits for Concept, and Plans waits for Massing. Neither was copied, so both waits go.
+    expect(draft.stages.at(-1)).toEqual({ id: 's3', name: 'Design', start: '', days: '' });
+    expect(draft.stages.at(-1)).not.toHaveProperty('prerequisiteIds');
+    expect(draft.tasks.at(-1)).toMatchObject({ id: 't3', stageId: 's3', title: 'Plans' });
+    expect(draft.tasks.at(-1)).not.toHaveProperty('prerequisiteIds');
+    expect(draftError(draft)).toBeNull();
+  });
+
+  it('gives a name in use the next number when " 2" is in use too', () => {
+    const before = draftOf(SAVED);
+    const crowded = { ...before, stages: [...before.stages, { id: 's3', name: 'Concept 2', start: '', days: '' }] };
+    expect(importStages(crowded, OTHER, ['s1'], false).stages.at(-1)).toEqual({ id: 's4', name: 'Concept 3', start: '0', days: '10' });
+  });
+
+  it('keeps the order of the source template, whatever the order of the ticks', () => {
+    const draft = importStages(draftOf(SAVED), OTHER, ['s2', 's1'], false);
+    expect(draft.stages.slice(2).map((stage) => stage.name)).toEqual(['Concept 2', 'Design']);
   });
 });

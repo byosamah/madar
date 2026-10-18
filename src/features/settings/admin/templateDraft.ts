@@ -102,12 +102,68 @@ export function wholeNumber(value: string): number | null {
 const offsetOk = (value: string) => { const n = wholeNumber(value); return n !== null && n <= OFFSET_MAX; };
 const daysOk = (value: string) => { const n = wholeNumber(value); return n !== null && n >= 1 && n <= DAYS_MAX; };
 
-/** The next free id of a kind: r for a role, s for a stage, t for a task. */
-function freeId(draft: TemplateDraft, prefix: 'r' | 's' | 't'): string {
-  const used = [...draft.roles, ...draft.stages, ...draft.tasks]
-    .map((part) => (part.id.startsWith(prefix) ? Number(part.id.slice(prefix.length)) : 0))
+/** The next free id of a kind after the ids in `taken`: r for a role, s for a stage, t for a task. */
+function freeIdAfter(taken: readonly string[], prefix: 'r' | 's' | 't'): string {
+  const used = taken
+    .map((id) => (id.startsWith(prefix) ? Number(id.slice(prefix.length)) : 0))
     .filter((n) => Number.isInteger(n));
   return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+
+/** The next free id of a kind: r for a role, s for a stage, t for a task. */
+function freeId(draft: TemplateDraft, prefix: 'r' | 's' | 't'): string {
+  return freeIdAfter([...draft.roles, ...draft.stages, ...draft.tasks].map((part) => part.id), prefix);
+}
+
+/** The waits of copied parts, in their new ids. A wait on a part that was not copied is dropped. */
+const keptWaits = (ids: readonly string[] | undefined, newIds: ReadonlyMap<string, string>): string[] => (ids ?? []).flatMap((id) => {
+  const next = newIds.get(id);
+  return next === undefined ? [] : [next];
+});
+
+/**
+ * Adds stages of another template to the draft (fbk_008 item 7). Every copy gets a new id. With `withTasks`, the tasks of those
+ * stages come too. The copies keep their order in the source template. A link between two copies follows the new ids, and a link
+ * to a part that was not copied is dropped. A copied task takes the role of the draft with the same name. Case does not count.
+ * When the draft has no such role, the task gets a copy of the role with no default person. A stage name in use gets " 2", or the next number.
+ */
+export function importStages(draft: TemplateDraft, source: ProjectTemplate, stageIds: readonly string[], withTasks: boolean): TemplateDraft {
+  const from = draftOf(source);
+  const picked = from.stages.filter((stage) => stageIds.includes(stage.id));
+  const pickedIds = new Set(picked.map((stage) => stage.id));
+  const tasks = withTasks ? from.tasks.filter((task) => pickedIds.has(task.stageId)) : [];
+  const taken = [...draft.roles, ...draft.stages, ...draft.tasks].map((part) => part.id);
+  const newId = (prefix: 'r' | 's' | 't'): string => {
+    const id = freeIdAfter(taken, prefix);
+    taken.push(id);
+    return id;
+  };
+  // Every copy gets its new id first, so a link can name a part that comes later in the list.
+  const stageNew = new Map(picked.map((stage) => [stage.id, newId('s')] as const));
+  const taskNew = new Map(tasks.map((task) => [task.id, newId('t')] as const));
+  const roles = [...draft.roles];
+  const roleOf = (sourceId: string): string => {
+    const role = from.roles.find((part) => part.id === sourceId);
+    if (!role) return '';
+    const name = role.name.trim().toLowerCase();
+    const same = roles.find((part) => part.name.trim().toLowerCase() === name);
+    if (same) return same.id;
+    const added: DraftRole = { id: newId('r'), name: role.name, defaultUserId: '' };
+    roles.push(added);
+    return added.id;
+  };
+  const names = draft.stages.map((stage) => stage.name);
+  const stages: DraftStage[] = picked.map((stage) => {
+    const name = copyName(stage.name, names);
+    names.push(name);
+    return { id: stageNew.get(stage.id)!, name, start: stage.start, days: stage.days, ...waitsOf(keptWaits(stage.prerequisiteIds, stageNew)) };
+  });
+  const copies: DraftTask[] = tasks.map((task) => ({
+    id: taskNew.get(task.id)!, stageId: stageNew.get(task.stageId)!, title: task.title, roleId: roleOf(task.roleId), start: task.start, days: task.days,
+    flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
+    ...waitsOf(keptWaits(task.prerequisiteIds, taskNew)),
+  }));
+  return { ...draft, roles, stages: [...draft.stages, ...stages], tasks: [...draft.tasks, ...copies] };
 }
 
 export function addRole(draft: TemplateDraft): TemplateDraft {
