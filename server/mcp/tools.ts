@@ -50,6 +50,8 @@ export const MCP_DENY = [
   'settings.get', 'settings.update',
   // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
   'roles.create', 'roles.update', 'roles.delete',
+  // The office report data (fbk_016). The agent tool opens in the next task, for the people who hold the report right.
+  'reports.office',
   // Project set-up, members, stages, links, health and deletes.
   'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',

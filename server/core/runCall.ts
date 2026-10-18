@@ -147,7 +147,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     const { output, office } = await data.tx('read', async (t) => {
       const office = await t.office();
       resolveActor(office, req.principal);
-      const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: false });
+      const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: false, now });
       const { authority } = resolveAuthority(state, actorId, entry.def);
       // A read writes no event, so its story is never stored.
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, newStoryId(), now), prepared);
@@ -186,7 +186,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       }
       const story = await resolveStory(t.stories, req.story, req.batch.storyRefs, actorId, now);
       const prepared = hooks?.prepare ? await hooks.prepare(parsed, { actorId, now, deps, q: t.q }, preflight) : preflight;
-      const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: true });
+      const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: true, now });
       const before = beforeOf(state, office);
       const { authority } = resolveAuthority(state, actorId, entry.def);
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, story.storyId, now), prepared);

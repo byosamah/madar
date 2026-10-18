@@ -1703,3 +1703,14 @@ Open for the owner (Task 11, Steps 3 to 5):
 - The measurement on the test copy: the time to the first tiles from Al Khobar, and the requests for one map view. The
   results go here after the run.
 - The fallback (free OpenFreeMap tiles, same style) when the probe fails.
+
+### Wave 4 report data: reports.office (2026-10-18, Task 28, to measure)
+
+- The read `reports.office` gives one office report for a week, a month, a quarter or a year. Only the right `report.office` reads it.
+- The loader counts the events of the period in SQL: stage moves, completions, pauses and reviews, one count for each key. It loads
+  the tasks of the projects (a task has no date column), the Tracker entries and, for the payment right, the payments. No event row loads.
+- The new condition `atBefore` gives the exact end of a period. It is a timestamp test in SQL, in the memory source and in the SQLite compile.
+- Server time of a year report on the test copy: to measure. The Supabase limit is 2 s of CPU for each request. The merge lead runs
+  `npm run test:office` and `npm run test:lite`, then measures the year read on the test copy.
+- Rows pin: `reports.office` (year 2026, Admin) in `server/office/test/pins.ts` has a provisional ceiling of 2,000 rows. It is not measured.
+  The merge lead sets it to the measured rows plus 10%.

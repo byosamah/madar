@@ -29,6 +29,8 @@ export type LoadCtx = {
   /** Who acts. The loader finds the person whose rights apply (an agent's active person) from the office. */
   actorId: string;
   write: boolean;
+  /** The time of the call, as the handler gets it (ctx.now). A loader that picks a period by today reads it (reports.office). */
+  now?: Date;
 };
 
 const OFFICE = new Set<string>(OFFICE_COLLECTIONS);
@@ -41,6 +43,8 @@ export class Load {
    * Undefined when the actor is not in the office.
    */
   readonly authority: Actor | undefined;
+  /** The time of the call (LoadCtx.now), or undefined when the caller gives none. */
+  readonly now: Date | undefined;
   readonly #src: Source;
   readonly #actorId: string;
   readonly #rows = new Map<TableCollection, Map<string, Row>>();
@@ -50,6 +54,7 @@ export class Load {
     this.#src = lx.src;
     this.#actorId = lx.actorId;
     this.write = lx.write;
+    this.now = lx.now;
     this.office = lx.office.lists;
     const actor = this.office.users[lx.actorId];
     const owner = actor?.kind === 'agent' && actor.ownerId ? this.office.users[actor.ownerId] : undefined;

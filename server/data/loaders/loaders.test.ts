@@ -833,3 +833,27 @@ describe('the sub-company filter of projects.list (fbk_007)', () => {
     expect((all.outcome.output as unknown[]).length).toBe(Object.keys(state.projects).length);
   });
 });
+
+describe('the office report (owner, 2026-10-18, fbk_016)', () => {
+  it('gives the same answer on the scoped load as on the whole office, for the Admin, a week and a year', async () => {
+    const week = await same(office(), 'reports.office', { period: 'week', start: '2026-09-28' }, ADMIN);
+    expect(week.outcome.error).toBeUndefined();
+    expect((week.outcome.output as { period: unknown }).period).toEqual({ kind: 'week', from: '2026-09-27', to: '2026-10-03' });
+    const year = await same(office(), 'reports.office', { period: 'year', start: '2026-01-01' }, ADMIN);
+    expect(year.outcome.error).toBeUndefined();
+  });
+
+  it('gives the same refusal on both loads for a Member, and loads no payment for a person without the payment right', async () => {
+    const member = await same(office(), 'reports.office', { period: 'month' }, 'usr_003');
+    expect(member.outcome.error?.code).toBe('forbidden');
+    const state = office((s) => {
+      s.users.usr_004.systemRole = 'management';
+      s.settings.roles = { rights: { management: ['report.office'] } };
+    });
+    const { whole, scoped, loaded } = await runBoth(state, 'reports.office', { period: 'week', start: '2026-09-28' }, 'usr_004', { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    expect((whole.outcome.output as { money: unknown; gaps: unknown }).money).toBeNull();
+    expect((whole.outcome.output as { gaps: unknown }).gaps).toBeNull();
+    expect(Object.keys(loaded.payments ?? {})).toEqual([]);
+  });
+});

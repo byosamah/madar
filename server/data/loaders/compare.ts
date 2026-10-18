@@ -59,7 +59,7 @@ export async function runBoth(
   const wholeBefore = structuredClone(whole);
   const wholeOutcome = runOn(whole, name, parsed, actorId, o);
 
-  const loaded = await loadFor(name, parsed, { src: o.source ?? memorySource(office), office: snapshotOf(office, 1), actorId, write });
+  const loaded = await loadFor(name, parsed, { src: o.source ?? memorySource(office), office: snapshotOf(office, 1), actorId, write, now: o.now });
   const scoped = structuredClone(loaded);
   const scopedOutcome = runOn(scoped, name, parsed, actorId, o);
 

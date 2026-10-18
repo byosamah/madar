@@ -40,6 +40,9 @@ export function readSweep(office: State): SweepCall[] {
       ['search.query', { text: '#KH' }, actor],
       ['feedback.list', {}, actor],
       ['session.get', {}, actor],
+      // The office report of a week and of a quarter, for each person: a refusal for the people without the right (fbk_016).
+      ['reports.office', { period: 'week', start: '2026-09-28' }, actor],
+      ['reports.office', { period: 'quarter' }, actor],
       // The own push devices (owner, 2026-10-08).
       ['push.mine', {}, actor],
     );

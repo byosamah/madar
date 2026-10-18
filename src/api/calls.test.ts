@@ -66,10 +66,12 @@ const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save'
 const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 // Office roles and their rights (owner, 2026-10-18, fbk_014): only the Admin makes or changes a role.
 const ROLE_CALLS = ['roles.create', 'roles.update', 'roles.delete'];
+// The office report data (owner, 2026-10-18, fbk_016): one read call.
+const REPORT_CALLS = ['reports.office'];
 // The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
 // live.ticket from the exit, wave 3).
 const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
-const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS];
+const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
 const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket']);
@@ -78,7 +80,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(148);
+    expect(Object.keys(calls)).toHaveLength(149);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -86,7 +88,8 @@ describe('the call map', () => {
       const read = SERVER_CALLS.includes(name)
         ? SERVER_READS.has(name)
         : /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot'
-          || name === 'projectTemplates.matchPlan' || name === 'projectTemplates.usage' || name === 'projectTemplates.syncPlan';
+          || name === 'projectTemplates.matchPlan' || name === 'projectTemplates.usage' || name === 'projectTemplates.syncPlan'
+          || name === 'reports.office';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });
@@ -113,17 +116,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 137 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(137);
-    expect(Object.keys(mapCalls)).toHaveLength(137);
+  it('has 138 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(138);
+    expect(Object.keys(mapCalls)).toHaveLength(138);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 133 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 134 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(133);
+    expect(names).toHaveLength(134);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

@@ -65,6 +65,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
   whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a
   later `byKey` keeps the picked copy.
+- `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the
+  SQLite compile, never text. `reports.office` (`loaders/report.ts`) reads the clock from `LoadCtx.now` (the call's time), and
+  its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.
 - A Source gives rows that the caller owns (`sqlSource` gets new objects from pg, `memorySource` gives copies), so
   `Load.state()` keeps them with no second copy. The office lists of the State stay copies of the snapshot.
 - Save: `runWrite` takes `before` from `beforeOf` (`loaders/build.ts`). Its office lists are the frozen snapshot lists, and

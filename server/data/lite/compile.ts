@@ -97,6 +97,11 @@ export function whereOf(s: Select | CountSelect, values: unknown[], skip: readon
       values.push(one.contains);
       return `instr(${column}, ?) > 0`;
     }
+    // atBefore: the time test alone, as sqlSource.ts does (an upper bound has no text bound).
+    if ('atBefore' in one) {
+      values.push(one.atBefore);
+      return `julianday(${column}) < julianday(?)`;
+    }
     // atOrAfter: the time test (julianday keeps the milliseconds and reads every offset, Task 1), plus the text bound of
     // sqlSource.ts (the UTC text of the time minus 36 hours), so the created_at index serves the read and no row is lost.
     values.push(one.atOrAfter);

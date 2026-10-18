@@ -219,6 +219,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `role.created`, `role.updated` or `role.deleted`. Its target is the role id, or `management`, `accounting` or `member` for a built-in
   role. `handlers/history.ts` (`undoOne`) takes these back with `undoRoleChange`, not with `undoEvent`. MCP: deny list.
 
+## The office report (owner, 2026-10-18, fbk_016)
+- `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`
+  (`reportPeriod.ts`) picks the period that holds `start`; with no start it gives the last full period before today.
+- The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `admin.manage` (null otherwise).
+- The handler reads the counts of stage moves, completions, pauses and reviews from `state.counts` (`REPORT_KEYS`, the loader counts
+  them in SQL). Without them it counts `state.events` (the prototype). Both give the same numbers (`loaders.test.ts`).
+- Office tasks stay out of the report. The MCP tool stays on the deny list until the next task of fbk_016 gates it by the right.
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in

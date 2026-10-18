@@ -78,6 +78,8 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
     if ('contains' in one) return `strpos(${column}, ${param(one.contains, 'text')}) > 0`;
+    // An upper bound on the time has no text bound: a text test would miss the rows of another offset (reports.office, its period).
+    if ('atBefore' in one) return `(${column})::timestamptz < ${param(one.atBefore, 'timestamptz')}`;
     const time = `(${column})::timestamptz >= ${param(one.atOrAfter, 'timestamptz')}`;
     const bound = textBoundOf(one.atOrAfter);
     return bound === null ? time : `(${time} and ${column} ${C} >= ${param(bound, 'text')})`;

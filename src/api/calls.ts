@@ -13,6 +13,7 @@ import { taskCalls } from './handlers/tasks';
 import { feedbackCalls } from './handlers/feedback';
 import { projectTemplateCalls } from './handlers/projectTemplates';
 import { rolesCalls } from './handlers/roles';
+import { reportsCalls } from './handlers/reports';
 import { pushCalls } from './handlers/push';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
@@ -46,6 +47,7 @@ export const mapCalls = {
   ...projectTemplateCalls,
   ...pushCalls,
   ...rolesCalls,
+  ...reportsCalls,
 };
 
 /**

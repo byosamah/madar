@@ -77,6 +77,7 @@ export function memorySource(state: State): Source {
     if ('notIn' in cond) return value === null || !cond.notIn.includes(String(value));
     if ('eq' in cond) return value === cond.eq;
     if ('contains' in cond) return typeof value === 'string' && value.includes(cond.contains);
+    if ('atBefore' in cond) return typeof value === 'string' && Date.parse(value) < Date.parse(cond.atBefore);
     return typeof value === 'string' && Date.parse(value) >= Date.parse(cond.atOrAfter);
   }
 

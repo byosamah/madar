@@ -2,8 +2,9 @@ import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
   Message, Payment, Project, ProjectTemplateId, Team,
-  ProjectId, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
+  ProjectId, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
+import { ReportPeriodKind } from '../reportPeriod';
 
 export const UserCard = z.object({
   id: UserId,
@@ -288,3 +289,51 @@ export const PaymentRow = z.object({
   createdBy: UserCard,
 });
 export type PaymentRow = z.infer<typeof PaymentRow>;
+
+/**
+ * The office report of one period (owner, 2026-10-18, fbk_016). Money is in Saudi riyals. Money is null without the payment right,
+ * and gaps is null without the Admin right. Each count is for the days of the period, except the states that are "at the end".
+ */
+const ReportCount = z.number().int().min(0);
+const ReportRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+const ReportStage = z.object({ id: StageId, name: z.string() });
+const ReportDeadlines = z.object({ met: ReportCount, missed: ReportCount });
+export const ReportProject = z.object({
+  project: ReportRef,
+  status: ProjectStatus,
+  stageAtStart: ReportStage.nullable(),
+  stageAtEnd: ReportStage.nullable(),
+  health: HealthValue.nullable(),
+  tasks: z.object({ done: ReportCount, made: ReportCount, pastDueAtEnd: ReportCount }),
+  deadlines: ReportDeadlines,
+  nextDeadline: z.object({ name: z.string(), date: Day }).nullable(),
+});
+export type ReportProject = z.infer<typeof ReportProject>;
+export const ReportPerson = z.object({
+  user: UserCard,
+  tasksDone: ReportCount,
+  open: ReportCount,
+  pastDue: ReportCount,
+  reviewsDone: ReportCount,
+});
+export type ReportPerson = z.infer<typeof ReportPerson>;
+export const ReportMoney = z.object({ received: z.number().nonnegative(), dueInPeriod: z.number().nonnegative(), pastDueAtEnd: z.number().nonnegative() });
+export const OfficeReport = z.object({
+  period: z.object({ kind: ReportPeriodKind, from: Day, to: Day }),
+  generatedAt: Stamp,
+  office: z.object({ name: z.string() }),
+  totals: z.object({
+    projects: z.object({ active: ReportCount, started: ReportCount, completed: ReportCount, paused: ReportCount }),
+    tasks: z.object({ done: ReportCount, made: ReportCount, pastDueAtEnd: ReportCount }),
+    deadlines: ReportDeadlines,
+    submissions: ReportCount,
+    stageMoves: ReportCount,
+  }),
+  projects: z.array(ReportProject).max(200),
+  people: z.array(ReportPerson),
+  tracker: z.object({ opened: ReportCount, closed: ReportCount, waitingOnClientAtEnd: ReportCount }),
+  money: ReportMoney.nullable(),
+  /** The data gaps for the Admin, one short line each (English). Empty when the office has none. */
+  gaps: z.array(z.string().max(120)).max(4).nullable(),
+});
+export type OfficeReport = z.infer<typeof OfficeReport>;

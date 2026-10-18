@@ -91,6 +91,13 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
     expect(await read((src) => src.countWhere(s))).toEqual(await memory.countWhere(s));
   });
 
+  it('counts the events of a period with an exact upper bound (atBefore), the same as the memory source', async () => {
+    const { read, memory } = await both();
+    const s = { c: 'events' as const, per: 'verb', where: [{ col: 'created_at', atOrAfter: at(15) }, { col: 'created_at', atBefore: at(35) }] };
+    expect(await read((src) => src.countWhere(s))).toEqual(await memory.countWhere(s));
+    expect(await memory.countWhere(s)).toEqual(new Map([['task.updated', 2]]));
+  });
+
   it('finds the first row that holds an id at each kind of reference path', async () => {
     const { read, memory } = await both();
     const cases: [Parameters<ReturnType<typeof liteSource>['referencing']>[0], string, string][] = [

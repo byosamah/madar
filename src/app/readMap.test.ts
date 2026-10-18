@@ -79,6 +79,8 @@ function inputsOf(name: string, s: State): unknown[] {
       {}, { status: 'all' }, ...userIds.slice(0, 3).map((leaderId) => ({ leaderId })), ...clientIds.map((clientId) => ({ clientId })),
       ...teamIds.map((teamId) => ({ teamId })),
     ];
+    // The office report of a week and of a month (owner, 2026-10-18, fbk_016): the handler answers a refusal to a person without the right.
+    case 'reports.office': return [{ period: 'week', start: '2026-09-28' }, { period: 'month' }];
     case 'tasks.get': return taskIds.map((id) => ({ id }));
     case 'tasks.list': return [
       {}, ...projectIds.map((projectId) => ({ projectId })), { filter: 'mine' }, { filter: 'overdue' }, { filter: 'flagged' },

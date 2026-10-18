@@ -87,6 +87,7 @@ export function fieldName(name: string): string {
  *   eq            the column equals the value (null: the column is null)
  *   contains      the column holds the text (strpos), for search_text
  *   atOrAfter     the stamp of the column is at or after this time (compared as times, as events.list does)
+ *   atBefore      the stamp of the column is before this time (compared as times). With atOrAfter it bounds a period (reports.office)
  *   field / in    a doc field without a column has one of the values (doc->>'field')
  *   field / key / in  a key of an object field of doc has one of the values (doc->'field'->>'key'), for example after.status
  *   field / null  a doc field holds JSON null (or is absent)
@@ -104,6 +105,7 @@ export type Cond =
   | { col: string; eq: string | boolean | null }
   | { col: string; contains: string }
   | { col: string; atOrAfter: string }
+  | { col: string; atBefore: string }
   | { field: string; in: readonly string[] }
   | { field: string; key: string; in: readonly string[] }
   | { field: string; null: true }
