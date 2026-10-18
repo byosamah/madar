@@ -654,15 +654,16 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 
 Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds). No production change before Friday 2026-10-23.
 
-- [ ] Wave 1, track `quick` (branch `rb/quick`, worktree `~/dev/madar-rb/quick`)
-  - [ ] Task 1: 3 pictures then "+N" in the project list (fbk_013)
-  - [ ] Task 2: no browser memory in the project form (fbk_010)
-  - [ ] Task 3: see-through photos on the glow (fbk_019)
-  - [ ] Task 4: Madar calendar on computers (fbk_009)
-  - [ ] Task 5: What's new page (fbk_018)
-- [ ] Wave 1, track `inbox` (branch `rb/inbox`, worktree `~/dev/madar-rb/inbox`)
-  - [ ] Task 6: archive a chat (fbk_012)
-- [ ] Wave 1 gate: rebase, merge gate on the Mac, test deploy, screenshots, What's new entry, owner says the release is live
+- [x] Wave 1, track `quick` (built by Haiku, checked by Sonnet, merged to main 2026-10-18)
+  - [x] Task 1: 3 pictures then "+N" in the project list (fbk_013)
+  - [x] Task 2: no browser memory in the project form (fbk_010)
+  - [x] Task 3: see-through photos on the glow (fbk_019)
+  - [x] Task 4: Madar calendar on computers (fbk_009)
+  - [x] Task 5: What's new page (fbk_018)
+- [x] Wave 1, track `inbox` (merged to main 2026-10-18)
+  - [x] Task 6: archive a chat (fbk_012)
+- [x] Wave 1 gates on the Mac (2026-10-18): typecheck, npm test 5,480, builds, test:lite 1,162, test:office 37, test:db 1,162, test:it 279, test:mcp 176, prototype smoke 87 of 87 (one spec failed once under load and passed alone)
+- [ ] Wave 1 release: test deploy, screenshots checked, owner says the release is live (then `feedback.setStatus` done for fbk_013, fbk_010, fbk_019, fbk_009, fbk_018, fbk_012)
 - [ ] Wave 2: group chats (Tasks 7, 8), sub-companies (Tasks 9, 10), map (Tasks 11 to 13), Open space (Task 14)
 - [ ] Wave 3: project templates (Tasks 15 to 24)
 - [ ] Wave 4: custom roles (Tasks 25 to 27), office report (Tasks 28, 29)
