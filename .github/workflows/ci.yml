@@ -1,15 +1,12 @@
-# CI for Madar, part 1 of 2 (plan 6.3, task O1; test map, section 6): the unit, server and lite jobs, on every push.
+# CI for Madar, part 1 of 2 (plan 6.3, task O1; test map, section 6): the unit, server and lite jobs, started by hand only.
 # ci-stack.yml holds db and integration, which need the local Supabase stack, and office, which needs none but takes long. The jobs have no event conditions:
 # GitHub reports a job that an if: skips as Success, and that skipped run could meet a required check.
-# No job uses a secret. Minutes: the free plan gives 2,000 a month (test map 6.2). So an older run of the same branch
-# stops when a new one starts, a pull request does not run unit and server a second time (the push run already shows
-# them on the pull request), and a push that changes only docs/ runs nothing.
+# No job uses a secret. Minutes: the free plan gives 2,000 a month (test map 6.2), and the pushes of October 2026 used them all, so
+# GitHub refused the nightly database backup too. Since 2026-10-18 (owner) this workflow starts only by hand; the merge gate runs on
+# the Mac, and the minutes go to the backups first. An older run of the same branch stops when a new one starts.
 name: CI
 
 on:
-  push:
-    paths-ignore:
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:

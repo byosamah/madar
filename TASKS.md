@@ -583,9 +583,14 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   step would have removed all 13 backups from the night of 2026-11-04 (a read-only dry run of the old filter with that cutoff
   picked 13 of 13; the new filter picks 1). Fixed: `publishedAt` in both age checks and both remove steps of `db-backup.yml`
   and `office-backup.yml`, and a test refuses `createdAt` (`.github/CLAUDE.md`)
-- [ ] Owner: GitHub refuses to start every CI job of byosamah/madar since 2026-10-17 13:08 UTC ("recent account payments have
-  failed or your spending limit needs to be increased"). The nightly backup at 01:15 UTC ran before that. If the refusal stays,
-  the nightly database backup stops too. See github.com/settings/billing
+- [x] Owner: GitHub refuses to start every CI job of byosamah/madar since 2026-10-17 13:08 UTC ("recent account payments have
+  failed or your spending limit needs to be increased"). Cause (the owner's billing page, 2026-10-18): no payment failed; the
+  2,000 free minutes of October ($12 of included use) are used up, and the account has no card. GitHub also refused the nightly
+  database backup of 2026-10-18. Owner (2026-10-18): `ci.yml` and `ci-stack.yml` start only by hand from now on, and the database
+  backup runs from the Mac until the minutes come back (`.github/CLAUDE.md`)
+- [ ] The database backup from the Mac, each evening after 17:00 Riyadh until GitHub runs `db-backup.yml` again (end of October):
+  `brew install postgresql@17` (owner OK, 2026-10-18), then `scripts/backup/dump.ts` and the upload to madar-backups as the
+  workflow does. The newest backup before it: `madar-db-20261017-011632Z`
 - [x] Wave 5 R3: the test copy at b4eb2e6 (exit waves 1 to 4, the word still `supabase`), `all.sh test` by Claude after the owner's
   `npm install` (2026-10-17). The gate ran on the Mac (GitHub runs no CI): typecheck, `npm test` 5,393 passed. The test Worker has
   its empty office object and the Cron (1 of 5 in the account); the office routes answer 401 with no secret. Production did not
@@ -602,7 +607,11 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   delete need the owner's OK (wave 5 R8 (e))
 - [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
   event would write 9 rows, not 10. First check with a rows pin that `undoLinks` and `notUndone` still use the index
-- [ ] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`)
+- [x] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`). Owner OK, 2026-10-18
+- [ ] Track R build (`~/dev/madar-rb/read-cost`, one builder, about 4 days). Its production release waits until after the team's
+  week of real use (2026-10-18 to 2026-10-22): no production change before Friday 2026-10-23 unless the owner asks for a fix
+- [x] Owner decisions of 2026-10-18: decision 5 is R2 alone (no B2 copy of the files; the restore check reads R2 with
+  `--files-lag-days 0`), and decision 6 is form A (the test copy stays on the same account, with the day cap of 50%)
 - [ ] When Track R merges: lower the badge pins (`chats.unreadCount`, `chats.list`) in `server/office/test/pins.ts` from the
   ported read (15,449 rows read, ceiling 16,994) to the measured value of the stored unread number plus 10%
 - [ ] Wave 3: rows pins for the two reads that keep `events_target_id` and `events_story` (notifications.list with a gone

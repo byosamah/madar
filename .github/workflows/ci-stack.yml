@@ -1,18 +1,12 @@
 # CI for Madar, part 2 of 2 (plan 6.3, task O1; test map, section 6): the db, integration and office jobs.
-# db and integration need the local Supabase stack, and office, which needs none but takes long (the year office runs), so they
-# run on pull requests, on main, and when someone starts the workflow by hand. ci.yml holds unit, server and lite. The jobs have no event conditions: GitHub reports a job that an if: skips as Success,
-# and that skipped run could meet a required check. No job uses a secret: the local stack has fixed demo keys.
-# Minutes: an older run of the same branch or pull request stops when a new one starts, and a change only to docs/ runs nothing.
+# db and integration need the local Supabase stack, and office needs none but takes long (the year office runs). ci.yml holds unit,
+# server and lite. The jobs have no event conditions: GitHub reports a job that an if: skips as Success, and that skipped run could
+# meet a required check. No job uses a secret: the local stack has fixed demo keys.
+# Minutes: since 2026-10-18 (owner) this workflow starts only by hand, so the 2,000 free minutes of a month go to the backups first
+# (see ci.yml). An older run of the same branch stops when a new one starts.
 name: CI stack
 
 on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * The CI workflows (plan 6.3, task O1; test map 6). actionlint checks the syntax; these tests check the rules of the plan,
  * and that every command the workflows run exists in this repository.
- * ci.yml holds unit, server and lite (every push). ci-stack.yml holds db, integration and office (pull requests, main, by hand).
+ * ci.yml holds unit, server and lite. ci-stack.yml holds db, integration and office. Both start only by hand (owner, 2026-10-18).
  * Two files, not one file with job-level if: conditions, because GitHub reports a job that an if: skips as Success,
  * and that skipped run could meet a required check while the real job fails.
  */
@@ -51,17 +51,12 @@ describe('.github/workflows/ci.yml and ci-stack.yml', () => {
     expect(FILES['ci-stack.yml']).not.toMatch(/^ {2}(unit|server|lite):$/m);
   });
 
-  it('runs unit and server on every push, and never on a pull request (the push run already shows them there)', () => {
-    const on = triggers(FILES['ci.yml']);
-    expect(on).toMatch(/^ {2}push:/m);
-    expect(on).not.toContain('pull_request');
-  });
-
-  it('runs db and integration on pull requests, on pushes to main and by hand', () => {
-    const on = triggers(FILES['ci-stack.yml']);
-    expect(on).toMatch(/^ {2}pull_request:/m);
-    expect(on).toMatch(/^ {2}push:\n {4}branches: \[main\]\n/m);
-    expect(on).toMatch(/^ {2}workflow_dispatch:/m);
+  it('starts both files only by hand, never on a push, a pull request or a schedule (owner, 2026-10-18: the free minutes go to the backups)', () => {
+    for (const [name, text] of Object.entries(FILES)) {
+      const on = triggers(text);
+      expect(on, name).toMatch(/^ {2}workflow_dispatch:/m);
+      expect(on, name).not.toMatch(/push|pull_request|schedule/);
+    }
   });
 
   it('has no job-level if: condition, so a skipped job never reports Success under a check name', () => {

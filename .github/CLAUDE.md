@@ -1,12 +1,15 @@
 # CI and backups (GitHub Actions)
 
-Private repo `byosamah/madar`. The free plan gives 2,000 minutes a month, so each workflow stops an older run of the same
-branch, and a push that changes only `docs/` runs nothing.
+Private repo `byosamah/madar`. The free plan gives 2,000 minutes a month (GitHub shows them as $12 of included use). The pushes
+of October 2026 used them all by 2026-10-17 13:08 UTC: GitHub then refused every job with "recent account payments have failed or
+your spending limit needs to be increased" (no card is on the account; nothing failed), also the nightly database backup. Since
+2026-10-18 (owner) `ci.yml` and `ci-stack.yml` start only by hand, the merge gate runs on the Mac, and the minutes go to the
+backups first. While GitHub refuses, the database backup runs from the Mac (see "Backups by hand").
 
 ## Workflows (`workflows/`)
-- `ci.yml`, every push: typecheck, unit, build, server tests, the builds, the migration secret check, and `lite` (`test:lite` on
+- `ci.yml`, by hand only (`gh workflow run CI --ref main`): typecheck, unit, build, server tests, the builds, the migration secret check, and `lite` (`test:lite` on
   node:sqlite, exit wave 4). No secret.
-- `ci-stack.yml`, pull requests and main: `db` (`test:db` on Postgres only), `integration` (full local stack and MinIO), and
+- `ci-stack.yml`, by hand only (`gh workflow run "CI stack" --ref main`): `db` (`test:db` on Postgres only), `integration` (full local stack and MinIO), and
   `office` (`build:server`, `test:office` on local workerd and `smoke:office` on local wrangler dev; no Docker, exit wave 4).
   The integration order is fixed: server bundles, the stack, `test:mcp`, `npx supabase db reset`, `test:it`. Never add a
   shared `supabase functions serve` step: it broke the conformance and integration suites.
@@ -47,11 +50,10 @@ branch, and a push that changes only `docs/` runs nothing.
 - Every action is pinned by its commit SHA, with the version in a comment.
 - Checkout uses `persist-credentials: false`.
 - A job never has an `if:` on the event: GitHub reports a skipped job as Success.
-- A push that touches `.github/workflows` needs `gh auth refresh -h github.com -s workflow`. The owner runs it in his own
-  terminal and types the code at once.
+- A push that touches `.github/workflows` needs the `workflow` scope of the gh token. The token of this Mac has it (2026-10-17);
+  without it, the owner runs `gh auth refresh -h github.com -s workflow` in his own terminal and types the code at once.
 - After a change to a workflow, update `scripts/ci/ci-workflow.test.ts` if it checks that step.
-- `ci.yml` takes about 15 minutes. A push before it ends cancels the older run, so that commit gets no full result.
-  Wait for the result before the next push when the commit changes code.
+- `ci.yml` takes about 15 minutes. A new run of the same branch cancels the older run, so that commit gets no full result.
 - `gh run list --commit` needs the full SHA. A short SHA gives an empty list, which looks like "no run".
 - A red `db` job with every test passed is the speed gate (`GATE_RUN_MS`, `server/test/global-setup.ts`, 180 s). Read
   the job log before you look for a broken test.
@@ -67,6 +69,6 @@ branch, and a push that changes only `docs/` runs nothing.
   `scripts/backup/officeRestore.ts`, which restores every table into node:sqlite with the schema of this build (no Docker) and
   compares the rows and the sha256 of each table with the manifest. A backup of a newer schema fails with its version.
 - The file step takes `--files-lag-days`: 8 (the default) for the weekly B2 copy, 0 for the live R2 bucket. Owner decision 5
-  (R2 alone, open): `--files-remote madar-r2:madar-files-test --files-lag-days 0`, with an rclone remote on a read-only R2 token.
+  (R2 alone, owner 2026-10-18): `--files-remote madar-r2:madar-files-test --files-lag-days 0`, with an rclone remote on a read-only R2 token.
 - The check makes each role that the dumps name but do not make (`rolesToMake`, `scripts/backup/check.ts`). The CLI dump
   quotes every name, so a quoted name with a dot after it (`FROM "public"."events"` of CREATE STATISTICS) is a table, never a role.
