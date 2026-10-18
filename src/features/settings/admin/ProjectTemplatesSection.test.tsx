@@ -162,6 +162,14 @@ describe('the Admin section Project templates', () => {
     await waitFor(() => expect(savedNamed(store, 'Competition entry')).toBeDefined());
   });
 
+  it('opens the projects that use a template from its row menu', async () => {
+    await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Villa, full design' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Projects using this template' }));
+    expect(await screen.findByRole('dialog', { name: 'Projects using this template' })).toBeInTheDocument();
+  });
+
   it('makes a task and a stage wait for other parts of the template, and saves the waits', async () => {
     const { store } = await renderApp('/admin/project-templates');
     await userEvent.click(within(await region('Project templates')).getByRole('button', { name: 'New template' }));

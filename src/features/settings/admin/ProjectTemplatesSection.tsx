@@ -12,6 +12,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { actorContext, counted } from '../../../lib/grammar';
 import { templateDays } from '../../../lib/projectPlan';
 import { ProjectTemplateEditor } from './ProjectTemplateEditor';
+import { TemplateProjectsSheet } from './TemplateProjectsSheet';
 import { duplicateDraft, type TemplateDraft } from './templateDraft';
 
 /** "5 stages · 11 tasks · 60 working days". A former stage template has stages only, so its line names only them. */
@@ -45,6 +46,8 @@ export function ProjectTemplatesSection() {
   const copyWord = (name: string) => t('projectTemplates.copyOf', { name });
   // undefined: no editor. A new template: template null. A copy: the editor opens filled with its draft.
   const [editing, setEditing] = useState<{ template: ProjectTemplate | null; copy?: TemplateDraft } | undefined>(undefined);
+  // The template whose projects the Admin updates. Null: no sheet.
+  const [updating, setUpdating] = useState<ProjectTemplate | null>(null);
 
   return (
     <section aria-labelledby="admin-project-templates" className="surface flex flex-col gap-3 rounded-card p-5">
@@ -89,6 +92,7 @@ export function ProjectTemplatesSection() {
                       label: t('projectTemplates.duplicate'),
                       onSelect: () => setEditing({ template: null, copy: duplicateDraft(template, names, activeIds, copyWord) }),
                     },
+                    { label: t('projectTemplates.update.open'), onSelect: () => setUpdating(template) },
                     { label: t('projectTemplates.delete'), onSelect: () => remove.mutate({ id: template.id }), destructive: true },
                   ]}
                 />
@@ -105,6 +109,7 @@ export function ProjectTemplatesSection() {
           onClose={() => setEditing(undefined)}
         />
       )}
+      {updating !== null && <TemplateProjectsSheet template={updating} onClose={() => setUpdating(null)} />}
     </section>
   );
 }
