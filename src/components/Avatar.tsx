@@ -61,7 +61,14 @@ export function Avatar({ user, size = 32 }: { user: AvatarUser; size?: number })
     );
   }
   const picture = safePicture(user.avatarUrl) ?? fromList;
-  if (picture) return <img src={picture} alt={name} style={box} className="shrink-0 rounded-full object-cover" />;
+  // The picture sits on the glow of the person, so its see-through parts show the glow (owner, fbk_019, 2026-10-18).
+  if (picture) {
+    return (
+      <span style={{ ...box, background: glowOf(user.id) }} className="inline-flex shrink-0 overflow-hidden rounded-full">
+        <img src={picture} alt={name} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   // The "Glow" picture (owner's choice, 2026-10-01): the soft light of the Next for you card, a mix of two project hues
   // made from the person's id, so it never changes and no two people look alike. The letters stay in ink.
   return (

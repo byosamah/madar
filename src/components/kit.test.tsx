@@ -5,6 +5,7 @@ import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
 import { NOW } from '../test/factories';
 import { Age } from './Age';
+import { Avatar, glowOf } from './Avatar';
 import { AvatarStack } from './AvatarStack';
 import { TextField } from './Fields';
 import { RichText } from './RichText';
@@ -73,11 +74,18 @@ describe('the display kit', () => {
 });
 
 describe('the Glow picture of a person', () => {
-  it('uses one color for both lights (owner, 2026-10-01)', async () => {
-    const { glowOf } = await import('./Avatar');
+  it('uses one color for both lights (owner, 2026-10-01)', () => {
     for (const id of ['usr_001', 'usr_002', 'usr_005', 'usr_010']) {
       const hues = new Set([...glowOf(id).matchAll(/--p-(\w+)-fg/g)].map((match) => match[1]));
       expect(hues.size).toBe(1);
     }
+  });
+
+  it('puts a picture on the glow of the person (owner, fbk_019, 2026-10-18)', () => {
+    const user = { id: 'usr_002', name: 'Faisal Al-Harbi', avatarUrl: 'https://example.com/faisal.png', kind: 'human' as const };
+    render(<Avatar user={user} />);
+    const shown = screen.getByRole('img', { name: 'Faisal Al-Harbi' });
+    expect(shown.tagName).toBe('IMG');
+    expect(shown.parentElement?.style.background).toBe(glowOf('usr_002'));
   });
 });

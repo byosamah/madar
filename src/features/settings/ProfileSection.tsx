@@ -71,6 +71,7 @@ export function ProfileSection({ user }: { user: User }) {
               </Button>
             )}
           </div>
+          <p className="text-footnote text-label-2">{t('profile.seeThroughHint')}</p>
         </div>
         <input
           ref={fileRef}
