@@ -54,7 +54,7 @@ function authorityOf(ctx: ServerCallCtx): Actor {
 }
 
 function assertManagesPeople(authority: User): void {
-  if (!can(authority, 'people.manage')) throw forbidden('Only the Admin and Management manage people.', { action: 'people.manage' });
+  if (!can(authority, 'people.manage')) throw forbidden('Only a person with the right to manage people does this.', { action: 'people.manage' });
 }
 
 export const usersInvites: ServerCall<'users.invites'> = async (_input, ctx) => {
