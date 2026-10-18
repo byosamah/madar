@@ -43,7 +43,7 @@ export const INSTRUCTIONS = [
   '',
   'The Admin decides what each role may do. A call that the role of your person may not make fails for you too.',
   '',
-  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
+  'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create. Correcting it with projects.update needs the code right (by default only the Admin). Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
   '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names. projects.list takes subCompanyId, the sub-company of a project.',
 ].join('\n');
@@ -144,19 +144,19 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'payments.create': {
     title: 'Add a payment',
-    description: 'Adds a planned payment to a project: a name, an amount in Saudi riyals, a due date (YYYY-MM-DD), and optionally the day it came in (receivedOn) and a note. Only the Admin, Management and Accounting may do this.',
+    description: 'Adds a planned payment to a project: a name, an amount in Saudi riyals, a due date (YYYY-MM-DD), and optionally the day it came in (receivedOn) and a note. Needs the payment right (by default the Admin, Management and Accounting).',
   },
   'payments.list': {
     title: 'List payments',
-    description: 'Lists the payments of one project (projectId): name, amount in Saudi riyals, due date, and the day each came in. Only the Admin, Management and Accounting may see payments.',
+    description: 'Lists the payments of one project (projectId): name, amount in Saudi riyals, due date, and the day each came in. Needs the payment right (by default the Admin, Management and Accounting).',
   },
   'payments.markReceived': {
     title: 'Mark a payment received',
-    description: 'Marks one payment (id from payments.list) as received, on receivedOn (YYYY-MM-DD) or today when you leave it out. Only the Admin, Management and Accounting may do this.',
+    description: 'Marks one payment (id from payments.list) as received, on receivedOn (YYYY-MM-DD) or today when you leave it out. Needs the payment right (by default the Admin, Management and Accounting).',
   },
   'payments.update': {
     title: 'Change a payment',
-    description: 'Changes the name, amount, due date, received day or note of one payment (id from payments.list). Send only the fields that change, in "patch". Only the Admin, Management and Accounting may do this.',
+    description: 'Changes the name, amount, due date, received day or note of one payment (id from payments.list). Send only the fields that change, in "patch". Needs the payment right (by default the Admin, Management and Accounting).',
   },
   'projects.get': {
     title: 'Get a project',
@@ -172,7 +172,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, the pin (geo: {lat, lng} or null), dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code: only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
+    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, the pin (geo: {lat, lng} or null), dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code. It needs the code right (by default only the Admin). The History records it. A code that breaks the office rules fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
   },
   'search.query': {
     title: 'Search',

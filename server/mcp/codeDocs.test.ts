@@ -16,8 +16,13 @@ describe('the agent docs of the project code (owner, 2026-10-05, item 6b)', () =
     }
   });
 
-  it('say in projects.update that only the Admin corrects the code', () => {
-    expect(TOOL_DOCS['projects.update'].description).toMatch(/code.*Admin|Admin.*code/);
+  it('say in projects.update that the code right corrects the code, by default only the Admin (fbk_014)', () => {
+    expect(TOOL_DOCS['projects.update'].description).toContain('needs the code right (by default only the Admin)');
+  });
+
+  it('say in the instructions that the code right corrects the code, by default only the Admin (fbk_014)', () => {
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Project codes:'))!;
+    expect(line).toContain('needs the code right (by default only the Admin)');
   });
 
   it('give the agent the code field in the projects.update schema, with both forms and a code of its own', () => {

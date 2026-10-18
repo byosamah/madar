@@ -333,6 +333,28 @@ describe('Management and people', () => {
     expect(t.store.state.users.usr_004.systemRole).toBe('admin');
   });
 
+  it('keeps a plain save of a person free of a role, so Management can undo that save (fbk_014 review)', async () => {
+    const t = roleWorld();
+    t.as('usr_006');
+    const saved = await t.api.call('users.update', { id: 'usr_003', patch: { name: 'Renamed', systemRole: 'member', roleId: null } });
+    expect(saved.name).toBe('Renamed');
+    expect('roleId' in t.store.state.users.usr_003).toBe(false);
+    const events = Object.values(t.store.state.events).filter((e) => e.targetType === 'user' && e.targetId === 'usr_003');
+    expect(events).toHaveLength(1);
+    expect(events[0]?.after).toEqual({ name: 'Renamed' });
+    await t.api.call('events.undo', { eventId: String(events[0]?.id) });
+    expect(t.store.state.users.usr_003.name).toBe('Sara Team');
+  });
+
+  it('writes no change when the Admin saves the values that a person already has (fbk_014 review)', async () => {
+    const t = roleWorld();
+    t.as('usr_001');
+    const before = Object.keys(t.store.state.events).length;
+    await t.api.call('users.update', { id: 'usr_003', patch: { name: 'Sara Team', systemRole: 'member', roleId: null } });
+    expect(Object.keys(t.store.state.events)).toHaveLength(before);
+    expect('roleId' in t.store.state.users.usr_003).toBe(false);
+  });
+
   // An agent may not change, turn on or re-role a person directly, so it may not do it through Undo either (security scan
   // 2026-10-07, F1: an undo of an email change gives the sign-in email back to the old mailbox).
   it('refuses an agent every undo of a change to a person, and lets the Admin undo it', async () => {

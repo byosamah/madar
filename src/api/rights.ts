@@ -23,9 +23,12 @@ export function rightsOf(user: User, roles: RoleSettings | undefined): readonly 
   return OFFICE_RIGHTS.filter((right) => member.includes(right) || custom.rights.includes(right));
 }
 
-/** The person with the office rights of the office settings attached. can() reads these rights. */
+/**
+ * The person with the office rights of the office settings attached. can() reads these rights. The person is not copied: a copy
+ * would read every field of the person, the preferences too.
+ */
 export function withOfficeRights(user: User, roles: RoleSettings | undefined): Actor {
-  return { ...user, officeRights: rightsOf(user, roles) };
+  return Object.create(user, { officeRights: { value: rightsOf(user, roles), enumerable: true } }) as Actor;
 }
 
 /**

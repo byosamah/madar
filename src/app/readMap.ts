@@ -14,7 +14,7 @@ import type { Kind } from '../api/remote/wire';
  * - none: never reloads on a signal (signed file links, file data, screenshots). They load again when a screen opens them.
  *
  * The personal kinds (chatReads, notifications, preferences) reload a list only when the signal names this person, in any scope.
- * Every call reads the record of the person who asks (the rights), so every rule that reloads names users.
+ * Every call reads the record of the person who asks (the rights), so every rule that reloads names users and settings.
  */
 export type ReadScope = 'office' | 'project' | 'person' | 'none';
 export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(input: unknown, data: unknown): string | undefined };
@@ -43,7 +43,7 @@ const rule = (scope: ReadScope, kinds: readonly Kind[], projectOf?: ReadRule['pr
 
 const PROJECT_DETAIL: Kind[] = ['clients', 'comments', 'deadlines', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'];
 
-export const READS: Record<string, ReadRule> = {
+const RULES: Record<string, ReadRule> = {
   'projects.get': rule('project', [...PROJECT_DETAIL, 'projectTouched', 'settings'], (input) => field(input, 'id')),
   'updates.list': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'], byProjectId),
   'tasks.list': rule('project', ['comments', 'files', 'members', 'projects', 'stages', 'tasks', 'users'], byProjectId),
@@ -95,3 +95,16 @@ export const READS: Record<string, ReadRule> = {
   'files.get': rule('none', []),
   'feedback.screenshot': rule('none', []),
 };
+
+/**
+ * The rights of a person come from the office settings (settings.roles). So a change of the settings reloads each list that
+ * reads a person's rights. Each rule that reloads therefore names settings.
+ */
+const RIGHTS_KINDS: readonly Kind[] = ['settings'];
+
+export const READS: Record<string, ReadRule> = Object.fromEntries(
+  Object.entries(RULES).map(([name, rule]): [string, ReadRule] => [
+    name,
+    rule.scope === 'none' ? rule : { ...rule, kinds: [...new Set([...rule.kinds, ...RIGHTS_KINDS])].sort() },
+  ]),
+);

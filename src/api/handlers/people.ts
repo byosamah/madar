@@ -256,7 +256,9 @@ export const usersUpdate = defineCall({
     const nextRole = input.patch.systemRole ?? user.systemRole;
     const roleId = input.patch.roleId !== undefined ? input.patch.roleId : nextRole !== 'member' && user.roleId ? null : undefined;
     assertCustomRole(ctx, nextRole, roleId);
-    const changes = { ...input.patch, ...(roleId !== undefined ? { roleId } : {}) };
+    // The plain fields never hold roleId. A plain save sends roleId null, so roleId counts only when it changes.
+    const { roleId: _patchRoleId, ...fields } = input.patch;
+    const changes = { ...fields, ...(roleId !== undefined && roleId !== (user.roleId ?? null) ? { roleId } : {}) };
     applyPatch(ctx, user, changes, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
     return user;
   },
