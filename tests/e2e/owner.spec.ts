@@ -65,7 +65,7 @@ test('New message starts a direct chat', async ({ page }) => {
   await page.getByRole('button', { name: 'New message' }).click();
   const sheet = page.getByRole('dialog', { name: 'Pick a person' });
   await expect(sheet).toBeVisible();
-  await sheet.getByRole('button').filter({ hasText: /\w/ }).first().click();
+  await sheet.getByRole('button').filter({ hasText: /\w/ }).filter({ hasNotText: 'Make a group' }).first().click();
   await expect(page).toHaveURL(/#\/inbox\/cnv_/);
   await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
 });
