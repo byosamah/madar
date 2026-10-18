@@ -89,6 +89,14 @@ describe('CalendarPopover', () => {
     expect(dayButton('2026-10-17', 'ar')).toHaveFocus();
   });
 
+  it('shows one letter for each weekday in Arabic, so the seven heads never touch', () => {
+    initI18n('ar');
+    setup();
+    const heads = Array.from(screen.getByRole('dialog').querySelectorAll('div[aria-hidden] > span'));
+    expect(heads).toHaveLength(7);
+    for (const head of heads) expect(head.textContent).toHaveLength(1);
+  });
+
   it('picks the focused day with Enter', async () => {
     const { onPick } = setup();
     await userEvent.keyboard('{ArrowRight}{Enter}');

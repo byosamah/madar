@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clockTime } from '../features/inbox/Thread';
-import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
+import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, formatWeekdayHead, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
 import recorded from './dates.recorded.json';
 import { waitingNames } from './waiting';
 
@@ -69,6 +69,13 @@ describe('formatMonth', () => {
     expect(formatDay('2026-10-03', 'en', 'shortYear')).toBe('3 Oct 2026');
     expect(formatMonthYear('2026-10-02', 'en')).toBe('October 2026');
     expect(formatMonthYear('2026-10-02', 'ar')).toBe('أكتوبر 2026');
+  });
+});
+
+describe('formatWeekdayHead', () => {
+  it('keeps the short English name and gives one letter in Arabic, so seven heads fit one row', () => {
+    expect(formatWeekdayHead('2026-09-27', 'en')).toBe('Sun');
+    for (let i = 0; i < 7; i++) expect(formatWeekdayHead(addDays('2026-09-27', i), 'ar')).toHaveLength(1);
   });
 });
 

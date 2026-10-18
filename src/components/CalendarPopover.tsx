@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../app/lang';
 import { WHEEL_START, addMonths, monthGrid, shiftMonth, wheelStep, type WheelState } from '../lib/calendar';
-import { addDays, formatDay, formatMonthYear, formatNumber, formatWeekday, todayISO } from '../lib/dates';
+import { addDays, formatDay, formatMonthYear, formatNumber, formatWeekdayHead, todayISO } from '../lib/dates';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { ChevronLeftIcon } from './icons/animated/chevron-left';
 import { ChevronRightIcon } from './icons/animated/chevron-right';
@@ -174,7 +174,7 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
         <div aria-hidden className="grid grid-cols-7 gap-1">
           {weekRow.map((day) => (
             <span key={day} className="grid h-6 place-items-center text-footnote text-ink-2">
-              {formatWeekday(day, lang)}
+              {formatWeekdayHead(day, lang)}
             </span>
           ))}
         </div>
