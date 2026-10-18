@@ -307,4 +307,39 @@ describe('projectTemplates.syncApply: each choice does what it says and nothing 
     await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ add: true }) });
     expect(t.store.state.projects[alpha].currentStageId).toBe(stageByPart(t, alpha, 's1').id);
   });
+
+  it('the tag moves to a stage that the same update creates, and one Undo of the story takes the tag back', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const permits = stageByPart(t, alpha, 's2');
+    await t.api.call('tasks.complete', { id: byPart(t, alpha, 't1')!.id });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+    const survey = { id: 's3', name: 'Survey', startOffset: 0, durationDays: 3 };
+    await t.api.call('projectTemplates.save', changed(templateId, { stages: [...TEMPLATE.stages, survey], tasks: [...TEMPLATE.tasks, extra('t3', 'Survey pack', 's3', 0)] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ add: true }) }, { correlationId: 'cor_tag' });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(stageByPart(t, alpha, 's3').id);
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_tag' })).resolves.toBeDefined();
+    expect(Object.values(t.store.state.stages).some((stage) => stage.projectId === alpha && stage.templatePartId === 's3')).toBe(false);
+    expect(byPart(t, alpha, 't3')).toBeUndefined();
+    expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+  });
+
+  it('the tag moves to a final stage that the update creates after every task is done, and one Undo takes it back', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const permits = stageByPart(t, alpha, 's2');
+    await t.api.call('tasks.complete', { id: byPart(t, alpha, 't1')!.id });
+    await t.api.call('tasks.take', { taskId: byPart(t, alpha, 't2')!.id });
+    await t.api.call('tasks.complete', { id: byPart(t, alpha, 't2')!.id });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+    const handover = { id: 's3', name: 'Handover', startOffset: 20, durationDays: 5 };
+    await t.api.call('projectTemplates.save', changed(templateId, { stages: [...TEMPLATE.stages, handover], tasks: [...TEMPLATE.tasks, extra('t3', 'Handover pack', 's3', 20)] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ add: true }) }, { correlationId: 'cor_final' });
+    expect(t.store.state.projects[alpha].currentStageId).toBe(stageByPart(t, alpha, 's3').id);
+    await expect(t.api.call('events.undoStory', { correlationId: 'cor_final' })).resolves.toBeDefined();
+    expect(Object.values(t.store.state.stages).some((stage) => stage.projectId === alpha && stage.templatePartId === 's3')).toBe(false);
+    expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+  });
 });

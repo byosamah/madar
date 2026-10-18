@@ -227,4 +227,26 @@ describe('Projects using this template', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Link Office refit' }));
     expect(await screen.findByRole('dialog', { name: 'Link an older project' })).toBeInTheDocument();
   });
+
+  it('ticks at most 50 of 51 linked projects, and the update still reaches the first change step', async () => {
+    const ctx = await setUp();
+    // The 49 projects come before the template gets its new task, so each of the 51 projects lacks "Site photos".
+    for (let n = 1; n <= 49; n += 1) {
+      await ctx.api.call('projects.create', { name: `Villa ${n}`, template: { templateId: ctx.templateId, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
+    }
+    await addSitePhotos(ctx);
+    await openSheet(ctx);
+    const linked = within(screen.getByRole('region', { name: 'Linked projects' }));
+    const ticked = () => linked.getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked);
+    expect(linked.getAllByRole('checkbox')).toHaveLength(51);
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(ticked()).toHaveLength(50);
+    expect(screen.getByText('You can update 50 projects at one time. Update the rest in a second round.')).toBeInTheDocument();
+    await userEvent.click(linked.getAllByRole('checkbox').find((box) => !(box as HTMLInputElement).checked)!);
+    expect(ticked()).toHaveLength(50);
+    await userEvent.click(screen.getByRole('button', { name: 'Update projects' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('dialog', { name: 'Choose each change' })).toBeInTheDocument();
+    expect(screen.getByText('50 items in 50 projects')).toBeInTheDocument();
+  });
 });

@@ -19,6 +19,9 @@ type Step = 'pick' | 'ask' | 'changes' | 'summary' | 'confirm' | 'running' | 'do
 /** The longest reason that the server keeps (contract limit). */
 const REASON_MAX = 280;
 
+/** The most projects that one update takes. The server refuses a plan for more (projectTemplates.syncPlan). */
+const MAX_PROJECTS = 50;
+
 /**
  * "Projects using this template" (fbk_008 item 4). The Admin ticks the linked projects. Then the Admin goes through one question,
  * one card for each kind of change, a summary with one reason for any date move, and a last confirm. Nothing is sent before that
@@ -57,7 +60,11 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
   const stateOf = (row: { status: string; staleDays: number | null }) => (
     row.staleDays !== null ? t('status.stale', { count: row.staleDays }) : t(`status.${row.status}`)
   );
-  const toggle = (id: string) => setTicked((list) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]));
+  // A project past the limit does not get a tick, so the list never holds more than the server takes.
+  const toggle = (id: string) => setTicked((list) => {
+    if (list.includes(id)) return list.filter((item) => item !== id);
+    return list.length >= MAX_PROJECTS ? list : [...list, id];
+  });
   const start = () => {
     setPicked(ticked);
     setStep('ask');
@@ -129,7 +136,7 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 id="update-linked" className="field-label">{t('projectTemplates.update.linked')}</h3>
             <div className="flex gap-2">
-              <Button variant="plain" onClick={() => setTicked(linked.map((row) => row.project.id))}>{t('projectTemplates.update.all')}</Button>
+              <Button variant="plain" onClick={() => setTicked(linked.slice(0, MAX_PROJECTS).map((row) => row.project.id))}>{t('projectTemplates.update.all')}</Button>
               <Button variant="plain" onClick={() => setTicked([])}>{t('projectTemplates.update.none')}</Button>
             </div>
           </div>
@@ -149,6 +156,7 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
               </li>
             ))}
           </ul>
+          {linked.length > MAX_PROJECTS && <p className="text-footnote text-ink-2">{t('projectTemplates.update.limit')}</p>}
         </section>
       )}
       {notLinked.length > 0 && (

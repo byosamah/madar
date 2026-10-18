@@ -162,7 +162,8 @@
       "stoppedTitle": "The update stopped.",
       "stoppedBody": "Undo all takes back the changes that were made before the stop.",
       "undoAll": "Undo all",
-      "undone": "The update is undone."
+      "undone": "The update is undone.",
+      "limit": "You can update 50 projects at one time. Update the rest in a second round."
     }
   },
   "templateUse": {

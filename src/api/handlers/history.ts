@@ -432,6 +432,18 @@ export const eventsUndoStory = defineCall({
       const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
       return task ? [[task.id, task.status] as const] : [];
     }));
+    // The stage moves of this story come back first. A stage that the story created still holds the project tag, so its own Undo
+    // would find that stage in use. A move that the Undo refuses stays, and settle() then resyncs the tag.
+    const moves = Object.values(ctx.state.events)
+      .filter((e) => e.correlationId === input.correlationId && DERIVED.has(e.verb) && !e.undoneBy && e.actingForId === ctx.authority.id)
+      .sort((a, b) => b.seq - a.seq);
+    for (const move of moves) {
+      try {
+        undoEvent(ctx, move.id, { derived: true });
+      } catch (error) {
+        if (!(error instanceof ApiError)) throw error;
+      }
+    }
     const undone = story.map((event) => undoOne(ctx, event, false, relieved(event)));
     // The story skips the finish check for each task, because its tasks come back together. When the story is done, a task that
     // it brought back to Done or In review must have no open prerequisite. Else the call fails and nothing changes (audit 2026-10-03, V-2).
