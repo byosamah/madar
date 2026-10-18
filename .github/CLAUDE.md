@@ -60,6 +60,9 @@ backups first. While GitHub refuses, the database backup runs from the Mac (see 
 
 ## Backups by hand
 - `gh workflow run "DB backup"`.
+- While GitHub refuses jobs (October 2026): `scripts/backup/mac-backup.sh` on the Mac, each evening after 17:00 Riyadh (the dump
+  holds the office lock for a few seconds), sandbox off. The same file and release as `db-backup.yml`; `--check` sends one
+  read-only query and uploads nothing. It needs `brew install postgresql@17`, `MADAR_DB_PASSWORD` and `BACKUP_REPO_TOKEN`.
 - The private key is not on the Mac (deleted 2026-10-05 after a match check with `age-keygen -y` against
   `BACKUP_AGE_RECIPIENT`). The owner holds the only copy.
 - To check one: the owner gives the key for the check, `age -d -i <owner key>` opens it, then delete the opened copy

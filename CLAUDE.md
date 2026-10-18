@@ -49,6 +49,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Also in `docs/superpowers/real-build/`: `platform-facts.md`, `access-map.md`, `client-map.md`, `test-map.md`,
   `accounts.md` (refs and hosts, no secrets), `patches/` (merge lead patches).
 - Reviews: `docs/reviews/2026-10-01-colleague-comments.md`, `docs/reviews/2026-10-03-full-audit/README.md`.
+- The Supabase exit to Cloudflare (paused 2026-10-18 after wave 5 R5): start at `docs/superpowers/real-build/exit-handoff.md`.
 
 ## Owner rules (always)
 - Write every text in ASD-STE100 Simplified Technical English: code comments, commits, docs, UI words. Never use an

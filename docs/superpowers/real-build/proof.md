@@ -993,6 +993,28 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   with the title Madar (`29694c3f.madar-46r.pages.dev`). Production did not change: madar.vado.sa 200, `x-madar-server: supabase`.
 - **Not run:** the deploy suite. Production does not take this commit now; wave 5 R7 runs the suite on the office path.
 
+### Wave 5 on the test copy, R1 to R5, and the pause (2026-10-18)
+- **R2:** the owner made `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET` (`scripts/office/new-secret.ts`; the second also as the GitHub
+  secret `OFFICE_EXPORT_SECRET`). `auth-key.ts test` gave the Worker a new `MADAR_AUTH_PRIVATE_JWK` (kid `RC72NWU2...`), and
+  `secrets.ts test` gave it both secrets. The sign-in key stays on the Worker: it is not in `WORKER_SECRETS`.
+- **R3 check:** export begin with the secret gave schema 3, version 0, `officeSeq` 0 and 45 tables; the end of the hold answered.
+- **R1:** 1 Cron Trigger of 5 in the account; 0 rows written by the office object of the UTC day before the import.
+- **R4:** `import.ts --from test --mode empty`: 917 records and 4 sign-in rows in 22 parts, 8,878 rows planned, 20 s, version 2689,
+  "The count and the hash of each table match the source." It ran at 09:48 Riyadh, not after office hours: it writes far under
+  the cap of 50,000, and production uses none of the object limits before wave 6.
+- **R5:** commit f7f504a (test `office`), `all.sh test` in office mode: health from `office;colo=JED` (117 calls), the office check
+  passed, `POST /mcp` with no token 401 from the office host.
+- **Speed** (`scripts/proof/server-time.sh 20`, 06:49 UTC, total medians): Supabase function anon 287 ms, health 334 ms, member
+  350 ms; the page's own `/api` on the office host anon 140 ms, health 136 ms. The member step of the page path got 401 twenty
+  times: the script signs in with Supabase Auth, and the office path takes only the tokens of the own sign-in. So this run gives
+  no member call on the office path (a TASKS item).
+- **The pause (owner, 2026-10-18):** the team asked for an important feature, so the move stops after R5. The test copy goes
+  back to `supabase` in the same commit as this record: the test copy is the staging step of production, so it runs the stack of
+  production. Nobody wrote on the office object after the import; it keeps the imported sample office, its secrets and its
+  sign-in key. The Track R builder stopped after its rebase on main (no code; the note is 67ea87e on 0dad809). Production did not
+  change at any step. The way back to the test phase: the word `office` again, `all.sh test`, and a fresh office with
+  `import.ts --mode replace` or the seed, then R5 step 4.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

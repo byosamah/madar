@@ -595,8 +595,17 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   `npm install` (2026-10-17). The gate ran on the Mac (GitHub runs no CI): typecheck, `npm test` 5,393 passed. The test Worker has
   its empty office object and the Cron (1 of 5 in the account); the office routes answer 401 with no secret. Production did not
   change. Record: proof.md, "Test copy at b4eb2e6"
-- [ ] Wave 5 R2 (owner): `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET` for the test copy (`scripts/office/new-secret.ts`), then the
-  lead runs `auth-key.ts test`, `secrets.ts test` and the R3 export check with the secret
+- [x] Wave 5 R2 (owner): `MADAR_OPS_SECRET` and `MADAR_EXPORT_SECRET` for the test copy (`scripts/office/new-secret.ts`), then the
+  lead runs `auth-key.ts test`, `secrets.ts test` and the R3 export check with the secret. Done 2026-10-18
+- [x] Wave 5 R4 and R5 (2026-10-18): the import of the test office (917 records, hash match, 20 s) and the switch of the test copy to
+  its office object (f7f504a): health, office check and `/mcp` 401 from `office;colo=JED`. Speed: 136 to 140 ms on the office path,
+  287 to 350 ms on the Supabase function. Record: proof.md, "Wave 5 on the test copy, R1 to R5, and the pause"
+- [ ] PAUSED (owner, 2026-10-18): the Supabase exit stops after wave 5 R5 for an important feature of the team. The test copy is back
+  on `supabase`; production never changed. Restart: the word `office` for test, `all.sh test`, a fresh office (`import.ts --mode
+  replace` or the seed), then R5 step 4 and R6 to R14 of the wave 4 plan. Until then, every feature keeps `test:lite` and
+  `test:office` green, so the restart stays cheap
+- [ ] On the restart: `scripts/proof/server-time.sh` signs in with Supabase Auth, so its member step gets 401 on the office path.
+  Give it a sign-in through the own `/api/auth` routes when the copy runs on its office object
 - [x] Wave 5: `functions/.well-known/[[path]].ts` (one line, `proxyWellKnown`) and `VITE_MADAR_AUTH=madar` for the test copy
   (done in exit wave 4, `rb/exit-ops` Tasks 2 and 3: two narrow files, `functions/.well-known/oauth-authorization-server/[[path]].ts`
   and `functions/.well-known/openid-configuration/[[path]].ts`, which answer only for an office copy; the word office gives
@@ -608,7 +617,7 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Proposal, not built: make `events_undoes` a partial index (`where undoes is not null`). Most events undo nothing, so each
   event would write 9 rows, not 10. First check with a rows pin that `undoLinks` and `notUndone` still use the index
 - [x] Track R: the design note of the stored unread number, for the owner's OK before code (`rb/read-cost`). Owner OK, 2026-10-18
-- [ ] Track R build (`~/dev/madar-rb/read-cost`, one builder, about 4 days). Its production release waits until after the team's
+- [ ] Track R build (`~/dev/madar-rb/read-cost`, one builder, about 4 days). STOPPED with the pause (owner, 2026-10-18) after its rebase on main (no code yet); it starts again with the move. Its production release waits until after the team's
   week of real use (2026-10-18 to 2026-10-22): no production change before Friday 2026-10-23 unless the owner asks for a fix
 - [x] Owner decisions of 2026-10-18: decision 5 is R2 alone (no B2 copy of the files; the restore check reads R2 with
   `--files-lag-days 0`), and decision 6 is form A (the test copy stays on the same account, with the day cap of 50%)
@@ -631,11 +640,12 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] Exit wave 6: production takes the word office (lift `OFFICE_COPIES_OPEN`), its binding, migration and Cron, `new-secret.ts`
       and `auth-key.ts` for production, `secrets.ts --office` for production, `office-backup.yml` on production, the restore
       reminder text for office backups
-- [ ] Owner decisions of later waves (spec section 7): the switch date, B2 or R2 alone, the account of the test copy, the
-  Supabase delete date, the $5 safety valve (still open: no payment without a yes in words)
+- [ ] Owner decisions of later waves (spec section 7): the switch date, the Supabase delete date, the $5 safety valve (still open:
+  no payment without a yes in words). Decided 2026-10-18: R2 alone (decision 5) and form A for the test copy (decision 6)
 - [x] The walk and shell faults: the pooler client limit (200) filled under load, so requests failed at once (EMAXCONN). A
   pooler connection now closes after 1 s idle (ff963e1). The 4 walks, acceptance, settings and shell: 38 passed, 0 failed
   (proof.md "The pooler client limit under load")
 - [x] Production at ff963e1 (2026-10-16 late, the owner ran it): checks pass, the live bundle matches `9e1127b4`, 0 EMAXCONN after it
-- [ ] The weekly file backup: its source is now R2 (both copies). It stays paused until the owner's Backblaze B2 (`.github/CLAUDE.md`)
+- [x] The weekly file backup: its source is now R2 (both copies). Owner decision 5 (2026-10-18): R2 alone, so `files-backup.yml`
+  stays paused, with no Backblaze B2 account; the restore check reads R2 (`--files-lag-days 0`)
 - [ ] Production: copy the files twice, switch, checks, release record
