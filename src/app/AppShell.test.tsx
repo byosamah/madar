@@ -113,8 +113,25 @@ describe('app shell', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
     const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
     const rows = [...within(menu).getAllByRole('button'), ...within(menu).getAllByRole('link')];
-    expect(rows.length).toBe(5);
+    expect(rows.length).toBe(6);
     for (const row of rows) expect(row).toHaveClass('text-start');
+  });
+
+  it("shows What's new in bold while the newest entry is not seen (fbk_018)", async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const link = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" });
+    expect(link).toHaveClass('font-bold');
+  });
+
+  it("shows What's new in normal weight after the person opens the page (fbk_018)", async () => {
+    await renderApp('/dashboard');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" }));
+    expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const link = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" });
+    expect(link).not.toHaveClass('font-bold');
   });
 
   it('switches between light and dark from the person menu', async () => {

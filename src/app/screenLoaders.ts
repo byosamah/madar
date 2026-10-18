@@ -18,6 +18,7 @@ export const LOADERS = {
   dashboard: () => import('../features/dashboard/DashboardScreen').then((m) => m.DashboardScreen),
   meeting: () => import('../features/dashboard/MeetingView').then((m) => m.MeetingView),
   settings: () => import('../features/settings/SettingsScreen').then((m) => m.SettingsScreen),
+  whatsNew: () => import('../features/whatsNew/WhatsNewScreen').then((m) => m.WhatsNewScreen),
   admin: () => import('../features/settings/admin/AdminScreen').then((m) => m.AdminScreen),
   projectByCode: () => import('../features/project/ProjectByCode').then((m) => m.ProjectByCode),
   signIn: () => import('../features/auth/SignInScreen').then((m) => m.SignInScreen),

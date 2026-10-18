@@ -1,0 +1,12 @@
+{
+  "whatsNew": {
+    "menu": "What's new",
+    "title": "What's new",
+    "items": {
+      "2026-10-23-1": {
+        "title": "New in Madar",
+        "body": "Now the project list shows 3 pictures, then +2 for the rest. Now a photo with a see-through background shows your glow behind it. Upload the photo again to see the glow. Now the calendar on a computer moves one month for each step of the mouse wheel. Now you can archive a chat. A new message brings it back."
+      }
+    }
+  }
+}

@@ -19,6 +19,9 @@ import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
 import { FeedbackSheet } from '../features/feedback/FeedbackSheet';
 import { useSignOut } from '../features/auth/signOut';
+import { SparklesIcon } from '../components/icons/animated/sparkles';
+import { WHATS_NEW } from '../whatsNew/entries';
+import { hasNew, readSeen } from '../whatsNew/seen';
 
 /**
  * The person's picture opens their name, the language, light or dark mode and Settings (redesign spec 2.5). The prototype adds
@@ -82,6 +85,11 @@ export function PersonMenu({ id }: { id: string }) {
             <Link to="/settings" onClick={close} className={row}>
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
+            </Link>
+            {/* Bold while the newest What's new entry is not seen yet (fbk_018). Opening the page marks it seen. */}
+            <Link to="/whats-new" onClick={close} className={hasNew(WHATS_NEW, readSeen(user.id)) ? `${row} font-bold` : row}>
+              <AnimatedIcon icon={SparklesIcon} size={18} className="text-ink-2" aria-hidden />
+              {t('whatsNew.menu')}
             </Link>
             {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
             <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>

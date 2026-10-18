@@ -38,6 +38,7 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'search', screen: 'search' },
         { path: 'tasks', screen: 'tasks' },
         { path: 'settings', screen: 'settings' },
+        { path: 'whats-new', screen: 'whatsNew' },
         // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
         { path: 'admin/:section?', screen: 'admin' },
         { path: '*', element: <NotFound /> },

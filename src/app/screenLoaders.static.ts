@@ -15,6 +15,7 @@ import { SearchScreen } from '../features/search/SearchScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { AdminScreen } from '../features/settings/admin/AdminScreen';
 import { TaskListScreen } from '../features/tasklist/TaskListScreen';
+import { WhatsNewScreen } from '../features/whatsNew/WhatsNewScreen';
 import { WorkScreen } from '../features/work/WorkScreen';
 
 /**
@@ -33,6 +34,7 @@ export const LOADERS = {
   dashboard: () => Promise.resolve(DashboardScreen),
   meeting: () => Promise.resolve(MeetingView),
   settings: () => Promise.resolve(SettingsScreen),
+  whatsNew: () => Promise.resolve(WhatsNewScreen),
   admin: () => Promise.resolve(AdminScreen),
   projectByCode: () => Promise.resolve(ProjectByCode),
   signIn: () => Promise.resolve(SignInScreen),
