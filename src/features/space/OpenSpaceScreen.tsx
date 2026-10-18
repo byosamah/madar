@@ -17,7 +17,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { SpaceCard, type SpaceCardData, type SpaceFlowNode } from './SpaceNode';
-import { buildSpaceTree, isOpenProject, type SpaceNode } from './spaceTree';
+import { buildSpaceTree, isOpenProject, OFFICE_ID, type SpaceNode } from './spaceTree';
 
 const NODE_TYPES: NodeTypes = { space: SpaceCard };
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
@@ -28,11 +28,18 @@ const FLOW_CLASS = '[&_.react-flow__attribution]:m-2 [&_.react-flow__attribution
 const FLOW_STYLE = { '--xy-attribution-background-color': 'var(--c-fill)' } as CSSProperties;
 
 /** The part of the React Flow instance that the screen uses. */
-type FlowHandle = { fitView: (options?: { padding?: number; minZoom?: number; maxZoom?: number }) => unknown };
+type FlowHandle = { fitView: (options?: { padding?: number; minZoom?: number; maxZoom?: number; nodes?: { id: string }[] }) => unknown };
 
-// The first view and the view after Open all or Close all keep the cards readable: a tree with many projects shows its middle, and the
-// person moves along with the wheel or a drag. Fit to screen is the way to see the whole tree.
-const READABLE_VIEW = { padding: 0.15, minZoom: 0.7, maxZoom: 1 } as const;
+// The first view and the view after Open all or Close all keep the cards readable. They show the office and the first projects from the
+// top of the map, and the person moves down with the wheel or a drag. Fit to screen is the way to see the whole tree.
+const FIRST_PROJECTS = 5;
+
+/** The view that keeps the cards readable. A phone is narrow, so it may zoom out further than a computer. */
+function readableView(nodes: SpaceNode[]) {
+  const projects = nodes.filter((node) => node.kind === 'project').sort((a, b) => a.y - b.y).slice(0, FIRST_PROJECTS);
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
+  return { padding: 0.15, minZoom: narrow ? 0.45 : 0.7, maxZoom: 1, nodes: [{ id: OFFICE_ID }, ...projects.map((node) => ({ id: node.id }))] };
+}
 
 /**
  * The Open space (feedback fbk_015, 2026-10-18): a read-only mind map of the office, for the managers who want the whole office
@@ -66,6 +73,10 @@ function SpaceScreen() {
     () => buildSpaceTree({ projects: summaries, tasks: rows, opened, focusPersonId, dir }),
     [summaries, rows, opened, focusPersonId, dir],
   );
+
+  const view = readableView(tree.nodes);
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   // The lookups that fill each card. A stage has a next level only when it has an open task.
   const projectById = useMemo(() => new Map(summaries.map((summary): [string, ProjectSummary] => [summary.project.id, summary])), [summaries]);
@@ -133,7 +144,7 @@ function SpaceScreen() {
 
   useEffect(() => {
     if (refit === 0) return;
-    const frame = requestAnimationFrame(() => void flow.current?.fitView(READABLE_VIEW));
+    const frame = requestAnimationFrame(() => void flow.current?.fitView(viewRef.current));
     return () => cancelAnimationFrame(frame);
   }, [refit]);
 
@@ -189,7 +200,7 @@ function SpaceScreen() {
               flow.current = instance;
             }}
             fitView
-            fitViewOptions={READABLE_VIEW}
+            fitViewOptions={view}
             panOnScroll
             zoomOnScroll={false}
             minZoom={0.2}

@@ -13,7 +13,7 @@ type FlowProps = {
   nodesConnectable?: boolean;
   elementsSelectable?: boolean;
   fitView?: boolean;
-  fitViewOptions?: { minZoom?: number };
+  fitViewOptions?: { minZoom?: number; nodes?: { id: string }[] };
   panOnScroll?: boolean;
   zoomOnScroll?: boolean;
 };
@@ -208,6 +208,10 @@ describe('the Open space screen', () => {
     await renderApp('/dashboard/space');
     await screen.findByRole('button', { name: /Corniche Office Tower/ });
     expect(flow.props).toMatchObject({ fitViewOptions: { minZoom: 0.7 }, panOnScroll: true, zoomOnScroll: false });
+    // The first view shows the office and the first five projects, from the top, not the whole tree.
+    const shown = flow.props!.fitViewOptions!.nodes!.map((node) => node.id);
+    expect(shown[0]).toBe('office');
+    expect(shown).toHaveLength(6);
   });
 
   it('moves the view again after Open all and after Close all', async () => {
