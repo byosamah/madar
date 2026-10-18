@@ -108,6 +108,10 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'teams.create': [{ name: 'Night team' }],
     'teams.update': [{ id: 'tm_001', patch: { name: 'Day team' } }],
     'teams.delete': [{ id: 'tm_004' }],
+    // The save runs before the delete (a remove runs last), so it makes sub_001 for the delete.
+    'subCompanies.list': [{}],
+    'subCompanies.save': [{ name: 'Sample company', nameAr: 'شركة تجريبية', logo: null }],
+    'subCompanies.delete': [{ id: 'sub_001' }],
   };
 }
 

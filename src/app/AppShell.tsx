@@ -9,6 +9,7 @@ import { NAV, isNavActive } from './nav';
 import { REMOTE } from './mode';
 import { PersonMenu } from './PersonMenu';
 import { PicturesProvider } from './pictures';
+import { SubCompaniesProvider } from './subCompanies';
 import { PushSync } from './remote/PushSync';
 import { StorageBanner } from './StorageBanner';
 import { BellButton, SearchButton, TabPill } from './TabPill';
@@ -87,9 +88,12 @@ function usePersonTurn(): number {
   return turn.count;
 }
 
-/** The app frame. It reads the profile pictures of the office once, for every Avatar inside (owner item 10, 2026-10-05). */
+/**
+ * The app frame. It reads the profile pictures of the office once, for every Avatar inside (owner item 10, 2026-10-05), and the
+ * sub-companies with their logos (fbk_007).
+ */
 export function AppShell() {
-  return <PicturesProvider><Shell /></PicturesProvider>;
+  return <PicturesProvider><SubCompaniesProvider><Shell /></SubCompaniesProvider></PicturesProvider>;
 }
 
 function Shell() {

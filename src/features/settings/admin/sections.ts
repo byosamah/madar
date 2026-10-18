@@ -6,6 +6,7 @@ import { FeedbackSection } from './FeedbackSection';
 import { OfficeSection } from './OfficeSection';
 import { PeopleSection } from './PeopleSection';
 import { ProjectTemplatesSection } from './ProjectTemplatesSection';
+import { SubCompaniesSection } from './SubCompaniesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
 import { TeamsSection } from './TeamsSection';
 import { UsageSection } from './UsageSection';
@@ -39,6 +40,7 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'teams', group: 'people', titleKey: 'teams.title', roles: ['admin', 'management'], Component: TeamsSection },
   { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], Component: OfficeSection },
   { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], Component: ClientsSection },
+  { id: 'sub-companies', group: 'office', titleKey: 'subCompanies.title', roles: ['admin'], Component: SubCompaniesSection },
   { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], Component: ProjectTemplatesSection },
   { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], Component: TaskTemplatesSection },
   { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], Component: FeedbackSection },

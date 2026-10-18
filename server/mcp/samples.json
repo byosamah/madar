@@ -2,18 +2,18 @@
   "chats.list": {},
   "chats.openDirect": {
     "userId": "usr_002",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "chats.send": {
     "conversationId": "cnv_013",
     "body": "The drainage check is done. I posted the result on the project.",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "comments.create": {
     "targetType": "task",
     "targetId": "tsk_145",
     "body": "The levels match the survey.",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "comments.list": {
     "targetType": "task",
@@ -27,7 +27,7 @@
     "name": "Municipality submission",
     "date": "2026-10-21",
     "stageId": "stg_004",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "deadlines.list": {
     "from": "2026-09-30",
@@ -38,7 +38,7 @@
     "patch": {
       "date": "2026-10-28"
     },
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "events.list": {
     "projectId": "prj_001",
@@ -48,7 +48,7 @@
     "eventId": "evt_365"
   },
   "events.undoStory": {
-    "correlationId": "cor_sample_018"
+    "correlationId": "cor_sample_019"
   },
   "feedback.list": {},
   "feedback.screenshot": {
@@ -58,7 +58,7 @@
   "feedback.setStatus": {
     "id": "fbk_001",
     "status": "done",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "files.list": {
     "projectId": "prj_001"
@@ -69,7 +69,7 @@
     "name": "Design development fee",
     "amount": 25000,
     "dueDate": "2026-10-30",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "payments.list": {
     "projectId": "prj_001"
@@ -77,14 +77,14 @@
   "payments.markReceived": {
     "id": "pay_012",
     "receivedOn": "2026-09-30",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "payments.update": {
     "id": "pay_012",
     "patch": {
       "note": "Invoice 2026-118"
     },
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "projects.get": {
     "id": "prj_001"
@@ -102,15 +102,16 @@
     "patch": {
       "description": "A four-storey office building with a basement car park."
     },
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "search.query": {
     "text": "Corniche"
   },
   "story.start": {},
+  "subCompanies.list": {},
   "tasks.approve": {
     "id": "tsk_010",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.arrange": {
     "ids": [
@@ -118,11 +119,11 @@
       "tsk_145"
     ],
     "moved": "tsk_009",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.complete": {
     "id": "tsk_145",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.create": {
     "projectId": "prj_001",
@@ -130,7 +131,7 @@
     "stageId": "stg_004",
     "ownerId": "usr_002",
     "dueDate": "2026-10-07",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.get": {
     "id": "tsk_001"
@@ -142,16 +143,16 @@
   "tasks.move": {
     "id": "tsk_145",
     "status": "in_progress",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.sendBack": {
     "id": "tsk_023",
     "note": "Add the section through the stair, then send it again.",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.take": {
     "taskId": "tsk_009",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tasks.update": {
     "id": "tsk_145",
@@ -159,11 +160,11 @@
       "description": "Compare the levels with the survey of August.",
       "flagged": true
     },
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tracker.close": {
     "id": "trk_022",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tracker.list": {
     "projectId": "prj_001",
@@ -176,17 +177,17 @@
     "title": "Sent the drainage report to the client",
     "waiting": "client",
     "date": "2026-09-30",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "tracker.update": {
     "id": "trk_022",
     "note": "The client asked for one week to reply.",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "updates.create": {
     "projectId": "prj_001",
     "body": "The drainage check is done. The levels match the survey.",
-    "storyId": "cor_sample_018"
+    "storyId": "cor_sample_019"
   },
   "updates.list": {
     "projectId": "prj_001",

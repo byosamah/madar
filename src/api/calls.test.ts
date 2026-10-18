@@ -46,6 +46,7 @@ const PAYMENT_CALLS = ['payments.list', 'payments.create', 'payments.update', 'p
 const FEEDBACK_CALLS = ['feedback.send', 'feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
 // Office teams (colleague comment 15). Adding a whole team to a project is a member call.
 const TEAM_CALLS = ['teams.list', 'teams.create', 'teams.update', 'teams.delete', 'members.addTeam'];
+const SUB_COMPANY_CALLS = ['subCompanies.list', 'subCompanies.save', 'subCompanies.delete'];
 // Fixes from the audit of 2026-10-03: the Undo of "Mark all read" (SHL-16), and a way back for a deactivated person (SHL-7). And a way
 // out of the lists for a turned-off person who will not come back (owner, 2026-10-12).
 const AUDIT_CALLS = ['notifications.markUnread', 'users.reactivate', 'users.remove'];
@@ -60,7 +61,7 @@ const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 // The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
 // live.ticket from the exit, wave 3).
 const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
-const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS];
+const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
 const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket']);
@@ -69,7 +70,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(133);
+    expect(Object.keys(calls)).toHaveLength(136);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -104,16 +105,16 @@ describe('the call map', () => {
   });
 
   it('has 122 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(122);
-    expect(Object.keys(mapCalls)).toHaveLength(122);
+    expect(MAP_CALLS).toHaveLength(125);
+    expect(Object.keys(mapCalls)).toHaveLength(125);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 118 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 121 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(118);
+    expect(names).toHaveLength(121);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

@@ -52,6 +52,10 @@ function withoutDirectPreviews(name: string, output: unknown): unknown {
  * has no use for it, and 15 pictures would fill its context, so a picture saved as data leaves the answer (avatarUrl null).
  */
 function withoutPictureData(name: string, output: unknown): unknown {
+  // A sub-company logo is picture data too (fbk_007). An agent gets the names, so the logo leaves the answer as well.
+  if (name === 'subCompanies.list' && Array.isArray(output)) {
+    return output.map((sub: { logo?: unknown }) => (typeof sub.logo === 'string' ? { ...sub, logo: null } : sub));
+  }
   if (name !== 'users.list' || !Array.isArray(output)) return output;
   return output.map((user: { avatarUrl?: unknown }) => (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('data:') ? { ...user, avatarUrl: null } : user));
 }

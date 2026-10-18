@@ -1,0 +1,28 @@
+{
+  "subCompanies": {
+    "title": "Sub-companies",
+    "add": "New sub-company",
+    "editTitle": "Edit sub-company",
+    "empty": "No sub-companies yet. Add the first one.",
+    "nameEn": "English name",
+    "nameAr": "Arabic name",
+    "logo": "Logo",
+    "chooseLogo": "Choose a logo",
+    "changeLogo": "Change logo",
+    "logoHint": "A square picture fits best. The whole picture shows inside the circle.",
+    "logoTooBig": "This picture is too big. Choose a smaller picture.",
+    "logoUnreadable": "Madar cannot read this file. Choose a WebP, JPEG or PNG picture.",
+    "duplicate": "A sub-company with this name exists. Use another name.",
+    "saved": "Sub-company saved.",
+    "created": "Sub-company {{name}} added.",
+    "deleted": "Sub-company deleted.",
+    "actions": "Actions for {{name}}",
+    "edit": "Edit",
+    "delete": "Delete sub-company"
+  },
+  "errors": {
+    "reasons": {
+      "sub_company_in_use": "A project uses this sub-company. Change the project first."
+    }
+  }
+}

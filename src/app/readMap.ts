@@ -23,7 +23,7 @@ export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(in
 export const COLLECTION_KINDS = [
   'users', 'clients', 'projects', 'members', 'stages', 'deadlines', 'tasks', 'updates', 'comments', 'files', 'notifications',
   'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'tracker', 'payments',
-  'feedback', 'teams', 'settings',
+  'feedback', 'teams', 'settings', 'subCompanies',
 ] as const satisfies readonly Kind[];
 
 /** The kinds of a change that belongs to one person: they go only on that person's channel (plan, change 13). */
@@ -68,6 +68,7 @@ export const READS: Record<string, ReadRule> = {
   'clients.list': rule('office', ['clients', 'users']),
   'settings.get': rule('office', ['settings', 'users']),
   'teams.list': rule('office', ['teams', 'users']),
+  'subCompanies.list': rule('office', ['subCompanies', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['projectTemplates', 'users']),

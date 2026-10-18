@@ -225,6 +225,10 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
     title: 'List people',
     description: 'Lists the people of the office: the English name (name), the Arabic name (nameAr, when the person has one), discipline, role and whether each is active. Use the name that fits the language of your person. Set includeInactive to see people who are turned off. Agents are in the list too, with their owner. Profile pictures are left out.',
   },
+  'subCompanies.list': {
+    title: 'List sub-companies',
+    description: 'Lists the sub-companies of the office, with their English name (name) and Arabic name (nameAr). Logos are left out.',
+  },
   'comments.create': {
     title: 'Add a comment',
     description: 'Adds a comment to a task or an update (targetType and targetId): a body in words, and optionally files (fileIds). Only the project team may comment; on an office task, only its people. People named with @ get a notification when they may see the task.',

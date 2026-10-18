@@ -88,6 +88,7 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('deadlines.list', { from: TODAY, to: addDays(TODAY, 90) });
     await run('files.list', { projectId: project.id });
     await run('users.list', { includeInactive: false });
+    await run('subCompanies.list', {});
     await run('dashboard.get', { status: 'active' });
     await run('search.query', { text: project.name.split(' ')[0] });
     await run('events.list', { projectId: project.id, limit: 10 });

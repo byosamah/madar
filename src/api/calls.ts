@@ -16,6 +16,7 @@ import { pushCalls } from './handlers/push';
 import { stageTemplateCalls } from './handlers/stageTemplates';
 import { taskTemplateCalls } from './handlers/taskTemplates';
 import { shareCalls } from './handlers/sharing';
+import { subCompanyCalls } from './handlers/subCompanies';
 import { teamCalls } from './handlers/teams';
 import { systemCalls } from './handlers/system';
 import { trackerCalls } from './handlers/tracker';
@@ -40,6 +41,7 @@ export const mapCalls = {
   ...trackerCalls,
   ...paymentCalls,
   ...teamCalls,
+  ...subCompanyCalls,
   ...projectTemplateCalls,
   ...pushCalls,
 };

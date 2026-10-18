@@ -13,8 +13,10 @@ import type { SqlHost } from './host';
  *
  * Version 3 (Supabase exit, waves 2 and 3): the sign-in rows of wave 2 and the day meters of wave 3. The sign-in tables have no
  * step: no office object below version 3 exists outside the tests (the first real office comes in wave 5).
+ *
+ * Version 4 (fbk_007): the office list sub_companies. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 3;
+export const LITE_SCHEMA_VERSION = 4;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -109,9 +111,11 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * The steps of an office with an older schema. The key is the version that the step makes, from the version before it. The texts
  * of a step must leave the same schema as liteSchemaSql of that version, so a stepped office and a new office are equal.
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
+ * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
+  4: ['create table sub_companies (id text primary key, doc text not null)'],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

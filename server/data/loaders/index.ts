@@ -192,6 +192,11 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'teams.create': office,
   'teams.update': office,
   'teams.delete': office,
+
+  // Projects are an office list, so the office of a delete already holds every project that names a sub-company.
+  'subCompanies.list': office,
+  'subCompanies.save': office,
+  'subCompanies.delete': office,
 };
 
 /**

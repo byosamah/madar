@@ -1,7 +1,7 @@
 import type { ZodObject } from 'zod';
 import {
   ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember,
-  ProjectTemplate, PushDevice, Settings, Stage, StageTemplate, Task, TaskTemplate, Team, TrackerEntry, Update, User,
+  ProjectTemplate, PushDevice, Settings, Stage, StageTemplate, SubCompany, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from '../../src/api/contract/entities';
 import { chatReadKey, memberKey, type State } from '../../src/api/store';
 import { normalizeForSearch } from '../../src/lib/text';
@@ -42,6 +42,7 @@ const TABLE_OF: { [C in TableCollection]: Omit<TableSpec, 'collection' | 'office
   users: { table: 'users', key: byId, schema: User },
   clients: { table: 'clients', key: byId, schema: Client },
   teams: { table: 'teams', key: byId, schema: Team },
+  subCompanies: { table: 'sub_companies', key: byId, schema: SubCompany },
   stageTemplates: { table: 'stage_templates', key: byId, schema: StageTemplate },
   taskTemplates: { table: 'task_templates', key: byId, schema: TaskTemplate },
   projectTemplates: { table: 'project_templates', key: byId, schema: ProjectTemplate },

@@ -5,9 +5,9 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 41 tools for every agent: the
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 42 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 44. Every other call stays on
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 45. Every other call stays on
  * the deny list: screen work (uploads, read marks, counts), reading a chat, the prototype controls, and the other Admin calls. VS
  * Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
@@ -17,9 +17,9 @@ import { TOOL_DOCS } from './docs';
 export const READ_FIRST = 'madar.readFirst';
 
 export const MCP_ALLOW = [
-  // Reads (16). chats.list finds a chat to send to; run.ts gives a direct chat no preview.
+  // Reads (17). chats.list finds a chat to send to; run.ts gives a direct chat no preview. subCompanies.list gives no logos.
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
-  'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list',
+  'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
   // Writes (25). chats.openDirect and chats.send message the team: a direct chat or a project chat (task comments and project posts
   // are comments.create and updates.create).
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
@@ -41,9 +41,10 @@ type CallToolName = Exclude<McpToolName, typeof READ_FIRST>;
 export const MCP_DENY = [
   // The session and the person's own settings.
   'session.get', 'me.updateProfile', 'me.updatePreferences',
-  // People, clients, teams and office settings: Admin and Management work in the screens.
+  // People, clients, teams, sub-companies and office settings: Admin and Management work in the screens.
   'users.get', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'users.invites', 'users.resendInvite',
   'clients.list', 'clients.create', 'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
+  'subCompanies.save', 'subCompanies.delete',
   'settings.get', 'settings.update',
   // Project set-up, members, stages, links, health and deletes.
   'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',

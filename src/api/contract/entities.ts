@@ -28,6 +28,7 @@ export const ProjectTemplateId = id('ptp');
 export const TrackerId = id('trk');
 export const PaymentId = id('pay');
 export const TeamId = id('tm');
+export const SubCompanyId = id('sub');
 export const PushDeviceId = id('pdv');
 
 export const Day = z.iso.date();
@@ -70,7 +71,7 @@ export type Reaction = z.infer<typeof Reaction>;
 
 export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
-  'projectTemplate',
+  'projectTemplate', 'subCompany',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback']);
@@ -699,6 +700,20 @@ export const Team = z.object({
   memberIds: z.array(UserId).max(100),
 });
 export type Team = z.infer<typeof Team>;
+
+/**
+ * A sub-company of the office group, such as Vado or Bunah (fbk_007). The Admin adds them, and each project names one. The logo is
+ * picture data (PICTURE_DATA), as the profile picture: no file store holds it.
+ */
+export const SubCompany = z.object({
+  id: SubCompanyId,
+  name: z.string().trim().min(1).max(80),
+  nameAr: z.string().trim().min(1).max(80),
+  logo: z.string().max(PICTURE_DATA_MAX).regex(PICTURE_DATA).nullable(),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type SubCompany = z.infer<typeof SubCompany>;
 
 export const Settings = z.object({
   defaultStages: z.array(z.string().trim().min(1).max(60)).min(1).max(20),
