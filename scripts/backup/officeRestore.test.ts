@@ -89,7 +89,7 @@ describe('the restore of an office backup (scripts/backup/officeRestore.ts)', ()
     const { folder } = await exported();
     const path = join(folder, 'manifest.json');
     writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), schema: 99 }));
-    expect((await restoreOffice(folder)).problems).toEqual(['The backup is of schema version 99, and this build knows version 3. Check it with a newer build.']);
+    expect((await restoreOffice(folder)).problems).toEqual(['The backup is of schema version 99, and this build knows version 4. Check it with a newer build.']);
   });
 
   it('accepts the entries of one office backup and refuses any other entry', () => {

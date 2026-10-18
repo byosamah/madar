@@ -116,14 +116,15 @@ function conflict(message = 'This item changed after that edit. Undo is not avai
 /** Fields that point at another record. An undo may only bring back values whose record still exists. */
 const REFERENCE_FIELDS: Record<string, keyof State> = {
   projectId: 'projects', stageId: 'stages', currentStageId: 'stages', taskId: 'tasks', clientId: 'clients', coverFileId: 'files',
-  userId: 'users', ownerId: 'users', authorId: 'users', leaderId: 'users', createdBy: 'users',
+  userId: 'users', ownerId: 'users', authorId: 'users', leaderId: 'users', createdBy: 'users', subCompanyId: 'subCompanies',
 };
 
 function assertReferencesExist(state: State, targetType: EventTarget, values: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(values)) {
     const key = REFERENCE_FIELDS[field];
     if (!key || typeof value !== 'string') continue;
-    if (!(state[key] as Record<string, unknown>)[value]) throw conflict('Something this change needs is gone. Undo is not available.');
+    // The sub-company list is optional in an office saved before it existed, so an absent list counts as empty.
+    if (!((state[key] ?? {}) as Record<string, unknown>)[value]) throw conflict('Something this change needs is gone. Undo is not available.');
   }
   // Only a whole comment names its target. A change of some fields (an edit, a reaction) keeps the target it has (audit 2026-10-03, API-19).
   if (targetType === 'comment' && 'targetId' in values) {

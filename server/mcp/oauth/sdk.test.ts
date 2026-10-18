@@ -42,7 +42,7 @@ describe('an MCP client library against the own OAuth server (@modelcontextproto
     expect(tokens).toMatchObject({ token_type: 'Bearer', expires_in: 900 });
     const first = await mcpPost(w.root, tokens.access_token);
     expect(first.status).toBe(200);
-    expect(first.body.result.tools).toHaveLength(41);
+    expect(first.body.result.tools).toHaveLength(42);
     expect(w.t.raw.prepare('select owner_user_id from agent_links').get()).toEqual({ owner_user_id: 'usr_002' });
 
     const again = await refreshAuthorization(TEST_MCP_URL, { metadata, clientInformation: client, refreshToken: tokens.refresh_token!, resource: new URL(TEST_MCP_URL), fetchFn });

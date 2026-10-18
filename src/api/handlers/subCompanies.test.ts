@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { historyCalls } from './history';
+import { projectCalls } from './projects';
 import { subCompanyCalls } from './subCompanies';
 import { makeUser, makeWorld, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
-const calls = { ...subCompanyCalls, ...historyCalls };
+const calls = { ...subCompanyCalls, ...historyCalls, ...projectCalls };
 
 beforeEach(() => setNow(NOW));
 
@@ -89,5 +90,29 @@ describe('sub-companies', () => {
     expect(removal).toMatchObject({ targetType: 'subCompany', targetId: vado.id });
     await t.api.call('events.undo', { eventId: removal!.id });
     expect((await t.api.call('subCompanies.list', {})).map((item) => item.id)).toEqual([vado.id]);
+  });
+
+  it('refuses to undo the making of a sub-company that a project names', async () => {
+    const t = office();
+    const vado = await t.api.call('subCompanies.save', { name: 'Vado', nameAr: 'فادو', logo: null });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: vado.id } });
+    const making = Object.values(t.store.state.events).find((event) => event.verb === 'subCompany.created');
+    await expect(t.api.call('events.undo', { eventId: making!.id })).rejects.toMatchObject({ code: 'conflict' });
+    expect(Object.keys(t.store.state.subCompanies ?? {})).toEqual([vado.id]);
+    expect(t.store.state.projects.prj_001.subCompanyId).toBe(vado.id);
+  });
+
+  it('refuses to undo a project move back to a sub-company that a delete removed since', async () => {
+    const t = office();
+    const vado = await t.api.call('subCompanies.save', { name: 'Vado', nameAr: 'فادو', logo: null });
+    const bunah = await t.api.call('subCompanies.save', { name: 'Bunah', nameAr: 'بناة', logo: null });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: vado.id } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: bunah.id } });
+    await t.api.call('subCompanies.delete', { id: vado.id });
+    const move = Object.values(t.store.state.events).find(
+      (event) => event.targetType === 'project' && (event.after as { subCompanyId?: string } | null)?.subCompanyId === bunah.id,
+    );
+    await expect(t.api.call('events.undo', { eventId: move!.id })).rejects.toMatchObject({ code: 'conflict' });
+    expect(t.store.state.projects.prj_001.subCompanyId).toBe(bunah.id);
   });
 });
