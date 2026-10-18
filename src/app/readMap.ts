@@ -59,7 +59,7 @@ const RULES: Record<string, ReadRule> = {
   'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
   // events: the day each task in review went to review. payments: the money panel (owner, 2026-10-06).
   'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'tasks', 'teams', 'tracker', 'users']),
-  'reports.office': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'tasks', 'tracker', 'users']),
+  'reports.office': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'tracker', 'users']),
   'deadlines.list': rule('office', ['deadlines', 'projects', 'users']),
   'search.query': rule('office', ['clients', 'files', 'projects', 'tasks', 'users']),
   'users.list': rule('office', ['users', 'preferences']),
