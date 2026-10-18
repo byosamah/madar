@@ -293,6 +293,7 @@ export function TemplateGantt({ draft, onChange, onClose }: {
     >
       <div className="flex flex-col gap-3 pt-1">
         <p className="text-footnote text-ink-2">{t('projectTemplates.timelineHint')}</p>
+        {bars.length === 0 && <p role="status" className="text-footnote text-ink-2">{t('projectTemplates.timelineEmpty')}</p>}
         {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
         {pickedLive && picked && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl bg-fill p-2">

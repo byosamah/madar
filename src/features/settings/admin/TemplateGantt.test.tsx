@@ -70,6 +70,18 @@ describe('the template timeline', () => {
     expect(screen.getByText('Permits')).toBeInTheDocument();
   });
 
+  it('says that a chart with no bar needs days, and says nothing when a bar shows', () => {
+    measureChart();
+    renderGantt({ ...DRAFT, stages: DRAFT.stages.map((stage) => ({ ...stage, start: '', days: '' })), tasks: [] });
+    expect(screen.getByText('Add a task with a start day and working days to see the timeline.')).toBeInTheDocument();
+  });
+
+  it('shows no empty-chart note when the draft has bars', () => {
+    measureChart();
+    renderGantt(DRAFT);
+    expect(screen.queryByText('Add a task with a start day and working days to see the timeline.')).toBeNull();
+  });
+
   it('moves a task start with the arrow keys: one working day, or five with Shift', () => {
     measureChart();
     const onChange = renderGantt(DRAFT);
