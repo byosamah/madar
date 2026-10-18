@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  Gender, ProjectTemplate, ProjectTemplateId, TEMPLATE_MAX_ROLES, TEMPLATE_MAX_STAGES, TEMPLATE_MAX_TASKS, TemplateRole, TemplateStage, TemplateTask,
+  Gender, ProjectId, ProjectTemplate, ProjectTemplateId, StageId, TaskId, TEMPLATE_MAX_ROLES, TEMPLATE_MAX_STAGES, TEMPLATE_MAX_TASKS,
+  TemplatePartId, TemplateRole, TemplateStage, TemplateTask, UserId,
 } from '../contract/entities';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { hasCycle } from '../flow';
+import { matchByNames } from '../../lib/templateMatch';
 import { nextId, projectTemplatesOf } from '../store';
 import { namesUnder } from '../views';
 import { assertCan } from './shared';
@@ -170,8 +172,108 @@ const projectTemplatesDelete = defineCall({
   },
 });
 
+const MatchPlanOutput = z.object({
+  stages: z.record(TemplatePartId, StageId.nullable()),
+  tasks: z.record(TemplatePartId, TaskId.nullable()),
+});
+
+/** The stages and tasks of one project, as the name matching reads them. */
+function itemsOf(ctx: Ctx, projectId: string) {
+  return {
+    stages: Object.values(ctx.state.stages).filter((stage) => stage.projectId === projectId),
+    tasks: Object.values(ctx.state.tasks).filter((task) => task.projectId === projectId),
+  };
+}
+
+/** The matches that a link takes: each part of the template at most once, and each item of this project at most once. */
+function assertMatches(field: 'stageMatches' | 'taskMatches', matches: Record<string, string | null>, partIds: string[], itemIds: string[]): void {
+  const parts = new Set(partIds);
+  const items = new Set(itemIds);
+  const used = new Set<string>();
+  for (const [partId, itemId] of Object.entries(matches)) {
+    if (!parts.has(partId)) throw invalid(field, `The part "${partId}" is not in the template.`, 'part_not_in_template');
+    if (itemId === null) continue;
+    if (!items.has(itemId)) throw invalid(field, `The item "${itemId}" is not in this project.`, 'item_not_in_project');
+    if (used.has(itemId)) throw invalid(field, `The item "${itemId}" matches two parts.`, 'duplicate_match');
+    used.add(itemId);
+  }
+}
+
+/**
+ * The project items that match each part of a template, by name (fbk_008 item 4). The Admin's link sheet fills its picks with
+ * this read. A link is a template matter, so only the Admin reads it.
+ */
+const projectTemplatesMatchPlan = defineCall({
+  input: z.object({ projectId: ProjectId, templateId: ProjectTemplateId }),
+  output: MatchPlanOutput,
+  readOnly: true,
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    const template = projectTemplatesOf(ctx.state)[input.templateId];
+    if (!template) throw notFound('Project template', input.templateId);
+    if (!ctx.state.projects[input.projectId]) throw notFound('Project', input.projectId);
+    const { stages, tasks } = itemsOf(ctx, input.projectId);
+    return matchByNames(template, stages, tasks);
+  },
+});
+
+/**
+ * Links an older project to a template (fbk_008 item 4). The picks say which item of the project matches each part. A template part
+ * with no pick is dropped from the project. One story holds the link and every part id, so one Undo takes all of it back.
+ */
+const projectTemplatesLink = defineCall({
+  input: z.object({
+    projectId: ProjectId,
+    templateId: ProjectTemplateId,
+    stageMatches: z.record(TemplatePartId, StageId.nullable()),
+    taskMatches: z.record(TemplatePartId, TaskId.nullable()),
+    rolePeople: z.record(TemplatePartId, UserId.nullable()),
+  }),
+  output: z.object({}),
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    const project = ctx.state.projects[input.projectId];
+    if (!project) throw notFound('Project', input.projectId);
+    const template = projectTemplatesOf(ctx.state)[input.templateId];
+    if (!template) throw notFound('Project template', input.templateId);
+    if (project.templateLink) throw invalid('projectId', 'This project is already linked to a template.', 'already_linked');
+    const { stages, tasks } = itemsOf(ctx, input.projectId);
+    assertMatches('stageMatches', input.stageMatches, template.stages.map((part) => part.id), stages.map((stage) => stage.id));
+    assertMatches('taskMatches', input.taskMatches, template.tasks.map((part) => part.id), tasks.map((task) => task.id));
+    const roleIds = new Set(template.roles.map((role) => role.id));
+    for (const [roleId, userId] of Object.entries(input.rolePeople)) {
+      if (!roleIds.has(roleId)) throw invalid('rolePeople', `The role "${roleId}" is not in the template.`, 'part_not_in_template');
+      if (userId === null) continue;
+      const person = ctx.state.users[userId];
+      if (!person || person.kind !== 'human') throw invalid('rolePeople', 'The person of a role must be a person of the office. Agents act for a person.');
+      if (!person.active) throw invalid('rolePeople', 'This person is no longer active. Pick someone else.', 'person_inactive');
+    }
+    const stageParts = template.stages.map((part) => ({ partId: part.id, itemId: input.stageMatches[part.id] ?? null }));
+    const taskParts = template.tasks.map((part) => ({ partId: part.id, itemId: input.taskMatches[part.id] ?? null }));
+    const dropped = [...stageParts, ...taskParts].filter((part) => part.itemId === null).map((part) => part.partId);
+    const rolePeople = Object.fromEntries(template.roles.map((role) => [role.id, input.rolePeople[role.id] ?? null]));
+    const meta = { projectId: project.id };
+    applyPatch(ctx, project, {
+      templateLink: { templateId: template.id, linkedAt: ctx.stamp, syncedAt: null, rolePeople, droppedPartIds: dropped },
+    }, { ...meta, verb: 'project.template_linked', targetType: 'project', targetId: project.id });
+    for (const part of stageParts) {
+      if (part.itemId === null) continue;
+      const stage = ctx.state.stages[part.itemId];
+      applyPatch(ctx, stage, { templatePartId: part.partId }, { ...meta, verb: 'stage.template_linked', targetType: 'stage', targetId: stage.id });
+    }
+    for (const part of taskParts) {
+      if (part.itemId === null) continue;
+      const task = ctx.state.tasks[part.itemId];
+      applyPatch(ctx, task, { templatePartId: part.partId }, { ...meta, verb: 'task.template_linked', targetType: 'task', targetId: task.id });
+    }
+    return {};
+  },
+});
+
 export const projectTemplateCalls = {
   'projectTemplates.list': projectTemplatesList,
   'projectTemplates.save': projectTemplatesSave,
   'projectTemplates.delete': projectTemplatesDelete,
+  'projectTemplates.matchPlan': projectTemplatesMatchPlan,
+  'projectTemplates.link': projectTemplatesLink,
 };

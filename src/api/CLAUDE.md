@@ -75,6 +75,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
+- Link an older project (fbk_008 item 4, Admin only): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
+  `src/lib/templateMatch.ts`). `projectTemplates.link` writes one story: the `templateLink`, each matched part id, and `droppedPartIds`
+  for each part with no pick. A second link is refused (`already_linked`). Both calls are on the MCP deny list.
 
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.

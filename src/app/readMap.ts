@@ -72,6 +72,7 @@ export const READS: Record<string, ReadRule> = {
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['projectTemplates', 'users']),
+  'projectTemplates.matchPlan': rule('project', ['projectTemplates', 'projects', 'stages', 'tasks', 'users'], byProjectId),
   'feedback.list': rule('office', ['feedback', 'users']),
   'session.get': rule('person', ['projects', 'users', 'preferences']),
   // No 'feedback': a report notice reads only if its report exists. Only the Undo of the send deletes a report, and that Undo

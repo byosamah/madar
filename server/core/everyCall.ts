@@ -43,6 +43,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
   const stages = Object.values(office.stages).filter((s) => s.projectId === 'prj_001');
   const waiting = Object.values(office.tracker ?? {}).find((e) => e.closedAt === null && e.waiting === 'us');
   const ownEvent = Object.values(office.events).filter((e) => e.actingForId === ADMIN && e.undoneBy === null).at(-1);
+  const plan = Object.values(office.projectTemplates ?? {}).find((t) => t.tasks.length > 0)!;
   return {
     'users.list': [{}],
     'users.get': [{ id: 'usr_002' }],
@@ -93,6 +94,9 @@ function rest(office: State): Record<string, [unknown, string?]> {
       tasks: [{ id: 't1', stageId: 's1', title: 'Massing', description: '', checklist: [], needsReview: true, roleId: 'r1', startOffset: 0, durationDays: 5, flexible: true }],
     }],
     'projectTemplates.delete': [{ id: 'ptp_002' }],
+    // The link of prj_001 (fbk_008 item 4): no pick, so every part of the template is dropped. It runs before the removers.
+    'projectTemplates.matchPlan': [{ projectId: 'prj_001', templateId: plan.id }],
+    'projectTemplates.link': [{ projectId: 'prj_001', templateId: plan.id, stageMatches: {}, taskMatches: {}, rolePeople: {} }],
     'push.mine': [{}],
     'push.register': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token', label: 'Chrome on Mac' }],
     'push.remove': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token' }],

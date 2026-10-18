@@ -169,6 +169,9 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'projectTemplates.list': office,
   'projectTemplates.save': office,
   'projectTemplates.delete': office,
+  // The link reads the stages and tasks of its project, and writes them (fbk_008 item 4).
+  'projectTemplates.matchPlan': project((L, i) => projectCall(L, i.projectId)),
+  'projectTemplates.link': project((L, i) => projectCall(L, i.projectId)),
 
   'push.mine': push(pushMine),
   'push.register': push(pushRegister),

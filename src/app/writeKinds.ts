@@ -88,6 +88,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'stageTemplates.delete': ['events', 'stageTemplates'],
   'projectTemplates.save': ['events', 'projectTemplates'],
   'projectTemplates.delete': ['events', 'projectTemplates'],
+  'projectTemplates.link': ['events', 'projects', 'stages', 'tasks'],
   'taskTemplates.save': ['events', 'taskTemplates'],
   'taskTemplates.rename': ['events', 'taskTemplates'],
   'taskTemplates.delete': ['events', 'taskTemplates'],

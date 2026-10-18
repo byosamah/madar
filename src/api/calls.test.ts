@@ -54,8 +54,8 @@ const AUDIT_CALLS = ['notifications.markUnread', 'users.reactivate', 'users.remo
 const LEAD_CALLS = ['tasks.take'];
 // The shared order of tasks inside a date group of the Tasks screen and Home (owner, 2026-10-07).
 const ORDER_CALLS = ['tasks.arrange'];
-// Project templates: stages, tasks, roles and dates (owner, 2026-10-05, item 6a).
-const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete'];
+// Project templates: stages, tasks, roles and dates (owner, 2026-10-05, item 6a). The Admin links an older project by names (fbk_008 item 4).
+const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete', 'projectTemplates.matchPlan', 'projectTemplates.link'];
 // Browser push devices (owner, 2026-10-08).
 const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 // The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
@@ -70,14 +70,15 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(136);
+    expect(Object.keys(calls)).toHaveLength(138);
   });
 
   it('marks exactly the read calls as read-only', () => {
     for (const [name, def] of Object.entries(calls)) {
       const read = SERVER_CALLS.includes(name)
         ? SERVER_READS.has(name)
-        : /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot';
+        : /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot'
+          || name === 'projectTemplates.matchPlan';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });
@@ -104,17 +105,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 122 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(125);
-    expect(Object.keys(mapCalls)).toHaveLength(125);
+  it('has 127 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(127);
+    expect(Object.keys(mapCalls)).toHaveLength(127);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 121 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 123 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(121);
+    expect(names).toHaveLength(123);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

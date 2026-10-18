@@ -86,6 +86,19 @@
       "stageNumbers": "A stage needs both a start day and working days, or neither.",
       "taskTitle": "Give every task a title.",
       "numbers": "Use whole numbers: a start day from 0 to 2000, and from 1 to 365 working days."
+    },
+    "link": {
+      "title": "Link an older project",
+      "intro": "Choose the project item that matches each template part.",
+      "partColumn": "Template part",
+      "itemColumn": "Project item",
+      "stages": "Stages",
+      "tasks": "Tasks",
+      "noMatch": "No match",
+      "itemFor": "Project item for {{name}}",
+      "dropHint": "A template part with no match is dropped from this project.",
+      "save": "Save link",
+      "linked": "The project is linked to the template."
     }
   },
   "templateUse": {
@@ -105,7 +118,11 @@
   },
   "errors": {
     "reasons": {
-      "template_too_short": "The locked tasks need at least {{names}} working days. Choose a later end date, or let more tasks stretch."
+      "template_too_short": "The locked tasks need at least {{names}} working days. Choose a later end date, or let more tasks stretch.",
+      "already_linked": "This project is already linked to a template.",
+      "part_not_in_template": "A part of the link is not in the template. Reload the page and try again.",
+      "item_not_in_project": "An item is not in this project. Reload the page and try again.",
+      "duplicate_match": "One project item matches two parts of the template. Choose each item once."
     }
   }
 }
