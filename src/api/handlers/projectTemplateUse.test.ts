@@ -178,4 +178,26 @@ describe('projects.create from a project template', () => {
     expect(pack.schedule).toBe('dynamic');
     expect(dueFromDuration(pack.startDate!, pack.durationDays!)).toBe(pack.dueDate);
   });
+
+  it('links the new project to its template, with the role people of the form and no part dropped yet', async () => {
+    const { t, templateId } = await withTemplate();
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: { r1: 'usr_004' }, fixedTaskIds: [] } });
+    expect(t.store.state.projects[project.id].templateLink).toEqual({
+      templateId, linkedAt: project.createdAt, syncedAt: null, rolePeople: { r1: 'usr_004' }, droppedPartIds: [],
+    });
+  });
+
+  it('gives each new stage and task the part id of its template part', async () => {
+    const { t, templateId } = await withTemplate();
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
+    expect(stagesOf(t, project.id).map((stage) => stage.templatePartId)).toEqual(['s1', 's2', 's3']);
+    expect(tasksOf(t, project.id).map((task) => task.templatePartId)).toEqual(['t1', 't2']);
+  });
+
+  it('gives a project made without a template no link and no part ids', async () => {
+    const t = world();
+    const { project } = await t.api.call('projects.create', { name: 'Plain', stages: ['Brief'] });
+    expect(project.templateLink).toBeUndefined();
+    expect(stagesOf(t, project.id).map((stage) => stage.templatePartId)).toEqual([undefined]);
+  });
 });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
-  Message, Payment, Project, Team,
+  Message, Payment, Project, ProjectTemplateId, Team,
   ProjectId, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 
@@ -97,6 +97,8 @@ export const ProjectSummary = z.object({
   lastActivityAt: Stamp,
   viewerRole: z.enum(['leader', 'team', 'other']),
   viewerCan: ViewerCan,
+  /** The template the project came from, or null. Optional, so an answer without it still parses. */
+  templateId: ProjectTemplateId.nullable().optional(),
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
 

@@ -200,7 +200,7 @@ function addTemplateTasks(ctx: Ctx, projectId: string, stageIdOf: Map<string, st
       durationDays: waits.length > 0 ? workingDaysInclusive(dates.startDate, dates.dueDate) : null, dueDate: dates.dueDate,
       flagged: false, needsReview: part.needsReview || !maySkipReview,
       checklist: part.checklist.map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
-      createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null,
+      createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null, templatePartId: part.id,
     };
     if (waits.length > 0) task.prerequisiteIds = waits;
     ctx.state.tasks[id] = task;
@@ -351,7 +351,11 @@ export const projectsCreate = defineCall({
     const stageIdOf = new Map<string, string>();
     const stageIds = stageParts.map(({ partId, name, dates }, order) => {
       const stageId = nextId(state, 'stg');
-      state.stages[stageId] = { id: stageId, projectId: id, name, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null };
+      // A stage from a template keeps the part id of its template part (fbk_008 item 4).
+      state.stages[stageId] = {
+        id: stageId, projectId: id, name, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null,
+        ...(made ? { templatePartId: partId } : {}),
+      };
       stageIdOf.set(partId, stageId);
       return stageId;
     });
@@ -371,6 +375,8 @@ export const projectsCreate = defineCall({
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
+      // The link keeps the template and the person of each role. No template part is dropped yet (fbk_008 item 4).
+      ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [] } } : {}),
     };
     state.projects[id] = project;
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });
@@ -794,6 +800,11 @@ export const stagesReplace = defineCall({
     }
     const before = existing.map((stage) => ({ ...stage }));
     const watch = watchStage(ctx, project.id);
+    // A removed template stage stays dropped, so a later template update does not add it again (fbk_008 item 4).
+    const dropped = removed.flatMap((stage) => (stage.templatePartId ? [stage.templatePartId] : []));
+    if (project.templateLink && dropped.length > 0) {
+      project.templateLink = { ...project.templateLink, droppedPartIds: [...new Set([...project.templateLink.droppedPartIds, ...dropped])] };
+    }
     for (const stage of removed) {
       delete state.stages[stage.id];
       for (const d of Object.values(state.deadlines)) if (d.stageId === stage.id) d.stageId = null;
@@ -803,7 +814,12 @@ export const stagesReplace = defineCall({
       const id = stage.id ?? nextId(state, 'stg');
       // A kept stage keeps the stages it needs, minus any stage that is gone.
       const needs = (state.stages[id]?.prerequisiteIds ?? []).filter((other) => keep.has(other));
-      state.stages[id] = { id, projectId: project.id, name: stage.name, order, startDate: stage.startDate, endDate: stage.endDate, ...(needs.length > 0 ? { prerequisiteIds: needs } : {}) };
+      // A kept stage keeps the template part it came from (fbk_008 item 4).
+      const part = state.stages[id]?.templatePartId;
+      state.stages[id] = {
+        id, projectId: project.id, name: stage.name, order, startDate: stage.startDate, endDate: stage.endDate,
+        ...(needs.length > 0 ? { prerequisiteIds: needs } : {}), ...(part ? { templatePartId: part } : {}),
+      };
     });
     writeEvent(ctx, {
       projectId: project.id, verb: 'project.stages_changed', targetType: 'project', targetId: project.id,

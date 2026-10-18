@@ -688,6 +688,12 @@ export const tasksDelete = defineCall({
     const watch = watchStage(ctx, task.projectId);
     recordDelete(ctx, { projectId: task.projectId, verb: 'task.deleted', targetType: 'task', targetId: task.id, entity: task });
     delete ctx.state.tasks[task.id];
+    // A deleted template task stays dropped, so a later template update does not add it again. Its Undo takes the part back (fbk_008 item 4).
+    const project = task.projectId ? ctx.state.projects[task.projectId] : undefined;
+    if (project?.templateLink && task.templatePartId) {
+      const droppedPartIds = [...new Set([...project.templateLink.droppedPartIds, task.templatePartId])];
+      project.templateLink = { ...project.templateLink, droppedPartIds };
+    }
     watch.finish({ ask: false });
     touch(ctx, task.projectId);
     return { deleted: true as const };

@@ -347,3 +347,28 @@ describe('importStages', () => {
     expect(draft.stages.slice(2).map((stage) => stage.name)).toEqual(['Concept 2', 'Design']);
   });
 });
+
+describe('part ids are never given twice (partSeq)', () => {
+  // SAVED has t1 and t2. This template had a third task, and the highest part number it ever gave is 3.
+  const GAVE_THREE: ProjectTemplate = {
+    ...SAVED,
+    tasks: [...SAVED.tasks, { id: 't3', stageId: 's2', title: 'Site visit', description: '', checklist: [], needsReview: false, roleId: null, startOffset: 20, durationDays: 2, flexible: false }],
+    partSeq: 3,
+  };
+
+  it('keeps the highest part number of the template in the draft', () => {
+    expect(draftOf(GAVE_THREE).partSeq).toBe(3);
+    expect(draftOf(SAVED).partSeq).toBeUndefined();
+  });
+
+  it('gives the next task a new number after the highest task is removed, so the removed number is not given again', () => {
+    const draft = removeTask(draftOf(GAVE_THREE), 't3');
+    expect(addTask(draft, 's1').tasks.at(-1)?.id).toBe('t4');
+  });
+
+  it('gives a copied stage and its copied tasks numbers above the highest part number', () => {
+    const draft = importStages(removeTask(draftOf(GAVE_THREE), 't3'), SAVED, ['s1'], true);
+    expect(draft.stages.at(-1)?.id).toBe('s4');
+    expect(draft.tasks.slice(-2).map((task) => task.id)).toEqual(['t4', 't5']);
+  });
+});

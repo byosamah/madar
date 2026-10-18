@@ -100,6 +100,23 @@ function assertWaits(field: 'stages' | 'tasks', parts: { id: string; prerequisit
   if (hasCycle(edges)) throw invalid(field, 'These parts would wait for each other.', 'dependency_cycle');
 }
 
+/** The number in a part id: s12 gives 12. An id with no number gives 0. */
+const numberOf = (partId: string): number => {
+  const match = /^[a-z](\d+)$/.exec(partId);
+  return match ? Number(match[1]) : 0;
+};
+
+/**
+ * The highest part number that a template has given (fbk_008 item 4): its stored number, and the numbers in its ids before the
+ * save and in the saved ids. A removed part keeps its number, so a new part never gets its id. A template saved before partSeq
+ * existed takes its number from its ids.
+ */
+function partSeqOf(existing: ProjectTemplate | null, parts: Parts): number {
+  const saved = [...parts.roles, ...parts.stages, ...parts.tasks].map((part) => part.id);
+  const before = existing ? [...existing.roles, ...existing.stages, ...existing.tasks].map((part) => part.id) : [];
+  return Math.max(existing?.partSeq ?? 0, ...[...saved, ...before].map(numberOf));
+}
+
 const projectTemplatesList = defineCall({
   input: z.object({}),
   output: z.array(ProjectTemplateRow),
@@ -126,13 +143,13 @@ const projectTemplatesSave = defineCall({
       assertParts(ctx, parts, template.id);
       const same = JSON.stringify(Parts.parse({ name: template.name, roles: template.roles, stages: template.stages, tasks: template.tasks })) === JSON.stringify(parts);
       if (!same) {
-        applyPatch(ctx, template, { ...parts, updatedAt: ctx.stamp }, { projectId: null, verb: 'projectTemplate.updated', targetType: 'projectTemplate', targetId: template.id });
+        applyPatch(ctx, template, { ...parts, partSeq: partSeqOf(template, parts), updatedAt: ctx.stamp }, { projectId: null, verb: 'projectTemplate.updated', targetType: 'projectTemplate', targetId: template.id });
       }
       return rowOf(ctx, template);
     }
     assertParts(ctx, parts, null);
     const id = nextId(ctx.state, 'ptp');
-    const template: ProjectTemplate = { id, ...parts, createdBy: ctx.authority.id, createdAt: ctx.stamp, updatedAt: ctx.stamp };
+    const template: ProjectTemplate = { id, ...parts, partSeq: partSeqOf(null, parts), createdBy: ctx.authority.id, createdAt: ctx.stamp, updatedAt: ctx.stamp };
     templates[id] = template;
     recordCreate(ctx, { projectId: null, verb: 'projectTemplate.created', targetType: 'projectTemplate', targetId: id, entity: template });
     return rowOf(ctx, template);

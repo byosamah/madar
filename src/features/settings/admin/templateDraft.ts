@@ -18,7 +18,11 @@ export type DraftTask = {
   /** The tasks that this task waits for. Missing means none. */
   prerequisiteIds?: string[];
 };
-export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftStage[]; tasks: DraftTask[] };
+/**
+ * "partSeq" is the highest part number that the saved template ever gave (fbk_008 item 4). A new part gets a number above it,
+ * so the id of a removed part is never given again. Missing: the template was saved before partSeq existed.
+ */
+export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftStage[]; tasks: DraftTask[]; partSeq?: number };
 export type TemplateParts = { name: string; roles: TemplateRole[]; stages: TemplateStage[]; tasks: TemplateTask[] };
 
 const OFFSET_MAX = 2000;
@@ -57,6 +61,7 @@ export function draftOf(template: ProjectTemplate): TemplateDraft {
       flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
       ...waitsOf(task.prerequisiteIds),
     })),
+    ...(template.partSeq === undefined ? {} : { partSeq: template.partSeq }),
   };
 }
 
@@ -102,17 +107,20 @@ export function wholeNumber(value: string): number | null {
 const offsetOk = (value: string) => { const n = wholeNumber(value); return n !== null && n <= OFFSET_MAX; };
 const daysOk = (value: string) => { const n = wholeNumber(value); return n !== null && n >= 1 && n <= DAYS_MAX; };
 
-/** The next free id of a kind after the ids in `taken`: r for a role, s for a stage, t for a task. */
-function freeIdAfter(taken: readonly string[], prefix: 'r' | 's' | 't'): string {
+/**
+ * The next free id of a kind after the ids in `taken`: r for a role, s for a stage, t for a task. The number is above `floor`,
+ * the highest part number the template ever gave, so a removed id is not given again.
+ */
+function freeIdAfter(taken: readonly string[], prefix: 'r' | 's' | 't', floor: number): string {
   const used = taken
     .map((id) => (id.startsWith(prefix) ? Number(id.slice(prefix.length)) : 0))
     .filter((n) => Number.isInteger(n));
-  return `${prefix}${Math.max(0, ...used) + 1}`;
+  return `${prefix}${Math.max(floor, ...used) + 1}`;
 }
 
 /** The next free id of a kind: r for a role, s for a stage, t for a task. */
 function freeId(draft: TemplateDraft, prefix: 'r' | 's' | 't'): string {
-  return freeIdAfter([...draft.roles, ...draft.stages, ...draft.tasks].map((part) => part.id), prefix);
+  return freeIdAfter([...draft.roles, ...draft.stages, ...draft.tasks].map((part) => part.id), prefix, draft.partSeq ?? 0);
 }
 
 /** The waits of copied parts, in their new ids. A wait on a part that was not copied is dropped. */
@@ -134,7 +142,7 @@ export function importStages(draft: TemplateDraft, source: ProjectTemplate, stag
   const tasks = withTasks ? from.tasks.filter((task) => pickedIds.has(task.stageId)) : [];
   const taken = [...draft.roles, ...draft.stages, ...draft.tasks].map((part) => part.id);
   const newId = (prefix: 'r' | 's' | 't'): string => {
-    const id = freeIdAfter(taken, prefix);
+    const id = freeIdAfter(taken, prefix, draft.partSeq ?? 0);
     taken.push(id);
     return id;
   };

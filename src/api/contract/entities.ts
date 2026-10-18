@@ -224,6 +224,25 @@ export const ProjectCode = z.string().regex(RECORD_CODE_PATTERN, 'Write the code
 export const GeoPoint = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 export type GeoPoint = z.infer<typeof GeoPoint>;
 
+/** The id of a role, a stage or a task inside one project template. The editor makes it. It is unique in its template. */
+export const TemplatePartId = z.string().regex(/^[a-z][a-z0-9]{0,23}$/, 'Expected a short id like s1 or t12.');
+
+/**
+ * The template that a project came from (fbk_008 item 4). It keeps the person of each role of the form, and the template parts
+ * that the project dropped. A deleted task or a removed stage adds its part id there.
+ */
+export const TemplateLink = z.object({
+  templateId: ProjectTemplateId,
+  linkedAt: Stamp,
+  /** Null: no update of the template has reached the project yet. */
+  syncedAt: Stamp.nullable(),
+  /** The person of each role, by the role id of the template. Null: the role has no person. */
+  rolePeople: z.record(TemplatePartId, UserId.nullable()),
+  /** The template parts that the project dropped. A template has at most 200 tasks and 20 stages. */
+  droppedPartIds: z.array(TemplatePartId).max(220),
+});
+export type TemplateLink = z.infer<typeof TemplateLink>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -254,6 +273,8 @@ export const Project = z.object({
   contractStartDate: Day.nullable().optional(),
   /** The sub-company of the project (fbk_007). Optional, so offices saved before sub-companies still load. */
   subCompanyId: SubCompanyId.nullable().optional(),
+  /** The template the project came from. Optional and null: a project made by hand has none, and older offices still load. */
+  templateLink: TemplateLink.nullable().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,
@@ -276,6 +297,8 @@ export const Stage = z.object({
   endDate: Day.nullable(),
   /** Stages of the same project that need to be finished first. Optional, so older offices still load. */
   prerequisiteIds: z.array(StageId).max(MAX_PREREQUISITES).optional(),
+  /** The template part that this stage came from. Optional: a stage made by hand has none. */
+  templatePartId: TemplatePartId.optional(),
 });
 export type Stage = z.infer<typeof Stage>;
 
@@ -352,6 +375,8 @@ export const Task = z.object({
   helperIds: z.array(UserId).max(MAX_HELPERS).optional(),
   /** Tasks of the same project that must be done first. Optional, so older offices still load. */
   prerequisiteIds: z.array(TaskId).max(MAX_PREREQUISITES).optional(),
+  /** The template part that this task came from. Optional: a task made by hand has none. */
+  templatePartId: TemplatePartId.optional(),
   /** The automatic date moves of a dynamic task, oldest first (the last 20). */
   dateNotes: z.array(DateNote).max(20).optional(),
   createdBy: UserId,
@@ -387,8 +412,6 @@ export const TaskTemplate = z.object({
 });
 export type TaskTemplate = z.infer<typeof TaskTemplate>;
 
-/** The id of a role, a stage or a task inside one project template. The editor makes it. It is unique in its template. */
-export const TemplatePartId = z.string().regex(/^[a-z][a-z0-9]{0,23}$/, 'Expected a short id like s1 or t12.');
 /** A working day of a template: day 0 is the first working day of the project. */
 export const TemplateOffset = z.number().int().min(0).max(2000);
 export const TEMPLATE_MAX_ROLES = 20;
@@ -451,6 +474,11 @@ export const ProjectTemplate = z.object({
   roles: z.array(TemplateRole).max(TEMPLATE_MAX_ROLES),
   stages: z.array(TemplateStage).min(1).max(TEMPLATE_MAX_STAGES),
   tasks: z.array(TemplateTask).max(TEMPLATE_MAX_TASKS),
+  /**
+   * The highest part number that the template ever gave (fbk_008 item 4). A removed part keeps its number here, so a new part
+   * never gets the id of a removed one. Optional, so a template saved before this field still loads.
+   */
+  partSeq: z.number().int().nonnegative().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

@@ -273,6 +273,17 @@ export function mayUndoAgentChange(ctx: Ctx, event: Event): boolean {
 }
 
 /**
+ * The Undo of a task delete brings the task back. Its template part leaves the parts that the project dropped, so a later
+ * template update may match the task again (fbk_008 item 4). A task with no part, or a project with no link, changes nothing.
+ */
+function takeBackTemplatePart(ctx: Ctx, taskId: string, projectId: string | null): void {
+  const part = ctx.state.tasks[taskId]?.templatePartId;
+  const project = projectId ? ctx.state.projects[projectId] : undefined;
+  if (!part || !project?.templateLink) return;
+  project.templateLink = { ...project.templateLink, droppedPartIds: project.templateLink.droppedPartIds.filter((id) => id !== part) };
+}
+
+/**
  * Undoes one event for the current person, under the rules of the original action.
  * A task that was done and opens again opens the done tasks that need it, on this path too.
  * "guard" is true for a single Undo: it may not finish a task whose prerequisite is open. A story brings every task back together, so it skips the guard.
@@ -293,6 +304,7 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
+  if (event.verb === 'task.deleted') takeBackTemplatePart(ctx, event.targetId, event.projectId);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
   return eventViewOf(ctx.state, undo);
 }
