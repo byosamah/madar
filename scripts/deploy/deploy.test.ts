@@ -481,7 +481,9 @@ describe('token-scope.sh', () => {
 });
 
 describe('pages.sh', () => {
-  const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))].sort();
+  // The place search host is the same for every copy (fbk_017), so it is no host of the test copy or of production.
+  const FIXED_HOSTS = ['https://nominatim.openstreetmap.org'];
+  const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))].filter((host) => !FIXED_HOSTS.includes(host)).sort();
 
   it('builds test, writes dist/_headers with the test hosts and no other, and uploads to the preview branch', () => {
     const result = run('pages.sh', ['test'], { env: {} });

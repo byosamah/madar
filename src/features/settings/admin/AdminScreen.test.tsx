@@ -314,7 +314,7 @@ describe('the Admin side list', () => {
       phone();
       const { router } = await renderApp('/admin');
       const list = await sectionList();
-      expect(within(list).getAllByRole('link')).toHaveLength(8);
+      expect(within(list).getAllByRole('link')).toHaveLength(9);
       expect(within(list).queryByRole('link', { current: 'page' })).toBeNull();
       expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Admin']);
       expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
