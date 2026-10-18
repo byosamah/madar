@@ -649,3 +649,20 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [x] The weekly file backup: its source is now R2 (both copies). Owner decision 5 (2026-10-18): R2 alone, so `files-backup.yml`
   stays paused, with no Backblaze B2 account; the restore check reads R2 (`--files-lag-days 0`)
 - [ ] Production: copy the files twice, switch, checks, release record
+
+## 2026-10-18: the 13 team requests (plan `docs/superpowers/plans/2026-10-18-madar-team-requests-plan.md`)
+
+Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds). No production change before Friday 2026-10-23.
+
+- [ ] Wave 1, track `quick` (branch `rb/quick`, worktree `~/dev/madar-rb/quick`)
+  - [ ] Task 1: 3 pictures then "+N" in the project list (fbk_013)
+  - [ ] Task 2: no browser memory in the project form (fbk_010)
+  - [ ] Task 3: see-through photos on the glow (fbk_019)
+  - [ ] Task 4: Madar calendar on computers (fbk_009)
+  - [ ] Task 5: What's new page (fbk_018)
+- [ ] Wave 1, track `inbox` (branch `rb/inbox`, worktree `~/dev/madar-rb/inbox`)
+  - [ ] Task 6: archive a chat (fbk_012)
+- [ ] Wave 1 gate: rebase, merge gate on the Mac, test deploy, screenshots, What's new entry, owner says the release is live
+- [ ] Wave 2: group chats (Tasks 7, 8), sub-companies (Tasks 9, 10), map (Tasks 11 to 13), Open space (Task 14)
+- [ ] Wave 3: project templates (Tasks 15 to 24)
+- [ ] Wave 4: custom roles (Tasks 25 to 27), office report (Tasks 28, 29)
