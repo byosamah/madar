@@ -76,7 +76,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(142);
+    expect(Object.keys(calls)).toHaveLength(145);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -111,17 +111,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 131 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(131);
-    expect(Object.keys(mapCalls)).toHaveLength(131);
+  it('has 134 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(134);
+    expect(Object.keys(mapCalls)).toHaveLength(134);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 127 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 130 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(127);
+    expect(names).toHaveLength(130);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

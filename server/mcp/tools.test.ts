@@ -61,7 +61,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 47 tools (owner, 2026-10-7)', () => {
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 47 tools (owner, 2026-10-07)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
     expect(tools).toHaveLength(44);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);

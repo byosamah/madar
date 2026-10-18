@@ -5,7 +5,7 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6 change 20). A fixed allowlist of 44 tools for every agent: the
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 44 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
  * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 47. Every other call stays on
  * the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the other Admin calls. VS

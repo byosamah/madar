@@ -11,7 +11,7 @@ function summary(project: Project, stages: Stage[]): ProjectSummary {
   return {
     project, client: null, health: null, healthSetBy: null, pausedBy: null, staleDays: null, coverLetter: null, stages,
     currentStage: current, latest: [], nextDeadline: null, stageEnd: null, leader: null, team: [], openTasks: 0,
-    lastActivityAt: STAMP, viewerRole: 'other',
+    lastActivityAt: STAMP, viewerRole: 'other', subCompanyId: null, geo: null, templateId: null,
     viewerCan: {
       edit: false, changeLeader: false, archive: false, delete: false, healthOverride: false, createTaskForAnyone: false,
       createTaskForSelf: false, post: false, review: false, payments: false,
