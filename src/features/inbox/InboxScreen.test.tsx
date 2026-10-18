@@ -371,4 +371,21 @@ describe('the Inbox archive (owner, 2026-10-18)', () => {
     await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
     expect(screen.getByRole('heading', { level: 2, name: /Corniche Office Tower/ })).toBeInTheDocument();
   });
+
+  it('keeps the main list when a chat is archived after the archived list closed by itself', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move back to Inbox' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('button', { name: /Archived/ })).toBeNull());
+    await userEvent.click(menuOfRow(await rowLink(/Faisal Al-Harbi/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Faisal Al-Harbi/ })).toBeNull());
+    expect(within(chatsList()).getByRole('button', { name: 'Archived (1)' })).toBeInTheDocument();
+    expect(within(chatsList()).getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+    expect(within(chatsList()).queryByRole('button', { name: 'Back to Inbox' })).toBeNull();
+  });
 });

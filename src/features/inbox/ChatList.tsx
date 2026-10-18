@@ -1,6 +1,6 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
@@ -102,6 +102,10 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);
   const archivedRows = rows.filter((row) => row.archived);
+  // A stale flag must not reopen the archived list on the next archive: it resets when no archived chat is left.
+  useEffect(() => {
+    if (archivedRows.length === 0) setWantArchived(false);
+  }, [archivedRows.length]);
   const archivedOpen = wantArchived && archivedRows.length > 0;
   const listed = archivedOpen ? archivedRows : rows.filter((row) => !row.archived);
   const needle = normalizeForSearch(query);
