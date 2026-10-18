@@ -12,10 +12,10 @@ import { mcpApp } from './app';
 import type { AgentPrincipal, AgentToken } from './auth';
 
 /**
- * The message tools over MCP (owner, 2026-10-12): an agent finds a chat, opens the direct chat with a person and sends one message,
- * as its person, in a direct chat or a project chat. It never reads a chat. In the chat list, a direct chat shows no preview, so an
- * agent that may send a private message does not read one. In process, as feedbackTools.test.ts: the MCP app with the real runCall on
- * the memory office. The agent is usr_009, the agent of the Admin usr_001.
+ * The message tools over MCP (owner, 2026-10-12; fbk_011, owner 2026-10-18): an agent finds a chat, reads the messages of a chat its
+ * person may open, lists what waits for the reply of its person, opens the direct chat with a person and sends one message, as its
+ * person. An agent never marks a chat read. In process, as feedbackTools.test.ts: the MCP app with the real runCall on the memory
+ * office. The agent is usr_009, the agent of the Admin usr_001.
  */
 
 const MCP_URL = 'http://127.0.0.1:54321/functions/v1/mcp';
@@ -32,6 +32,8 @@ let faisalAndTurki: string;
 let projectRoom: string;
 let groupRoom: string;
 const GROUP_SECRET = 'The group text is for the group only.';
+const OUTSIDER_SECRET = 'The other team text is not for the Admin.';
+let outsiderRoom: string;
 
 function say(state: State, conversationId: string, authorId: string, body: string): void {
   const id = nextId(state, 'msg');
@@ -51,6 +53,9 @@ beforeAll(async () => {
   // A group of the Admin (the person of the agent), Reem and Turki, with a text that no agent may read.
   groupRoom = addGroupConversation(seed, 'Tower team', 'usr_003', ['usr_003', 'usr_001', 'usr_010'], STAMP).id;
   say(seed, groupRoom, 'usr_010', GROUP_SECRET);
+  // A group that the Admin is not in: an agent of the Admin may not read it, and its id answers as a missing chat.
+  outsiderRoom = addGroupConversation(seed, 'Other team', 'usr_003', ['usr_003', 'usr_010', 'usr_002'], STAMP).id;
+  say(seed, outsiderRoom, 'usr_010', OUTSIDER_SECRET);
 });
 
 type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData };
@@ -142,32 +147,62 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(Object.values(w.mem.tables.state.messages).some((m) => m.body === 'Hello.')).toBe(false);
   });
 
-  it('lists the chats with no preview for a direct chat, so an agent that sends a private message never reads one', async () => {
+  it('lists a direct chat with its preview, because the agent reads the chats of its person (fbk_011)', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.list', {});
     expect(result.isError, JSON.stringify(result)).toBeUndefined();
-    expect(text).not.toContain(SECRET);
+    expect(text).toContain(SECRET);
     const rows = result.structuredContent.output as ChatRow[];
     const direct = rows.find((row) => row.id === hala3)!;
-    expect(direct).toMatchObject({ kind: 'direct', preview: '', previewAuthor: null, previewMine: false });
+    expect(direct).toMatchObject({ kind: 'direct', preview: SECRET, previewAuthor: { id: 'usr_003' }, previewMine: false });
     expect(direct.person).toMatchObject({ id: 'usr_003' });
-    // A project chat keeps its preview: the project team reads it.
-    expect(rows.some((row) => row.kind === 'project' && row.preview !== '')).toBe(true);
   });
 
-  it('lists a group with no preview either: an agent never reads a group message', async () => {
+  it('lists a group with its preview, and never a group that the person is not in', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.list', {});
     expect(result.isError, JSON.stringify(result)).toBeUndefined();
-    expect(text).not.toContain(GROUP_SECRET);
+    expect(text).toContain(GROUP_SECRET);
+    expect(text).not.toContain(OUTSIDER_SECRET);
     const rows = result.structuredContent.output as ChatRow[];
     expect(rows.find((row) => row.id === groupRoom)).toMatchObject({
-      kind: 'group', title: 'Tower team', preview: '', previewAuthor: null, previewMine: false,
+      kind: 'group', title: 'Tower team', preview: GROUP_SECRET, previewAuthor: { id: 'usr_010' }, previewMine: false,
     });
+    expect(rows.some((row) => row.id === outsiderRoom)).toBe(false);
   });
 
-  it('gives an agent no way to read a chat: chats.messages is not a tool', async () => {
+  it('reads one page of a direct chat of its person with chats.messages', async () => {
     const w = world();
-    await expect(call(w, 'chats.messages', { conversationId: hala3 })).rejects.toThrow(/-32602/);
+    const { text, result } = await call(w, 'chats.messages', { conversationId: hala3 });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).toContain(SECRET);
+    const messages = result.structuredContent.output.messages as { message: Message; author: { id: string } }[];
+    expect(messages.find((m) => m.message.body === SECRET)).toMatchObject({ author: { id: 'usr_003' } });
+  });
+
+  it('reads a group of its person with chats.messages', async () => {
+    const w = world();
+    const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).toContain(GROUP_SECRET);
+  });
+
+  it('answers not_found for a group that its person is not in, with no text of it', async () => {
+    const w = world();
+    const { text, result } = await call(w, 'chats.messages', { conversationId: outsiderRoom });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent.error.code).toBe('not_found');
+    expect(text).not.toContain(OUTSIDER_SECRET);
+  });
+
+  it('lists what waits for the reply of its person with chats.waiting, as data', async () => {
+    const w = world();
+    const { text, result } = await call(w, 'chats.waiting', {});
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).not.toContain(OUTSIDER_SECRET);
+    const rows = result.structuredContent.output as { kind: string; id: string; from: { id: string }; body: string }[];
+    expect(rows.find((row) => row.id === hala3)).toMatchObject({ kind: 'direct', from: { id: 'usr_003' }, body: SECRET });
+    expect(rows.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: GROUP_SECRET });
+    expect(rows.some((row) => row.id === outsiderRoom)).toBe(false);
   });
 });

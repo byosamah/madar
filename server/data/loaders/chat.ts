@@ -1,4 +1,4 @@
-import type { ChatRead, Comment, Conversation, Message } from '../../../src/api/contract/entities';
+import type { ChatRead, Comment, Conversation, Message, Task } from '../../../src/api/contract/entities';
 import { canSeeConversation, TASK_THREAD_LIMIT } from '../../../src/api/chatState';
 import { can } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
@@ -153,5 +153,56 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
   })) as Message[];
   // The page and the newest message: the files that the message views name.
   await namedFiles(L, [...page, ...L.list<Message>('messages').filter((m) => m.conversationId === id)]);
+}
+
+/**
+ * chats.waiting (fbk_011, owner 2026-10-18): the rows that waitingFor (chats.ts) compares. Per visible chat: the archive mark and
+ * the newest message (the direct and group rule). Per project chat: the newest message of the person, with its agents, and the
+ * newest message that names the person. Per task thread: see threadsWaitingOf.
+ */
+export async function chatsWaiting(L: Load): Promise<void> {
+  if (!L.authority) return;
+  const me = L.authority.id;
+  const meSet = meOf(L, me);
+  const conversations = visible(L);
+  const ids = conversations.map((c) => c.id);
+  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
+  await newestMessages(L, ids);
+  const projectIds = conversations.filter((c) => c.kind === 'project').map((c) => c.id);
+  if (projectIds.length > 0) {
+    const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'conversation_id', limit: 1 };
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, { has: 'mentions', value: me }], ...newest });
+  }
+  await threadsWaitingOf(L, me, meSet);
+}
+
+/**
+ * The task threads of the person for chats.waiting: the task (its lead), the newest comment, and the newest comment of the person.
+ * A thread that the person does not lead also gets the comments of other people after the person's last comment.
+ * Comments keep no mention list, so the body names the person (mentionedUserIds). A thread the person leads needs
+ * only its newest comment.
+ */
+async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<void> {
+  if (!L.authority || !can(L.authority, 'comment.read')) return;
+  const led = Object.values(L.office.projects).filter((project) => project.leaderId === me).map((project) => project.id);
+  // The Admin sees every office task, so an office thread the Admin commented on is the Admin's too (owner, 2026-10-06).
+  const threads = await L.src.threads({ owner: me, led, me: meSet, limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) });
+  if (threads.length === 0) return;
+  const ids = threads.map((thread) => thread.id);
+  await L.byKey('tasks', ids);
+  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
+  const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
+  await L.select({ c: 'comments', where: onThreads, ...newest });
+  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }], ...newest })) as Comment[];
+  const named = ids.filter((id) => L.get<Task>('tasks', id)?.ownerId !== me);
+  if (named.length === 0) return;
+  const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
+  const by = Object.fromEntries(named.map((id): [string, Bound] => {
+    const after = lastOwn.get(id);
+    return [id, { gt: '', ...(after ? { after } : {}) }];
+  }));
+  await L.select({ c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }] });
 }
 

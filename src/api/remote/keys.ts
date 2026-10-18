@@ -4,7 +4,7 @@
  * from the readOnly flags of the call map. A name that is not here counts as a write.
  */
 export const READ_CALLS: ReadonlySet<string> = new Set([
-  'agents.list', 'chats.list', 'chats.messages', 'chats.unreadCount', 'clients.list', 'comments.list', 'dashboard.get',
+  'agents.list', 'chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'clients.list', 'comments.list', 'dashboard.get',
   'deadlines.list', 'events.list', 'feedback.list', 'feedback.screenshot', 'files.get', 'files.link', 'files.list', 'live.ticket',
   'notifications.count', 'notifications.list', 'payments.list', 'projectTemplates.list', 'projectTemplates.matchPlan', 'projectTemplates.syncPlan', 'projectTemplates.usage', 'projects.get', 'projects.list', 'push.mine', 'search.query', 'session.get',
   'settings.get', 'stageTemplates.list', 'subCompanies.list', 'taskTemplates.list', 'tasks.get', 'tasks.list', 'teams.list', 'tracker.export',

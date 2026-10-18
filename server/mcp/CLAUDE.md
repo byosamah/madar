@@ -32,8 +32,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 42 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 45, with 19 reads and 26 writes. The reads include `subCompanies.list`, which
+- 44 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 47, with 21 reads and 26 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). The factory in `app.ts` picks the list for each
   request from the role of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
@@ -44,9 +44,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
-  `comments.create`, and for the feed of a project `updates.create`. An agent sends but never reads a chat: `chats.messages`,
-  `chats.markRead` and `chats.unreadCount` stay on `MCP_DENY`, and `run.ts` (`withoutDirectPreviews`) gives a direct chat of
-  `chats.list` no preview (the last message and its author leave the row). A project chat and a task thread keep theirs. A sent
+  `comments.create`, and for the feed of a project `updates.create`. Owner, 2026-10-18 (fbk_011): an agent also reads the chats of
+  its person. `chats.messages` (one page of a chat the person may open, with `not_found` for a group the person is not in) and
+  `chats.waiting` (what waits for the reply of the person, from `waitingFor` in `handlers/chats.ts`) are on `MCP_ALLOW`, and
+  `chats.list` keeps the preview of every chat (`run.ts` no longer blanks it). `chats.markRead`, `chats.unreadCount`,
+  `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`

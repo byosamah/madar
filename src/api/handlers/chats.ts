@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
-import { ChatRow, ChatThread, MessageView } from '../contract/views';
+import { ChatRow, ChatThread, MessageView, WaitingRow } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
@@ -409,6 +409,97 @@ export const chatsUnreadCount = defineCall({
   },
 });
 
+/** The first characters of a waiting message that chats.waiting gives: plain text, so no mention markup. */
+const WAITING_BODY_MAX = 280;
+const DAY_MS = 86_400_000;
+
+/** True when a is newer than b, in the order of messagesOf: the stamp, then the id. */
+const laterThan = (a: { createdAt: string; id: string }, b: { createdAt: string; id: string }): boolean =>
+  (a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)) > 0;
+
+/** The whole days from a stamp to now. */
+const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - Date.parse(at)) / DAY_MS));
+
+/** A chat that waits for the reply of the viewer, with the message that waits. Null when nothing waits. */
+function waitingChat(state: State, conversation: Conversation, viewer: User, now: Date): WaitingRow | null {
+  const messages = messagesOf(state, conversation.id);
+  const last = messages.at(-1);
+  const lastAt = last?.createdAt ?? conversation.createdAt;
+  if (isArchived(state.chatReads[chatReadKey(conversation.id, viewer.id)], lastAt)) return null;
+  let waiting: Message | undefined;
+  if (conversation.kind === 'project') {
+    // A project chat: a message that names the viewer, and is newer than the viewer's newest message.
+    const own = messages.findLast((m) => isMine(state, m, viewer.id));
+    const named = messages.findLast((m) => m.mentions.includes(viewer.id));
+    if (named && (!own || laterThan(named, own))) waiting = named;
+  } else if (last && !isMine(state, last, viewer.id)) {
+    // A direct or group chat: its newest message came from another person.
+    waiting = last;
+  }
+  if (!waiting) return null;
+  const row = rowOf(state, conversation, viewer);
+  return {
+    kind: conversation.kind, id: conversation.id, title: row.title, project: row.project, from: cardOf(state, waiting.authorId),
+    body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''), at: waiting.createdAt, days: daysSince(waiting.createdAt, now),
+  };
+}
+
+/**
+ * A task thread that waits for the reply of the viewer. Its newest comment came from another person.
+ * The viewer leads the task, or a newer comment of another person names the viewer with @. Comments keep
+ * no mention list, so the body holds the mention markup. The row shows the newest comment for the lead,
+ * and the named comment otherwise.
+ */
+function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date): WaitingRow | null {
+  const { task, project, comments } = thread;
+  const last = comments.at(-1);
+  if (!last || principalOf(state, last.authorId) === viewer.id) return null;
+  if (isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt)) return null;
+  const own = comments.findLast((c) => principalOf(state, c.authorId) === viewer.id);
+  const others = comments.filter((c) => principalOf(state, c.authorId) !== viewer.id && (!own || laterThan(c, own)));
+  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => mentionedUserIds(c.body).includes(viewer.id));
+  if (!waiting) return null;
+  return {
+    kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    from: cardOf(state, waiting.authorId), body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''),
+    at: waiting.createdAt, days: daysSince(waiting.createdAt, now),
+  };
+}
+
+/**
+ * The chats and task threads that wait for the reply of the person (fbk_011, owner 2026-10-18), oldest first.
+ * - A direct or group chat waits when its newest message came from another person.
+ * - A project chat waits when a message that names the person is newer than the person's newest message.
+ * - A task thread waits when its newest comment came from another person, and the person leads the task or is named (see waitingThread).
+ * A message or comment of an agent of the person counts as the person's own. An archived chat does not count. A chat or task that
+ * the person may not open is never in the list: the chats come from canSeeConversation, the threads from taskThreads.
+ */
+export function waitingFor(state: State, personId: string, now: Date): WaitingRow[] {
+  const viewer = state.users[personId];
+  if (!viewer) return [];
+  const rows: WaitingRow[] = [];
+  for (const conversation of Object.values(state.conversations)) {
+    if (!canSeeConversation(state, conversation, viewer)) continue;
+    const row = waitingChat(state, conversation, viewer, now);
+    if (row) rows.push(row);
+  }
+  for (const thread of taskThreads(state, viewer)) {
+    const row = waitingThread(state, thread, viewer, now);
+    if (row) rows.push(row);
+  }
+  return rows.sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+}
+
+export const chatsWaiting = defineCall({
+  /** The chats and task threads that wait for the reply of the person. Read only: it marks nothing read (fbk_011). */
+  input: z.object({}),
+  output: z.array(WaitingRow),
+  readOnly: true,
+  run(_input, ctx) {
+    return waitingFor(ctx.state, ctx.authority.id, ctx.now);
+  },
+});
+
 export const chatCalls = {
   'chats.list': chatsList,
   'chats.messages': chatsMessages,
@@ -420,4 +511,5 @@ export const chatCalls = {
   'chats.updateGroup': chatsUpdateGroup,
   'chats.leaveGroup': chatsLeaveGroup,
   'chats.unreadCount': chatsUnreadCount,
+  'chats.waiting': chatsWaiting,
 };

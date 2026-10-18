@@ -85,6 +85,7 @@ export const READS: Record<string, ReadRule> = {
   'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
   'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
   'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'projects', 'users']),
+  'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
   'usage.get': rule('none', []),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),

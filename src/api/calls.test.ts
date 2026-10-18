@@ -39,6 +39,8 @@ const CHAT_CALLS = [
   'chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount', 'chats.archive',
   // Group chats (fbk_011, plan 2026-10-18): a group is made, renamed and left in the screens.
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
+  // What waits for the reply of the person (fbk_011, owner 2026-10-18): a read.
+  'chats.waiting',
 ];
 // Share an existing file into a chat or a task conversation (owner request, 2026-10-01).
 const SHARE_CALLS = ['files.share'];
@@ -66,7 +68,7 @@ const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 // live.ticket from the exit, wave 3).
 const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS];
-const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'push.mine']);
+const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
 const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket']);
 
@@ -74,7 +76,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(141);
+    expect(Object.keys(calls)).toHaveLength(142);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -109,17 +111,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 130 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(130);
-    expect(Object.keys(mapCalls)).toHaveLength(130);
+  it('has 131 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(131);
+    expect(Object.keys(mapCalls)).toHaveLength(131);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 126 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 127 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(126);
+    expect(names).toHaveLength(127);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

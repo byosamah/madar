@@ -5,6 +5,7 @@ import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
+import { mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
 import { Load } from './build';
 import { THREAD_COMMENT_FIELDS, THREAD_TASK_FIELDS } from './chat';
@@ -295,6 +296,25 @@ describe('the 18 places of AM 6', () => {
     expect(chat.outcome.output).toEqual({ archived: true });
     const thread = await same(state, 'chats.archive', { conversationId: task.id, archived: true }, 'usr_001');
     expect(thread.outcome.output).toEqual({ archived: true });
+  });
+
+  it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, commenter] = team;
+    if (!person || !commenter) throw new Error('The sample office needs two team members on prj_001.');
+    const named = mentionMarkup(state.users[person].name, person);
+    const later = new Date(NOW.getTime() + 60_000);
+    // The person does not lead this task, so the rule reads the mention in the body of the newer comment.
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId !== null && t.ownerId !== person)!;
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'I will check the wall.' }, person);
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: `${named} Please check the wall again.` }, commenter, { now: later });
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} Please check the sections.` }, ADMIN, { now: later });
+    const run = await same(state, 'chats.waiting', {}, person);
+    const rows = run.outcome.output as { kind: string; id: string }[];
+    expect(rows.map((row) => row.kind)).toEqual(expect.arrayContaining(['project', 'task']));
+    expect(rows.find((row) => row.id === task.id)).toBeDefined();
   });
 
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {

@@ -27,9 +27,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   const adminTools = mcpTools({ admin: true });
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN];
 
-  it('has the 42 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(42);
-    expect(new Set(MCP_ALLOW).size).toBe(42);
+  it('has the 44 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(44);
+    expect(new Set(MCP_ALLOW).size).toBe(44);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
@@ -41,27 +41,31 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   });
 
   // Owner, 2026-10-12: an agent may message the team, direct and in a project chat (task comments and project posts it has already).
-  // It sends and finds a chat; it never reads one. A direct chat gives it no preview (run.ts).
-  it('lets an agent message the team: the direct chat, the chat list and the send are tools, and reading a chat is not', () => {
-    for (const name of ['chats.openDirect', 'chats.list', 'chats.send']) {
+  // It sends, finds and reads the chats of its person (fbk_011, owner 2026-10-18). It never marks a chat read or archives one.
+  it('lets an agent message the team and read the chats of its person, and keeps the read marks and the archive from it', () => {
+    for (const name of ['chats.openDirect', 'chats.list', 'chats.send', 'chats.messages', 'chats.waiting']) {
       expect(MCP_ALLOW, name).toContain(name);
       expect(MCP_DENY, name).not.toContain(name);
       expect(tools.map((tool) => tool.name), name).toContain(name);
     }
-    for (const name of ['chats.messages', 'chats.markRead', 'chats.unreadCount']) {
+    for (const name of ['chats.markRead', 'chats.unreadCount', 'chats.archive']) {
       expect(MCP_DENY, name).toContain(name);
       expect(tools.map((tool) => tool.name), name).not.toContain(name);
     }
+    // Group work is screen work: an agent sends to a group, but it does not make, rename or leave one.
+    for (const name of ['chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup']) expect(MCP_DENY, name).toContain(name);
     expect(tools.find((tool) => tool.name === 'chats.list')!.readOnly).toBe(true);
+    expect(tools.find((tool) => tool.name === 'chats.messages')!.readOnly).toBe(true);
+    expect(tools.find((tool) => tool.name === 'chats.waiting')!.readOnly).toBe(true);
     // A sent message reaches real people at once and no Undo takes it back, so the client may ask its person first.
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 45 tools (owner, 2026-10-07)', () => {
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 47 tools (owner, 2026-10-7)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
-    expect(tools).toHaveLength(42);
+    expect(tools).toHaveLength(44);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(45);
+    expect(adminTools).toHaveLength(47);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The default list is the Admin list without the 3 tools, in the same order.
     expect(tools.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
@@ -130,9 +134,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(tool.annotations.openWorldHint, tool.name).toBe(false);
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
-    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(17);
+    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(19);
     // feedback.list and feedback.screenshot are reads of an agent of an Admin.
-    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(19);
+    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(21);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
     expect(tools.find((tool) => tool.name === 'events.undo')!.annotations.destructiveHint).toBe(true);

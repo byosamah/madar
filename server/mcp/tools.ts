@@ -5,10 +5,10 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 42 tools for every agent: the
+ * The tools that the MCP server shows to an AI agent (plan 5.6 change 20). A fixed allowlist of 44 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 45. Every other call stays on
- * the deny list: screen work (uploads, read marks, counts), reading a chat, the prototype controls, and the other Admin calls. VS
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 47. Every other call stays on
+ * the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the other Admin calls. VS
  * Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  */
@@ -17,11 +17,13 @@ import { TOOL_DOCS } from './docs';
 export const READ_FIRST = 'madar.readFirst';
 
 export const MCP_ALLOW = [
-  // Reads (17). chats.list finds a chat to send to; run.ts gives a direct chat no preview. subCompanies.list gives no logos.
+  // Reads (19). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
+  // the person (fbk_011, owner 2026-10-18). subCompanies.list gives no logos.
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
-  // Writes (25). chats.openDirect and chats.send message the team: a direct chat or a project chat (task comments and project posts
-  // are comments.create and updates.create).
+  'chats.messages', 'chats.waiting',
+  // Writes (25). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // project posts are comments.create and updates.create).
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
@@ -56,10 +58,11 @@ export const MCP_DENY = [
   'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
   // Files: uploads and links happen in the Madar screens.
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
-  // Notifications and read marks: screen state of one person. An agent sends a message but never reads a chat (owner, 2026-10-12).
+  // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but
+  // a read mark is the person's own act: an agent never marks a chat read (owner, 2026-10-12).
   // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18).
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.messages', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
+  'notifications.updateSettings', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
   // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // Templates, tracker extras and payment deletes.
@@ -157,11 +160,11 @@ function build(name: McpToolName): ToolDef {
   };
 }
 
-/** All 40 tools in their fixed order, built once. */
+/** All 47 tools in their fixed order, built once (44 of every agent, 3 more for an Admin). */
 let cache: ToolDef[] | null = null;
 
 /**
- * The tools in their fixed order: the 37 of the allowlist, or with admin the 40 of an agent of an Admin. It reads sharedCalls and
+ * The tools in their fixed order: the 44 of the allowlist, or with admin the 47 of an agent of an Admin. It reads sharedCalls and
  * the server contracts, never the server code of a call.
  */
 export function mcpTools({ admin = false }: { admin?: boolean } = {}): ToolDef[] {

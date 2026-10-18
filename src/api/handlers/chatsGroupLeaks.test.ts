@@ -39,6 +39,14 @@ describe('an outsider reads nothing of a group', () => {
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
   });
 
+  it('finds no row and no text of the group in chats.waiting (fbk_011)', async () => {
+    const { t, group } = await world();
+    t.as('usr_004');
+    const rows = await t.api.call('chats.waiting', {});
+    expect(rows.map((row) => row.id)).not.toContain(group);
+    expect(JSON.stringify(rows)).not.toContain(SECRET);
+  });
+
   it.each(['chats.messages', 'chats.send', 'chats.markRead', 'chats.archive'] as const)('%s answers as for a chat that does not exist', async (call) => {
     const { t, group } = await world();
     t.as('usr_004');
@@ -71,6 +79,7 @@ describe('an outsider reads nothing of a group', () => {
     t.store.state.users.usr_006 = { ...t.store.state.users.usr_005, id: 'usr_006', name: 'Omar Agent', ownerId: 'usr_004' };
     t.as('usr_006');
     expect((await t.api.call('chats.list', {})).map((row) => row.id)).not.toContain(group);
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).not.toContain(group);
     expect(await failureOf(t.api.call('chats.messages', { conversationId: group }))).toMatchObject({
       code: 'not_found', message: `Conversation ${group} does not exist.`,
     });
@@ -94,6 +103,10 @@ describe('a removed member reads nothing of a group after the removal', () => {
     t.as('usr_004');
     expect((await t.api.call('chats.list', {})).map((row) => row.id)).not.toContain(group);
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
+    // The removed member gets no row and no text of the group in chats.waiting (fbk_011).
+    const waiting = await t.api.call('chats.waiting', {});
+    expect(waiting.map((row) => row.id)).not.toContain(group);
+    expect(JSON.stringify(waiting)).not.toContain(SECRET);
     expect(await failureOf(t.api.call('chats.messages', { conversationId: group }))).toMatchObject({ code: 'not_found', message: `Conversation ${group} does not exist.` });
     expect(await failureOf(t.api.call('chats.send', { conversationId: group, body: 'Hello' }))).toMatchObject({ code: 'not_found' });
     expect(await failureOf(t.api.call('chats.markRead', { conversationId: group }))).toMatchObject({ code: 'not_found' });

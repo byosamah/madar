@@ -203,6 +203,22 @@ export const ChatRow = z.object({
 });
 export type ChatRow = z.infer<typeof ChatRow>;
 
+/**
+ * One row of chats.waiting (fbk_011, owner 2026-10-18): a chat or a task thread that waits for the reply of the person. The body is
+ * the first 280 characters of the message in plain text, and "days" counts the whole days since that message.
+ */
+export const WaitingRow = z.object({
+  kind: z.enum(['direct', 'group', 'project', 'task']),
+  id: z.string(),
+  title: z.string(),
+  project: ProjectRef.nullable(),
+  from: UserCard,
+  body: z.string(),
+  at: Stamp,
+  days: z.number().int().min(0),
+});
+export type WaitingRow = z.infer<typeof WaitingRow>;
+
 export const MessageView = z.object({
   message: Message,
   author: UserCard,

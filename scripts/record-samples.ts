@@ -93,6 +93,10 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('search.query', { text: project.name.split(' ')[0] });
     await run('events.list', { projectId: project.id, limit: 10 });
     await run('chats.list', {});
+    // The chat reads of an agent (fbk_011, owner 2026-10-18): one page of the project chat, and what waits for the person's reply.
+    const projectChat = first(Object.values(s().conversations).filter((c) => c.kind === 'project' && c.projectId === project.id), 'project chat');
+    await run('chats.messages', { conversationId: projectChat.id, limit: 20 });
+    await run('chats.waiting', {});
     // The reads of an agent of an Admin. feedback.list goes with no filter, so the sample does not need the status input.
     await run('feedback.list', {});
     await run('feedback.screenshot', { id: report.id, index: 0 });
