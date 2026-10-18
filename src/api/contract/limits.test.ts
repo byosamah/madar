@@ -7,7 +7,7 @@ import * as server from './server';
 describe('the plain limits of the contract (performance audit BND-6)', () => {
   it('keep each name and value in entities.ts or server.ts, so every importer of the contract sees no change', () => {
     const names = Object.keys(limits).sort();
-    expect(names).toEqual(['DEFAULT_STALE_DAYS', 'MAX_ATTACHMENTS', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_SHOT_BYTES', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS']);
+    expect(names).toEqual(['DEFAULT_STALE_DAYS', 'GROUP_MAX', 'GROUP_NAME_MAX', 'MAX_ATTACHMENTS', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_SHOT_BYTES', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS']);
     const contract: Record<string, unknown> = { ...entities, ...server };
     for (const name of names) expect(contract[name], name).toBe((limits as Record<string, unknown>)[name]);
   });
@@ -23,6 +23,11 @@ describe('the plain limits of the contract (performance audit BND-6)', () => {
     expect(limits.DEFAULT_STALE_DAYS).toBe(30);
     expect(limits.PICTURE_DATA.test('data:image/webp;base64,AAAA')).toBe(true);
     expect(limits.PICTURE_DATA.test('data:image/gif;base64,AAAA')).toBe(false);
+  });
+
+  it('keep the group limits of 2026-10-18: 50 people at most, and a name of 60 letters at most', () => {
+    expect(limits.GROUP_MAX).toBe(50);
+    expect(limits.GROUP_NAME_MAX).toBe(60);
   });
 
   it('keep the reaction rule of the contract: the same three reactions, and no other', () => {

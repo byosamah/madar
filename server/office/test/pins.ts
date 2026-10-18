@@ -12,10 +12,9 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_005', rowsRead: 16_994 },
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_001', rowsRead: 16_968 },
   { name: 'chats.list', input: {}, actorId: 'usr_001', rowsRead: 16_990 },
-  // chats.waiting (fbk_011, owner 2026-10-18). PLACEHOLDER: the number of the chats.unreadCount pin of the same person, not a
-  // measured value. The merge lead runs test:office and sets each ceiling to the measured rows plus 10% (see the note above).
-  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 16_994 },
-  { name: 'chats.waiting', input: {}, actorId: 'usr_001', rowsRead: 16_968 },
+  // chats.waiting (fbk_011): the ceiling is the measured rows of the year office plus 10% (2026-10-18).
+  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 21_488 },
+  { name: 'chats.waiting', input: {}, actorId: 'usr_001', rowsRead: 48_725 },
   { name: 'notifications.count', input: {}, actorId: 'usr_005', rowsRead: 2 },
   { name: 'notifications.list', input: {}, actorId: 'usr_005', rowsRead: 118 },
   { name: 'tasks.list', input: { filter: 'mine' }, actorId: 'usr_005', rowsRead: 2_444 },
