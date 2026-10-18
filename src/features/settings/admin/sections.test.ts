@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_PAGE_RIGHTS } from '../../../api/rights';
+import type { User } from '../../../api/contract/entities';
+import { ADMIN_PAGE_RIGHTS, rightsOf } from '../../../api/rights';
 import { ar, en } from '../../../i18n/trees';
 import { ADMIN_GROUPS, ADMIN_SECTIONS, groupsFor, sectionsFor } from './sections';
 
 const word = (tree: object, key: string) => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], tree);
 const ids = (list: readonly { id: string }[]) => list.map((section) => section.id);
-/** A person with the role and no rights of the office settings, so the defaults of the role apply. */
-const as = (systemRole: 'admin' | 'management' | 'accounting' | 'member') => ({ systemRole });
+/** A person with the role and the default rights of the role, as session.get attaches them with no office settings. */
+const as = (systemRole: 'admin' | 'management' | 'accounting' | 'member') => ({ systemRole, officeRights: rightsOf({ systemRole } as User, undefined) });
 
 describe('the Admin section registry', () => {
   it('keeps the groups in the order of the owner: People, Office, Templates, System', () => {
@@ -37,6 +38,8 @@ describe('the Admin section registry', () => {
 
   it('gives Management People and Teams only, and Accounting and a member nothing', () => {
     expect(ids(sectionsFor(as('management'), true))).toEqual(['people', 'teams']);
+    // A session with no rights attached shows no section by a right (the server checks every call anyway).
+    expect(sectionsFor({ systemRole: 'management' }, true)).toEqual([]);
     expect(sectionsFor(as('accounting'), true)).toEqual([]);
     expect(sectionsFor(as('member'), true)).toEqual([]);
   });

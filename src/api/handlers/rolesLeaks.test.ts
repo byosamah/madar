@@ -9,6 +9,7 @@ import { peopleCalls } from './people';
 import { projectCalls } from './projects';
 import { projectTemplateCalls } from './projectTemplates';
 import { reportsCalls } from './reports';
+import { rolesCalls } from './roles';
 import { trackerCalls } from './tracker';
 import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -17,7 +18,7 @@ beforeEach(() => setNow(NOW));
 
 const calls = {
   ...paymentCalls, ...contentCalls, ...historyCalls, ...insightCalls, ...notificationCalls, ...peopleCalls, ...projectCalls,
-  ...projectTemplateCalls, ...reportsCalls, ...trackerCalls,
+  ...projectTemplateCalls, ...reportsCalls, ...rolesCalls, ...trackerCalls,
 };
 
 /**
@@ -34,7 +35,7 @@ const ROLES: RoleSettings = {
 
 // usr_001 is the Admin, usr_002 leads prj_001, usr_003 is on its team, usr_004 is outside.
 // usr_006 is Management and usr_007 is Accounting. usr_011 is a Cashier, usr_012 a Planner, usr_013 a Client desk person.
-// usr_015 is an agent of the Planner.
+// usr_015 is an agent of the Planner. usr_018 is an agent of the Admin and usr_019 an agent of Management.
 function world() {
   const t = testApi(calls);
   const state = t.store.state;
@@ -46,9 +47,12 @@ function world() {
     makeUser('usr_012', { name: 'Planner Person', roleId: 'rol_002' }),
     makeUser('usr_013', { name: 'Client Desk Person', roleId: 'rol_003' }),
     makeUser('usr_015', { name: 'Planner Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_012' }),
+    makeUser('usr_018', { name: 'Admin Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' }),
+    makeUser('usr_019', { name: 'Management Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_006' }),
   ];
   for (const user of people) state.users[user.id] = user;
-  state.counters.usr = 15;
+  state.counters.usr = 19;
+  state.counters.rol = 3;
   return t;
 }
 
@@ -125,6 +129,75 @@ describe('custom roles never leak payments', () => {
   });
 });
 
+describe('Management without the payment right never sees an amount (fbk_014, security review 2026-10-18)', () => {
+  const WITHOUT_PAYMENT: RoleSettings = { rights: { management: ['people.manage', 'report.office'] } };
+
+  /** Every read path for an amount, as one person. Returns the text that a path would show, so a test can search it. */
+  async function reads(t: ReturnType<typeof world>, userId: string) {
+    t.as(userId);
+    const project = await t.api.call('projects.get', { id: 'prj_001' });
+    return {
+      feed: JSON.stringify(await t.api.call('updates.list', { projectId: 'prj_001', filter: 'all' })),
+      notices: JSON.stringify(await t.api.call('notifications.list', {})),
+      search: JSON.stringify(await t.api.call('search.query', { text: 'Zebra' })),
+      tracker: await t.api.call('tracker.list', { projectId: 'prj_001' }),
+      project: JSON.stringify(project),
+      viewerPays: project.viewerCan.payments,
+      money: (await t.api.call('dashboard.get', {})).money,
+      events: JSON.stringify(await t.api.call('events.list', { limit: 500 })),
+      paymentEvents: await t.api.call('events.list', { targetType: 'payment' }),
+      report: await t.api.call('reports.office', { period: 'year', start: '2026-01-01' }),
+    };
+  }
+
+  it('shows the amounts to Management while the office gives it the payment right (the control)', async () => {
+    const t = world();
+    t.as('usr_007');
+    await t.api.call('payments.create', { ...NEW, name: 'Zebra milestone', amount: 777777 });
+    const seen = await reads(t, 'usr_006');
+    expect(seen.viewerPays).toBe(true);
+    expect(seen.money).not.toBeNull();
+    expect(seen.paymentEvents.length).toBeGreaterThan(0);
+    expect(seen.report.money).not.toBeNull();
+    expect(await t.api.call('payments.list', { projectId: 'prj_001' })).toHaveLength(1);
+  });
+
+  it('shows no amount to Management or to its agent on any read path once the office takes the right away', async () => {
+    const t = world();
+    t.as('usr_007');
+    const row = await t.api.call('payments.create', { ...NEW, name: 'Zebra milestone', note: 'Zebra note' });
+    await t.api.call('payments.update', { id: row.payment.id, patch: { amount: 777777 } });
+    await t.api.call('payments.markReceived', { id: row.payment.id });
+    await t.api.call('payments.create', { ...NEW, name: 'Zebra milestone', dueDate: '2026-09-01' });
+    t.store.state.settings.roles = { ...structuredClone(ROLES), ...structuredClone(WITHOUT_PAYMENT) };
+
+    for (const user of ['usr_006', 'usr_019']) {
+      const seen = await reads(t, user);
+      expect(seen.feed, user).not.toMatch(/payment|Zebra|777777|120000/);
+      expect(seen.notices, user).not.toMatch(/payment|Zebra/);
+      expect(seen.search, user).not.toMatch(/Zebra/);
+      expect(seen.tracker, user).toEqual([]);
+      expect(seen.project, user).not.toMatch(/payment"|Zebra|777777/);
+      expect(seen.viewerPays, user).toBe(false);
+      expect(seen.money, user).toBeNull();
+      expect(seen.events, user).not.toMatch(/Zebra|777777/);
+      expect(seen.paymentEvents, user).toEqual([]);
+      expect(JSON.stringify(seen.report), user).not.toMatch(/Zebra|777777|120000/);
+      expect(seen.report.money, user).toBeNull();
+      await expect(t.api.call('payments.list', { projectId: 'prj_001' })).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(t.api.call('payments.create', NEW)).rejects.toMatchObject({ code: 'forbidden' });
+    }
+  });
+
+  it('keeps the people right of Management apart from the payment right', async () => {
+    const t = world();
+    t.store.state.settings.roles = { ...structuredClone(ROLES), rights: { management: ['payment.manage'] } };
+    t.as('usr_006');
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { name: 'Renamed' } })).rejects.toMatchObject({ code: 'forbidden' });
+    expect((await t.api.call('dashboard.get', {})).money).not.toBeNull();
+  });
+});
+
 describe('custom roles and the people rights', () => {
   it('lets a custom role with people.manage add a Member and edit a name, but not change a role', async () => {
     const t = world();
@@ -163,6 +236,56 @@ describe('custom roles and the people rights', () => {
     expect((await t.api.call('users.deactivate', { id: 'usr_004' })).active).toBe(false);
   });
 
+  it('refuses a person with only the people right every role in their own record, and leaves the record as it was', async () => {
+    const t = world();
+    t.as('usr_012');
+    const own = (patch: Record<string, unknown>) => t.api.call('users.update', { id: 'usr_012', patch } as never);
+    await expect(own({ roleId: 'rol_001' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(own({ roleId: null })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(own({ systemRole: 'management' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(own({ systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.users.usr_012.roleId).toBe('rol_002');
+    expect(t.store.state.users.usr_012.systemRole).toBe('member');
+    // A plain save of the same values is no change.
+    expect((await own({ name: 'Planner Renamed', systemRole: 'member', roleId: 'rol_002' })).name).toBe('Planner Renamed');
+  });
+
+  it('refuses Management a role in its own record and in the record of another person', async () => {
+    const t = world();
+    t.as('usr_006');
+    const own = (patch: Record<string, unknown>) => t.api.call('users.update', { id: 'usr_006', patch } as never);
+    await expect(own({ systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(own({ systemRole: 'accounting' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(own({ roleId: 'rol_001' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    expect(t.store.state.users.usr_006.systemRole).toBe('management');
+    expect(t.store.state.users.usr_006.roleId).toBeUndefined();
+  });
+
+  it('never gives a role with more rights than the person holds, in the invitation or in an edit', async () => {
+    const t = world();
+    t.as('usr_012');
+    // The Cashier role holds the payment right, which the Planner lacks.
+    await expect(t.api.call('users.create', { ...PERSON, roleId: 'rol_001' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(t.api.call('users.create', { ...PERSON, systemRole: 'management' })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(t.api.call('users.create', { ...PERSON, systemRole: 'admin' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('users.update', { id: 'usr_003', patch: { roleId: 'rol_001' } })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    expect(Object.values(t.store.state.users).some((user) => user.email === PERSON.email)).toBe(false);
+    expect(t.store.state.users.usr_003.roleId).toBeUndefined();
+    // The invitation of a plain Member goes through.
+    expect((await t.api.call('users.create', PERSON)).systemRole).toBe('member');
+  });
+
+  it('changes no role through the profile or the preference calls of a person', async () => {
+    const t = world();
+    t.as('usr_012');
+    await t.api.call('me.updateProfile', { name: 'Planner Self', systemRole: 'admin', roleId: 'rol_001' } as never);
+    await t.api.call('me.updatePreferences', { language: 'ar', systemRole: 'admin', roleId: 'rol_001' } as never);
+    const me = t.store.state.users.usr_012;
+    expect(me.name).toBe('Planner Self');
+    expect(me.systemRole).toBe('member');
+    expect(me.roleId).toBe('rol_002');
+  });
+
   it('lets the Admin give a custom role to a Member, and only to a Member', async () => {
     const t = world();
     t.as('usr_001');
@@ -197,6 +320,85 @@ describe('custom roles and the people rights', () => {
     t.as('usr_001');
     await t.api.call('events.undo', { eventId });
     expect(t.store.state.users.usr_003.systemRole).toBe('member');
+  });
+});
+
+describe('the story Undo of a role change (security review 2026-10-18)', () => {
+  it('refuses a person with only the people right the Undo of a story that holds a role change, and changes nothing', async () => {
+    const t = world();
+    t.as('usr_001');
+    await t.api.call('users.update', { id: 'usr_003', patch: { systemRole: 'accounting' } });
+    const change = (await t.api.call('events.list', { targetId: 'usr_003' })).find((row) => row.event.verb === 'user.updated')!.event;
+    // A role change that the Planner made before this rule: the event names the Planner, so the Undo right passes and the role rule decides.
+    t.store.state.events[change.id].actingForId = 'usr_012';
+    t.as('usr_012');
+    await expect(t.api.call('events.undoStory', { correlationId: change.correlationId })).rejects.toMatchObject({
+      code: 'forbidden', details: { reason: 'admin_only' },
+    });
+    expect(t.store.state.users.usr_003.systemRole).toBe('accounting');
+  });
+});
+
+describe('Undo never takes back a role change for an agent (security review 2026-10-18)', () => {
+  /**
+   * The Admin makes a role that nobody holds (spare), makes a second role, and moves a Member to it. The events come back with the
+   * story of each change. Nobody holds the spare role, so only the agent rule can stop the Undo of its creation.
+   */
+  async function roleChanges(t: ReturnType<typeof world>) {
+    t.as('usr_001');
+    const spare = await t.api.call('roles.create', { name: 'Spare', nameAr: 'احتياطي', rights: ['report.office'] });
+    const held = await t.api.call('roles.create', { name: 'Auditor', nameAr: 'مدقق', rights: ['report.office'] });
+    await t.api.call('users.update', { id: 'usr_003', patch: { roleId: held.id } });
+    const rows = await t.api.call('events.list', { limit: 100 });
+    const made = (id: string) => rows.find((row) => row.event.verb === 'role.created' && row.event.targetId === id)!.event;
+    return { spare, held, madeSpare: made(spare.id), moved: rows.find((row) => row.event.verb === 'user.updated')!.event };
+  }
+  const hasRole = (t: ReturnType<typeof world>, id: string) => t.store.state.settings.roles?.custom?.some((item) => item.id === id);
+
+  it('refuses an agent of the Admin the Undo of the creation of a role, and of the change that moves a person to a role', async () => {
+    const t = world();
+    const { spare, held, madeSpare, moved } = await roleChanges(t);
+    t.as('usr_018');
+    await expect(t.api.call('events.undo', { eventId: madeSpare.id })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    await expect(t.api.call('events.undo', { eventId: moved.id })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(hasRole(t, spare.id)).toBe(true);
+    expect(t.store.state.users.usr_003.roleId).toBe(held.id);
+    expect(t.store.state.events[madeSpare.id].undoneBy).toBeNull();
+  });
+
+  it('refuses an agent of the Admin the Undo of a rights change, also for a built-in role', async () => {
+    const t = world();
+    t.as('usr_001');
+    await t.api.call('roles.update', { role: 'accounting', rights: ['payment.manage', 'report.office'] });
+    const change = (await t.api.call('events.list', { limit: 100 })).find((row) => row.event.verb === 'role.updated')!.event;
+    t.as('usr_018');
+    await expect(t.api.call('events.undo', { eventId: change.id })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
+    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.manage', 'report.office']);
+    t.as('usr_001');
+    await t.api.call('events.undo', { eventId: change.id });
+    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.manage']);
+  });
+
+  it('refuses an agent of the Admin the Undo of the story of a role change, and leaves the whole story as it was', async () => {
+    const t = world();
+    const { spare, held, madeSpare, moved } = await roleChanges(t);
+    t.as('usr_018');
+    for (const event of [madeSpare, moved]) {
+      await expect(t.api.call('events.undoStory', { correlationId: event.correlationId })).rejects.toMatchObject({ code: 'forbidden' });
+    }
+    expect(hasRole(t, spare.id)).toBe(true);
+    expect(t.store.state.users.usr_003.roleId).toBe(held.id);
+  });
+
+  it('lets the Admin in person undo the same changes, so the refusal is about the agent', async () => {
+    const t = world();
+    const { spare, held, madeSpare, moved } = await roleChanges(t);
+    t.as('usr_001');
+    await t.api.call('events.undo', { eventId: moved.id });
+    expect(t.store.state.users.usr_003.roleId ?? null).toBeNull();
+    await t.api.call('events.undoStory', { correlationId: madeSpare.correlationId });
+    expect(hasRole(t, spare.id)).toBe(false);
+    expect(hasRole(t, held.id)).toBe(true);
   });
 });
 

@@ -114,6 +114,18 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     }
   });
 
+  it('never offers a call that makes or changes a role, a person or the office settings: they stay on the deny list (fbk_014)', () => {
+    // An agent of the Admin holds the rights of the Admin. The only way to a role change is a tool, so no tool may reach one.
+    for (const name of ['roles.create', 'roles.update', 'roles.delete', 'users.create', 'users.update', 'me.updateProfile', 'settings.update']) {
+      expect(MCP_DENY, name).toContain(name);
+      expect(allowAndAdmin as readonly string[], name).not.toContain(name);
+      expect(adminTools.map((tool) => tool.name), name).not.toContain(name);
+      expect(Object.keys(TOOL_DOCS), name).not.toContain(name);
+    }
+    // The Undo tools stay on the list. The call refuses an agent the Undo of a role change (rolesLeaks.test.ts).
+    expect(allowAndAdmin as readonly string[]).toEqual(expect.arrayContaining(['events.undo', 'events.undoStory']));
+  });
+
   it('puts every call in exactly one of the allowlist, the Admin list, the right list and the deny list', () => {
     const allow = new Set<string>(MCP_ALLOW);
     const admin = new Set<string>(MCP_ADMIN);

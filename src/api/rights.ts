@@ -43,7 +43,7 @@ export const ADMIN_PAGE_RIGHTS: readonly OfficeRight[] = ['people.manage', 'clie
  */
 export function opensAdminPage(actor: Actor): boolean {
   if (actor.systemRole === 'admin') return true;
-  const held = actor.officeRights ?? DEFAULT_RIGHTS[actor.systemRole];
+  const held = actor.officeRights ?? [];
   return ADMIN_PAGE_RIGHTS.some((right) => held.includes(right));
 }
 

@@ -212,8 +212,13 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `Settings.roles` holds the rights of Management, Accounting and Member, and the custom roles. `rightsOf` (`rights.ts`) reads them.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`). A loader
   (`Load.authority`) and a server call use `withRights(state, user)`.
+- `can()` fails closed: a person other than the Admin, with no `officeRights` attached, holds no office right. A path that forgets
+  `withRights` then denies, and never gives the default of a role. A test that calls `can()` for Management needs `withOfficeRights`.
+  The Admin screens (`sections.ts`, `opensAdminPage`) read the rights the same way.
 - Only the Admin changes a role: `systemRole` or `roleId`. The reason is `admin_only`. A save with the same value is no change.
-- The undo of a role change follows the same rule (`handlers/history.ts`).
+- The undo of a role change follows the same rule (`handlers/history.ts`). An agent never takes back a role change, also the agent
+  of an Admin: `assertMayUndo` refuses a role event (`settings`) and a `user` event for an agent. `rolesLeaks.test.ts` proves it for
+  `events.undo` and `events.undoStory`. The MCP deny list holds `roles.*`, `users.create` and `users.update`.
 - `admin.manage` reads only the Admin role, so it needs no office right.
 - `session.get` returns the authority with its `officeRights`, so a screen reads the same rights.
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:

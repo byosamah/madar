@@ -900,3 +900,40 @@ describe('the money of the Dashboard follows the office rights of a custom role 
     expect(Object.keys(cashier.loaded.payments ?? {}).sort()).toEqual(open);
   });
 });
+
+describe('the money of the loaders follows the office rights of Management (fbk_014, security review 2026-10-18)', () => {
+  const MANAGEMENT = 'usr_010';
+  const paymentsOf = (loaded: State) => Object.keys(loaded.payments ?? {});
+
+  it('loads the payments for Management while the office gives it the payment right, and none once the office takes it away', async () => {
+    const given = await runBoth(office(), 'dashboard.get', {}, MANAGEMENT, { now: NOW, correlationId: 'cor_test' });
+    expect(paymentsOf(given.loaded).length).toBeGreaterThan(0);
+    const state = office((s) => {
+      s.settings.roles = { rights: { management: ['people.manage', 'report.office'] } };
+    });
+    for (const [name, input] of [['dashboard.get', {}], ['reports.office', { period: 'year', start: '2026-01-01' }]] as const) {
+      const taken = await runBoth(state, name, input, MANAGEMENT, { now: NOW, correlationId: 'cor_test' });
+      expect(taken.scoped, name).toEqual(taken.whole);
+      expect(taken.whole.outcome.error, name).toBeUndefined();
+      expect(paymentsOf(taken.loaded), name).toEqual([]);
+    }
+    const report = await runBoth(state, 'reports.office', { period: 'year', start: '2026-01-01' }, MANAGEMENT, { now: NOW, correlationId: 'cor_test' });
+    expect((report.whole.outcome.output as { money: unknown }).money).toBeNull();
+  });
+
+  it('hides the payment events from Management without the payment right, with the same list on both loads', async () => {
+    // The control: the Accounting person makes a payment, and Management reads its event while it holds the payment right.
+    const base = office((s) => {
+      apply(s, 'payments.create', { projectId: 'prj_001', name: 'Zebra milestone', amount: 5000, dueDate: '2026-10-20' }, 'usr_011');
+    });
+    const control = await runBoth(base, 'events.list', { limit: 500, targetType: 'payment' }, MANAGEMENT, { now: NOW, correlationId: 'cor_test' });
+    expect((control.whole.outcome.output as unknown[]).length).toBeGreaterThan(0);
+    const state = structuredClone(base);
+    state.settings.roles = { rights: { management: ['people.manage', 'report.office'] } };
+    const { whole, scoped } = await runBoth(state, 'events.list', { limit: 500 }, MANAGEMENT, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    const rows = whole.outcome.output as { event: { targetType: string } }[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((row) => row.event.targetType === 'payment')).toBe(false);
+  });
+});

@@ -255,6 +255,14 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         throw forbidden('Only an Admin can change an Admin or the agent of an Admin.');
       }
       return;
+    case 'settings':
+      // A role change lives in the office settings. An agent of the Admin holds the rights of the Admin.
+      // It never changes a role, so it never takes one back (MCP deny list: roles.*, users.update).
+      // The rule holds for events.undo and for events.undoStory, because both end here.
+      if (isRoleEvent(event) && ctx.actor.kind === 'agent') {
+        throw forbidden('Only the Admin changes a role, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
+      }
+      return need('admin.manage');
     default:
       return need('admin.manage');
   }

@@ -123,11 +123,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'events.undo': {
     title: 'Undo one change',
-    description: 'Takes back one change by its event ID (from events.list), under the rules of the original action. An undo of a create removes the record. You may undo your own changes and those of the person you act for. You may not undo a change to a person (an email, a role, turned off or on): only a person does that, in the Madar screens. The undo is a new change in the History.',
+    description: 'Takes back one change by its event ID (from events.list), under the rules of the original action. An undo of a create removes the record. You may undo your own changes and those of the person you act for. You may not undo a change to a person (an email, a role, turned off or on) or a change to the rights of a role: only a person does that, in the Madar screens. The undo is a new change in the History.',
   },
   'events.undoStory': {
     title: 'Undo a story',
-    description: 'Takes back every change of one story, given its storyId as correlationId. The changes come back together, newest first. Use it to take back the whole of one request. A story that holds a change to a person fails: only a person undoes that, in the Madar screens.',
+    description: 'Takes back every change of one story, given its storyId as correlationId. The changes come back together, newest first. Use it to take back the whole of one request. A story that holds a change to a person or to the rights of a role fails: only a person undoes that, in the Madar screens.',
   },
   'feedback.list': {
     title: 'List requests and bugs',

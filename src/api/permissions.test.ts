@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { can, principalOf, projectRoleOf, type Action, type ProjectRole } from './permissions';
+import { withOfficeRights } from './rights';
 import type { User } from './contract/entities';
 import { makeUser, makeWorld } from '../test/factories';
 
@@ -58,8 +59,9 @@ describe('permission table (spec 2.3)', () => {
 });
 
 describe('the default office rights of each system role (fbk_014)', () => {
-  const management = makeUser('usr_006', { systemRole: 'management' });
-  const accounting = makeUser('usr_007', { systemRole: 'accounting' });
+  // The office rights come from the office settings (rights.ts). A person with none attached holds no office right.
+  const management = withOfficeRights(makeUser('usr_006', { systemRole: 'management' }), undefined);
+  const accounting = withOfficeRights(makeUser('usr_007', { systemRole: 'accounting' }), undefined);
 
   it('lets management make people and see the office report, and never delete a project', () => {
     expect(can(management, 'people.manage')).toBe(true);

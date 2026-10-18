@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { RoleSettings, User } from '../../src/api/contract/entities';
 import { ApiError } from '../../src/api/errors';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
@@ -147,6 +148,40 @@ describe('users.invites', () => {
     await expect(usersInvites({}, ctx('usr_010'))).resolves.toMatchObject({ changed: false });
     const error = await refusal(usersInvites({}, ctx('usr_002')));
     expect(error.code).toBe('forbidden');
+  });
+});
+
+describe('users.invites and users.resendInvite read the office rights of the person (fbk_014, security review 2026-10-18)', () => {
+  /** The sample office with other roles. usr_010 is Management, usr_002 a Member, usr_009 the agent of the Admin. */
+  const officeWith = (roles: RoleSettings, users: Record<string, Partial<User>> = {}) => snapshotOf({
+    ...seed, settings: { ...seed.settings, roles },
+    users: { ...seed.users, ...Object.fromEntries(Object.entries(users).map(([id, patch]) => [id, { ...seed.users[id], ...patch }])) },
+  }, 3);
+  const planner: RoleSettings = { custom: [{ id: 'rol_001', name: 'Planner', nameAr: 'المخطط', rights: ['people.manage'] }] };
+
+  it('refuses Management, and the agent of Management, once the office takes the people right away', async () => {
+    const { db, resend, ctx } = setup();
+    const taken = officeWith({ rights: { management: ['payment.manage'] } }, { usr_009: { ownerId: 'usr_010' } });
+    for (const userId of ['usr_010', 'usr_009']) {
+      expect((await refusal(usersInvites({}, ctx(userId, { office: taken })))).code, userId).toBe('forbidden');
+      expect((await refusal(resend({ id: 'usr_003' }, ctx(userId, { office: taken })))).code, userId).toBe('forbidden');
+    }
+    expect(db.txs).toBe(0);
+  });
+
+  it('lets a Member with a custom role that holds the people right send and list invitations', async () => {
+    const { resend, ctx } = setup();
+    const office = officeWith(planner, { usr_002: { roleId: 'rol_001' } });
+    await expect(usersInvites({}, ctx('usr_002', { office }))).resolves.toMatchObject({ changed: false });
+    await expect(resend({ id: 'usr_003' }, ctx('usr_002', { office }))).resolves.toMatchObject({ changed: false });
+    // The role of a Member who is not the Planner gives nothing.
+    expect((await refusal(usersInvites({}, ctx('usr_003', { office })))).code).toBe('forbidden');
+  });
+
+  it('keeps an Admin invitation for the Admin, also for a person with the people right', async () => {
+    const { resend, ctx } = setup();
+    const office = officeWith(planner, { usr_002: { roleId: 'rol_001' } });
+    expect((await refusal(resend({ id: 'usr_001' }, ctx('usr_002', { office })))).code).toBe('forbidden');
   });
 });
 

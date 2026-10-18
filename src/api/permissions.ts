@@ -33,10 +33,14 @@ export const DEFAULT_RIGHTS: Readonly<Record<'management' | 'accounting' | 'memb
 /** A person as can() reads it: the user, plus the office rights that the office settings give the person (rights.ts). */
 export type Actor = User & { readonly officeRights?: readonly OfficeRight[] };
 
-/** The office rights of an actor. The Admin holds all of them. Without attached rights, the default rights of the role apply. */
+/**
+ * The office rights of an actor. The Admin holds all of them. Any other person holds the attached rights only. A person with no
+ * attached rights holds none, so a path that forgot to attach them fails closed. Without this rule, the Admin could take a right
+ * from Management and a forgotten path would still give the default (security review 2026-10-18).
+ */
 function heldRights(actor: Actor): readonly OfficeRight[] {
   if (actor.systemRole === 'admin') return OFFICE_RIGHTS;
-  return actor.officeRights ?? DEFAULT_RIGHTS[actor.systemRole];
+  return actor.officeRights ?? [];
 }
 
 /**

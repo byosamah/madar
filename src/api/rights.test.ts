@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { type CustomRole, OfficeRight, type RoleSettings } from './contract/entities';
-import { can, DEFAULT_RIGHTS, OFFICE_RIGHTS, type Actor } from './permissions';
+import { type Action, can, DEFAULT_RIGHTS, OFFICE_RIGHTS, type Actor } from './permissions';
 import { ADMIN_PAGE_RIGHTS, opensAdminPage, rightsOf, withOfficeRights } from './rights';
 import { executeParsed, resolveAuthority } from './execute';
 import type { AnyCall } from './registry';
@@ -25,12 +25,16 @@ const probe = {
 describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)', () => {
   it('opens the page to the Admin, and to Management by its default people right', () => {
     expect(opensAdminPage(admin)).toBe(true);
-    expect(opensAdminPage(management)).toBe(true);
+    expect(opensAdminPage(withOfficeRights(management, undefined))).toBe(true);
+  });
+
+  it('keeps the page from a person with no rights attached, because the rights fail closed', () => {
+    expect(opensAdminPage(management)).toBe(false);
   });
 
   it('keeps the page from Accounting and from a Member with no right that a section names', () => {
-    expect(opensAdminPage(accounting)).toBe(false);
-    expect(opensAdminPage(member)).toBe(false);
+    expect(opensAdminPage(withOfficeRights(accounting, undefined))).toBe(false);
+    expect(opensAdminPage(withOfficeRights(member, undefined))).toBe(false);
     expect(opensAdminPage({ ...member, officeRights: ['payment.manage', 'report.office'] })).toBe(false);
   });
 
@@ -90,16 +94,23 @@ describe('can() reads the office rights of the actor', () => {
     expect(can({ ...management, officeRights: [] }, 'people.manage')).toBe(false);
   });
 
-  it('reads the default rights when no rights are attached', () => {
-    expect(can(management, 'people.manage')).toBe(true);
-    expect(can(accounting, 'payment.manage')).toBe(true);
-    expect(can(accounting, 'people.manage')).toBe(false);
-    expect(can(member, 'project.delete')).toBe(false);
+  it('gives no office right to a person with no rights attached, so a path that forgot them fails closed', () => {
+    for (const person of [management, accounting, member]) {
+      for (const right of ALL) expect(can(person, right as Action), `${person.systemRole} ${right}`).toBe(false);
+    }
   });
 
-  it('lets the Admin do every office action, whatever the attached rights are', () => {
+  it('reads the default rights of the role when withOfficeRights attaches them', () => {
+    expect(can(withOfficeRights(management, undefined), 'people.manage')).toBe(true);
+    expect(can(withOfficeRights(accounting, undefined), 'payment.manage')).toBe(true);
+    expect(can(withOfficeRights(accounting, undefined), 'people.manage')).toBe(false);
+    expect(can(withOfficeRights(member, undefined), 'project.delete')).toBe(false);
+  });
+
+  it('lets the Admin do every office action, whatever the attached rights are, or when none are attached', () => {
     expect(can({ ...admin, officeRights: [] }, 'project.delete')).toBe(true);
     expect(can({ ...admin, officeRights: [] }, 'people.manage')).toBe(true);
+    for (const right of ALL) expect(can(admin, right as Action), right).toBe(true);
   });
 });
 

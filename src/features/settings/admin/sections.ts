@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { OfficeRight, SystemRole } from '../../../api/contract/entities';
-import { DEFAULT_RIGHTS, OFFICE_RIGHTS } from '../../../api/permissions';
+import { OFFICE_RIGHTS } from '../../../api/permissions';
 import { REMOTE } from '../../../app/mode';
 import { ClientsSection } from './ClientsSection';
 import { FeedbackSection } from './FeedbackSection';
@@ -59,7 +59,8 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
 function sees(section: AdminSection, viewer: SectionViewer): boolean {
   if (section.roles.includes(viewer.systemRole)) return true;
   if (section.right === undefined) return false;
-  const held = viewer.systemRole === 'admin' ? OFFICE_RIGHTS : (viewer.officeRights ?? DEFAULT_RIGHTS[viewer.systemRole]);
+  // A session with no rights attached holds none, as can() reads it (permissions.ts). The server checks every call anyway.
+  const held = viewer.systemRole === 'admin' ? OFFICE_RIGHTS : (viewer.officeRights ?? []);
   return held.includes(section.right);
 }
 
