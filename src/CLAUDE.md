@@ -201,8 +201,8 @@ any screen work.
 - Calm rules (`expectCalm` in the Playwright suites): one title, at most one main button, no filter chip rows (one Filter
   button), no grid view, no avatar stacks, "On track" never shows in lists. Only the tab pill keeps a blur.
 - Icons: animated Lucide icons from lucide-animated.com through `components/icons/AnimatedIcon.tsx`.
-- Logo: `MadarMark` ("Turning doors"), only in the sign-in frame and the app frame, never in a project list
-  (`MadarMark.test.tsx` lists the files).
+- Logo: `MadarMark` ("Turning doors"), only in the sign-in frame, the app frame and the office card of the Open space map,
+  never in a project list (`MadarMark.test.tsx` lists the files).
 - Fonts: Thmanyah Sans for English and Arabic (files in `design/fonts/`), then Inter and IBM Plex Sans Arabic as the
   fallback. Number spots use the `tabular` class: it takes the digits from Inter. Weights: Bold (`font-bold`, the title
   and headline styles) only for headings, Medium (`font-medium` or `font-semibold`, which renders Medium) for emphasis in

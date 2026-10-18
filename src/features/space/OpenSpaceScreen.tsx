@@ -156,22 +156,25 @@ function SpaceScreen() {
       )}
       {projects.data && kept.length === 0 && <p className="pb-4 text-subheadline text-ink-2">{t('space.noProjects')}</p>}
       <div className="relative h-[70dvh] min-h-[28rem] overflow-hidden rounded-card">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          onInit={(instance) => {
-            flow.current = instance;
-          }}
-          fitView
-          minZoom={0.2}
-          maxZoom={1.5}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          nodesFocusable={false}
-          edgesFocusable={false}
-        />
+        {/* The map waits for the projects: fitView sets the first view once, so every card must exist at that first draw. */}
+        {projects.data ? (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            onInit={(instance) => {
+              flow.current = instance;
+            }}
+            fitView
+            minZoom={0.2}
+            maxZoom={1.5}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
+          />
+        ) : null}
       </div>
     </main>
   );

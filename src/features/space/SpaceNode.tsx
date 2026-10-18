@@ -56,11 +56,20 @@ function toggleOnEnter(event: KeyboardEvent<HTMLDivElement>, data: SpaceCardData
   data.onToggle(data.id);
 }
 
-/** The attributes that make a card a button when it has a next level, and that carry its state. */
-function levelProps(data: SpaceCardData) {
-  const activate = () => {
+/** The class of a card: the surface, a pointer when it has a next level, and a fade when the focus leaves it out. */
+function cardClass(data: SpaceCardData): string {
+  return `${CARD} ${data.expandable ? 'cursor-pointer' : ''} ${data.faded ? 'opacity-40' : ''}`;
+}
+
+/** A mouse click on a card opens or closes it, when it has a next level. */
+function clickToggles(data: SpaceCardData) {
+  return () => {
     if (data.expandable) data.onToggle(data.id);
   };
+}
+
+/** The attributes that make a stage or a task a button when it has a next level, and that carry its state. */
+function levelProps(data: SpaceCardData) {
   return {
     'data-kind': data.kind,
     'data-open': data.open,
@@ -68,9 +77,9 @@ function levelProps(data: SpaceCardData) {
     role: data.expandable ? 'button' : undefined,
     tabIndex: data.expandable ? 0 : undefined,
     'aria-expanded': data.expandable ? data.open : undefined,
-    onClick: activate,
+    onClick: clickToggles(data),
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => toggleOnEnter(event, data),
-    className: `${CARD} ${data.expandable ? 'cursor-pointer' : ''} ${data.faded ? 'opacity-40' : ''}`,
+    className: cardClass(data),
   };
 }
 
@@ -81,27 +90,31 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
   if (!summary) return null;
   const state = signOfProject({ project: summary.project, health: summary.health, staleDays: summary.staleDays });
   const word = signWord(state, summary.staleDays, t);
+  // The card is not a button: the "Open project" button sits inside it, and a button cannot hold a button. The card's own
+  // button holds the picture, the name, the sign and the stage. Its click reaches the card, which opens or closes the card.
   return (
-    <div {...levelProps(data)}>
-      <div className="flex items-center gap-2.5">
-        <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
-          {/* On track is the normal state, so its word stays for a screen reader only. */}
-          <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
-        </div>
-      </div>
-      <div className="mt-2.5 flex min-w-0 flex-col">
-        <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
-        <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
-      </div>
+    <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} onClick={clickToggles(data)} className={cardClass(data)}>
+      <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block w-full text-start">
+        <span className="flex items-center gap-2.5">
+          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
+            {/* On track is the normal state, so its word stays for a screen reader only. */}
+            <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
+          </span>
+        </span>
+        <span className="mt-2.5 flex min-w-0 flex-col">
+          <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
+          <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
+        </span>
+      </button>
       <button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
           navigate({ pathname: `/projects/${summary.project.id}` });
         }}
-        className="mt-2 text-footnote font-semibold text-link enabled:hover:underline"
+        className="mt-2 min-h-8 px-1 text-footnote font-semibold text-link enabled:hover:underline"
       >
         {t('space.openProject')}
       </button>
@@ -155,6 +168,7 @@ function OfficeCard() {
 
 /** The card of one node of the map. React Flow calls it with the node's data and the sides of its handles. */
 export function SpaceCard({ data, sourcePosition, targetPosition }: NodeProps<SpaceFlowNode>) {
+  const lang = useLang();
   const body = data.kind === 'office'
     ? <OfficeCard />
     : data.kind === 'project'
@@ -165,7 +179,8 @@ export function SpaceCard({ data, sourcePosition, targetPosition }: NodeProps<Sp
   return (
     <>
       <Handle type="target" position={targetPosition ?? Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
-      {body}
+      {/* React Flow sets the map to left to right, so the card sets its own direction from the language. */}
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'}>{body}</div>
       <Handle type="source" position={sourcePosition ?? Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
     </>
   );

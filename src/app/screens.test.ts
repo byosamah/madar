@@ -34,8 +34,8 @@ async function pending(promise: Promise<unknown>): Promise<boolean> {
 
 describe('the screen loaders (performance audit BND-1)', () => {
   it('holds one loader for each screen that loads on demand, and none for the frame, the gate, Home and the error pages', () => {
-    expect(SCREEN_NAMES).toEqual(expect.arrayContaining(['projects', 'project', 'projectByCode', 'work', 'dashboard', 'meeting', 'inbox', 'notifications', 'search', 'tasks', 'settings', 'admin', 'signIn', 'welcome', 'forgot', 'reset', 'consent']));
-    expect(SCREEN_NAMES).toHaveLength(18);
+    expect(SCREEN_NAMES).toEqual(expect.arrayContaining(['projects', 'project', 'projectByCode', 'work', 'dashboard', 'meeting', 'space', 'inbox', 'notifications', 'search', 'tasks', 'settings', 'admin', 'signIn', 'welcome', 'forgot', 'reset', 'consent']));
+    expect(SCREEN_NAMES).toHaveLength(19);
   });
 
   it('keeps a loaded screen, so a second load imports nothing', async () => {

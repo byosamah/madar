@@ -12,11 +12,17 @@ type FlowProps = {
   nodesDraggable?: boolean;
   nodesConnectable?: boolean;
   elementsSelectable?: boolean;
+  fitView?: boolean;
 };
 
 // React Flow measures the page in a browser, which jsdom has not. The mock draws each node with its own node component,
 // and keeps the last props, so a test reads what the screen asks of the map.
-const flow = vi.hoisted(() => ({ props: undefined as FlowProps | undefined, fitView: vi.fn() }));
+const flow = vi.hoisted(() => ({
+  props: undefined as FlowProps | undefined,
+  // What each render of the map asked for, in order. The first render decides the view that fitView sets at the start.
+  renders: [] as { fitView: boolean | undefined; nodes: number }[],
+  fitView: vi.fn(),
+}));
 
 vi.mock('@xyflow/react', async () => {
   const React = await import('react');
@@ -25,6 +31,7 @@ vi.mock('@xyflow/react', async () => {
     Handle: () => null,
     ReactFlow: (props: FlowProps) => {
       flow.props = props;
+      flow.renders.push({ fitView: props.fitView, nodes: props.nodes.length });
       React.useEffect(() => {
         props.onInit?.({ fitView: flow.fitView });
       }, []);
@@ -40,6 +47,7 @@ const countOf = (selector: string) => document.querySelectorAll(selector).length
 
 afterEach(() => {
   flow.fitView.mockClear();
+  flow.renders.length = 0;
 });
 
 describe('the Open space button on the Dashboard', () => {
@@ -57,7 +65,16 @@ describe('the Open space screen', () => {
     expect(await screen.findByRole('heading', { name: 'Open space' })).toBeInTheDocument();
     for (const name of ['Open all', 'Close all', 'Fit to screen']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Focus on a person' })).toBeInTheDocument();
+    await waitFor(() => expect(flow.props).toBeDefined());
     expect(flow.props).toMatchObject({ nodesDraggable: false, nodesConnectable: false, elementsSelectable: false });
+  });
+
+  it('fits the whole map on its first draw, so the person sees every project card at the start', async () => {
+    await renderApp('/dashboard/space');
+    await screen.findByRole('button', { name: /Corniche Office Tower/ });
+    const first = flow.renders[0];
+    expect(first).toMatchObject({ fitView: true });
+    expect(first?.nodes ?? 0).toBeGreaterThan(1);
   });
 
   it('shows the office and one card for each open project, and never a completed project', async () => {
@@ -81,6 +98,27 @@ describe('the Open space screen', () => {
     await userEvent.keyboard('{Enter}');
     expect(card).toHaveAttribute('aria-expanded', 'false');
     expect(countOf('[data-kind="stage"]')).toBe(0);
+  });
+
+  it('opens and closes a project with Space, as a button does', async () => {
+    await renderApp('/dashboard/space');
+    const toggle = await screen.findByRole('button', { name: /Corniche Office Tower/ });
+    toggle.focus();
+    await userEvent.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('lays out a card from the end side in Arabic, so the tile and the words follow the language', async () => {
+    await renderApp('/dashboard/space', (state) => {
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    await waitFor(() => expect(countOf('[data-kind="project"]')).toBe(11));
+    // The page itself carries dir="rtl" in Arabic, so the test looks for the nearest dir attribute on the card.
+    const direction = document.querySelector('[data-kind="project"]')?.closest('[dir]');
+    expect(direction).not.toBe(document.documentElement);
+    expect(direction).toHaveAttribute('dir', 'rtl');
   });
 
   it('opens every project and stage with Open all, and closes them with Close all', async () => {
@@ -107,8 +145,8 @@ describe('the Open space screen', () => {
 
   it('opens the project page from the Open project button of a card', async () => {
     await renderApp('/dashboard/space');
-    const card = await screen.findByRole('button', { name: /Corniche Office Tower/ });
-    await userEvent.click(within(card).getByRole('button', { name: 'Open project' }));
+    await screen.findByRole('button', { name: /Corniche Office Tower/ });
+    await userEvent.click(screen.getAllByRole('button', { name: 'Open project' })[0]!);
     await waitFor(() => expect(window.location.hash).toMatch(/#\/projects\/prj_/));
   });
 

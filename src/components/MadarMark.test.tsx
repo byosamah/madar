@@ -62,7 +62,7 @@ describe('MadarMark', () => {
     expect(img.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('never shows inside a project list: only the sign-in frame and the top of the app frame use it, so nobody reads it as a project', () => {
+  it('never shows inside a project list: only the sign-in frame, the top of the app frame and the office card of the map use it, so nobody reads it as a project', () => {
     const users: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(dir)) {
@@ -72,7 +72,8 @@ describe('MadarMark', () => {
       }
     };
     walk('src');
-    // The app frame shows it at the top start of every screen (owner, 2026-10-04), never in a list.
-    expect(users.sort()).toEqual(['src/app/AppShell.tsx', 'src/components/MadarMark.tsx', 'src/features/auth/AuthPage.tsx']);
+    // The app frame shows it at the top start of every screen (owner, 2026-10-04). The Open space map shows it on its office
+    // card, the root of the map and not a project (owner plan 2026-10-18, fbk_015). No project list uses it.
+    expect(users.sort()).toEqual(['src/app/AppShell.tsx', 'src/components/MadarMark.tsx', 'src/features/auth/AuthPage.tsx', 'src/features/space/SpaceNode.tsx']);
   });
 });
