@@ -6,6 +6,7 @@ import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { Age, AgeRefresh } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
+import { AvatarStack } from '../../components/AvatarStack';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
 import { usePersonName } from '../../app/personName';
@@ -18,6 +19,8 @@ type Row = CallOutput<'chats.list'>[number];
 function Lead({ row }: { row: Row }) {
   if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} size={40} />;
   if (row.kind === 'direct' && row.person) return <Avatar user={row.person} size={40} />;
+  // A group shows up to three small pictures of its people (owner, 2026-10-18).
+  if (row.kind === 'group') return <span className="grid size-10 shrink-0 place-items-center rounded-full bg-fill"><AvatarStack leader={null} team={row.members} max={3} size={20} /></span>;
   return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>;
 }
 

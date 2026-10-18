@@ -17,6 +17,14 @@ export function addDirectConversation(state: State, a: string, b: string, create
   return conversation;
 }
 
+/** Makes a group. Its people keep the order in which they joined, so the maker stays first (no sort, unlike a direct chat). */
+export function addGroupConversation(state: State, name: string, makerId: string, memberIds: string[], createdAt: string): Conversation {
+  const id = nextId(state, 'cnv');
+  const conversation: Conversation = { id, kind: 'group', projectId: null, memberIds: [...memberIds], name, makerId, createdAt };
+  state.conversations[id] = conversation;
+  return conversation;
+}
+
 /** Removes the chat room of a project, with its messages, read marks and mention notices. */
 export function dropProjectConversation(state: State, projectId: string): void {
   for (const conversation of Object.values(state.conversations)) {
@@ -29,10 +37,13 @@ export function dropProjectConversation(state: State, projectId: string): void {
   }
 }
 
-/** The one rule of who sees a chat room: a direct chat is for its two people, a project chat for the team and the Admin. */
+/**
+ * The one rule of who sees a chat room: a direct chat is for its two people, a group for its people (never the Admin alone),
+ * and a project chat for the team and the Admin.
+ */
 export function canSeeConversation(state: State, conversation: Conversation, user: User): boolean {
   if (!user.active) return false;
-  if (conversation.kind === 'direct') return conversation.memberIds.includes(user.id);
+  if (conversation.kind !== 'project') return conversation.memberIds.includes(user.id);
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
   return can(user, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });

@@ -4,6 +4,22 @@
     "archivedCount": "Archived ({{count}})",
     "backToInbox": "Back to Inbox",
     "moveBack": "Move back to Inbox",
-    "options": "Chat options"
+    "options": "Chat options",
+    "groupChat": "Group chat",
+    "groupStart": "Make a group",
+    "groupOptions": "Group options",
+    "groupName": "Group name",
+    "makeGroup": "Make group",
+    "pickHint": "Pick two people or more to make a group.",
+    "rename": "Rename",
+    "renameTitle": "Rename the group",
+    "addPeople": "Add people",
+    "addTitle": "Add people to the group",
+    "removePerson": "Remove a person",
+    "removeTitle": "Remove a person from the group",
+    "leaveGroup": "Leave group",
+    "leaveTitle": "Leave this group?",
+    "leaveBody": "You do not see its new messages after you leave.",
+    "leaveConfirm": "Leave the group"
   }
 }

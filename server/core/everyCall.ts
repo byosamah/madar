@@ -31,6 +31,9 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   'tasks.take': 'invalid_input',
   'events.undoStory': 'forbidden',
   'payments.markReceived': 'invalid_input',
+  // The sample office has no group, and cnv_001 is a project chat: a group change of it is refused as not a group.
+  'chats.updateGroup': 'invalid_input',
+  'chats.leaveGroup': 'invalid_input',
 };
 
 /** A call that removes a record: it runs after every other call. */
@@ -83,6 +86,9 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'events.undo': [{ eventId: ownEvent?.id ?? 'evt_001' }],
     'notifications.updateSettings': [{ channel: 'email', trigger: 'mention', on: false }],
     'chats.openDirect': [{ userId: 'usr_002' }],
+    'chats.createGroup': [{ name: 'Design review', memberIds: ['usr_002', 'usr_003'] }],
+    'chats.updateGroup': [{ conversationId: 'cnv_001', name: 'Renamed' }],
+    'chats.leaveGroup': [{ conversationId: 'cnv_001' }],
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],

@@ -179,14 +179,18 @@ export type TaskDetail = z.infer<typeof TaskDetail>;
 export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment) });
 export type CommentView = z.infer<typeof CommentView>;
 
-/** One row of the Inbox list: a project chat, a direct chat or a task thread. A task thread has the task id as its id. */
+/** One row of the Inbox list: a project chat, a direct chat, a group or a task thread. A task thread has the task id as its id. */
 export const ChatRow = z.object({
-  kind: z.enum(['project', 'direct', 'task']),
+  kind: z.enum(['project', 'direct', 'group', 'task']),
   id: z.string(),
   title: z.string(),
   project: ProjectRef.nullable(),
   person: UserCard.nullable(),
   taskId: z.string().nullable(),
+  /** A group only: the person who made it. The maker alone removes people. Null for the other kinds. */
+  makerId: z.string().nullable(),
+  /** A group only: its first three people in the order they joined, for the pictures of the row. Empty for the other kinds. */
+  members: z.array(UserCard).max(3),
   preview: z.string(),
   previewAuthor: UserCard.nullable(),
   previewMine: z.boolean(),

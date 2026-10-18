@@ -43,8 +43,8 @@ order by n.user_id`;
 
 /**
  * $1 the ids of the messages that the save inserted. The people who read those chats and did not write the message: a direct
- * chat goes to its two members, a project chat to the leader, the team and the Admins. The author and the person the author
- * acts for (an agent writes for a person) never get it.
+ * chat or a group goes to its members, a project chat to the leader, the team and the Admins. The author and the person the
+ * author acts for (an agent writes for a person) never get it.
  */
 export const PUSH_MESSAGE_PEOPLE_SQL = `with sent as (
   select m.doc->>'authorId' as author_id, m.doc->>'actingForId' as acting_for_id, c.kind, c.project_id, c.doc->'memberIds' as member_ids
@@ -54,7 +54,7 @@ export const PUSH_MESSAGE_PEOPLE_SQL = `with sent as (
 audience as (
   select s.author_id, s.acting_for_id, member.user_id
   from sent s cross join lateral jsonb_array_elements_text(s.member_ids) as member(user_id)
-  where s.kind = 'direct'
+  where s.kind in ('direct', 'group')
   union
   select s.author_id, s.acting_for_id, p.leader_id
   from sent s join projects p on p.id = s.project_id
@@ -120,9 +120,9 @@ export async function pushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'peop
   return [...people].sort().map((userId) => ({ kind: PUSH_EFFECT, payload: { userId } }));
 }
 
-/** The people who read a chat, as PUSH_MESSAGE_PEOPLE_SQL finds them: a direct chat's two members; a project's leader, team and Admins. */
+/** The people who read a chat, as PUSH_MESSAGE_PEOPLE_SQL finds them: the members of a direct chat or a group; a project's leader, team and Admins. */
 function chatAudience(lists: OfficeSnapshot['lists'], chat: Conversation): string[] {
-  if (chat.kind === 'direct') return [...chat.memberIds];
+  if (chat.kind !== 'project') return [...chat.memberIds];
   if (chat.projectId === null) return [];
   const projectId = chat.projectId;
   const out = Object.values(lists.members).filter((m) => m.projectId === projectId).map((m) => m.userId);

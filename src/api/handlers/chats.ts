@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
-import { addDirectConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { addDirectConversation, addGroupConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
@@ -19,10 +19,24 @@ const previewOf = (body: string): string => {
   return flat.length > PREVIEW_MAX ? `${flat.slice(0, PREVIEW_MAX - 1)}…` : flat;
 };
 
+/**
+ * The chat the person may open. A group that the person may not open answers as a missing chat, so an outsider learns nothing
+ * of it (Review Focus 1, owner rule of 2026-10-18). A project or direct chat keeps its answer.
+ */
 function requireConversation(ctx: Ctx, id: string): Conversation {
   const conversation = ctx.state.conversations[id];
   if (!conversation) throw notFound('Conversation', id);
-  if (!canSeeConversation(ctx.state, conversation, ctx.authority)) throw forbidden('You cannot open this chat.', { conversationId: id });
+  if (!canSeeConversation(ctx.state, conversation, ctx.authority)) {
+    if (conversation.kind === 'group') throw notFound('Conversation', id);
+    throw forbidden('You cannot open this chat.', { conversationId: id });
+  }
+  return conversation;
+}
+
+/** A group the person may open. Any other chat is refused as not a group. */
+function requireGroup(ctx: Ctx, id: string): Conversation {
+  const conversation = requireConversation(ctx, id);
+  if (conversation.kind !== 'group') throw invalid('conversationId', 'This chat is not a group.');
   return conversation;
 }
 
@@ -47,13 +61,16 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
   const otherId = conversation.kind === 'direct' ? conversation.memberIds.find((id) => id !== viewer.id) : undefined;
   const person = otherId ? cardOf(state, otherId) : null;
   const lastAt = last?.createdAt ?? conversation.createdAt;
+  const group = conversation.kind === 'group';
   return {
     kind: conversation.kind,
     id: conversation.id,
-    title: conversation.kind === 'project' ? (project?.name ?? '') : (person?.name ?? ''),
+    title: conversation.kind === 'project' ? (project?.name ?? '') : group ? (conversation.name ?? '') : (person?.name ?? ''),
     project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     person,
     taskId: null,
+    makerId: group ? (conversation.makerId ?? null) : null,
+    members: group ? conversation.memberIds.slice(0, 3).map((id) => cardOf(state, id)) : [],
     preview: last ? previewOf(last.body) : '',
     previewAuthor: last ? cardOf(state, last.authorId) : null,
     previewMine: last ? isMine(state, last, viewer.id) : false,
@@ -119,7 +136,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
     const last = comments[comments.length - 1];
     return {
       kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null, person: null,
-      taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
+      makerId: null, members: [], taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
       archived: isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt),
     };
@@ -313,6 +330,76 @@ export const chatsOpenDirect = defineCall({
   },
 });
 
+/** A group name: 1 to 60 letters, with the spaces at its ends cut. */
+const GroupName = z.string().trim().min(1).max(GROUP_NAME_MAX);
+
+/** A group of the person and 2 to 49 other active people (owner, 2026-10-18). The person is its maker. It writes no History event. */
+export const chatsCreateGroup = defineCall({
+  input: z.object({ name: GroupName, memberIds: z.array(UserId).min(2).max(GROUP_MAX - 1) }),
+  output: z.object({ id: ConversationId }),
+  run(input, ctx) {
+    const seen = new Set<string>();
+    for (const id of input.memberIds) {
+      const user = ctx.state.users[id];
+      if (!user || user.kind !== 'human' || !user.active) throw invalid('memberIds', 'Pick active people. Agents act for a person.');
+      if (id === ctx.authority.id) throw invalid('memberIds', 'You are in the group already.');
+      if (seen.has(id)) throw invalid('memberIds', 'A person is in the list twice.');
+      seen.add(id);
+    }
+    const group = addGroupConversation(ctx.state, input.name, ctx.authority.id, [ctx.authority.id, ...input.memberIds], ctx.stamp);
+    return { id: group.id };
+  },
+});
+
+/**
+ * Renames a group, adds people or removes people (owner, 2026-10-18). Any member renames and adds. Only the maker removes people,
+ * and the maker never removes itself (chats.leaveGroup does that). A group keeps at least two people. It writes no History event.
+ */
+export const chatsUpdateGroup = defineCall({
+  input: z.object({
+    conversationId: ConversationId,
+    name: GroupName.optional(),
+    add: z.array(UserId).max(GROUP_MAX).optional(),
+    remove: z.array(UserId).max(GROUP_MAX).optional(),
+  }),
+  output: z.object({ id: ConversationId }),
+  run(input, ctx) {
+    const group = requireGroup(ctx, input.conversationId);
+    const add = input.add ?? [];
+    const remove = input.remove ?? [];
+    if (remove.length > 0 && group.makerId !== ctx.authority.id) {
+      throw forbidden('Only the maker of the group removes people.', { conversationId: group.id, reason: 'not_maker' });
+    }
+    if (remove.some((id) => id === group.makerId || !group.memberIds.includes(id))) throw invalid('remove', 'Pick a person of the group who is not the maker.');
+    const kept = group.memberIds.filter((id) => !remove.includes(id));
+    const seen = new Set<string>();
+    for (const id of add) {
+      const user = ctx.state.users[id];
+      if (!user || user.kind !== 'human' || !user.active) throw invalid('add', 'Pick active people. Agents act for a person.');
+      if (group.memberIds.includes(id)) throw invalid('add', 'This person is in the group already.');
+      if (seen.has(id)) throw invalid('add', 'A person is in the list twice.');
+      seen.add(id);
+    }
+    if (kept.length + add.length > GROUP_MAX) throw invalid('add', 'A group holds 50 people at most.', 'group_full');
+    if (kept.length + add.length < 2) throw invalid('remove', 'A group keeps at least two people.', 'group_too_small');
+    ctx.state.conversations[group.id] = { ...group, memberIds: [...kept, ...add], name: input.name ?? group.name };
+    return { id: group.id };
+  },
+});
+
+/** Leaves a group. When the maker leaves, the first other person in the group becomes the maker. A group keeps at least two people. */
+export const chatsLeaveGroup = defineCall({
+  input: z.object({ conversationId: ConversationId }),
+  output: z.object({}),
+  run(input, ctx) {
+    const group = requireGroup(ctx, input.conversationId);
+    const kept = group.memberIds.filter((id) => id !== ctx.authority.id);
+    if (kept.length < 2) throw invalid('conversationId', 'A group keeps at least two people.', 'group_too_small');
+    ctx.state.conversations[group.id] = { ...group, memberIds: kept, makerId: group.makerId === ctx.authority.id ? kept[0] : group.makerId };
+    return {};
+  },
+});
+
 export const chatsUnreadCount = defineCall({
   input: z.object({}),
   output: z.object({ unread: z.number().int().min(0) }),
@@ -329,5 +416,8 @@ export const chatCalls = {
   'chats.markRead': chatsMarkRead,
   'chats.archive': chatsArchive,
   'chats.openDirect': chatsOpenDirect,
+  'chats.createGroup': chatsCreateGroup,
+  'chats.updateGroup': chatsUpdateGroup,
+  'chats.leaveGroup': chatsLeaveGroup,
   'chats.unreadCount': chatsUnreadCount,
 };

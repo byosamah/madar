@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN } from '../../lib/projectCode';
-import { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+import { DEFAULT_STALE_DAYS, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
-export { DEFAULT_STALE_DAYS, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
+export { DEFAULT_STALE_DAYS, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -546,14 +546,22 @@ export const Comment = z.object({
 });
 export type Comment = z.infer<typeof Comment>;
 
-/** A chat room. A project chat has no member list: its people are the project team and the Admin. A direct chat has exactly two. */
+/**
+ * A chat room. A project chat has no member list: its people are the project team and the Admin. A direct chat has exactly two.
+ * A group (owner, 2026-10-18) has 3 to 50 people, a name and a maker. Its people keep the order in which they joined.
+ */
 export const Conversation = z.object({
   id: ConversationId,
-  kind: z.enum(['project', 'direct']),
+  kind: z.enum(['project', 'direct', 'group']),
   projectId: ProjectId.nullable(),
-  memberIds: z.array(UserId).max(2),
+  memberIds: z.array(UserId).max(GROUP_MAX),
+  // A group only. The maker made the group. When the maker leaves, the first person in memberIds becomes the maker.
+  name: z.string().trim().min(1).max(GROUP_NAME_MAX).optional(),
+  makerId: UserId.optional(),
   createdAt: Stamp,
-});
+})
+  .refine((c) => c.kind !== 'direct' || c.memberIds.length === 2, { message: 'A direct chat holds exactly two people.' })
+  .refine((c) => c.kind !== 'group' || (c.name !== undefined && c.makerId !== undefined), { message: 'A group has a name and a maker.' });
 export type Conversation = z.infer<typeof Conversation>;
 
 export const MESSAGE_MAX = 4000;

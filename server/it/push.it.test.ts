@@ -140,6 +140,20 @@ describe('browser push on the local database, as madar_server', () => {
     expect(pushedTo()).toEqual([endpointOf(b.id)]);
   });
 
+  it('pushes a group message to the other people of the group, and to nobody outside it (2026-10-18)', async () => {
+    const [a, b, c] = members;
+    const outsider = members.find((u) => u.id !== a.id && u.id !== b.id && u.id !== c.id);
+    await register(b.id);
+    await register(c.id);
+    posted.length = 0;
+    await office.sql('truncate outbox');
+    const group = okOf<{ id: string }>(await call(a.id, 'chats.createGroup', { name: 'Push team', memberIds: [b.id, c.id] }));
+    okOf(await call(a.id, 'chats.send', { conversationId: group.id, body: 'Group hello' }));
+    expect(pushedTo()).toEqual([endpointOf(b.id), endpointOf(c.id)].sort());
+    expect(pushedTo()).not.toContain(endpointOf(a.id));
+    if (outsider) expect(pushedTo()).not.toContain(endpointOf(outsider.id));
+  });
+
   it('writes no push row for a person with no device', async () => {
     const [sara, omar] = members;
     await register(omar.id);

@@ -6,13 +6,17 @@ import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
+import { TextField } from '../../components/Fields';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { Sheet } from '../../components/Sheet';
 import { ChatList } from './ChatList';
 import { ConversationPane } from './ConversationPane';
 
-/** Starts a direct chat: a person is picked, and the chat opens. */
+/**
+ * Starts a direct chat: a person is picked, and the chat opens with one tap. "Make a group" lets the person pick two people or
+ * more: then a name field and "Make group" show (owner, 2026-10-18).
+ */
 function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -22,23 +26,52 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   const session = useCall('session.get', {}, { enabled: open });
   const meId = session.data?.authority.id;
   const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId).sort(byName);
+  const [grouping, setGrouping] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState('');
   const openChat = useAction('chats.openDirect', {
     onSuccess: ({ id }) => {
       onOpenChange(false);
       navigate(`/inbox/${id}`);
     },
   });
+  const makeGroup = useAction('chats.createGroup', {
+    onSuccess: ({ id }) => {
+      onOpenChange(false);
+      navigate(`/inbox/${id}`);
+    },
+  });
+  // A closed sheet starts again in one tap: no group is half picked when it opens next time.
+  const close = (next: boolean) => {
+    if (!next) {
+      setGrouping(false);
+      setPicked([]);
+      setGroupName('');
+    }
+    onOpenChange(next);
+  };
+  const toggle = (id: string) => setPicked((list) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]));
+  const footer = !grouping ? undefined : picked.length < 2 ? <p className="text-footnote text-ink-2">{t('chat.pickHint')}</p> : (
+    <div className="flex flex-col gap-3">
+      <TextField id="new-group-name" label={t('chat.groupName')} value={groupName} onChange={(event) => setGroupName(event.target.value)} />
+      <Button variant="primary" disabled={groupName.trim() === '' || makeGroup.isPending} onClick={() => makeGroup.mutate({ name: groupName.trim(), memberIds: picked })}>
+        {t('chat.makeGroup')}
+      </Button>
+    </div>
+  );
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={t('chat.pickPerson')}>
+    <Sheet open={open} onOpenChange={close} title={t('chat.pickPerson')} footer={footer}>
       {users.data && people.length === 0 && <p className="text-subheadline text-ink-2">{t('chat.noPeople')}</p>}
+      {!grouping && people.length > 0 && <Button variant="plain" onClick={() => setGrouping(true)}>{t('chat.groupStart')}</Button>}
       <ul className="flex flex-col">
         {people.map((person) => (
           <li key={person.id}>
             <button
               type="button"
-              disabled={openChat.isPending}
-              onClick={() => openChat.mutate({ userId: person.id })}
-              className="pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start hover:bg-fill/50"
+              aria-pressed={grouping ? picked.includes(person.id) : undefined}
+              disabled={!grouping && openChat.isPending}
+              onClick={() => (grouping ? toggle(person.id) : openChat.mutate({ userId: person.id }))}
+              className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start hover:bg-fill/50 ${grouping && picked.includes(person.id) ? 'bg-fill' : ''}`}
             >
               <Avatar user={person} size={36} />
               <span className="flex min-w-0 flex-col">

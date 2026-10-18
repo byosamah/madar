@@ -22,6 +22,12 @@ export const MAX_HELPERS = 10;
 /** The most files one comment or one chat message carries. */
 export const MAX_ATTACHMENTS = 10;
 
+/** The most people in one group chat (owner, 2026-10-18). A group starts with 3 people. */
+export const GROUP_MAX = 50;
+
+/** The most letters of a group name. */
+export const GROUP_NAME_MAX = 60;
+
 /** The absolute ceiling for one file (spec 2, section 8). The active file store of the real build can set a lower limit (plan 2b, point 1). */
 export const MAX_FILE_BYTES = 250 * 1024 * 1024;
 

@@ -22,7 +22,8 @@ import {
  * after the office lock for a write, and runs the handler on the State it returns. The table of plan 4.6 names the loaders:
  *
  *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get, chats.openDirect).
- *                  projects.create reads its project template from them too.
+ *                  projects.create reads its project template from them too. The group calls (chats.createGroup,
+ *                  chats.updateGroup, chats.leaveGroup) read the chat rooms there too.
  *   feedback       the office and every feedback row
  *   project        one project P: its view, and its files, Tracker entries or payments when the call scans them
  *   task           one task T: every task of its project, and its events, comments, files and Tracker entry
@@ -147,6 +148,9 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
   'chats.openDirect': office,
+  'chats.createGroup': office,
+  'chats.updateGroup': office,
+  'chats.leaveGroup': office,
   'chats.unreadCount': chat(chatsUnread),
 
   'dashboard.get': overview(dashboardGet),

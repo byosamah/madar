@@ -47,7 +47,30 @@ function withDirectMessage(seed: State, message: { authorId: string; actingForId
   return after;
 }
 
+/** A group with the given people and one new message of usr_002. The group has no project, as a direct chat has none. */
+function withGroupMessage(seed: State, memberIds: string[]): State {
+  const after = structuredClone(seed);
+  after.conversations.cnv_902 = { id: 'cnv_902', kind: 'group', projectId: null, memberIds, name: 'Tower team', makerId: 'usr_002', createdAt: STAMP };
+  const base = Object.values(seed.messages)[0];
+  after.messages.msg_902 = { ...base, id: 'msg_902', conversationId: 'cnv_902', authorId: 'usr_002', actingForId: 'usr_002' } as State['messages'][string];
+  return after;
+}
+
 describe('the mail and push producers on SQLite (server/mail/notices.ts, server/push/notify.ts)', () => {
+  it('writes a push row for each other member of a group message, and never for its author', async () => {
+    const { db, seed } = await office();
+    const after = withGroupMessage(seed, ['usr_002', 'usr_003', 'usr_004']);
+    const rows = await db.tx('write', async (q) => pushRows(q, await liteSave(q, seed, after)));
+    expect(rows).toEqual([{ kind: 'push.notify', payload: { userId: 'usr_003' } }]);
+  });
+
+  it('writes no push row for a person with a device who is not in the group', async () => {
+    const { db, seed } = await office();
+    const after = withGroupMessage(seed, ['usr_002', 'usr_004']);
+    const rows = await db.tx('write', async (q) => pushRows(q, await liteSave(q, seed, after)));
+    expect(rows).toEqual([]);
+  });
+
   it('writes one mail row for each new unread notice whose person takes its mail, in the order of the save', async () => {
     const { db, seed, log } = await office();
     const after = withNotices(seed, [{ id: 'ntf_901', userId: 'usr_002' }, { id: 'ntf_902', userId: 'usr_009' }, { id: 'ntf_903', userId: 'usr_002', read: true }]);

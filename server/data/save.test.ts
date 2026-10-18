@@ -273,6 +273,19 @@ describe('diffState kinds, people and the office', () => {
     expect(diff.projects.size).toBe(0);
   });
 
+  it('sends a group message to the office with no project and no person named, as a direct chat does', () => {
+    const group = copy();
+    group.conversations.cnv_901 = {
+      id: 'cnv_901', kind: 'group', projectId: null, memberIds: ['usr_002', 'usr_003', 'usr_004'], name: 'Tower team', makerId: 'usr_002',
+      createdAt: '2026-10-04T10:00:00.000+03:00',
+    } as State['conversations'][string];
+    group.messages.msg_901 = { ...Object.values(group.messages)[0], id: 'msg_901', conversationId: 'cnv_901' };
+    const diff = diffState(seed, group);
+    expect(diff.office).toBe(true);
+    expect(diff.projects.size).toBe(0);
+    expect(diff.people.size).toBe(0);
+  });
+
   it('names the project of a message in a project chat', () => {
     const after = copy();
     const message = Object.values(after.messages)[0];

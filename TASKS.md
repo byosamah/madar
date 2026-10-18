@@ -637,6 +637,7 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
       in `secrets/test.env` (`new-secret.ts`, R2), and `secrets.ts test` gives both to the Worker on every host word (Task 19)
 - [ ] When Track R merges (`unread_counts`): the import carries the stored unread numbers too (`ServerRows.unreadCounts` in
       `pgSource`, `exportSource` and `importFinish`), with a test that a badge after an import equals the badge before it
+- [ ] Track R must also count group chats and leave out archived chats (fbk_011, plan 2026-10-18, wave 2 Task 7 of the group chat build)
       (wave 4 plan, Merge note 3)
 - [ ] Exit wave 6: production takes the word office (lift `OFFICE_COPIES_OPEN`), its binding, migration and Cron, `new-secret.ts`
       and `auth-key.ts` for production, `secrets.ts --office` for production, `office-backup.yml` on production, the restore

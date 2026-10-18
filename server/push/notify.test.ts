@@ -96,9 +96,9 @@ describe('the SQL of the producer keeps the rules', () => {
     expect(PUSH_MESSAGE_PEOPLE_SQL).toMatch(/is distinct from a\.acting_for_id/);
   });
 
-  it('reads the new messages by their ids, with a direct chat to its members and a project chat to its leader, team and Admins', () => {
+  it('reads the new messages by their ids, with a direct chat or a group to its members and a project chat to its leader, team and Admins', () => {
     expect(PUSH_MESSAGE_PEOPLE_SQL).toMatch(/m\.id = any\(\$1::text\[\]\)/);
-    expect(PUSH_MESSAGE_PEOPLE_SQL).toContain("s.kind = 'direct'");
+    expect(PUSH_MESSAGE_PEOPLE_SQL).toContain("s.kind in ('direct', 'group')");
     expect(PUSH_MESSAGE_PEOPLE_SQL).toContain('p.leader_id');
     expect(PUSH_MESSAGE_PEOPLE_SQL).toContain('from sent s join members mb');
     expect(PUSH_MESSAGE_PEOPLE_SQL).toContain("adm.doc->>'systemRole' = 'admin'");

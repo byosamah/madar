@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Message } from '../../src/api/contract/entities';
 import type { ChatRow } from '../../src/api/contract/views';
-import { addDirectConversation } from '../../src/api/chatState';
+import { addDirectConversation, addGroupConversation } from '../../src/api/chatState';
 import { nextId, type State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { memoryData, type MemoryData } from '../core/memoryData';
@@ -30,6 +30,8 @@ let seed: State;
 let hala3: string;
 let faisalAndTurki: string;
 let projectRoom: string;
+let groupRoom: string;
+const GROUP_SECRET = 'The group text is for the group only.';
 
 function say(state: State, conversationId: string, authorId: string, body: string): void {
   const id = nextId(state, 'msg');
@@ -46,6 +48,9 @@ beforeAll(async () => {
   faisalAndTurki = addDirectConversation(seed, 'usr_002', 'usr_010', STAMP).id;
   say(seed, faisalAndTurki, 'usr_010', 'A chat that the Admin may not open.');
   projectRoom = Object.values(seed.conversations).find((c) => c.kind === 'project')!.id;
+  // A group of the Admin (the person of the agent), Reem and Turki, with a text that no agent may read.
+  groupRoom = addGroupConversation(seed, 'Tower team', 'usr_003', ['usr_003', 'usr_001', 'usr_010'], STAMP).id;
+  say(seed, groupRoom, 'usr_010', GROUP_SECRET);
 });
 
 type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData };
@@ -148,6 +153,17 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(direct.person).toMatchObject({ id: 'usr_003' });
     // A project chat keeps its preview: the project team reads it.
     expect(rows.some((row) => row.kind === 'project' && row.preview !== '')).toBe(true);
+  });
+
+  it('lists a group with no preview either: an agent never reads a group message', async () => {
+    const w = world();
+    const { text, result } = await call(w, 'chats.list', {});
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).not.toContain(GROUP_SECRET);
+    const rows = result.structuredContent.output as ChatRow[];
+    expect(rows.find((row) => row.id === groupRoom)).toMatchObject({
+      kind: 'group', title: 'Tower team', preview: '', previewAuthor: null, previewMine: false,
+    });
   });
 
   it('gives an agent no way to read a chat: chats.messages is not a tool', async () => {

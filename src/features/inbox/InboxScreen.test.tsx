@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { addGroupConversation } from '../../api/chatState';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
@@ -387,5 +388,73 @@ describe('the Inbox archive (owner, 2026-10-18)', () => {
     expect(within(chatsList()).getByRole('button', { name: 'Archived (1)' })).toBeInTheDocument();
     expect(within(chatsList()).getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
     expect(within(chatsList()).queryByRole('button', { name: 'Back to Inbox' })).toBeNull();
+  });
+});
+
+/** A group of Hala (usr_001, the maker), Faisal (usr_002) and the person usr_003, made in the sample office. */
+const withGroup = (state: State) => {
+  addGroupConversation(state, 'Tower team', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-30T09:00:00.000+03:00');
+};
+
+/** Opens the group from the list and its menu of group options. */
+async function openGroupMenu() {
+  await userEvent.click(await rowLink(/Tower team/));
+  await screen.findByRole('heading', { level: 2, name: 'Tower team' });
+  await userEvent.click(screen.getByRole('button', { name: 'Group options' }));
+}
+
+describe('group chats', () => {
+  it('makes a group of the two people picked, with a name, and opens it', async () => {
+    const { store } = await renderApp('/inbox');
+    await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Make a group' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Faisal Al-Harbi/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Reem Al-Ghamdi/ }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Group name' }), 'Tower team');
+    await userEvent.click(screen.getByRole('button', { name: 'Make group' }));
+    await waitFor(() => expect(window.location.hash).toMatch(/#\/inbox\/cnv_\d+/));
+    expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')).toMatchObject({ name: 'Tower team', makerId: 'usr_001' });
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tower team' })).toBeInTheDocument();
+  });
+
+  it('shows a group in the list by its name', async () => {
+    await renderApp('/inbox', withGroup);
+    expect(await rowLink(/Tower team/)).toBeInTheDocument();
+  });
+
+  it('lets the maker rename the group', async () => {
+    await renderApp('/inbox', withGroup);
+    await openGroupMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const field = await screen.findByRole('textbox', { name: 'Group name' });
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Tower design team');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tower design team' })).toBeInTheDocument();
+  });
+
+  it('shows Remove a person to the maker', async () => {
+    await renderApp('/inbox', withGroup);
+    await openGroupMenu();
+    expect(await screen.findByRole('menuitem', { name: 'Remove a person' })).toBeInTheDocument();
+  });
+
+  it('hides Remove a person from a member who is not the maker', async () => {
+    await renderApp('/inbox', (state) => {
+      withGroup(state);
+      state.session.currentUserId = 'usr_002';
+    });
+    await openGroupMenu();
+    await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(screen.queryByRole('menuitem', { name: 'Remove a person' })).toBeNull();
+  });
+
+  it('lets a person leave the group after a confirm step', async () => {
+    await renderApp('/inbox', withGroup);
+    await openGroupMenu();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Leave group' }));
+    expect(await screen.findByRole('heading', { name: 'Leave this group?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave the group' }));
+    await waitFor(() => expect(screen.getByRole('list', { name: 'Chats' })).not.toHaveTextContent('Tower team'));
   });
 });
