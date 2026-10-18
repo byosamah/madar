@@ -97,6 +97,13 @@ function rest(office: State): Record<string, [unknown, string?]> {
     // The link of prj_001 (fbk_008 item 4): no pick, so every part of the template is dropped. It runs before the removers.
     'projectTemplates.matchPlan': [{ projectId: 'prj_001', templateId: plan.id }],
     'projectTemplates.link': [{ projectId: 'prj_001', templateId: plan.id, stageMatches: {}, taskMatches: {}, rolePeople: {} }],
+    // The update of prj_001 (fbk_008 item 4), after its link: the link dropped every part, so the Admin brings them back.
+    'projectTemplates.usage': [{ templateId: plan.id }],
+    'projectTemplates.syncPlan': [{ templateId: plan.id, projectIds: ['prj_001'] }],
+    'projectTemplates.syncApply': [{
+      templateId: plan.id, projectId: 'prj_001',
+      choices: { add: false, bringBack: true, removed: 'keep', text: false, dates: false, leads: false, closed: 'leave', stages: false },
+    }],
     'push.mine': [{}],
     'push.register': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token', label: 'Chrome on Mac' }],
     'push.remove': [{ endpoint: 'https://fcm.googleapis.com/fcm/send/sample-token' }],

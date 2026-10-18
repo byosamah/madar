@@ -29,7 +29,7 @@ describe('the health check', () => {
     const client = fakeClient();
     const result = await checkHealth({ connect: async () => client, region: 'eu-central-1' });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 123 checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+    expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 126 checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
     const starts = ['begin isolation level repeatable read, read only', 'set local statement_timeout', 'select pg_advisory_xact_lock($1::int4, $2::int4)', 'select count(*)::int as held', 'commit'];
     expect(client.seen).toHaveLength(starts.length);
     client.seen.forEach((s, n) => expect(s.text.startsWith(starts[n])).toBe(true));

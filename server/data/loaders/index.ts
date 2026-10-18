@@ -4,7 +4,7 @@ import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
 import { chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread } from './chat';
 import { inboxCount, inboxList } from './inbox';
-import { dashboardGet, eventsList, projectsList, searchQuery, tasksList } from './overview';
+import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
   trackerList, trackerLog, updatesList,
@@ -172,6 +172,10 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   // The link reads the stages and tasks of its project, and writes them (fbk_008 item 4).
   'projectTemplates.matchPlan': project((L, i) => projectCall(L, i.projectId)),
   'projectTemplates.link': project((L, i) => projectCall(L, i.projectId)),
+  // The update of a template (fbk_008 item 4): the reads list projects and read their tasks; the apply loads its one project.
+  'projectTemplates.usage': overview(templateSyncTasks),
+  'projectTemplates.syncPlan': overview(templateSyncTasks),
+  'projectTemplates.syncApply': project((L, i) => projectCall(L, i.projectId)),
 
   'push.mine': push(pushMine),
   'push.register': push(pushRegister),

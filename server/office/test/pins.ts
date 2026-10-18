@@ -24,6 +24,15 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'events.list', input: { limit: 500 }, actorId: 'usr_001', rowsRead: 19, sinceHours: 1 },
   // The read that keeps events_project (Task 18 Step 5: 62 rows with it, 12,815 without it). Wave 0 had no pin for it.
   { name: 'events.list', input: { projectId: 'prj_001', limit: 50 }, actorId: 'usr_001', rowsRead: 69 },
+  // The update plan of 50 listed projects (fbk_008 item 4, Task 23). It reads the tasks of the listed projects, which cannot be more
+  // rows than projects.list reads for all projects (2,028 above, tasks and feed). The ceiling is that bound, not a measured value:
+  // the merge lead measures it on the year office and lowers it. The year office links no project, so it gives an empty plan.
+  {
+    name: 'projectTemplates.syncPlan',
+    input: { templateId: 'ptp_003', projectIds: Array.from({ length: 50 }, (_, i) => `prj_${String(i + 1).padStart(3, '0')}`) },
+    actorId: 'usr_001',
+    rowsRead: 2_028,
+  },
 ];
 
 export type WritePin = { name: string; rowsWritten: number };

@@ -122,7 +122,10 @@
       "already_linked": "This project is already linked to a template.",
       "part_not_in_template": "A part of the link is not in the template. Reload the page and try again.",
       "item_not_in_project": "An item is not in this project. Reload the page and try again.",
-      "duplicate_match": "One project item matches two parts of the template. Choose each item once."
+      "duplicate_match": "One project item matches two parts of the template. Choose each item once.",
+      "not_linked": "This project is not linked to a template. Link it first.",
+      "other_template": "This project is linked to another template.",
+      "date_reason_needed": "Write why the dates change."
     }
   }
 }

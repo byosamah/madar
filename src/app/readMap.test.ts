@@ -123,6 +123,13 @@ function inputsOf(name: string, s: State): unknown[] {
       const plan = Object.values(s.projectTemplates ?? {}).find((template) => template.tasks.length > 0);
       return plan ? projectIds.map((projectId) => ({ projectId, templateId: plan.id })) : [];
     }
+    case 'projectTemplates.usage':
+    case 'projectTemplates.syncPlan': {
+      // The Admin reads the open projects of a template, and the update plan of the listed projects (fbk_008 item 4). Others get forbidden.
+      const plan = Object.values(s.projectTemplates ?? {}).find((template) => template.tasks.length > 0);
+      if (!plan) return [];
+      return name === 'projectTemplates.usage' ? [{ templateId: plan.id }] : [{ templateId: plan.id, projectIds: projectIds.slice(0, 50) }];
+    }
     case 'taskTemplates.list': return [{}, ...(stageName ? [{ stageName }] : [])];
     default: return [{}];
   }

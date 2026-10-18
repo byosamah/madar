@@ -153,3 +153,15 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);
 }
+
+/**
+ * projectTemplates.usage and projectTemplates.syncPlan (fbk_008 item 4): the tasks of the listed projects, which the diff of a template
+ * update reads. The projects, their stages and the people are in the office already. usage names no project, so it reads no task.
+ * Only plain selects here, so the SQLite form needs no twin (the lite source compiles each select).
+ */
+export async function templateSyncTasks(L: Load, input: Input): Promise<void> {
+  const ids = Array.isArray(input.projectIds)
+    ? input.projectIds.filter((id): id is string => typeof id === 'string' && L.office.projects[id] !== undefined)
+    : [];
+  await tasksOf(L, ids);
+}

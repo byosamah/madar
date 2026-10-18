@@ -392,7 +392,7 @@ export const tasksCreateFromTemplate = defineCall({
  * The move a change makes to the dates of a task, or null. A date that was empty and gets its first value is not a move:
  * only a start or a due date that had a value and now has another one (or none) needs a reason.
  */
-function dateMoveOf(task: Task, changes: Partial<Task>): DateMove | null {
+export function dateMoveOf(task: Task, changes: Partial<Task>): DateMove | null {
   const from = { startDate: task.startDate ?? null, dueDate: task.dueDate };
   const to = {
     startDate: 'startDate' in changes ? changes.startDate ?? null : from.startDate,

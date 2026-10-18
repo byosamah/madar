@@ -73,6 +73,9 @@ export const READS: Record<string, ReadRule> = {
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['projectTemplates', 'users']),
   'projectTemplates.matchPlan': rule('project', ['projectTemplates', 'projects', 'stages', 'tasks', 'users'], byProjectId),
+  // The update of a template (fbk_008 item 4): the list reads the open projects, the plan reads the tasks of the listed projects too.
+  'projectTemplates.usage': rule('office', ['projectTemplates', 'projects', 'settings', 'users']),
+  'projectTemplates.syncPlan': rule('office', ['projectTemplates', 'projects', 'settings', 'stages', 'tasks', 'users']),
   'feedback.list': rule('office', ['feedback', 'users']),
   'session.get': rule('person', ['projects', 'users', 'preferences']),
   // No 'feedback': a report notice reads only if its report exists. Only the Undo of the send deletes a report, and that Undo

@@ -78,6 +78,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Link an older project (fbk_008 item 4, Admin only): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
   `src/lib/templateMatch.ts`). `projectTemplates.link` writes one story: the `templateLink`, each matched part id, and `droppedPartIds`
   for each part with no pick. A second link is refused (`already_linked`). Both calls are on the MCP deny list.
+- Update of linked projects (fbk_008 item 4, Admin only): `projectTemplates.usage` lists the open projects, linked or not.
+  `projectTemplates.syncPlan` gives the diff (`syncDiff`, `src/api/templateSync.ts`) of each listed project linked to the template.
+  `projectTemplates.syncApply` makes the picked changes of one project, in one story. A closed task keeps its dates and its lead.
+  A dropped part comes back only with `bringBack`. The plan uses the template lengths from the project start. All three are on the MCP deny list.
 
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.

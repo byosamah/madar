@@ -55,7 +55,7 @@ const LEAD_CALLS = ['tasks.take'];
 // The shared order of tasks inside a date group of the Tasks screen and Home (owner, 2026-10-07).
 const ORDER_CALLS = ['tasks.arrange'];
 // Project templates: stages, tasks, roles and dates (owner, 2026-10-05, item 6a). The Admin links an older project by names (fbk_008 item 4).
-const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete', 'projectTemplates.matchPlan', 'projectTemplates.link'];
+const PROJECT_TEMPLATE_CALLS = ['projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete', 'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply'];
 // Browser push devices (owner, 2026-10-08).
 const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 // The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
@@ -78,7 +78,7 @@ describe('the call map', () => {
       const read = SERVER_CALLS.includes(name)
         ? SERVER_READS.has(name)
         : /\.(list|get|count|query)$/.test(name) || CHAT_READS.has(name) || name === 'tracker.export' || name === 'feedback.screenshot'
-          || name === 'projectTemplates.matchPlan';
+          || name === 'projectTemplates.matchPlan' || name === 'projectTemplates.usage' || name === 'projectTemplates.syncPlan';
       expect({ name, readOnly: Boolean((def as { readOnly?: boolean }).readOnly) }).toEqual({ name, readOnly: read });
     }
   });

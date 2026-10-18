@@ -1,16 +1,24 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  Gender, ProjectId, ProjectTemplate, ProjectTemplateId, StageId, TaskId, TEMPLATE_MAX_ROLES, TEMPLATE_MAX_STAGES, TEMPLATE_MAX_TASKS,
-  TemplatePartId, TemplateRole, TemplateStage, TemplateTask, UserId,
+  Gender, Project, ProjectId, ProjectStatus, ProjectTemplate, ProjectTemplateId, Stage, StageId, Task, TaskId, TEMPLATE_MAX_ROLES,
+  TEMPLATE_MAX_STAGES, TEMPLATE_MAX_TASKS, TemplatePartId, TemplateRole, TemplateStage, TemplateTask, UserId,
 } from '../contract/entities';
+import { ProjectRef } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, recordDelete } from '../events';
-import { hasCycle } from '../flow';
-import { matchByNames } from '../../lib/templateMatch';
+import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
+import { hasCycle, watchStage } from '../flow';
+import { notifyIn } from '../notify';
+import { staleDaysOf } from '../pause';
+import { can } from '../permissions';
 import { nextId, projectTemplatesOf } from '../store';
-import { namesUnder } from '../views';
-import { assertCan } from './shared';
+import { markOf } from '../../lib/projectMark';
+import { matchByNames } from '../../lib/templateMatch';
+import { workingDaysInclusive } from '../../lib/templatePlan';
+import { planOf, syncDiff, type ItemRef, type SyncDiff } from '../templateSync';
+import { namesUnder, stagesOf } from '../views';
+import { assertCan, byName, ensureOnTeam, insertComment, roleIn, touch } from './shared';
+import { dateMoveOf } from './tasks';
 
 const TemplateName = z.string().trim().min(1).max(60);
 
@@ -270,10 +278,294 @@ const projectTemplatesLink = defineCall({
   },
 });
 
+const DateReason = z.string().trim().min(1).max(280);
+
+/** The Admin's picks of one update. Each pick matches a field of SyncChoices (templateSync.ts). */
+const SyncChoicesInput = z.object({
+  add: z.boolean(),
+  bringBack: z.boolean(),
+  removed: z.enum(['keep', 'delete_unstarted']),
+  text: z.boolean(),
+  dates: z.boolean(),
+  leads: z.boolean(),
+  closed: z.enum(['leave', 'text_only']),
+  stages: z.boolean(),
+});
+
+const PartRefOut = z.object({ partId: TemplatePartId, title: z.string(), stagePartId: TemplatePartId.nullable() });
+const ItemRefOut = z.object({ itemId: z.string(), partId: TemplatePartId, title: z.string() });
+const SyncDiffOut = z.object({
+  add: z.array(PartRefOut), dropped: z.array(PartRefOut), removed: z.array(ItemRefOut), text: z.array(ItemRefOut), dates: z.array(ItemRefOut),
+  leads: z.array(ItemRefOut), closed: z.array(ItemRefOut), stages: z.array(ItemRefOut), people: z.array(UserId),
+});
+
+const UsageRow = z.object({ project: ProjectRef, status: ProjectStatus, staleDays: z.number().int().nullable() });
+const SyncCounts = z.object({
+  added: z.number().int(), broughtBack: z.number().int(), removed: z.number().int(), text: z.number().int(), dates: z.number().int(),
+  leads: z.number().int(), closed: z.number().int(), stages: z.number().int(),
+});
+
+const refOf = (project: Project) => ({ id: project.id, code: project.code, name: project.name, mark: markOf(project) });
+
+function templateOf(ctx: Ctx, templateId: string): ProjectTemplate {
+  const template = projectTemplatesOf(ctx.state)[templateId];
+  if (!template) throw notFound('Project template', templateId);
+  return template;
+}
+
+/** A person the template update may name: active, and a person (an agent acts for a person). */
+const activePerson = (ctx: Ctx) => (userId: string): boolean => {
+  const user = ctx.state.users[userId];
+  return user !== undefined && user.kind === 'human' && user.active;
+};
+
+/** The date fields that the plan gives a task. A dynamic task also keeps its working days. */
+function plannedChanges(task: Task, planned: { startDate: string; dueDate: string }): Partial<Task> {
+  const changes: Partial<Task> = { startDate: planned.startDate, dueDate: planned.dueDate };
+  if (task.schedule === 'dynamic') changes.durationDays = workingDaysInclusive(planned.startDate, planned.dueDate);
+  return changes;
+}
+
+/**
+ * The open projects of a template (fbk_008 item 4): the projects linked to it, and the open projects with no link yet. Open means
+ * active or on hold. staleDays is the days a paused project has waited, when it is stale.
+ */
+const projectTemplatesUsage = defineCall({
+  input: z.object({ templateId: ProjectTemplateId }),
+  output: z.object({ linked: z.array(UsageRow), notLinked: z.array(UsageRow) }),
+  readOnly: true,
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    const template = templateOf(ctx, input.templateId);
+    const row = (project: Project) => ({ project: refOf(project), status: project.status, staleDays: staleDaysOf(ctx.state, project, ctx.today) });
+    const open = Object.values(ctx.state.projects).filter((project) => project.status === 'active' || project.status === 'on_hold').sort(byName);
+    return {
+      linked: open.filter((project) => project.templateLink?.templateId === template.id).map(row),
+      notLinked: open.filter((project) => !project.templateLink).map(row),
+    };
+  },
+});
+
+/**
+ * The diff of each listed project that is linked to the template (fbk_008 item 4). A project that does not exist, or is not linked to
+ * this template, gets no row. Nothing changes: the Admin reads the diff before syncApply.
+ */
+const projectTemplatesSyncPlan = defineCall({
+  input: z.object({ templateId: ProjectTemplateId, projectIds: z.array(ProjectId).min(1).max(50) }),
+  output: z.array(z.object({ project: ProjectRef, diff: SyncDiffOut })),
+  readOnly: true,
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    const template = templateOf(ctx, input.templateId);
+    const rows: { project: ReturnType<typeof refOf>; diff: SyncDiff }[] = [];
+    for (const projectId of new Set(input.projectIds)) {
+      const project = ctx.state.projects[projectId];
+      if (!project || project.templateLink?.templateId !== template.id) continue;
+      const { stages, tasks } = itemsOf(ctx, projectId);
+      rows.push({ project: refOf(project), diff: syncDiff(template, project, stages, tasks, activePerson(ctx)) });
+    }
+    return rows;
+  },
+});
+
+/**
+ * The template update of one project (fbk_008 item 4). It makes only the picks that the Admin ticks, and it moves the project's link
+ * to the update. A date move needs one reason (dateReason) before any change. The change of each project is in one story, so one Undo of
+ * the story takes all of it back. A task that was dropped comes back only with bringBack. A closed task keeps its dates and lead.
+ */
+const projectTemplatesSyncApply = defineCall({
+  input: z.object({ templateId: ProjectTemplateId, projectId: ProjectId, choices: SyncChoicesInput, dateReason: DateReason.optional() }),
+  output: SyncCounts,
+  run(input, ctx) {
+    assertCan(ctx, 'admin.manage');
+    const template = templateOf(ctx, input.templateId);
+    const project = ctx.state.projects[input.projectId];
+    if (!project) throw notFound('Project', input.projectId);
+    const link = project.templateLink;
+    if (!link) throw invalid('projectId', 'This project is not linked to a template.', 'not_linked');
+    if (link.templateId !== template.id) throw invalid('templateId', 'This project is linked to another template.', 'other_template');
+    const { choices } = input;
+    const active = activePerson(ctx);
+    const { stages, tasks } = itemsOf(ctx, project.id);
+    const diff = syncDiff(template, project, stages, tasks, active);
+    const plan = planOf(template, project);
+    // A date move asks one reason first, before any change (owner rule, 2026-10-01).
+    const movesDates = choices.dates && diff.dates.some((item) => {
+      const task = ctx.state.tasks[item.itemId];
+      const planned = plan?.tasks[item.partId];
+      return planned !== undefined && dateMoveOf(task, plannedChanges(task, planned)) !== null;
+    });
+    if (movesDates && !input.dateReason) throw invalid('dateReason', 'Write why the dates change.', 'date_reason_needed');
+
+    const watch = watchStage(ctx, project.id);
+    const counts = { added: 0, broughtBack: 0, removed: 0, text: 0, dates: 0, leads: 0, closed: 0, stages: 0 };
+    const restored = new Set<string>();
+    const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, project.id) });
+    const stagePart = new Map(template.stages.map((part) => [part.id, part]));
+    const taskPart = new Map(template.tasks.map((part) => [part.id, part]));
+    const rolePart = new Map(template.roles.map((role) => [role.id, role]));
+    // The lead of a role for a new task: the template's person when the lead pick is on, else the person the project has now.
+    const leadOf = (roleId: string): string | null => {
+      const role = rolePart.get(roleId);
+      if (!role) return null;
+      const person = choices.leads ? role.defaultUserId : link.rolePeople[roleId] ?? null;
+      return person !== null && active(person) ? person : null;
+    };
+
+    // Stages: the new names, then the new stages and the dropped stages that come back.
+    const stagesBefore = stagesOf(ctx.state, project.id).map((stage) => ({ ...stage }));
+    let stagesChanged = false;
+    if (choices.stages) {
+      for (const item of diff.stages) {
+        ctx.state.stages[item.itemId].name = stagePart.get(item.partId)!.name;
+        counts.stages += 1;
+        stagesChanged = true;
+      }
+    }
+    const stageParts = [
+      ...(choices.add ? diff.add : []).map((part) => ({ part, back: false })),
+      ...(choices.bringBack ? diff.dropped : []).map((part) => ({ part, back: true })),
+    ].filter(({ part }) => part.stagePartId === null);
+    let order = Math.max(-1, ...stagesOf(ctx.state, project.id).map((stage) => stage.order));
+    for (const { part, back } of stageParts) {
+      const id = nextId(ctx.state, 'stg');
+      const dates = plan?.stages[part.partId];
+      order += 1;
+      ctx.state.stages[id] = {
+        id, projectId: project.id, name: part.title, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null,
+        templatePartId: part.partId,
+      };
+      counts[back ? 'broughtBack' : 'added'] += 1;
+      if (back) restored.add(part.partId);
+      stagesChanged = true;
+    }
+    if (stagesChanged) {
+      writeEvent(ctx, {
+        projectId: project.id, verb: 'project.stages_changed', targetType: 'project', targetId: project.id,
+        before: { stages: stagesBefore }, after: { stages: stagesOf(ctx.state, project.id) },
+      });
+    }
+
+    // Removed tasks: only an open task that nobody started goes, and only when the Admin picks it.
+    if (choices.removed === 'delete_unstarted') {
+      for (const item of diff.removed) {
+        const task = ctx.state.tasks[item.itemId];
+        if (task.status !== 'todo') continue;
+        recordDelete(ctx, { projectId: project.id, verb: 'task.deleted', targetType: 'task', targetId: task.id, entity: task });
+        delete ctx.state.tasks[task.id];
+        counts.removed += 1;
+      }
+    }
+
+    // New tasks: the tasks of the template that the project lacks, and the dropped ones that come back. A task waits for the tasks
+    // that its template task waits for, when those are in the project or made in this update.
+    const stageIdOf = (partId: string): string | undefined =>
+      Object.values(ctx.state.stages).find((stage) => stage.projectId === project.id && stage.templatePartId === partId)?.id;
+    const taskWanted = [
+      ...(choices.add ? diff.add : []).map((part) => ({ part, back: false })),
+      ...(choices.bringBack ? diff.dropped : []).map((part) => ({ part, back: true })),
+    ].filter(({ part }) => part.stagePartId !== null).flatMap(({ part, back }) => {
+      const stageId = stageIdOf(part.stagePartId!);
+      return stageId ? [{ part, back, stageId }] : [];
+    });
+    const idOf = new Map(taskWanted.map(({ part }) => [part.partId, nextId(ctx.state, 'tsk')]));
+    const projectTaskOf = (partId: string) => Object.values(ctx.state.tasks).find((task) => task.projectId === project.id && task.templatePartId === partId);
+    for (const { part, back, stageId } of taskWanted) {
+      const id = idOf.get(part.partId)!;
+      const templateTask = taskPart.get(part.partId)!;
+      const waits = (templateTask.prerequisiteIds ?? []).flatMap((partId): string[] => {
+        const waited = idOf.get(partId) ?? projectTaskOf(partId)?.id;
+        return waited ? [waited] : [];
+      });
+      const planned = plan?.tasks[part.partId];
+      const dynamic = planned !== undefined && waits.length > 0;
+      const ownerId = templateTask.roleId === null ? null : leadOf(templateTask.roleId);
+      if (ownerId !== null) ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
+      const task: Task = {
+        id, projectId: project.id, stageId, title: templateTask.title, description: templateTask.description, ownerId, status: 'todo',
+        startDate: planned?.startDate ?? null, dueDate: planned?.dueDate ?? null,
+        schedule: dynamic ? 'dynamic' : 'static', durationDays: dynamic ? workingDaysInclusive(planned.startDate, planned.dueDate) : null,
+        flagged: false, needsReview: templateTask.needsReview || !maySkipReview,
+        checklist: templateTask.checklist.map((text) => ({ id: nextId(ctx.state, 'chk'), text, done: false })),
+        createdBy: ctx.actor.id, createdAt: ctx.stamp, completedAt: null, templatePartId: part.partId,
+        ...(waits.length > 0 ? { prerequisiteIds: waits } : {}),
+      };
+      ctx.state.tasks[id] = task;
+      recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
+      counts[back ? 'broughtBack' : 'added'] += 1;
+      if (back) restored.add(part.partId);
+    }
+
+    // Text: the title and the description of the template, for open tasks (and for closed ones when the pick says so).
+    const retext = (item: ItemRef) => {
+      const task = ctx.state.tasks[item.itemId];
+      const part = taskPart.get(item.partId)!;
+      applyPatch(ctx, task, { title: part.title, description: part.description }, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
+    };
+    if (choices.text) {
+      for (const item of diff.text) {
+        retext(item);
+        counts.text += 1;
+      }
+    }
+    if (choices.closed === 'text_only') {
+      for (const item of diff.closed) {
+        retext(item);
+        counts.closed += 1;
+      }
+    }
+
+    // Dates: the planned dates, with the reason of each move in the task conversation.
+    if (choices.dates) {
+      for (const item of diff.dates) {
+        const task = ctx.state.tasks[item.itemId];
+        const planned = plan?.tasks[item.partId];
+        if (planned === undefined) continue;
+        const changes = plannedChanges(task, planned);
+        const move = dateMoveOf(task, changes);
+        applyPatch(ctx, task, changes, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
+        if (move && input.dateReason) insertComment(ctx, 'task', task.id, project.id, input.dateReason, [], move);
+        counts.dates += 1;
+      }
+    }
+
+    // Leads: the new person of the role. The person joins the team, and gets the assignment notice.
+    if (choices.leads) {
+      for (const item of diff.leads) {
+        const task = ctx.state.tasks[item.itemId];
+        const part = taskPart.get(item.partId)!;
+        const role = part.roleId === null ? undefined : rolePart.get(part.roleId);
+        if (!role) continue;
+        const person = role.defaultUserId;
+        if (person !== null) ensureOnTeam(ctx, project.id, person, 'ownerId');
+        const changes: Partial<Task> = { ownerId: person };
+        if (person !== null && (task.helperIds ?? []).includes(person)) changes.helperIds = (task.helperIds ?? []).filter((id) => id !== person);
+        applyPatch(ctx, task, changes, { projectId: project.id, verb: 'task.reassigned', targetType: 'task', targetId: task.id });
+        if (person !== null) notifyIn(ctx, { userIds: [person], trigger: 'task_assigned', targetType: 'task', targetId: task.id });
+        counts.leads += 1;
+      }
+    }
+
+    // The link: the template's people for the roles (when the lead pick is on), the dropped parts that came back, and the time.
+    const rolePeople = choices.leads
+      ? Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId !== null && active(role.defaultUserId) ? role.defaultUserId : null]))
+      : { ...link.rolePeople };
+    applyPatch(ctx, project, {
+      templateLink: { ...link, syncedAt: ctx.stamp, rolePeople, droppedPartIds: link.droppedPartIds.filter((id) => !restored.has(id)) },
+    }, { projectId: project.id, verb: 'project.template_synced', targetType: 'project', targetId: project.id });
+    watch.finish({ ask: false });
+    touch(ctx, project.id);
+    return counts;
+  },
+});
+
 export const projectTemplateCalls = {
   'projectTemplates.list': projectTemplatesList,
   'projectTemplates.save': projectTemplatesSave,
   'projectTemplates.delete': projectTemplatesDelete,
   'projectTemplates.matchPlan': projectTemplatesMatchPlan,
   'projectTemplates.link': projectTemplatesLink,
+  'projectTemplates.usage': projectTemplatesUsage,
+  'projectTemplates.syncPlan': projectTemplatesSyncPlan,
+  'projectTemplates.syncApply': projectTemplatesSyncApply,
 };
