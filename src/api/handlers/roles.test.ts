@@ -134,6 +134,26 @@ describe('roles.delete', () => {
       .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'role_in_use', count: 1 } });
     expect(t.store.state.settings.roles?.custom).toHaveLength(1);
   });
+
+  it('deletes a role that a removed person once held, because no list shows that person to move', async () => {
+    const t = world();
+    await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: [] });
+    await t.api.call('users.update', { id: 'usr_005', patch: { roleId: 'rol_002' } });
+    await t.api.call('users.deactivate', { id: 'usr_005' });
+    await t.api.call('users.remove', { id: 'usr_005' });
+    expect(await t.api.call('roles.delete', { id: 'rol_002' })).toEqual({});
+    expect(t.store.state.settings.roles?.custom?.map((role) => role.id)).toEqual(['rol_001']);
+  });
+
+  it('still refuses a role that a turned-off person holds, because the Admin can still move that person', async () => {
+    const t = world();
+    await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: [] });
+    await t.api.call('users.update', { id: 'usr_005', patch: { roleId: 'rol_002' } });
+    await t.api.call('users.deactivate', { id: 'usr_005' });
+    await expect(t.api.call('roles.delete', { id: 'rol_002' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'role_in_use', count: 1 } });
+    expect(t.store.state.settings.roles?.custom?.map((role) => role.id)).toEqual(['rol_001', 'rol_002']);
+  });
 });
 
 describe('the Undo of a role change', () => {
@@ -158,6 +178,17 @@ describe('the Undo of a role change', () => {
     await t.api.call('roles.delete', { id: 'rol_002' });
     await t.api.call('events.undo', { eventId: eventOf(t, 'role.deleted').id });
     expect(t.store.state.settings.roles?.custom?.[1]).toEqual(before);
+  });
+
+  it('takes back a new role that a removed person once held', async () => {
+    const t = world();
+    await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: [] });
+    await t.api.call('users.update', { id: 'usr_005', patch: { roleId: 'rol_002' } });
+    await t.api.call('users.deactivate', { id: 'usr_005' });
+    await t.api.call('users.remove', { id: 'usr_005' });
+    await t.api.call('events.undo', { eventId: eventOf(t, 'role.created').id });
+    expect(t.store.state.settings.roles?.custom?.map((role) => role.id)).toEqual(['rol_001']);
+    expect(eventOf(t, 'role.created').undoneBy).not.toBeNull();
   });
 
   it('takes back a changed built-in right to the rights it had', async () => {

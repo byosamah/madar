@@ -125,8 +125,9 @@ export const rolesDelete = defineCall({
     const custom = roles.custom ?? [];
     const role = custom.find((item) => item.id === input.id);
     if (!role) throw invalid('id', 'This role does not exist.', 'role_missing');
-    // A person keeps the role until the Admin moves them, so the role stays while anyone holds it.
-    const holders = Object.values(ctx.state.users).filter((user) => user.roleId === role.id).length;
+    // A person keeps the role until the Admin moves them, so the role stays while anyone holds it. A removed person is in no list
+    // and the Admin cannot move them, so the count skips them. A turned-off person still counts: the Admin sees and moves them.
+    const holders = Object.values(ctx.state.users).filter((user) => !user.removed && user.roleId === role.id).length;
     if (holders > 0) {
       throw new ApiError('invalid_input', 'People hold this role. Move them to another role first.', { fields: ['id'], reason: 'role_in_use', count: holders });
     }
@@ -157,7 +158,7 @@ export function undoRoleChange(ctx: Ctx, event: Event): Event {
   if (event.verb === 'role.created') {
     const role = custom.find((item) => item.id === event.targetId);
     if (!role || later.length > 0) throw conflict();
-    if (Object.values(ctx.state.users).some((user) => user.roleId === role.id)) throw conflict('Other items now use this. Undo is not available.');
+    if (Object.values(ctx.state.users).some((user) => !user.removed && user.roleId === role.id)) throw conflict('Other items now use this. Undo is not available.');
     roles.custom = custom.filter((item) => item.id !== role.id);
     undo = writeEvent(ctx, { ...meta, before: structuredClone(role), after: null });
   } else if (event.verb === 'role.deleted') {
