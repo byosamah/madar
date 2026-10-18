@@ -18,7 +18,7 @@ export function dayAt(x: number, width: number, days: number): number {
  * reaches past the end of the chart is cut at the end, and a bar is always at least one day long.
  */
 export function barOf(start: number, length: number, days: number): { left: number; width: number } {
-  if (days <= 0) return { left: 0, width: 0 };
+  if (days <= 0) return { left: 0, width: 0 }; // rtl-ok: a share of the chart from its start side, not a screen edge
   const from = Math.min(days - 1, Math.max(0, Math.round(start)));
   const span = Math.min(days - from, Math.max(1, Math.round(length)));
   return { left: (from / days) * 100, width: (span / days) * 100 };

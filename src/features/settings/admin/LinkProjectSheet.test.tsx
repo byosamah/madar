@@ -110,4 +110,15 @@ describe('Link an older project', () => {
     expect(await screen.findByText('This project is already linked to a template.')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Link an older project' })).toBeInTheDocument();
   });
+
+  it('links a role with no person when its default person is no longer active, and does not refuse the link', async () => {
+    const ctx = await setUp();
+    const architect = ctx.plan.roles.find((role) => role.id === 'r1')!;
+    ctx.store.state.users[architect.defaultUserId!].active = false;
+    const { onClose } = await openSheet(ctx);
+    await userEvent.click(screen.getByRole('button', { name: 'Save link' }));
+    expect(await screen.findByText('The project is linked to the template.')).toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(ctx.store.state.projects[ctx.projectId].templateLink!.rolePeople[architect.id]).toBeNull();
+  });
 });

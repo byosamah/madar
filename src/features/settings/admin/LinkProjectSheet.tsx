@@ -61,6 +61,7 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
   const project = useCall('projects.get', { id: projectId });
   const tasks = useCall('tasks.list', { projectId, includeDone: true, activeProjectsOnly: false });
   const match = useCall('projectTemplates.matchPlan', { projectId, templateId: template.id });
+  const users = useCall('users.list', {});
   // The picks that the Admin changed. Until the Admin changes one, the picks are the matches of the names.
   const [changed, setChanged] = useState<Picks | null>(null);
   const picks: Picks = changed ?? match.data ?? { stages: {}, tasks: {} };
@@ -77,13 +78,15 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
     setChanged(kind === 'stages' ? { stages: next, tasks: picks.tasks } : { stages: picks.stages, tasks: next });
   };
   const submit = () => {
-    if (match.data === undefined || save.isPending) return;
+    if (match.data === undefined || users.data === undefined || save.isPending) return;
+    // A role keeps its default person only while that person is active. The server refuses an inactive person.
+    const active = new Set(users.data.filter((user) => user.kind === 'human' && user.active).map((user) => user.id));
     save.mutate({
       projectId,
       templateId: template.id,
       stageMatches: Object.fromEntries(template.stages.map((part) => [part.id, picks.stages[part.id] ?? null])),
       taskMatches: Object.fromEntries(template.tasks.map((part) => [part.id, picks.tasks[part.id] ?? null])),
-      rolePeople: Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId])),
+      rolePeople: Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId !== null && active.has(role.defaultUserId) ? role.defaultUserId : null])),
     });
   };
 
@@ -95,7 +98,7 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
       footer={(
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={match.data === undefined || save.isPending} onClick={submit}>{t('projectTemplates.link.save')}</Button>
+          <Button variant="primary" disabled={match.data === undefined || users.data === undefined || save.isPending} onClick={submit}>{t('projectTemplates.link.save')}</Button>
         </>
       )}
     >
