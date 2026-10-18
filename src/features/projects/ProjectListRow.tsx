@@ -83,10 +83,10 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
               className="w-full max-w-48 @4xl:max-w-none"
             />
           </span>
-          {/* The team as pictures only, the leader first and bigger (colleague's comment 2). Beside the deadline until the row is wide. */}
+          {/* The team as pictures only, the leader first and bigger (colleague's comment 2). The row shows three pictures at most, then "+N" (owner, 2026-10-18). With a leader, the stack shows two team members after the leader. Beside the deadline until the row is wide. */}
           <span className="flex min-w-0 items-center justify-between gap-3 @4xl:contents">
             <span data-team-column className="order-last @4xl:order-none">
-              <AvatarStack leader={summary.leader} team={summary.team} size={26} leaderSize={30} />
+              <AvatarStack leader={summary.leader} team={summary.team} max={summary.leader ? 2 : 3} size={26} leaderSize={30} />
             </span>
             <span className="min-w-0 max-w-full @4xl:text-end">
               <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} />

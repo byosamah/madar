@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { State } from '../../api/store';
+import { memberKey, type State } from '../../api/store';
 import { useCall } from '../../app/runtime';
 import { renderWithRuntime } from '../../test/render';
 import { ProjectCover } from './ProjectCard';
@@ -19,6 +19,14 @@ function Cover({ id }: { id: string }) {
 }
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
+};
+// Sets the leader and the team of prj_001. The team is every member except the leader.
+const teamOf = (leaderId: string | null, teamIds: string[]) => (state: State) => {
+  for (const member of Object.values(state.members)) if (member.projectId === 'prj_001') delete state.members[memberKey(member.projectId, member.userId)];
+  state.projects.prj_001.leaderId = leaderId;
+  for (const userId of [...(leaderId ? [leaderId] : []), ...teamIds]) {
+    state.members[memberKey('prj_001', userId)] = { projectId: 'prj_001', userId, discipline: 'Architect' };
+  }
 };
 const openMenu = async () => {
   fireEvent.contextMenu(await screen.findByRole('link', { name: /Corniche Office Tower/ }), { clientX: 20, clientY: 20 });
@@ -45,6 +53,27 @@ describe('the project row', () => {
     expect(team[1]).toHaveStyle({ width: '26px' });
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');
     expect(within(row).queryByRole('list', { name: 'Latest updates' })).toBeNull();
+  });
+
+  // Feedback fbk_013 (owner, 2026-10-18): three pictures, then "+N". With a leader, the leader takes the first picture.
+  it('shows 3 pictures and "+2" for a leader and 4 team members', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, teamOf('usr_002', ['usr_003', 'usr_004', 'usr_005', 'usr_006']), { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const team = within(row.querySelector('[data-team-column]') as HTMLElement);
+    const pictures = team.getAllByRole('img');
+    expect(pictures).toHaveLength(3);
+    expect(pictures[0]).toHaveAccessibleName('Faisal Al-Harbi');
+    expect(pictures[1]).toHaveAccessibleName('Omar Haddad');
+    expect(pictures[2]).toHaveAccessibleName('Reem Al-Ghamdi');
+    expect(team.getByText('+2')).toBeInTheDocument();
+  });
+
+  it('shows 3 pictures and "+1" for no leader and 4 team members', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, teamOf(null, ['usr_003', 'usr_004', 'usr_005', 'usr_006']), { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const team = within(row.querySelector('[data-team-column]') as HTMLElement);
+    expect(team.getAllByRole('img')).toHaveLength(3);
+    expect(team.getByText('+1')).toBeInTheDocument();
   });
 
   it('truncates a long name and keeps the row in shape', async () => {
