@@ -146,7 +146,8 @@ any screen work.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`, the editor works on a text draft, `templateDraft.ts`)
   and "Start from a template" in the new-project form (`features/projects/TemplateUse.tsx`, `templateForm.ts`). A chosen
   template takes the place of the stage list and makes the start date required. The ticks "Can stretch" stay folded, and show
-  only when the end date gives another length. The dates come from `lib/projectPlan.ts`, as on the server.
+  only when the end date gives another length. The dates come from `lib/projectPlan.ts`, as on the server. The Admin editor moves stages by a grip (`SortableStages.tsx`). The row menu has Duplicate (`duplicateDraft`).
+  Each task and stage has a Waits for picker (`WaitsFor` in `ProjectTemplateEditor.tsx`).
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone; on a phone the tabs show icons only, and the word of each tab stays `sr-only` below
   640 px, owner 2026-10-08), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.

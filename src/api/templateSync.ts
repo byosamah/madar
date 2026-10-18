@@ -50,8 +50,8 @@ export type SyncChoices = {
 export const isClosed = (task: Pick<Task, 'status'>): boolean => task.status === 'done' || task.status === 'in_review';
 
 /**
- * The planned dates of the template for one project: from the project start, in the template's own length, so a team that
- * stretched the project keeps its own end date (the dates pick says so). Null when the project has no start date or no plan.
+ * The planned dates of the template for one project, from the project start, in the template's own lengths. A project that the
+ * team stretched moves back to these lengths when the Admin picks dates. Null when the project has no start date or no plan.
  */
 export function planOf(template: ProjectTemplate, project: Project): Extract<ProjectPlan, { ok: true }> | null {
   if (!project.startDate) return null;

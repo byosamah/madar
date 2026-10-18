@@ -141,11 +141,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project: the screens show it when there is no named deadline. It is null with no end date. subCompanyId names the sub-company, or it is null (subCompanies.list gives the names). geo is the pin on the map ({ lat, lng }), or null.',
+    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project: the screens show it when there is no named deadline. It is null with no end date. subCompanyId names the sub-company, or it is null. geo is the pin on the map ({ lat, lng }), or null. templateId is the id of the template the project came from, or null.',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId, subCompanyId (a sub-company, see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId and geo, as projects.get does.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId, subCompanyId (a sub-company, see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId and geo, as projects.get does. templateId is the id of the template the project came from, or null.',
   },
   'projects.setStatus': {
     title: 'Set the project status',

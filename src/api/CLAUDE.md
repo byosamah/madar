@@ -82,6 +82,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `projectTemplates.syncPlan` gives the diff (`syncDiff`, `src/api/templateSync.ts`) of each listed project linked to the template.
   `projectTemplates.syncApply` makes the picked changes of one project, in one story. A closed task keeps its dates and its lead.
   A dropped part comes back only with `bringBack`. The plan uses the template lengths from the project start. All three are on the MCP deny list.
+- Template links (fbk_008 item 4): a project made from a template keeps `Project.templateLink`. Each stage and task keeps its `templatePartId`.
+  `ProjectTemplate.partSeq` is the highest part number ever given, so a part id is never given twice. `tasks.delete` and `stages.replace`
+  add the removed part id to `droppedPartIds`. `projectTemplates.link` fills it for each part with no pick.
 
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.

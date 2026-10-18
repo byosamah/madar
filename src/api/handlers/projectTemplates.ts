@@ -117,9 +117,9 @@ const numberOf = (partId: string): number => {
 };
 
 /**
- * The highest part number that a template has given (fbk_008 item 4): its stored number, and the numbers in its ids before the
- * save and in the saved ids. A removed part keeps its number, so a new part never gets its id. A template saved before partSeq
- * existed takes its number from its ids.
+ * The highest part number that a template has given (fbk_008 item 4). It is the largest of the stored number, the numbers of
+ * the ids before the save, and the numbers of the saved ids. A removed part keeps its number, so a new part never gets its id.
+ * A template saved before partSeq existed takes its number from its ids.
  */
 function partSeqOf(existing: ProjectTemplate | null, parts: Parts): number {
   const saved = [...parts.roles, ...parts.stages, ...parts.tasks].map((part) => part.id);
@@ -300,6 +300,7 @@ const SyncDiffOut = z.object({
 });
 
 const UsageRow = z.object({ project: ProjectRef, status: ProjectStatus, staleDays: z.number().int().nullable() });
+export type UsageRow = z.infer<typeof UsageRow>;
 const SyncCounts = z.object({
   added: z.number().int(), broughtBack: z.number().int(), removed: z.number().int(), text: z.number().int(), dates: z.number().int(),
   leads: z.number().int(), closed: z.number().int(), stages: z.number().int(),
