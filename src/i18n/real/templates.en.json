@@ -16,6 +16,8 @@
     "dayCount_other": "{{count}} working days",
     "savedBy": "Saved by {{name}}",
     "actions": "Actions for template {{name}}",
+    "duplicate": "Duplicate",
+    "copyOf": "Copy of {{name}}",
     "delete": "Delete",
     "deleted": "Template deleted.",
     "saved": "Template saved.",

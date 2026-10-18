@@ -49,6 +49,37 @@ export function draftOf(template: ProjectTemplate): TemplateDraft {
   };
 }
 
+/** The longest name of a template. The editor and the server both refuse a longer one. */
+const NAME_MAX = 60;
+
+/**
+ * The name of a copy: the copy word, then " 2", " 3" and so on while the name is in use. A name in use is compared without case
+ * and outer spaces. A long name is cut at its end, so the name keeps at most 60 characters and the number stays.
+ */
+function copyName(copy: string, names: readonly string[]): string {
+  const used = new Set(names.map((name) => name.trim().toLowerCase()));
+  for (let n = 1; ; n += 1) {
+    const suffix = n === 1 ? '' : ` ${n}`;
+    const name = `${copy.slice(0, NAME_MAX - suffix.length).trimEnd()}${suffix}`;
+    if (!used.has(name.trim().toLowerCase())) return name;
+  }
+}
+
+/**
+ * A copy of a template, as a draft with no id, so the save makes a new template. The parts keep their ids: an id is unique in
+ * one template only. A default person who is not active becomes empty, so the save never refuses that person.
+ */
+export function duplicateDraft(
+  template: ProjectTemplate, names: readonly string[], activeIds: ReadonlySet<string>, copyWord: (name: string) => string,
+): TemplateDraft {
+  const draft = draftOf(template);
+  return {
+    ...draft,
+    name: copyName(copyWord(template.name), names),
+    roles: draft.roles.map((role) => ({ ...role, defaultUserId: activeIds.has(role.defaultUserId) ? role.defaultUserId : '' })),
+  };
+}
+
 /** A whole number from the text of a field, also with Arabic-Indic or Persian digits. Null when it is not one. */
 export function wholeNumber(value: string): number | null {
   const western = value.trim()

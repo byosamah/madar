@@ -134,6 +134,24 @@ describe('the Admin section Project templates', () => {
     expect(card.querySelector<HTMLInputElement>('#tpl-s1-days')).toHaveValue('');
   });
 
+  it('duplicates a template: the editor opens filled with the copy, and Save makes a new template', async () => {
+    const { store } = await renderApp('/admin/project-templates');
+    const section = await region('Project templates');
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Villa, full design' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Duplicate' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Copy of Villa, full design' });
+    expect(within(sheet).getByLabelText('Template name')).toHaveValue('Copy of Villa, full design');
+    expect(within(sheet).getByLabelText('Name of stage 1')).toHaveValue('Concept');
+    expect(within(sheet).getAllByLabelText('Task')).toHaveLength(11);
+    const original = savedNamed(store, 'Villa, full design') as unknown as { id: string };
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+    expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+    const copy = savedNamed(store, 'Copy of Villa, full design') as unknown as { id: string; tasks: unknown[] };
+    expect(copy.id).not.toBe(original.id);
+    expect(copy.tasks).toHaveLength(11);
+    expect(savedNamed(store, 'Villa, full design')).toBeDefined();
+  });
+
   it('deletes a template, with Undo', async () => {
     const { store } = await renderApp('/admin/project-templates');
     const section = await region('Project templates');

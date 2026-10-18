@@ -240,9 +240,12 @@ function RoleRow({ role, n, people, onChange, onRemove }: {
 /**
  * The editor of one project template (owner, 2026-10-05, item 6a), in a sheet: the name, the roles with a default person, the
  * stages in order with their tasks (title, role, start day, working days, "Can stretch"), and a small timeline. One main
- * button: Save template. The first problem shows above it, in the order of the form.
+ * button: Save template. The first problem shows above it, in the order of the form. A copy (Duplicate) opens filled with its draft,
+ * and Save makes a new template from it.
  */
-export function ProjectTemplateEditor({ template, onClose }: { template: ProjectTemplate | null; onClose: () => void }) {
+export function ProjectTemplateEditor({ template, copy, onClose }: {
+  template: ProjectTemplate | null; copy?: TemplateDraft; onClose: () => void;
+}) {
   const { t } = useTranslation();
   const toast = useToast();
   const nameOf = usePersonName();
@@ -252,7 +255,7 @@ export function ProjectTemplateEditor({ template, onClose }: { template: Project
     .filter((user) => user.kind === 'human' && (user.active || template?.roles.some((role) => role.defaultUserId === user.id)))
     .sort(byName)
     .map((user) => ({ id: user.id, label: nameOf(user) }));
-  const [draft, setDraft] = useState<TemplateDraft>(() => (template ? draftOf(template) : emptyDraft()));
+  const [draft, setDraft] = useState<TemplateDraft>(() => (template ? draftOf(template) : (copy ?? emptyDraft())));
   const [problem, setProblem] = useState<string | null>(null);
   const save = useAction('projectTemplates.save', {
     onSuccess: () => {
@@ -275,7 +278,7 @@ export function ProjectTemplateEditor({ template, onClose }: { template: Project
       open
       wide
       onOpenChange={(open) => { if (!open) onClose(); }}
-      title={template ? template.name : t('projectTemplates.newTitle')}
+      title={template ? template.name : (copy?.name ?? t('projectTemplates.newTitle'))}
       footer={(
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>

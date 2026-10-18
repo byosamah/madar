@@ -12,6 +12,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { actorContext, counted } from '../../../lib/grammar';
 import { templateDays } from '../../../lib/projectPlan';
 import { ProjectTemplateEditor } from './ProjectTemplateEditor';
+import { duplicateDraft, type TemplateDraft } from './templateDraft';
 
 /** "5 stages · 11 tasks · 60 working days". A former stage template has stages only, so its line names only them. */
 function useSizeLine() {
@@ -28,8 +29,8 @@ function useSizeLine() {
 
 /**
  * The office's project templates (owner, 2026-10-05, item 6a), Admin only: one row for each template, with its size and who
- * saved it. A row opens the template in the editor. "New template" opens an empty editor. Stage templates of before are here
- * as templates with stages and no tasks.
+ * saved it. A row opens the template in the editor, and Duplicate opens a copy of it. "New template" opens an empty editor. Stage
+ * templates of before are here as templates with stages and no tasks.
  */
 export function ProjectTemplatesSection() {
   const { t } = useTranslation();
@@ -37,14 +38,19 @@ export function ProjectTemplatesSection() {
   const sizeOf = useSizeLine();
   const templates = useCall('projectTemplates.list', {});
   const remove = useUndoable('projectTemplates.delete', { message: () => t('projectTemplates.deleted') });
-  // undefined: no editor. null: a new template.
-  const [editing, setEditing] = useState<ProjectTemplate | null | undefined>(undefined);
+  const users = useCall('users.list', {});
+  // A copy keeps a default person only while that person is active.
+  const activeIds = new Set((users.data ?? []).filter((user) => user.kind === 'human' && user.active).map((user) => user.id));
+  const names = (templates.data ?? []).map((other) => other.name);
+  const copyWord = (name: string) => t('projectTemplates.copyOf', { name });
+  // undefined: no editor. A new template: template null. A copy: the editor opens filled with its draft.
+  const [editing, setEditing] = useState<{ template: ProjectTemplate | null; copy?: TemplateDraft } | undefined>(undefined);
 
   return (
     <section aria-labelledby="admin-project-templates" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-project-templates" className="text-headline">{t('projectTemplates.title')}</h2>
-        <Button onClick={() => setEditing(null)}>
+        <Button onClick={() => setEditing({ template: null })}>
           <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
           {t('projectTemplates.new')}
         </Button>
@@ -69,7 +75,7 @@ export function ProjectTemplatesSection() {
               {template.canEdit ? (
                 <button
                   type="button"
-                  onClick={() => setEditing(template)}
+                  onClick={() => setEditing({ template })}
                   className="pressable flex min-h-14 min-w-0 flex-1 items-center rounded-xl px-2 py-2 text-start hover:bg-fill"
                 >
                   {body}
@@ -78,14 +84,27 @@ export function ProjectTemplatesSection() {
               {template.canEdit && (
                 <Menu
                   label={t('projectTemplates.actions', { name: template.name })}
-                  items={[{ label: t('projectTemplates.delete'), onSelect: () => remove.mutate({ id: template.id }), destructive: true }]}
+                  items={[
+                    {
+                      label: t('projectTemplates.duplicate'),
+                      onSelect: () => setEditing({ template: null, copy: duplicateDraft(template, names, activeIds, copyWord) }),
+                    },
+                    { label: t('projectTemplates.delete'), onSelect: () => remove.mutate({ id: template.id }), destructive: true },
+                  ]}
                 />
               )}
             </li>
           );
         })}
       </ul>
-      {editing !== undefined && <ProjectTemplateEditor key={editing?.id ?? 'new'} template={editing} onClose={() => setEditing(undefined)} />}
+      {editing !== undefined && (
+        <ProjectTemplateEditor
+          key={editing.template?.id ?? 'new'}
+          template={editing.template}
+          copy={editing.copy}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
     </section>
   );
 }

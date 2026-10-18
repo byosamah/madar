@@ -29,6 +29,8 @@
     "savedBy": "حفظه {{name}}",
     "savedBy_female": "حفظته {{name}}",
     "actions": "إجراءات القالب {{name}}",
+    "duplicate": "تكرار",
+    "copyOf": "نسخة من {{name}}",
     "delete": "حذف",
     "deleted": "حُذف القالب.",
     "saved": "حُفظ القالب.",

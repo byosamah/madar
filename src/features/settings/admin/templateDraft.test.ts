@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, emptyDraft, moveStage, moveStageStart, removeRole, removeStage,
-  reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
+  removeStage, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -211,5 +211,35 @@ describe('the waits of a template part', () => {
     expect(draftInput(withoutMassing).tasks[0]).not.toHaveProperty('prerequisiteIds');
     const withoutConcept = { ...draft, stages: draft.stages.filter((stage) => stage.id !== 's1'), tasks: [] };
     expect(draftInput(withoutConcept).stages[0]).not.toHaveProperty('prerequisiteIds');
+  });
+});
+
+describe('duplicateDraft', () => {
+  const copyWord = (name: string) => `Copy of ${name}`;
+
+  it('makes a draft with no id, a copy name, and the same parts as the template', () => {
+    const copy = duplicateDraft(SAVED, ['Villa'], new Set(['usr_002']), copyWord);
+    expect(copy).not.toHaveProperty('id');
+    expect(copy.name).toBe('Copy of Villa');
+    expect(draftInput(copy)).toEqual({ ...draftInput(draftOf(SAVED)), name: 'Copy of Villa' });
+    expect(draftError(copy)).toBeNull();
+  });
+
+  it('adds " 2", then " 3", to the copy name while that name is in use, without case', () => {
+    expect(duplicateDraft(SAVED, ['Copy of Villa'], new Set(), copyWord).name).toBe('Copy of Villa 2');
+    expect(duplicateDraft(SAVED, ['copy of villa', 'Copy of Villa 2'], new Set(), copyWord).name).toBe('Copy of Villa 3');
+  });
+
+  it('keeps the copy name within the 60 characters of a template name', () => {
+    const long = { ...SAVED, name: 'x'.repeat(60) };
+    expect(duplicateDraft(long, [], new Set(), copyWord).name).toBe(`Copy of ${'x'.repeat(52)}`);
+    expect(duplicateDraft(long, [`Copy of ${'x'.repeat(52)}`], new Set(), copyWord).name).toBe(`Copy of ${'x'.repeat(50)} 2`);
+  });
+
+  it('empties the default person who is not active, so the save never refuses it', () => {
+    const copy = duplicateDraft(SAVED, [], new Set<string>(), copyWord);
+    expect(copy.roles[0].defaultUserId).toBe('');
+    expect(draftInput(copy).roles[0].defaultUserId).toBeNull();
+    expect(draftError(copy)).toBeNull();
   });
 });
